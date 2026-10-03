@@ -5,6 +5,43 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-03
+
+### Added
+- **Automation Domain & DSL (`internal/domain/automation`)**:
+  - `Automation` domain model with validation invariants (`name` required, `triggers` and `actions` required).
+  - Flexible JSON DSL for `Trigger` (`state`, `numeric_state`, `event`, `time`), `Condition` (`state`, `numeric_state`, `time`, `and`, `or`, `not`), and `Action` (`service`, `delay`, `event`).
+  - `AutomationRun` model recording execution status (`running`, `completed`, `failed`, `skipped`), trigger context, duration in milliseconds, and run logs.
+- **Scene Domain (`internal/domain/scene`)**:
+  - `Scene` domain model with multi-entity preset actions.
+- **SQLite Repositories**:
+  - `AutomationRepository`: CRUD for automations and full execution run history tracking in `automations` and `automation_runs` tables.
+  - `SceneRepository`: CRUD for scene presets in `scenes` table.
+  - Exposed via aggregate `Repositories.Automations` and `Repositories.Scenes`.
+- **Automation Engine Runtime (`internal/application/automation`)**:
+  - `Evaluator`: evaluates trigger matching and condition predicates (supporting numeric comparisons, state equality, time windows, and logical operators).
+  - `Engine`: event-driven worker pool listening to `events.Bus`. Matches incoming events, enforces per-rule cooldown periods, checks conditions, runs actions asynchronously with panic recovery, logs execution runs, and publishes `automation.triggered`, `automation.run_completed`, and `automation.run_failed`.
+  - Manual trigger capability via `TriggerAutomation(ctx, id)`.
+- **Scene Application Service (`internal/application/scene`)**:
+  - `Service.ApplyScene(ctx, id)`: translates scene definitions into sequential entity control commands and broadcasts `scene.activated`.
+- **REST Endpoints for Automations & Scenes**:
+  - `/api/v1/automations` (GET, POST): list and create automations.
+  - `/api/v1/automations/{id}` (GET, PUT, DELETE): inspect, update, and remove rules.
+  - `/api/v1/automations/{id}/trigger` (POST): manual trigger endpoint.
+  - `/api/v1/automations/{id}/runs` (GET): execution history logs.
+  - `/api/v1/scenes` (GET, POST): list and create scenes.
+  - `/api/v1/scenes/{id}` (GET, PUT, DELETE): inspect, update, and remove scenes.
+  - `/api/v1/scenes/{id}/apply` (POST): activate scene preset.
+- **WebSocket Real-Time Broadcast Integration**:
+  - Added subscriptions in `websocket.Hub` for `automation.triggered`, `automation.run_completed`, and `automation.run_failed`.
+- **TDD Test Suites**:
+  - Unit tests for automation and scene domain models and validation.
+  - Integration tests for SQLite automation and scene repositories.
+  - Unit tests for trigger & condition evaluator and engine execution runner.
+  - Unit tests for scene application service.
+  - HTTP handler tests covering all REST endpoints.
+  - Full end-to-end integration test (`test/e2e/automation_scene_e2e_test.go`) validating the complete loop: MQTT telemetry $\to$ entity state update $\to$ event bus $\to$ automation evaluation $\to$ condition verification $\to$ hardware command dispatch $\to$ SQLite run recording $\to$ real-time WebSocket client notifications, plus scene creation and activation.
+
 ## [0.4.0] - 2026-10-03
 
 ### Added

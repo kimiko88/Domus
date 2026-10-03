@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	appauto "github.com/domus-hub/domus/internal/application/automation"
+	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
@@ -39,6 +41,14 @@ func WithRepositories(repos *sqlite.Repositories, bus events.Bus) ServerOption {
 	}
 }
 
+// WithAutomation attaches an automation engine and scene service.
+func WithAutomation(engine *appauto.Engine, sceneService *appscene.Service) ServerOption {
+	return func(s *Server) {
+		s.autoEngine = engine
+		s.sceneService = sceneService
+	}
+}
+
 // WithWebSocket attaches the WebSocket real-time broadcast hub.
 func WithWebSocket(hub *wsinfra.Hub) ServerOption {
 	return func(s *Server) {
@@ -48,15 +58,17 @@ func WithWebSocket(hub *wsinfra.Hub) ServerOption {
 
 // Server encapsulates the HTTP router and net/http server lifecycle.
 type Server struct {
-	cfg         config.ServerConfig
-	router      chi.Router
-	httpServer  *http.Server
-	listener    net.Listener
-	authService *auth.Service
-	rateLimiter *auth.RateLimiter
-	repos       *sqlite.Repositories
-	bus         events.Bus
-	wsHub       *wsinfra.Hub
+	cfg          config.ServerConfig
+	router       chi.Router
+	httpServer   *http.Server
+	listener     net.Listener
+	authService  *auth.Service
+	rateLimiter  *auth.RateLimiter
+	repos        *sqlite.Repositories
+	bus          events.Bus
+	wsHub        *wsinfra.Hub
+	autoEngine   *appauto.Engine
+	sceneService *appscene.Service
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -140,6 +152,27 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				entRouter.Get("/", entityH.List)
 				entRouter.Get("/{id}", entityH.GetByID)
 				entRouter.Post("/{id}/command", entityH.Command)
+			})
+
+			autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine)
+			api.Route("/automations", func(autoRouter chi.Router) {
+				autoRouter.Get("/", autoH.List)
+				autoRouter.Post("/", autoH.Create)
+				autoRouter.Get("/{id}", autoH.Get)
+				autoRouter.Put("/{id}", autoH.Update)
+				autoRouter.Delete("/{id}", autoH.Delete)
+				autoRouter.Post("/{id}/trigger", autoH.Trigger)
+				autoRouter.Get("/{id}/runs", autoH.ListRuns)
+			})
+
+			sceneH := handlers.NewSceneHandler(srv.repos.Scenes, srv.sceneService)
+			api.Route("/scenes", func(sceneRouter chi.Router) {
+				sceneRouter.Get("/", sceneH.List)
+				sceneRouter.Post("/", sceneH.Create)
+				sceneRouter.Get("/{id}", sceneH.Get)
+				sceneRouter.Put("/{id}", sceneH.Update)
+				sceneRouter.Delete("/{id}", sceneH.Delete)
+				sceneRouter.Post("/{id}/apply", sceneH.Apply)
 			})
 		}
 	})

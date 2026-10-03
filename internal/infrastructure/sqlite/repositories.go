@@ -6,9 +6,11 @@ import (
 
 	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/audit"
+	"github.com/domus-hub/domus/internal/domain/automation"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/domain/scene"
 	"github.com/domus-hub/domus/internal/domain/user"
 )
 
@@ -21,6 +23,8 @@ type Repositories struct {
 	Integrations integration.Repository
 	Devices      device.Repository
 	Entities     entity.Repository
+	Automations  automation.Repository
+	Scenes       scene.Repository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -33,5 +37,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Integrations: NewIntegrationRepository(db),
 		Devices:      NewDeviceRepository(db),
 		Entities:     NewEntityRepository(db),
+		Automations:  NewAutomationRepository(db),
+		Scenes:       NewSceneRepository(db),
 	}
 }

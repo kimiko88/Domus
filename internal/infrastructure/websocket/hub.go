@@ -118,4 +118,7 @@ func (h *Hub) subscribeToBus() {
 	h.bus.Subscribe(events.IntegrationStateChanged, forwardHandler)
 	h.bus.Subscribe(events.NotificationCreated, forwardHandler)
 	h.bus.Subscribe(events.SceneActivated, forwardHandler)
+	h.bus.Subscribe(events.AutomationTriggered, forwardHandler)
+	h.bus.Subscribe(events.AutomationRunCompleted, forwardHandler)
+	h.bus.Subscribe(events.AutomationRunFailed, forwardHandler)
 }
