@@ -1,0 +1,37 @@
+[Unit]
+Description=Domus Local-First Smart Home Hub
+Documentation=https://github.com/domus-hub/domus
+After=network.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=domus
+Group=domus
+WorkingDirectory=/var/lib/domus
+ExecStart=/usr/local/bin/domus -config /etc/domus/domus.toml
+Restart=always
+RestartSec=5s
+
+# Process Environment & Limits
+Environment=DOMUS_DATABASE_PATH=/var/lib/domus/domus.db
+LimitNOFILE=65536
+
+# Security & Sandboxing
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/domus
+ReadOnlyPaths=/etc/domus
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=domus
+
+[Install]
+WantedBy=multi-user.target

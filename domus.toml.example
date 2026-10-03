@@ -1,0 +1,63 @@
+# ==============================================================================
+# Domus Configuration File Example
+# ==============================================================================
+# All settings can be overridden by environment variables prefixed with DOMUS_
+# Examples:
+#   DOMUS_SERVER_PORT=8080
+#   DOMUS_DATABASE_PATH=/data/domus.db
+#   DOMUS_LOG_LEVEL=info
+# ==============================================================================
+
+[server]
+# Host address to bind the HTTP and WebSocket server.
+# "0.0.0.0" listens on all interfaces (LAN & localhost).
+host = "0.0.0.0"
+
+# Port number for HTTP traffic.
+port = 8080
+
+# Set to true if running behind a reverse proxy terminating HTTPS/TLS.
+cookie_secure = false
+
+[database]
+# Path to SQLite database file. Parent directory will be created automatically.
+# Use ":memory:" for transient in-memory database testing.
+path = "./data/domus.db"
+
+# Enable SQLite Write-Ahead Logging (WAL) mode for concurrent reads and writes.
+wal_mode = true
+
+# Maximum milliseconds to wait on database lock before returning SQLITE_BUSY.
+busy_timeout_ms = 5000
+
+# Maximum open database connections (1 is recommended for single-writer SQLite).
+max_open_conns = 1
+
+[logging]
+# Log verbosity level: "debug", "info", "warn", "error"
+level = "info"
+
+# Log output format: "json" (recommended for production/systemd) or "text" (dev)
+format = "json"
+
+[auth]
+# Session cookie lifetime. Supports standard duration units (e.g., "24h", "7d", "168h").
+session_ttl = "24h"
+
+# Maximum login attempts allowed per minute per IP before throttling.
+rate_limit_login_per_min = 10
+
+# Argon2id password hashing parameters (tuned for Raspberry Pi 4).
+argon2_time = 1
+argon2_memory = 65536  # 64 MiB
+argon2_threads = 4
+
+[retention]
+# Retention period for sensor state history (days).
+state_history_days = 30
+
+# Retention period for audit logs (days).
+audit_log_days = 90
+
+# Retention period for automation execution logs (days).
+automation_run_days = 30

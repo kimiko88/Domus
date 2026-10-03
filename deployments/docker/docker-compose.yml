@@ -1,0 +1,49 @@
+services:
+  domus:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    container_name: domus-hub
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DOMUS_SERVER_HOST=0.0.0.0
+      - DOMUS_SERVER_PORT=8080
+      - DOMUS_DATABASE_PATH=/data/domus.db
+      - DOMUS_LOG_LEVEL=info
+      - DOMUS_LOG_FORMAT=json
+    volumes:
+      - domus_data:/data
+    depends_on:
+      - mosquitto
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - domus_net
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: domus-mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
+    networks:
+      - domus_net
+
+volumes:
+  domus_data:
+  mosquitto_data:
+  mosquitto_log:
+
+networks:
+  domus_net:
+    driver: bridge

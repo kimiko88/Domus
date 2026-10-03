@@ -1,0 +1,43 @@
+# ── Build outputs ─────────────────────────────────
+bin/
+dist/
+
+# ── Data directory (runtime) ──────────────────────
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# ── Configuration (may contain secrets) ───────────
+domus.toml
+secrets.yaml
+*.key
+*.pem
+*.crt
+
+# ── Go toolchain ──────────────────────────────────
+vendor/
+
+# ── IDE ───────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Frontend ──────────────────────────────────────
+web/node_modules/
+web/dist/
+web/.vite/
+
+# ── Test artefacts ────────────────────────────────
+coverage.out
+coverage.html
+*.test
+
+# ── Backups ───────────────────────────────────────
+*.backup
+*.bak

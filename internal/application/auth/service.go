@@ -1,0 +1,231 @@
+// Package auth provides authentication application logic.
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/domus-hub/domus/internal/domain/audit"
+	"github.com/domus-hub/domus/internal/domain/user"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
+	"github.com/google/uuid"
+)
+
+var (
+	ErrSetupAlreadyCompleted = errors.New("auth: initial setup has already been completed")
+	ErrInvalidCredentials    = errors.New("auth: invalid username or password")
+)
+
+// Service coordinates authentication, session lifecycle, and audit logs.
+type Service struct {
+	userRepo    user.UserRepository
+	sessionRepo user.SessionRepository
+	auditRepo   audit.Repository
+	hasher      *crypto.Argon2Hasher
+	sessionTTL  time.Duration
+}
+
+// NewService constructs an AuthService.
+func NewService(
+	userRepo user.UserRepository,
+	sessionRepo user.SessionRepository,
+	auditRepo audit.Repository,
+	hasher *crypto.Argon2Hasher,
+	sessionTTL time.Duration,
+) *Service {
+	if sessionTTL <= 0 {
+		sessionTTL = 24 * time.Hour
+	}
+	return &Service{
+		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
+		auditRepo:   auditRepo,
+		hasher:      hasher,
+		sessionTTL:  sessionTTL,
+	}
+}
+
+// IsSetupRequired returns true if no users exist in the system yet.
+func (s *Service) IsSetupRequired(ctx context.Context) (bool, error) {
+	count, err := s.userRepo.Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("auth service: check user count: %w", err)
+	}
+	return count == 0, nil
+}
+
+// SetupInitialAdmin provisions the first administrator user during onboarding.
+func (s *Service) SetupInitialAdmin(ctx context.Context, username, password string) (*user.User, error) {
+	required, err := s.IsSetupRequired(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !required {
+		return nil, ErrSetupAlreadyCompleted
+	}
+
+	trimmedUser := strings.TrimSpace(username)
+	if len(trimmedUser) < 3 || len(trimmedUser) > 64 {
+		return nil, user.ErrInvalidUsername
+	}
+	if len(password) < 8 {
+		return nil, user.ErrInvalidPassword
+	}
+
+	hash, err := s.hasher.HashPassword(password)
+	if err != nil {
+		return nil, fmt.Errorf("auth service: failed to hash password: %w", err)
+	}
+
+	now := time.Now().UTC()
+	admin := &user.User{
+		ID:           uuid.NewString(),
+		Username:     trimmedUser,
+		PasswordHash: hash,
+		Role:         user.RoleAdmin,
+		Enabled:      true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.userRepo.Create(ctx, admin); err != nil {
+		return nil, fmt.Errorf("auth service: failed to create admin: %w", err)
+	}
+
+	// Record audit event
+	_ = s.auditRepo.Record(ctx, &audit.Entry{
+		ActorType:  audit.ActorSystem,
+		Action:     "auth.setup.admin_created",
+		TargetType: "user",
+		TargetID:   admin.ID,
+		Payload:    fmt.Sprintf(`{"username":%q}`, admin.Username),
+		CreatedAt:  now,
+	})
+
+	return admin, nil
+}
+
+// Login authenticates credentials, establishes a session, and writes audit records.
+func (s *Service) Login(ctx context.Context, username, password, ip, userAgent string) (*user.Session, *user.User, error) {
+	u, err := s.userRepo.GetByUsername(ctx, strings.TrimSpace(username))
+	if err != nil {
+		// Dummy verify to mitigate timing attacks against non-existent users
+		_, _ = s.hasher.VerifyPassword("dummy_password", "$argon2id$v=19$m=32768,t=1,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNo")
+		_ = s.recordLoginAudit(ctx, "auth.login.failed", "", username, ip, userAgent, "user not found")
+		return nil, nil, ErrInvalidCredentials
+	}
+
+	if !u.Enabled {
+		_ = s.recordLoginAudit(ctx, "auth.login.failed", u.ID, username, ip, userAgent, "user disabled")
+		return nil, nil, user.ErrUserDisabled
+	}
+
+	match, err := s.hasher.VerifyPassword(password, u.PasswordHash)
+	if err != nil || !match {
+		_ = s.recordLoginAudit(ctx, "auth.login.failed", u.ID, username, ip, userAgent, "password mismatch")
+		return nil, nil, ErrInvalidCredentials
+	}
+
+	// Create random session token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, nil, fmt.Errorf("auth service: failed to generate session token: %w", err)
+	}
+	sessionID := hex.EncodeToString(tokenBytes)
+
+	now := time.Now().UTC()
+	sess := &user.Session{
+		ID:        sessionID,
+		UserID:    u.ID,
+		ExpiresAt: now.Add(s.sessionTTL),
+		CreatedAt: now,
+		IPAddress: ip,
+		UserAgent: userAgent,
+	}
+
+	if err := s.sessionRepo.Create(ctx, sess); err != nil {
+		return nil, nil, fmt.Errorf("auth service: failed to persist session: %w", err)
+	}
+
+	_ = s.recordLoginAudit(ctx, "auth.login.success", u.ID, username, ip, userAgent, "")
+	return sess, u, nil
+}
+
+// Logout terminates an active session and records the action.
+func (s *Service) Logout(ctx context.Context, sessionID string) error {
+	sess, err := s.sessionRepo.GetByID(ctx, sessionID)
+	if err != nil {
+		return nil // idempotent logout
+	}
+
+	if err := s.sessionRepo.Delete(ctx, sessionID); err != nil {
+		return fmt.Errorf("auth service: failed to delete session: %w", err)
+	}
+
+	_ = s.auditRepo.Record(ctx, &audit.Entry{
+		ActorType:  audit.ActorLocalUser,
+		ActorID:    sess.UserID,
+		Action:     "auth.logout",
+		TargetType: "session",
+		TargetID:   sessionID,
+		CreatedAt:  time.Now().UTC(),
+	})
+
+	return nil
+}
+
+// ValidateSession verifies if a session exists, is not expired, and user is active.
+func (s *Service) ValidateSession(ctx context.Context, sessionID string) (*user.User, *user.Session, error) {
+	if sessionID == "" {
+		return nil, nil, user.ErrSessionNotFound
+	}
+
+	sess, err := s.sessionRepo.GetByID(ctx, sessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if sess.IsExpired() {
+		_ = s.sessionRepo.Delete(ctx, sessionID)
+		return nil, nil, user.ErrSessionExpired
+	}
+
+	u, err := s.userRepo.GetByID(ctx, sess.UserID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !u.Enabled {
+		return nil, nil, user.ErrUserDisabled
+	}
+
+	return u, sess, nil
+}
+
+func (s *Service) recordLoginAudit(ctx context.Context, action, userID, username, ip, ua, reason string) error {
+	payload := fmt.Sprintf(`{"username":%q,"ip":%q,"user_agent":%q`, username, ip, ua)
+	if reason != "" {
+		payload += fmt.Sprintf(`,"reason":%q}`, reason)
+	} else {
+		payload += "}"
+	}
+
+	actorType := audit.ActorLocalUser
+	if userID == "" {
+		actorType = audit.ActorSystem
+	}
+
+	return s.auditRepo.Record(ctx, &audit.Entry{
+		ActorType:  actorType,
+		ActorID:    userID,
+		Action:     action,
+		TargetType: "auth",
+		Payload:    payload,
+		CreatedAt:  time.Now().UTC(),
+	})
+}

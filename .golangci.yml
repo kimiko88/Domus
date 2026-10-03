@@ -1,0 +1,44 @@
+run:
+  timeout: 3m
+  go: "1.23"
+
+linters:
+  default: false
+  enable:
+    - errcheck       # checks for unchecked errors
+    - govet          # go vet checks
+    - staticcheck    # comprehensive static analysis
+    - unused         # finds unused code
+    - bodyclose      # HTTP response body must be closed
+    - godot          # checks that comments end with a period
+    - misspell       # spell-checker for comments and strings
+    - revive         # drop-in replacement for golint
+    - unconvert      # unnecessary type conversions
+    - unparam        # unused function parameters
+    - whitespace     # leading/trailing blank lines in blocks
+    - gocritic       # opinionated code style checks
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+  godot:
+    scope: declarations
+    capital: false
+  gocritic:
+    disabled-checks:
+      - hugeParam     # allow large structs in function params for now
+
+issues:
+  exclude-rules:
+    # Allow fmt.Println in main and CLI
+    - path: cmd/
+      linters: [forbidigo]
+    # Test files: allow unkeyed struct literals and magic numbers
+    - path: _test\.go
+      linters: [gocritic, revive, unparam]
+    # Generated or wiring code
+    - path: main\.go
+      linters: [godot]
