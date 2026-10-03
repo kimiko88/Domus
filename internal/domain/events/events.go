@@ -18,6 +18,9 @@ const (
 	// DeviceOffline fires when a device stops responding.
 	DeviceOffline EventType = "device.offline"
 
+	// IntegrationStateChanged fires when an integration adapter connects, disconnects, or changes health state.
+	IntegrationStateChanged EventType = "integration.state_changed"
+
 	// EntityStateChanged fires every time an entity's state or availability changes.
 	EntityStateChanged EventType = "entity.state_changed"
 

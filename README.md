@@ -141,7 +141,7 @@ sudo systemctl enable --now domus
 - [x] **MS-01: Foundation & Skeleton** (Repo structure, pure Go SQLite WAL, event bus, config loader, HTTP server, E2E test, Docker/Systemd)
 - [x] **MS-02: Auth, RBAC & First API** (Argon2id, session cookies, CSRF, admin wizard, login/logout, audit log)
 - [x] **MS-03: MQTT Generic & Entity Model** (MQTT adapter, device/entity domain repositories, WebSocket live feed, REST commands)
-- [ ] **MS-04: Zigbee2MQTT & ESPHome** (Protocol adapters and mappers)
+- [x] **MS-04: Zigbee2MQTT & ESPHome** (Zigbee2MQTT auto-discovery & mapper, ESPHome MQTT mapper, Cloud resilience circuit breaker, E2E suite)
 - [ ] **MS-05: Automation Engine v1** (JSON DSL, triggers, conditions, actions, execution runner)
 - [ ] **MS-06: Frontend Core** (Vue 3, Vite, TypeScript, Pinia, PWA, dynamic dashboard)
 - [ ] **MS-07: Frontend Automations & Scenes** (Visual automation builder, scene toggles)

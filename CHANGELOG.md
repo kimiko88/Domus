@@ -5,6 +5,32 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-03
+
+### Added
+- **Zigbee2MQTT Protocol Adapter (`internal/plugins/zigbee2mqtt`)**:
+  - `DeviceMapper`: Parses Zigbee2MQTT `bridge/devices` payloads into Domus `Device` and typed `Entity` hierarchies (lights, switches, contact/occupancy binary sensors, temperature/humidity/battery/power sensors).
+  - Outbound command translation: maps Domus `Command` (`turn_on`, `turn_off`, `toggle`, `set_brightness`, `set_color_temp`) to `zigbee2mqtt/<friendly_name>/set` JSON payloads.
+  - `zigbee2mqtt.Adapter` implementing `plugins.Adapter`: auto-discovery, telemetry state ingestion, SQLite persistence, and event bus broadcast.
+  - Bridge state tracking: monitors `bridge/state` ("online"/"offline") and emits `events.IntegrationStateChanged`.
+- **ESPHome MQTT Integration Adapter (`internal/plugins/esphome_mqtt`)**:
+  - `EntityMapper`: Parses `<node_name>/<domain>/<object_id>/state` topics, extracts node/domain/object, infers units of measurement (°C, %, W, V, A, dBm).
+  - Outbound commands: translates control commands to `<node_name>/<domain>/<object_id>/command`.
+  - Node LWT tracking: monitors `<node_name>/status` and emits `events.DeviceOnline` / `events.DeviceOffline`.
+  - `esphome_mqtt.Adapter` implementing `plugins.Adapter`: on-the-fly auto-discovery and state synchronization.
+- **Cloud Resilience & Graceful Degradation (`internal/plugins/cloud`)**:
+  - `CircuitBreaker`: Thread-safe Closed / Open / Half-Open state machine with configurable failure threshold and reset cooldown.
+  - Fast-failing (<1ms) when cloud API is down without blocking local event loops or HTTP requests.
+  - Cloud provider stubs: `TuyaProvider`, `XiaomiProvider`, `EwelinkProvider`, and `VesyncProvider`.
+  - `cloud.Adapter` implementing `plugins.Adapter`: degrades gracefully and emits `events.IntegrationStateChanged` with status `degraded`.
+- **Real-Time Integration Status Forwarding**:
+  - Subscribed `websocket.Hub` to `events.IntegrationStateChanged` so UI receives instant status updates when bridges or cloud adapters disconnect or degrade.
+- **TDD Test Suites**:
+  - Unit tests for Zigbee2MQTT device mapper and adapter.
+  - Unit tests for ESPHome entity mapper and adapter.
+  - Unit tests for Cloud CircuitBreaker and resilience adapter.
+  - End-to-end integration test (`test/e2e/zigbee2mqtt_esphome_e2e_test.go`) validating concurrent Z2M, ESPHome, and Cloud adapters with live WebSocket frame verification.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added

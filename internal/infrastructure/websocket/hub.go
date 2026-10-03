@@ -115,6 +115,7 @@ func (h *Hub) subscribeToBus() {
 	h.bus.Subscribe(events.DeviceOnline, forwardHandler)
 	h.bus.Subscribe(events.DeviceOffline, forwardHandler)
 	h.bus.Subscribe(events.DeviceDiscovered, forwardHandler)
+	h.bus.Subscribe(events.IntegrationStateChanged, forwardHandler)
 	h.bus.Subscribe(events.NotificationCreated, forwardHandler)
 	h.bus.Subscribe(events.SceneActivated, forwardHandler)
 }
