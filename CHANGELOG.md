@@ -5,6 +5,35 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-03
+
+### Added
+- **Hardware & Spatial Domains**:
+  - `Area` domain model and SQLite repository for room and zone hierarchies.
+  - `Integration` domain model and SQLite repository for plugin management.
+  - `Device` domain model and SQLite repository tracking physical hardware and online statuses.
+  - `Entity` domain model and SQLite repository for discrete telemetry points with typed state value objects (`LightState`, `SwitchState`, `SensorState`, `BinarySensorState`).
+- **Generic MQTT Integration Adapter**:
+  - `Client` interface with production Paho wrapper (`PahoClient`) and thread-safe testing mock (`MockClient`) supporting wildcard topic matching.
+  - `mqtt_generic.Adapter` implementing `plugins.Adapter`.
+  - Ingestion: translates incoming MQTT messages into entity state updates in SQLite and emits `events.EntityStateChanged` onto `events.Bus`.
+  - Outbound commands: intercepts `events.CommandRequested` from event bus and dispatches payload to device MQTT command topics.
+- **WebSocket Real-time Broadcast Hub**:
+  - `websocket.Hub` managing active WebSocket client handles and real-time broadcasts.
+  - Automatic event bus subscription forwarding `entity.state_changed`, `device.online`, `device.offline`, `scene.activated`, and `notification.created` to connected clients.
+  - `websocket.Handler` upgrading connections with session validation and ping/pong keepalive.
+- **REST Endpoints for Spaces & Hardware**:
+  - `/api/v1/areas`: list and create areas.
+  - `/api/v1/devices`: list and inspect devices with filtering.
+  - `/api/v1/entities`: list and inspect entities with filtering.
+  - `/api/v1/entities/{id}/command`: dispatch control commands triggering domain events and hardware execution.
+  - `/ws`: real-time WebSocket connection endpoint.
+- **TDD Test Suites**:
+  - Unit tests for Area, Device, Entity, and Command HTTP handlers.
+  - Integration tests for SQLite Area, Device, Entity, and Integration repositories.
+  - Unit tests for WebSocket Hub and MQTT Generic Adapter.
+  - E2E integration test: MQTT ingestion $\to$ SQLite persistence $\to$ EventBus dispatch $\to$ live WebSocket client frame delivery $\to$ REST command execution $\to$ MQTT publish.
+
 ## [0.2.0] - 2026-10-03
 
 ### Added

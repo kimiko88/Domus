@@ -9,9 +9,13 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
@@ -27,6 +31,21 @@ func WithAuth(authService *auth.Service, limiter *auth.RateLimiter) ServerOption
 	}
 }
 
+// WithRepositories attaches domain repositories and enables hardware/spatial routes.
+func WithRepositories(repos *sqlite.Repositories, bus events.Bus) ServerOption {
+	return func(s *Server) {
+		s.repos = repos
+		s.bus = bus
+	}
+}
+
+// WithWebSocket attaches the WebSocket real-time broadcast hub.
+func WithWebSocket(hub *wsinfra.Hub) ServerOption {
+	return func(s *Server) {
+		s.wsHub = hub
+	}
+}
+
 // Server encapsulates the HTTP router and net/http server lifecycle.
 type Server struct {
 	cfg         config.ServerConfig
@@ -35,6 +54,9 @@ type Server struct {
 	listener    net.Listener
 	authService *auth.Service
 	rateLimiter *auth.RateLimiter
+	repos       *sqlite.Repositories
+	bus         events.Bus
+	wsHub       *wsinfra.Hub
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -65,13 +87,19 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	// Public health routes
 	r.Method(http.MethodGet, "/health", healthHandler)
 
+	// WebSocket real-time route
+	if srv.wsHub != nil {
+		wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+		r.Method(http.MethodGet, "/ws", wsH)
+	}
+
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Route("/system", func(sys chi.Router) {
 			sys.Method(http.MethodGet, "/health", healthHandler)
 		})
 
-		// Auth namespace
+		// Auth routes
 		if srv.authService != nil {
 			authH := handlers.NewAuthHandler(srv.authService, cfg.CookieSecure)
 			api.Route("/auth", func(authRouter chi.Router) {
@@ -88,6 +116,30 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				// Protected auth routes
 				authRouter.With(domusmw.RequireAuth()).Post("/logout", authH.Logout)
 				authRouter.With(domusmw.RequireAuth()).Get("/me", authH.Me)
+			})
+		}
+
+		// Domain repository routes (Areas, Devices, Entities)
+		if srv.repos != nil {
+			areaH := handlers.NewAreaHandler(srv.repos.Areas)
+			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
+			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
+
+			api.Route("/areas", func(areaRouter chi.Router) {
+				areaRouter.Get("/", areaH.List)
+				areaRouter.Post("/", areaH.Create)
+				areaRouter.Get("/{id}", areaH.GetByID)
+			})
+
+			api.Route("/devices", func(devRouter chi.Router) {
+				devRouter.Get("/", deviceH.List)
+				devRouter.Get("/{id}", deviceH.GetByID)
+			})
+
+			api.Route("/entities", func(entRouter chi.Router) {
+				entRouter.Get("/", entityH.List)
+				entRouter.Get("/{id}", entityH.GetByID)
+				entRouter.Post("/{id}/command", entityH.Command)
 			})
 		}
 	})

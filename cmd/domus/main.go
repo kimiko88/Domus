@@ -19,6 +19,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	serverpkg "github.com/domus-hub/domus/internal/interfaces/http"
 	"github.com/google/uuid"
 )
@@ -96,13 +97,21 @@ func main() {
 	})
 	defer bus.Close()
 
-	// 6. Initialize HTTP Server
+	// 6. Initialize WebSocket Hub
+	wsHub := wsinfra.NewHub(bus)
+	ctxHub, cancelHub := context.WithCancel(context.Background())
+	defer cancelHub()
+	go wsHub.Run(ctxHub)
+
+	// 7. Initialize HTTP Server
 	srv := serverpkg.NewServer(
 		cfg.Server,
 		Version,
 		startedAt,
 		db,
 		serverpkg.WithAuth(authService, loginLimiter),
+		serverpkg.WithRepositories(repos, bus),
+		serverpkg.WithWebSocket(wsHub),
 	)
 
 	serverErrCh := make(chan error, 1)

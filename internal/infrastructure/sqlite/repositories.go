@@ -4,22 +4,34 @@ package sqlite
 import (
 	"database/sql"
 
+	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/audit"
+	"github.com/domus-hub/domus/internal/domain/device"
+	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/domain/user"
 )
 
 // Repositories aggregates all initialized SQLite repositories.
 type Repositories struct {
-	Users    user.UserRepository
-	Sessions user.SessionRepository
-	Audit    audit.Repository
+	Users        user.UserRepository
+	Sessions     user.SessionRepository
+	Audit        audit.Repository
+	Areas        area.Repository
+	Integrations integration.Repository
+	Devices      device.Repository
+	Entities     entity.Repository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
 func NewRepositories(db *sql.DB) *Repositories {
 	return &Repositories{
-		Users:    NewUserRepository(db),
-		Sessions: NewSessionRepository(db),
-		Audit:    NewAuditRepository(db),
+		Users:        NewUserRepository(db),
+		Sessions:     NewSessionRepository(db),
+		Audit:        NewAuditRepository(db),
+		Areas:        NewAreaRepository(db),
+		Integrations: NewIntegrationRepository(db),
+		Devices:      NewDeviceRepository(db),
+		Entities:     NewEntityRepository(db),
 	}
 }
