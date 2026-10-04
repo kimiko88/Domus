@@ -82,19 +82,50 @@ domus/
 │   │   └── views/          # Dashboard, Areas, Devices, Automations, Scenes, History, Audit, Family, Settings, Register
 │   └── package.json
 │
+├── os/                     # Domus OS Buildroot BSP & Embedded Linux Appliance (RPi4 ARM64)
+│   ├── configs/            # Buildroot defconfigs (domus_rpi4_defconfig)
+│   ├── board/              # Board configurations, genimage GPT, config.txt, cmdline.txt, boot.cmd
+│   ├── build-container/    # Hermetic Docker build container for reproducible builds
+│   └── scripts/            # Build and validation scripts (build.sh)
+│
 ├── docs/
-│   ├── adr/                # Architecture Decision Records (ADR-001 to ADR-006)
-│   └── openapi/            # OpenAPI 3.1 YAML REST specification
+│   ├── adr/                # Architecture Decision Records (ADR-001 to ADR-013)
+│   ├── openapi/            # OpenAPI 3.1 YAML REST specification
+│   └── os/                 # Domus OS BSP and Appliance guides (MS-OS-01)
 │
 ├── deployments/
 │   ├── docker/             # Multi-stage Dockerfile and Docker Compose stack
 │   ├── systemd/            # Hardened Linux systemd service unit
 │   └── scripts/            # Non-interactive install and uninstall automation scripts
 │
-├── Makefile                # Build, test, lint, and run workflow targets
+├── Makefile                # Build, test, lint, run and Domus OS targets
 ├── .golangci.yml           # Static analysis and linter configuration
 └── domus.toml.example      # Reference configuration template
 ```
+
+---
+
+## ⚡ Domus OS: Purpose-Built Embedded Linux Appliance
+
+Domus can run as a standalone, immutable Linux appliance on **Raspberry Pi 4 Model B (ARM64)**, built with **Buildroot 2024.02 LTS**, **Linux 6.6 LTS**, and **U-Boot**:
+
+- **Dual-slot A/B updates** with automated rollback on failure.
+- **Immutable SquashFS** read-only root filesystem.
+- **Dedicated persistent `/data` partition** for SQLite WAL, configurations, and apps.
+- **Reproducible build pipeline** executable natively or via hermetic Docker container.
+
+```bash
+# Validate BSP configuration and partition scheme
+make os-validate
+
+# Run BSP automated test suite
+make os-test
+
+# Build complete raw flashable disk image (.img) via Docker
+make os-build
+```
+
+See [MS-OS-01-BSP-GUIDE.md](file:///docs/os/MS-OS-01-BSP-GUIDE.md) for full instructions.
 
 ---
 

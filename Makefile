@@ -85,10 +85,25 @@ docker-compose-up:  ## Start development stack (Mosquitto + Domus)
 docker-compose-down:  ## Stop development stack
 	docker compose -f deployments/docker/docker-compose.yml down
 
+## ── Domus OS ────────────────────────────────────────────────────────────────
+
+os-validate:  ## Validate Domus OS BSP configurations and scripts
+	@bash ./os/scripts/build.sh --validate-only
+
+os-test:  ## Run Domus OS BSP unit tests
+	go test -v ./test/os/...
+
+os-build:  ## Cross-compile Domus OS image using Docker build container
+	@bash ./os/scripts/build.sh --docker
+
+os-clean:  ## Clean Domus OS build output
+	@bash ./os/scripts/build.sh --clean
+
 ## ── Utilities ────────────────────────────────────────────────────────────────
 
 clean:  ## Remove build artefacts
 	rm -rf bin/ coverage.out coverage.html
+
 
 help:  ## Display this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

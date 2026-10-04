@@ -1,0 +1,28 @@
+# ─── Domus OS - Raspberry Pi 4 Firmware Configuration ─────────────────────────
+# Target: Raspberry Pi 4 Model B (ARM64 / aarch64)
+# Bootloader target: U-Boot ARM64 (u-boot.bin)
+
+# Switch CPU to 64-bit AArch64 mode
+arm_64bit=1
+
+# Chainload U-Boot bootloader
+kernel=u-boot.bin
+
+# Minimum GPU memory allocation for headless appliance operation
+gpu_mem=32
+
+# Enable primary serial UART for early console & debug
+enable_uart=1
+uart_2ndstage=1
+
+# Maintain stable core frequency for reliable UART baud rate
+core_freq_min=500
+
+# HDMI configuration (fallback headless / local display)
+hdmi_force_hotplug=1
+
+# Disable onboard Bluetooth to preserve UART on physical pins ttyAMA0
+dtoverlay=disable-bt
+
+# Enable hardware watchdog (BCM2835 watchdog for auto-reboot on lockup)
+dtparam=watchdog=on

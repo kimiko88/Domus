@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# ─── Domus OS - Buildroot Post-Build Hook ─────────────────────────────────────
+# Configures the target filesystem before creating the immutable SquashFS image.
+set -euo pipefail
+
+TARGET_DIR="${1}"
+BOARD_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+echo "=== Domus OS Post-Build: Configuring Target Filesystem in ${TARGET_DIR} ==="
+
+# 1. Ensure required appliance mount points exist
+mkdir -p "${TARGET_DIR}/data"
+mkdir -p "${TARGET_DIR}/mnt"
+mkdir -p "${TARGET_DIR}/run/domus"
+mkdir -p "${TARGET_DIR}/var/volatile"
+chmod 0755 "${TARGET_DIR}/data"
+
+# 2. Configure /etc/os-release with Domus OS branding and metadata
+cat << 'EOF' > "${TARGET_DIR}/etc/os-release"
+NAME="Domus OS"
+ID=domus-os
+PRETTY_NAME="Domus OS 1.0 (RPi4 ARM64)"
+VERSION="1.0.0"
+VERSION_ID="1.0.0"
+BUILD_ID="20261004"
+VARIANT="Smart Home Appliance"
+VARIANT_ID="appliance"
+HOME_URL="https://domus-hub.org"
+SUPPORT_URL="https://github.com/domus-hub/domus"
+BUG_REPORT_URL="https://github.com/domus-hub/domus/issues"
+EOF
+
+# 3. Configure /etc/hostname
+echo "domus" > "${TARGET_DIR}/etc/hostname"
+
+# 4. Generate hardened /etc/fstab with read-only rootfs and tmpfs mount points
+cat << 'EOF' > "${TARGET_DIR}/etc/fstab"
+# /etc/fstab: Domus OS static file system information.
+# <file system>                          <mount pt>       <type>   <options>                        <dump> <pass>
+# Root filesystem is mounted read-only by the kernel/init
+/dev/root                                /                auto     defaults,ro                      1      1
+
+# Persistent user data partition
+/dev/disk/by-partlabel/domus-data        /data            ext4     defaults,noatime,commit=30       0      2
+
+# Volatile RAM filesystems (protect flash memory from wear)
+tmpfs                                    /tmp             tmpfs    defaults,nosuid,nodev,size=256M  0      0
+tmpfs                                    /run             tmpfs    defaults,nosuid,nodev,size=128M  0      0
+tmpfs                                    /var/volatile    tmpfs    defaults,nosuid,nodev,size=128M  0      0
+EOF
+
+# 5. Link /var/log to /var/volatile/log or tmpfs if not already handled
+mkdir -p "${TARGET_DIR}/var/volatile/log"
+if [ ! -L "${TARGET_DIR}/var/log" ]; then
+    rm -rf "${TARGET_DIR}/var/log"
+    ln -s /var/volatile/log "${TARGET_DIR}/var/log"
+fi
+
+# 6. Embedded hardening: disable empty root password login over network
+if [ -f "${TARGET_DIR}/etc/shadow" ]; then
+    # Ensure root has no blank password
+    sed -i 's/^root::/root:*:/' "${TARGET_DIR}/etc/shadow"
+fi
+
+# 7. Install custom config.txt and cmdline.txt into BINARIES_DIR staging if needed
+if [ -n "${BINARIES_DIR:-}" ]; then
+    cp -f "${BOARD_DIR}/config.txt" "${BINARIES_DIR}/config.txt"
+    cp -f "${BOARD_DIR}/cmdline.txt" "${BINARIES_DIR}/cmdline.txt"
+fi
+
+echo "=== Domus OS Post-Build: Target Filesystem Configured Successfully ==="
