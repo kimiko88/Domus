@@ -271,3 +271,48 @@ export interface RegisterWithInviteRequest {
   email?: string
 }
 
+export interface OSDiagnostics {
+  soc_temp_c: number
+  cpu_load_1m: number
+  cpu_load_5m: number
+  cpu_load_15m: number
+  cpu_cores: number
+  memory_total_bytes: number
+  memory_available_bytes: number
+  memory_used_bytes: number
+  memory_used_percent: number
+  disk_total_bytes: number
+  disk_free_bytes: number
+  disk_used_bytes: number
+  disk_used_percent: number
+  hostname: string
+  os_version: string
+  kernel_version: string
+  architecture: string
+  uptime_seconds: number
+  active_slot: string
+  booted_slot: string
+  slot_confirmed: boolean
+  rauc_status: string
+  core_healthy: boolean
+  running_containers: number
+  total_containers: number
+  installed_apps: number
+  maintenance_mode: boolean
+  timestamp: string
+}
+
+export interface MaintenanceStatus {
+  active: boolean
+  expires_at?: string
+  remaining_seconds: number
+  ssh_port: number
+  key_fingerprint?: string
+}
+
+export interface EnableMaintenancePayload {
+  duration_minutes: number
+  authorized_key?: string
+}
+
+

@@ -16,6 +16,8 @@ type Engine struct {
 	rauc          RaucController
 	health        HealthChecker
 	apps          *AppManager
+	diagnostics   *DiagnosticsCollector
+	maintenance   *MaintenanceManager
 	startTime     time.Time
 	coreHealthy   bool
 	slotConfirmed bool
@@ -24,19 +26,36 @@ type Engine struct {
 
 // NewEngine creates and returns a new supervisor Engine.
 func NewEngine(cfg Config, runtime ContainerRuntime, rauc RaucController, health HealthChecker) *Engine {
+	appMgr := NewAppManager(cfg.DataDir, runtime)
+	diagCollector := NewDiagnosticsCollector(cfg, runtime, rauc, appMgr)
+	maintMgr := NewMaintenanceManager(cfg.DataDir+"/system/ssh", nil)
+	diagCollector.SetMaintenanceManager(maintMgr)
+
 	return &Engine{
-		cfg:       cfg,
-		runtime:   runtime,
-		rauc:      rauc,
-		health:    health,
-		apps:      NewAppManager(cfg.DataDir, runtime),
-		startTime: time.Now(),
+		cfg:         cfg,
+		runtime:     runtime,
+		rauc:        rauc,
+		health:      health,
+		apps:        appMgr,
+		diagnostics: diagCollector,
+		maintenance: maintMgr,
+		startTime:   time.Now(),
 	}
 }
 
 // GetAppManager returns the managed AppManager instance.
 func (e *Engine) GetAppManager() *AppManager {
 	return e.apps
+}
+
+// GetDiagnosticsCollector returns the diagnostics collector.
+func (e *Engine) GetDiagnosticsCollector() *DiagnosticsCollector {
+	return e.diagnostics
+}
+
+// GetMaintenanceManager returns the maintenance manager.
+func (e *Engine) GetMaintenanceManager() *MaintenanceManager {
+	return e.maintenance
 }
 
 // Start launches the core container and begins background health monitoring.

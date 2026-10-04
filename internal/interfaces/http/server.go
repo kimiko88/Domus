@@ -15,6 +15,7 @@ import (
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
@@ -147,6 +148,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				metricsH := handlers.NewSystemMetricsHandler(srv.startedAt, srv.repos, srv.wsHub, srv.mqttConnected)
 				sys.Get("/metrics", metricsH.ServeHTTP)
 			}
+
+			// Domus OS Appliance Diagnostics & Maintenance
+			supClient := infrasup.NewClient("/run/domus/supervisor.sock", "")
+			osH := handlers.NewSystemOSHandler(supClient)
+			sys.Get("/diagnostics", osH.GetDiagnostics)
+			sys.Get("/diagnostics/export", osH.ExportDiagnostics)
+			sys.Get("/maintenance/status", osH.GetMaintenanceStatus)
+			sys.Post("/maintenance/enable", osH.EnableMaintenance)
+			sys.Post("/maintenance/disable", osH.DisableMaintenance)
 		})
 
 		// Auth routes

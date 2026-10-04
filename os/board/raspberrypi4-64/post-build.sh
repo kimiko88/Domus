@@ -149,6 +149,37 @@ if [ -f "${SYSTEM_DIR}/domus-supervisor.service" ]; then
     ln -sf "/etc/systemd/system/domus-supervisor.service" "${SYSTEMD_SYSTEM}/multi-user.target.wants/domus-supervisor.service"
 fi
 
+# 13. Install Avahi mDNS / DNS-SD configuration and service advertisements (domus.local)
+mkdir -p "${TARGET_DIR}/etc/avahi/services"
+if [ -f "${CONFIGS_DIR}/avahi-daemon.conf" ]; then
+    cp -f "${CONFIGS_DIR}/avahi-daemon.conf" "${TARGET_DIR}/etc/avahi/avahi-daemon.conf"
+    chmod 0644 "${TARGET_DIR}/etc/avahi/avahi-daemon.conf"
+fi
+
+if [ -f "${CONFIGS_DIR}/domus-http.service" ]; then
+    cp -f "${CONFIGS_DIR}/domus-http.service" "${TARGET_DIR}/etc/avahi/services/domus-http.service"
+    chmod 0644 "${TARGET_DIR}/etc/avahi/services/domus-http.service"
+fi
+
+# Configure NSS switch for transparent mDNS resolution (.local domain)
+if [ -f "${TARGET_DIR}/etc/nsswitch.conf" ]; then
+    if ! grep -q "mdns4_minimal" "${TARGET_DIR}/etc/nsswitch.conf"; then
+        sed -i 's/^hosts:.*/hosts:          files mdns4_minimal [NOTFOUND=return] dns mdns4/' "${TARGET_DIR}/etc/nsswitch.conf"
+    fi
+else
+    cat << 'EOF' > "${TARGET_DIR}/etc/nsswitch.conf"
+passwd:         files
+group:          files
+shadow:         files
+hosts:          files mdns4_minimal [NOTFOUND=return] dns mdns4
+networks:       files
+protocols:      files
+services:       files
+ethers:         files
+rpc:            files
+EOF
+fi
+
 echo "=== Domus OS Post-Build: Target Filesystem Configured Successfully ==="
 
 

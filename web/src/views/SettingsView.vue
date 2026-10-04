@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useSystemStore } from '../stores/system'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
-import { User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw } from '@lucide/vue'
+import {
+  User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw,
+  Cpu, Thermometer, Terminal, Download, Key, ShieldCheck, ShieldAlert
+} from '@lucide/vue'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -15,6 +18,11 @@ const currentUser = computed(() => authStore.user)
 const languages = computed(() => getAvailableLanguages())
 const activeLang = computed(() => getCurrentLanguage())
 const metrics = computed(() => systemStore.metrics)
+const osDiagnostics = computed(() => systemStore.osDiagnostics)
+const maintenanceStatus = computed(() => systemStore.maintenanceStatus)
+
+const maintDuration = ref(30)
+const sshPubKey = ref('')
 
 async function handleLogout() {
   await authStore.logout()
@@ -28,12 +36,52 @@ async function refreshMetrics() {
   }
 }
 
+async function refreshOS() {
+  try {
+    await Promise.all([
+      systemStore.fetchOSDiagnostics().catch(() => {}),
+      systemStore.fetchMaintenanceStatus().catch(() => {})
+    ])
+  } catch {
+    // handled in store
+  }
+}
+
+async function handleEnableMaintenance() {
+  try {
+    await systemStore.enableMaintenance({
+      duration_minutes: Number(maintDuration.value),
+      authorized_key: sshPubKey.value.trim() || undefined
+    })
+    sshPubKey.value = ''
+  } catch {
+    // handled in store
+  }
+}
+
+async function handleDisableMaintenance() {
+  try {
+    await systemStore.disableMaintenance()
+  } catch {
+    // handled in store
+  }
+}
+
+async function handleExportDiagnostics() {
+  try {
+    await systemStore.exportDiagnostics()
+  } catch {
+    // handled in store
+  }
+}
+
 function selectLanguage(code: any) {
   setLanguage(code)
 }
 
 onMounted(() => {
   refreshMetrics()
+  refreshOS()
 })
 </script>
 
@@ -186,6 +234,186 @@ onMounted(() => {
           <div class="detail-row">
             <span class="detail-label">Architettura target</span>
             <span class="detail-value font-mono">ARM64 / Raspberry Pi 4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Domus OS Hardware & Telemetry Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-cyan">
+            <Cpu :size="20" />
+          </div>
+          <div class="title-with-refresh">
+            <h3 class="card-title">{{ t('settings.osDiagnostics') }}</h3>
+            <button
+              class="refresh-icon-btn"
+              :title="t('common.refresh')"
+              :disabled="systemStore.diagLoading"
+              @click="refreshOS"
+            >
+              <RefreshCw :size="15" :class="{ spinning: systemStore.diagLoading }" />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="osDiagnostics" class="profile-details">
+          <div class="detail-row">
+            <span class="detail-label">{{ t('settings.socTemp') }}</span>
+            <span class="temp-badge" :class="systemStore.tempStatusClass">
+              <Thermometer :size="13" />
+              <span>{{ osDiagnostics.soc_temp_c }} °C</span>
+            </span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">{{ t('settings.cpuLoad') }}</span>
+            <span class="detail-value font-mono">
+              {{ osDiagnostics.cpu_load_1m.toFixed(2) }} / {{ osDiagnostics.cpu_load_5m.toFixed(2) }} ({{ osDiagnostics.cpu_cores }} Cores)
+            </span>
+          </div>
+
+          <div class="metric-progress-group">
+            <div class="detail-row mb-1">
+              <span class="detail-label">{{ t('settings.memory') }}</span>
+              <span class="detail-value font-mono text-dim">{{ systemStore.formattedMemory }}</span>
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill memory-fill"
+                :style="{ width: `${Math.min(100, osDiagnostics.memory_used_percent)}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="metric-progress-group">
+            <div class="detail-row mb-1">
+              <span class="detail-label">{{ t('settings.storage') }}</span>
+              <span class="detail-value font-mono text-dim">{{ systemStore.formattedDisk }}</span>
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill disk-fill"
+                :style="{ width: `${Math.min(100, osDiagnostics.disk_used_percent)}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">{{ t('settings.activeSlot') }}</span>
+            <div class="slot-badge-group">
+              <span class="font-mono text-cyan">{{ osDiagnostics.active_slot || 'domus-root-a' }}</span>
+              <span
+                class="status-indicator-badge"
+                :class="osDiagnostics.slot_confirmed ? 'badge-online' : 'badge-warning'"
+              >
+                {{ osDiagnostics.slot_confirmed ? t('settings.slotConfirmed') : t('settings.slotUnconfirmed') }}
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">{{ t('settings.containers') }}</span>
+            <span class="detail-value font-mono">
+              {{ osDiagnostics.running_containers }} / {{ osDiagnostics.total_containers }} ({{ osDiagnostics.installed_apps }} Apps)
+            </span>
+          </div>
+
+          <div class="action-row">
+            <BaseButton
+              variant="secondary"
+              class="w-full btn-export-diag"
+              @click="handleExportDiagnostics"
+            >
+              <Download :size="16" />
+              <span>{{ t('settings.exportDiagnostics') }}</span>
+            </BaseButton>
+          </div>
+        </div>
+        <div v-else class="metrics-loading">
+          <span>{{ t('common.loading') }}</span>
+        </div>
+      </div>
+
+      <!-- Maintenance Mode (SSH On-Demand) Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-amber">
+            <Terminal :size="20" />
+          </div>
+          <h3 class="card-title">{{ t('settings.maintenanceMode') }}</h3>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">
+            {{ t('settings.maintenanceDesc') }}
+          </p>
+
+          <div class="detail-row mt-2">
+            <span class="detail-label">Stato Accesso</span>
+            <span
+              class="status-indicator-badge"
+              :class="maintenanceStatus?.active ? 'badge-maint-active' : 'badge-maint-inactive'"
+            >
+              {{ maintenanceStatus?.active ? `${t('settings.sshActive')} (Port 22)` : t('settings.sshDisabled') }}
+            </span>
+          </div>
+
+          <div v-if="maintenanceStatus?.active" class="maint-active-box">
+            <div class="detail-row">
+              <span class="detail-label">{{ t('settings.remainingTime') }}</span>
+              <span class="countdown-value font-mono text-amber">
+                {{ systemStore.formattedMaintenanceRemaining }}
+              </span>
+            </div>
+            <div v-if="maintenanceStatus?.key_fingerprint" class="detail-row">
+              <span class="detail-label">Fingerprint Chiave</span>
+              <span class="detail-value font-mono text-dim text-xs">
+                {{ maintenanceStatus.key_fingerprint }}
+              </span>
+            </div>
+            <div class="action-row mt-3">
+              <BaseButton
+                variant="danger"
+                class="w-full"
+                :disabled="systemStore.maintLoading"
+                @click="handleDisableMaintenance"
+              >
+                {{ t('settings.disableSsh') }}
+              </BaseButton>
+            </div>
+          </div>
+
+          <div v-else class="maint-enable-form">
+            <div class="form-group mb-2">
+              <label class="form-label text-xs">{{ t('settings.durationMinutes') }}</label>
+              <select v-model="maintDuration" class="maint-select font-mono">
+                <option :value="15">15 minuti</option>
+                <option :value="30">30 minuti (Default)</option>
+                <option :value="60">60 minuti (1 ora)</option>
+                <option :value="120">120 minuti (2 ore max)</option>
+              </select>
+            </div>
+
+            <div class="form-group mb-3">
+              <label class="form-label text-xs">{{ t('settings.authorizedKey') }}</label>
+              <textarea
+                v-model="sshPubKey"
+                rows="2"
+                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
+                class="maint-textarea font-mono"
+              ></textarea>
+            </div>
+
+            <BaseButton
+              variant="primary"
+              class="w-full"
+              :disabled="systemStore.maintLoading"
+              @click="handleEnableMaintenance"
+            >
+              <Key :size="16" />
+              <span>{{ t('settings.enableSsh') }}</span>
+            </BaseButton>
           </div>
         </div>
       </div>
@@ -430,5 +658,114 @@ onMounted(() => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.temp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.temp-normal {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.temp-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.temp-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.badge-maint-active {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.badge-maint-inactive {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+}
+
+.metric-progress-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mb-1 {
+  margin-bottom: 2px;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.memory-fill {
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
+}
+
+.disk-fill {
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+}
+
+.slot-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.maint-select,
+.maint-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.maint-select:focus,
+.maint-textarea:focus {
+  outline: none;
+  border-color: #f59e0b;
+}
+
+.maint-textarea {
+  resize: vertical;
+}
+
+.countdown-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.w-full {
+  width: 100%;
 }
 </style>

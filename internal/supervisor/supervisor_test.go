@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -319,6 +320,93 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+	})
+
+	// 5. Test /api/v1/system/diagnostics
+	t.Run("GET /api/v1/system/diagnostics", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/diagnostics", nil)
+		rec := httptest.NewRecorder()
+		apiHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		var diag supervisor.SystemDiagnostics
+		if err := json.Unmarshal(rec.Body.Bytes(), &diag); err != nil {
+			t.Fatalf("failed to decode diagnostics JSON: %v", err)
+		}
+		if diag.Architecture == "" {
+			t.Error("expected non-empty architecture in diagnostics")
+		}
+	})
+
+	// 6. Test /api/v1/system/diagnostics/export
+	t.Run("GET /api/v1/system/diagnostics/export", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/diagnostics/export", nil)
+		rec := httptest.NewRecorder()
+		apiHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		var export supervisor.DiagnosticExport
+		if err := json.Unmarshal(rec.Body.Bytes(), &export); err != nil {
+			t.Fatalf("failed to decode diagnostics export JSON: %v", err)
+		}
+		if export.ExportedAt.IsZero() {
+			t.Error("expected non-zero ExportedAt")
+		}
+	})
+
+	// 7. Test /api/v1/system/maintenance/status
+	t.Run("GET /api/v1/system/maintenance/status", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/maintenance/status", nil)
+		rec := httptest.NewRecorder()
+		apiHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		var status supervisor.MaintenanceStatus
+		if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+			t.Fatalf("failed to decode maintenance status: %v", err)
+		}
+		if status.Active {
+			t.Error("expected maintenance mode to be disabled by default")
+		}
+	})
+
+	// 8. Test /api/v1/system/maintenance/enable & disable
+	t.Run("POST /api/v1/system/maintenance/enable and disable", func(t *testing.T) {
+		reqBody := `{"duration_minutes": 15, "authorized_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG... user@host"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/system/maintenance/enable", strings.NewReader(reqBody))
+		rec := httptest.NewRecorder()
+		apiHandler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+		}
+		var status supervisor.MaintenanceStatus
+		if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+			t.Fatalf("failed to decode status: %v", err)
+		}
+		if !status.Active {
+			t.Error("expected maintenance mode active after enable")
+		}
+
+		// Disable
+		reqDis := httptest.NewRequest(http.MethodPost, "/api/v1/system/maintenance/disable", nil)
+		recDis := httptest.NewRecorder()
+		apiHandler.ServeHTTP(recDis, reqDis)
+
+		if recDis.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", recDis.Code)
+		}
+		var disStatus supervisor.MaintenanceStatus
+		_ = json.Unmarshal(recDis.Body.Bytes(), &disStatus)
+		if disStatus.Active {
+			t.Error("expected maintenance mode inactive after disable")
 		}
 	})
 }

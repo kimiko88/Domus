@@ -46,6 +46,13 @@ func (s *APIServer) registerRoutes() {
 	s.mux.HandleFunc("POST /api/v1/apps/{id}/start", s.handleStartApp)
 	s.mux.HandleFunc("POST /api/v1/apps/{id}/stop", s.handleStopApp)
 	s.mux.HandleFunc("DELETE /api/v1/apps/{id}", s.handleUninstallApp)
+
+	// System Diagnostics & Maintenance Endpoints
+	s.mux.HandleFunc("GET /api/v1/system/diagnostics", s.handleDiagnostics)
+	s.mux.HandleFunc("GET /api/v1/system/diagnostics/export", s.handleDiagnosticsExport)
+	s.mux.HandleFunc("GET /api/v1/system/maintenance/status", s.handleMaintenanceStatus)
+	s.mux.HandleFunc("POST /api/v1/system/maintenance/enable", s.handleMaintenanceEnable)
+	s.mux.HandleFunc("POST /api/v1/system/maintenance/disable", s.handleMaintenanceDisable)
 }
 
 func (s *APIServer) handlePing(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +162,51 @@ func (s *APIServer) handleUninstallApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": "app uninstalled"})
+}
+
+func (s *APIServer) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
+	diag, err := s.engine.GetDiagnosticsCollector().Collect(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, diag)
+}
+
+func (s *APIServer) handleDiagnosticsExport(w http.ResponseWriter, r *http.Request) {
+	export, err := s.engine.GetDiagnosticsCollector().Export(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, export)
+}
+
+func (s *APIServer) handleMaintenanceStatus(w http.ResponseWriter, r *http.Request) {
+	status := s.engine.GetMaintenanceManager().GetStatus()
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (s *APIServer) handleMaintenanceEnable(w http.ResponseWriter, r *http.Request) {
+	var req EnableMaintenanceRequest
+	if r.Body != nil && r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	status, err := s.engine.GetMaintenanceManager().Enable(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (s *APIServer) handleMaintenanceDisable(w http.ResponseWriter, r *http.Request) {
+	status, err := s.engine.GetMaintenanceManager().Disable(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 // ServeUnix binds the HTTP server to a Unix Domain Socket with proper permissions.
