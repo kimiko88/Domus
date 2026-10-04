@@ -92,3 +92,63 @@ func (h *AreaHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, a)
 }
+
+type updateAreaRequest struct {
+	Name         string `json:"name"`
+	Icon         string `json:"icon,omitempty"`
+	ParentAreaID string `json:"parent_area_id,omitempty"`
+	SortOrder    int    `json:"sort_order"`
+}
+
+// Update handles updating an existing area.
+func (h *AreaHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	existing, err := h.repo.GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, area.ErrAreaNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "area not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to find area")
+		return
+	}
+
+	var req updateAreaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
+		return
+	}
+
+	existing.Name = req.Name
+	existing.Icon = req.Icon
+	existing.ParentAreaID = req.ParentAreaID
+	existing.SortOrder = req.SortOrder
+	existing.UpdatedAt = time.Now().UTC()
+
+	if err := existing.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+
+	if err := h.repo.Update(r.Context(), existing); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to update area")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, existing)
+}
+
+// Delete handles removing an area by ID.
+func (h *AreaHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.repo.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, area.ErrAreaNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "area not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to delete area")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	ErrSceneNotFound   = errors.New("scene: not found")
-	ErrInvalidName     = errors.New("scene: name cannot be empty")
-	ErrMissingActions  = errors.New("scene: at least one action is required")
+	ErrSceneNotFound  = errors.New("scene: not found")
+	ErrInvalidName    = errors.New("scene: name cannot be empty")
+	ErrMissingActions = errors.New("scene: at least one action is required")
 )
 
 // Action defines an action executed when a scene is activated.

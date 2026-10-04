@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAutomationsStore } from '../stores/automations'
 import { useNotificationsStore } from '../stores/notifications'
 import type { Automation } from '../api/types'
@@ -7,8 +8,9 @@ import AutomationCard from '../components/cards/AutomationCard.vue'
 import AutomationEditorModal from '../components/modals/AutomationEditorModal.vue'
 import AutomationRunsModal from '../components/modals/AutomationRunsModal.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
-import { Zap, Plus, Search, Sparkles } from '@lucide/vue'
+import { Zap, Plus, Search } from '@lucide/vue'
 
+const { t } = useI18n()
 const automationsStore = useAutomationsStore()
 const notificationsStore = useNotificationsStore()
 
@@ -35,11 +37,9 @@ onMounted(() => {
 
 const filteredAutomations = computed(() => {
   return automationsStore.automations.filter((a) => {
-    // Status filter
     if (filterStatus.value === 'active' && !a.enabled) return false
     if (filterStatus.value === 'disabled' && a.enabled) return false
 
-    // Search query
     if (searchQuery.value.trim()) {
       const q = searchQuery.value.toLowerCase()
       const matchName = a.name.toLowerCase().includes(q)
@@ -62,12 +62,12 @@ function handleEdit(automation: Automation) {
 }
 
 async function handleDelete(automation: Automation) {
-  if (confirm(`Sei sicuro di voler eliminare l'automazione "${automation.name}"?`)) {
+  if (confirm(t('automations.confirmDelete', { name: automation.name }))) {
     try {
       await automationsStore.deleteAutomation(automation.id)
-      notificationsStore.success('Automazione Eliminata', `"${automation.name}" è stata rimossa`)
+      notificationsStore.success(t('automations.deleteSuccess'), `"${automation.name}"`)
     } catch (err: any) {
-      notificationsStore.error('Errore', err?.message || 'Impossibile eliminare l\'automazione')
+      notificationsStore.error(t('common.error'), err?.message || t('automations.deleteError'))
     }
   }
 }
@@ -81,15 +81,15 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   try {
     if (editingAutomation.value) {
       await automationsStore.updateAutomation(editingAutomation.value.id, data)
-      notificationsStore.success('Automazione Aggiornata', `"${data.name}" aggiornata con successo`)
+      notificationsStore.success(t('automations.saveSuccess'), `"${data.name}"`)
     } else {
       await automationsStore.createAutomation(data)
-      notificationsStore.success('Automazione Creata', `"${data.name}" creata con successo`)
+      notificationsStore.success(t('automations.saveSuccess'), `"${data.name}"`)
     }
     isEditorOpen.value = false
     editingAutomation.value = null
   } catch (err: any) {
-    notificationsStore.error('Errore Salvataggio', err?.message || 'Impossibile salvare l\'automazione')
+    notificationsStore.error(t('common.error'), err?.message || t('automations.saveError'))
   }
 }
 </script>
@@ -98,18 +98,14 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   <div class="automations-view">
     <div class="header-row">
       <div>
-        <h2 class="section-title">Automazioni</h2>
-        <p class="section-subtitle">Regole intelligenti reattive basate su eventi, orari e condizioni</p>
+        <h2 class="section-title">{{ t('automations.title') }}</h2>
+        <p class="section-subtitle">{{ t('automations.subtitle') }}</p>
       </div>
 
       <div class="header-actions">
-        <BaseButton
-          variant="primary"
-          class="btn-new-automation"
-          @click="openNewModal"
-        >
+        <BaseButton variant="primary" @click="openNewModal">
           <Plus :size="16" />
-          <span>Nuova Automazione</span>
+          <span>{{ t('automations.newAutomation') }}</span>
         </BaseButton>
       </div>
     </div>
@@ -121,7 +117,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
         <input
           v-model="searchQuery"
           type="search"
-          placeholder="Cerca automazione per nome o descrizione..."
+          :placeholder="t('automations.searchPlaceholder')"
         />
       </div>
 
@@ -130,19 +126,19 @@ async function handleSaveAutomation(data: Partial<Automation>) {
           :class="['filter-pill', { active: filterStatus === 'all' }]"
           @click="filterStatus = 'all'"
         >
-          Tutte ({{ automationsStore.automations.length }})
+          {{ t('common.all') }} ({{ automationsStore.automations.length }})
         </button>
         <button
           :class="['filter-pill', { active: filterStatus === 'active' }]"
           @click="filterStatus = 'active'"
         >
-          Attive ({{ automationsStore.automations.filter((a) => a.enabled).length }})
+          {{ t('common.active') }} ({{ automationsStore.automations.filter((a) => a.enabled).length }})
         </button>
         <button
           :class="['filter-pill', { active: filterStatus === 'disabled' }]"
           @click="filterStatus = 'disabled'"
         >
-          Disabilitate ({{ automationsStore.automations.filter((a) => !a.enabled).length }})
+          {{ t('common.disabled') }} ({{ automationsStore.automations.filter((a) => !a.enabled).length }})
         </button>
       </div>
     </div>
@@ -162,13 +158,13 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     <!-- Empty State -->
     <div v-else-if="!automationsStore.loading" class="empty-state glass-card">
       <Zap :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessuna automazione trovata</h3>
+      <h3 class="empty-title">{{ t('automations.emptyTitle') }}</h3>
       <p class="empty-desc">
-        {{ searchQuery ? 'Nessun risultato corrisponde alla ricerca.' : 'Crea la tua prima automazione per attivare luci o inviare comandi quando si verificano eventi.' }}
+        {{ searchQuery ? t('automations.noResults') : t('automations.emptyDesc') }}
       </p>
       <BaseButton v-if="!searchQuery" variant="primary" style="margin-top: 16px;" @click="openNewModal">
         <Plus :size="16" />
-        <span>Crea Automazione</span>
+        <span>{{ t('automations.newAutomation') }}</span>
       </BaseButton>
     </div>
 

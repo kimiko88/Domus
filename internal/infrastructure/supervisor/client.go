@@ -132,7 +132,7 @@ func (c *Client) isSocketAvailable() bool {
 		return false
 	}
 	// On Unix, socket mode is os.ModeSocket
-	return (info.Mode() & os.ModeSocket) != 0 || !info.IsDir()
+	return (info.Mode()&os.ModeSocket) != 0 || !info.IsDir()
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, target interface{}) error {

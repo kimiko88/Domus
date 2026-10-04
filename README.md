@@ -266,14 +266,32 @@ cd web && npm run build
 
 ---
 
+## 📖 Documentazione
+
+- **[Manuale Utente](docs/USER-MANUAL.md)** — Guida completa dall'installazione all'uso quotidiano (IT)
+- **[Swagger UI](http://localhost:8080/docs)** — Documentazione API REST interattiva (quando il server è attivo)
+- **[OpenAPI YAML](docs/openapi/domus.yaml)** — Specifica OpenAPI 3.1 completa
+
+---
+
 ## 📜 Architecture Decision Records (ADRs)
 
+### Domus Core
 - [ADR-001: Modular Monolith Architecture with Hexagonal Ports & Adapters](docs/adr/ADR-001-modular-monolith.md)
 - [ADR-002: SQLite with Write-Ahead Logging (WAL) and Pure Go Driver](docs/adr/ADR-002-sqlite-wal.md)
 - [ADR-003: In-Memory Bounded Event Bus](docs/adr/ADR-003-event-bus-in-memory.md)
 - [ADR-004: Structured JSON DSL for Automations and Scenes](docs/adr/ADR-004-json-dsl-automations.md)
 - [ADR-005: AES-256-GCM Secrets Encryption and Idempotent Backup/Restore](docs/adr/ADR-005-secrets-encryption-and-backup.md)
 - [ADR-006: Packaging, Multi-Architecture Containerization, and Offline Deployment](docs/adr/ADR-006-packaging-and-offline-deployment.md)
+
+### Domus OS
+- [ADR-007: Buildroot for Domus OS](docs/adr/ADR-007-buildroot-for-domus-os.md)
+- [ADR-008: containerd Runtime](docs/adr/ADR-008-containerd-runtime.md)
+- [ADR-009: Atomic A/B Updates with RAUC](docs/adr/ADR-009-atomic-ab-updates-rauc.md)
+- [ADR-010: SquashFS and Stateless Root Filesystem](docs/adr/ADR-010-squashfs-and-stateless-rootfs.md)
+- [ADR-011: Persistent Data Partition](docs/adr/ADR-011-persistent-data-partition.md)
+- [ADR-012: Embedded Security and Hardening](docs/adr/ADR-012-embedded-security-and-hardening.md)
+- [ADR-013: Supervisor and App Sandboxing](docs/adr/ADR-013-supervisor-and-app-sandboxing.md)
 
 ---
 

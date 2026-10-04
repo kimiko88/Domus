@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import DashboardView from './DashboardView.vue'
 import { useEntitiesStore } from '../stores/entities'
 import { useAreasStore } from '../stores/areas'
+import { i18n } from '../locales'
 import type { Entity } from '../api/types'
 
 describe('DashboardView.vue', () => {
@@ -20,7 +21,9 @@ describe('DashboardView.vue', () => {
     const fetchEntitiesSpy = vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
     const fetchAreasSpy = vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue([])
 
-    mount(DashboardView)
+    mount(DashboardView, {
+      global: { plugins: [i18n] }
+    })
 
     expect(fetchEntitiesSpy).toHaveBeenCalled()
     expect(fetchAreasSpy).toHaveBeenCalled()
@@ -55,7 +58,9 @@ describe('DashboardView.vue', () => {
       return mockEntities
     })
 
-    const wrapper = mount(DashboardView)
+    const wrapper = mount(DashboardView, {
+      global: { plugins: [i18n] }
+    })
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Living Room Light')
@@ -89,7 +94,9 @@ describe('DashboardView.vue', () => {
       entitiesStore.entities[e.id] = e
     })
 
-    const wrapper = mount(DashboardView)
+    const wrapper = mount(DashboardView, {
+      global: { plugins: [i18n] }
+    })
     await wrapper.vm.$nextTick()
 
     // Find and click filter for switches

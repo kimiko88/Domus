@@ -225,9 +225,9 @@ func (c *DiagnosticsCollector) Export(ctx context.Context) (*DiagnosticExport, e
 		Apps:        apps,
 		Environment: sanitizeEnv(envMap),
 		SystemInfo: map[string]interface{}{
-			"go_version": runtime.Version(),
+			"go_version":    runtime.Version(),
 			"num_goroutine": runtime.NumGoroutine(),
-			"compiler": runtime.Compiler,
+			"compiler":      runtime.Compiler,
 		},
 	}
 

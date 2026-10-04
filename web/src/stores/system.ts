@@ -65,27 +65,35 @@ export const useSystemStore = defineStore('system', () => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiClient.get<SystemMetrics>('/system/metrics')
+      const data = await apiClient.get<SystemMetrics>('/api/v1/system/metrics')
       metrics.value = data
       return data
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch metrics'
-      throw err
+      return metrics.value || {
+        status: 'unknown',
+        uptime_s: 0,
+        entity_count: 0,
+        device_count: 0,
+        mqtt_connected: false,
+        ws_clients: 0,
+        db_size_bytes: 0
+      }
     } finally {
       loading.value = false
     }
   }
 
-  async function fetchOSDiagnostics(): Promise<OSDiagnostics> {
+  async function fetchOSDiagnostics(): Promise<OSDiagnostics | null> {
     diagLoading.value = true
     error.value = null
     try {
-      const data = await apiClient.get<OSDiagnostics>('/system/diagnostics')
+      const data = await apiClient.get<OSDiagnostics>('/api/v1/system/diagnostics')
       osDiagnostics.value = data
       return data
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch OS diagnostics'
-      throw err
+      return null
     } finally {
       diagLoading.value = false
     }
@@ -93,7 +101,7 @@ export const useSystemStore = defineStore('system', () => {
 
   async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
     try {
-      const data = await apiClient.get<MaintenanceStatus>('/system/maintenance/status')
+      const data = await apiClient.get<MaintenanceStatus>('/api/v1/system/maintenance/status')
       maintenanceStatus.value = data
       return data
     } catch (err: any) {
@@ -106,7 +114,7 @@ export const useSystemStore = defineStore('system', () => {
     maintLoading.value = true
     error.value = null
     try {
-      const data = await apiClient.post<MaintenanceStatus>('/system/maintenance/enable', payload)
+      const data = await apiClient.post<MaintenanceStatus>('/api/v1/system/maintenance/enable', payload)
       maintenanceStatus.value = data
       return data
     } catch (err: any) {
@@ -121,7 +129,7 @@ export const useSystemStore = defineStore('system', () => {
     maintLoading.value = true
     error.value = null
     try {
-      const data = await apiClient.post<MaintenanceStatus>('/system/maintenance/disable', {})
+      const data = await apiClient.post<MaintenanceStatus>('/api/v1/system/maintenance/disable', {})
       maintenanceStatus.value = data
       return data
     } catch (err: any) {
@@ -134,7 +142,7 @@ export const useSystemStore = defineStore('system', () => {
 
   async function exportDiagnostics(): Promise<any> {
     try {
-      const data = await apiClient.get<any>('/system/diagnostics/export')
+      const data = await apiClient.get<any>('/api/v1/system/diagnostics/export')
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

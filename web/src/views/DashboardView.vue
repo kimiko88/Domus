@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useEntitiesStore } from '../stores/entities'
 import { useAreasStore } from '../stores/areas'
 import LightCard from '../components/cards/LightCard.vue'
@@ -9,6 +10,7 @@ import ClimateCard from '../components/cards/ClimateCard.vue'
 import { Lightbulb, Power, Radio, Thermometer, Sparkles } from '@lucide/vue'
 import type { Entity } from '../api/types'
 
+const { t } = useI18n()
 const entitiesStore = useEntitiesStore()
 const areasStore = useAreasStore()
 
@@ -49,13 +51,13 @@ const filteredEntities = computed(() => {
   return all
 })
 
-const filterOptions = [
-  { id: 'all', label: 'Tutte' },
-  { id: 'light', label: 'Luci', icon: Lightbulb },
-  { id: 'switch', label: 'Interruttori', icon: Power },
-  { id: 'sensor', label: 'Sensori', icon: Radio },
-  { id: 'climate', label: 'Clima', icon: Thermometer }
-]
+const filterOptions = computed(() => [
+  { id: 'all', label: t('dashboard.filterAll'), icon: null },
+  { id: 'light', label: t('dashboard.filterLights'), icon: Lightbulb },
+  { id: 'switch', label: t('dashboard.filterSwitches'), icon: Power },
+  { id: 'sensor', label: t('dashboard.filterSensors'), icon: Radio },
+  { id: 'climate', label: t('dashboard.filterClimate'), icon: Thermometer }
+])
 </script>
 
 <template>
@@ -67,8 +69,8 @@ const filterOptions = [
           <Lightbulb :size="20" />
         </div>
         <div class="summary-info">
-          <span class="summary-label">Luci Accese</span>
-          <span class="summary-value">{{ activeLightsCount }} Attive</span>
+          <span class="summary-label">{{ t('dashboard.activeLights') }}</span>
+          <span class="summary-value">{{ activeLightsCount }} {{ t('dashboard.activeCount') }}</span>
         </div>
       </div>
 
@@ -77,8 +79,8 @@ const filterOptions = [
           <Power :size="20" />
         </div>
         <div class="summary-info">
-          <span class="summary-label">Prese Attive</span>
-          <span class="summary-value">{{ activeSwitchesCount }} Attive</span>
+          <span class="summary-label">{{ t('dashboard.activeSwitches') }}</span>
+          <span class="summary-value">{{ activeSwitchesCount }} {{ t('dashboard.activeCount') }}</span>
         </div>
       </div>
 
@@ -87,8 +89,8 @@ const filterOptions = [
           <Radio :size="20" />
         </div>
         <div class="summary-info">
-          <span class="summary-label">Sensori Online</span>
-          <span class="summary-value">{{ totalSensorsCount }} Rilevati</span>
+          <span class="summary-label">{{ t('dashboard.onlineSensors') }}</span>
+          <span class="summary-value">{{ totalSensorsCount }} {{ t('dashboard.detectedCount') }}</span>
         </div>
       </div>
     </div>
@@ -120,9 +122,9 @@ const filterOptions = [
     <!-- Empty State -->
     <div v-else class="empty-state glass-card">
       <Sparkles :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessuna entità trovata</h3>
+      <h3 class="empty-title">{{ t('dashboard.noEntities') }}</h3>
       <p class="empty-desc">
-        Non ci sono dispositivi configurati per questo filtro. Collega un'integrazione o aggiungi dispositivi per vederli apparire qui.
+        {{ t('dashboard.noEntitiesDesc') }}
       </p>
     </div>
   </div>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDevicesStore } from '../stores/devices'
 import { Cpu, Wifi, WifiOff } from '@lucide/vue'
 
+const { t } = useI18n()
 const devicesStore = useDevicesStore()
 
 const filterStatus = ref<'all' | 'online' | 'offline'>('all')
@@ -17,21 +19,25 @@ onMounted(async () => {
 
 const filteredDevices = computed(() => {
   if (filterStatus.value === 'online') {
-    return devicesStore.onlineDevices
+    return devicesStore.onlineDevices || []
   }
   if (filterStatus.value === 'offline') {
-    return devicesStore.offlineDevices
+    return devicesStore.offlineDevices || []
   }
-  return devicesStore.devices
+  return devicesStore.devices || []
 })
+
+const totalDevicesCount = computed(() => (devicesStore.devices || []).length)
+const onlineDevicesCount = computed(() => (devicesStore.onlineDevices || []).length)
+const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).length)
 </script>
 
 <template>
   <div class="devices-view">
     <div class="header-row">
       <div>
-        <h2 class="section-title">Dispositivi</h2>
-        <p class="section-subtitle">Tutti i dispositivi fisici rilevati e connessi all'hub</p>
+        <h2 class="section-title">{{ t('devices.title') }}</h2>
+        <p class="section-subtitle">{{ t('devices.subtitle') }}</p>
       </div>
     </div>
 
@@ -41,21 +47,21 @@ const filteredDevices = computed(() => {
         :class="['filter-pill', { active: filterStatus === 'all' }]"
         @click="filterStatus = 'all'"
       >
-        Tutti ({{ devicesStore.devices.length }})
+        {{ t('devices.filterAll') }} ({{ totalDevicesCount }})
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'online' }]"
         @click="filterStatus = 'online'"
       >
         <Wifi :size="15" />
-        Online ({{ devicesStore.onlineDevices.length }})
+        {{ t('devices.filterOnline') }} ({{ onlineDevicesCount }})
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'offline' }]"
         @click="filterStatus = 'offline'"
       >
         <WifiOff :size="15" />
-        Offline ({{ devicesStore.offlineDevices.length }})
+        {{ t('devices.filterOffline') }} ({{ offlineDevicesCount }})
       </button>
     </div>
 
@@ -92,9 +98,9 @@ const filteredDevices = computed(() => {
     <!-- Empty State -->
     <div v-else class="empty-state glass-card">
       <Cpu :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessun dispositivo</h3>
+      <h3 class="empty-title">{{ t('devices.emptyTitle') }}</h3>
       <p class="empty-desc">
-        Non sono stati trovati dispositivi con i filtri correnti.
+        {{ t('devices.emptyDesc') }}
       </p>
     </div>
   </div>
@@ -179,7 +185,8 @@ const filteredDevices = computed(() => {
 
 .device-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-card);
+  box-shadow: var(--shadow-md);
 }
 
 .device-card-top {
@@ -192,7 +199,8 @@ const filteredDevices = computed(() => {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -23,7 +23,8 @@ export const useEntitiesStore = defineStore('entities', () => {
     try {
       loading.value = true
       error.value = null
-      const data = await apiClient.get<Entity[]>('/api/v1/entities')
+      const raw = await apiClient.get<Entity[] | null>('/api/v1/entities')
+      const data = raw ?? []
       const dict: Record<string, Entity> = {}
       data.forEach((e) => {
         dict[e.id] = e

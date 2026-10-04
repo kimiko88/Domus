@@ -30,7 +30,7 @@ type mockAutoRepo struct {
 	purgedCount  int64
 }
 
-func (m *mockAutoRepo) Create(ctx context.Context, a *domauto.Automation) error      { return nil }
+func (m *mockAutoRepo) Create(ctx context.Context, a *domauto.Automation) error { return nil }
 func (m *mockAutoRepo) GetByID(ctx context.Context, id string) (*domauto.Automation, error) {
 	return nil, nil
 }
@@ -41,7 +41,7 @@ func (m *mockAutoRepo) Update(ctx context.Context, a *domauto.Automation) error 
 func (m *mockAutoRepo) UpdateLastRun(ctx context.Context, id string, status string) error {
 	return nil
 }
-func (m *mockAutoRepo) Delete(ctx context.Context, id string) error                 { return nil }
+func (m *mockAutoRepo) Delete(ctx context.Context, id string) error                     { return nil }
 func (m *mockAutoRepo) CreateRun(ctx context.Context, run *domauto.AutomationRun) error { return nil }
 func (m *mockAutoRepo) UpdateRun(ctx context.Context, run *domauto.AutomationRun) error { return nil }
 func (m *mockAutoRepo) ListRuns(ctx context.Context, automationID string, limit int) ([]*domauto.AutomationRun, error) {

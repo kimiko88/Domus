@@ -78,6 +78,55 @@ func TestAreaHandler_ListAndCreate(t *testing.T) {
 	assert.Equal(t, "Kitchen", list[0]["name"])
 }
 
+func TestAreaHandler_UpdateAndDelete(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	handler := handlers.NewAreaHandler(repos.Areas)
+
+	// Create
+	payload, _ := json.Marshal(map[string]any{
+		"id":   "living",
+		"name": "Living Room",
+		"icon": "sofa",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/areas", bytes.NewReader(payload))
+	rr := httptest.NewRecorder()
+	handler.Create(rr, req)
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	r := chi.NewRouter()
+	r.Put("/api/v1/areas/{id}", handler.Update)
+	r.Delete("/api/v1/areas/{id}", handler.Delete)
+
+	// Update
+	updatePayload, _ := json.Marshal(map[string]any{
+		"name":       "Salon",
+		"icon":       "tv",
+		"sort_order": 5,
+	})
+	reqUpdate := httptest.NewRequest(http.MethodPut, "/api/v1/areas/living", bytes.NewReader(updatePayload))
+	rrUpdate := httptest.NewRecorder()
+	r.ServeHTTP(rrUpdate, reqUpdate)
+	assert.Equal(t, http.StatusOK, rrUpdate.Code)
+
+	// Verify update
+	var updated map[string]any
+	require.NoError(t, json.Unmarshal(rrUpdate.Body.Bytes(), &updated))
+	assert.Equal(t, "Salon", updated["name"])
+	assert.Equal(t, "tv", updated["icon"])
+
+	// Delete
+	reqDelete := httptest.NewRequest(http.MethodDelete, "/api/v1/areas/living", nil)
+	rrDelete := httptest.NewRecorder()
+	r.ServeHTTP(rrDelete, reqDelete)
+	assert.Equal(t, http.StatusNoContent, rrDelete.Code)
+
+	// Delete again should return 404
+	reqDeleteNotFound := httptest.NewRequest(http.MethodDelete, "/api/v1/areas/living", nil)
+	rrDeleteNotFound := httptest.NewRecorder()
+	r.ServeHTTP(rrDeleteNotFound, reqDeleteNotFound)
+	assert.Equal(t, http.StatusNotFound, rrDeleteNotFound.Code)
+}
+
 func TestDeviceHandler_ListAndGet(t *testing.T) {
 	repos, _ := setupTestEnvironment(t)
 	ctx := context.Background()

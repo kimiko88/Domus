@@ -25,7 +25,7 @@ describe('useSystemStore', () => {
     const store = useSystemStore()
     const res = await store.fetchMetrics()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/system/metrics')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/system/metrics')
     expect(res.uptime_s).toBe(3665)
     expect(store.metrics).toEqual(mockMetrics)
     expect(store.formattedUptime).toBe('1h 1m 5s')
@@ -87,7 +87,7 @@ describe('useSystemStore', () => {
     const store = useSystemStore()
     await store.fetchOSDiagnostics()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/system/diagnostics')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/system/diagnostics')
     expect(store.osDiagnostics).toEqual(mockDiag)
     expect(store.formattedMemory).toContain('MB')
     expect(store.formattedDisk).toContain('GB')
@@ -114,7 +114,7 @@ describe('useSystemStore', () => {
     const store = useSystemStore()
     await store.enableMaintenance({ duration_minutes: 30, authorized_key: 'ssh-ed25519 AAA...' })
 
-    expect(apiClient.post).toHaveBeenCalledWith('/system/maintenance/enable', {
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/system/maintenance/enable', {
       duration_minutes: 30,
       authorized_key: 'ssh-ed25519 AAA...'
     })
@@ -125,7 +125,7 @@ describe('useSystemStore', () => {
     vi.spyOn(apiClient, 'post').mockResolvedValueOnce(inactiveStatus)
     await store.disableMaintenance()
 
-    expect(apiClient.post).toHaveBeenCalledWith('/system/maintenance/disable', {})
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/system/maintenance/disable', {})
     expect(store.maintenanceStatus?.active).toBe(false)
   })
 })

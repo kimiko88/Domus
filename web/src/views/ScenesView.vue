@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useScenesStore } from '../stores/scenes'
 import { useNotificationsStore } from '../stores/notifications'
 import type { Scene } from '../api/types'
 import SceneCard from '../components/cards/SceneCard.vue'
 import SceneEditorModal from '../components/modals/SceneEditorModal.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
-import { Clapperboard, Plus, RefreshCw, Sparkles } from '@lucide/vue'
+import { Clapperboard, Plus } from '@lucide/vue'
 
+const { t } = useI18n()
 const scenesStore = useScenesStore()
 const notificationsStore = useNotificationsStore()
 
@@ -37,12 +39,12 @@ function handleEdit(scene: Scene) {
 }
 
 async function handleDelete(scene: Scene) {
-  if (confirm(`Sei sicuro di voler eliminare la scena "${scene.name}"?`)) {
+  if (confirm(t('scenes.confirmDelete', { name: scene.name }))) {
     try {
       await scenesStore.deleteScene(scene.id)
-      notificationsStore.success('Scena Eliminata', `"${scene.name}" è stata rimossa`)
+      notificationsStore.success(t('scenes.deleteSuccess'), `"${scene.name}"`)
     } catch (err: any) {
-      notificationsStore.error('Errore', err?.message || 'Impossibile eliminare la scena')
+      notificationsStore.error(t('common.error'), err?.message || t('scenes.deleteError'))
     }
   }
 }
@@ -51,15 +53,15 @@ async function handleSaveScene(data: Partial<Scene>) {
   try {
     if (editingScene.value) {
       await scenesStore.updateScene(editingScene.value.id, data)
-      notificationsStore.success('Scena Aggiornata', `"${data.name}" aggiornata con successo`)
+      notificationsStore.success(t('scenes.saveSuccess'), `"${data.name}"`)
     } else {
       await scenesStore.createScene(data)
-      notificationsStore.success('Scena Creata', `"${data.name}" creata con successo`)
+      notificationsStore.success(t('scenes.saveSuccess'), `"${data.name}"`)
     }
     isEditorOpen.value = false
     editingScene.value = null
   } catch (err: any) {
-    notificationsStore.error('Errore Salvataggio', err?.message || 'Impossibile salvare la scena')
+    notificationsStore.error(t('common.error'), err?.message || t('scenes.saveError'))
   }
 }
 </script>
@@ -68,18 +70,14 @@ async function handleSaveScene(data: Partial<Scene>) {
   <div class="scenes-view">
     <div class="header-row">
       <div>
-        <h2 class="section-title">Scene</h2>
-        <p class="section-subtitle">Preset istantanei per configurare più dispositivi con un solo tocco</p>
+        <h2 class="section-title">{{ t('scenes.title') }}</h2>
+        <p class="section-subtitle">{{ t('scenes.subtitle') }}</p>
       </div>
 
       <div class="header-actions">
-        <BaseButton
-          variant="primary"
-          class="btn-new-scene"
-          @click="openNewModal"
-        >
+        <BaseButton variant="primary" @click="openNewModal">
           <Plus :size="16" />
-          <span>Nuova Scena</span>
+          <span>{{ t('scenes.newScene') }}</span>
         </BaseButton>
       </div>
     </div>
@@ -98,13 +96,11 @@ async function handleSaveScene(data: Partial<Scene>) {
     <!-- Empty State -->
     <div v-else-if="!scenesStore.loading" class="empty-state glass-card">
       <Clapperboard :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessuna scena configurata</h3>
-      <p class="empty-desc">
-        Crea la tua prima scena (es. "Cinema", "Tutto Spento", "Lavoro") per raggruppare azioni su più luci o interruttori.
-      </p>
+      <h3 class="empty-title">{{ t('scenes.emptyTitle') }}</h3>
+      <p class="empty-desc">{{ t('scenes.emptyDesc') }}</p>
       <BaseButton variant="primary" style="margin-top: 16px;" @click="openNewModal">
         <Plus :size="16" />
-        <span>Crea Scena</span>
+        <span>{{ t('scenes.newScene') }}</span>
       </BaseButton>
     </div>
 

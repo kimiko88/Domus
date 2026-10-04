@@ -1,11 +1,37 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAreasStore } from '../stores/areas'
 import { useEntitiesStore } from '../stores/entities'
-import { Grid, Layers, Sparkles } from '@lucide/vue'
+import { useNotificationsStore } from '../stores/notifications'
+import type { Area } from '../api/types'
+import BaseButton from '../components/ui/BaseButton.vue'
+import AreaEditorModal from '../components/modals/AreaEditorModal.vue'
+import {
+  Grid,
+  Layers,
+  Plus,
+  Pencil,
+  Trash2,
+  Sofa,
+  Utensils,
+  Bed,
+  Bath,
+  Laptop,
+  Trees,
+  Sun,
+  Car,
+  Tv
+} from '@lucide/vue'
+
+const { t } = useI18n()
 
 const areasStore = useAreasStore()
 const entitiesStore = useEntitiesStore()
+const notificationsStore = useNotificationsStore()
+
+const isEditorOpen = ref(false)
+const editingArea = ref<Area | null>(null)
 
 onMounted(async () => {
   try {
@@ -23,14 +49,92 @@ function getEntitiesForArea(areaId: string) {
     (e) => (e.attributes as any)?.area_id === areaId || (e as any).area_id === areaId
   )
 }
+
+function getAreaIcon(icon?: string) {
+  switch (icon?.toLowerCase()) {
+    case 'sofa':
+    case 'living':
+      return Sofa
+    case 'utensils':
+    case 'kitchen':
+      return Utensils
+    case 'bed':
+    case 'bedroom':
+      return Bed
+    case 'bath':
+    case 'bathroom':
+      return Bath
+    case 'laptop':
+    case 'office':
+      return Laptop
+    case 'trees':
+    case 'garden':
+      return Trees
+    case 'sun':
+    case 'balcony':
+    case 'terrace':
+      return Sun
+    case 'car':
+    case 'garage':
+      return Car
+    case 'tv':
+    case 'cinema':
+      return Tv
+    default:
+      return Grid
+  }
+}
+
+function openNewModal() {
+  editingArea.value = null
+  isEditorOpen.value = true
+}
+
+function openEditModal(area: Area) {
+  editingArea.value = area
+  isEditorOpen.value = true
+}
+
+async function handleDelete(area: Area) {
+  if (confirm(t('areas.confirmDelete', { name: area.name }))) {
+    try {
+      await areasStore.deleteArea(area.id)
+      notificationsStore.success(t('areas.deleteSuccess'), `"${area.name}"`)
+    } catch (err: any) {
+      notificationsStore.error(t('common.error'), err?.message || t('areas.deleteError'))
+    }
+  }
+}
+
+async function handleSaveArea(payload: { name: string; icon: string; sort_order: number }) {
+  try {
+    if (editingArea.value) {
+      await areasStore.updateArea(editingArea.value.id, payload)
+      notificationsStore.success(t('areas.saveSuccess'), `"${payload.name}"`)
+    } else {
+      await areasStore.createArea(payload)
+      notificationsStore.success(t('areas.saveSuccess'), `"${payload.name}"`)
+    }
+    isEditorOpen.value = false
+    editingArea.value = null
+  } catch (err: any) {
+    notificationsStore.error(t('common.error'), err?.message || t('areas.saveError'))
+  }
+}
 </script>
 
 <template>
   <div class="areas-view">
     <div class="header-row">
       <div>
-        <h2 class="section-title">Aree della Casa</h2>
-        <p class="section-subtitle">Organizza e controlla i tuoi dispositivi per stanza o zona</p>
+        <h2 class="section-title">{{ t('areas.title') }}</h2>
+        <p class="section-subtitle">{{ t('areas.subtitle') }}</p>
+      </div>
+      <div class="header-actions">
+        <BaseButton variant="primary" @click="openNewModal">
+          <Plus :size="16" />
+          {{ t('areas.newArea') }}
+        </BaseButton>
       </div>
     </div>
 
@@ -43,13 +147,32 @@ function getEntitiesForArea(areaId: string) {
       >
         <div class="area-card-top">
           <div class="area-icon-box">
-            <Grid :size="24" />
+            <component :is="getAreaIcon(area.icon)" :size="24" />
           </div>
           <div class="area-info">
             <h3 class="area-name">{{ area.name }}</h3>
             <span class="area-count">
-              {{ getEntitiesForArea(area.id).length }} Dispositivi/Entità
+              {{ getEntitiesForArea(area.id).length }} {{ t('areas.devicesCount') }}
             </span>
+          </div>
+
+          <div class="card-actions">
+            <button
+              class="btn-card-action"
+              :title="t('areas.editArea')"
+              :aria-label="t('areas.editArea')"
+              @click="openEditModal(area)"
+            >
+              <Pencil :size="15" />
+            </button>
+            <button
+              class="btn-card-action is-danger"
+              :title="t('areas.deleteArea')"
+              :aria-label="t('areas.deleteArea')"
+              @click="handleDelete(area)"
+            >
+              <Trash2 :size="15" />
+            </button>
           </div>
         </div>
 
@@ -63,7 +186,7 @@ function getEntitiesForArea(areaId: string) {
             <span class="pill-name">{{ entity.name }}</span>
           </div>
           <span v-if="getEntitiesForArea(area.id).length > 4" class="more-count">
-            +{{ getEntitiesForArea(area.id).length - 4 }} altri
+            +{{ getEntitiesForArea(area.id).length - 4 }} {{ t('areas.moreEntities') }}
           </span>
         </div>
       </div>
@@ -71,12 +194,22 @@ function getEntitiesForArea(areaId: string) {
 
     <!-- Empty State -->
     <div v-else class="empty-state glass-card">
-      <Layers :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessuna area configurata</h3>
-      <p class="empty-desc">
-        Configura le aree (es. Soggiorno, Cucina, Camera) per raggruppare i tuoi dispositivi intelligenti.
-      </p>
+      <Layers :size="42" class="empty-icon" />
+      <h3 class="empty-title">{{ t('areas.emptyTitle') }}</h3>
+      <p class="empty-desc">{{ t('areas.emptyDesc') }}</p>
+      <BaseButton variant="primary" class="empty-btn" @click="openNewModal">
+        <Plus :size="16" />
+        {{ t('areas.createFirst') }}
+      </BaseButton>
     </div>
+
+    <!-- Editor Modal -->
+    <AreaEditorModal
+      :is-open="isEditorOpen"
+      :area="editingArea"
+      @close="isEditorOpen = false"
+      @save="handleSaveArea"
+    />
   </div>
 </template>
 
@@ -91,6 +224,8 @@ function getEntitiesForArea(areaId: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .section-title {
@@ -104,6 +239,12 @@ function getEntitiesForArea(areaId: string) {
   font-size: 14px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .areas-grid {
@@ -121,6 +262,7 @@ function getEntitiesForArea(areaId: string) {
   border: 1px solid var(--border-subtle);
   background: var(--bg-glass-card);
   transition: all var(--transition-normal);
+  position: relative;
 }
 
 .area-card:hover {
@@ -149,18 +291,56 @@ function getEntitiesForArea(areaId: string) {
 .area-info {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .area-name {
   font-size: 17px;
   font-weight: 600;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .area-count {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.btn-card-action {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-card-action:hover {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: var(--primary);
+}
+
+.btn-card-action.is-danger:hover {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .area-entities-preview {
@@ -216,20 +396,20 @@ function getEntitiesForArea(areaId: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  max-width: 500px;
-  margin: 30px auto;
+  max-width: 520px;
+  margin: 40px auto;
   border-radius: var(--radius-xl);
 }
 
 .empty-icon {
   color: var(--primary);
   margin-bottom: 16px;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .empty-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
   color: var(--text-main);
 }
 
@@ -237,6 +417,13 @@ function getEntitiesForArea(areaId: string) {
   font-size: 14px;
   color: var(--text-muted);
   margin-top: 8px;
-  line-height: 1.5;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

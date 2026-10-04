@@ -141,7 +141,7 @@ function renderChart() {
       scales: {
         x: {
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
+            color: 'rgba(148, 163, 184, 0.12)'
           },
           ticks: {
             color: '#64748b',
@@ -152,7 +152,7 @@ function renderChart() {
         },
         y: {
           grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
+            color: 'rgba(148, 163, 184, 0.12)'
           },
           ticks: {
             color: '#64748b',
@@ -213,11 +213,12 @@ defineExpose({
   position: relative;
   width: 100%;
   height: 280px;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg, 16px);
   padding: 1rem;
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-sm);
 }
 
 .canvas-wrapper {
@@ -234,13 +235,13 @@ defineExpose({
   justify-content: center;
   height: 100%;
   gap: 0.75rem;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 .spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(148, 163, 184, 0.2);
   border-top-color: #06b6d4;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -249,11 +250,13 @@ defineExpose({
 .empty-icon {
   width: 36px;
   height: 36px;
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
 .empty-text {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
   margin: 0;
 }
 

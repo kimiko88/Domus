@@ -623,10 +623,10 @@ onMounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -634,14 +634,14 @@ onMounted(() => {
 }
 
 .lang-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
 }
 
 .lang-btn.active {
-  background: rgba(6, 182, 212, 0.2);
+  background: rgba(6, 182, 212, 0.15);
   border-color: #06b6d4;
-  color: #06b6d4;
+  color: #0284c7;
   font-weight: 600;
 }
 
@@ -743,10 +743,10 @@ onMounted(() => {
 .maint-textarea {
   width: 100%;
   padding: 8px 12px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
-  color: #f8fafc;
+  color: var(--text-main);
   font-size: 13px;
 }
 

@@ -50,4 +50,14 @@ describe('Devices Store', () => {
     expect(store.onlineDevices.length).toBe(1)
     expect(store.onlineDevices[0].id).toBe('dev-1')
   })
+
+  it('handles null API response gracefully without crashing', async () => {
+    const store = useDevicesStore()
+    vi.mocked(apiClient.get).mockResolvedValueOnce(null)
+
+    await store.fetchDevices()
+    expect(store.devices).toEqual([])
+    expect(store.onlineDevices).toEqual([])
+    expect(store.offlineDevices).toEqual([])
+  })
 })

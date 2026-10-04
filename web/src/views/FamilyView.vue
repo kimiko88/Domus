@@ -552,19 +552,21 @@ onMounted(() => {
 }
 
 .member-card {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .member-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--border-card);
+  box-shadow: var(--shadow-md);
 }
 
 .member-top {
@@ -718,10 +720,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--bg-surface);
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
 }
 
 .invite-info {
@@ -872,15 +874,15 @@ onMounted(() => {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .role-card:hover {
-  background: rgba(15, 23, 42, 0.7);
+  background: var(--bg-surface-hover);
   border-color: rgba(99, 102, 241, 0.3);
 }
 
@@ -903,7 +905,7 @@ onMounted(() => {
   gap: 0.4rem;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
 }
 
 .admin-icon { color: #a5b4fc; }
@@ -912,7 +914,7 @@ onMounted(() => {
 
 .role-desc {
   font-size: 0.78rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
   margin-top: 0.25rem;
   line-height: 1.35;
 }
@@ -924,9 +926,9 @@ onMounted(() => {
 
 .chip {
   flex: 1;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--color-text-muted, #94a3b8);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
   padding: 0.5rem;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -936,12 +938,12 @@ onMounted(() => {
 }
 
 .chip:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface-hover);
 }
 
 .chip.active {
-  background: rgba(99, 102, 241, 0.2);
-  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
   border-color: #6366f1;
 }
 
@@ -962,9 +964,9 @@ onMounted(() => {
 
 .link-input {
   flex: 1;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #6ee7b7;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
   font-family: monospace;
   font-size: 0.85rem;
   padding: 0.5rem;

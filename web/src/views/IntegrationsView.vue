@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { apiClient } from '../api/client'
 import { useNotificationsStore } from '../stores/notifications'
 import { Network, RefreshCw, AlertCircle, CheckCircle, WifiOff } from '@lucide/vue'
+
+const { t } = useI18n()
 
 interface Integration {
   id: string
@@ -34,10 +37,13 @@ async function reconnect(integration: Integration) {
   reconnectingId.value = integration.id
   try {
     await apiClient.post(`/api/v1/integrations/${integration.id}/reconnect`)
-    notificationsStore.info('Riconnessione', `Avviata riconnessione per ${integration.name}`)
+    notificationsStore.info(
+      t('integrations.reconnect'),
+      t('integrations.reconnecting', { name: integration.name })
+    )
     await fetchIntegrations()
   } catch (err: any) {
-    notificationsStore.error('Errore Riconnessione', err?.message || 'Impossibile riconnettere')
+    notificationsStore.error(t('common.error'), err?.message || t('integrations.reconnectError'))
   } finally {
     reconnectingId.value = null
   }
@@ -52,12 +58,12 @@ onMounted(() => {
   <div class="integrations-view">
     <div class="header-row">
       <div>
-        <h2 class="section-title">Integrazioni</h2>
-        <p class="section-subtitle">Bridge hardware e adapter cloud collegati a Domus</p>
+        <h2 class="section-title">{{ t('integrations.title') }}</h2>
+        <p class="section-subtitle">{{ t('integrations.subtitle') }}</p>
       </div>
       <button class="btn-refresh glass-panel" :disabled="loading" @click="fetchIntegrations">
         <RefreshCw :size="16" :class="{ 'animate-spin': loading }" />
-        <span>Aggiorna</span>
+        <span>{{ t('integrations.refresh') }}</span>
       </button>
     </div>
 
@@ -96,7 +102,7 @@ onMounted(() => {
             @click="reconnect(item)"
           >
             <RefreshCw :size="14" :class="{ 'animate-spin': reconnectingId === item.id }" />
-            <span>Riconnetti</span>
+            <span>{{ t('integrations.reconnect') }}</span>
           </button>
         </div>
       </div>
@@ -104,10 +110,8 @@ onMounted(() => {
 
     <div v-else-if="!loading" class="empty-state glass-card">
       <Network :size="36" class="empty-icon" />
-      <h3 class="empty-title">Nessuna integrazione configurata</h3>
-      <p class="empty-desc">
-        Configura gli adapter MQTT, Zigbee2MQTT o ESPHome nel file di configurazione per connetterli.
-      </p>
+      <h3 class="empty-title">{{ t('integrations.emptyTitle') }}</h3>
+      <p class="empty-desc">{{ t('integrations.emptyDesc') }}</p>
     </div>
   </div>
 </template>

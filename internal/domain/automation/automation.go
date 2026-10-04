@@ -48,7 +48,7 @@ type Condition struct {
 
 // Action defines an operation performed when triggers and conditions pass.
 type Action struct {
-	Type            string         `json:"type"` // "service", "delay", "event"
+	Type            string         `json:"type"`              // "service", "delay", "event"
 	Service         string         `json:"service,omitempty"` // "turn_on", "turn_off", "toggle"
 	TargetEntityKey string         `json:"target_entity_key,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
@@ -100,7 +100,7 @@ type AutomationRun struct {
 	AutomationID   string     `json:"automation_id"`
 	StartedAt      time.Time  `json:"started_at"`
 	FinishedAt     *time.Time `json:"finished_at,omitempty"`
-	Status         string     `json:"status"` // "running", "completed", "failed", "skipped"
+	Status         string     `json:"status"`          // "running", "completed", "failed", "skipped"
 	TriggerContext string     `json:"trigger_context"` // JSON string
 	Log            string     `json:"log"`
 	DurationMs     int64      `json:"duration_ms"`

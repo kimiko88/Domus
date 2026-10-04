@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import DevicesView from './DevicesView.vue'
 import { useDevicesStore } from '../stores/devices'
+import { i18n } from '../locales'
 
 describe('DevicesView.vue', () => {
   let devicesStore: ReturnType<typeof useDevicesStore>
@@ -38,7 +39,9 @@ describe('DevicesView.vue', () => {
 
     vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue(devicesStore.devices)
 
-    const wrapper = mount(DevicesView)
+    const wrapper = mount(DevicesView, {
+      global: { plugins: [i18n] }
+    })
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Aqara Motion Sensor')
@@ -67,7 +70,9 @@ describe('DevicesView.vue', () => {
       }
     ]
 
-    const wrapper = mount(DevicesView)
+    const wrapper = mount(DevicesView, {
+      global: { plugins: [i18n] }
+    })
     await wrapper.vm.$nextTick()
 
     const onlineFilter = wrapper.findAll('.filter-pill').find((p) => p.text().includes('Online'))
@@ -76,5 +81,17 @@ describe('DevicesView.vue', () => {
 
     expect(wrapper.text()).toContain('Online Bulb')
     expect(wrapper.text()).not.toContain('Offline Switch')
+  })
+
+  it('renders empty state without crashing when devices list is empty or null', async () => {
+    devicesStore.devices = [] as any
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+
+    const wrapper = mount(DevicesView, {
+      global: { plugins: [i18n] }
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.empty-state').exists()).toBe(true)
   })
 })

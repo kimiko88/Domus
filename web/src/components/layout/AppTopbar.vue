@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
+import { useTheme } from '../../composables/useTheme'
 import { getCurrentLanguage, setLanguage } from '../../locales'
-import { Menu, LogOut, User as UserIcon, Radio } from '@lucide/vue'
+import { Menu, LogOut, User as UserIcon, Sun, Moon } from '@lucide/vue'
 
 interface Props {
   title?: string
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const wsStore = useWsStore()
+const { isDark, toggleTheme } = useTheme()
 
 const currentUser = computed(() => authStore.user)
 const isWsConnected = computed(() => wsStore.isConnected)
@@ -55,6 +57,17 @@ async function handleLogout() {
         @click="toggleLanguage"
       >
         <span class="lang-flag-pill">{{ currentLang === 'it' ? '🇮🇹 IT' : '🇬🇧 EN' }}</span>
+      </button>
+
+      <!-- Theme Toggle -->
+      <button
+        class="theme-toggle"
+        :title="isDark ? 'Passa al tema chiaro' : 'Switch to dark mode'"
+        :aria-label="isDark ? 'Attiva tema chiaro' : 'Attiva tema scuro'"
+        @click="toggleTheme"
+      >
+        <Sun v-if="isDark" :size="16" />
+        <Moon v-else :size="16" />
       </button>
 
       <!-- WS Live Status Badge -->
@@ -161,6 +174,50 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.theme-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: rotate(12deg);
+}
+
+:root[data-theme="light"] .theme-toggle {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #475569;
+}
+
+:root[data-theme="light"] .theme-toggle:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .lang-quick-toggle {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #475569;
+}
+
+:root[data-theme="light"] .lang-quick-toggle:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
 }
 
 /* WebSocket Connection Status */

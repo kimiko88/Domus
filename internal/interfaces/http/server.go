@@ -75,19 +75,19 @@ func WithCORS(origins []string) ServerOption {
 
 // Server encapsulates the HTTP router and net/http server lifecycle.
 type Server struct {
-	cfg           config.ServerConfig
-	router        chi.Router
-	httpServer    *http.Server
-	listener      net.Listener
-	startedAt     time.Time
-	authService   *auth.Service
-	rateLimiter   *auth.RateLimiter
-	repos         *sqlite.Repositories
-	bus           events.Bus
-	wsHub         *wsinfra.Hub
-	autoEngine    *appauto.Engine
-	sceneService  *appscene.Service
-	mqttConnected bool
+	cfg            config.ServerConfig
+	router         chi.Router
+	httpServer     *http.Server
+	listener       net.Listener
+	startedAt      time.Time
+	authService    *auth.Service
+	rateLimiter    *auth.RateLimiter
+	repos          *sqlite.Repositories
+	bus            events.Bus
+	wsHub          *wsinfra.Hub
+	autoEngine     *appauto.Engine
+	sceneService   *appscene.Service
+	mqttConnected  bool
 	allowedOrigins []string
 }
 
@@ -207,18 +207,29 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
+			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus)
 
 			api.Group(func(domainRouter chi.Router) {
 				if srv.authService != nil {
 					domainRouter.Use(domusmw.RequireAuth())
 				}
 
+				domainRouter.Route("/integrations", func(intRouter chi.Router) {
+					intRouter.Get("/", integrationH.List)
+					intRouter.Get("/{id}", integrationH.GetByID)
+					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
+				})
+
 				domainRouter.Route("/areas", func(areaRouter chi.Router) {
 					areaRouter.Get("/", areaH.List)
 					if srv.authService != nil {
 						areaRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", areaH.Create)
+						areaRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", areaH.Update)
+						areaRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", areaH.Delete)
 					} else {
 						areaRouter.Post("/", areaH.Create)
+						areaRouter.Put("/{id}", areaH.Update)
+						areaRouter.Delete("/{id}", areaH.Delete)
 					}
 					areaRouter.Get("/{id}", areaH.GetByID)
 				})

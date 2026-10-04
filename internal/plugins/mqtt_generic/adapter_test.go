@@ -84,8 +84,8 @@ func TestMQTTGenericAdapter_IncomingStateUpdatesEntityAndEmitsEvent(t *testing.T
 
 	// 2. Setup MQTT Generic Adapter
 	adapter := mqtt_generic.NewAdapter(mqtt_generic.Config{
-		IntegrationID: in.ID,
-		StateTopicPattern: "domus/+/state", // e.g. domus/switch.living_room/state
+		IntegrationID:        in.ID,
+		StateTopicPattern:    "domus/+/state", // e.g. domus/switch.living_room/state
 		CommandTopicTemplate: "domus/%s/set",
 	}, mockClient, repos.Entities, repos.Devices, bus)
 
@@ -145,8 +145,8 @@ func TestMQTTGenericAdapter_OutboundCommandPublishesToMQTT(t *testing.T) {
 	mockClient := mqtt.NewMockClient()
 
 	adapter := mqtt_generic.NewAdapter(mqtt_generic.Config{
-		IntegrationID: "mqtt_main",
-		StateTopicPattern: "domus/+/state",
+		IntegrationID:        "mqtt_main",
+		StateTopicPattern:    "domus/+/state",
 		CommandTopicTemplate: "domus/%s/set",
 	}, mockClient, repos.Entities, repos.Devices, bus)
 

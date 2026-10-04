@@ -132,7 +132,7 @@ func (m *MockRaucController) Rollback(ctx context.Context) error {
 
 // MockHealthChecker implements supervisor.HealthChecker for tests.
 type MockHealthChecker struct {
-	mu           sync.Mutex
+	mu            sync.Mutex
 	returnHealthy bool
 	attempts      int
 }

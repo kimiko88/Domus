@@ -17,21 +17,21 @@ var (
 
 // AppManifest represents a verified Domus App configuration.
 type AppManifest struct {
-	ID                 string            `json:"id" yaml:"id"`
-	Name               string            `json:"name" yaml:"name"`
-	Version            string            `json:"version" yaml:"version"`
-	Description        string            `json:"description" yaml:"description"`
-	Publisher          string            `json:"publisher,omitempty" yaml:"publisher,omitempty"`
-	License            string            `json:"license,omitempty" yaml:"license,omitempty"`
-	MinimumDomusVer    string            `json:"minimum_domus_version,omitempty" yaml:"minimum_domus_version,omitempty"`
-	Image              string            `json:"image" yaml:"image"`
-	ImageDigest        string            `json:"image_digest,omitempty" yaml:"image_digest,omitempty"`
-	Architecture       []string          `json:"architecture,omitempty" yaml:"architecture,omitempty"`
-	Entrypoint         []string          `json:"entrypoint,omitempty" yaml:"entrypoint,omitempty"`
-	Environment        map[string]string `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Permissions        AppPermissions    `json:"permissions" yaml:"permissions"`
-	Resources          AppResources      `json:"resources" yaml:"resources"`
-	Healthcheck        *AppHealthcheck   `json:"healthcheck,omitempty" yaml:"healthcheck,omitempty"`
+	ID              string            `json:"id" yaml:"id"`
+	Name            string            `json:"name" yaml:"name"`
+	Version         string            `json:"version" yaml:"version"`
+	Description     string            `json:"description" yaml:"description"`
+	Publisher       string            `json:"publisher,omitempty" yaml:"publisher,omitempty"`
+	License         string            `json:"license,omitempty" yaml:"license,omitempty"`
+	MinimumDomusVer string            `json:"minimum_domus_version,omitempty" yaml:"minimum_domus_version,omitempty"`
+	Image           string            `json:"image" yaml:"image"`
+	ImageDigest     string            `json:"image_digest,omitempty" yaml:"image_digest,omitempty"`
+	Architecture    []string          `json:"architecture,omitempty" yaml:"architecture,omitempty"`
+	Entrypoint      []string          `json:"entrypoint,omitempty" yaml:"entrypoint,omitempty"`
+	Environment     map[string]string `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Permissions     AppPermissions    `json:"permissions" yaml:"permissions"`
+	Resources       AppResources      `json:"resources" yaml:"resources"`
+	Healthcheck     *AppHealthcheck   `json:"healthcheck,omitempty" yaml:"healthcheck,omitempty"`
 }
 
 // AppPermissions defines declared hardware, network, and storage privileges.

@@ -58,10 +58,12 @@ export interface Area {
   id: string
   name: string
   icon?: string
+  parent_area_id?: string
+  sort_order?: number
   floor?: number
   order_index?: number
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface AutomationTrigger {

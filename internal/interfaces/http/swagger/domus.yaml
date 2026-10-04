@@ -653,6 +653,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/Area"
 
+  /areas/{id}:
+    get:
+      summary: Get area by ID
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Area"
+        "404":
+          description: Area not found
+    put:
+      summary: Update area
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Area"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Area"
+        "404":
+          description: Area not found
+    delete:
+      summary: Delete area
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Area deleted
+        "404":
+          description: Area not found
+
   /automations:
     get:
       summary: List automations
@@ -763,6 +818,45 @@ paths:
                     entity_id: { type: string }
                     state: { type: object }
                     recorded_at: { type: string, format: date-time }
+
+  # ── INTEGRATIONS ───────────────────────────────────────────────
+  /integrations:
+    get:
+      summary: List registered hardware and cloud integrations
+      tags: [Integrations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    type: { type: string }
+                    name: { type: string }
+                    enabled: { type: boolean }
+                    status: { type: string }
+                    last_error: { type: string }
+  /integrations/{id}/reconnect:
+    post:
+      summary: Trigger reconnection for an integration adapter
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
 
   # ── SYSTEM & METRICS ───────────────────────────────────────────
   /system/health:

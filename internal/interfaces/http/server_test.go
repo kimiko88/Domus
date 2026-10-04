@@ -391,5 +391,3 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 	rr = doReq(http.MethodPut, "/api/v1/family/members/"+adminUser.ID+"/role", adminSess.ID, demoteAdminBody)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
-
-

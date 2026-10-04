@@ -8,19 +8,19 @@ export const useDevicesStore = defineStore('devices', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const onlineDevices = computed(() => devices.value.filter((d) => d.status === 'online'))
-  const offlineDevices = computed(() => devices.value.filter((d) => d.status === 'offline'))
+  const onlineDevices = computed(() => (devices.value || []).filter((d) => d.status === 'online'))
+  const offlineDevices = computed(() => (devices.value || []).filter((d) => d.status === 'offline'))
 
-  const byId = (id: string): Device | undefined => devices.value.find((d) => d.id === id)
-  const byArea = (areaId: string): Device[] => devices.value.filter((d) => d.area_id === areaId)
+  const byId = (id: string): Device | undefined => (devices.value || []).find((d) => d.id === id)
+  const byArea = (areaId: string): Device[] => (devices.value || []).filter((d) => d.area_id === areaId)
 
   async function fetchDevices(): Promise<Device[]> {
     try {
       loading.value = true
       error.value = null
-      const data = await apiClient.get<Device[]>('/api/v1/devices')
-      devices.value = data
-      return data
+      const data = await apiClient.get<Device[] | null>('/api/v1/devices')
+      devices.value = data ?? []
+      return devices.value
     } catch (err: any) {
       error.value = err?.message || 'Failed to fetch devices'
       throw err
