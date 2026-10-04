@@ -5,6 +5,29 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-04
+
+### Added
+- **Frontend Automations & Scenes (MS-07)**:
+  - **API Types & Data Models (`web/src/api/types.ts`)**:
+    - Full TypeScript typings for `Automation`, `Trigger`, `Condition`, `Action`, `AutomationRun`, `Scene`, `SceneAction`, and respective API response wrappers.
+  - **Pinia State Management Stores**:
+    - `automations`: Full CRUD lifecycle (`fetchAutomations`, `createAutomation`, `updateAutomation`, `deleteAutomation`), reactive live toggle (`toggleAutomation`), test execution trigger (`triggerAutomation`), and execution run logs query (`fetchRuns`).
+    - `scenes`: Full CRUD operations (`fetchScenes`, `createScene`, `updateScene`, `deleteScene`), and one-click manual scene activation (`applyScene`).
+  - **Card Components (`web/src/components/cards/`)**:
+    - `SceneCard`: Glassmorphic scene card featuring ambient icon glow, one-click "Attiva" action button with pending feedback, edit/delete actions, and configured action counter badge.
+    - `AutomationCard`: Feature-rich automation card with live toggle switch, execution mode badge (`single`, `restart`, `queued`, `parallel`), cooldown indicators, last run status badge, manual test trigger button, and run history viewer toggle.
+  - **Modals & DSL Editors (`web/src/components/modals/`)**:
+    - `SceneEditorModal`: Multi-action preset designer with dynamic action rows (entity selector, service command, and JSON parameters payload) and client-side validation.
+    - `AutomationEditorModal`: Complete automation builder featuring metadata fields, execution mode selector, cooldown seconds configuration, and a validated JSON DSL editor with syntax validation, formatting helper, quick presets (Motion Light, Night Schedule), and domain invariant checks (`name`, `triggers`, `actions`).
+    - `AutomationRunsModal`: Full execution history drawer with status badges (`completed`, `failed`, `running`, `skipped`), duration in milliseconds, trigger context details, error diagnostics, and step execution logs.
+  - **Views (`web/src/views/`)**:
+    - `ScenesView`: Replaced placeholder with rich scenes catalog, search filtering, quick creation workflow, and toast feedback.
+    - `AutomationsView`: Replaced placeholder with search filter, status pills (`Tutte`, `Attive`, `Disabilitate`), creation modal integration, card grid, and runs history inspection.
+  - **TDD Test Suites**:
+    - 36 test files with 120 unit and component tests passing.
+    - Full type checking and production PWA build verified (`vue-tsc -b && vite build`).
+
 ## [0.6.0] - 2026-10-04
 
 ### Added

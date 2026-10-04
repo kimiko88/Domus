@@ -65,33 +65,39 @@ export interface Area {
 }
 
 export interface AutomationTrigger {
-  id: string
-  type: string
-  entity_id?: string
+  id?: string
+  platform: string // 'state' | 'numeric_state' | 'time' | 'event'
+  entity_key?: string
   from?: string
   to?: string
   above?: number
   below?: number
+  at?: string
   event_type?: string
+  for_seconds?: number
 }
 
 export interface AutomationCondition {
-  id: string
-  type: string
-  entity_id?: string
+  id?: string
+  condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not'
+  entity_key?: string
   state?: string
   above?: number
   below?: number
+  after?: string
+  before?: string
   conditions?: AutomationCondition[]
 }
 
 export interface AutomationAction {
-  id: string
-  type: string
-  entity_id?: string
-  service: string
-  payload?: Record<string, any>
+  id?: string
+  type: string // 'service' | 'delay' | 'event'
+  service?: string
+  target_entity_key?: string
+  params?: Record<string, any>
   delay_ms?: number
+  event_type?: string
+  event_payload?: Record<string, any>
 }
 
 export interface Automation {
@@ -99,20 +105,42 @@ export interface Automation {
   name: string
   description?: string
   enabled: boolean
-  mode: 'single' | 'restart' | 'queued' | 'parallel'
-  cooldown_ms: number
+  execution_mode: 'single' | 'restart' | 'queued' | 'parallel'
+  cooldown_seconds: number
   triggers: AutomationTrigger[]
   conditions?: AutomationCondition[]
   actions: AutomationAction[]
-  last_triggered_at?: string | null
+  last_run_at?: string | null
+  last_status?: string | null
   created_at: string
   updated_at: string
 }
 
+export interface AutomationRun {
+  id: string
+  automation_id: string
+  started_at: string
+  finished_at?: string | null
+  status: 'running' | 'completed' | 'failed' | 'skipped'
+  trigger_context: string
+  log: string
+  duration_ms: number
+}
+
+export interface AutomationListResponse {
+  automations: Automation[]
+  total: number
+}
+
+export interface AutomationRunsResponse {
+  runs: AutomationRun[]
+  total: number
+}
+
 export interface SceneAction {
-  entity_id: string
+  entity_key: string
   service: string
-  payload?: Record<string, any>
+  params?: Record<string, any>
 }
 
 export interface Scene {
@@ -123,6 +151,11 @@ export interface Scene {
   actions: SceneAction[]
   created_at: string
   updated_at: string
+}
+
+export interface SceneListResponse {
+  scenes: Scene[]
+  total: number
 }
 
 export type WsMessageType =
