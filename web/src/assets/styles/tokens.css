@@ -1,0 +1,85 @@
+:root {
+  /* Color Palette - Premium Slate & Cyan/Blue Dark Theme */
+  --bg-primary: #0b1120;
+  --bg-secondary: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-hover: #273549;
+  --bg-card: rgba(30, 41, 59, 0.7);
+  --bg-card-hover: rgba(39, 53, 73, 0.85);
+  --bg-glass: rgba(15, 23, 42, 0.75);
+  --bg-glass-card: rgba(30, 41, 59, 0.65);
+  --bg-overlay: rgba(0, 0, 0, 0.65);
+
+  /* Primary Accent & Glow */
+  --primary: #0ea5e9;
+  --primary-hover: #38bdf8;
+  --primary-light: rgba(14, 165, 233, 0.15);
+  --primary-glow: rgba(14, 165, 233, 0.35);
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-success-bg: rgba(16, 185, 129, 0.15);
+  --color-success-glow: rgba(16, 185, 129, 0.3);
+
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.15);
+  --color-warning-glow: rgba(245, 158, 11, 0.3);
+
+  --color-danger: #f43f5e;
+  --color-danger-bg: rgba(244, 63, 94, 0.15);
+  --color-danger-glow: rgba(244, 63, 94, 0.3);
+
+  --color-info: #6366f1;
+  --color-info-bg: rgba(99, 102, 241, 0.15);
+
+  /* Domain-specific Accents */
+  --accent-light: #fbbf24;
+  --accent-light-glow: rgba(251, 191, 36, 0.35);
+  --accent-switch: #0ea5e9;
+  --accent-temp: #f97316;
+  --accent-humidity: #06b6d4;
+  --accent-motion: #a855f7;
+
+  /* Typography Colors */
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-inverse: #0f172a;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(14, 165, 233, 0.6);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows & Elevations */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px var(--primary-glow);
+  --shadow-glow-active: 0 0 25px rgba(251, 191, 36, 0.4);
+
+  /* Blur */
+  --blur-glass: blur(16px);
+  --blur-card: blur(12px);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --topbar-height: 64px;
+  --bottombar-height: 68px;
+}

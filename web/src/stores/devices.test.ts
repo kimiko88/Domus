@@ -1,0 +1,53 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+import { useDevicesStore } from './devices'
+import { apiClient } from '../api/client'
+import type { Device } from '../api/types'
+
+vi.mock('../api/client', () => ({
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn()
+  }
+}))
+
+describe('Devices Store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  const mockDevices: Device[] = [
+    {
+      id: 'dev-1',
+      name: 'Smart Bulb 1',
+      area_id: 'area-1',
+      integration_id: 'int-z2m',
+      status: 'online',
+      created_at: '',
+      updated_at: ''
+    },
+    {
+      id: 'dev-2',
+      name: 'Temp Sensor',
+      area_id: 'area-2',
+      integration_id: 'int-esphome',
+      status: 'offline',
+      created_at: '',
+      updated_at: ''
+    }
+  ]
+
+  it('fetches devices and filters by area or status', async () => {
+    const store = useDevicesStore()
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockDevices)
+
+    await store.fetchDevices()
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/devices')
+    expect(store.devices.length).toBe(2)
+    expect(store.byArea('area-1').length).toBe(1)
+    expect(store.byArea('area-1')[0].id).toBe('dev-1')
+    expect(store.onlineDevices.length).toBe(1)
+    expect(store.onlineDevices[0].id).toBe('dev-1')
+  })
+})

@@ -116,6 +116,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			authH := handlers.NewAuthHandler(srv.authService, cfg.CookieSecure)
 			api.Route("/auth", func(authRouter chi.Router) {
 				authRouter.Post("/setup", authH.Setup)
+				authRouter.Get("/setup", authH.SetupStatus)
 				authRouter.Get("/setup-status", authH.SetupStatus)
 
 				// Rate-limited login

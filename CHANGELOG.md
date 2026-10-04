@@ -5,6 +5,45 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-04
+
+### Added
+- **Vue 3 + Vite + TypeScript PWA Frontend (`web/`)**:
+  - Modular, accessible, and responsive single-page progressive web application with offline support and service worker registration (`vite-plugin-pwa`).
+  - Dark mode glassmorphic aesthetic tailored for smart home dashboards (`tokens.css`, `main.css`).
+- **State Management & Communication Stores (Pinia)**:
+  - `auth`: user authentication, first-boot wizard status check (`checkSetup`), login, admin initialization, and session validation.
+  - `entities`: optimistic updates, service command dispatching, domain groupings (`lights`, `switches`, `sensors`, `binarySensors`), and live state patching.
+  - `devices`: physical hardware tracking, online/offline counts, area grouping.
+  - `areas`: room and spatial hierarchy management.
+  - `ws`: real-time WebSocket connection state, automatic reconnection backoff, event router for state updates, and alert notifications.
+  - `notifications`: reactive in-app toast stack with auto-dismiss timers.
+- **Custom Composables**:
+  - `useWebSocket`: robust WebSocket client with exponential backoff, heartbeat keepalive ping/pong, and typed subscription bus.
+  - `useEntityCommand`: high-level entity interaction composable for optimistic toggles, brightness control, and thermostat adjustments.
+- **Entity Card Components (`components/cards/`)**:
+  - `LightCard`: ambient glow, on/off toggle, slider for brightness control with 0–100% feedback.
+  - `SwitchCard`: power indicator (W), optimistic state switching, tactile feedback.
+  - `SensorCard`: auto-adapts icon and formatting based on `device_class` (temperature, humidity, motion, battery level indicator).
+  - `ClimateCard`: dual target/current temperature display, +/- 0.5 °C setpoint adjustment, HVAC mode indicators.
+- **UI Base & Layout Components**:
+  - `BaseButton`: primary, secondary, danger, and ghost variants with spinner loading states.
+  - `BaseCard`: glassmorphic container with customizable header/footer and active state glows.
+  - `BaseToast`: fixed stack notifications with slide-in animations.
+  - `AppSidebar`: responsive navigation drawer with active route highlight and mobile backdrop.
+  - `AppTopbar`: live WebSocket connection badge, page header, user profile, and quick logout.
+- **Views & Routing**:
+  - `DashboardView`: multi-stat overview tiles, category filter pills, dynamic card grid.
+  - `AreasView`: card grid by room with entity counts and quick previews.
+  - `DevicesView`: hardware list with online/offline filters and integration badges.
+  - `IntegrationsView`: hardware and cloud adapter statuses with manual reconnect action.
+  - `SettingsView`: user information, system metrics, and theme overview.
+  - `LoginView` & `SetupView`: first boot wizard and credentials form.
+  - Protected navigation guard with setup redirect and session authentication enforcement.
+- **TDD Test Suites**:
+  - 84 unit and component test cases across 27 test files executed with Vitest and Happy DOM.
+  - Full TypeScript type checking and production bundle verification (`vue-tsc -b && vite build`).
+
 ## [0.5.0] - 2026-10-03
 
 ### Added
