@@ -26,6 +26,7 @@
     "scenes": "Scènes",
     "history": "Historique & Métriques",
     "audit": "Journal d'Audit",
+    "family": "Famille",
     "settings": "Paramètres",
     "logout": "Déconnexion"
   },
@@ -110,5 +111,59 @@
     "showPayload": "Afficher les Détails",
     "hidePayload": "Masquer les Détails",
     "limitLabel": "Lignes affichées"
+  },
+  "family": {
+    "title": "Gestion de Famille & Autorisations",
+    "subtitle": "Gérez les membres du foyer, attribuez des autorisations granulaires et envoyez des invitations d'accès.",
+    "membersTitle": "Membres de la Famille",
+    "invitesTitle": "Invitations d'Inscription en Attente",
+    "inviteButton": "Inviter un Membre",
+    "username": "Nom d'utilisateur",
+    "email": "E-mail",
+    "role": "Rôle",
+    "joinedAt": "Inscrit le",
+    "actions": "Actions",
+    "changeRole": "Changer le Rôle",
+    "removeMember": "Supprimer le Membre",
+    "confirmRemove": "Êtes-vous sûr de vouloir supprimer ce membre de la famille ?",
+    "roles": {
+      "admin": "Administrateur",
+      "operator": "Opérateur",
+      "viewer": "Lecteur"
+    },
+    "rolesDesc": {
+      "admin": "Accès complet : configuration du système, gestion des membres et contrôle total des appareils.",
+      "operator": "Contrôle opérationnel : peut activer les appareils et déclencher les scènes/automatisations.",
+      "viewer": "Lecture seule : peut consulter l'état de la maison et les capteurs en temps réel sans envoyer de commandes."
+    },
+    "inviteModalTitle": "Inviter un Nouveau Membre",
+    "selectRole": "Sélectionner le Rôle Attribué",
+    "expiration": "Validité de l'Invitation",
+    "hours24": "24 Heures",
+    "hours48": "48 Heures",
+    "days7": "7 Jours",
+    "generateInvite": "Générer le Lien d'Invitation",
+    "copyLink": "Copier le Lien",
+    "linkCopied": "Lien d'inscription copié dans le presse-papiers !",
+    "pendingInvites": "Invitations en Attente",
+    "noPendingInvites": "Aucune invitation d'inscription active pour le moment.",
+    "expiresAt": "Expiration",
+    "revoke": "Révoquer",
+    "noMembers": "Aucun membre trouvé."
+  },
+  "register": {
+    "title": "Rejoindre la Famille Domus",
+    "subtitle": "Complétez votre inscription pour accéder à la gestion de votre maison connectée.",
+    "roleNotice": "Vous avez été invité en tant que",
+    "username": "Nom d'utilisateur",
+    "email": "E-mail (facultatif)",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le Mot de passe",
+    "submit": "Compléter l'Inscription",
+    "loading": "Vérification de l'invitation...",
+    "errorInvalidInvite": "Ce lien d'invitation est invalide ou expiré. Contactez l'administrateur.",
+    "errorPasswordMismatch": "Les mots de passe ne correspondent pas.",
+    "success": "Inscription réussie ! Bienvenue sur Domus.",
+    "backToLogin": "Retour à la Connexion"
   }
 }

@@ -25,6 +25,7 @@ var (
 type Service struct {
 	userRepo    user.UserRepository
 	sessionRepo user.SessionRepository
+	inviteRepo  user.InviteRepository
 	auditRepo   audit.Repository
 	hasher      *crypto.Argon2Hasher
 	sessionTTL  time.Duration
@@ -48,6 +49,12 @@ func NewService(
 		hasher:      hasher,
 		sessionTTL:  sessionTTL,
 	}
+}
+
+// WithInvites configures the invite repository on the service.
+func (s *Service) WithInvites(inviteRepo user.InviteRepository) *Service {
+	s.inviteRepo = inviteRepo
+	return s
 }
 
 // IsSetupRequired returns true if no users exist in the system yet.

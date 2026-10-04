@@ -89,40 +89,47 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("sqlite: failed to verify schema_version table: %w", err)
 	}
 
-	// Check if version 1 is applied
-	var count int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_version WHERE version = 1;").Scan(&count)
-	if err != nil {
-		return fmt.Errorf("sqlite: failed to query schema_version: %w", err)
-	}
-	if count > 0 {
-		// Migration 1 already applied
-		return nil
+	migrations := []struct {
+		version int
+		file    string
+	}{
+		{version: 1, file: "migrations/000001_init.up.sql"},
+		{version: 2, file: "migrations/000002_family_invites.up.sql"},
 	}
 
-	// Read migration 000001_init.up.sql
-	content, err := migrationFS.ReadFile("migrations/000001_init.up.sql")
-	if err != nil {
-		return fmt.Errorf("sqlite: failed to read migration 000001_init.up.sql: %w", err)
-	}
+	for _, m := range migrations {
+		var count int
+		err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_version WHERE version = ?;", m.version).Scan(&count)
+		if err != nil {
+			return fmt.Errorf("sqlite: failed to query schema_version for v%d: %w", m.version, err)
+		}
+		if count > 0 {
+			continue // Already applied
+		}
 
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: failed to start migration transaction: %w", err)
-	}
-	defer tx.Rollback()
+		content, err := migrationFS.ReadFile(m.file)
+		if err != nil {
+			return fmt.Errorf("sqlite: failed to read migration %s: %w", m.file, err)
+		}
 
-	if _, err := tx.ExecContext(ctx, string(content)); err != nil {
-		return fmt.Errorf("sqlite: failed to execute migration 000001: %w", err)
-	}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("sqlite: failed to start migration transaction for v%d: %w", m.version, err)
+		}
 
-	// Record version 1 if not already inserted by the script
-	if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO schema_version (version) VALUES (1);"); err != nil {
-		return fmt.Errorf("sqlite: failed to record schema_version 1: %w", err)
-	}
+		if _, err := tx.ExecContext(ctx, string(content)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("sqlite: failed to execute migration v%d (%s): %w", m.version, m.file, err)
+		}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: failed to commit migration transaction: %w", err)
+		if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO schema_version (version) VALUES (?);", m.version); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("sqlite: failed to record schema_version %d: %w", m.version, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("sqlite: failed to commit migration transaction for v%d: %w", m.version, err)
+		}
 	}
 
 	return nil

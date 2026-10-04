@@ -26,6 +26,7 @@
     "scenes": "Scenes",
     "history": "History & Metrics",
     "audit": "Security Audit Log",
+    "family": "Family",
     "settings": "Settings",
     "logout": "Log Out"
   },
@@ -110,5 +111,59 @@
     "showPayload": "Show Payload",
     "hidePayload": "Hide Payload",
     "limitLabel": "Rows shown"
+  },
+  "family": {
+    "title": "Family Management & Permissions",
+    "subtitle": "Manage household members, assign granular permissions, and send registration invitations.",
+    "membersTitle": "Family Members",
+    "invitesTitle": "Pending Registration Invites",
+    "inviteButton": "Invite Member",
+    "username": "Username",
+    "email": "Email",
+    "role": "Role",
+    "joinedAt": "Joined On",
+    "actions": "Actions",
+    "changeRole": "Change Role",
+    "removeMember": "Remove Member",
+    "confirmRemove": "Are you sure you want to remove this family member?",
+    "roles": {
+      "admin": "Administrator",
+      "operator": "Operator",
+      "viewer": "Viewer"
+    },
+    "rolesDesc": {
+      "admin": "Full access: system configuration, member governance, and complete device control.",
+      "operator": "Operational control: can toggle devices and trigger scenes/automations, cannot alter system settings.",
+      "viewer": "Read-only: can view home status and environmental sensors in real time, cannot issue commands."
+    },
+    "inviteModalTitle": "Invite a New Family Member",
+    "selectRole": "Select Assigned Role",
+    "expiration": "Invite Validity",
+    "hours24": "24 Hours",
+    "hours48": "48 Hours",
+    "days7": "7 Days",
+    "generateInvite": "Generate Invite Link",
+    "copyLink": "Copy Link",
+    "linkCopied": "Registration link copied to clipboard!",
+    "pendingInvites": "Pending Invites",
+    "noPendingInvites": "No pending registration invites at the moment.",
+    "expiresAt": "Expires",
+    "revoke": "Revoke",
+    "noMembers": "No members found."
+  },
+  "register": {
+    "title": "Join the Domus Family",
+    "subtitle": "Complete your registration to access and control your smart home.",
+    "roleNotice": "You have been invited as",
+    "username": "Username",
+    "email": "Email (optional)",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "submit": "Complete Registration",
+    "loading": "Validating invitation...",
+    "errorInvalidInvite": "This invite link is invalid or has expired. Please contact your family admin.",
+    "errorPasswordMismatch": "Passwords do not match.",
+    "success": "Registration successful! Welcome to Domus.",
+    "backToLogin": "Back to Login"
   }
 }

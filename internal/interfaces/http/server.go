@@ -12,6 +12,7 @@ import (
 	appauto "github.com/domus-hub/domus/internal/application/automation"
 	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
@@ -151,10 +152,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// Auth routes
 		if srv.authService != nil {
 			authH := handlers.NewAuthHandler(srv.authService, cfg.CookieSecure)
+			familyH := handlers.NewFamilyHandler(srv.authService, cfg.CookieSecure)
+
 			api.Route("/auth", func(authRouter chi.Router) {
 				authRouter.Post("/setup", authH.Setup)
 				authRouter.Get("/setup", authH.SetupStatus)
 				authRouter.Get("/setup-status", authH.SetupStatus)
+
+				// Invite lookup & registration
+				authRouter.Get("/invite/{token}", familyH.ValidateInvite)
+				authRouter.Post("/register", familyH.RegisterWithInvite)
 
 				// Rate-limited login
 				if srv.rateLimiter != nil {
@@ -167,6 +174,22 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				authRouter.With(domusmw.RequireAuth()).Post("/logout", authH.Logout)
 				authRouter.With(domusmw.RequireAuth()).Get("/me", authH.Me)
 			})
+
+			// Family management routes (authenticated)
+			api.Route("/family", func(famRouter chi.Router) {
+				famRouter.Use(domusmw.RequireAuth())
+				// All authenticated members can view other family members
+				famRouter.Get("/members", familyH.ListMembers)
+
+				// Role modifications and member removal restricted to Admin
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/role", familyH.UpdateMemberRole)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/members/{id}", familyH.RemoveMember)
+
+				// Invites management restricted to Admin
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/invites", familyH.ListInvites)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/invites", familyH.CreateInvite)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/invites/{id}", familyH.RevokeInvite)
+			})
 		}
 
 		// Domain repository routes (Areas, Devices, Entities)
@@ -175,51 +198,85 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
 
-			api.Route("/areas", func(areaRouter chi.Router) {
-				areaRouter.Get("/", areaH.List)
-				areaRouter.Post("/", areaH.Create)
-				areaRouter.Get("/{id}", areaH.GetByID)
-			})
+			api.Group(func(domainRouter chi.Router) {
+				if srv.authService != nil {
+					domainRouter.Use(domusmw.RequireAuth())
+				}
 
-			api.Route("/devices", func(devRouter chi.Router) {
-				devRouter.Get("/", deviceH.List)
-				devRouter.Get("/{id}", deviceH.GetByID)
-			})
+				domainRouter.Route("/areas", func(areaRouter chi.Router) {
+					areaRouter.Get("/", areaH.List)
+					if srv.authService != nil {
+						areaRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", areaH.Create)
+					} else {
+						areaRouter.Post("/", areaH.Create)
+					}
+					areaRouter.Get("/{id}", areaH.GetByID)
+				})
 
-			api.Route("/entities", func(entRouter chi.Router) {
-				entRouter.Get("/", entityH.List)
-				entRouter.Get("/{id}", entityH.GetByID)
-				entRouter.Post("/{id}/command", entityH.Command)
-				if srv.repos.History != nil {
-					histH := handlers.NewHistoryHandler(srv.repos.History, srv.repos.Entities)
-					entRouter.Get("/{id}/history", histH.GetEntityHistory)
+				domainRouter.Route("/devices", func(devRouter chi.Router) {
+					devRouter.Get("/", deviceH.List)
+					devRouter.Get("/{id}", deviceH.GetByID)
+				})
+
+				domainRouter.Route("/entities", func(entRouter chi.Router) {
+					entRouter.Get("/", entityH.List)
+					entRouter.Get("/{id}", entityH.GetByID)
+					if srv.authService != nil {
+						entRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/command", entityH.Command)
+					} else {
+						entRouter.Post("/{id}/command", entityH.Command)
+					}
+					if srv.repos.History != nil {
+						histH := handlers.NewHistoryHandler(srv.repos.History, srv.repos.Entities)
+						entRouter.Get("/{id}/history", histH.GetEntityHistory)
+					}
+				})
+
+				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine)
+				domainRouter.Route("/automations", func(autoRouter chi.Router) {
+					autoRouter.Get("/", autoH.List)
+					if srv.authService != nil {
+						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", autoH.Create)
+						autoRouter.Get("/{id}", autoH.Get)
+						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", autoH.Update)
+						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", autoH.Delete)
+						autoRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/trigger", autoH.Trigger)
+					} else {
+						autoRouter.Post("/", autoH.Create)
+						autoRouter.Get("/{id}", autoH.Get)
+						autoRouter.Put("/{id}", autoH.Update)
+						autoRouter.Delete("/{id}", autoH.Delete)
+						autoRouter.Post("/{id}/trigger", autoH.Trigger)
+					}
+					autoRouter.Get("/{id}/runs", autoH.ListRuns)
+				})
+
+				sceneH := handlers.NewSceneHandler(srv.repos.Scenes, srv.sceneService)
+				domainRouter.Route("/scenes", func(sceneRouter chi.Router) {
+					sceneRouter.Get("/", sceneH.List)
+					if srv.authService != nil {
+						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", sceneH.Create)
+						sceneRouter.Get("/{id}", sceneH.Get)
+						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", sceneH.Update)
+						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", sceneH.Delete)
+						sceneRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/apply", sceneH.Apply)
+					} else {
+						sceneRouter.Post("/", sceneH.Create)
+						sceneRouter.Get("/{id}", sceneH.Get)
+						sceneRouter.Put("/{id}", sceneH.Update)
+						sceneRouter.Delete("/{id}", sceneH.Delete)
+						sceneRouter.Post("/{id}/apply", sceneH.Apply)
+					}
+				})
+
+				// Audit log endpoint (admin-only via RBAC)
+				auditH := handlers.NewAuditHandler(srv.repos.Audit)
+				if srv.authService != nil {
+					domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/audit", auditH.ServeHTTP)
+				} else {
+					domainRouter.Get("/audit", auditH.ServeHTTP)
 				}
 			})
-
-			autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine)
-			api.Route("/automations", func(autoRouter chi.Router) {
-				autoRouter.Get("/", autoH.List)
-				autoRouter.Post("/", autoH.Create)
-				autoRouter.Get("/{id}", autoH.Get)
-				autoRouter.Put("/{id}", autoH.Update)
-				autoRouter.Delete("/{id}", autoH.Delete)
-				autoRouter.Post("/{id}/trigger", autoH.Trigger)
-				autoRouter.Get("/{id}/runs", autoH.ListRuns)
-			})
-
-			sceneH := handlers.NewSceneHandler(srv.repos.Scenes, srv.sceneService)
-			api.Route("/scenes", func(sceneRouter chi.Router) {
-				sceneRouter.Get("/", sceneH.List)
-				sceneRouter.Post("/", sceneH.Create)
-				sceneRouter.Get("/{id}", sceneH.Get)
-				sceneRouter.Put("/{id}", sceneH.Update)
-				sceneRouter.Delete("/{id}", sceneH.Delete)
-				sceneRouter.Post("/{id}/apply", sceneH.Apply)
-			})
-
-			// Audit log endpoint (admin-only in practice via RBAC)
-			auditH := handlers.NewAuditHandler(srv.repos.Audit)
-			api.With(domusmw.RequireAuth()).Get("/audit", auditH.ServeHTTP)
 		}
 	})
 

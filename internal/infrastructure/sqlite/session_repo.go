@@ -110,6 +110,16 @@ func (r *SessionRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteByUserID removes all sessions associated with a specific user.
+func (r *SessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	query := `DELETE FROM sessions WHERE user_id = ?;`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("sqlite: failed to delete user sessions: %w", err)
+	}
+	return nil
+}
+
 // DeleteExpired removes all sessions that expired before the specified timestamp.
 func (r *SessionRepository) DeleteExpired(ctx context.Context, before time.Time) error {
 	query := `DELETE FROM sessions WHERE expires_at < ?;`

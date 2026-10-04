@@ -78,8 +78,8 @@ domus/
 │   │   ├── components/     # Glassmorphic entity cards, modals, charts, layout
 │   │   ├── locales/        # Translations: it.json, en.json, fr.json, es.json, de.json
 │   │   ├── router/         # Vue router with navigation auth guards
-│   │   ├── stores/         # Pinia stores (auth, entities, devices, automations, etc.)
-│   │   └── views/          # Dashboard, Areas, Devices, Automations, Scenes, History, Audit, Settings
+│   │   ├── stores/         # Pinia stores (auth, family, entities, devices, automations, etc.)
+│   │   └── views/          # Dashboard, Areas, Devices, Automations, Scenes, History, Audit, Family, Settings, Register
 │   └── package.json
 │
 ├── docs/
@@ -231,6 +231,7 @@ cd web && npm run build
 - [x] **MS-08: Telemetry History & Metrics** — Batched state history recorder, scheduled retention worker, Chart.js time-series, system metrics.
 - [x] **MS-09: Hardening & Backup/Restore** — Security headers (HSTS, CSP, XSS), CORS, audit log viewer, AES-256-GCM encrypted backup/restore CLI.
 - [x] **MS-10: Final ARM64 Packaging & Release** — Multi-stage ARM64 Dockerfile, non-interactive installation scripts, embedded OpenAPI/Swagger UI, complete ADRs, 5-language localization.
+- [x] **MS-11: Multi-Client Family & Granular RBAC** — Concurrent multi-client sessions, creator-defined roles (admin, operator, viewer), secure invite links (`/register?token=...`), and family member governance.
 
 ---
 

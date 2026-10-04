@@ -9,8 +9,10 @@ import AutomationsView from '../views/AutomationsView.vue'
 import ScenesView from '../views/ScenesView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import AuditView from '../views/AuditView.vue'
+import FamilyView from '../views/FamilyView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
 import SetupView from '../views/SetupView.vue'
 
 export const routes: RouteRecordRaw[] = [
@@ -63,6 +65,12 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Audit' }
   },
   {
+    path: '/family',
+    name: 'family',
+    component: FamilyView,
+    meta: { requiresAuth: true, title: 'Famiglia' }
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: SettingsView,
@@ -73,6 +81,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { guestOnly: true, title: 'Accedi' }
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    meta: { guestOnly: true, title: 'Registrazione' }
   },
   {
     path: '/setup',

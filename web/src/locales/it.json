@@ -26,6 +26,7 @@
     "scenes": "Scene",
     "history": "Storico & Metriche",
     "audit": "Registro Audit",
+    "family": "Famiglia",
     "settings": "Impostazioni",
     "logout": "Disconnetti"
   },
@@ -110,5 +111,59 @@
     "showPayload": "Mostra Dettagli",
     "hidePayload": "Nascondi Dettagli",
     "limitLabel": "Righe mostrate"
+  },
+  "family": {
+    "title": "Gestione Famiglia & Permessi",
+    "subtitle": "Gestisci i componenti della casa, assegna permessi granulari e invia inviti di accesso.",
+    "membersTitle": "Componenti della Famiglia",
+    "invitesTitle": "Inviti di Registrazione Pendenti",
+    "inviteButton": "Invita Membro",
+    "username": "Nome Utente",
+    "email": "Email",
+    "role": "Ruolo",
+    "joinedAt": "Registrato il",
+    "actions": "Azioni",
+    "changeRole": "Cambia Ruolo",
+    "removeMember": "Rimuovi Membro",
+    "confirmRemove": "Sei sicuro di voler rimuovere questo componente dalla famiglia?",
+    "roles": {
+      "admin": "Amministratore",
+      "operator": "Operatore",
+      "viewer": "Visualizzatore"
+    },
+    "rolesDesc": {
+      "admin": "Accesso completo: configurazione del sistema, gestione componenti e controllo totale dispositivi.",
+      "operator": "Controllo operativo: può accendere/spegnere dispositivi e attivare scene/automazioni, senza modificare impostazioni.",
+      "viewer": "Sola lettura: può visualizzare lo stato della casa e i sensori in tempo reale, senza inviare comandi."
+    },
+    "inviteModalTitle": "Invita un Nuovo Componente",
+    "selectRole": "Seleziona Permesso Assegnato",
+    "expiration": "Validità Invito",
+    "hours24": "24 Ore",
+    "hours48": "48 Ore",
+    "days7": "7 Giorni",
+    "generateInvite": "Genera Link di Invito",
+    "copyLink": "Copia Link",
+    "linkCopied": "Link di registrazione copiato negli appunti!",
+    "pendingInvites": "Inviti Pendenti",
+    "noPendingInvites": "Nessun invito di registrazione attivo al momento.",
+    "expiresAt": "Scadenza",
+    "revoke": "Revoca",
+    "noMembers": "Nessun componente trovato."
+  },
+  "register": {
+    "title": "Unisciti alla Famiglia Domus",
+    "subtitle": "Completa la registrazione per accedere alla gestione della tua casa intelligente.",
+    "roleNotice": "Sei stato invitato come",
+    "username": "Nome Utente",
+    "email": "Email (opzionale)",
+    "password": "Password",
+    "confirmPassword": "Conferma Password",
+    "submit": "Completa Registrazione",
+    "loading": "Verifica invito in corso...",
+    "errorInvalidInvite": "Questo link di invito non è valido o è scaduto. Contatta l'amministratore.",
+    "errorPasswordMismatch": "Le password inserite non corrispondono.",
+    "success": "Registrazione completata con successo! Benvenuto in Domus.",
+    "backToLogin": "Torna al Login"
   }
 }

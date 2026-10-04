@@ -227,6 +227,31 @@ components:
         enabled:
           type: boolean
 
+    FamilyInvite:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        expires_at:
+          type: string
+          format: date-time
+        used_at:
+          type: string
+          format: date-time
+          nullable: true
+        used_by:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
 paths:
   /system/health:
     get:
@@ -313,6 +338,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+
+  /auth/invite/{token}:
+    get:
+      summary: Validate an invitation token
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invite valid
+        "400":
+          description: Invite expired or already used
+        "404":
+          description: Invite not found
+
+  /auth/register:
+    post:
+      summary: Register as a family member using an invitation token
+      tags: [Auth]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, username, password]
+              properties:
+                token:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                email:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: User registered and authenticated, session cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        "400":
+          description: Invalid input or expired invite
+        "409":
+          description: Username already taken
+
+  /family/members:
+    get:
+      summary: List all household family members
+      tags: [Family]
+      responses:
+        "200":
+          description: List of family members
+        "401":
+          description: Authentication required
+
+  /family/members/{id}/role:
+    put:
+      summary: Update a family member's permission role (Admin only)
+      tags: [Family]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [admin, operator, viewer]
+      responses:
+        "200":
+          description: Role updated
+        "400":
+          description: Cannot demote the last administrator
+        "403":
+          description: Insufficient permissions
+
+  /family/members/{id}:
+    delete:
+      summary: Remove a family member (Admin only)
+      tags: [Family]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Member removed
+        "400":
+          description: Cannot remove self or last administrator
+        "403":
+          description: Insufficient permissions
+
+  /family/invites:
+    get:
+      summary: List active family registration invites (Admin only)
+      tags: [Family]
+      responses:
+        "200":
+          description: List of active invites
+        "403":
+          description: Insufficient permissions
+    post:
+      summary: Create a family registration invite link (Admin only)
+      tags: [Family]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [admin, operator, viewer]
+                expires_in_hours:
+                  type: integer
+                  default: 48
+      responses:
+        "201":
+          description: Invite generated with token and link
+        "403":
+          description: Insufficient permissions
+
+  /family/invites/{id}:
+    delete:
+      summary: Revoke an active registration invite (Admin only)
+      tags: [Family]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Invite revoked
+        "403":
+          description: Insufficient permissions
 
   /entities:
     get:

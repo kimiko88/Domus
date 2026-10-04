@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiClient, ApiError } from '../api/client'
-import type { User, SetupStatus } from '../api/types'
+import type { User, SetupStatus, RegisterWithInviteRequest, InviteValidationResponse } from '../api/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -78,6 +78,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function validateInvite(token: string): Promise<InviteValidationResponse> {
+    return await apiClient.get<InviteValidationResponse>(`/api/v1/auth/invite/${encodeURIComponent(token)}`)
+  }
+
+  async function registerWithInvite(data: RegisterWithInviteRequest): Promise<boolean> {
+    try {
+      loading.value = true
+      error.value = null
+      await apiClient.post('/api/v1/auth/register', data)
+      await fetchMe()
+      return true
+    } catch (err: any) {
+      error.value = err?.message || 'Registration failed'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       loading.value = true
@@ -102,6 +121,8 @@ export const useAuthStore = defineStore('auth', () => {
     fetchMe,
     login,
     registerFirstAdmin,
+    validateInvite,
+    registerWithInvite,
     logout
   }
 })

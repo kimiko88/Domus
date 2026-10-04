@@ -88,7 +88,7 @@ func main() {
 		repos.Audit,
 		hasher,
 		cfg.Auth.SessionTTL.Duration,
-	)
+	).WithInvites(repos.Invites)
 	loginLimiter := auth.NewRateLimiter(cfg.Auth.RateLimitLoginPerMin, time.Minute)
 
 	// 5. Initialize Event Bus

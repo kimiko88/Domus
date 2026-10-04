@@ -5,6 +5,31 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-04
+
+### Added
+- **Multi-Client Family Management & Granular RBAC**:
+  - **Domain & Persistence Layer (`internal/domain/user`, `internal/infrastructure/sqlite`)**:
+    - `FamilyInvite` domain entity supporting token validation, pre-assigned roles (`admin`, `operator`, `viewer`), and configurable expiration.
+    - Database migration `000002_family_invites` creating SQLite table with indexes.
+    - SQLite repositories for `InviteRepository` and extensions to `UserRepository` (`List`, `UpdateRole`, `Delete`) and `SessionRepository` (`DeleteByUserID`).
+  - **Application Service (`internal/application/auth/family_service.go`)**:
+    - Invite generation (`CreateFamilyInvite`), token lookup (`GetInviteByToken`), invite revocation (`RevokeFamilyInvite`), and registration (`RegisterWithInvite`).
+    - Family member governance (`ListFamilyMembers`, `UpdateFamilyMemberRole`, `RemoveFamilyMember`) with safeguards preventing demoting or removing the last administrator or self-deletion.
+  - **HTTP Endpoints & Router RBAC Enforcement (`internal/interfaces/http/handlers/family_handler.go`, `server.go`)**:
+    - Public invite endpoints: `GET /api/v1/auth/invite/{token}` and `POST /api/v1/auth/register`.
+    - Family governance endpoints: `GET /api/v1/family/members`, `PUT /api/v1/family/members/{id}/role`, `DELETE /api/v1/family/members/{id}`, `GET /api/v1/family/invites`, `POST /api/v1/family/invites`, `DELETE /api/v1/family/invites/{id}`.
+    - Granular RBAC middleware enforcement across all mutating endpoints:
+      - `operator` and `admin` can send commands (`POST /entities/{id}/command`), apply scenes (`POST /scenes/{id}/apply`), and trigger automations (`POST /automations/{id}/trigger`).
+      - `viewer` has read-only access (403 Forbidden on commands and triggers).
+      - `admin` only can alter configuration (areas, scenes, automations, family members, invites).
+  - **Concurrent Multi-Client Sessions**:
+    - Validated simultaneous WebSocket connections and API calls across multiple clients and family members with independent buffering and real-time event distribution.
+  - **Frontend UI & Localization (`web/`)**:
+    - `FamilyView.vue`: Family members list with role badges, role selector, member deletion, invite modal, role description cards, and pending invites table with 1-click link copying.
+    - `RegisterView.vue`: Dedicated registration flow supporting token extraction from query parameters, invitation validation, role banner, and immediate authenticated session creation.
+    - Complete 5-language localization (`it`, `en`, `fr`, `es`, `de`) with 100% key parity.
+
 ## [1.0.0] - 2026-10-04
 
 ### Added

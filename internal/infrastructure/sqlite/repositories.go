@@ -27,6 +27,7 @@ type Repositories struct {
 	Automations  automation.Repository
 	Scenes       scene.Repository
 	History      history.Repository
+	Invites      user.InviteRepository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -42,5 +43,6 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Automations:  NewAutomationRepository(db),
 		Scenes:       NewSceneRepository(db),
 		History:      NewHistoryRepository(db),
+		Invites:      NewInviteRepository(db),
 	}
 }

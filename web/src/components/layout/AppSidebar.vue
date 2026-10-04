@@ -9,7 +9,8 @@ import {
   Settings,
   Home,
   Activity,
-  ShieldCheck
+  ShieldCheck,
+  Users
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -38,6 +39,7 @@ const navItems = [
   { name: 'Scene', labelKey: 'nav.scenes', path: '/scenes', icon: Clapperboard },
   { name: 'Storico', labelKey: 'nav.history', path: '/history', icon: Activity },
   { name: 'Audit', labelKey: 'nav.audit', path: '/audit', icon: ShieldCheck },
+  { name: 'Famiglia', labelKey: 'nav.family', path: '/family', icon: Users },
   { name: 'Impostazioni', labelKey: 'nav.settings', path: '/settings', icon: Settings }
 ]
 

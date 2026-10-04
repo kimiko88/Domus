@@ -88,6 +88,87 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// List returns all registered users in chronological order.
+func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
+	query := `
+		SELECT id, username, email, password_hash, role, enabled, created_at, updated_at
+		FROM users
+		ORDER BY created_at ASC;
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*user.User
+	for rows.Next() {
+		var (
+			u         user.User
+			email     sql.NullString
+			roleStr   string
+			enabled   int
+			createdAt string
+			updatedAt string
+		)
+		if err := rows.Scan(&u.ID, &u.Username, &email, &u.PasswordHash, &roleStr, &enabled, &createdAt, &updatedAt); err != nil {
+			return nil, fmt.Errorf("sqlite: scan user row: %w", err)
+		}
+		if email.Valid {
+			u.Email = email.String
+		}
+		u.Role = user.Role(roleStr)
+		u.Enabled = enabled == 1
+		if parsed, err := time.Parse(time.RFC3339, createdAt); err == nil {
+			u.CreatedAt = parsed
+		}
+		if parsed, err := time.Parse(time.RFC3339, updatedAt); err == nil {
+			u.UpdatedAt = parsed
+		}
+		users = append(users, &u)
+	}
+	return users, nil
+}
+
+// UpdateRole updates the authorization role of a user.
+func (r *UserRepository) UpdateRole(ctx context.Context, id string, role user.Role) error {
+	query := `
+		UPDATE users
+		SET role = ?, updated_at = ?
+		WHERE id = ?;
+	`
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := r.db.ExecContext(ctx, query, string(role), now, id)
+	if err != nil {
+		return fmt.Errorf("sqlite: update user role: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return user.ErrUserNotFound
+	}
+	return nil
+}
+
+// Delete permanently removes a user record and cascades sessions.
+func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	query := `DELETE FROM users WHERE id = ?;`
+	res, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("sqlite: delete user: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return user.ErrUserNotFound
+	}
+	return nil
+}
+
 func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	var (
 		u         user.User

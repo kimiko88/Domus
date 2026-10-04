@@ -26,6 +26,7 @@
     "scenes": "Szenen",
     "history": "Verlauf & Metriken",
     "audit": "Audit-Protokoll",
+    "family": "Familie",
     "settings": "Einstellungen",
     "logout": "Abmelden"
   },
@@ -110,5 +111,59 @@
     "showPayload": "Details Anzeigen",
     "hidePayload": "Details Ausblenden",
     "limitLabel": "Angezeigte Zeilen"
+  },
+  "family": {
+    "title": "Familienverwaltung & Berechtigungen",
+    "subtitle": "Verwalten Sie Haushaltsmitglieder, weisen Sie granulare Berechtigungen zu und versenden Sie Einladungslinks.",
+    "membersTitle": "Familienmitglieder",
+    "invitesTitle": "Ausstehende Registrierungseinladungen",
+    "inviteButton": "Mitglied Einladen",
+    "username": "Benutzername",
+    "email": "E-Mail",
+    "role": "Rolle",
+    "joinedAt": "Beigetreten am",
+    "actions": "Aktionen",
+    "changeRole": "Rolle Ändern",
+    "removeMember": "Mitglied Entfernen",
+    "confirmRemove": "Sind Sie sicher, dass Sie dieses Familienmitglied entfernen möchten?",
+    "roles": {
+      "admin": "Administrator",
+      "operator": "Bediener",
+      "viewer": "Beobachter"
+    },
+    "rolesDesc": {
+      "admin": "Vollzugriff: Systemkonfiguration, Mitgliederverwaltung und vollständige Gerätesteuerung.",
+      "operator": "Betriebssteuerung: kann Geräte schalten und Szenen/Automatisierungen auslösen.",
+      "viewer": "Nur Lesezugriff: kann den Status und Umgebungssensoren in Echtzeit einsehen, keine Befehle ausführen."
+    },
+    "inviteModalTitle": "Neues Familienmitglied Einladen",
+    "selectRole": "Zugewiesene Rolle Auswählen",
+    "expiration": "Gültigkeit der Einladung",
+    "hours24": "24 Stunden",
+    "hours48": "48 Stunden",
+    "days7": "7 Tage",
+    "generateInvite": "Einladungslink Generieren",
+    "copyLink": "Link Kopieren",
+    "linkCopied": "Registrierungslink in die Zwischenablage kopiert!",
+    "pendingInvites": "Ausstehende Einladungen",
+    "noPendingInvites": "Derzeit liegen keine aktiven Registrierungseinladungen vor.",
+    "expiresAt": "Ablaufdatum",
+    "revoke": "Widerrufen",
+    "noMembers": "Keine Mitglieder gefunden."
+  },
+  "register": {
+    "title": "Der Domus-Familie Beitreten",
+    "subtitle": "Schließen Sie Ihre Registrierung ab, um auf Ihr Smart Home zuzugreifen.",
+    "roleNotice": "Sie wurden eingeladen als",
+    "username": "Benutzername",
+    "email": "E-Mail (optional)",
+    "password": "Passwort",
+    "confirmPassword": "Passwort Bestätigen",
+    "submit": "Registrierung Abschließen",
+    "loading": "Einladung wird überprüft...",
+    "errorInvalidInvite": "Dieser Einladungslink ist ungültig oder abgelaufen. Bitte kontaktieren Sie den Administrator.",
+    "errorPasswordMismatch": "Die Passwörter stimmen nicht überein.",
+    "success": "Registrierung erfolgreich abgeschlossen! Willkommen bei Domus.",
+    "backToLogin": "Zurück zur Anmeldung"
   }
 }

@@ -225,3 +225,49 @@ export interface AuditListResponse {
   total: number
 }
 
+export interface FamilyMember {
+  id: string
+  username: string
+  email?: string
+  role: UserRole
+  enabled: boolean
+  created_at: string
+}
+
+export interface FamilyInvite {
+  id: string
+  token: string
+  role: UserRole
+  created_by?: string
+  expires_at: string
+  used_at?: string | null
+  used_by?: string | null
+  created_at?: string
+}
+
+export interface CreateInviteRequest {
+  role: UserRole
+  expires_in_hours?: number
+}
+
+export interface CreateInviteResponse {
+  id: string
+  token: string
+  role: UserRole
+  expires_at: string
+  invite_url: string
+}
+
+export interface InviteValidationResponse {
+  valid: boolean
+  role: UserRole
+  expires_at: string
+}
+
+export interface RegisterWithInviteRequest {
+  token: string
+  username: string
+  password: string
+  email?: string
+}
+
