@@ -191,3 +191,21 @@ export interface EntityStateEventPayload {
   new_attributes: EntityAttributes
   timestamp: string
 }
+
+export interface StateHistory {
+  id?: number
+  entity_id: string
+  state: any
+  recorded_at: string
+}
+
+export interface SystemMetrics {
+  status: string
+  uptime_s: number
+  entity_count: number
+  device_count: number
+  mqtt_connected: boolean
+  ws_clients: number
+  db_size_bytes: number
+}
+

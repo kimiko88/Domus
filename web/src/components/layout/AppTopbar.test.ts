@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import AppTopbar from './AppTopbar.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
+import { i18n, setLanguage } from '@/locales'
 
 describe('AppTopbar.vue', () => {
   let authStore: ReturnType<typeof useAuthStore>
@@ -70,5 +71,20 @@ describe('AppTopbar.vue', () => {
 
     await menuBtn.trigger('click')
     expect(wrapper.emitted('toggle-menu')).toHaveLength(1)
+  })
+
+  it('toggles language when clicking the language quick switch button', async () => {
+    setLanguage('it')
+    const wrapper = mount(AppTopbar, {
+      global: {
+        plugins: [i18n]
+      }
+    })
+    const langBtn = wrapper.find('.lang-quick-toggle')
+    expect(langBtn.exists()).toBe(true)
+    expect(langBtn.text()).toContain('IT')
+
+    await langBtn.trigger('click')
+    expect(langBtn.text()).toContain('EN')
   })
 })

@@ -340,15 +340,15 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		assert.Equal(t, "Sleep Mode", scenePayload["name"])
 
 		// 4. Verify MQTT command was dispatched for scene entity
-		published := mockMQTT.GetPublished()
-		var foundTurnOff bool
-		for _, p := range published {
-			if p.Topic == "domus/light.hallway_ceiling/set" && bytes.Contains(p.Payload, []byte("turn_off")) {
-				foundTurnOff = true
-				break
+		assert.Eventually(t, func() bool {
+			published := mockMQTT.GetPublished()
+			for _, p := range published {
+				if p.Topic == "domus/light.hallway_ceiling/set" && bytes.Contains(p.Payload, []byte("turn_off")) {
+					return true
+				}
 			}
-		}
-		assert.True(t, foundTurnOff, "Scene activation must publish turn_off command to light")
+			return false
+		}, 1*time.Second, 20*time.Millisecond, "Scene activation must publish turn_off command to light")
 	})
 
 	// 9. Shutdown

@@ -129,3 +129,13 @@ func (r *AuditRepository) List(ctx context.Context, limit int) ([]*audit.Entry, 
 
 	return entries, rows.Err()
 }
+
+// PurgeOlderThan deletes all audit log entries prior to the cutoff timestamp.
+func (r *AuditRepository) PurgeOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	query := `DELETE FROM audit_log WHERE created_at < ?;`
+	res, err := r.db.ExecContext(ctx, query, cutoff.UTC().Format(time.RFC3339))
+	if err != nil {
+		return 0, fmt.Errorf("sqlite: failed to purge audit log: %w", err)
+	}
+	return res.RowsAffected()
+}

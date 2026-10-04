@@ -5,6 +5,40 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-04
+
+### Added
+- **State History & Telemetry Storage (MS-08)**:
+  - **History Domain (`internal/domain/history`)**:
+    - `StateHistory` domain model with validation invariants and `Repository` interface supporting `SaveBatch`, `ListByEntity`, and `PurgeOlderThan`.
+  - **SQLite History Repository (`internal/infrastructure/sqlite/history_repo.go`)**:
+    - High-performance transactional batch persistence into `state_history` table.
+    - Chronological indexing and query filtering by entity ID/key, `from`, `to`, and `limit`.
+    - Retention purges for historical state snapshots older than configured cutoff.
+    - Added `PurgeOlderThan` in `audit.Repository` and `PurgeRunsOlderThan` in `automation.Repository`.
+  - **Application Services (`internal/application/history/`)**:
+    - `Recorder`: Asynchronous batched state history recorder subscribing to `events.EntityStateChanged` with buffered queue, periodic interval flush, batch size threshold, and safe drain on shutdown.
+    - `RetentionService`: Background scheduled worker purging expired state history, audit logs, and automation runs according to `RetentionConfig` policies.
+  - **HTTP Endpoints & Server Wiring**:
+    - `GET /api/v1/entities/{id}/history`: Historical state logs query supporting both UUIDs and entity keys, with time range filtering and clamping limits.
+    - `GET /api/v1/system/metrics`: Operational metrics endpoint reporting `uptime_s`, `entity_count`, `device_count`, `mqtt_connected`, `ws_clients`, and `db_size_bytes`.
+- **Frontend Localization Architecture (i18n)**:
+  - Robust, easily extensible localization system configured with `vue-i18n`.
+  - Complete translation catalogs for Italian (`it.json`, default) and English (`en.json`).
+  - Modular structure allowing new languages to be plugged in simply by adding a new JSON catalog.
+  - Multi-language selectors in `SettingsView` and quick language toggle pill in `AppTopbar` with automatic `localStorage` persistence.
+  - Localized navigation items, entity domains, history controls, and settings.
+- **Frontend History & Metrics Components**:
+  - `useHistoryStore` (`web/src/stores/history.ts`): Pinia store for fetching and caching historical telemetry.
+  - `useSystemStore` (`web/src/stores/system.ts`): Pinia store for querying live system metrics and formatting human-readable uptime.
+  - `SensorHistoryChart.vue` (`web/src/components/charts/`): Interactive Chart.js component with smooth bezier curves, neon cyan gradient fill, dark slate gridlines, and unit tooltips.
+  - `HistoryView.vue` (`web/src/views/`): Full historical explorer featuring entity selector (prioritizing sensors), time range selectors (1h, 24h, 7d, 30d), summary stats cards (Current, Min, Max, Avg), and tabular data log.
+  - `SettingsView.vue` (`web/src/views/`): Enhanced settings dashboard featuring live system metrics (with on-demand refresh) and language switcher.
+- **TDD Test Suites**:
+  - 136 frontend tests passing across 41 test files in Vitest.
+  - All backend unit, integration, and end-to-end tests passing in Go.
+  - Production PWA bundle verified (`vue-tsc -b && vite build`).
+
 ## [0.7.0] - 2026-10-04
 
 ### Added

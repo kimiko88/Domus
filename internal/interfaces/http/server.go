@@ -56,25 +56,35 @@ func WithWebSocket(hub *wsinfra.Hub) ServerOption {
 	}
 }
 
+// WithMQTTStatus sets the MQTT broker connectivity state for metrics.
+func WithMQTTStatus(connected bool) ServerOption {
+	return func(s *Server) {
+		s.mqttConnected = connected
+	}
+}
+
 // Server encapsulates the HTTP router and net/http server lifecycle.
 type Server struct {
-	cfg          config.ServerConfig
-	router       chi.Router
-	httpServer   *http.Server
-	listener     net.Listener
-	authService  *auth.Service
-	rateLimiter  *auth.RateLimiter
-	repos        *sqlite.Repositories
-	bus          events.Bus
-	wsHub        *wsinfra.Hub
-	autoEngine   *appauto.Engine
-	sceneService *appscene.Service
+	cfg           config.ServerConfig
+	router        chi.Router
+	httpServer    *http.Server
+	listener      net.Listener
+	startedAt     time.Time
+	authService   *auth.Service
+	rateLimiter   *auth.RateLimiter
+	repos         *sqlite.Repositories
+	bus           events.Bus
+	wsHub         *wsinfra.Hub
+	autoEngine    *appauto.Engine
+	sceneService  *appscene.Service
+	mqttConnected bool
 }
 
 // NewServer builds and configures the HTTP server and router.
 func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pinger handlers.Pinger, opts ...ServerOption) *Server {
 	srv := &Server{
-		cfg: cfg,
+		cfg:       cfg,
+		startedAt: startedAt,
 	}
 
 	for _, opt := range opts {
@@ -109,6 +119,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Route("/system", func(sys chi.Router) {
 			sys.Method(http.MethodGet, "/health", healthHandler)
+			if srv.repos != nil {
+				metricsH := handlers.NewSystemMetricsHandler(srv.startedAt, srv.repos, srv.wsHub, srv.mqttConnected)
+				sys.Get("/metrics", metricsH.ServeHTTP)
+			}
 		})
 
 		// Auth routes
@@ -153,6 +167,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				entRouter.Get("/", entityH.List)
 				entRouter.Get("/{id}", entityH.GetByID)
 				entRouter.Post("/{id}/command", entityH.Command)
+				if srv.repos.History != nil {
+					histH := handlers.NewHistoryHandler(srv.repos.History, srv.repos.Entities)
+					entRouter.Get("/{id}/history", histH.GetEntityHistory)
+				}
 			})
 
 			autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine)

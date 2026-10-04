@@ -1,7 +1,10 @@
 // Package automation defines the repository interface port for automations.
 package automation
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ListFilter specifies optional filtering criteria for listing automations.
 type ListFilter struct {
@@ -21,4 +24,5 @@ type Repository interface {
 	CreateRun(ctx context.Context, run *AutomationRun) error
 	UpdateRun(ctx context.Context, run *AutomationRun) error
 	ListRuns(ctx context.Context, automationID string, limit int) ([]*AutomationRun, error)
+	PurgeRunsOlderThan(ctx context.Context, cutoff time.Time) (int64, error)
 }

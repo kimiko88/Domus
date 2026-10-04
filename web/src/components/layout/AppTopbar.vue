@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
+import { getCurrentLanguage, setLanguage } from '../../locales'
 import { Menu, LogOut, User as UserIcon, Radio } from '@lucide/vue'
 
 interface Props {
@@ -21,6 +22,12 @@ const wsStore = useWsStore()
 
 const currentUser = computed(() => authStore.user)
 const isWsConnected = computed(() => wsStore.isConnected)
+const currentLang = computed(() => getCurrentLanguage())
+
+function toggleLanguage() {
+  const next = currentLang.value === 'it' ? 'en' : 'it'
+  setLanguage(next)
+}
 
 async function handleLogout() {
   await authStore.logout()
@@ -41,6 +48,15 @@ async function handleLogout() {
     </div>
 
     <div class="topbar-right">
+      <!-- Language Quick Switcher -->
+      <button
+        class="lang-quick-toggle"
+        :title="currentLang === 'it' ? 'Passa a Inglese' : 'Switch to Italian'"
+        @click="toggleLanguage"
+      >
+        <span class="lang-flag-pill">{{ currentLang === 'it' ? '🇮🇹 IT' : '🇬🇧 EN' }}</span>
+      </button>
+
       <!-- WS Live Status Badge -->
       <div
         :class="['ws-status', { 'is-connected': isWsConnected, 'is-disconnected': !isWsConnected }]"
@@ -118,7 +134,33 @@ async function handleLogout() {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
+}
+
+.lang-quick-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.lang-quick-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lang-flag-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* WebSocket Connection Status */

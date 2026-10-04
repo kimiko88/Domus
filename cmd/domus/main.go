@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	apphistory "github.com/domus-hub/domus/internal/application/history"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
@@ -103,7 +104,30 @@ func main() {
 	defer cancelHub()
 	go wsHub.Run(ctxHub)
 
-	// 7. Initialize HTTP Server
+	// 7. Initialize Batched State History Recorder & Retention Service
+	historyRecorder := apphistory.NewRecorder(repos.History, bus, apphistory.RecorderConfig{
+		BatchSize:     50,
+		FlushInterval: 2 * time.Second,
+	})
+	if err := historyRecorder.Start(context.Background()); err != nil {
+		slog.Error("failed to start history recorder", "error", err)
+	}
+	defer historyRecorder.Stop()
+
+	retentionService := apphistory.NewRetentionService(
+		repos.History,
+		repos.Audit,
+		repos.Automations,
+		apphistory.RetentionConfig{
+			StateHistoryDays:  cfg.Retention.StateHistoryDays,
+			AuditLogDays:      cfg.Retention.AuditLogDays,
+			AutomationRunDays: cfg.Retention.AutomationRunDays,
+		},
+	)
+	retentionService.Start(context.Background(), 24*time.Hour)
+	defer retentionService.Stop()
+
+	// 8. Initialize HTTP Server
 	srv := serverpkg.NewServer(
 		cfg.Server,
 		Version,

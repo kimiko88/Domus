@@ -341,3 +341,13 @@ func (r *AutomationRepository) ListRuns(ctx context.Context, automationID string
 	}
 	return runs, nil
 }
+
+// PurgeRunsOlderThan deletes all automation runs started prior to the cutoff timestamp.
+func (r *AutomationRepository) PurgeRunsOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	query := `DELETE FROM automation_runs WHERE started_at < ?;`
+	res, err := r.db.ExecContext(ctx, query, cutoff.UTC().Format(time.RFC3339))
+	if err != nil {
+		return 0, fmt.Errorf("sqlite: failed to purge automation runs: %w", err)
+	}
+	return res.RowsAffected()
+}

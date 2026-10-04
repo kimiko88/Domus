@@ -7,8 +7,12 @@ import {
   Zap,
   Clapperboard,
   Settings,
-  Home
+  Home,
+  Activity
 } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   isOpen?: boolean
@@ -25,13 +29,14 @@ const emit = defineEmits<{
 }>()
 
 const navItems = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Aree', path: '/areas', icon: Grid },
-  { name: 'Dispositivi', path: '/devices', icon: Cpu },
-  { name: 'Integrazioni', path: '/integrations', icon: Network },
-  { name: 'Automazioni', path: '/automations', icon: Zap },
-  { name: 'Scene', path: '/scenes', icon: Clapperboard },
-  { name: 'Impostazioni', path: '/settings', icon: Settings }
+  { name: 'Dashboard', labelKey: 'nav.dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Aree', labelKey: 'nav.areas', path: '/areas', icon: Grid },
+  { name: 'Dispositivi', labelKey: 'nav.devices', path: '/devices', icon: Cpu },
+  { name: 'Integrazioni', labelKey: 'nav.integrations', path: '/integrations', icon: Network },
+  { name: 'Automazioni', labelKey: 'nav.automations', path: '/automations', icon: Zap },
+  { name: 'Scene', labelKey: 'nav.scenes', path: '/scenes', icon: Clapperboard },
+  { name: 'Storico', labelKey: 'nav.history', path: '/history', icon: Activity },
+  { name: 'Impostazioni', labelKey: 'nav.settings', path: '/settings', icon: Settings }
 ]
 
 function isItemActive(path: string): boolean {
@@ -72,7 +77,7 @@ function isItemActive(path: string): boolean {
           @click="emit('close')"
         >
           <component :is="item.icon" :size="20" class="nav-icon" />
-          <span class="nav-label">{{ item.name }}</span>
+          <span class="nav-label">{{ item.labelKey ? t(item.labelKey) : item.name }}</span>
         </RouterLink>
       </nav>
 
@@ -80,7 +85,7 @@ function isItemActive(path: string): boolean {
       <div class="sidebar-footer">
         <div class="hub-status">
           <span class="status-dot pulse" />
-          <span class="status-text">Hub Locale v0.6</span>
+          <span class="status-text">Hub Locale v0.8</span>
         </div>
       </div>
     </aside>

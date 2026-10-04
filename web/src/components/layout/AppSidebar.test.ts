@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AppSidebar from './AppSidebar.vue'
+import { i18n } from '@/locales'
 
 describe('AppSidebar.vue', () => {
   it('renders branding and main navigation items', () => {
@@ -9,6 +10,7 @@ describe('AppSidebar.vue', () => {
         currentPath: '/'
       },
       global: {
+        plugins: [i18n],
         stubs: {
           RouterLink: {
             template: '<a :href="to" class="router-link"><slot /></a>',
@@ -25,6 +27,7 @@ describe('AppSidebar.vue', () => {
     expect(wrapper.text()).toContain('Integrazioni')
     expect(wrapper.text()).toContain('Automazioni')
     expect(wrapper.text()).toContain('Scene')
+    expect(wrapper.text()).toContain('Storico')
     expect(wrapper.text()).toContain('Impostazioni')
   })
 
@@ -34,6 +37,7 @@ describe('AppSidebar.vue', () => {
         currentPath: '/areas'
       },
       global: {
+        plugins: [i18n],
         stubs: {
           RouterLink: {
             template: '<a :href="to" class="router-link" :class="{ \'is-active\': $attrs.class?.includes(\'active\') }"><slot /></a>',
@@ -55,6 +59,7 @@ describe('AppSidebar.vue', () => {
         currentPath: '/'
       },
       global: {
+        plugins: [i18n],
         stubs: {
           RouterLink: {
             template: '<a><slot /></a>',
