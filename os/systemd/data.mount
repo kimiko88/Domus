@@ -1,0 +1,17 @@
+[Unit]
+Description=Domus OS Persistent Data Partition
+Documentation=https://github.com/domus-hub/domus
+DefaultDependencies=no
+Conflicts=umount.target
+Before=local-fs.target umount.target
+Requires=systemd-fsck@dev-disk-by\x2dpartlabel-domus\x2ddata.service
+After=systemd-fsck@dev-disk-by\x2dpartlabel-domus\x2ddata.service
+
+[Mount]
+What=/dev/disk/by-partlabel/domus-data
+Where=/data
+Type=ext4
+Options=defaults,noatime,commit=30,errors=remount-ro
+
+[Install]
+WantedBy=local-fs.target

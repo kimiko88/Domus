@@ -68,4 +68,47 @@ if [ -n "${BINARIES_DIR:-}" ]; then
     cp -f "${BOARD_DIR}/cmdline.txt" "${BINARIES_DIR}/cmdline.txt"
 fi
 
+# 8. Install systemd storage and mount units
+SYSTEM_DIR="${BOARD_DIR}/../../systemd"
+SYSTEMD_SYSTEM="${TARGET_DIR}/etc/systemd/system"
+mkdir -p "${SYSTEMD_SYSTEM}"
+mkdir -p "${SYSTEMD_SYSTEM}/local-fs.target.wants"
+mkdir -p "${SYSTEMD_SYSTEM}/basic.target.wants"
+
+if [ -f "${SYSTEM_DIR}/data.mount" ]; then
+    cp -f "${SYSTEM_DIR}/data.mount" "${SYSTEMD_SYSTEM}/data.mount"
+    ln -sf "/etc/systemd/system/data.mount" "${SYSTEMD_SYSTEM}/local-fs.target.wants/data.mount"
+fi
+
+if [ -f "${SYSTEM_DIR}/tmp.mount" ]; then
+    cp -f "${SYSTEM_DIR}/tmp.mount" "${SYSTEMD_SYSTEM}/tmp.mount"
+    ln -sf "/etc/systemd/system/tmp.mount" "${SYSTEMD_SYSTEM}/local-fs.target.wants/tmp.mount"
+fi
+
+if [ -f "${SYSTEM_DIR}/domus-storage-init.service" ]; then
+    cp -f "${SYSTEM_DIR}/domus-storage-init.service" "${SYSTEMD_SYSTEM}/domus-storage-init.service"
+    ln -sf "/etc/systemd/system/domus-storage-init.service" "${SYSTEMD_SYSTEM}/basic.target.wants/domus-storage-init.service"
+fi
+
+# 9. Install journald flash-protection configuration
+if [ -f "${SYSTEM_DIR}/journald.conf" ]; then
+    mkdir -p "${TARGET_DIR}/etc/systemd/journald.conf.d"
+    cp -f "${SYSTEM_DIR}/journald.conf" "${TARGET_DIR}/etc/systemd/journald.conf.d/00-domus-limits.conf"
+    cp -f "${SYSTEM_DIR}/journald.conf" "${TARGET_DIR}/etc/systemd/journald.conf"
+fi
+
+# 10. Install storage initialization and factory reset utilities
+SCRIPTS_DIR="${BOARD_DIR}/../../scripts"
+mkdir -p "${TARGET_DIR}/usr/sbin"
+if [ -f "${SCRIPTS_DIR}/domus-storage-init.sh" ]; then
+    cp -f "${SCRIPTS_DIR}/domus-storage-init.sh" "${TARGET_DIR}/usr/sbin/domus-storage-init"
+    chmod 0755 "${TARGET_DIR}/usr/sbin/domus-storage-init"
+fi
+
+if [ -f "${SCRIPTS_DIR}/domus-factory-reset.sh" ]; then
+    cp -f "${SCRIPTS_DIR}/domus-factory-reset.sh" "${TARGET_DIR}/usr/sbin/domus-factory-reset"
+    chmod 0755 "${TARGET_DIR}/usr/sbin/domus-factory-reset"
+fi
+
 echo "=== Domus OS Post-Build: Target Filesystem Configured Successfully ==="
+

@@ -1,0 +1,15 @@
+[Unit]
+Description=Domus OS Persistent Storage Initialization
+Documentation=https://github.com/domus-hub/domus
+DefaultDependencies=no
+RequiresMountsFor=/data
+After=data.mount systemd-fsck@dev-disk-by\x2dpartlabel-domus\x2ddata.service
+Before=basic.target sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/domus-storage-init
+
+[Install]
+WantedBy=basic.target
