@@ -131,6 +131,25 @@ if [ -f "${SCRIPTS_DIR}/domus-update-agent.sh" ]; then
     chmod 0755 "${TARGET_DIR}/usr/sbin/domus-update"
 fi
 
+# 12. Install containerd and domus-supervisor configurations and systemd units
+CONFIGS_DIR="${BOARD_DIR}/../../configs"
+mkdir -p "${TARGET_DIR}/etc/containerd"
+if [ -f "${CONFIGS_DIR}/containerd-config.toml" ]; then
+    cp -f "${CONFIGS_DIR}/containerd-config.toml" "${TARGET_DIR}/etc/containerd/config.toml"
+fi
+
+mkdir -p "${SYSTEMD_SYSTEM}/multi-user.target.wants"
+if [ -f "${SYSTEM_DIR}/containerd.service" ]; then
+    cp -f "${SYSTEM_DIR}/containerd.service" "${SYSTEMD_SYSTEM}/containerd.service"
+    ln -sf "/etc/systemd/system/containerd.service" "${SYSTEMD_SYSTEM}/multi-user.target.wants/containerd.service"
+fi
+
+if [ -f "${SYSTEM_DIR}/domus-supervisor.service" ]; then
+    cp -f "${SYSTEM_DIR}/domus-supervisor.service" "${SYSTEMD_SYSTEM}/domus-supervisor.service"
+    ln -sf "/etc/systemd/system/domus-supervisor.service" "${SYSTEMD_SYSTEM}/multi-user.target.wants/domus-supervisor.service"
+fi
+
 echo "=== Domus OS Post-Build: Target Filesystem Configured Successfully ==="
+
 
 

@@ -30,6 +30,10 @@ build-cli:  ## Build the domus-cli binary
 	@mkdir -p bin
 	go build $(GOFLAGS) $(LDFLAGS) -o $(CLI_BINARY) ./cmd/domus-cli/
 
+build-supervisor:  ## Build the domus-supervisor binary
+	@mkdir -p bin
+	go build $(GOFLAGS) $(LDFLAGS) -o bin/domus-supervisor ./cmd/domus-supervisor/
+
 run:  ## Run the server locally (reads domus.toml or DOMUS_CONFIG env)
 	go run $(LDFLAGS) ./cmd/domus/
 

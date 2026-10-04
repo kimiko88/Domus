@@ -1,0 +1,27 @@
+# ─── Domus OS - containerd Configuration ─────────────────────────────────────
+# Optimized for Raspberry Pi 4 ARM64 with cgroups v2 and persistent storage.
+
+version = 2
+root = "/data/containerd/root"
+state = "/run/containerd"
+
+[grpc]
+  address = "/run/containerd/containerd.sock"
+  uid = 0
+  gid = 0
+  mode = 0660
+
+[plugins."io.containerd.grpc.v1.cri"]
+  disable_tcp_service = true
+
+[plugins."io.containerd.service.v1.diff-service"]
+  default = ["walking"]
+
+[plugins."io.containerd.snapshotter.v1.overlayfs"]
+  root_path = "/data/containerd/root/io.containerd.snapshotter.v1.overlayfs"
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  SystemdCgroup = true

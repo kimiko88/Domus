@@ -85,12 +85,16 @@ validate_bsp() {
         "${OS_DIR}/rauc/system.conf"
         "${OS_DIR}/rauc/domus-os.raucm"
         "${OS_DIR}/rauc/certs/ca.cert.pem"
+        "${OS_DIR}/configs/containerd-config.toml"
+        "${OS_DIR}/systemd/containerd.service"
+        "${OS_DIR}/systemd/domus-supervisor.service"
         "${OS_DIR}/build-container/Dockerfile"
         "${OS_DIR}/scripts/domus-storage-init.sh"
         "${OS_DIR}/scripts/domus-factory-reset.sh"
         "${OS_DIR}/scripts/domus-update-agent.sh"
         "${OS_DIR}/scripts/build-rauc-bundle.sh"
         "${OS_DIR}/scripts/generate-rauc-keys.sh"
+        "${REPO_ROOT}/cmd/domus-supervisor/main.go"
     )
 
     for f in "${required_files[@]}"; do

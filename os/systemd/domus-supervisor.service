@@ -1,0 +1,19 @@
+[Unit]
+Description=Domus OS Supervisor Service
+Documentation=https://github.com/domus-hub/domus
+After=containerd.service data.mount domus-storage-init.service
+Requires=containerd.service data.mount
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/domus-supervisor
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+ProtectHome=true
+ProtectKernelTunables=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
