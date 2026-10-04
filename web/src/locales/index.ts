@@ -1,8 +1,11 @@
 import { createI18n } from 'vue-i18n'
 import it from './it.json'
 import en from './en.json'
+import fr from './fr.json'
+import es from './es.json'
+import de from './de.json'
 
-export type SupportedLanguage = 'it' | 'en'
+export type SupportedLanguage = 'it' | 'en' | 'fr' | 'es' | 'de'
 
 export interface LanguageMeta {
   code: SupportedLanguage
@@ -12,15 +15,22 @@ export interface LanguageMeta {
 
 export const supportedLanguages: LanguageMeta[] = [
   { code: 'it', name: 'Italiano', flag: '🇮🇹' },
-  { code: 'en', name: 'English', flag: '🇬🇧' }
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' }
 ]
 
 const STORAGE_KEY = 'domus_language'
 
 export function getSavedLanguage(): SupportedLanguage {
-  const saved = localStorage.getItem(STORAGE_KEY) as SupportedLanguage | null
-  if (saved && (saved === 'it' || saved === 'en')) {
-    return saved
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY) as SupportedLanguage | null
+    if (saved && ['it', 'en', 'fr', 'es', 'de'].includes(saved)) {
+      return saved
+    }
+  } catch {
+    // fallback if localStorage is unavailable
   }
   return 'it'
 }
@@ -31,7 +41,10 @@ export const i18n = createI18n({
   fallbackLocale: 'en',
   messages: {
     it,
-    en
+    en,
+    fr,
+    es,
+    de
   }
 })
 

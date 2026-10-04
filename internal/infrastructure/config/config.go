@@ -32,6 +32,7 @@ type ServerConfig struct {
 	Host         string `toml:"host"`
 	Port         int    `toml:"port"`
 	CookieSecure bool   `toml:"cookie_secure"`
+	WebDir       string `toml:"web_dir"`
 }
 
 // Addr returns the "host:port" string used by net/http.
@@ -155,6 +156,9 @@ func applyEnvOverrides(cfg *Config) {
 		if port, err := strconv.Atoi(v); err == nil {
 			cfg.Server.Port = port
 		}
+	}
+	if v := os.Getenv("DOMUS_SERVER_WEB_DIR"); v != "" {
+		cfg.Server.WebDir = v
 	}
 	if v := os.Getenv("DOMUS_DATABASE_PATH"); v != "" {
 		cfg.Database.Path = v

@@ -8,7 +8,8 @@ import {
   Clapperboard,
   Settings,
   Home,
-  Activity
+  Activity,
+  ShieldCheck
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -36,6 +37,7 @@ const navItems = [
   { name: 'Automazioni', labelKey: 'nav.automations', path: '/automations', icon: Zap },
   { name: 'Scene', labelKey: 'nav.scenes', path: '/scenes', icon: Clapperboard },
   { name: 'Storico', labelKey: 'nav.history', path: '/history', icon: Activity },
+  { name: 'Audit', labelKey: 'nav.audit', path: '/audit', icon: ShieldCheck },
   { name: 'Impostazioni', labelKey: 'nav.settings', path: '/settings', icon: Settings }
 ]
 

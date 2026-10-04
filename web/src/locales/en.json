@@ -25,6 +25,7 @@
     "automations": "Automations",
     "scenes": "Scenes",
     "history": "History & Metrics",
+    "audit": "Security Audit Log",
     "settings": "Settings",
     "logout": "Log Out"
   },
@@ -90,5 +91,24 @@
     "newScene": "New Scene",
     "activate": "Activate",
     "actionsCount": "Actions"
+  },
+  "audit": {
+    "title": "Security Audit Log",
+    "subtitle": "Immutable record of system authentications, configuration edits, and automated actions.",
+    "actor": "Actor",
+    "action": "Action",
+    "target": "Target",
+    "timestamp": "Timestamp",
+    "payload": "Payload",
+    "noEntries": "No audit entries recorded.",
+    "actorTypes": {
+      "local_user": "Local User",
+      "api_token": "API Token",
+      "automation": "Automation",
+      "system": "System"
+    },
+    "showPayload": "Show Payload",
+    "hidePayload": "Hide Payload",
+    "limitLabel": "Rows shown"
   }
 }

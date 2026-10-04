@@ -125,6 +125,14 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		assert.Equal(t, "192.168.1.100", cfg.Server.Host)
 	})
 
+	t.Run("DOMUS_SERVER_WEB_DIR overrides web dir", func(t *testing.T) {
+		t.Setenv("DOMUS_SERVER_WEB_DIR", "/usr/share/domus/web")
+
+		cfg, err := config.Load("")
+		require.NoError(t, err)
+		assert.Equal(t, "/usr/share/domus/web", cfg.Server.WebDir)
+	})
+
 	t.Run("DOMUS_DATABASE_PATH overrides db path", func(t *testing.T) {
 		t.Setenv("DOMUS_DATABASE_PATH", "/tmp/test.db")
 

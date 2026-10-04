@@ -17,6 +17,7 @@ import (
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -63,6 +64,13 @@ func WithMQTTStatus(connected bool) ServerOption {
 	}
 }
 
+// WithCORS configures the allowed CORS origins (for dev frontends on different ports).
+func WithCORS(origins []string) ServerOption {
+	return func(s *Server) {
+		s.allowedOrigins = origins
+	}
+}
+
 // Server encapsulates the HTTP router and net/http server lifecycle.
 type Server struct {
 	cfg           config.ServerConfig
@@ -78,6 +86,7 @@ type Server struct {
 	autoEngine    *appauto.Engine
 	sceneService  *appscene.Service
 	mqttConnected bool
+	allowedOrigins []string
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -99,15 +108,29 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	r.Use(domusmw.RequestLogger())
 	r.Use(chimw.Recoverer)
 
+	// Security headers (CSP, X-Frame-Options, etc.)
+	r.Use(domusmw.SecurityHeaders())
+
+	// CORS (optional, for development frontends)
+	if len(srv.allowedOrigins) > 0 {
+		r.Use(domusmw.CORS(srv.allowedOrigins))
+	}
+
 	// If auth service is present, extract sessions globally
 	if srv.authService != nil {
 		r.Use(domusmw.Authenticate(srv.authService))
 	}
 
 	healthHandler := handlers.NewHealthHandler(version, startedAt, pinger)
+	swaggerHandler := swagger.NewHandler()
 
 	// Public health routes
 	r.Method(http.MethodGet, "/health", healthHandler)
+
+	// Embedded OpenAPI & Swagger UI documentation routes
+	r.Get("/docs", swaggerHandler.ServeUI)
+	r.Get("/swagger", swaggerHandler.ServeUI)
+	r.Get("/api/openapi.yaml", swaggerHandler.ServeSpec)
 
 	// WebSocket real-time route
 	if srv.wsHub != nil {
@@ -193,6 +216,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				sceneRouter.Delete("/{id}", sceneH.Delete)
 				sceneRouter.Post("/{id}/apply", sceneH.Apply)
 			})
+
+			// Audit log endpoint (admin-only in practice via RBAC)
+			auditH := handlers.NewAuditHandler(srv.repos.Audit)
+			api.With(domusmw.RequireAuth()).Get("/audit", auditH.ServeHTTP)
 		}
 	})
 

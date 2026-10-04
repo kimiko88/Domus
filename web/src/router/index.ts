@@ -8,6 +8,7 @@ import IntegrationsView from '../views/IntegrationsView.vue'
 import AutomationsView from '../views/AutomationsView.vue'
 import ScenesView from '../views/ScenesView.vue'
 import HistoryView from '../views/HistoryView.vue'
+import AuditView from '../views/AuditView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import LoginView from '../views/LoginView.vue'
 import SetupView from '../views/SetupView.vue'
@@ -54,6 +55,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'history',
     component: HistoryView,
     meta: { requiresAuth: true, title: 'Storico' }
+  },
+  {
+    path: '/audit',
+    name: 'audit',
+    component: AuditView,
+    meta: { requiresAuth: true, title: 'Audit' }
   },
   {
     path: '/settings',

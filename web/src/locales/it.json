@@ -25,6 +25,7 @@
     "automations": "Automazioni",
     "scenes": "Scene",
     "history": "Storico & Metriche",
+    "audit": "Registro Audit",
     "settings": "Impostazioni",
     "logout": "Disconnetti"
   },
@@ -90,5 +91,24 @@
     "newScene": "Nuova Scena",
     "activate": "Attiva",
     "actionsCount": "Azioni"
+  },
+  "audit": {
+    "title": "Registro Audit di Sicurezza",
+    "subtitle": "Tracciamento immutabile di tutti gli accessi, le azioni e gli eventi di sistema.",
+    "actor": "Attore",
+    "action": "Azione",
+    "target": "Destinatario",
+    "timestamp": "Timestamp",
+    "payload": "Dettagli",
+    "noEntries": "Nessun evento registrato.",
+    "actorTypes": {
+      "local_user": "Utente Locale",
+      "api_token": "Token API",
+      "automation": "Automazione",
+      "system": "Sistema"
+    },
+    "showPayload": "Mostra Dettagli",
+    "hidePayload": "Nascondi Dettagli",
+    "limitLabel": "Righe mostrate"
   }
 }

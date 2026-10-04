@@ -209,3 +209,19 @@ export interface SystemMetrics {
   db_size_bytes: number
 }
 
+export interface AuditEntry {
+  id: number
+  actor_type: string
+  actor_id?: string | null
+  action: string
+  target_type?: string | null
+  target_id?: string | null
+  payload?: Record<string, any>
+  created_at: string
+}
+
+export interface AuditListResponse {
+  entries: AuditEntry[]
+  total: number
+}
+

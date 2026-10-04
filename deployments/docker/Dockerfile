@@ -1,6 +1,15 @@
 # syntax=docker/dockerfile:1
 
-# ─── Stage 1: Build ───────────────────────────────────────────────────────────
+# ─── Stage 1: Build Web Frontend Assets ───────────────────────────────────────
+FROM --platform=$BUILDPLATFORM node:20-alpine AS web-builder
+
+WORKDIR /web
+COPY web/package.json ./
+RUN npm install --ignore-scripts
+COPY web/ ./
+RUN npm run build
+
+# ─── Stage 2: Build Pure Go Binaries ──────────────────────────────────────────
 FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
 WORKDIR /src
@@ -21,7 +30,7 @@ ARG TARGETARCH
 ARG VERSION=1.0.0
 ARG BUILD_TIME
 
-# Compile statically linked binary (pure Go, zero CGO for cross-architecture portability)
+# Compile statically linked binaries (pure Go, zero CGO for cross-architecture portability)
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
     go build -trimpath -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}'" \
     -o /bin/domus ./cmd/domus
@@ -30,17 +39,18 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
     go build -trimpath -ldflags="-s -w -X 'main.Version=${VERSION}'" \
     -o /bin/domus-cli ./cmd/domus-cli
 
-# ─── Stage 2: Runtime ─────────────────────────────────────────────────────────
+# ─── Stage 3: Minimal Distroless / Hardened Runtime ───────────────────────────
 FROM alpine:3.20 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -g 1000 domus \
     && adduser -u 1000 -G domus -s /bin/sh -D domus \
-    && mkdir -p /data /etc/domus \
-    && chown -R domus:domus /data /etc/domus
+    && mkdir -p /data /etc/domus /usr/local/share/domus/web \
+    && chown -R domus:domus /data /etc/domus /usr/local/share/domus
 
 COPY --from=builder /bin/domus /usr/local/bin/domus
 COPY --from=builder /bin/domus-cli /usr/local/bin/domus-cli
+COPY --from=web-builder /web/dist /usr/local/share/domus/web
 COPY --from=builder /src/domus.toml.example /etc/domus/domus.toml
 
 USER domus

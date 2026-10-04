@@ -136,3 +136,36 @@ func TestServer_StartAndShutdown(t *testing.T) {
 	startErr := <-errCh
 	assert.True(t, startErr == nil || startErr == http.ErrServerClosed)
 }
+
+func TestServer_SwaggerAndDocsEndpoints(t *testing.T) {
+	cfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 8080,
+	}
+
+	srv := serverpkg.NewServer(cfg, "1.0.0", time.Now(), &dummyPinger{})
+
+	// 1. /docs endpoint
+	reqDocs := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	rrDocs := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rrDocs, reqDocs)
+	assert.Equal(t, http.StatusOK, rrDocs.Code)
+	assert.Contains(t, rrDocs.Header().Get("Content-Type"), "text/html")
+	assert.Contains(t, rrDocs.Body.String(), "SwaggerUIBundle")
+
+	// 2. /swagger endpoint
+	reqSwagger := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+	rrSwagger := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rrSwagger, reqSwagger)
+	assert.Equal(t, http.StatusOK, rrSwagger.Code)
+	assert.Contains(t, rrSwagger.Header().Get("Content-Type"), "text/html")
+
+	// 3. /api/openapi.yaml endpoint
+	reqSpec := httptest.NewRequest(http.MethodGet, "/api/openapi.yaml", nil)
+	rrSpec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rrSpec, reqSpec)
+	assert.Equal(t, http.StatusOK, rrSpec.Code)
+	assert.Contains(t, rrSpec.Header().Get("Content-Type"), "yaml")
+	assert.Contains(t, rrSpec.Body.String(), "openapi: 3.1.0")
+}
+

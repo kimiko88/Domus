@@ -62,4 +62,26 @@ describe('Router navigation guard', () => {
 
     expect(router.currentRoute.value.path).toBe('/')
   })
+
+  it('allows access to /audit when authenticated', async () => {
+    const authStore = useAuthStore()
+    vi.spyOn(authStore, 'checkSetup').mockResolvedValue(false)
+    authStore.isSetupRequired = false
+    authStore.user = {
+      id: 'u1',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+
+    const router = createRouterInstance()
+    const app = createApp({})
+    app.use(router)
+
+    await router.push('/audit')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/audit')
+  })
 })

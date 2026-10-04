@@ -5,6 +5,50 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-10-04
+
+### Added
+- **ARM64 & Production Packaging (MS-10)**:
+  - Multi-stage Dockerfile compiling web assets (`web-builder`) and pure Go binaries (`builder`) for `linux/arm64` and `linux/amd64` into a hardened, non-root Alpine runtime.
+  - Automated, non-interactive installation script (`deployments/scripts/install.sh`) supporting bare-metal Raspberry Pi 4 and Linux SBCs with automated architecture detection, system user creation, directory permissions, and systemd service registration.
+  - Uninstallation script (`deployments/scripts/uninstall.sh`) with safe service teardown and optional data purge flag (`PURGE_DATA=1`).
+  - Hardened systemd service unit (`deployments/systemd/domus.service`) with Linux sandboxing (`ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `PrivateDevices=true`, `ReadWritePaths=/var/lib/domus`).
+- **Embedded OpenAPI 3.1 & Interactive Swagger UI**:
+  - `internal/interfaces/http/swagger`: Embedded OpenAPI 3.1 specification (`domus.yaml`) via `go:embed`.
+  - Self-contained Swagger UI explorer served at `/docs` and `/swagger`.
+  - Raw YAML specification served at `/api/openapi.yaml`.
+- **5-Language Frontend Localization (i18n)**:
+  - Complete translation catalogs for **Italiano 🇮🇹, English 🇬🇧, Français 🇫🇷, Español 🇪🇸, and Deutsch 🇩🇪**.
+  - Parity test suite verifying 100% key and subkey consistency across all 5 languages (`src/locales/i18n.test.ts`).
+  - Dynamic language selector in `SettingsView` and quick toggle in `AppTopbar` with `localStorage` persistence.
+- **Architecture Decision Records (ADRs)**:
+  - ADR-004: Structured JSON DSL for Automations and Scenes.
+  - ADR-005: AES-256-GCM Secrets Encryption and Idempotent Backup/Restore.
+  - ADR-006: Packaging, Multi-Architecture Containerization, and Offline Deployment.
+- **Documentation & Static SPA Serving**:
+  - Comprehensive `README.md` with complete installation instructions, CLI usage, and architecture overview.
+  - Configurable static SPA serving via `web_dir` setting and `DOMUS_SERVER_WEB_DIR` environment variable with fallback to embedded documentation.
+
+## [0.9.0] - 2026-10-04
+
+### Added
+- **Security Hardening & Encrypted Backup/Restore (MS-09)**:
+  - **Secrets Encryption (`internal/infrastructure/config/secrets.go`)**:
+    - AES-256-GCM symmetric encryption for configuration secrets, tokens, and backup archives.
+    - PBKDF2-HMAC-SHA256 key derivation with 100,000 iterations and cryptographically random 16-byte salt.
+  - **Backup & Restore Application Service (`internal/application/backup/`)**:
+    - Generates `.tar.gz` (plain) or `.tar.gz.enc` (AES-256-GCM encrypted) archives containing SQLite database, TOML configuration, and signed `backup_manifest.json`.
+    - Idempotent restore engine with zip-slip / path-traversal attack protection ensuring files are extracted safely within target bounds.
+  - **Administration CLI (`cmd/domus-cli/main.go`)**:
+    - Subcommands `backup` and `restore` with passphrase flag support.
+    - CLI commands for inspecting archive metadata and verifying integrity.
+  - **HTTP Security Middlewares (`internal/interfaces/http/middleware/security.go`)**:
+    - Security headers middleware: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security: max-age=31536000`, `Content-Security-Policy`.
+    - Configurable Cross-Origin Resource Sharing (CORS) middleware.
+  - **Security Audit Log View & Routing (`web/src/views/AuditView.vue`)**:
+    - Dedicated audit log page displaying security and authentication events, actor types, timestamps, and expandable JSON payload inspector.
+    - Exposed `GET /api/v1/audit` endpoint requiring authentication.
+
 ## [0.8.0] - 2026-10-04
 
 ### Added
