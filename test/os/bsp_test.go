@@ -256,6 +256,9 @@ func TestMS01_ShellScripts_HeaderSafety(t *testing.T) {
 				break
 			}
 		}
+		if err := scanner.Err(); err != nil {
+			t.Errorf("scanner error reading script %s: %v", s, err)
+		}
 
 		if !hasShebang {
 			t.Errorf("script %s missing shebang line (#!/usr/bin/env bash or #!/bin/sh)", s)

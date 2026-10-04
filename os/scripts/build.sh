@@ -74,14 +74,28 @@ validate_bsp() {
         "${OS_DIR}/board/raspberrypi4-64/config.txt"
         "${OS_DIR}/board/raspberrypi4-64/cmdline.txt"
         "${OS_DIR}/board/raspberrypi4-64/boot.cmd"
+        "${OS_DIR}/board/raspberrypi4-64/uboot.env.txt"
+        "${OS_DIR}/board/raspberrypi4-64/fw_env.config"
         "${OS_DIR}/board/raspberrypi4-64/post-build.sh"
         "${OS_DIR}/board/raspberrypi4-64/post-image.sh"
+        "${OS_DIR}/systemd/data.mount"
+        "${OS_DIR}/systemd/domus-storage-init.service"
+        "${OS_DIR}/systemd/journald.conf"
+        "${OS_DIR}/systemd/tmp.mount"
+        "${OS_DIR}/rauc/system.conf"
+        "${OS_DIR}/rauc/domus-os.raucm"
+        "${OS_DIR}/rauc/certs/ca.cert.pem"
         "${OS_DIR}/build-container/Dockerfile"
+        "${OS_DIR}/scripts/domus-storage-init.sh"
+        "${OS_DIR}/scripts/domus-factory-reset.sh"
+        "${OS_DIR}/scripts/domus-update-agent.sh"
+        "${OS_DIR}/scripts/build-rauc-bundle.sh"
+        "${OS_DIR}/scripts/generate-rauc-keys.sh"
     )
 
     for f in "${required_files[@]}"; do
         if [ ! -f "$f" ]; then
-            echo "ERROR: Missing required BSP file: $f"
+            echo "ERROR: Missing required BSP/OS file: $f"
             return 1
         fi
         echo "  [OK] $(basename "$f")"
@@ -91,6 +105,11 @@ validate_bsp() {
     bash -n "${OS_DIR}/board/raspberrypi4-64/post-build.sh"
     bash -n "${OS_DIR}/board/raspberrypi4-64/post-image.sh"
     bash -n "${OS_DIR}/scripts/build.sh"
+    bash -n "${OS_DIR}/scripts/domus-storage-init.sh"
+    bash -n "${OS_DIR}/scripts/domus-factory-reset.sh"
+    bash -n "${OS_DIR}/scripts/domus-update-agent.sh"
+    bash -n "${OS_DIR}/scripts/build-rauc-bundle.sh"
+    bash -n "${OS_DIR}/scripts/generate-rauc-keys.sh"
     echo "  [OK] Shell scripts syntax validated successfully."
 
     # Validate defconfig critical flags

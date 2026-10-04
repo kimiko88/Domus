@@ -273,6 +273,9 @@ func TestMS02_PostBuildScript_InstallsStorageUnits(t *testing.T) {
 	for scanner.Scan() {
 		content += scanner.Text() + "\n"
 	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner error reading post-build.sh: %v", err)
+	}
 
 	requiredHooks := []string{
 		"domus-storage-init",

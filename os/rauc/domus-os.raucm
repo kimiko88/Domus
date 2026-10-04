@@ -1,0 +1,8 @@
+# ─── Domus OS - RAUC Update Bundle Manifest Template ─────────────────────────
+[package]
+compatible=domus-os-rpi4
+version=1.0.0
+description=Domus OS Official Appliance Release
+
+[image.rootfs]
+filename=rootfs.squashfs

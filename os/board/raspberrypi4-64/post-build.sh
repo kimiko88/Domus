@@ -110,5 +110,27 @@ if [ -f "${SCRIPTS_DIR}/domus-factory-reset.sh" ]; then
     chmod 0755 "${TARGET_DIR}/usr/sbin/domus-factory-reset"
 fi
 
+# 11. Install RAUC update configuration, keyring, and U-Boot tools config
+RAUC_DIR="${BOARD_DIR}/../../rauc"
+mkdir -p "${TARGET_DIR}/etc/rauc"
+if [ -f "${RAUC_DIR}/system.conf" ]; then
+    cp -f "${RAUC_DIR}/system.conf" "${TARGET_DIR}/etc/rauc/system.conf"
+fi
+
+if [ -f "${RAUC_DIR}/certs/ca.cert.pem" ]; then
+    cp -f "${RAUC_DIR}/certs/ca.cert.pem" "${TARGET_DIR}/etc/rauc/ca.cert.pem"
+    chmod 0644 "${TARGET_DIR}/etc/rauc/ca.cert.pem"
+fi
+
+if [ -f "${BOARD_DIR}/fw_env.config" ]; then
+    cp -f "${BOARD_DIR}/fw_env.config" "${TARGET_DIR}/etc/fw_env.config"
+fi
+
+if [ -f "${SCRIPTS_DIR}/domus-update-agent.sh" ]; then
+    cp -f "${SCRIPTS_DIR}/domus-update-agent.sh" "${TARGET_DIR}/usr/sbin/domus-update"
+    chmod 0755 "${TARGET_DIR}/usr/sbin/domus-update"
+fi
+
 echo "=== Domus OS Post-Build: Target Filesystem Configured Successfully ==="
+
 

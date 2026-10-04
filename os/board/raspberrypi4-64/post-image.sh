@@ -28,9 +28,20 @@ else
     cp -f "${BOARD_DIR}/boot.cmd" "${BINARIES_DIR}/boot.scr"
 fi
 
-# 2. Ensure config.txt and cmdline.txt are present in BINARIES_DIR
+# 2. Ensure config.txt, cmdline.txt, and uboot.env are present in BINARIES_DIR
 cp -f "${BOARD_DIR}/config.txt" "${BINARIES_DIR}/config.txt"
 cp -f "${BOARD_DIR}/cmdline.txt" "${BINARIES_DIR}/cmdline.txt"
+
+if command -v mkenvimage >/dev/null 2>&1; then
+    echo "Compiling U-Boot environment file uboot.env..."
+    mkenvimage -s 16384 -o "${BINARIES_DIR}/uboot.env" "${BOARD_DIR}/uboot.env.txt"
+elif [ -x "${HOST_DIR:-output/host}/bin/mkenvimage" ]; then
+    echo "Compiling U-Boot environment file with Buildroot host-mkenvimage..."
+    "${HOST_DIR}/bin/mkenvimage" -s 16384 -o "${BINARIES_DIR}/uboot.env" "${BOARD_DIR}/uboot.env.txt"
+else
+    # Fallback copy
+    cp -f "${BOARD_DIR}/uboot.env.txt" "${BINARIES_DIR}/uboot.env"
+fi
 
 # 3. Clean up genimage temporary directory
 rm -rf "${GENIMAGE_TMP}"
