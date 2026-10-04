@@ -1,0 +1,63 @@
+# ─── Domus App: Zigbee2MQTT Coordinator ────────────────────────────────────────
+# Reference application manifest demonstrating USB hardware isolation and MQTT access.
+id: zigbee2mqtt
+name: Zigbee2MQTT
+version: "1.36.0-domus1"
+description: "Universal local Zigbee coordinator supporting TI CC2652, ConBee II/III and Silicon Labs dongles."
+publisher: "Domus Community"
+license: "MIT"
+minimum_domus_version: "1.0.0"
+
+image: "ghcr.io/domus-hub/apps-zigbee2mqtt:1.36.0"
+image_digest: "sha256:d8b74c2f1e687895bc4935e5d3fa9bc7468128913ac839352e0081d6049281a8"
+architecture:
+  - "arm64"
+
+entrypoint:
+  - "/sbin/tini"
+  - "--"
+  - "node"
+  - "index.js"
+
+environment:
+  DATA_PATH: "/data"
+  DEBUG: "zigbee-herdsman*"
+
+permissions:
+  network:
+    mode: "bridge"
+    inbound_ports:
+      - container_port: 8080
+        host_port: 8099
+        protocol: "tcp"
+        ui_ingress: true
+    outbound: true
+  devices:
+    - path: "/dev/ttyUSB0"
+      description: "Texas Instruments CC2652 / Sonoff Zigbee 3.0 USB Dongle Plus"
+      optional: false
+    - path: "/dev/ttyACM0"
+      description: "Silicon Labs EFR32MG21 / ConBee II Coordinator"
+      optional: true
+  mqtt:
+    client_id: "domus_app_zigbee2mqtt"
+    publish:
+      - "zigbee2mqtt/#"
+    subscribe:
+      - "zigbee2mqtt/#"
+  storage:
+    - path: "/data"
+      volume_name: "zigbee2mqtt-data"
+      quota_mb: 512
+
+resources:
+  memory_limit_mb: 256
+  cpu_limit: 1.5
+  restart_policy: "unless-stopped"
+
+healthcheck:
+  type: "http"
+  url: "http://127.0.0.1:8080/api/health"
+  interval_seconds: 30
+  timeout_seconds: 5
+  retries: 3

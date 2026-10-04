@@ -3,6 +3,7 @@ package supervisor
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -37,6 +38,14 @@ func (s *APIServer) registerRoutes() {
 	s.mux.HandleFunc("POST /api/v1/supervisor/core/restart", s.handleCoreRestart)
 	s.mux.HandleFunc("POST /api/v1/supervisor/update/confirm", s.handleUpdateConfirm)
 	s.mux.HandleFunc("POST /api/v1/supervisor/update/rollback", s.handleUpdateRollback)
+
+	// App Management Endpoints
+	s.mux.HandleFunc("GET /api/v1/apps", s.handleListApps)
+	s.mux.HandleFunc("GET /api/v1/apps/{id}", s.handleGetApp)
+	s.mux.HandleFunc("POST /api/v1/apps/install", s.handleInstallApp)
+	s.mux.HandleFunc("POST /api/v1/apps/{id}/start", s.handleStartApp)
+	s.mux.HandleFunc("POST /api/v1/apps/{id}/stop", s.handleStopApp)
+	s.mux.HandleFunc("DELETE /api/v1/apps/{id}", s.handleUninstallApp)
 }
 
 func (s *APIServer) handlePing(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +91,70 @@ func (s *APIServer) handleUpdateRollback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": "rollback initiated"})
+}
+
+func (s *APIServer) handleListApps(w http.ResponseWriter, r *http.Request) {
+	apps, err := s.engine.GetAppManager().ListApps(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, apps)
+}
+
+func (s *APIServer) handleGetApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	manifest, status, err := s.engine.GetAppManager().GetApp(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"manifest": manifest,
+		"status":   status,
+	})
+}
+
+func (s *APIServer) handleInstallApp(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil || len(body) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "request body with manifest is required"})
+		return
+	}
+	manifest, err := s.engine.GetAppManager().Install(r.Context(), body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, manifest)
+}
+
+func (s *APIServer) handleStartApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.engine.GetAppManager().Start(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "app started"})
+}
+
+func (s *APIServer) handleStopApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.engine.GetAppManager().Stop(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "app stopped"})
+}
+
+func (s *APIServer) handleUninstallApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	purge := r.URL.Query().Get("purge") == "true"
+	if err := s.engine.GetAppManager().Uninstall(r.Context(), id, purge); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "app uninstalled"})
 }
 
 // ServeUnix binds the HTTP server to a Unix Domain Socket with proper permissions.

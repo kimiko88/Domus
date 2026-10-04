@@ -1,0 +1,49 @@
+# ─── Domus App: Eclipse Mosquitto MQTT Broker ─────────────────────────────────
+# Reference application manifest for isolated local MQTT message broker.
+id: mosquitto
+name: Eclipse Mosquitto
+version: "2.0.18-domus1"
+description: "Lightweight and efficient MQTT broker for local IoT communication."
+publisher: "Eclipse Foundation"
+license: "EPL-2.0"
+minimum_domus_version: "1.0.0"
+
+image: "ghcr.io/domus-hub/apps-mosquitto:2.0.18"
+image_digest: "sha256:7bc33a32f6fa72d4cf6786a3d90616b6c085b46d84950e50f38b1eb72eb4be2e"
+architecture:
+  - "arm64"
+
+environment:
+  MOSQUITTO_LOG_TYPE: "information"
+
+permissions:
+  network:
+    mode: "bridge"
+    inbound_ports:
+      - container_port: 1883
+        host_port: 1883
+        protocol: "tcp"
+        ui_ingress: false
+      - container_port: 9001
+        host_port: 9001
+        protocol: "tcp"
+        ui_ingress: false
+    outbound: false
+  storage:
+    - path: "/mosquitto/data"
+      volume_name: "mosquitto-data"
+      quota_mb: 256
+    - path: "/mosquitto/log"
+      volume_name: "mosquitto-log"
+      quota_mb: 64
+
+resources:
+  memory_limit_mb: 128
+  cpu_limit: 0.5
+  restart_policy: "always"
+
+healthcheck:
+  type: "tcp"
+  interval_seconds: 30
+  timeout_seconds: 3
+  retries: 3

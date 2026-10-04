@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domus-hub.org/schemas/app-manifest.json",
+  "title": "Domus App Manifest Specification",
+  "description": "Schema definition for secure, sandboxed applications in Domus OS",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "image",
+    "permissions",
+    "resources"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-_]{1,63}$",
+      "description": "Unique alphanumeric lowercase identifier for the extension"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 100,
+      "description": "Human readable name of the application"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+.*$",
+      "description": "Semantic versioning string (e.g. 1.0.0)"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Brief summary of the application functionality"
+    },
+    "publisher": {
+      "type": "string",
+      "description": "Name of the organization, developer, or publisher"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier (e.g. MIT, Apache-2.0)"
+    },
+    "minimum_domus_version": {
+      "type": "string",
+      "description": "Minimum Domus Core / OS version required"
+    },
+    "image": {
+      "type": "string",
+      "description": "OCI container image repository and tag (e.g. ghcr.io/domus-hub/zigbee2mqtt:1.36.0)"
+    },
+    "image_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Cryptographic SHA256 digest of the container image layer manifest"
+    },
+    "architecture": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["arm64", "amd64"]
+      },
+      "description": "Supported CPU architectures"
+    },
+    "entrypoint": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Container process override entrypoint command"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Environment variables passed into the container"
+    },
+    "permissions": {
+      "type": "object",
+      "required": ["network"],
+      "properties": {
+        "network": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["bridge", "host", "none"],
+              "description": "Network namespace isolation mode"
+            },
+            "inbound_ports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["container_port"],
+                "properties": {
+                  "container_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  "host_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  "protocol": { "type": "string", "enum": ["tcp", "udp"], "default": "tcp" },
+                  "ui_ingress": { "type": "boolean", "default": false }
+                }
+              }
+            },
+            "outbound": {
+              "type": "boolean",
+              "default": true,
+              "description": "Allow outgoing network connections"
+            }
+          }
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^/dev/(ttyUSB[0-9]+|ttyACM[0-9]+|serial.*|gpio.*)$",
+                "description": "Restricted hardware device path"
+              },
+              "description": { "type": "string" },
+              "optional": { "type": "boolean", "default": false }
+            }
+          },
+          "description": "Whitelisted physical hardware devices mapped into the container"
+        },
+        "mqtt": {
+          "type": "object",
+          "properties": {
+            "client_id": { "type": "string" },
+            "publish": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "subscribe": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "description": "Restricted MQTT topics accessible by the application"
+        },
+        "storage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "volume_name"],
+            "properties": {
+              "path": { "type": "string", "description": "Mount path inside container" },
+              "volume_name": { "type": "string" },
+              "quota_mb": { "type": "integer", "minimum": 16, "maximum": 10240 }
+            }
+          },
+          "description": "Isolated persistent storage volumes allocated under /data/apps/<id>/"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["memory_limit_mb"],
+      "properties": {
+        "memory_limit_mb": {
+          "type": "integer",
+          "minimum": 32,
+          "maximum": 3072,
+          "description": "Hard memory ceiling enforced via cgroups v2"
+        },
+        "cpu_limit": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 4.0,
+          "description": "Maximum CPU core quota allocation"
+        },
+        "restart_policy": {
+          "type": "string",
+          "enum": ["always", "unless-stopped", "on-failure", "no"],
+          "default": "unless-stopped"
+        }
+      }
+    },
+    "healthcheck": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["http", "tcp", "command"] },
+        "url": { "type": "string" },
+        "interval_seconds": { "type": "integer", "minimum": 5, "maximum": 300, "default": 30 },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 60, "default": 5 },
+        "retries": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 }
+      }
+    }
+  }
+}

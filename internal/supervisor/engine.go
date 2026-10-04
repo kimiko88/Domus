@@ -15,6 +15,7 @@ type Engine struct {
 	runtime       ContainerRuntime
 	rauc          RaucController
 	health        HealthChecker
+	apps          *AppManager
 	startTime     time.Time
 	coreHealthy   bool
 	slotConfirmed bool
@@ -28,8 +29,14 @@ func NewEngine(cfg Config, runtime ContainerRuntime, rauc RaucController, health
 		runtime:   runtime,
 		rauc:      rauc,
 		health:    health,
+		apps:      NewAppManager(cfg.DataDir, runtime),
 		startTime: time.Now(),
 	}
+}
+
+// GetAppManager returns the managed AppManager instance.
+func (e *Engine) GetAppManager() *AppManager {
+	return e.apps
 }
 
 // Start launches the core container and begins background health monitoring.
