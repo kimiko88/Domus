@@ -10,6 +10,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/application/auth"
 	appauto "github.com/domus-hub/domus/internal/application/automation"
+	appchore "github.com/domus-hub/domus/internal/application/chore"
 	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/user"
@@ -289,6 +290,35 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						sceneRouter.Post("/{id}/apply", sceneH.Apply)
 					}
 				})
+
+				// Floors and multi-level floor plan markers
+				if srv.repos.Floors != nil {
+					floorH := handlers.NewFloorplanHandler(srv.repos.Floors)
+					domainRouter.Route("/floors", func(flRouter chi.Router) {
+						flRouter.Get("/", floorH.List)
+						flRouter.Post("/", floorH.Create)
+						flRouter.Get("/{id}", floorH.GetByID)
+						flRouter.Put("/{id}", floorH.Update)
+						flRouter.Delete("/{id}", floorH.Delete)
+						flRouter.Get("/{id}/markers", floorH.ListMarkers)
+						flRouter.Put("/{id}/markers", floorH.SaveMarker)
+						flRouter.Delete("/{id}/markers/{markerId}", floorH.DeleteMarker)
+					})
+				}
+
+				// Chores & Reminders
+				if srv.repos.Chores != nil {
+					choreService := appchore.NewService(srv.repos.Chores, srv.bus)
+					choreH := handlers.NewChoreHandler(srv.repos.Chores, choreService)
+					domainRouter.Route("/chores", func(chRouter chi.Router) {
+						chRouter.Get("/", choreH.List)
+						chRouter.Post("/", choreH.Create)
+						chRouter.Get("/{id}", choreH.GetByID)
+						chRouter.Put("/{id}", choreH.Update)
+						chRouter.Delete("/{id}", choreH.Delete)
+						chRouter.Post("/{id}/complete", choreH.Complete)
+					})
+				}
 
 				// Audit log endpoint (admin-only via RBAC)
 				auditH := handlers.NewAuditHandler(srv.repos.Audit)

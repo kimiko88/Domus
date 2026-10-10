@@ -27,8 +27,12 @@
 14. [Backup e Ripristino](#14-backup-e-ripristino)
 15. [Log di Audit](#15-log-di-audit)
 16. [Riferimento Configurazione (`domus.toml`)](#16-riferimento-configurazione-domustoml)
-17. [Risoluzione dei Problemi](#17-risoluzione-dei-problemi)
-18. [Domande Frequenti (FAQ)](#18-domande-frequenti-faq)
+17. [Tuya Local & Smart Life (LAN-First)](#17-tuya-local--smart-life-lan-first)
+18. [Mappa della Casa e Piani (Floor Plan)](#18-mappa-della-casa-e-piani-floor-plan)
+19. [Faccende Domestiche e Promemoria (Chores)](#19-faccende-domestiche-e-promemoria-chores)
+20. [App Mobile iOS e Android (Capacitor)](#20-app-mobile-ios-e-android-capacitor)
+21. [Risoluzione dei Problemi](#21-risoluzione-dei-problemi)
+22. [Domande Frequenti (FAQ)](#22-domande-frequenti-faq)
 
 ---
 
@@ -547,11 +551,58 @@ argon2_threads = 4                # Thread Argon2id
 state_history_days = 30     # Giorni storico stati sensori
 audit_log_days = 90         # Giorni retention log audit
 automation_run_days = 30    # Giorni retention esecuzioni automazioni
-```
+---
+
+## 17. Tuya Local & Smart Life (LAN-First)
+
+Domus supporta la comunicazione diretta via LAN con i dispositivi Tuya e Smart Life (prese smart, lampadine CCT/RGB, termostati, ciabatte smart).
+
+- **Porta UDP 6666/6667**: ascolto broadcast locale per discovery automatica di nuovi dispositivi.
+- **Porta TCP 6668**: canale dati crittografato AES-128 (v3.1, v3.3) o HMAC-SHA256 (v3.4, v3.5).
+- **Zero Cloud**: dopo aver estratto la `local_key` iniziale, i dispositivi comunicano interamente sulla rete locale senza dipendere dai server Tuya.
 
 ---
 
-## 17. Risoluzione dei Problemi
+## 18. Mappa della Casa e Piani (Floor Plan)
+
+La sezione **Mappa Piani** (`/floorplan`) consente di visualizzare la casa suddivisa in livelli (es. Piano Terra, Primo Piano, Giardino).
+
+- **Piani Multi-Livello**: navigazione a schede tra i piani configurati con livello numerico.
+- **Posizionamento Visuale (Drag-and-Drop)**: in modalità *Modifica Posizioni*, seleziona un dispositivo e fai clic sulla planimetria per impostare le coordinate X/Y percentuali (responsive su ogni schermo).
+- **Controllo Diretto dai Marker**: fai clic su un marker di luce o presa per accenderla/spegnerla istantaneamente con feedback visivo a luminescenza (glow).
+
+---
+
+## 19. Faccende Domestiche e Promemoria (Chores)
+
+La sezione **Faccende** (`/chores`) organizza i compiti domestici e le scadenze:
+
+- **Ricorrenze**: compiti una tantum o ricorrenti (giornalieri, settimanali, mensili).
+- **Assegnazione & Priorità**: assegna i compiti ai membri della famiglia con priorità *Bassa*, *Media*, *Alta*, o *Urgente*.
+- **Promemoria Notifiche Automatiche**: il background scheduler controlla periodicamente i compiti in scadenza e invia notifiche in-app e push.
+- **Completamento con Auto-Riprogrammazione**: contrassegnando un compito ricorrente come completato, Domus genera automaticamente la scadenza successiva.
+
+---
+
+## 20. App Mobile iOS e Android (Capacitor)
+
+Domus include una configurazione pronta per Capacitor (`web/capacitor.config.ts`), permettendo di distribuire l'applicazione come app nativa per iOS e Android:
+
+```bash
+cd web
+npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
+npx cap add ios
+npx cap add android
+npx cap sync
+```
+
+- **Discovery mDNS**: l'app rileva automaticamente il server `domus.local` sulla rete Wi-Fi di casa.
+- **Fallback Remoto**: connessione sicura da remoto tramite HTTPS / Tailscale / WireGuard.
+- **Notifiche Push Native**: ricezione promemoria compiti e allarmi sensori anche con app chiusa.
+
+---
+
+## 21. Risoluzione dei Problemi
 
 ### `domus.local` non raggiungibile
 
@@ -629,6 +680,8 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Entità** | `GET /api/v1/entities` · `POST /api/v1/entities/{id}/command` |
 | **Dispositivi** | `GET /api/v1/devices` |
 | **Aree** | `GET /api/v1/areas` · `POST /api/v1/areas` |
+| **Mappa Piani** | `GET /api/v1/floors` · `POST /api/v1/floors` · `GET/PUT /api/v1/floors/{id}/markers` |
+| **Faccende Domestiche** | `GET /api/v1/chores` · `POST /api/v1/chores` · `POST /api/v1/chores/{id}/complete` |
 | **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` |
 | **Scene** | `POST /api/v1/scenes/{id}/activate` |
 | **Cronologia** | `GET /api/v1/entities/{id}/history?from=...&to=...` |

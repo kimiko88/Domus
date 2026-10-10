@@ -317,4 +317,46 @@ export interface EnableMaintenancePayload {
   authorized_key?: string
 }
 
+export interface Floor {
+  id: string
+  name: string
+  level: number
+  plan_svg?: string
+  plan_image?: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
 
+export interface FloorMarker {
+  id: string
+  floor_id: string
+  entity_key: string
+  x_percent: number
+  y_percent: number
+  icon_override?: string
+  show_badge: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ChorePriority = 'low' | 'medium' | 'high' | 'urgent'
+export type ChoreRecurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'telemetry'
+export type ChoreStatus = 'pending' | 'completed' | 'overdue'
+
+export interface Chore {
+  id: string
+  title: string
+  description?: string
+  area_id?: string
+  assigned_user_id?: string
+  priority: ChorePriority
+  due_date?: string
+  recurrence_type: ChoreRecurrence
+  recurrence_rule?: string
+  status: ChoreStatus
+  last_completed_at?: string
+  last_completed_by?: string
+  created_at: string
+  updated_at: string
+}

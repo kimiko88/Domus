@@ -95,6 +95,8 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	}{
 		{version: 1, file: "migrations/000001_init.up.sql"},
 		{version: 2, file: "migrations/000002_family_invites.up.sql"},
+		{version: 3, file: "migrations/000003_floorplans.up.sql"},
+		{version: 4, file: "migrations/000004_chores.up.sql"},
 	}
 
 	for _, m := range migrations {

@@ -10,7 +10,9 @@ import {
   Home,
   Activity,
   ShieldCheck,
-  Users
+  Users,
+  Layers,
+  CheckSquare
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -32,6 +34,8 @@ const emit = defineEmits<{
 
 const navItems = [
   { name: 'Dashboard', labelKey: 'nav.dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Mappa Piani', labelKey: 'nav.floorplan', path: '/floorplan', icon: Layers },
+  { name: 'Faccende', labelKey: 'nav.chores', path: '/chores', icon: CheckSquare },
   { name: 'Aree', labelKey: 'nav.areas', path: '/areas', icon: Grid },
   { name: 'Dispositivi', labelKey: 'nav.devices', path: '/devices', icon: Cpu },
   { name: 'Integrazioni', labelKey: 'nav.integrations', path: '/integrations', icon: Network },

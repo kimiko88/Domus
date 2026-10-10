@@ -19,6 +19,8 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "floorplan": "Floor Plan",
+    "chores": "Chores",
     "areas": "Areas",
     "devices": "Devices",
     "integrations": "Integrations",

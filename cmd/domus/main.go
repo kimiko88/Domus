@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	appchore "github.com/domus-hub/domus/internal/application/chore"
 	apphistory "github.com/domus-hub/domus/internal/application/history"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
@@ -127,7 +128,14 @@ func main() {
 	retentionService.Start(context.Background(), 24*time.Hour)
 	defer retentionService.Stop()
 
-	// 8. Initialize HTTP Server
+	// 8. Initialize Domestic Chores Reminder Scheduler
+	choreScheduler := appchore.NewScheduler(repos.Chores, bus, 1*time.Minute)
+	if err := choreScheduler.Start(context.Background()); err != nil {
+		slog.Warn("failed to start chore scheduler", "error", err)
+	}
+	defer choreScheduler.Stop()
+
+	// 9. Initialize HTTP Server
 	srv := serverpkg.NewServer(
 		cfg.Server,
 		Version,

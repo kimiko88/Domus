@@ -14,6 +14,8 @@ import SettingsView from '../views/SettingsView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SetupView from '../views/SetupView.vue'
+import FloorplanView from '../views/FloorplanView.vue'
+import ChoresView from '../views/ChoresView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -21,6 +23,18 @@ export const routes: RouteRecordRaw[] = [
     name: 'dashboard',
     component: DashboardView,
     meta: { requiresAuth: true, title: 'Dashboard' }
+  },
+  {
+    path: '/floorplan',
+    name: 'floorplan',
+    component: FloorplanView,
+    meta: { requiresAuth: true, title: 'Mappa Piani' }
+  },
+  {
+    path: '/chores',
+    name: 'chores',
+    component: ChoresView,
+    meta: { requiresAuth: true, title: 'Faccende' }
   },
   {
     path: '/areas',

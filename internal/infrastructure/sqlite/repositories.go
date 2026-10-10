@@ -7,8 +7,10 @@ import (
 	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/audit"
 	"github.com/domus-hub/domus/internal/domain/automation"
+	"github.com/domus-hub/domus/internal/domain/chore"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/floorplan"
 	"github.com/domus-hub/domus/internal/domain/history"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/domain/scene"
@@ -28,6 +30,8 @@ type Repositories struct {
 	Scenes       scene.Repository
 	History      history.Repository
 	Invites      user.InviteRepository
+	Floors       floorplan.Repository
+	Chores       chore.Repository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -44,5 +48,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Scenes:       NewSceneRepository(db),
 		History:      NewHistoryRepository(db),
 		Invites:      NewInviteRepository(db),
+		Floors:       NewFloorplanRepository(db),
+		Chores:       NewChoreRepository(db),
 	}
 }
