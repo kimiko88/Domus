@@ -20,6 +20,16 @@ import (
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	appcal "github.com/domus-hub/domus/internal/application/calendar"
+	appcamera "github.com/domus-hub/domus/internal/application/camera"
+	appmedia "github.com/domus-hub/domus/internal/application/media"
+	appmesh "github.com/domus-hub/domus/internal/application/mesh"
+	appnotif "github.com/domus-hub/domus/internal/application/notification"
+	appota "github.com/domus-hub/domus/internal/application/ota"
+	appshop "github.com/domus-hub/domus/internal/application/shopping"
+	appstore "github.com/domus-hub/domus/internal/application/store"
+	apptag "github.com/domus-hub/domus/internal/application/tag"
+	appweather "github.com/domus-hub/domus/internal/application/weather"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
@@ -395,6 +405,83 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						hRouter.Post("/{id}/action", helperH.Action)
 					})
 				}
+
+				// Ecosystem routes: Cameras, Tags, Notifications, Schedules/Calendar, Media, Weather/Solar, Mesh, OTA, Store
+				camSvc := appcamera.NewService(appcamera.NewMemoryRepository(), srv.bus)
+				tagSvc := apptag.NewService(apptag.NewMemoryRepository(), srv.bus)
+				notifMgr := appnotif.NewManager(srv.bus)
+				calSvc := appcal.NewService(appcal.NewMemoryRepository(), srv.bus)
+				mediaSvc := appmedia.NewService(appmedia.NewMemoryRepository(), srv.bus)
+				weatherCli := appweather.NewClient()
+				meshSvc := appmesh.NewService()
+				otaSvc := appota.NewService(srv.bus)
+				storeSvc := appstore.NewService()
+				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc)
+
+				domainRouter.Route("/cameras", func(cRouter chi.Router) {
+					cRouter.Get("/", ecoH.ListCameras)
+					cRouter.Post("/", ecoH.CreateCamera)
+					cRouter.Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
+					cRouter.Get("/events", ecoH.ListCameraEvents)
+				})
+
+				domainRouter.Route("/tags", func(tRouter chi.Router) {
+					tRouter.Get("/", ecoH.ListTags)
+					tRouter.Post("/", ecoH.CreateTag)
+					tRouter.Post("/{id}/scan", ecoH.ScanTag)
+				})
+
+				domainRouter.Route("/notifications/actionable", func(nRouter chi.Router) {
+					nRouter.Post("/", ecoH.CreateActionableNotification)
+					nRouter.Post("/actions/{action_id}", ecoH.HandleNotificationAction)
+				})
+
+				domainRouter.Route("/schedules", func(sRouter chi.Router) {
+					sRouter.Get("/", ecoH.ListSchedules)
+					sRouter.Post("/", ecoH.CreateSchedule)
+				})
+
+				domainRouter.Route("/calendar", func(calRouter chi.Router) {
+					calRouter.Get("/events", ecoH.ListCalendarEvents)
+					calRouter.Post("/import", ecoH.ImportICal)
+				})
+
+				domainRouter.Route("/media", func(mRouter chi.Router) {
+					mRouter.Get("/players", ecoH.ListMediaPlayers)
+					mRouter.Post("/players/{id}/volume", ecoH.SetPlayerVolume)
+					mRouter.Post("/broadcast", ecoH.BroadcastAnnouncement)
+				})
+
+				domainRouter.Route("/weather", func(wRouter chi.Router) {
+					wRouter.Get("/forecast", ecoH.GetWeatherForecast)
+					wRouter.Get("/solar-forecast", ecoH.GetSolarForecast)
+				})
+
+				domainRouter.Route("/mesh", func(meshRouter chi.Router) {
+					meshRouter.Get("/topology", ecoH.GetMeshTopology)
+				})
+
+				domainRouter.Route("/ota", func(otaRouter chi.Router) {
+					otaRouter.Get("/devices", ecoH.ListOTADevices)
+					otaRouter.Post("/devices/{id}/upgrade", ecoH.TriggerOTAUpgrade)
+				})
+
+				domainRouter.Route("/store", func(stRouter chi.Router) {
+					stRouter.Get("/packages", ecoH.ListStorePackages)
+					stRouter.Post("/packages/{id}/install", ecoH.InstallStorePackage)
+					stRouter.Post("/packages/{id}/uninstall", ecoH.UninstallStorePackage)
+				})
+
+				// Shared Shopping List routes
+				shopSvc := appshop.NewService(appshop.NewMemoryRepository(), srv.bus)
+				shopH := handlers.NewShoppingHandler(shopSvc)
+				domainRouter.Route("/shopping", func(shRouter chi.Router) {
+					shRouter.Get("/", shopH.List)
+					shRouter.Post("/", shopH.Create)
+					shRouter.Post("/{id}/toggle", shopH.Toggle)
+					shRouter.Delete("/{id}", shopH.Delete)
+					shRouter.Post("/clear-completed", shopH.ClearCompleted)
+				})
 
 				// Audit log endpoint (admin-only via RBAC)
 				auditH := handlers.NewAuditHandler(srv.repos.Audit)

@@ -19,6 +19,12 @@ import ChoresView from '../views/ChoresView.vue'
 import CustomDashboardView from '../views/CustomDashboardView.vue'
 import EnergyDashboardView from '../views/EnergyDashboardView.vue'
 import HelpersView from '../views/HelpersView.vue'
+import CamerasView from '../views/CamerasView.vue'
+import ScheduleView from '../views/ScheduleView.vue'
+import MediaPlayerView from '../views/MediaPlayerView.vue'
+import MeshMapView from '../views/MeshMapView.vue'
+import StoreView from '../views/StoreView.vue'
+import ShoppingListView from '../views/ShoppingListView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -46,6 +52,36 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Helper Virtuali' }
   },
   {
+    path: '/cameras',
+    name: 'cameras',
+    component: CamerasView,
+    meta: { requiresAuth: true, title: 'Telecamere' }
+  },
+  {
+    path: '/schedules',
+    name: 'schedules',
+    component: ScheduleView,
+    meta: { requiresAuth: true, title: 'Programmazione' }
+  },
+  {
+    path: '/media',
+    name: 'media',
+    component: MediaPlayerView,
+    meta: { requiresAuth: true, title: 'Audio Multi-room' }
+  },
+  {
+    path: '/mesh',
+    name: 'mesh',
+    component: MeshMapView,
+    meta: { requiresAuth: true, title: 'Mappa Mesh' }
+  },
+  {
+    path: '/store',
+    name: 'store',
+    component: StoreView,
+    meta: { requiresAuth: true, title: 'Domus Store' }
+  },
+  {
     path: '/floorplan',
     name: 'floorplan',
     component: FloorplanView,
@@ -56,6 +92,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'chores',
     component: ChoresView,
     meta: { requiresAuth: true, title: 'Faccende' }
+  },
+  {
+    path: '/shopping',
+    name: 'shopping',
+    component: ShoppingListView,
+    meta: { requiresAuth: true, title: 'Lista Spesa' }
   },
   {
     path: '/areas',

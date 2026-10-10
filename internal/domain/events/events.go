@@ -43,6 +43,24 @@ const (
 
 	// NotificationCreated fires when an internal notification is generated.
 	NotificationCreated EventType = "notification.created"
+
+	// CameraDetected fires when an object (person, vehicle, animal, package) is detected by Frigate/camera vision.
+	CameraDetected EventType = "camera.detected"
+
+	// TagScanned fires when an NFC tag or QR code is scanned.
+	TagScanned EventType = "tag.scanned"
+
+	// CalendarEventStart fires when a scheduled calendar event begins.
+	CalendarEventStart EventType = "calendar.event_start"
+
+	// CalendarEventEnd fires when a scheduled calendar event ends.
+	CalendarEventEnd EventType = "calendar.event_end"
+
+	// MediaStateChanged fires when a media player state, volume, or track changes.
+	MediaStateChanged EventType = "media.state_changed"
+
+	// OTAStateChanged fires when a device firmware upgrade state updates.
+	OTAStateChanged EventType = "ota.state_changed"
 )
 
 // Event is the common envelope for all domain events.

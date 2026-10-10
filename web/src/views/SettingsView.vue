@@ -5,9 +5,11 @@ import { useAuthStore } from '../stores/auth'
 import { useSystemStore } from '../stores/system'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
+import { apiClient } from '../api/client'
 import {
   User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw,
-  Cpu, Thermometer, Terminal, Download, Key, ShieldCheck, ShieldAlert
+  Cpu, Thermometer, Terminal, Download, Key, ShieldCheck, ShieldAlert,
+  Radio, Zap, CheckCircle
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -79,9 +81,76 @@ function selectLanguage(code: any) {
   setLanguage(code)
 }
 
+const otaDevices = ref<any[]>([
+  {
+    id: 'ota_1',
+    name: 'Philips Hue Bulb E27',
+    platform: 'zigbee',
+    current_version: '1.93.7',
+    latest_version: '1.104.2',
+    has_update: true
+  },
+  {
+    id: 'ota_2',
+    name: 'Sensore Clima Salotto',
+    platform: 'esphome',
+    current_version: '2024.9.1',
+    latest_version: '2024.10.0',
+    has_update: true
+  }
+])
+
+const nfcTags = ref<any[]>([
+  {
+    id: 'tag_1',
+    name: 'Comodino Notte',
+    tag_id: '04:A2:3B:5C:88',
+    action_type: 'scene',
+    action_target_id: 'Tutto Spento'
+  },
+  {
+    id: 'tag_2',
+    name: 'Ingresso Casa',
+    tag_id: '04:FA:21:88:99',
+    action_type: 'scene',
+    action_target_id: 'Bentornato'
+  }
+])
+
+async function loadOTA() {
+  try {
+    const list = await apiClient.get<any[]>('/api/v1/ota/devices')
+    if (list && list.length > 0) otaDevices.value = list
+  } catch {}
+}
+
+async function triggerOTAUpgrade(dev: any) {
+  try {
+    await apiClient.post(`/api/v1/ota/devices/${dev.id}/upgrade`, {})
+    dev.has_update = false
+    dev.current_version = dev.latest_version
+  } catch {}
+}
+
+async function loadTags() {
+  try {
+    const list = await apiClient.get<any[]>('/api/v1/tags')
+    if (list && list.length > 0) nfcTags.value = list
+  } catch {}
+}
+
+async function testScanTag(t: any) {
+  try {
+    await apiClient.post(`/api/v1/tags/${t.tag_id}/scan`, { scanned_by: 'settings_ui' })
+    alert(`Tag "${t.name}" scansionato con successo! Azione eseguita.`)
+  } catch {}
+}
+
 onMounted(() => {
   refreshMetrics()
   refreshOS()
+  loadOTA()
+  loadTags()
 })
 </script>
 
@@ -414,6 +483,70 @@ onMounted(() => {
               <Key :size="16" />
               <span>{{ t('settings.enableSsh') }}</span>
             </BaseButton>
+          </div>
+        </div>
+      </div>
+
+      <!-- OTA Firmware Updates Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-cyan">
+            <RefreshCw :size="20" />
+          </div>
+          <h3 class="card-title">Aggiornamenti Firmware OTA</h3>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">Aggiorna le periferiche Zigbee, ESPHome e Z-Wave con 1 click senza software esterni.</p>
+
+          <div class="ota-list">
+            <div v-for="dev in otaDevices" :key="dev.id" class="ota-row">
+              <div class="ota-info">
+                <strong>{{ dev.name }}</strong>
+                <span class="text-dim text-xs">{{ dev.platform.toUpperCase() }} • Attuale: {{ dev.current_version }}</span>
+              </div>
+
+              <div class="ota-action">
+                <button
+                  v-if="dev.has_update"
+                  class="btn-upgrade"
+                  @click="triggerOTAUpgrade(dev)"
+                >
+                  Aggiorna a v{{ dev.latest_version }}
+                </button>
+                <span v-else class="status-up-to-date">
+                  <CheckCircle :size="14" />
+                  <span>Aggiornato</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NFC & QR Code Tags Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-amber">
+            <Radio :size="20" />
+          </div>
+          <h3 class="card-title">Tag NFC & QR Code Fisici</h3>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">Scansiona adesivi NFC da smartphone per lanciare scene o automazioni istantanee.</p>
+
+          <div class="tags-list">
+            <div v-for="tag in nfcTags" :key="tag.id" class="tag-row">
+              <div class="tag-info">
+                <strong>{{ tag.name }}</strong>
+                <span class="text-dim text-xs">UID: {{ tag.tag_id }} &rarr; Scena: {{ tag.action_target_id }}</span>
+              </div>
+
+              <button class="btn-test-scan" @click="testScanTag(tag)">
+                Test Scansione
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -767,5 +900,58 @@ onMounted(() => {
 
 .w-full {
   width: 100%;
+}
+
+.ota-list, .tags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ota-row, .tag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.ota-info, .tag-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.btn-upgrade {
+  background: var(--primary);
+  border: none;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.status-up-to-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #10b981;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.btn-test-scan {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 </style>

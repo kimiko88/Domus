@@ -15,7 +15,13 @@ import {
   CheckSquare,
   Tablet,
   Sun,
-  Sliders
+  Sliders,
+  Video,
+  Clock,
+  Music,
+  Radio,
+  ShoppingBag,
+  ShoppingCart
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -40,8 +46,14 @@ const navItems = [
   { name: 'Dashboard Tablet', labelKey: 'nav.customDashboards', path: '/custom-dashboards', icon: Tablet },
   { name: 'Energia & Solare', labelKey: 'nav.energy', path: '/energy', icon: Sun },
   { name: 'Helper Virtuali', labelKey: 'nav.helpers', path: '/helpers', icon: Sliders },
+  { name: 'Telecamere', labelKey: 'nav.cameras', path: '/cameras', icon: Video },
+  { name: 'Programmazione', labelKey: 'nav.schedules', path: '/schedules', icon: Clock },
+  { name: 'Audio Multi-room', labelKey: 'nav.media', path: '/media', icon: Music },
+  { name: 'Mappa Mesh', labelKey: 'nav.mesh', path: '/mesh', icon: Radio },
+  { name: 'Domus Store', labelKey: 'nav.store', path: '/store', icon: ShoppingBag },
   { name: 'Mappa Piani', labelKey: 'nav.floorplan', path: '/floorplan', icon: Layers },
   { name: 'Faccende', labelKey: 'nav.chores', path: '/chores', icon: CheckSquare },
+  { name: 'Lista Spesa', labelKey: 'nav.shopping', path: '/shopping', icon: ShoppingCart },
   { name: 'Aree', labelKey: 'nav.areas', path: '/areas', icon: Grid },
   { name: 'Dispositivi', labelKey: 'nav.devices', path: '/devices', icon: Cpu },
   { name: 'Integrazioni', labelKey: 'nav.integrations', path: '/integrations', icon: Network },
