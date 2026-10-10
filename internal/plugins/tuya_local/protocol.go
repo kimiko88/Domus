@@ -96,7 +96,7 @@ func EncodePacket(seq, cmd uint32, payload []byte, localKey []byte, version stri
 
 // DecodePacket unpacks and verifies a Tuya binary frame.
 func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return nil, ErrPayloadTooShort
 	}
 
@@ -112,6 +112,10 @@ func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
 	cmd := binary.BigEndian.Uint32(data[8:12])
 	payloadLen := binary.BigEndian.Uint32(data[12:16])
 
+	if payloadLen < 8 {
+		return nil, ErrPayloadTooShort
+	}
+
 	expectedTotal := 16 + payloadLen
 	if uint32(len(data)) < expectedTotal {
 		return nil, ErrPayloadTooShort
@@ -119,6 +123,9 @@ func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
 
 	// Suffix is last 4 bytes, CRC is 4 bytes before suffix
 	bodyEnd := len(data) - 8
+	if bodyEnd < 16 {
+		return nil, ErrPayloadTooShort
+	}
 	body := data[16:bodyEnd]
 
 	// Verify CRC
@@ -228,3 +235,4 @@ func ComputeHMAC_SHA256(data, key []byte) string {
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
+

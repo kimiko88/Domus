@@ -191,7 +191,7 @@ func (r *AutomationRepository) List(ctx context.Context, filter automation.ListF
 
 		result = append(result, &a)
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 // Update saves modifications to an automation.
@@ -339,7 +339,7 @@ func (r *AutomationRepository) ListRuns(ctx context.Context, automationID string
 		}
 		runs = append(runs, &run)
 	}
-	return runs, nil
+	return runs, rows.Err()
 }
 
 // PurgeRunsOlderThan deletes all automation runs started prior to the cutoff timestamp.

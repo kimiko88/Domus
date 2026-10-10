@@ -16,6 +16,9 @@ import RegisterView from '../views/RegisterView.vue'
 import SetupView from '../views/SetupView.vue'
 import FloorplanView from '../views/FloorplanView.vue'
 import ChoresView from '../views/ChoresView.vue'
+import CustomDashboardView from '../views/CustomDashboardView.vue'
+import EnergyDashboardView from '../views/EnergyDashboardView.vue'
+import HelpersView from '../views/HelpersView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -23,6 +26,24 @@ export const routes: RouteRecordRaw[] = [
     name: 'dashboard',
     component: DashboardView,
     meta: { requiresAuth: true, title: 'Dashboard' }
+  },
+  {
+    path: '/custom-dashboards',
+    name: 'custom-dashboards',
+    component: CustomDashboardView,
+    meta: { requiresAuth: true, title: 'Dashboard Tablet' }
+  },
+  {
+    path: '/energy',
+    name: 'energy',
+    component: EnergyDashboardView,
+    meta: { requiresAuth: true, title: 'Energia & Solare' }
+  },
+  {
+    path: '/helpers',
+    name: 'helpers',
+    component: HelpersView,
+    meta: { requiresAuth: true, title: 'Helper Virtuali' }
   },
   {
     path: '/floorplan',

@@ -19,6 +19,9 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "customDashboards": "Dashboard Tablet",
+    "energy": "Energia & Solare",
+    "helpers": "Helper Virtuali",
     "floorplan": "Mappa Piani",
     "chores": "Faccende",
     "areas": "Aree",
@@ -62,7 +65,7 @@
     "emptyTitle": "Nessuna area configurata",
     "emptyDesc": "Crea la tua prima stanza o zona per organizzare entità e dispositivi in modo intuitivo.",
     "createFirst": "Crea la prima area",
-    "devicesCount": "Dispositivi",
+    "devicesCount": "Dispositivi/Entità",
     "entitiesCount": "Entità",
     "moreEntities": "altri",
     "areaName": "Nome Area",

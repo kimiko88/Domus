@@ -23,7 +23,8 @@ const (
 
 // Trigger defines a condition source that causes an automation to evaluate.
 type Trigger struct {
-	Platform   string   `json:"platform"` // "state", "numeric_state", "time", "event"
+	ID         string   `json:"id,omitempty"` // Unique trigger identifier (e.g. "movimento", "timeout")
+	Platform   string   `json:"platform"`     // "state", "numeric_state", "time", "event"
 	EntityKey  string   `json:"entity_key,omitempty"`
 	From       string   `json:"from,omitempty"`
 	To         string   `json:"to,omitempty"`
@@ -36,7 +37,8 @@ type Trigger struct {
 
 // Condition defines a filter that must evaluate to true for actions to execute.
 type Condition struct {
-	Condition  string      `json:"condition"` // "state", "numeric_state", "time", "and", "or", "not"
+	Condition  string      `json:"condition"` // "state", "numeric_state", "time", "and", "or", "not", "trigger"
+	TriggerID  string      `json:"trigger_id,omitempty"`
 	EntityKey  string      `json:"entity_key,omitempty"`
 	State      string      `json:"state,omitempty"`
 	Above      *float64    `json:"above,omitempty"`
@@ -46,15 +48,23 @@ type Condition struct {
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 
+// ChooseBranch defines a conditional execution branch within a choose action.
+type ChooseBranch struct {
+	Conditions []Condition `json:"conditions"`
+	Sequence   []Action    `json:"sequence"`
+}
+
 // Action defines an operation performed when triggers and conditions pass.
 type Action struct {
-	Type            string         `json:"type"`              // "service", "delay", "event"
+	Type            string         `json:"type"`              // "service", "delay", "event", "choose"
 	Service         string         `json:"service,omitempty"` // "turn_on", "turn_off", "toggle"
 	TargetEntityKey string         `json:"target_entity_key,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
 	DelayMs         int            `json:"delay_ms,omitempty"`
 	EventType       string         `json:"event_type,omitempty"`
 	EventPayload    map[string]any `json:"event_payload,omitempty"`
+	Choose          []ChooseBranch `json:"choose,omitempty"`
+	Default         []Action       `json:"default,omitempty"`
 }
 
 // Automation represents an event-driven automation rule.

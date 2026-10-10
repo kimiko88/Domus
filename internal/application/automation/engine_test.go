@@ -217,3 +217,141 @@ func TestEngine_Cooldown(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 1, actionFiredCount, "Second execution must be blocked by cooldown")
 }
+
+func TestEngine_TriggerIDAndChoose(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Automation with multiple triggers and choose action branching
+	auto := &automation.Automation{
+		ID:      uuid.NewString(),
+		Name:    "Multi Trigger Choose Auto",
+		Enabled: true,
+		Triggers: []automation.Trigger{
+			{
+				ID:        "motion",
+				Platform:  "state",
+				EntityKey: "sensor.pir",
+				To:        "on",
+			},
+			{
+				ID:        "timeout",
+				Platform:  "state",
+				EntityKey: "sensor.pir",
+				To:        "off",
+			},
+		},
+		Actions: []automation.Action{
+			{
+				Type: "choose",
+				Choose: []automation.ChooseBranch{
+					{
+						Conditions: []automation.Condition{
+							{Condition: "trigger", TriggerID: "motion"},
+						},
+						Sequence: []automation.Action{
+							{Type: "event", EventType: "light.turned_on"},
+						},
+					},
+					{
+						Conditions: []automation.Condition{
+							{Condition: "trigger", TriggerID: "timeout"},
+						},
+						Sequence: []automation.Action{
+							{Type: "event", EventType: "light.turned_off"},
+						},
+					},
+				},
+			},
+		},
+		ExecutionMode: "parallel",
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	var fired []string
+	bus.Subscribe("light.turned_on", func(c context.Context, e events.Event) error {
+		fired = append(fired, "on")
+		return nil
+	})
+	bus.Subscribe("light.turned_off", func(c context.Context, e events.Event) error {
+		fired = append(fired, "off")
+		return nil
+	})
+
+	require.NoError(t, engine.Start(ctx))
+
+	// 1. Fire motion trigger
+	_ = bus.Publish(ctx, events.Event{
+		ID:         uuid.NewString(),
+		Type:       events.EntityStateChanged,
+		OccurredAt: time.Now(),
+		Payload: map[string]any{
+			"entity_key": "sensor.pir",
+			"state":      "on",
+		},
+	})
+	time.Sleep(100 * time.Millisecond)
+
+	// 2. Fire timeout trigger
+	_ = bus.Publish(ctx, events.Event{
+		ID:         uuid.NewString(),
+		Type:       events.EntityStateChanged,
+		OccurredAt: time.Now(),
+		Payload: map[string]any{
+			"entity_key": "sensor.pir",
+			"state":      "off",
+		},
+	})
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Contains(t, fired, "on")
+	assert.Contains(t, fired, "off")
+}
+
+func TestEngine_RestartMode(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	auto := &automation.Automation{
+		ID:            uuid.NewString(),
+		Name:          "Restart Delay Auto",
+		Enabled:       true,
+		ExecutionMode: "restart",
+		Triggers: []automation.Trigger{
+			{Platform: "event", EventType: "sensor.motion"},
+		},
+		Actions: []automation.Action{
+			{Type: "delay", DelayMs: 250}, // Long delay
+			{Type: "event", EventType: "light.off_after_delay"},
+		},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	offEvents := 0
+	bus.Subscribe("light.off_after_delay", func(c context.Context, e events.Event) error {
+		offEvents++
+		return nil
+	})
+
+	require.NoError(t, engine.Start(ctx))
+
+	// Trigger #1: starts 250ms sleep
+	_ = bus.Publish(ctx, events.Event{Type: "sensor.motion", OccurredAt: time.Now()})
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger #2: aborts #1 and restarts the 250ms timer
+	_ = bus.Publish(ctx, events.Event{Type: "sensor.motion", OccurredAt: time.Now()})
+
+	// Wait for the second one to finish
+	time.Sleep(350 * time.Millisecond)
+
+	// Only 1 event should have been emitted because the first was canceled
+	assert.Equal(t, 1, offEvents)
+}
+

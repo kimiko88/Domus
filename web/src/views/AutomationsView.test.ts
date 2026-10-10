@@ -88,7 +88,7 @@ describe('AutomationsView.vue', () => {
     await wrapper.vm.$nextTick()
 
     // Filter to active only
-    const activePill = wrapper.findAll('.filter-pill').find((p) => p.text().includes('Attive'))
+    const activePill = wrapper.findAll('.filter-pill').find((p) => p.text().includes('Attiv') || p.text().includes('Active'))
     expect(activePill).toBeDefined()
     await activePill!.trigger('click')
 

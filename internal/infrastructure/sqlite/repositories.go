@@ -8,9 +8,11 @@ import (
 	"github.com/domus-hub/domus/internal/domain/audit"
 	"github.com/domus-hub/domus/internal/domain/automation"
 	"github.com/domus-hub/domus/internal/domain/chore"
+	"github.com/domus-hub/domus/internal/domain/dashboard"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/floorplan"
+	"github.com/domus-hub/domus/internal/domain/helper"
 	"github.com/domus-hub/domus/internal/domain/history"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/domain/scene"
@@ -32,6 +34,8 @@ type Repositories struct {
 	Invites      user.InviteRepository
 	Floors       floorplan.Repository
 	Chores       chore.Repository
+	Dashboards   dashboard.Repository
+	Helpers      helper.Repository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -50,5 +54,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Invites:      NewInviteRepository(db),
 		Floors:       NewFloorplanRepository(db),
 		Chores:       NewChoreRepository(db),
+		Dashboards:   NewDashboardRepository(db),
+		Helpers:      NewHelperRepository(db),
 	}
 }

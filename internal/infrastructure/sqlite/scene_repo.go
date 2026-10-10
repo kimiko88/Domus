@@ -123,7 +123,7 @@ func (r *SceneRepository) List(ctx context.Context) ([]*scene.Scene, error) {
 
 		result = append(result, &s)
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 // Update updates an existing scene.

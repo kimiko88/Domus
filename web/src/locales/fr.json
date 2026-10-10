@@ -19,6 +19,11 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
+    "customDashboards": "Tableau Tablette",
+    "energy": "Énergie & Solaire",
+    "helpers": "Aides Virtuelles",
+    "floorplan": "Plan d'étage",
+    "chores": "Tâches",
     "areas": "Zones",
     "devices": "Appareils",
     "integrations": "Intégrations",

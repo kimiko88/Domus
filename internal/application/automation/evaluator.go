@@ -85,10 +85,29 @@ func (e *Evaluator) EvaluateCondition(
 	cond automation.Condition,
 	entityRepo entity.Repository,
 ) (bool, error) {
+	return e.EvaluateConditionWithTrigger(ctx, cond, entityRepo, "")
+}
+
+// EvaluateConditionWithTrigger evaluates a condition rule with active trigger context.
+func (e *Evaluator) EvaluateConditionWithTrigger(
+	ctx context.Context,
+	cond automation.Condition,
+	entityRepo entity.Repository,
+	triggerID string,
+) (bool, error) {
 	switch cond.Condition {
+	case "trigger":
+		if cond.TriggerID != "" {
+			return cond.TriggerID == triggerID, nil
+		}
+		if cond.State != "" {
+			return cond.State == triggerID, nil
+		}
+		return false, nil
+
 	case "and":
 		for _, sub := range cond.Conditions {
-			ok, err := e.EvaluateCondition(ctx, sub, entityRepo)
+			ok, err := e.EvaluateConditionWithTrigger(ctx, sub, entityRepo, triggerID)
 			if err != nil || !ok {
 				return false, err
 			}
@@ -97,7 +116,7 @@ func (e *Evaluator) EvaluateCondition(
 
 	case "or":
 		for _, sub := range cond.Conditions {
-			ok, err := e.EvaluateCondition(ctx, sub, entityRepo)
+			ok, err := e.EvaluateConditionWithTrigger(ctx, sub, entityRepo, triggerID)
 			if err == nil && ok {
 				return true, nil
 			}
@@ -106,7 +125,7 @@ func (e *Evaluator) EvaluateCondition(
 
 	case "not":
 		for _, sub := range cond.Conditions {
-			ok, err := e.EvaluateCondition(ctx, sub, entityRepo)
+			ok, err := e.EvaluateConditionWithTrigger(ctx, sub, entityRepo, triggerID)
 			if err != nil {
 				return false, err
 			}

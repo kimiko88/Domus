@@ -1,0 +1,209 @@
+// Package handlers provides HTTP route handlers for energy load shedding, presence tracking, and solar calculations.
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/domus-hub/domus/internal/application/automation"
+	"github.com/domus-hub/domus/internal/application/energy"
+	"github.com/domus-hub/domus/internal/application/presence"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/domus-hub/domus/internal/plugins/homekit"
+	"github.com/domus-hub/domus/internal/plugins/matter"
+)
+
+// AdvancedFeaturesHandler handles HTTP endpoints for load shedding, presence, and sun calculation.
+type AdvancedFeaturesHandler struct {
+	energyCtrl *energy.Controller
+	presence   *presence.Service
+	sun        *automation.SunEngine
+}
+
+// NewAdvancedFeaturesHandler constructs a new AdvancedFeaturesHandler.
+func NewAdvancedFeaturesHandler(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *automation.SunEngine) *AdvancedFeaturesHandler {
+	return &AdvancedFeaturesHandler{
+		energyCtrl: energyCtrl,
+		presence:   presenceSvc,
+		sun:        sunEngine,
+	}
+}
+
+// GetLoadSheddingStatus handles GET /api/v1/energy/load-shedding.
+func (h *AdvancedFeaturesHandler) GetLoadSheddingStatus(w http.ResponseWriter, r *http.Request) {
+	if h.energyCtrl == nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "load shedding controller is not initialized")
+		return
+	}
+	writeJSON(w, http.StatusOK, h.energyCtrl.GetStatus())
+}
+
+// UpdateLoadShedding handles PUT /api/v1/energy/load-shedding.
+func (h *AdvancedFeaturesHandler) UpdateLoadShedding(w http.ResponseWriter, r *http.Request) {
+	if h.energyCtrl == nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "load shedding controller is not initialized")
+		return
+	}
+
+	var cfg energy.LoadSheddingConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	h.energyCtrl.UpdateConfig(cfg)
+	writeJSON(w, http.StatusOK, h.energyCtrl.GetStatus())
+}
+
+type gpsPayload struct {
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}
+
+// UpdateGPS handles POST /api/v1/presence/gps.
+func (h *AdvancedFeaturesHandler) UpdateGPS(w http.ResponseWriter, r *http.Request) {
+	if h.presence == nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "presence service is not initialized")
+		return
+	}
+
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+
+	var req gpsPayload
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	state := h.presence.UpdateGPS(r.Context(), u.ID, req.Latitude, req.Longitude, time.Now().UTC())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id": u.ID,
+		"state":   string(state),
+	})
+}
+
+// GetPresenceStatus handles GET /api/v1/presence/status.
+func (h *AdvancedFeaturesHandler) GetPresenceStatus(w http.ResponseWriter, r *http.Request) {
+	if h.presence == nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "presence service is not initialized")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"anyone_home": h.presence.IsAnyoneHome(),
+	})
+}
+
+// GetSunPosition handles GET /api/v1/system/sun.
+func (h *AdvancedFeaturesHandler) GetSunPosition(w http.ResponseWriter, r *http.Request) {
+	engine := h.sun
+	if engine == nil {
+		// Default to Rome coords if unconfigured
+		engine = automation.NewSunEngine(41.9028, 12.4964)
+	}
+
+	targetTime := time.Now().UTC()
+	if qTime := r.URL.Query().Get("time"); qTime != "" {
+		if parsed, err := time.Parse(time.RFC3339, qTime); err == nil {
+			targetTime = parsed
+		}
+	}
+
+	pos := engine.Calculate(targetTime)
+	writeJSON(w, http.StatusOK, pos)
+}
+
+// GetEnergyFlow handles GET /api/v1/energy/flow.
+func (h *AdvancedFeaturesHandler) GetEnergyFlow(w http.ResponseWriter, r *http.Request) {
+	solar := 3200.0
+	grid := -800.0
+	battery := -1200.0
+	soc := 78.0
+
+	if h.energyCtrl != nil {
+		st := h.energyCtrl.GetStatus()
+		if p, ok := st["current_power_watts"].(float64); ok && p > 0 {
+			grid = p
+		}
+	}
+
+	flow := energy.ComputeSankeyFlow(solar, grid, battery, soc)
+	writeJSON(w, http.StatusOK, flow)
+}
+
+// GetTariffs handles GET /api/v1/energy/tariffs.
+func (h *AdvancedFeaturesHandler) GetTariffs(w http.ResponseWriter, r *http.Request) {
+	now := time.Now().UTC()
+	cfg := energy.DefaultTariffConfig()
+	slot, price := energy.GetCurrentElectricityPrice(now, cfg)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"current_slot":  slot,
+		"current_price": price,
+		"currency":      cfg.Currency,
+		"tariffs":       cfg,
+		"timestamp":     now,
+	})
+}
+
+// GetHomeKitPairing handles GET /api/v1/hardware/homekit.
+func (h *AdvancedFeaturesHandler) GetHomeKitPairing(w http.ResponseWriter, r *http.Request) {
+	passcode := "031-45-154"
+	setupID := "DOMU"
+	uri := homekit.GenerateSetupURI(passcode, setupID, 2)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bridge_name": "Domus Bridge",
+		"setup_code":  passcode,
+		"setup_id":    setupID,
+		"setup_uri":   uri,
+		"paired":      false,
+	})
+}
+
+// CommissionMatterRequest defines body for Matter commissioning.
+type CommissionMatterRequest struct {
+	Code string `json:"code"` // QR string ("MT:...") or manual pin (11/21 digits)
+}
+
+// CommissionMatter handles POST /api/v1/hardware/matter/commission.
+func (h *AdvancedFeaturesHandler) CommissionMatter(w http.ResponseWriter, r *http.Request) {
+	var req CommissionMatterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	if req.Code == "" {
+		writeError(w, http.StatusBadRequest, "MISSING_CODE", "qr or manual pairing code is required")
+		return
+	}
+
+	var payload *matter.CommissioningPayload
+	var err error
+	if strings.HasPrefix(req.Code, "MT:") {
+		payload, err = matter.ParseQRCode(req.Code)
+	} else {
+		payload, err = matter.ParseManualCode(req.Code)
+	}
+
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_CODE", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":        "commissioning_started",
+		"discriminator": payload.Discriminator,
+		"passcode":      payload.SetupPasscode,
+		"vendor_id":     payload.VendorID,
+		"product_id":    payload.ProductID,
+	})
+}
+

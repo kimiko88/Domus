@@ -7,6 +7,8 @@ import (
 
 	domainchore "github.com/domus-hub/domus/internal/domain/chore"
 	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockChoreRepo struct {
@@ -72,62 +74,114 @@ func (b *mockBus) SubscribeAll(handler events.Handler) func() {
 	return func() {}
 }
 
-func TestChoreService_CompleteAndRecurring(t *testing.T) {
+func TestChoreService_CreateTask(t *testing.T) {
+	repo := newMockChoreRepo()
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+
+	t.Run("valid chore auto-generates ID", func(t *testing.T) {
+		c := &domainchore.Chore{Title: "Pulizia vetri"}
+		err := svc.CreateTask(ctx, c)
+		require.NoError(t, err)
+		assert.NotEmpty(t, c.ID)
+		assert.Equal(t, domainchore.PriorityMedium, c.Priority)
+		assert.Equal(t, domainchore.StatusPending, c.Status)
+	})
+
+	t.Run("invalid chore fails validation", func(t *testing.T) {
+		c := &domainchore.Chore{Title: "   "}
+		err := svc.CreateTask(ctx, c)
+		assert.ErrorIs(t, err, domainchore.ErrInvalidTitle)
+	})
+}
+
+func TestChoreService_CompleteTask(t *testing.T) {
 	repo := newMockChoreRepo()
 	bus := &mockBus{}
 	svc := NewService(repo, bus)
-
 	ctx := context.Background()
-	due := time.Now().UTC().Add(-1 * time.Hour)
-	chore := &domainchore.Chore{
-		ID:             "chore_1",
-		Title:          "Pulizia filtri",
-		DueDate:        &due,
-		RecurrenceType: domainchore.RecurrenceDaily,
-		Status:         domainchore.StatusPending,
-	}
-	_ = repo.Create(ctx, chore)
 
-	err := svc.CompleteTask(ctx, "chore_1", "user_admin")
-	if err != nil {
-		t.Fatalf("complete task failed: %v", err)
-	}
+	t.Run("not found returns error", func(t *testing.T) {
+		err := svc.CompleteTask(ctx, "non-existent-id", "admin")
+		assert.ErrorIs(t, err, domainchore.ErrChoreNotFound)
+	})
 
-	if repo.items["chore_1"].Status != domainchore.StatusCompleted {
-		t.Errorf("expected original chore completed, got %v", repo.items["chore_1"].Status)
-	}
+	t.Run("non recurring chore completes without spawning new instance", func(t *testing.T) {
+		chore := &domainchore.Chore{
+			ID:             "chore_single",
+			Title:          "Cambio lampadina",
+			RecurrenceType: domainchore.RecurrenceNone,
+			Status:         domainchore.StatusPending,
+		}
+		_ = repo.Create(ctx, chore)
 
-	// Should have spawned next recurring task
-	if len(repo.items) != 2 {
-		t.Fatalf("expected 2 chores in repo after recurring completion, got %d", len(repo.items))
-	}
+		err := svc.CompleteTask(ctx, "chore_single", "alice")
+		require.NoError(t, err)
+
+		updated := repo.items["chore_single"]
+		assert.Equal(t, domainchore.StatusCompleted, updated.Status)
+		assert.Equal(t, "alice", updated.LastCompletedBy)
+		assert.NotNil(t, updated.LastCompletedAt)
+		assert.Equal(t, 1, len(repo.items))
+	})
+
+	t.Run("recurring chore completes and spawns next instance", func(t *testing.T) {
+		due := time.Now().UTC().Add(-1 * time.Hour)
+		chore := &domainchore.Chore{
+			ID:             "chore_recurring",
+			Title:          "Pulizia filtri condizionatore",
+			DueDate:        &due,
+			RecurrenceType: domainchore.RecurrenceWeekly,
+			Status:         domainchore.StatusPending,
+		}
+		_ = repo.Create(ctx, chore)
+
+		err := svc.CompleteTask(ctx, "chore_recurring", "bob")
+		require.NoError(t, err)
+
+		assert.Equal(t, domainchore.StatusCompleted, repo.items["chore_recurring"].Status)
+		// Total items should now be 3 (chore_single, chore_recurring, + new recurring instance)
+		assert.Equal(t, 3, len(repo.items))
+	})
 }
 
-func TestChoreScheduler_CheckDueChores(t *testing.T) {
+func TestChoreScheduler_LifecycleAndDueCheck(t *testing.T) {
 	repo := newMockChoreRepo()
 	bus := &mockBus{}
-	scheduler := NewScheduler(repo, bus, 10*time.Millisecond)
+	scheduler := NewScheduler(repo, bus, 20*time.Millisecond)
 
 	ctx := context.Background()
+
+	// 1. Double stop is safe
+	scheduler.Stop()
+
+	// 2. Add an overdue chore
 	past := time.Now().UTC().Add(-10 * time.Minute)
 	c := &domainchore.Chore{
-		ID:      "chore_overdue",
-		Title:   "Buttare la spazzatura",
-		DueDate: &past,
-		Status:  domainchore.StatusPending,
+		ID:          "chore_overdue",
+		Title:       "Portare fuori il vetro",
+		Description: "Bidone verde",
+		DueDate:     &past,
+		Status:      domainchore.StatusPending,
 	}
 	_ = repo.Create(ctx, c)
 
-	err := scheduler.CheckDueChores(ctx)
-	if err != nil {
-		t.Fatalf("check due chores failed: %v", err)
-	}
+	// 3. Start scheduler
+	err := scheduler.Start(ctx)
+	require.NoError(t, err)
 
-	if repo.items["chore_overdue"].Status != domainchore.StatusOverdue {
-		t.Errorf("expected status overdue, got %s", repo.items["chore_overdue"].Status)
-	}
+	// 4. Double start errors
+	err = scheduler.Start(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already running")
 
-	if len(bus.events) != 1 || bus.events[0].Type != events.NotificationCreated {
-		t.Errorf("expected 1 notification event dispatched, got %d", len(bus.events))
-	}
+	// Wait for loop tick
+	time.Sleep(50 * time.Millisecond)
+
+	// 5. Stop scheduler
+	scheduler.Stop()
+
+	assert.Equal(t, domainchore.StatusOverdue, repo.items["chore_overdue"].Status)
+	assert.True(t, len(bus.events) >= 1)
+	assert.Equal(t, events.NotificationCreated, bus.events[0].Type)
 }

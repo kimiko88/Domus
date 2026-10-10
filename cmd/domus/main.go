@@ -14,8 +14,12 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	appauto "github.com/domus-hub/domus/internal/application/automation"
 	appchore "github.com/domus-hub/domus/internal/application/chore"
+	appenergy "github.com/domus-hub/domus/internal/application/energy"
 	apphistory "github.com/domus-hub/domus/internal/application/history"
+	apppresence "github.com/domus-hub/domus/internal/application/presence"
+	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
@@ -135,7 +139,54 @@ func main() {
 	}
 	defer choreScheduler.Stop()
 
-	// 9. Initialize HTTP Server
+	// 9. Initialize Rule Automation Engine & Scenes
+	autoEngine := appauto.NewEngine(repos.Automations, repos.Entities, bus)
+	sceneService := appscene.NewService(repos.Scenes, bus)
+
+	// 10. Initialize Energy Load Shedding & Multi-tier Presence
+	energyCtrl := appenergy.NewController(appenergy.LoadSheddingConfig{
+		MaxPowerWatts:    3300.0,
+		OverloadDuration: 60,
+		RecoveryWatts:    2500.0,
+		RecoveryDelaySec: 120,
+		PriorityLoads:    []string{"switch.ev_charger", "switch.water_heater", "switch.dehumidifier"},
+		Enabled:          true,
+	}, bus)
+
+	presenceSvc := apppresence.NewService(apppresence.HomeGeofence{
+		Latitude:  41.9028,
+		Longitude: 12.4964,
+		RadiusM:   150.0,
+	}, bus)
+
+	sunEngine := appauto.NewSunEngine(41.9028, 12.4964)
+
+	// 11. Telemetry Downsampler (Nightly compaction of telemetry > 30 days old into hourly buckets)
+	downsampler := apphistory.NewDownsampler(db)
+	ctxDownsample, cancelDownsample := context.WithCancel(context.Background())
+	defer cancelDownsample()
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		time.Sleep(10 * time.Second)
+		cutoff := time.Now().AddDate(0, 0, -30)
+		if res, err := downsampler.DownsampleOlderThan(ctxDownsample, cutoff); err == nil && res.BucketsCreated > 0 {
+			slog.Info("telemetry downsampling complete", "buckets", res.BucketsCreated, "purged", res.RawPointsPurged)
+		}
+		for {
+			select {
+			case <-ctxDownsample.Done():
+				return
+			case t := <-ticker.C:
+				cutoff := t.AddDate(0, 0, -30)
+				if res, err := downsampler.DownsampleOlderThan(ctxDownsample, cutoff); err == nil && res.BucketsCreated > 0 {
+					slog.Info("nightly telemetry downsampling complete", "buckets", res.BucketsCreated, "purged", res.RawPointsPurged)
+				}
+			}
+		}
+	}()
+
+	// 12. Initialize HTTP Server
 	srv := serverpkg.NewServer(
 		cfg.Server,
 		Version,
@@ -143,6 +194,8 @@ func main() {
 		db,
 		serverpkg.WithAuth(authService, loginLimiter),
 		serverpkg.WithRepositories(repos, bus),
+		serverpkg.WithAutomation(autoEngine, sceneService),
+		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine),
 		serverpkg.WithWebSocket(wsHub),
 	)
 

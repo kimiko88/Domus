@@ -19,6 +19,9 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "customDashboards": "Tablet Dashboards",
+    "energy": "Energy & Solar",
+    "helpers": "Virtual Helpers",
     "floorplan": "Floor Plan",
     "chores": "Chores",
     "areas": "Areas",

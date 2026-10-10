@@ -103,7 +103,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       </div>
 
       <div class="header-actions">
-        <BaseButton variant="primary" @click="openNewModal">
+        <BaseButton variant="primary" class="btn-new-automation" @click="openNewModal">
           <Plus :size="16" />
           <span>{{ t('automations.newAutomation') }}</span>
         </BaseButton>

@@ -4,18 +4,22 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	appauto "github.com/domus-hub/domus/internal/application/automation"
 	"github.com/domus-hub/domus/internal/domain/automation"
+	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/go-chi/chi/v5"
 )
 
 // AutomationHandler handles HTTP endpoints for automations.
 type AutomationHandler struct {
-	repo   automation.Repository
-	engine *appauto.Engine
+	repo       automation.Repository
+	engine     *appauto.Engine
+	entityRepo entity.Repository
 }
 
 // NewAutomationHandler constructs an AutomationHandler.
@@ -24,6 +28,12 @@ func NewAutomationHandler(repo automation.Repository, engine *appauto.Engine) *A
 		repo:   repo,
 		engine: engine,
 	}
+}
+
+// WithEntities attaches the entity repository for simulation.
+func (h *AutomationHandler) WithEntities(entities entity.Repository) *AutomationHandler {
+	h.entityRepo = entities
+	return h
 }
 
 // List handles GET /api/v1/automations.
@@ -191,4 +201,72 @@ func (h *AutomationHandler) ListRuns(w http.ResponseWriter, r *http.Request) {
 		"runs":  runs,
 		"total": len(runs),
 	})
+}
+
+// ListBlueprints handles GET /api/v1/automations/blueprints.
+func (h *AutomationHandler) ListBlueprints(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, appauto.Catalog)
+}
+
+// InstantiateBlueprint handles POST /api/v1/automations/blueprints/{id}/instantiate.
+func (h *AutomationHandler) InstantiateBlueprint(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	bp, found := appauto.GetBlueprint(id)
+	if !found {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "blueprint not found")
+		return
+	}
+
+	var raw map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+		return
+	}
+
+	params := make(map[string]string)
+	if p, ok := raw["parameters"].(map[string]any); ok {
+		for k, v := range p {
+			params[k] = fmt.Sprint(v)
+		}
+	} else {
+		for k, v := range raw {
+			if str, ok := v.(string); ok {
+				params[k] = str
+			} else {
+				params[k] = fmt.Sprint(v)
+			}
+		}
+	}
+
+	a, err := bp.Factory(params)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "BLUEPRINT_ERROR", err.Error())
+		return
+	}
+
+	if err := h.repo.Create(r.Context(), a); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, a)
+}
+
+// DryRun handles POST /api/v1/automations/{id}/dry-run.
+func (h *AutomationHandler) DryRun(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	a, err := h.repo.GetByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "automation not found")
+		return
+	}
+
+	sim := appauto.NewSimulator(h.entityRepo, nil)
+	result, err := sim.DryRun(r.Context(), a, time.Now().UTC())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "SIMULATION_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }

@@ -75,7 +75,7 @@ async function handleSaveScene(data: Partial<Scene>) {
       </div>
 
       <div class="header-actions">
-        <BaseButton variant="primary" @click="openNewModal">
+        <BaseButton variant="primary" class="btn-new-scene" @click="openNewModal">
           <Plus :size="16" />
           <span>{{ t('scenes.newScene') }}</span>
         </BaseButton>

@@ -24,6 +24,7 @@ type Engine struct {
 	mu         sync.Mutex
 	unsubs     []func()
 	running    bool
+	activeRuns sync.Map // map[string]context.CancelFunc
 }
 
 // NewEngine creates an automation Engine instance.
@@ -106,7 +107,7 @@ func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
 					"trigger": trig,
 					"event":   evt,
 				})
-				go e.executeRule(context.Background(), rule, string(triggerContextBytes))
+				go e.launchRuleExecution(rule, trig.ID, string(triggerContextBytes))
 				break
 			}
 		}
@@ -121,11 +122,39 @@ func (e *Engine) TriggerAutomation(ctx context.Context, id string) error {
 		return err
 	}
 	triggerContext := `{"manual":true}`
-	go e.executeRule(context.Background(), rule, triggerContext)
+	go e.launchRuleExecution(rule, "", triggerContext)
 	return nil
 }
 
-func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, triggerContext string) {
+func (e *Engine) launchRuleExecution(rule *automation.Automation, triggerID string, triggerContext string) {
+	mode := rule.ExecutionMode
+	if mode == "" {
+		mode = "single"
+	}
+
+	switch mode {
+	case "single":
+		if _, loaded := e.activeRuns.Load(rule.ID); loaded {
+			slog.Debug("automation: execution mode single, skipping run", "automation_id", rule.ID)
+			return
+		}
+	case "restart":
+		if prevCancel, loaded := e.activeRuns.Load(rule.ID); loaded {
+			slog.Debug("automation: execution mode restart, aborting previous run", "automation_id", rule.ID)
+			if cancelFn, ok := prevCancel.(context.CancelFunc); ok {
+				cancelFn()
+			}
+		}
+	}
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	e.activeRuns.Store(rule.ID, cancel)
+	defer e.activeRuns.Delete(rule.ID)
+
+	e.executeRule(runCtx, rule, triggerID, triggerContext)
+}
+
+func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, triggerID string, triggerContext string) {
 	now := time.Now().UTC()
 
 	// 1. Create Run Record
@@ -141,7 +170,7 @@ func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, t
 
 	// 2. Evaluate Conditions
 	for _, cond := range rule.Conditions {
-		ok, err := e.evaluator.EvaluateCondition(ctx, cond, e.entityRepo)
+		ok, err := e.evaluator.EvaluateConditionWithTrigger(ctx, cond, e.entityRepo, triggerID)
 		if err != nil || !ok {
 			logMsg := "Condition failed"
 			if err != nil {
@@ -166,45 +195,20 @@ func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, t
 			"automation_id": rule.ID,
 			"name":          rule.Name,
 			"run_id":        run.ID,
+			"trigger_id":    triggerID,
 		},
 	})
 
-	// 4. Execute Actions sequentially
+	// 4. Execute Actions
 	var actionLogs []string
 	for _, act := range rule.Actions {
-		switch act.Type {
-		case "service":
-			cmdEvt := events.Event{
-				ID:         uuid.NewString(),
-				Type:       events.CommandRequested,
-				OccurredAt: time.Now().UTC(),
-				Source:     fmt.Sprintf("automation:%s", rule.ID),
-				Payload: map[string]any{
-					"entity_key": act.TargetEntityKey,
-					"service":    act.Service,
-					"params":     act.Params,
-				},
-			}
-			if err := e.bus.Publish(ctx, cmdEvt); err != nil {
-				e.failRun(ctx, rule, run, fmt.Sprintf("Service command error: %v", err))
-				return
-			}
-			actionLogs = append(actionLogs, fmt.Sprintf("Service %s on %s", act.Service, act.TargetEntityKey))
-
-		case "delay":
-			time.Sleep(time.Duration(act.DelayMs) * time.Millisecond)
-			actionLogs = append(actionLogs, fmt.Sprintf("Delayed %dms", act.DelayMs))
-
-		case "event":
-			evt := events.Event{
-				ID:         uuid.NewString(),
-				Type:       events.EventType(act.EventType),
-				OccurredAt: time.Now().UTC(),
-				Source:     fmt.Sprintf("automation:%s", rule.ID),
-				Payload:    act.EventPayload,
-			}
-			_ = e.bus.Publish(ctx, evt)
-			actionLogs = append(actionLogs, fmt.Sprintf("Fired event %s", act.EventType))
+		if err := ctx.Err(); err != nil {
+			e.failRun(ctx, rule, run, "Execution cancelled by restart")
+			return
+		}
+		if err := e.executeAction(ctx, act, rule, run, triggerID, &actionLogs); err != nil {
+			e.failRun(ctx, rule, run, fmt.Sprintf("Action error: %v", err))
+			return
 		}
 	}
 
@@ -227,6 +231,93 @@ func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, t
 			"status":        "completed",
 		},
 	})
+}
+
+func (e *Engine) executeAction(
+	ctx context.Context,
+	act automation.Action,
+	rule *automation.Automation,
+	run *automation.AutomationRun,
+	triggerID string,
+	actionLogs *[]string,
+) error {
+	switch act.Type {
+	case "choose":
+		branchMatched := false
+		for idx, branch := range act.Choose {
+			allPassed := true
+			for _, cond := range branch.Conditions {
+				passed, err := e.evaluator.EvaluateConditionWithTrigger(ctx, cond, e.entityRepo, triggerID)
+				if err != nil || !passed {
+					allPassed = false
+					break
+				}
+			}
+			if allPassed {
+				branchMatched = true
+				*actionLogs = append(*actionLogs, fmt.Sprintf("Choose branch %d matched", idx))
+				for _, subAct := range branch.Sequence {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+					if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+						return err
+					}
+				}
+				break
+			}
+		}
+
+		if !branchMatched && len(act.Default) > 0 {
+			*actionLogs = append(*actionLogs, "Choose default executed")
+			for _, subAct := range act.Default {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+					return err
+				}
+			}
+		}
+
+	case "service":
+		cmdEvt := events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.CommandRequested,
+			OccurredAt: time.Now().UTC(),
+			Source:     fmt.Sprintf("automation:%s", rule.ID),
+			Payload: map[string]any{
+				"entity_key": act.TargetEntityKey,
+				"service":    act.Service,
+				"params":     act.Params,
+			},
+		}
+		if err := e.bus.Publish(ctx, cmdEvt); err != nil {
+			return err
+		}
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Service %s on %s", act.Service, act.TargetEntityKey))
+
+	case "delay":
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(act.DelayMs) * time.Millisecond):
+		}
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Delayed %dms", act.DelayMs))
+
+	case "event":
+		evt := events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.EventType(act.EventType),
+			OccurredAt: time.Now().UTC(),
+			Source:     fmt.Sprintf("automation:%s", rule.ID),
+			Payload:    act.EventPayload,
+		}
+		_ = e.bus.Publish(ctx, evt)
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Fired event %s", act.EventType))
+	}
+
+	return nil
 }
 
 func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *automation.AutomationRun, errMsg string) {

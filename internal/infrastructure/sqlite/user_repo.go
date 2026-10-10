@@ -127,7 +127,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		}
 		users = append(users, &u)
 	}
-	return users, nil
+	return users, rows.Err()
 }
 
 // UpdateRole updates the authorization role of a user.

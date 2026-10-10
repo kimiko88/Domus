@@ -19,6 +19,11 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "customDashboards": "Tablet Dashboard",
+    "energy": "Energie & Solar",
+    "helpers": "Virtuelle Helfer",
+    "floorplan": "Grundriss",
+    "chores": "Aufgaben",
     "areas": "Bereiche",
     "devices": "Geräte",
     "integrations": "Integrationen",
@@ -62,12 +67,15 @@
     "createFirst": "Ersten Bereich erstellen",
     "devicesCount": "Geräte",
     "entitiesCount": "Entitäten",
+    "moreEntities": "weitere",
     "areaName": "Bereichsname",
     "areaNamePlaceholder": "z. B. Wohnzimmer, Küche...",
     "icon": "Symbol",
     "sortOrder": "Anzeigereihenfolge",
     "saveSuccess": "Bereich erfolgreich gespeichert",
-    "deleteSuccess": "Bereich erfolgreich gelöscht"
+    "saveError": "Bereich konnte nicht gespeichert werden",
+    "deleteSuccess": "Bereich erfolgreich gelöscht",
+    "deleteError": "Bereich konnte nicht gelöscht werden"
   },
   "devices": {
     "title": "Geräte",
@@ -150,14 +158,30 @@
     "manualTrigger": "Test Ausführen",
     "executionHistory": "Ausführungsverlauf",
     "mode": "Modus",
-    "cooldown": "Abklingzeit (Cooldown)"
+    "cooldown": "Abklingzeit (Cooldown)",
+    "searchPlaceholder": "Automatisierung nach Name oder Beschreibung suchen...",
+    "confirmDelete": "Möchten Sie die Automatisierung \"{name}\" wirklich löschen?",
+    "saveSuccess": "Automatisierung erfolgreich gespeichert",
+    "saveError": "Automatisierung konnte nicht gespeichert werden",
+    "deleteSuccess": "Automatisierung erfolgreich gelöscht",
+    "deleteError": "Automatisierung konnte nicht gelöscht werden",
+    "emptyTitle": "Keine Automatisierungen gefunden",
+    "emptyDesc": "Erstellen Sie Ihre erste Automatisierung, um Aktionen bei Ereignissen auszulösen.",
+    "noResults": "Keine Ergebnisse für Ihre Suche."
   },
   "scenes": {
     "title": "Szenen & Stimmungen",
     "subtitle": "Aktivieren Sie Multi-Geräte-Presets mit einer einzigen Berührung.",
     "newScene": "Neue Szene",
     "activate": "Aktivieren",
-    "actionsCount": "Aktionen"
+    "actionsCount": "Aktionen",
+    "confirmDelete": "Möchten Sie die Szene \"{name}\" wirklich löschen?",
+    "saveSuccess": "Szene erfolgreich gespeichert",
+    "saveError": "Szene konnte nicht gespeichert werden",
+    "deleteSuccess": "Szene erfolgreich gelöscht",
+    "deleteError": "Szene konnte nicht gelöscht werden",
+    "emptyTitle": "Keine Szenen konfiguriert",
+    "emptyDesc": "Erstellen Sie Ihre erste Szene, um Aktionen auf mehreren Geräten zu bündeln."
   },
   "audit": {
     "title": "Sicherheits-Audit-Protokoll",

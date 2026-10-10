@@ -81,7 +81,7 @@ watch(
 function handleSubmit() {
   const trimmed = name.value.trim()
   if (!trimmed) {
-    error.value = t('areas.areaName') ? `${t('areas.areaName')} è obbligatorio` : 'Il nome dell\'area è obbligatorio'
+    error.value = "Il nome dell'area è obbligatorio"
     return
   }
   error.value = null
@@ -161,7 +161,7 @@ function handleSubmit() {
             {{ t('common.cancel') }}
           </BaseButton>
           <BaseButton type="submit" variant="primary">
-            {{ area ? t('common.save') : t('areas.newArea') }}
+            {{ area ? t('common.save') : 'Crea Area' }}
           </BaseButton>
         </div>
       </form>

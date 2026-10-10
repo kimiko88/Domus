@@ -183,3 +183,51 @@ func TestSceneHandler_Lifecycle(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
+
+func TestAutomationHandler_BlueprintsAndDryRun(t *testing.T) {
+	repos, bus := setupTestEnvironment(t)
+	engine := appauto.NewEngine(repos.Automations, repos.Entities, bus)
+	handler := handlers.NewAutomationHandler(repos.Automations, engine).WithEntities(repos.Entities)
+
+	r := chi.NewRouter()
+	r.Get("/automations/blueprints", handler.ListBlueprints)
+	r.Post("/automations/blueprints/{id}/instantiate", handler.InstantiateBlueprint)
+	r.Post("/automations/{id}/dry-run", handler.DryRun)
+
+	// 1. List Blueprints
+	req := httptest.NewRequest(http.MethodGet, "/automations/blueprints", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var blueprints []map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&blueprints))
+	assert.NotEmpty(t, blueprints)
+
+	// 2. Instantiate Blueprint (window_climate_saver)
+	paramsBody, _ := json.Marshal(map[string]string{
+		"window_sensor":  "binary_sensor.window_office",
+		"climate_entity": "climate.office_ac",
+	})
+	req = httptest.NewRequest(http.MethodPost, "/automations/blueprints/window_climate_saver/instantiate", bytes.NewReader(paramsBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var instantiated automation.Automation
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&instantiated))
+	assert.NotEmpty(t, instantiated.ID)
+
+	// 3. Dry-Run evaluation
+	req = httptest.NewRequest(http.MethodPost, "/automations/"+instantiated.ID+"/dry-run", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var dryRunRes map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&dryRunRes))
+	assert.Contains(t, dryRunRes, "passed")
+	assert.Contains(t, dryRunRes, "traces")
+}
+

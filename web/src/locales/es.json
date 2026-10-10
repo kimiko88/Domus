@@ -19,6 +19,11 @@
   },
   "nav": {
     "dashboard": "Panel de Control",
+    "customDashboards": "Panel Tableta",
+    "energy": "Energía y Solar",
+    "helpers": "Ayudantes Virtuales",
+    "floorplan": "Plano de Planta",
+    "chores": "Tareas",
     "areas": "Áreas",
     "devices": "Dispositivos",
     "integrations": "Integraciones",

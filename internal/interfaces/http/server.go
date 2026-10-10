@@ -11,6 +11,10 @@ import (
 	"github.com/domus-hub/domus/internal/application/auth"
 	appauto "github.com/domus-hub/domus/internal/application/automation"
 	appchore "github.com/domus-hub/domus/internal/application/chore"
+	appdash "github.com/domus-hub/domus/internal/application/dashboard"
+	"github.com/domus-hub/domus/internal/application/energy"
+	apphelper "github.com/domus-hub/domus/internal/application/helper"
+	"github.com/domus-hub/domus/internal/application/presence"
 	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/user"
@@ -53,6 +57,15 @@ func WithAutomation(engine *appauto.Engine, sceneService *appscene.Service) Serv
 	}
 }
 
+// WithAdvancedFeatures configures energy load shedding, multi-tier presence, and solar calculations.
+func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *appauto.SunEngine) ServerOption {
+	return func(s *Server) {
+		s.energyCtrl = energyCtrl
+		s.presenceSvc = presenceSvc
+		s.sunEngine = sunEngine
+	}
+}
+
 // WithWebSocket attaches the WebSocket real-time broadcast hub.
 func WithWebSocket(hub *wsinfra.Hub) ServerOption {
 	return func(s *Server) {
@@ -90,6 +103,9 @@ type Server struct {
 	sceneService   *appscene.Service
 	mqttConnected  bool
 	allowedOrigins []string
+	energyCtrl     *energy.Controller
+	presenceSvc    *presence.Service
+	sunEngine      *appauto.SunEngine
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -158,6 +174,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			sys.Get("/maintenance/status", osH.GetMaintenanceStatus)
 			sys.Post("/maintenance/enable", osH.EnableMaintenance)
 			sys.Post("/maintenance/disable", osH.DisableMaintenance)
+
+			// Solar position & astronomical calculation
+			advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine)
+			sys.Get("/sun", advH.GetSunPosition)
 		})
 
 		// Auth routes
@@ -254,21 +274,26 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					}
 				})
 
-				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine)
+				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine).WithEntities(srv.repos.Entities)
 				domainRouter.Route("/automations", func(autoRouter chi.Router) {
 					autoRouter.Get("/", autoH.List)
+					autoRouter.Get("/blueprints", autoH.ListBlueprints)
 					if srv.authService != nil {
+						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
 						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
 						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", autoH.Update)
 						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", autoH.Delete)
 						autoRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					} else {
+						autoRouter.Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
 						autoRouter.Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
 						autoRouter.Put("/{id}", autoH.Update)
 						autoRouter.Delete("/{id}", autoH.Delete)
 						autoRouter.Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					}
 					autoRouter.Get("/{id}/runs", autoH.ListRuns)
 				})
@@ -317,6 +342,57 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						chRouter.Put("/{id}", choreH.Update)
 						chRouter.Delete("/{id}", choreH.Delete)
 						chRouter.Post("/{id}/complete", choreH.Complete)
+					})
+				}
+
+				// Advanced Features: Energy Load Shedding & Multi-tier Presence
+				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine)
+				domainRouter.Route("/energy", func(eRouter chi.Router) {
+					eRouter.Get("/load-shedding", advH.GetLoadSheddingStatus)
+					eRouter.Get("/flow", advH.GetEnergyFlow)
+					eRouter.Get("/tariffs", advH.GetTariffs)
+					if srv.authService != nil {
+						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
+					} else {
+						eRouter.Put("/load-shedding", advH.UpdateLoadShedding)
+					}
+				})
+
+				domainRouter.Route("/presence", func(pRouter chi.Router) {
+					pRouter.Post("/gps", advH.UpdateGPS)
+					pRouter.Get("/status", advH.GetPresenceStatus)
+				})
+
+				// Hardware Modern Standards & Commissioning
+				domainRouter.Route("/hardware", func(hwRouter chi.Router) {
+					hwRouter.Get("/homekit", advH.GetHomeKitPairing)
+					hwRouter.Post("/matter/commission", advH.CommissionMatter)
+				})
+
+				// Custom Widget Dashboards & Kiosk Mode
+				if srv.repos.Dashboards != nil {
+					dashService := appdash.NewService(srv.repos.Dashboards)
+					dashH := handlers.NewDashboardHandler(dashService)
+					domainRouter.Route("/dashboards", func(dRouter chi.Router) {
+						dRouter.Get("/", dashH.List)
+						dRouter.Post("/", dashH.Create)
+						dRouter.Get("/{id}", dashH.Get)
+						dRouter.Put("/{id}", dashH.Update)
+						dRouter.Delete("/{id}", dashH.Delete)
+						dRouter.Post("/{id}/default", dashH.SetDefault)
+					})
+				}
+
+				// User Virtual Helpers
+				if srv.repos.Helpers != nil {
+					helperService := apphelper.NewService(srv.repos.Helpers, srv.bus)
+					helperH := handlers.NewHelperHandler(helperService)
+					domainRouter.Route("/helpers", func(hRouter chi.Router) {
+						hRouter.Get("/", helperH.List)
+						hRouter.Post("/", helperH.Create)
+						hRouter.Get("/{id}", helperH.Get)
+						hRouter.Delete("/{id}", helperH.Delete)
+						hRouter.Post("/{id}/action", helperH.Action)
 					})
 				}
 
