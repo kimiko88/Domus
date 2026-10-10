@@ -132,11 +132,80 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
+		"token": sess.ID,
 		"user": map[string]any{
 			"id":       u.ID,
 			"username": u.Username,
 			"role":     u.Role,
 			"email":    u.Email,
+		},
+		"csrf_token": csrfToken,
+	})
+}
+
+type kioskLoginRequest struct {
+	Pin string `json:"pin"`
+}
+
+// KioskLogin allows quick authentication with a numeric PIN for wall-mounted tablet kiosk dashboards.
+func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
+	var req kioskLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
+		return
+	}
+
+	ip := h.extractIP(r)
+	ua := r.UserAgent()
+
+	sess, u, err := h.authService.LoginWithPin(r.Context(), req.Pin, ip, ua)
+	if err != nil {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			h.writeError(w, http.StatusUnauthorized, "invalid_credentials", "PIN non valido")
+			return
+		}
+		if errors.Is(err, user.ErrGuestExpired) {
+			h.writeError(w, http.StatusForbidden, "guest_expired", "account ospite scaduto")
+			return
+		}
+		if errors.Is(err, user.ErrUserDisabled) {
+			h.writeError(w, http.StatusForbidden, "user_disabled", "account disabilitato")
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, "internal_error", "login fallito")
+		return
+	}
+
+	maxAge := int(sess.ExpiresAt.Sub(sess.CreatedAt).Seconds())
+	http.SetCookie(w, &http.Cookie{
+		Name:     domusmw.SessionCookieName,
+		Value:    sess.ID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
+	})
+
+	csrfToken := generateRandomToken()
+	http.SetCookie(w, &http.Cookie{
+		Name:     domusmw.CSRFCookieName,
+		Value:    csrfToken,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
+	})
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"token": sess.ID,
+		"user": map[string]any{
+			"id":         u.ID,
+			"username":   u.Username,
+			"role":       u.Role,
+			"is_guest":   u.IsGuest,
+			"kiosk_mode": u.KioskMode,
 		},
 		"csrf_token": csrfToken,
 	})

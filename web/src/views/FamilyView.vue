@@ -16,7 +16,8 @@ import {
   Trash2,
   Clock,
   X,
-  Link
+  Link,
+  KeyRound
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -35,14 +36,51 @@ const copySuccess = ref(false)
 const roleChangeSuccess = ref<string | null>(null)
 const errorMsg = ref<string | null>(null)
 
+// Guest & Kiosk Modal State
+const isGuestModalOpen = ref(false)
+const guestUsername = ref('')
+const guestPin = ref('')
+const guestHours = ref(24)
+const guestKiosk = ref(true)
+const guests = computed(() => familyStore.guests)
+
 async function loadData() {
   try {
     await familyStore.fetchMembers()
     if (isAdmin.value) {
       await familyStore.fetchInvites()
+      try {
+        await familyStore.fetchGuests()
+      } catch {}
     }
   } catch (err: any) {
     errorMsg.value = err?.message || 'Failed to load family data'
+  }
+}
+
+function openGuestModal() {
+  guestUsername.value = ''
+  guestPin.value = ''
+  guestHours.value = 24
+  guestKiosk.value = true
+  isGuestModalOpen.value = true
+}
+
+function closeGuestModal() {
+  isGuestModalOpen.value = false
+}
+
+async function handleCreateGuest() {
+  if (!guestUsername.value || !guestPin.value) {
+    errorMsg.value = 'Inserisci nome ospite e PIN'
+    return
+  }
+  try {
+    errorMsg.value = null
+    await familyStore.createGuest(guestUsername.value, guestPin.value, guestHours.value, guestKiosk.value)
+    closeGuestModal()
+  } catch (err: any) {
+    errorMsg.value = err?.message || 'Impossibile creare profilo ospite'
   }
 }
 
@@ -305,6 +343,130 @@ onMounted(() => {
               <Trash2 :size="16" />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guest Profiles & Kiosk PIN Section (Admin only) -->
+    <div v-if="isAdmin" class="section-card glass-card guests-section">
+      <div class="section-header">
+        <div class="section-header-left">
+          <KeyRound :size="18" class="section-icon" />
+          <div>
+            <h3 class="section-subtitle">Profili Ospiti & PIN Kiosk Temporaneo</h3>
+            <p class="section-desc">Crea account ad accesso limitato con codice PIN o sblocco Kiosk temporaneo (es. babysitter, affitti brevi)</p>
+          </div>
+        </div>
+        <BaseButton
+          variant="secondary"
+          size="sm"
+          class="guest-btn"
+          @click="openGuestModal"
+        >
+          <UserPlus :size="16" />
+          Nuovo Ospite / PIN Kiosk
+        </BaseButton>
+      </div>
+
+      <div v-if="guests.length === 0" class="empty-state">
+        <KeyRound :size="32" class="empty-icon" />
+        <p class="empty-text">Nessun profilo ospite attivo. Crea un PIN temporaneo per i tuoi visitatori.</p>
+      </div>
+
+      <div v-else class="invites-list">
+        <div
+          v-for="guest in guests"
+          :key="guest.id"
+          class="invite-row"
+        >
+          <div class="invite-info">
+            <div class="invite-role-badge role-viewer">
+              <KeyRound :size="14" />
+              <span>Ospite {{ guest.kiosk_mode ? '(Kiosk)' : '' }}</span>
+            </div>
+            <div class="invite-meta">
+              <span class="invite-user"><strong>{{ guest.username }}</strong></span>
+              <span v-if="guest.pin_code" class="invite-pin">PIN: <code>{{ guest.pin_code }}</code></span>
+              <span v-if="guest.guest_expires_at" class="invite-expires">
+                Scadenza: {{ formatDate(guest.guest_expires_at) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="invite-actions">
+            <button
+              class="revoke-btn action-icon-btn"
+              title="Rimuovi ospite"
+              @click="handleRemoveMember(guest.id, guest.username)"
+            >
+              <Trash2 :size="16" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guest Modal -->
+    <div v-if="isGuestModalOpen" class="modal-backdrop" @click.self="closeGuestModal">
+      <div class="modal-card glass-card">
+        <div class="modal-header">
+          <div class="modal-title-box">
+            <KeyRound :size="20" />
+            <h3 class="modal-title">Crea Profilo Ospite / Kiosk</h3>
+          </div>
+          <button class="modal-close" @click="closeGuestModal">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome Profilo / Visitatore</label>
+            <input
+              v-model="guestUsername"
+              type="text"
+              class="text-input"
+              placeholder="es. Babysitter, Ospite Salotto"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Codice PIN Numerico (4-8 cifre)</label>
+            <input
+              v-model="guestPin"
+              type="password"
+              maxlength="8"
+              class="text-input"
+              placeholder="1234"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Validità Temporanea (Ore)</label>
+            <select v-model="guestHours" class="role-select">
+              <option :value="4">4 Ore</option>
+              <option :value="12">12 Ore</option>
+              <option :value="24">24 Ore (1 Giorno)</option>
+              <option :value="72">72 Ore (3 Giorni)</option>
+              <option :value="168">7 Giorni (1 Settimana)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="guestKiosk" />
+              <span>Abilita Modalità Kiosk a Schermo Intero per questo PIN</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <BaseButton variant="ghost" size="md" @click="closeGuestModal">
+            Annulla
+          </BaseButton>
+          <BaseButton variant="primary" size="md" @click="handleCreateGuest">
+            Crea Profilo Ospite
+          </BaseButton>
         </div>
       </div>
     </div>

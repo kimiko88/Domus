@@ -20,6 +20,9 @@ import (
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	appalarm "github.com/domus-hub/domus/internal/application/alarm"
+	appassistant "github.com/domus-hub/domus/internal/application/assistant"
+	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
@@ -30,6 +33,7 @@ import (
 	appstore "github.com/domus-hub/domus/internal/application/store"
 	apptag "github.com/domus-hub/domus/internal/application/tag"
 	appweather "github.com/domus-hub/domus/internal/application/weather"
+	appwebhook "github.com/domus-hub/domus/internal/application/webhook"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
@@ -210,6 +214,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				} else {
 					authRouter.Post("/login", authH.Login)
 				}
+				authRouter.Post("/kiosk-login", authH.KioskLogin)
 
 				// Protected auth routes
 				authRouter.With(domusmw.RequireAuth()).Post("/logout", authH.Logout)
@@ -221,6 +226,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				famRouter.Use(domusmw.RequireAuth())
 				// All authenticated members can view other family members
 				famRouter.Get("/members", familyH.ListMembers)
+
+				// Guest profiles management
+				famRouter.Get("/guests", familyH.ListGuests)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/guests", familyH.CreateGuest)
 
 				// Role modifications and member removal restricted to Admin
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/role", familyH.UpdateMemberRole)
@@ -238,7 +247,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
-			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus)
+			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
+			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
+
+			var webhookH *handlers.WebhookHandler
+			if srv.repos.DB != nil {
+				webhookSvc := appwebhook.NewService(srv.repos.DB, srv.bus)
+				webhookH = handlers.NewWebhookHandler(webhookSvc)
+				api.HandleFunc("/webhooks/{webhook_id}", webhookH.HandleInbound)
+			}
 
 			api.Group(func(domainRouter chi.Router) {
 				if srv.authService != nil {
@@ -247,6 +264,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/integrations", func(intRouter chi.Router) {
 					intRouter.Get("/", integrationH.List)
+					intRouter.Get("/catalog", integrationH.GetCatalog)
+					intRouter.Get("/discovery/devices", integrationH.ListDiscovered)
+					intRouter.Post("/discovery/scan", integrationH.Scan)
+					intRouter.Post("/discovery/pair", integrationH.Pair)
 					intRouter.Get("/{id}", integrationH.GetByID)
 					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
 				})
@@ -361,6 +382,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					eRouter.Get("/load-shedding", advH.GetLoadSheddingStatus)
 					eRouter.Get("/flow", advH.GetEnergyFlow)
 					eRouter.Get("/tariffs", advH.GetTariffs)
+					eRouter.Get("/dynamic-tariffs", advH.GetDynamicTariffs)
+					eRouter.Put("/flexible-loads", advH.UpdateFlexibleLoad)
+					eRouter.Post("/evaluate-tariffs", advH.EvaluateTariffs)
 					if srv.authService != nil {
 						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
 					} else {
@@ -421,8 +445,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
 					cRouter.Get("/", ecoH.ListCameras)
 					cRouter.Post("/", ecoH.CreateCamera)
+					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 					cRouter.Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
+					cRouter.Get("/{id}/zones", ecoH.GetCameraZones)
+					cRouter.Post("/{id}/zones", ecoH.AddCameraZone)
+					cRouter.Post("/{id}/detect", ecoH.ProcessAIDetection)
 					cRouter.Get("/events", ecoH.ListCameraEvents)
+					cRouter.Get("/events/{id}/clip", ecoH.GetEventClip)
 				})
 
 				domainRouter.Route("/tags", func(tRouter chi.Router) {
@@ -464,6 +493,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {
 					otaRouter.Get("/devices", ecoH.ListOTADevices)
 					otaRouter.Post("/devices/{id}/upgrade", ecoH.TriggerOTAUpgrade)
+					otaRouter.Get("/flasher/catalog", ecoH.ListFlasherFirmwares)
+					otaRouter.Get("/flasher/{id}/manifest", ecoH.GetFlasherManifest)
+					otaRouter.Post("/flasher/provision", ecoH.GenerateFlasherProvision)
+				})
+
+				domainRouter.Route("/system/failover", func(foRouter chi.Router) {
+					foRouter.Get("/status", ecoH.GetFailoverStatus)
+					foRouter.Post("/heartbeat", ecoH.ReceiveHeartbeat)
+					foRouter.Post("/promote", ecoH.PromoteNode)
 				})
 
 				domainRouter.Route("/store", func(stRouter chi.Router) {
@@ -482,6 +520,30 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					shRouter.Delete("/{id}", shopH.Delete)
 					shRouter.Post("/clear-completed", shopH.ClearCompleted)
 				})
+
+				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks
+				if srv.repos.DB != nil {
+					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil)
+					alarmH := handlers.NewAlarmHandler(alarmSvc)
+					alarmH.RegisterRoutes(domainRouter)
+
+					bindingSvc := appmesh.NewBindingService(srv.repos.DB)
+					bindingH := handlers.NewBindingHandler(bindingSvc)
+					bindingH.RegisterRoutes(domainRouter)
+
+					if webhookH != nil {
+						domainRouter.Route("/webhook-configs", func(whRouter chi.Router) {
+							whRouter.Get("/", webhookH.ListWebhooks)
+							whRouter.Post("/", webhookH.CreateWebhook)
+							whRouter.Delete("/{id}", webhookH.DeleteWebhook)
+						})
+					}
+				}
+
+				// Local LLM & Voice Assistant
+				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
+				assistantH := handlers.NewAssistantHandler(assistantSvc)
+				assistantH.RegisterRoutes(domainRouter)
 
 				// Audit log endpoint (admin-only via RBAC)
 				auditH := handlers.NewAuditHandler(srv.repos.Audit)

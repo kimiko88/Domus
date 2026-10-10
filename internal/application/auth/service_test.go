@@ -118,3 +118,42 @@ func TestAuthService_LoginAndSessionValidation(t *testing.T) {
 	_, _, err = svc.ValidateSession(ctx, sess.ID)
 	assert.ErrorIs(t, err, user.ErrSessionNotFound)
 }
+
+func TestAuthService_GuestAndPinLogin(t *testing.T) {
+	svc, _ := setupAuthService(t)
+	ctx := context.Background()
+
+	// Setup admin first
+	_, err := svc.SetupInitialAdmin(ctx, "admin", "SecureAdminPass1!")
+	require.NoError(t, err)
+
+	// 1. Create a guest user with PIN "7890", valid for 24h
+	guest, err := svc.CreateGuest(ctx, "Babysitter", "7890", 24, true)
+	require.NoError(t, err)
+	assert.Equal(t, "Babysitter", guest.Username)
+	assert.Equal(t, user.RoleGuest, guest.Role)
+	assert.True(t, guest.IsGuest)
+	assert.True(t, guest.KioskMode)
+	assert.NotNil(t, guest.GuestExpiresAt)
+
+	// 2. Kiosk login with valid PIN
+	sess, loggedInUser, err := svc.LoginWithPin(ctx, "7890", "192.168.1.50", "TabletKiosk/1.0")
+	require.NoError(t, err)
+	assert.Equal(t, guest.ID, loggedInUser.ID)
+	assert.NotEmpty(t, sess.ID)
+
+	// 3. Kiosk login with invalid PIN
+	_, _, err = svc.LoginWithPin(ctx, "0000", "192.168.1.50", "TabletKiosk/1.0")
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
+
+	// 4. Validate guest session
+	valUser, _, err := svc.ValidateSession(ctx, sess.ID)
+	require.NoError(t, err)
+	assert.Equal(t, guest.ID, valUser.ID)
+
+	// 5. Test expired guest
+	past := time.Now().UTC().Add(-1 * time.Hour)
+	guest.GuestExpiresAt = &past
+	assert.True(t, guest.IsGuestExpired())
+}
+

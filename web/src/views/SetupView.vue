@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import BaseButton from '../components/ui/BaseButton.vue'
 import { ShieldCheck, User, Lock, AlertCircle } from '@lucide/vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 
@@ -16,7 +18,7 @@ const isLoading = ref(false)
 
 async function handleSubmit() {
   if (password.value !== confirmPassword.value) {
-    errorMessage.value = 'Le password non coincidono'
+    errorMessage.value = t('setup.passMismatch')
     return
   }
 
@@ -49,8 +51,8 @@ async function handleSubmit() {
         <div class="icon-box">
           <ShieldCheck :size="32" />
         </div>
-        <h2 class="title">Configurazione Iniziale</h2>
-        <p class="subtitle">Crea l'account di amministrazione principale per Domus</p>
+        <h2 class="title">{{ t('setup.title') }}</h2>
+        <p class="subtitle">{{ t('setup.subtitle') }}</p>
       </div>
 
       <!-- Error Alert -->
@@ -62,7 +64,7 @@ async function handleSubmit() {
       <!-- Form -->
       <form class="setup-form" @submit.prevent="handleSubmit">
         <div class="form-group">
-          <label for="admin-username">Nome Utente Admin</label>
+          <label for="admin-username">{{ t('setup.adminUser') }}</label>
           <div class="input-wrapper">
             <User :size="18" class="input-icon" />
             <input
@@ -77,7 +79,7 @@ async function handleSubmit() {
         </div>
 
         <div class="form-group">
-          <label for="admin-password">Password Amministratore</label>
+          <label for="admin-password">{{ t('setup.adminPass') }}</label>
           <div class="input-wrapper">
             <Lock :size="18" class="input-icon" />
             <input
@@ -92,7 +94,7 @@ async function handleSubmit() {
         </div>
 
         <div class="form-group">
-          <label for="admin-password-confirm">Conferma Password</label>
+          <label for="admin-password-confirm">{{ t('setup.confirmPass') }}</label>
           <div class="input-wrapper">
             <Lock :size="18" class="input-icon" />
             <input
@@ -113,7 +115,7 @@ async function handleSubmit() {
           :loading="isLoading"
           class="submit-btn"
         >
-          Crea Amministratore e Inizia
+          {{ t('setup.submit') }}
         </BaseButton>
       </form>
     </div>

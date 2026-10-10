@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ShoppingBag,
   Sparkles,
@@ -13,6 +14,8 @@ import {
   Gauge
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface StorePackage {
   id: string
@@ -98,8 +101,8 @@ onMounted(async () => {
           <ShoppingBag :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Domus Store & Marketplace Estensioni</h1>
-          <p class="page-subtitle">Installa plugin WASM sandboxed, Blueprint di automazioni e Widget per dashboard con 1 click</p>
+          <h1 class="page-title">{{ t('store.title') }}</h1>
+          <p class="page-subtitle">{{ t('store.subtitle') }}</p>
         </div>
       </div>
 
@@ -145,7 +148,7 @@ onMounted(async () => {
           >
             <CheckCircle v-if="pkg.installed" :size="16" />
             <Download v-else :size="16" />
-            <span>{{ pkg.installed ? 'Installato (Rimuovi)' : 'Installa con 1 Click' }}</span>
+            <span>{{ pkg.installed ? `${t('store.installed')} (${t('store.uninstall')})` : `${t('store.install')} con 1 Click` }}</span>
           </button>
         </div>
       </div>

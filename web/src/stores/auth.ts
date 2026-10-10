@@ -62,6 +62,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function kioskLogin(pinCode: string): Promise<boolean> {
+    try {
+      loading.value = true
+      error.value = null
+      await apiClient.post('/api/v1/auth/kiosk-login', { pin_code: pinCode })
+      await fetchMe()
+      return true
+    } catch (err: any) {
+      error.value = err?.message || 'Kiosk login failed'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function registerFirstAdmin(username: string, password: string): Promise<boolean> {
     try {
       loading.value = true
@@ -120,6 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
     checkSetup,
     fetchMe,
     login,
+    kioskLogin,
     registerFirstAdmin,
     validateInvite,
     registerWithInvite,

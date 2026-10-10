@@ -14,14 +14,15 @@ import (
 
 var (
 	ErrHelperNotFound = errors.New("helper: not found")
-	ErrInvalidDomain  = errors.New("helper: invalid domain, must be input_boolean, input_number, or timer")
+	ErrInvalidDomain  = errors.New("helper: invalid domain, must be input_boolean, input_number, timer, or climate_room_compensator")
 	ErrInvalidName    = errors.New("helper: name cannot be empty")
 )
 
 const (
-	DomainInputBoolean = "input_boolean"
-	DomainInputNumber  = "input_number"
-	DomainTimer        = "timer"
+	DomainInputBoolean       = "input_boolean"
+	DomainInputNumber        = "input_number"
+	DomainTimer              = "timer"
+	DomainClimateCompensator = "climate_room_compensator"
 )
 
 // Helper represents a virtual user-configurable entity.
@@ -51,10 +52,76 @@ type InputNumberConfig struct {
 
 // TimerConfig defines countdown settings.
 type TimerConfig struct {
-	DurationSeconds  int       `json:"duration_seconds"`
-	RemainingSeconds int       `json:"remaining_seconds"`
-	Status           string    `json:"status"` // "idle", "active", "paused"
+	DurationSeconds  int        `json:"duration_seconds"`
+	RemainingSeconds int        `json:"remaining_seconds"`
+	Status           string     `json:"status"` // "idle", "active", "paused"
 	EndsAt           *time.Time `json:"ends_at,omitempty"`
+}
+
+// ClimateCompensatorConfig defines Better Thermostat room offset settings.
+type ClimateCompensatorConfig struct {
+	TargetTRVKey        string  `json:"target_trv_key"`
+	RoomSensorKey       string  `json:"room_sensor_key"`
+	WindowSensorKey     string  `json:"window_sensor_key,omitempty"`
+	TargetTemperature   float64 `json:"target_temperature"`
+	CurrentRoomTemp     float64 `json:"current_room_temp"`
+	CalibrationFactor   float64 `json:"calibration_factor"` // default 1.5
+	CompensatedSetpoint float64 `json:"compensated_setpoint"`
+	WindowOpen          bool    `json:"window_open"`
+	Active              bool    `json:"active"`
+}
+
+// CalculateCompensatedSetpoint computes the dynamic TRV setpoint.
+func CalculateCompensatedSetpoint(target, roomTemp, factor float64, windowOpen bool) float64 {
+	if windowOpen {
+		return 5.0 // frost protection
+	}
+	if factor <= 0 {
+		factor = 1.0
+	}
+	delta := target - roomTemp
+	compensated := target + (delta * factor)
+	if compensated < 5.0 {
+		compensated = 5.0
+	}
+	if compensated > 30.0 {
+		compensated = 30.0
+	}
+	return math.Round(compensated*2) / 2
+}
+
+// NewClimateCompensator creates a new Better Thermostat helper.
+func NewClimateCompensator(id, name, entityKey, trvKey, roomSensorKey, windowSensorKey string, targetTemp, factor float64) *Helper {
+	if entityKey == "" {
+		entityKey = fmt.Sprintf("climate.%s", sanitizeKey(name))
+	}
+	if factor <= 0 {
+		factor = 1.5
+	}
+	if targetTemp <= 0 {
+		targetTemp = 20.0
+	}
+	cfg, _ := json.Marshal(ClimateCompensatorConfig{
+		TargetTRVKey:        trvKey,
+		RoomSensorKey:       roomSensorKey,
+		WindowSensorKey:     windowSensorKey,
+		TargetTemperature:   targetTemp,
+		CurrentRoomTemp:     targetTemp,
+		CalibrationFactor:   factor,
+		CompensatedSetpoint: targetTemp,
+		Active:              true,
+	})
+	now := time.Now().UTC()
+	return &Helper{
+		ID:         id,
+		EntityKey:  entityKey,
+		Name:       name,
+		Domain:     DomainClimateCompensator,
+		State:      fmt.Sprintf("%.1f", targetTemp),
+		ConfigJSON: string(cfg),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 }
 
 // NewInputBoolean creates a new virtual boolean helper.

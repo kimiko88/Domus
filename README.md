@@ -4,20 +4,25 @@
 
 Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high-performance, resource-efficient alternative to heavier home automation platforms. It runs entirely on your local network without external cloud dependencies.
 
----
-
-## ⚡ Highlights
+---## ⚡ Highlights
 
 - **Local-First Core**: Automations, state evaluation, MQTT communication, telemetry history, and dashboards run locally without Internet access.
 - **Ultra-Low Resource Footprint**: Written in pure Go with zero CGO dependencies; runs comfortably in ~20-30 MB RAM on Raspberry Pi 4 ARM64.
 - **Embedded SQLite in WAL Mode**: Fast concurrent telemetry reads and atomic writes with foreign key safety and zero external database services.
 - **In-Memory Event Bus**: Decoupled, typed domain events dispatched asynchronously through bounded worker pools with handler isolation.
-- **Rule Automation Engine & Scenes**: Powerful declarative JSON DSL supporting triggers (state, numeric thresholds, time, events), condition trees (AND/OR/NOT), and action workflows with cooldown protection.
-- **Hardware Protocol Adapters**: First-class support for generic MQTT, Zigbee2MQTT auto-discovery, ESPHome telemetry, and graceful cloud circuit-breakers (Tuya, Xiaomi, eWeLink, VeSync).
+- **Dynamic Energy Tariffs & Load Optimization**: Native ingestion of daily PUN (Italy), Nord Pool, and Octopus dynamic hourly prices with automated scheduling of flexible, power-hungry loads (heat pumps, EV charging, boilers) at lowest or negative cost hours.
+- **Local AI Computer Vision NVR**: Zero-cloud RTSP/WebRTC camera streaming with real-time motion zones and lightweight local ONNX object detection (people, vehicles, packages) generating instant animated snapshots on push notifications.
+- **In-Browser USB WebSerial Firmware Flasher**: One-click firmware flashing directly from the browser (Chrome, Edge) with automatic baud rate negotiation and Wi-Fi provisioning for ESP32, ESP8266, Tasmota, WLED, Sonoff, and ESPHome.
+- **Visual Flowchart Automation Designer**: Interactive Node-RED-style SVG flowchart canvas for designing, inspecting, and dry-run simulating multi-branch automation pipelines.
+- **High Availability (HA) Failover Dual-Hub**: Keepalived Virtual IP (VIP) failover with real-time SQLite WAL delta replication, sub-second peer heartbeat monitoring, and 1-click manual node promotion.
+- **Multi-Room Always-On Voice Satellites**: On-device "Ehi Domus" wake-word detection, local WebSocket audio streaming, room-aware contextual command resolution ("spegni la luce" acts on the room where the speaker is located), and hardware privacy mute.
+- **Zero-Cloud Brand Discovery & 1-Click LAN Pairing**: Native LAN mDNS/SSDP discovery and instant pairing for Philips Hue, Shelly Gen1/Gen2, TP-Link Kasa/Tapo, Nanoleaf, Yeelight, Tuya Local, and Zigbee2MQTT.
+- **Security Alarm Control Panel & Zigbee Direct Binding**: Built-in multi-state security alarm system (Away, Home, Night, Disarmed) with entry/exit delays and Zigbee direct binding bypass that operates even if the hub is rebooting.
+- **Shared Family Shopping List**: Collaborative real-time shopping list with department categorization and instant WebSocket synchronization across family members.
 - **Security Hardening**: Argon2id password hashing, session cookies with SameSite/HttpOnly, CSRF protection, rate limiting, and immutable audit logging.
 - **Encrypted Backup & Restore**: AES-256-GCM encrypted backup archives with PBKDF2 key derivation and path-traversal-safe restore CLI.
 - **Progressive Web App (PWA)**: Vue 3 + TypeScript + Vite + Pinia single-page application with glassmorphic dark UI, real-time WebSocket live sync, and mobile installability.
-- **Multi-Language Frontend**: Full internationalization (i18n) supporting **Italiano 🇮🇹, English 🇬🇧, Français 🇫🇷, Español 🇪🇸, and Deutsch 🇩🇪**.
+- **Multi-Language Frontend**: Full internationalization (i18n) with 100% key and subkey parity across **Italiano 🇮🇹, English 🇬🇧, Français 🇫🇷, Español 🇪🇸, and Deutsch 🇩🇪**.
 - **Interactive OpenAPI Documentation**: Embedded OpenAPI 3.1 specification and Swagger UI accessible directly at `/docs`.
 - **TDD (Test-Driven Development)**: Comprehensive unit tests, repository integration tests, and full-stack end-to-end (E2E) suites across backend and frontend.
 
@@ -33,23 +38,40 @@ domus/
 │
 ├── internal/
 │   ├── domain/             # Pure business models and port interfaces (zero dependencies)
+│   │   ├── alarm/          # Alarm control panel states and PIN validation
 │   │   ├── area/           # Room and area spatial hierarchies
 │   │   ├── audit/          # Security audit log entities
 │   │   ├── automation/     # JSON DSL triggers, conditions, actions, and runs
+│   │   ├── camera/         # Cameras, motion zones, AI detection events
+│   │   ├── chore/          # Chores and recurrence schedules
+│   │   ├── dashboard/      # Custom widget dashboards
 │   │   ├── device/         # Physical hardware abstractions
+│   │   ├── energy/         # Energy tariffs, load shedding, flexible loads
 │   │   ├── entity/         # Typed domain entities (lights, switches, sensors, climate)
 │   │   ├── events/         # Typed domain events and event bus interface
+│   │   ├── floor/          # Multi-level floor plans and interactive markers
+│   │   ├── helper/         # Virtual helpers (input booleans, numbers, timers)
 │   │   ├── history/        # Telemetry historical state models
 │   │   ├── integration/    # Hardware and cloud adapter models
+│   │   ├── mesh/           # Zigbee mesh topology and direct bindings
 │   │   ├── scene/          # Multi-device preset scenes
+│   │   ├── shopping/       # Shared family shopping list items
 │   │   └── user/           # User authentication and RBAC roles
 │   │
 │   ├── application/        # Application services and use cases
-│   │   ├── auth/           # Login, wizard setup, session management, rate limiter
+│   │   ├── alarm/          # Alarm panel state machine service
+│   │   ├── assistant/      # Local LLM voice assistant & satellite dispatcher
+│   │   ├── auth/           # Login, wizard setup, session management, rate limiter, family invites
 │   │   ├── automation/     # Rule evaluator and asynchronous execution engine
 │   │   ├── backup/         # AES-256-GCM backup and idempotent restore service
+│   │   ├── brand/          # Zero-cloud LAN discovery and 1-click pairing service
+│   │   ├── camera/         # Camera streams, zones, and local ONNX vision pipeline
+│   │   ├── energy/         # Tariffs evaluator & flexible load scheduler
 │   │   ├── history/        # Batched state recorder and retention cleanup worker
-│   │   └── scene/          # Scene activation dispatcher
+│   │   ├── mesh/           # Zigbee direct binding manager
+│   │   ├── ota/            # Firmware catalog and WebSerial provisioning
+│   │   ├── scene/          # Scene activation dispatcher
+│   │   └── shopping/       # Real-time shopping list service
 │   │
 │   ├── infrastructure/     # Implementation of technical ports
 │   │   ├── config/         # TOML + env variable loader, PBKDF2/AES-GCM secrets
@@ -61,8 +83,8 @@ domus/
 │   │
 │   ├── interfaces/         # Transport layer
 │   │   ├── http/           # Chi router, security headers, CORS, handlers
-│   │   │   ├── handlers/   # REST API endpoint handlers
-│   │   │   ├── middleware/ # Auth, CSRF, rate limit, security headers, logger
+│   │   │   ├── handlers/   # REST API endpoint handlers (alarm, assistant, energy, cameras, etc.)
+│   │   │   ├── middleware/ # Auth, RBAC, CSRF, rate limit, security headers, logger
 │   │   │   └── swagger/    # Embedded OpenAPI 3.1 YAML and Swagger UI
 │   │   └── websocket/      # WebSocket client connection upgrade handler
 │   │
@@ -75,11 +97,11 @@ domus/
 ├── web/                    # Frontend Vue 3 + TypeScript Progressive Web App
 │   ├── src/
 │   │   ├── api/            # Typed REST client and models
-│   │   ├── components/     # Glassmorphic entity cards, modals, charts, layout
-│   │   ├── locales/        # Translations: it.json, en.json, fr.json, es.json, de.json
+│   │   ├── components/     # Modals (Flowchart, Flasher, Satellites), cards, charts
+│   │   ├── locales/        # 100% parity: it.json, en.json, fr.json, es.json, de.json
 │   │   ├── router/         # Vue router with navigation auth guards
 │   │   ├── stores/         # Pinia stores (auth, family, entities, devices, automations, etc.)
-│   │   └── views/          # Dashboard, Areas, Devices, Automations, Scenes, History, Audit, Family, Settings, Register
+│   │   └── views/          # Dashboard, Energy, Cameras, Shopping, Integrations, Automations, etc.
 │   └── package.json
 │
 ├── os/                     # Domus OS Buildroot BSP & Embedded Linux Appliance (RPi4 ARM64)
@@ -91,7 +113,8 @@ domus/
 ├── docs/
 │   ├── adr/                # Architecture Decision Records (ADR-001 to ADR-013)
 │   ├── openapi/            # OpenAPI 3.1 YAML REST specification
-│   └── os/                 # Domus OS BSP and Appliance guides (MS-OS-01)
+│   ├── os/                 # Domus OS BSP and Appliance guides (MS-OS-01)
+│   └── USER-MANUAL.md      # Comprehensive user and administrator manual (IT)
 │
 ├── deployments/
 │   ├── docker/             # Multi-stage Dockerfile and Docker Compose stack
@@ -125,7 +148,7 @@ make os-test
 make os-build
 ```
 
-See [MS-OS-01-BSP-GUIDE.md](file:///docs/os/MS-OS-01-BSP-GUIDE.md) for full instructions.
+See [MS-OS-01-BSP-GUIDE.md](docs/os/MS-OS-01-BSP-GUIDE.md) for full instructions.
 
 ---
 
@@ -222,14 +245,14 @@ domus-cli restore -archive /backups/domus-backup-20261004-120000.tar.gz.enc -out
 
 ## 🌍 Frontend Localization (i18n)
 
-The user interface supports 5 languages out-of-the-box:
+The user interface supports 5 languages out-of-the-box with 100% key parity:
 - 🇮🇹 **Italiano** (Predefinito)
 - 🇬🇧 **English**
 - 🇫🇷 **Français**
 - 🇪🇸 **Español**
 - 🇩🇪 **Deutsch**
 
-Language selection is persisted to local storage and dynamically reactive across all views, controls, navigation bars, and audit logs.
+Language selection is persisted to local storage and dynamically reactive across all views, controls, navigation bars, modals, and audit logs.
 
 ---
 
@@ -263,6 +286,7 @@ cd web && npm run build
 - [x] **MS-09: Hardening & Backup/Restore** — Security headers (HSTS, CSP, XSS), CORS, audit log viewer, AES-256-GCM encrypted backup/restore CLI.
 - [x] **MS-10: Final ARM64 Packaging & Release** — Multi-stage ARM64 Dockerfile, non-interactive installation scripts, embedded OpenAPI/Swagger UI, complete ADRs, 5-language localization.
 - [x] **MS-11: Multi-Client Family & Granular RBAC** — Concurrent multi-client sessions, creator-defined roles (admin, operator, viewer), secure invite links (`/register?token=...`), and family member governance.
+- [x] **MS-12: Advanced Native Ecosystem & Strategic Innovations** — Dynamic Energy Tariffs (PUN / Nord Pool / Octopus) & Flexible Loads Scheduler, Local AI Computer Vision NVR with ONNX pipeline, In-Browser USB WebSerial Firmware Flasher, Visual Flowchart Automation Designer, Dual-Hub High Availability Failover, Multi-Room Voice Satellites ("Ehi Domus"), Zero-Cloud 1-Click Brand Discovery (Hue, Shelly, Tapo, Kasa, Nanoleaf, Yeelight, Tuya), Security Alarm Control Panel, Zigbee Direct Mesh Binding, Shared Family Shopping List, and complete 5-language localization parity across 100% of views.
 
 ---
 

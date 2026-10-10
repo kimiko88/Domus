@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   ShoppingCart,
   Plus,
@@ -15,6 +16,8 @@ import {
   User
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface ShoppingItem {
   id: string
@@ -157,8 +160,8 @@ onMounted(async () => {
           <ShoppingCart :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Lista della Spesa Condivisa</h1>
-          <p class="page-subtitle">Sincronizzata in tempo reale con tutti i familiari e gli account della casa</p>
+          <h1 class="page-title">{{ t('shopping.title') }}</h1>
+          <p class="page-subtitle">{{ t('shopping.subtitle') }}</p>
         </div>
       </div>
 
@@ -169,7 +172,7 @@ onMounted(async () => {
           @click="clearCompleted"
         >
           <Trash2 :size="16" />
-          <span>Svuota Acquistati ({{ completedCount }})</span>
+          <span>{{ t('shopping.clearCompleted') }} ({{ completedCount }})</span>
         </button>
       </div>
     </header>
@@ -181,19 +184,19 @@ onMounted(async () => {
           <input
             v-model="newItemName"
             type="text"
-            placeholder="Cosa serve comprare? (es. Pasta, Olio EVO, Caffè...)"
+            :placeholder="t('shopping.placeholderName')"
             class="input-name"
             required
           />
           <input
             v-model="newItemQty"
             type="text"
-            placeholder="Quantità (es. 2 kg, 1 pacco)"
+            :placeholder="t('shopping.placeholderQty')"
             class="input-qty"
           />
           <button type="submit" class="btn-add">
             <Plus :size="18" />
-            <span>Aggiungi</span>
+            <span>{{ t('shopping.addBtn') }}</span>
           </button>
         </div>
 
@@ -226,13 +229,13 @@ onMounted(async () => {
           :class="['pill-btn', { active: filterStatus === 'active' }]"
           @click="filterStatus = 'active'"
         >
-          Da Acquistare ({{ pendingCount }})
+          {{ t('shopping.toBuy') }} ({{ pendingCount }})
         </button>
         <button
           :class="['pill-btn', { active: filterStatus === 'completed' }]"
           @click="filterStatus = 'completed'"
         >
-          Acquistati ({{ completedCount }})
+          {{ t('shopping.completed') }} ({{ completedCount }})
         </button>
       </div>
     </div>
@@ -263,7 +266,7 @@ onMounted(async () => {
                 <span>{{ it.added_by }}</span>
               </span>
               <span v-if="it.completed && it.completed_by" class="completed-tag">
-                Acquistato da {{ it.completed_by }}
+                {{ t('shopping.completedBy') }} {{ it.completed_by }}
               </span>
             </div>
           </div>

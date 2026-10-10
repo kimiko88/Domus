@@ -18,12 +18,14 @@ const (
 	RoleOperator Role = "operator"
 	// RoleViewer can only inspect entities and read telemetry.
 	RoleViewer Role = "viewer"
+	// RoleGuest has restricted area access and temporary validity.
+	RoleGuest Role = "guest"
 )
 
 // Valid returns true if the role is one of the recognized role types.
 func (r Role) Valid() bool {
 	switch r {
-	case RoleAdmin, RoleOperator, RoleViewer:
+	case RoleAdmin, RoleOperator, RoleViewer, RoleGuest:
 		return true
 	default:
 		return false
@@ -38,18 +40,31 @@ var (
 	ErrUserNotFound    = errors.New("user: user not found")
 	ErrSessionExpired  = errors.New("user: session has expired")
 	ErrSessionNotFound = errors.New("user: session not found")
+	ErrGuestExpired    = errors.New("user: guest account has expired")
 )
 
 // User represents an authenticated identity within Domus.
 type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email,omitempty"`
-	PasswordHash string    `json:"-"`
-	Role         Role      `json:"role"`
-	Enabled      bool      `json:"enabled"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             string     `json:"id"`
+	Username       string     `json:"username"`
+	Email          string     `json:"email,omitempty"`
+	PasswordHash   string     `json:"-"`
+	Role           Role       `json:"role"`
+	Enabled        bool       `json:"enabled"`
+	IsGuest        bool       `json:"is_guest"`
+	GuestExpiresAt *time.Time `json:"guest_expires_at,omitempty"`
+	PinCode        string     `json:"pin_code,omitempty"`
+	KioskMode      bool       `json:"kiosk_mode"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// IsGuestExpired returns true if the user is a guest whose expiration timestamp has passed.
+func (u *User) IsGuestExpired() bool {
+	if !u.IsGuest || u.GuestExpiresAt == nil {
+		return false
+	}
+	return time.Now().UTC().After(*u.GuestExpiresAt)
 }
 
 // Validate checks the user's properties for domain compliance.

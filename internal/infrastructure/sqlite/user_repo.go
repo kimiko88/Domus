@@ -24,8 +24,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // Create inserts a new user record.
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
-		INSERT INTO users (id, username, email, password_hash, role, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+		INSERT INTO users (id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	var email *string
 	if u.Email != "" {
@@ -35,6 +35,27 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	enabled := 0
 	if u.Enabled {
 		enabled = 1
+	}
+
+	isGuest := 0
+	if u.IsGuest {
+		isGuest = 1
+	}
+
+	kioskMode := 0
+	if u.KioskMode {
+		kioskMode = 1
+	}
+
+	var guestExpiresAt *string
+	if u.GuestExpiresAt != nil {
+		exp := u.GuestExpiresAt.Format(time.RFC3339)
+		guestExpiresAt = &exp
+	}
+
+	var pinCode *string
+	if u.PinCode != "" {
+		pinCode = &u.PinCode
 	}
 
 	createdAt := u.CreatedAt.Format(time.RFC3339)
@@ -47,6 +68,10 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		u.PasswordHash,
 		string(u.Role),
 		enabled,
+		isGuest,
+		guestExpiresAt,
+		pinCode,
+		kioskMode,
 		createdAt,
 		updatedAt,
 	)
@@ -59,7 +84,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 // GetByID retrieves a user by their unique UUID.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
 		FROM users
 		WHERE id = ?;
 	`
@@ -70,11 +95,22 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, er
 // GetByUsername retrieves a user by their unique username.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
 		FROM users
 		WHERE username = ?;
 	`
 	row := r.db.QueryRowContext(ctx, query, username)
+	return r.scanUser(row)
+}
+
+// GetByPinCode finds an active user or guest by their numeric PIN code.
+func (r *UserRepository) GetByPinCode(ctx context.Context, pin string) (*user.User, error) {
+	query := `
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		FROM users
+		WHERE pin_code = ? AND pin_code IS NOT NULL AND pin_code != '';
+	`
+	row := r.db.QueryRowContext(ctx, query, pin)
 	return r.scanUser(row)
 }
 
@@ -91,7 +127,7 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 // List returns all registered users in chronological order.
 func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
 		FROM users
 		ORDER BY created_at ASC;
 	`
@@ -104,14 +140,22 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	var users []*user.User
 	for rows.Next() {
 		var (
-			u         user.User
-			email     sql.NullString
-			roleStr   string
-			enabled   int
-			createdAt string
-			updatedAt string
+			u              user.User
+			email          sql.NullString
+			roleStr        string
+			enabled        int
+			isGuest        int
+			guestExpiresAt sql.NullString
+			pinCode        sql.NullString
+			kioskMode      int
+			createdAt      string
+			updatedAt      string
 		)
-		if err := rows.Scan(&u.ID, &u.Username, &email, &u.PasswordHash, &roleStr, &enabled, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(
+			&u.ID, &u.Username, &email, &u.PasswordHash, &roleStr, &enabled,
+			&isGuest, &guestExpiresAt, &pinCode, &kioskMode,
+			&createdAt, &updatedAt,
+		); err != nil {
 			return nil, fmt.Errorf("sqlite: scan user row: %w", err)
 		}
 		if email.Valid {
@@ -119,6 +163,17 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		}
 		u.Role = user.Role(roleStr)
 		u.Enabled = enabled == 1
+		u.IsGuest = isGuest == 1
+		if guestExpiresAt.Valid {
+			if parsed, err := time.Parse(time.RFC3339, guestExpiresAt.String); err == nil {
+				u.GuestExpiresAt = &parsed
+			}
+		}
+		if pinCode.Valid {
+			u.PinCode = pinCode.String
+		}
+		u.KioskMode = kioskMode == 1
+
 		if parsed, err := time.Parse(time.RFC3339, createdAt); err == nil {
 			u.CreatedAt = parsed
 		}
@@ -171,12 +226,16 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 
 func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	var (
-		u         user.User
-		email     sql.NullString
-		roleStr   string
-		enabled   int
-		createdAt string
-		updatedAt string
+		u              user.User
+		email          sql.NullString
+		roleStr        string
+		enabled        int
+		isGuest        int
+		guestExpiresAt sql.NullString
+		pinCode        sql.NullString
+		kioskMode      int
+		createdAt      string
+		updatedAt      string
 	)
 
 	err := row.Scan(
@@ -186,6 +245,10 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		&u.PasswordHash,
 		&roleStr,
 		&enabled,
+		&isGuest,
+		&guestExpiresAt,
+		&pinCode,
+		&kioskMode,
 		&createdAt,
 		&updatedAt,
 	)
@@ -201,6 +264,16 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	}
 	u.Role = user.Role(roleStr)
 	u.Enabled = enabled == 1
+	u.IsGuest = isGuest == 1
+	if guestExpiresAt.Valid {
+		if parsed, err := time.Parse(time.RFC3339, guestExpiresAt.String); err == nil {
+			u.GuestExpiresAt = &parsed
+		}
+	}
+	if pinCode.Valid {
+		u.PinCode = pinCode.String
+	}
+	u.KioskMode = kioskMode == 1
 
 	if parsed, err := time.Parse(time.RFC3339, createdAt); err == nil {
 		u.CreatedAt = parsed

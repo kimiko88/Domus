@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
 import { useTheme } from '../../composables/useTheme'
 import { getCurrentLanguage, setLanguage } from '../../locales'
-import { Menu, LogOut, User as UserIcon, Sun, Moon } from '@lucide/vue'
+import { Menu, LogOut, User as UserIcon, Sun, Moon, Sparkles, BookOpen } from '@lucide/vue'
+import VoiceAssistantModal from '../modals/VoiceAssistantModal.vue'
 
 interface Props {
   title?: string
@@ -18,13 +21,20 @@ const emit = defineEmits<{
   (e: 'toggle-menu'): void
 }>()
 
+const router = useRouter()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const wsStore = useWsStore()
 const { isDark, toggleTheme } = useTheme()
+const isAssistantOpen = ref(false)
 
 const currentUser = computed(() => authStore.user)
 const isWsConnected = computed(() => wsStore.isConnected)
 const currentLang = computed(() => getCurrentLanguage())
+
+function goToGuide() {
+  router.push('/guide')
+}
 
 function toggleLanguage() {
   const next = currentLang.value === 'it' ? 'en' : 'it'
@@ -50,6 +60,28 @@ async function handleLogout() {
     </div>
 
     <div class="topbar-right">
+      <!-- Domus Interactive Guide & Manual Button -->
+      <button
+        class="guide-toggle-btn"
+        :title="t('nav.guide')"
+        :aria-label="t('nav.guide')"
+        @click="goToGuide"
+      >
+        <BookOpen :size="15" />
+        <span class="guide-label">{{ t('nav.guide') }}</span>
+      </button>
+
+      <!-- Domus AI Assistant Button -->
+      <button
+        class="assistant-toggle-btn"
+        title="Apri Assistente AI Domus"
+        aria-label="Apri Assistente AI Domus"
+        @click="isAssistantOpen = true"
+      >
+        <Sparkles :size="16" />
+        <span class="assistant-label">Assistant</span>
+      </button>
+
       <!-- Language Quick Switcher -->
       <button
         class="lang-quick-toggle"
@@ -99,6 +131,9 @@ async function handleLogout() {
       </div>
     </div>
   </header>
+
+  <!-- Voice Assistant Modal -->
+  <VoiceAssistantModal :is-open="isAssistantOpen" @close="isAssistantOpen = false" />
 </template>
 
 <style scoped>
@@ -148,6 +183,58 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.guide-toggle-btn {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.guide-toggle-btn:hover {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #38bdf8;
+  color: #f0f9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(14, 165, 233, 0.3);
+}
+
+@media (max-width: 640px) {
+  .guide-label {
+    display: none;
+  }
+}
+
+.assistant-toggle-btn {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c084fc;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assistant-toggle-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.35), rgba(139, 92, 246, 0.35));
+  border-color: #a855f7;
+  color: #e9d5ff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
 }
 
 .lang-quick-toggle {

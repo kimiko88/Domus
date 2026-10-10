@@ -7,8 +7,11 @@ import type { Automation } from '../api/types'
 import AutomationCard from '../components/cards/AutomationCard.vue'
 import AutomationEditorModal from '../components/modals/AutomationEditorModal.vue'
 import AutomationRunsModal from '../components/modals/AutomationRunsModal.vue'
+import AutomationFlowchartModal from '../components/modals/AutomationFlowchartModal.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
-import { Zap, Plus, Search } from '@lucide/vue'
+import { Zap, Plus, Search, Globe, Copy, Check, Trash2, Key, Link2, X, Layers } from '@lucide/vue'
+import { apiClient } from '../api/client'
+import type { InboundWebhook } from '../api/types'
 
 const { t } = useI18n()
 const automationsStore = useAutomationsStore()
@@ -19,9 +22,18 @@ const filterStatus = ref<'all' | 'active' | 'disabled'>('all')
 
 const isEditorOpen = ref(false)
 const editingAutomation = ref<Automation | null>(null)
+const isFlowchartOpen = ref(false)
 
 const isRunsModalOpen = ref(false)
 const activeRunAutomation = ref<Automation | null>(null)
+
+// Inbound Webhooks State
+const webhooks = ref<InboundWebhook[]>([])
+const isWebhookModalOpen = ref(false)
+const newWhName = ref('')
+const newWhSecret = ref('')
+const newWhMethods = ref('POST')
+const copiedWhId = ref<string | null>(null)
 
 async function loadAutomations() {
   try {
@@ -31,8 +43,57 @@ async function loadAutomations() {
   }
 }
 
+async function loadWebhooks() {
+  try {
+    const list = await apiClient.get<InboundWebhook[]>('/api/v1/webhook-configs')
+    if (list) webhooks.value = list
+  } catch {}
+}
+
+async function handleCreateWebhook() {
+  if (!newWhName.value.trim()) return
+  try {
+    const created = await apiClient.post<InboundWebhook>('/api/v1/webhook-configs', {
+      name: newWhName.value.trim(),
+      secret_token: newWhSecret.value.trim(),
+      allowed_methods: newWhMethods.value
+    })
+    if (created) webhooks.value.push(created)
+    isWebhookModalOpen.value = false
+    newWhName.value = ''
+    newWhSecret.value = ''
+    notificationsStore.success('Webhook Inbound Creato', created.name)
+  } catch (err: any) {
+    notificationsStore.error('Errore creazione webhook', err?.message)
+  }
+}
+
+async function handleDeleteWebhook(wh: InboundWebhook) {
+  if (!confirm(`Sei sicuro di voler eliminare il webhook "${wh.name}"?`)) return
+  try {
+    await apiClient.delete(`/api/v1/webhook-configs/${wh.id}`)
+    webhooks.value = webhooks.value.filter(w => w.id !== wh.id)
+    notificationsStore.success('Webhook eliminato', wh.name)
+  } catch (err: any) {
+    notificationsStore.error('Errore eliminazione', err?.message)
+  }
+}
+
+async function handleCopyWebhookUrl(whId: string) {
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  const fullUrl = `${base}/api/v1/webhooks/${whId}`
+  try {
+    if (navigator?.clipboard) {
+      await navigator.clipboard.writeText(fullUrl)
+    }
+    copiedWhId.value = whId
+    setTimeout(() => { copiedWhId.value = null }, 2500)
+  } catch {}
+}
+
 onMounted(() => {
   loadAutomations()
+  loadWebhooks()
 })
 
 const filteredAutomations = computed(() => {
@@ -103,6 +164,10 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       </div>
 
       <div class="header-actions">
+        <button class="btn-flowchart glass-panel" @click="isFlowchartOpen = true">
+          <Layers :size="16" />
+          <span>{{ t('flowchart.btnFlowchart') }}</span>
+        </button>
         <BaseButton variant="primary" class="btn-new-automation" @click="openNewModal">
           <Plus :size="16" />
           <span>{{ t('automations.newAutomation') }}</span>
@@ -168,6 +233,59 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       </BaseButton>
     </div>
 
+    <!-- Inbound Webhooks Section -->
+    <div class="webhooks-section glass-card">
+      <div class="webhooks-header">
+        <div class="webhooks-title-group">
+          <div class="webhook-icon-box">
+            <Globe :size="20" />
+          </div>
+          <div>
+            <h3 class="wh-title">Webhook Esterni Riceventi (Inbound)</h3>
+            <p class="wh-subtitle">Ricevi payload HTTP protetti da HMAC da IFTTT, n8n, OwnTracks o sensori esterni per innescare eventi</p>
+          </div>
+        </div>
+        <BaseButton variant="secondary" size="sm" @click="isWebhookModalOpen = true">
+          <Plus :size="16" />
+          <span>Nuovo Webhook</span>
+        </BaseButton>
+      </div>
+
+      <div v-if="webhooks.length === 0" class="wh-empty">
+        <Globe :size="28" class="empty-icon" />
+        <p>Nessun webhook configurato. Crea un endpoint per ricevere richieste esterne in sicurezza.</p>
+      </div>
+
+      <div v-else class="wh-list">
+        <div v-for="wh in webhooks" :key="wh.id" class="wh-card">
+          <div class="wh-card-top">
+            <span class="wh-name">{{ wh.name }}</span>
+            <span class="wh-method-badge">{{ wh.allowed_methods }}</span>
+            <span class="wh-count-badge">{{ wh.trigger_count }} esecuzioni</span>
+          </div>
+
+          <div class="wh-url-box">
+            <span class="wh-url">/api/v1/webhooks/{{ wh.webhook_id }}</span>
+            <button
+              class="wh-copy-btn"
+              :title="copiedWhId === wh.webhook_id ? 'Copiato!' : 'Copia URL Webhook'"
+              @click="handleCopyWebhookUrl(wh.webhook_id)"
+            >
+              <Check v-if="copiedWhId === wh.webhook_id" :size="14" class="text-success" />
+              <Copy v-else :size="14" />
+            </button>
+          </div>
+
+          <div class="wh-card-bottom">
+            <span class="wh-secret">Secret: <code>{{ wh.secret_token ? 'HMAC-SHA256 protetto' : 'Libero' }}</code></span>
+            <button class="wh-delete-btn" title="Elimina" @click="handleDeleteWebhook(wh)">
+              <Trash2 :size="15" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modals -->
     <AutomationEditorModal
       :is-open="isEditorOpen"
@@ -181,6 +299,53 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       :automation="activeRunAutomation"
       @close="isRunsModalOpen = false"
     />
+
+    <AutomationFlowchartModal
+      :is-open="isFlowchartOpen"
+      @close="isFlowchartOpen = false"
+      @save="notificationsStore.success('Flusso Salvato', 'Automazione da Flowchart creata con successo!')"
+    />
+
+    <!-- New Webhook Modal -->
+    <div v-if="isWebhookModalOpen" class="modal-backdrop" @click.self="isWebhookModalOpen = false">
+      <div class="modal-card glass-card">
+        <div class="modal-header">
+          <div class="modal-title-box">
+            <Globe :size="20" />
+            <h3 class="modal-title">Nuovo Webhook Inbound</h3>
+          </div>
+          <button class="modal-close" @click="isWebhookModalOpen = false">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nome Webhook</label>
+            <input v-model="newWhName" type="text" class="text-input" placeholder="es. IFTTT Arrivo a Casa, OwnTracks GPS" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Secret HMAC Token (opzionale per firma X-Domus-Signature)</label>
+            <input v-model="newWhSecret" type="text" class="text-input" placeholder="es. secret_my_token_123" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Metodo HTTP Consentito</label>
+            <select v-model="newWhMethods" class="select-input">
+              <option value="POST">POST (Standard JSON payload)</option>
+              <option value="GET">GET (Query string parameters)</option>
+              <option value="PUT">PUT</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <BaseButton variant="ghost" size="md" @click="isWebhookModalOpen = false">Annulla</BaseButton>
+          <BaseButton variant="primary" size="md" @click="handleCreateWebhook">Crea Webhook</BaseButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -216,6 +381,26 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.btn-flowchart {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-flowchart:hover {
+  background: rgba(14, 165, 233, 0.25);
+  transform: translateY(-1px);
 }
 
 .toolbar-row {

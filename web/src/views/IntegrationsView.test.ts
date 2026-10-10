@@ -29,7 +29,12 @@ describe('IntegrationsView.vue', () => {
       }
     ]
 
-    vi.spyOn(apiClient, 'get').mockResolvedValue(mockIntegrations)
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations') return mockIntegrations
+      if (url === '/api/v1/integrations/catalog') return []
+      if (url === '/api/v1/integrations/discovery/devices') return []
+      return []
+    })
 
     const wrapper = mount(IntegrationsView)
     await wrapper.vm.$nextTick()
@@ -53,7 +58,10 @@ describe('IntegrationsView.vue', () => {
       }
     ]
 
-    vi.spyOn(apiClient, 'get').mockResolvedValue(mockIntegrations)
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations') return mockIntegrations
+      return []
+    })
     const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'reconnecting' })
 
     const wrapper = mount(IntegrationsView)
@@ -65,5 +73,90 @@ describe('IntegrationsView.vue', () => {
 
     await reconnectBtn.trigger('click')
     expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/int_mqtt/reconnect')
+  })
+
+  it('switches to LAN discovery tab and displays discovered brand devices ready for 1-click pairing', async () => {
+    const mockDiscovered = [
+      {
+        id: 'shelly_aabbcc',
+        brand: 'shelly',
+        name: 'Shelly Plus 1PM Cucina',
+        ip: '192.168.1.145',
+        port: 80,
+        model: 'SNSW-001P16EU',
+        firmware: '1.4.2',
+        status: 'discovered',
+        capabilities: ['switch', 'power_meter'],
+        suggested_entities: [
+          { domain: 'switch', name: 'Interruttore', key_suffix: 'relay_0', writable: true }
+        ],
+        discovered_at: new Date().toISOString()
+      }
+    ]
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/discovery/devices') return mockDiscovered
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'paired' })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    // Switch to discovery tab
+    const tabs = wrapper.findAll('.tab-btn')
+    expect(tabs.length).toBe(3)
+    await tabs[1].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Shelly Plus 1PM Cucina')
+    expect(wrapper.text()).toContain('192.168.1.145:80')
+    expect(wrapper.text()).toContain('Associa con 1-Click')
+
+    const pairBtn = wrapper.find('.btn-pair')
+    expect(pairBtn.exists()).toBe(true)
+    await pairBtn.trigger('click')
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/discovery/pair', {
+      brand: 'shelly',
+      ip: '192.168.1.145',
+      port: 80,
+      name: 'Shelly Plus 1PM Cucina'
+    })
+  })
+
+  it('switches to brand catalog tab and renders supported smart home brands', async () => {
+    const mockCatalog = [
+      {
+        id: 'shelly',
+        name: 'Shelly (Allterco)',
+        category: 'Relè & Prese',
+        protocol: 'HTTP RPC',
+        zero_cloud: true,
+        default_port: 80,
+        description: 'Controllo 100% locale senza cloud',
+        supported_models: ['Shelly Plus 1PM', 'Shelly Pro 4PM'],
+        pairing_guide: 'Collega al Wi-Fi locale',
+        icon: 'zap'
+      }
+    ]
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/catalog') return mockCatalog
+      return []
+    })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    const tabs = wrapper.findAll('.tab-btn')
+    await tabs[2].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Shelly (Allterco)')
+    expect(wrapper.text()).toContain('Zero-Cloud')
+    expect(wrapper.text()).toContain('Shelly Plus 1PM')
   })
 })

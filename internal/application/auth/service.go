@@ -211,7 +211,95 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID string) (*user.
 		return nil, nil, user.ErrUserDisabled
 	}
 
+	if u.IsGuestExpired() {
+		_ = s.sessionRepo.Delete(ctx, sessionID)
+		return nil, nil, user.ErrGuestExpired
+	}
+
 	return u, sess, nil
+}
+
+// LoginWithPin authenticates a guest or user quickly with a numeric PIN for wall-mounted tablet kiosks.
+func (s *Service) LoginWithPin(ctx context.Context, pin, ip, userAgent string) (*user.Session, *user.User, error) {
+	cleanPin := strings.TrimSpace(pin)
+	if cleanPin == "" {
+		return nil, nil, ErrInvalidCredentials
+	}
+
+	u, err := s.userRepo.GetByPinCode(ctx, cleanPin)
+	if err != nil {
+		_ = s.recordLoginAudit(ctx, "auth.kiosk_login.failed", "", "kiosk_pin", ip, userAgent, "invalid PIN")
+		return nil, nil, ErrInvalidCredentials
+	}
+
+	if !u.Enabled {
+		_ = s.recordLoginAudit(ctx, "auth.kiosk_login.failed", u.ID, u.Username, ip, userAgent, "user disabled")
+		return nil, nil, user.ErrUserDisabled
+	}
+
+	if u.IsGuestExpired() {
+		_ = s.recordLoginAudit(ctx, "auth.kiosk_login.failed", u.ID, u.Username, ip, userAgent, "guest expired")
+		return nil, nil, user.ErrGuestExpired
+	}
+
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return nil, nil, fmt.Errorf("auth service: failed to generate session token: %w", err)
+	}
+	sessionID := hex.EncodeToString(tokenBytes)
+
+	now := time.Now().UTC()
+	sess := &user.Session{
+		ID:        sessionID,
+		UserID:    u.ID,
+		ExpiresAt: now.Add(s.sessionTTL),
+		CreatedAt: now,
+		IPAddress: ip,
+		UserAgent: userAgent,
+	}
+
+	if err := s.sessionRepo.Create(ctx, sess); err != nil {
+		return nil, nil, fmt.Errorf("auth service: failed to persist session: %w", err)
+	}
+
+	_ = s.recordLoginAudit(ctx, "auth.kiosk_login.success", u.ID, u.Username, ip, userAgent, "PIN unlocked")
+	return sess, u, nil
+}
+
+// CreateGuest creates a guest user with PIN, optional expiration, and kiosk mode.
+func (s *Service) CreateGuest(ctx context.Context, username, pin string, validHours int, kioskMode bool) (*user.User, error) {
+	trimmedUser := strings.TrimSpace(username)
+	if trimmedUser == "" {
+		return nil, fmt.Errorf("auth: guest username cannot be empty")
+	}
+
+	now := time.Now().UTC()
+	var expiresAt *time.Time
+	if validHours > 0 {
+		exp := now.Add(time.Duration(validHours) * time.Hour)
+		expiresAt = &exp
+	}
+
+	dummyHash, _ := s.hasher.HashPassword("guest_" + uuid.NewString())
+
+	u := &user.User{
+		ID:             uuid.NewString(),
+		Username:       trimmedUser,
+		PasswordHash:   dummyHash,
+		Role:           user.RoleGuest,
+		Enabled:        true,
+		IsGuest:        true,
+		GuestExpiresAt: expiresAt,
+		PinCode:        strings.TrimSpace(pin),
+		KioskMode:      kioskMode,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := s.userRepo.Create(ctx, u); err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 func (s *Service) recordLoginAudit(ctx context.Context, action, userID, username, ip, ua, reason string) error {

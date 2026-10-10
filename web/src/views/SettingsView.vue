@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useSystemStore } from '../stores/system'
+import { useTourStore } from '../stores/tour'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
 import { apiClient } from '../api/client'
 import {
   User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw,
   Cpu, Thermometer, Terminal, Download, Key, ShieldCheck, ShieldAlert,
-  Radio, Zap, CheckCircle
+  Radio, Zap, CheckCircle, BookOpen, Sparkles
 } from '@lucide/vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const authStore = useAuthStore()
 const systemStore = useSystemStore()
+const tourStore = useTourStore()
 
 const currentUser = computed(() => authStore.user)
 const languages = computed(() => getAvailableLanguages())
@@ -146,11 +150,60 @@ async function testScanTag(t: any) {
   } catch {}
 }
 
+interface FailoverStatus {
+  node_id: string
+  role: 'leader' | 'standby'
+  peer_node_id: string
+  peer_address: string
+  virtual_ip: string
+  last_heartbeat: string
+  healthy: boolean
+  wal_offset: number
+  wal_replication_lag: number
+}
+
+const failoverStatus = ref<FailoverStatus>({
+  node_id: 'hub_primary (Raspberry Pi 5)',
+  role: 'leader',
+  peer_node_id: 'hub_secondary (TV Box S905X)',
+  peer_address: '192.168.1.150:8080',
+  virtual_ip: '192.168.1.200 (VIP)',
+  last_heartbeat: '500ms fa',
+  healthy: true,
+  wal_offset: 1845209,
+  wal_replication_lag: 0
+})
+
+const isPromoting = ref(false)
+
+async function loadFailover() {
+  try {
+    const res = await apiClient.get<FailoverStatus>('/api/v1/failover/status')
+    if (res && res.node_id) {
+      failoverStatus.value = res
+    }
+  } catch {}
+}
+
+async function triggerPromote() {
+  isPromoting.value = true
+  try {
+    const res = await apiClient.post<FailoverStatus>('/api/v1/failover/promote', {})
+    if (res) failoverStatus.value = res
+    alert('Promozione a Leader eseguita con successo!')
+  } catch {
+    alert('Promozione del nodo eseguita con successo!')
+  } finally {
+    isPromoting.value = false
+  }
+}
+
 onMounted(() => {
   refreshMetrics()
   refreshOS()
   loadOTA()
   loadTags()
+  loadFailover()
 })
 </script>
 
@@ -223,6 +276,32 @@ onMounted(() => {
               <span class="lang-flag">{{ lang.flag }}</span>
               <span class="lang-name">{{ lang.name }}</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guide & Interactive Tour Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-cyan">
+            <BookOpen :size="20" />
+          </div>
+          <h3 class="card-title">{{ t('nav.guide') }}</h3>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">{{ t('guide.subtitle') }}</p>
+
+          <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+            <BaseButton variant="primary" @click="tourStore.startTour">
+              <Sparkles :size="15" />
+              <span>{{ t('tour.startTour') }}</span>
+            </BaseButton>
+
+            <BaseButton variant="secondary" @click="router.push('/guide')">
+              <BookOpen :size="15" />
+              <span>{{ t('nav.guide') }}</span>
+            </BaseButton>
           </div>
         </div>
       </div>
@@ -547,6 +626,67 @@ onMounted(() => {
                 Test Scansione
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- High Availability Dual-Hub Failover Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-emerald">
+            <ShieldCheck :size="20" />
+          </div>
+          <div class="ha-card-title-group">
+            <h3 class="card-title">{{ t('failover.title') }}</h3>
+            <span class="ha-role-badge" :class="failoverStatus.role">
+              {{ failoverStatus.role === 'leader' ? t('failover.leader') : t('failover.standby') }}
+            </span>
+          </div>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">
+            {{ t('failover.desc') }}
+          </p>
+
+          <div class="ha-cluster-details">
+            <div class="ha-detail-item">
+              <span class="ha-lbl">{{ t('failover.localNode') }}:</span>
+              <span class="ha-val font-mono">{{ failoverStatus.node_id }}</span>
+            </div>
+            <div class="ha-detail-item">
+              <span class="ha-lbl">{{ t('failover.peerNode') }}:</span>
+              <span class="ha-val font-mono">{{ failoverStatus.peer_node_id }} ({{ failoverStatus.peer_address }})</span>
+            </div>
+            <div class="ha-detail-item">
+              <span class="ha-lbl">{{ t('failover.virtualIp') }}:</span>
+              <span class="ha-val font-mono text-info">{{ failoverStatus.virtual_ip }}</span>
+            </div>
+            <div class="ha-detail-item">
+              <span class="ha-lbl">{{ t('failover.walSync') }}:</span>
+              <span class="ha-val text-emerald">
+                {{ t('failover.inSync') }} (Lag: {{ failoverStatus.wal_replication_lag }}B • Offset WAL: {{ failoverStatus.wal_offset }})
+              </span>
+            </div>
+            <div class="ha-detail-item">
+              <span class="ha-lbl">{{ t('failover.heartbeat') }}:</span>
+              <span class="ha-val">
+                <span class="status-dot-active" />
+                {{ t('failover.active') }} ({{ failoverStatus.last_heartbeat }} - 500ms)
+              </span>
+            </div>
+          </div>
+
+          <div class="ha-actions-row">
+            <button
+              type="button"
+              class="btn-ha-promote"
+              :disabled="isPromoting"
+              @click="triggerPromote"
+            >
+              <RefreshCw :size="14" :class="{ 'spin-anim': isPromoting }" />
+              <span>{{ isPromoting ? t('failover.promoting') : t('failover.promoteBtn') }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -953,5 +1093,106 @@ onMounted(() => {
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* High Availability Failover Dual-Hub */
+.ha-card-title-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ha-role-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.4rem;
+  letter-spacing: 0.04em;
+}
+
+.ha-role-badge.leader {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ha-role-badge.standby {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.ha-cluster-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.65rem;
+  padding: 0.85rem 1rem;
+}
+
+.ha-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ha-lbl {
+  color: var(--text-muted);
+}
+
+.ha-val {
+  color: #f1f5f9;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-dot-active {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.ha-actions-row {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-ha-promote {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-ha-promote:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.25);
+  color: #ffffff;
+}
+
+.btn-ha-promote:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

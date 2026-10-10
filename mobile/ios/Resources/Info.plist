@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.domus.app.ios</string>
+    <key>CFBundleName</key>
+    <string>Domus</string>
+    <key>CFBundleDisplayName</key>
+    <string>Domus</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Domus necessita dell'accesso alla rete locale per scoprire e comunicare istantaneamente con il tuo hub domestico a latenza sub-millisecondo.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_domus._tcp</string>
+    </array>
+    <key>UIRequiresPersistentWiFi</key>
+    <true/>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>

@@ -21,6 +21,7 @@ import (
 
 // Repositories aggregates all initialized SQLite repositories.
 type Repositories struct {
+	DB           *sql.DB
 	Users        user.UserRepository
 	Sessions     user.SessionRepository
 	Audit        audit.Repository
@@ -41,6 +42,7 @@ type Repositories struct {
 // NewRepositories initializes and returns all SQLite repositories.
 func NewRepositories(db *sql.DB) *Repositories {
 	return &Repositories{
+		DB:           db,
 		Users:        NewUserRepository(db),
 		Sessions:     NewSessionRepository(db),
 		Audit:        NewAuditRepository(db),

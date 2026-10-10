@@ -331,3 +331,38 @@ func (a *Adapter) handleOutboundCommand(ctx context.Context, e events.Event) err
 
 	return a.client.Publish(ctx, topic, 1, false, payload)
 }
+
+// BindDevices sends a cluster-level direct binding request to Zigbee2MQTT bridge.
+func (a *Adapter) BindDevices(ctx context.Context, sourceIEEE, targetIEEE string, clusters []string) error {
+	topic := fmt.Sprintf("%s/bridge/request/device/bind", a.cfg.BaseTopic)
+	if len(clusters) == 0 {
+		clusters = []string{"genOnOff"}
+	}
+	payload, err := json.Marshal(map[string]any{
+		"from":     sourceIEEE,
+		"to":       targetIEEE,
+		"clusters": clusters,
+	})
+	if err != nil {
+		return err
+	}
+	return a.client.Publish(ctx, topic, 1, false, payload)
+}
+
+// UnbindDevices sends an unbind request to Zigbee2MQTT bridge.
+func (a *Adapter) UnbindDevices(ctx context.Context, sourceIEEE, targetIEEE string, clusters []string) error {
+	topic := fmt.Sprintf("%s/bridge/request/device/unbind", a.cfg.BaseTopic)
+	if len(clusters) == 0 {
+		clusters = []string{"genOnOff"}
+	}
+	payload, err := json.Marshal(map[string]any{
+		"from":     sourceIEEE,
+		"to":       targetIEEE,
+		"clusters": clusters,
+	})
+	if err != nil {
+		return err
+	}
+	return a.client.Publish(ctx, topic, 1, false, payload)
+}
+

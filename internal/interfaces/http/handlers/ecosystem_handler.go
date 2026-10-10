@@ -9,6 +9,7 @@ import (
 
 	appCal "github.com/domus-hub/domus/internal/application/calendar"
 	appCamera "github.com/domus-hub/domus/internal/application/camera"
+	appFailover "github.com/domus-hub/domus/internal/application/failover"
 	appMedia "github.com/domus-hub/domus/internal/application/media"
 	appMesh "github.com/domus-hub/domus/internal/application/mesh"
 	appNotif "github.com/domus-hub/domus/internal/application/notification"
@@ -23,15 +24,18 @@ import (
 )
 
 type EcosystemHandler struct {
-	cameraSvc  *appCamera.Service
-	tagSvc     *appTag.Service
-	notifMgr   *appNotif.Manager
-	calSvc     *appCal.Service
-	mediaSvc   *appMedia.Service
-	weatherCli *appWeather.Client
-	meshSvc    *appMesh.Service
-	otaSvc     *appOTA.Service
-	storeSvc   *appStore.Service
+	cameraSvc   *appCamera.Service
+	localNVR    *appCamera.LocalNVR
+	flasherSvc  *appOTA.FlasherService
+	failoverSvc *appFailover.Service
+	tagSvc      *appTag.Service
+	notifMgr    *appNotif.Manager
+	calSvc      *appCal.Service
+	mediaSvc    *appMedia.Service
+	weatherCli  *appWeather.Client
+	meshSvc     *appMesh.Service
+	otaSvc      *appOTA.Service
+	storeSvc    *appStore.Service
 }
 
 func NewEcosystemHandler(
@@ -46,16 +50,34 @@ func NewEcosystemHandler(
 	storeSvc *appStore.Service,
 ) *EcosystemHandler {
 	return &EcosystemHandler{
-		cameraSvc:  cameraSvc,
-		tagSvc:     tagSvc,
-		notifMgr:   notifMgr,
-		calSvc:     calSvc,
-		mediaSvc:   mediaSvc,
-		weatherCli: weatherCli,
-		meshSvc:    meshSvc,
-		otaSvc:     otaSvc,
-		storeSvc:   storeSvc,
+		cameraSvc:   cameraSvc,
+		localNVR:    appCamera.NewLocalNVR(cameraSvc, nil),
+		flasherSvc:  appOTA.NewFlasherService(),
+		failoverSvc: appFailover.NewService("hub_primary", appFailover.RoleLeader, "", nil),
+		tagSvc:      tagSvc,
+		notifMgr:    notifMgr,
+		calSvc:      calSvc,
+		mediaSvc:    mediaSvc,
+		weatherCli:  weatherCli,
+		meshSvc:     meshSvc,
+		otaSvc:      otaSvc,
+		storeSvc:    storeSvc,
 	}
+}
+
+func (h *EcosystemHandler) WithLocalNVR(nvr *appCamera.LocalNVR) *EcosystemHandler {
+	h.localNVR = nvr
+	return h
+}
+
+func (h *EcosystemHandler) WithFlasher(flasher *appOTA.FlasherService) *EcosystemHandler {
+	h.flasherSvc = flasher
+	return h
+}
+
+func (h *EcosystemHandler) WithFailover(fo *appFailover.Service) *EcosystemHandler {
+	h.failoverSvc = fo
+	return h
 }
 
 // --- Cameras ---
@@ -381,3 +403,141 @@ func (h *EcosystemHandler) UninstallStorePackage(w http.ResponseWriter, r *http.
 	}
 	writeJSON(w, http.StatusOK, pkg)
 }
+
+// --- Local AI NVR ---
+func (h *EcosystemHandler) GetNVRStatus(w http.ResponseWriter, r *http.Request) {
+	if h.localNVR == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "nvr not initialized")
+		return
+	}
+	writeJSON(w, http.StatusOK, h.localNVR.GetStatus(r.Context()))
+}
+
+func (h *EcosystemHandler) GetCameraZones(w http.ResponseWriter, r *http.Request) {
+	cameraID := chi.URLParam(r, "id")
+	if h.localNVR == nil {
+		writeJSON(w, http.StatusOK, []appCamera.MotionZone{})
+		return
+	}
+	writeJSON(w, http.StatusOK, h.localNVR.GetZones(cameraID))
+}
+
+func (h *EcosystemHandler) AddCameraZone(w http.ResponseWriter, r *http.Request) {
+	cameraID := chi.URLParam(r, "id")
+	var zone appCamera.MotionZone
+	if err := json.NewDecoder(r.Body).Decode(&zone); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	zone.CameraID = cameraID
+	if h.localNVR != nil {
+		h.localNVR.AddZone(zone)
+	}
+	writeJSON(w, http.StatusCreated, zone)
+}
+
+func (h *EcosystemHandler) ProcessAIDetection(w http.ResponseWriter, r *http.Request) {
+	cameraID := chi.URLParam(r, "id")
+	var det appCamera.AIDetection
+	if err := json.NewDecoder(r.Body).Decode(&det); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	if h.localNVR == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "nvr not initialized")
+		return
+	}
+	evt, err := h.localNVR.ProcessDetection(r.Context(), cameraID, det)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "DETECTION_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, evt)
+}
+
+func (h *EcosystemHandler) GetEventClip(w http.ResponseWriter, r *http.Request) {
+	eventID := chi.URLParam(r, "id")
+	if h.localNVR == nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "nvr not initialized")
+		return
+	}
+	clip, err := h.localNVR.GetEventClip(eventID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, clip)
+}
+
+// --- WebSerial Firmware Flasher ---
+func (h *EcosystemHandler) ListFlasherFirmwares(w http.ResponseWriter, r *http.Request) {
+	if h.flasherSvc == nil {
+		h.flasherSvc = appOTA.NewFlasherService()
+	}
+	writeJSON(w, http.StatusOK, h.flasherSvc.ListFirmwares())
+}
+
+func (h *EcosystemHandler) GetFlasherManifest(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if h.flasherSvc == nil {
+		h.flasherSvc = appOTA.NewFlasherService()
+	}
+	fw, err := h.flasherSvc.GetFirmware(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, fw)
+}
+
+func (h *EcosystemHandler) GenerateFlasherProvision(w http.ResponseWriter, r *http.Request) {
+	if h.flasherSvc == nil {
+		h.flasherSvc = appOTA.NewFlasherService()
+	}
+	var req appOTA.ProvisionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	cfg, err := h.flasherSvc.GenerateProvisionConfig(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "PROVISION_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"config_payload": cfg,
+	})
+}
+
+// --- High Availability Failover ---
+func (h *EcosystemHandler) GetFailoverStatus(w http.ResponseWriter, r *http.Request) {
+	if h.failoverSvc == nil {
+		h.failoverSvc = appFailover.NewService("hub_primary", appFailover.RoleLeader, "", nil)
+	}
+	writeJSON(w, http.StatusOK, h.failoverSvc.GetStatus())
+}
+
+func (h *EcosystemHandler) ReceiveHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if h.failoverSvc == nil {
+		h.failoverSvc = appFailover.NewService("hub_primary", appFailover.RoleLeader, "", nil)
+	}
+	var pkt appFailover.HeartbeatPacket
+	if err := json.NewDecoder(r.Body).Decode(&pkt); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	resp := h.failoverSvc.ReceiveHeartbeat(pkt)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *EcosystemHandler) PromoteNode(w http.ResponseWriter, r *http.Request) {
+	if h.failoverSvc == nil {
+		h.failoverSvc = appFailover.NewService("hub_primary", appFailover.RoleLeader, "", nil)
+	}
+	if err := h.failoverSvc.PromoteToLeader("manual_http_request"); err != nil {
+		writeError(w, http.StatusInternalServerError, "PROMOTION_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, h.failoverSvc.GetStatus())
+}
+

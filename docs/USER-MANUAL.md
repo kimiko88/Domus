@@ -31,8 +31,17 @@
 18. [Mappa della Casa e Piani (Floor Plan)](#18-mappa-della-casa-e-piani-floor-plan)
 19. [Faccende Domestiche e Promemoria (Chores)](#19-faccende-domestiche-e-promemoria-chores)
 20. [App Mobile iOS e Android (Capacitor)](#20-app-mobile-ios-e-android-capacitor)
-21. [Risoluzione dei Problemi](#21-risoluzione-dei-problemi)
-22. [Domande Frequenti (FAQ)](#22-domande-frequenti-faq)
+21. [Ottimizzazione Dinamica Tariffe Energetiche (PUN / Nord Pool / Octopus)](#21-ottimizzazione-dinamica-tariffe-energetiche-pun--nord-pool--octopus)
+22. [Videosorveglianza & Visione AI (Local NVR con ONNX)](#22-videosorveglianza--visione-ai-local-nvr-con-onnx)
+23. [Flashing Firmware USB da Browser (WebSerial)](#23-flashing-firmware-usb-da-browser-webserial)
+24. [Designer Visuale Automazioni a Flowchart (Node-RED Nativo)](#24-designer-visuale-automazioni-a-flowchart-node-red-nativo)
+25. [Ridondanza Hardware & High Availability Failover Dual-Hub](#25-ridondanza-hardware--high-availability-failover-dual-hub)
+26. [Satelliti Vocali Always-On Multi-Stanza ("Ehi Domus")](#26-satelliti-vocali-always-on-multi-stanza-ehi-domus)
+27. [Centrale Allarme Integrata (Alarm Control Panel)](#27-centrale-allarme-integrata-alarm-control-panel)
+28. [Accoppiamento LAN 1-Click & Catalogo Marchi Zero-Cloud](#28-accoppiamento-lan-1-click--catalogo-marchi-zero-cloud)
+29. [Lista della Spesa Familiare Condivisa](#29-lista-della-spesa-familiare-condivisa)
+30. [Risoluzione dei Problemi](#30-risoluzione-dei-problemi)
+31. [Domande Frequenti (FAQ)](#31-domande-frequenti-faq)
 
 ---
 
@@ -602,7 +611,132 @@ npx cap sync
 
 ---
 
-## 21. Risoluzione dei Problemi
+## 21. Ottimizzazione Dinamica Tariffe Energetiche (PUN / Nord Pool / Octopus)
+
+Domus include un motore nativo per l'analisi dei prezzi dell'energia elettrica a mercato dinamico orario:
+
+- **Aggiornamento giornaliero automatico**: Domus scarica alle ore 13:00 i prezzi orari del **PUN** (Prezzo Unico Nazionale italiano), di **Nord Pool** (mercato nord-europeo) o le tariffe dinamiche di **Octopus Agile / Intelligent**.
+- **Visualizzazione Curva 24 Ore**: Nella pagina **Energia**, il grafico a barre interattivo evidenzia chiaramente le ore più costose (rosso), intermedie (arancione) e più economiche o a prezzo negativo (verde).
+- **Pianificazione Carichi Flessibili (Flexible Loads)**:
+  - Configura elettrodomestici energivori (pompa di calore, boiler, ricarica veicolo elettrico, lavatrice).
+  - Imposta la durata minima del ciclo (es. 3 ore) e la scadenza entro cui completare il carico (es. entro le 07:00 del mattino).
+  - L'algoritmo calcola la finestra oraria continua o distribuita a costo complessivo minimo ed invia i comandi di accensione e spegnimento in modo totalmente automatico.
+- **Integrazione Fotovoltaico e Contatori ad Impulsi**: Monitoraggio in tempo reale della produzione solare, immissione in rete e consumo istantaneo per massimizzare l'autoconsumo.
+
+> [!TIP]
+> Durante le giornate estive con forte sovrapproduzione rinnovabile o nei mercati con prezzi negativi, Domus può accendere automaticamente carichi termici (boiler ACS o raffrescamento) per sfruttare l'energia a costo zero.
+
+---
+
+## 22. Videosorveglianza & Visione AI (Local NVR con ONNX)
+
+Il modulo NVR (Network Video Recorder) locale di Domus trasforma qualsiasi telecamera RTSP o WebRTC in un sistema di videosorveglianza intelligente senza dipendere dal cloud:
+
+- **Pipeline Ultraleggera in Go**: Acquisizione flussi RTSP con transcoding a bassissimo impatto sulla CPU del Raspberry Pi 4.
+- **Riconoscimento Oggetti Locale con ONNX**: Inferenza locale per rilevare:
+  - 👤 **Persone**
+  - 🚗 **Veicoli** (auto, furgoni, biciclette)
+  - 📦 **Pacchi e consegne** sulla soglia di casa
+  - 🐾 **Animali domestici**
+- **Zone di Movimento Personalizzate (Motion Zones)**: Disegna aree poligonali d'interesse per ciascuna telecamera per evitare falsi positivi causati da rami mossi dal vento o strade pubbliche trafficate.
+- **Clip Animate Istantanee**: Alla rilevazione di un evento, Domus genera un video clip breve o uno snapshot animato WebP leggero, inviato immediatamente via notifica push sullo smartphone o mostrato nella **Timeline Eventi** della vista Telecamere.
+
+---
+
+## 23. Flashing Firmware USB da Browser (WebSerial)
+
+Con Domus non servono terminali, script Python o software esterni (come esptool o ESPHome-Flasher) per programmare schede microcontrollore:
+
+- **Standard WebSerial Nativo**: Collegando una scheda via cavo USB al computer o tablet (tramite browser Google Chrome, Edge od Opera), Domus comunica direttamente con la porta seriale USB.
+- **Catalogo Firmware Ufficiale Integrato**:
+  - **Tasmota**: Per interruttori Sonoff, prese smart Shelly o moduli relè generici.
+  - **WLED**: Per strisce LED RGB/ARGB (WS2812B, SK6812) con effetti luminosi avanzati.
+  - **ESPHome**: Firmware altamente personalizzabile con integrazione nativa Domus.
+  - **Sonoff Zigbee Dongle**: Firmware router o coordinatore per chiavette USB Zigbee (CC2652P, EFR32).
+- **Provisioning Wi-Fi Istantaneo**: Prima di avviare il flashing, puoi inserire SSID e password Wi-Fi; Domus inietterà i parametri di rete e la configurazione dell'hub nel firmware, consentendo al dispositivo di connettersi immediatamente alla LAN appena acceso.
+
+> [!NOTE]
+> La funzionalità WebSerial richiede un browser basato su Chromium con supporto per l'API WebSerial (Chrome 89+, Edge 89+).
+
+---
+
+## 24. Designer Visuale Automazioni a Flowchart (Node-RED Nativo)
+
+Oltre al costruttore di regole dichiarativo a blocchi, Domus integra un designer grafico di flowchart SVG per creare logiche complesse in stile Node-RED:
+
+- **Canvas Interattivo**: Posiziona ed organizza liberamente i nodi con il mouse o touch screen.
+- **Tipologie di Nodi**:
+  - **Trigger**: Cambi di stato entità, eventi temporali, coordinate solari, webhook in ingresso, scansione tag NFC.
+  - **Condizioni (Gates)**: Confronto numerico, stato persona (a casa/fuori), fasce orarie, modalità allarme attiva.
+  - **Azioni**: Controllo dispositivi, invio notifiche push azionabili, riproduzione annunci audio multi-room, attivazione scene.
+- **Simulazione Dry-Run in Tempo Reale**: Testa l'automazione simulando eventi fittizi; il grafico evidenzierà visivamente il percorso dei dati e l'esito dei controlli senza alterare lo stato reale dei dispositivi.
+- **Sincronizzazione Bidirezionale**: Le modifiche effettuate nel flowchart vengono salvate istantaneamente nel DSL JSON nativo di Domus, garantendo massima coerenza e portabilità.
+
+---
+
+## 25. Ridondanza Hardware & High Availability Failover Dual-Hub
+
+Per installazioni critiche dove un blocco del server non è accettabile, Domus supporta un'architettura di alta disponibilità a doppio nodo:
+
+- **Indirizzo IP Virtuale Condiviso (VIP Keepalived)**: Entrambi i nodi condividono un indirizzo IP virtuale galleggiante (es. `192.168.1.200`). Se il nodo primario subisce un'interruzione di corrente, il secondario assume il controllo in meno di 2 secondi.
+- **Sincronizzazione Delta WAL SQLite**: Le modifiche al database SQLite vengono replicate in streaming sul nodo di standby, garantendo integrità delle configurazioni e della telemetria senza perdita di dati.
+- **Heartbeat Continuo tra Nodi**: I due hub comunicano tramite ping crittografati UDP/REST. In caso di mancata risposta prolungata, scatta la procedura automatica di failover.
+- **Pannello di Stato e Promozione Manuale**: Nella scheda **Impostazioni** è possibile consultare lo stato dei nodi (Leader/Follower), l'offset di sincronizzazione e forzare la promozione manuale per manutenzione hardware programmata.
+
+---
+
+## 26. Satelliti Vocali Always-On Multi-Stanza ("Ehi Domus")
+
+Domus supporta una rete di microfoni satelliti distribuiti nelle stanze della casa (es. basati su Raspberry Pi Zero 2W o ESP32-S3 Box):
+
+- **Wake-Word Locale "Ehi Domus"**: Il riconoscimento della parola chiave avviene interamente a bordo del satellite tramite modello locale ultra-leggero, senza inviare audio continuo sulla rete.
+- **Streaming Audio Protetto via WebSocket**: Solo dopo aver rilevato la wake-word, il satellite apre uno stream audio locale verso l'hub Domus, dove il motore locale (Whisper / Piper) elabora il comando.
+- **Risoluzione Spaziale del Contesto**: Se dici *"Accendi la luce"* al satellite situato in Cucina, Domus sa automaticamente da quale stanza proviene la richiesta e accende la luce della Cucina, senza dover specificare il nome della stanza.
+- **Pulsante Privacy Hardware**: I satelliti supportano un interruttore di disattivazione fisica del microfono con indicatore LED di stato rosso per garantire riservatezza assoluta.
+
+---
+
+## 27. Centrale Allarme Integrata (Alarm Control Panel)
+
+Domus trasforma i sensori della casa in un sistema di sicurezza professionale:
+
+- **Quattro Modalità di Protezione**:
+  - `Disarmed`: Allarme disattivato per normale vita quotidiana.
+  - `Arm Home`: Protezione perimetrale (finestre, porte) attiva, sensori di movimento interni disattivati.
+  - `Arm Night`: Protezione perimetrale e zone giorno attive, camere da letto escluse.
+  - `Arm Away`: Tutti i sensori perimetrali e volumetrici attivi al 100%.
+- **PIN di Sicurezza & Ritardi**: Supporto PIN numerico per armo/disarmo, con timer configurabili per ritardo di uscita (es. 45s) e ritardo di ingresso (es. 30s).
+- **Bypass Zigbee Direct Binding**: I pulsanti SOS o i sensori chiave possono comunicare direttamente con le sirene anche in caso di riavvio software dell'hub.
+
+---
+
+## 28. Accoppiamento LAN 1-Click & Catalogo Marchi Zero-Cloud
+
+Aggiungere nuovi dispositivi a Domus non richiede cloud di terze parti o abbonamenti:
+
+- **Scansione Automatica LAN**: Domus ascolta i pacchetti mDNS, SSDP e broadcast di rete per individuare i dispositivi appena collegati al Wi-Fi.
+- **Supporto Marchi Nativo**:
+  - **Shelly (Gen1, Gen2, Gen3)**: Controllo via protocollo CoAP o RPC locale su porta 80.
+  - **Philips Hue Bridge**: Rilevamento bridge locale via SSDP e associazione con pressione del pulsante fisico.
+  - **TP-Link Kasa & Tapo**: Comunicazione crittografata locale su porta 9999 senza cloud TP-Link.
+  - **Nanoleaf & Yeelight**: Protocolli API Open locali per barre e pannelli luminosi.
+  - **Tuya Local**: Accoppiamento diretto basato sulle chiavi locali per prese, termostati e interruttori Smart Life.
+- **Associazione con 1-Click**: Un pulsante *"Associa"* nel catalogo configura automaticamente le entità (luci, interruttori, consumi) e le assegna alla stanza scelta.
+
+---
+
+## 29. Lista della Spesa Familiare Condivisa
+
+Una lista della spesa intelligente pensata per tutta la famiglia:
+
+- **Sincronizzazione Real-Time**: Qualsiasi aggiunta o spunta viene sincronizzata istantaneamente su tutti gli smartphone e tablet dei componenti della famiglia tramite WebSocket.
+- **Raggruppamento Intelligente per Reparto**: Gli articoli vengono categorizzati automaticamente (es. Ortofrutta, Latticini, Forno, Bevande, Cura della casa) per facilitare gli acquisti al supermercato.
+- **Integrazione con Assistente Vocale**: Puoi aggiungere prodotti semplicemente dicendo al satellite: *"Aggiungi il latte alla lista della spesa"*.
+- **Archiviazione Rapida**: Con un clic su *"Pulisci completati"* rimuovi tutti i prodotti acquistati mantenendo la lista ordinata.
+
+---
+
+## 30. Risoluzione dei Problemi
 
 ### `domus.local` non raggiungibile
 
@@ -646,19 +780,19 @@ busy_timeout_ms = 10000  # Aumenta a 10 secondi
 
 ---
 
-## 18. Domande Frequenti (FAQ)
+## 31. Domande Frequenti (FAQ)
 
 **D: Domus funziona senza connessione Internet?**  
-R: Sì. Tutte le funzioni core funzionano completamente offline. Internet serve solo per aggiornare il software e le integrazioni cloud opzionali.
+R: Sì. Tutte le funzioni core funzionano completamente offline. Internet serve solo per aggiornare il software, scaricare i prezzi PUN dell'energia o per integrazioni cloud opzionali.
 
 **D: Posso usare Domus senza Raspberry Pi?**  
 R: Sì. Domus gira su qualsiasi Linux x86-64 via Docker o installazione nativa.
 
 **D: Quanti dispositivi supporta Domus?**  
-R: Non c'è un limite fisso. Su Raspberry Pi 4 con 4 GB RAM, funziona correttamente con centinaia di entità MQTT simultanee.
+R: Non c'è un limite fisso. Su Raspberry Pi 4 con 4 GB RAM, funziona correttamente con centinaia di entità MQTT e flussi video simultanei.
 
 **D: I dati escono dalla mia rete?**  
-R: No, mai. Domus non trasmette dati a server remoti. Le integrazioni cloud opzionali comunicano direttamente con i cloud dei produttori, non tramite Domus.
+R: No, mai. Domus non trasmette dati a server remoti. Tutti i modelli di intelligenza artificiale (visione telecamere ed elaborazione voce) funzionano localmente.
 
 **D: Come aggiorno Domus OS?**  
 R: Domus OS usa aggiornamenti **A/B atomici** con RAUC. Un aggiornamento non riuscito ripristina automaticamente la slot precedente.
@@ -676,17 +810,23 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 |---|---|
 | **Auth** | `POST /api/v1/auth/login` · `GET /api/v1/auth/me` |
 | **Onboarding** | `POST /api/v1/auth/setup` |
-| **Inviti** | `POST /api/v1/family/invites` · `POST /api/v1/auth/register` |
-| **Entità** | `GET /api/v1/entities` · `POST /api/v1/entities/{id}/command` |
-| **Dispositivi** | `GET /api/v1/devices` |
-| **Aree** | `GET /api/v1/areas` · `POST /api/v1/areas` |
+| **Inviti & Famiglia** | `POST /api/v1/family/invites` · `GET /api/v1/family/members` · `PUT /api/v1/family/members/{id}/role` |
+| **Entità** | `GET /api/v1/entities` · `POST /api/v1/entities/{id}/command` · `GET /api/v1/entities/{id}/history` |
+| **Dispositivi & Mesh** | `GET /api/v1/devices` · `GET /api/v1/devices/bindings` · `POST /api/v1/devices/bindings` |
+| **Aree** | `GET /api/v1/areas` · `POST /api/v1/areas` · `PUT /api/v1/areas/{id}` · `DELETE /api/v1/areas/{id}` |
+| **Integrazioni & LAN** | `GET /api/v1/integrations` · `GET /api/v1/integrations/catalog` · `POST /api/v1/integrations/discovery/scan` · `POST /api/v1/integrations/discovery/pair` |
+| **Energia & Tariffe** | `GET /api/v1/energy/tariffs` · `GET /api/v1/energy/dynamic-tariffs` · `PUT /api/v1/energy/flexible-loads` · `POST /api/v1/energy/evaluate-tariffs` |
+| **Telecamere & NVR** | `GET /api/v1/cameras` · `GET /api/v1/cameras/nvr/status` · `POST /api/v1/cameras/{id}/webrtc` · `GET /api/v1/cameras/events` |
+| **Firmware & Flasher** | `GET /api/v1/ota/devices` · `GET /api/v1/ota/flasher/catalog` · `POST /api/v1/ota/flasher/provision` |
+| **Alta Disponibilità** | `GET /api/v1/system/failover/status` · `POST /api/v1/system/failover/promote` |
+| **Assistente Vocale** | `POST /api/v1/assistant/chat` · `GET /api/v1/assistant/satellites` · `POST /api/v1/assistant/satellites` |
+| **Centrale Allarme** | `GET /api/v1/alarm` · `POST /api/v1/alarm/arm` · `POST /api/v1/alarm/disarm` · `PUT /api/v1/alarm/config` |
+| **Lista della Spesa** | `GET /api/v1/shopping` · `POST /api/v1/shopping` · `POST /api/v1/shopping/{id}/toggle` · `POST /api/v1/shopping/clear-completed` |
 | **Mappa Piani** | `GET /api/v1/floors` · `POST /api/v1/floors` · `GET/PUT /api/v1/floors/{id}/markers` |
 | **Faccende Domestiche** | `GET /api/v1/chores` · `POST /api/v1/chores` · `POST /api/v1/chores/{id}/complete` |
-| **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` |
-| **Scene** | `POST /api/v1/scenes/{id}/activate` |
-| **Cronologia** | `GET /api/v1/entities/{id}/history?from=...&to=...` |
-| **Famiglia** | `GET /api/v1/family/members` · `PUT /api/v1/family/members/{id}/role` |
-| **Sistema** | `GET /api/v1/system/health` · `GET /api/v1/system/metrics` |
+| **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` · `POST /api/v1/automations/{id}/dry-run` |
+| **Scene** | `POST /api/v1/scenes/{id}/activate` · `GET /api/v1/scenes` |
+| **Sistema & Metriche** | `GET /api/v1/system/health` · `GET /api/v1/system/metrics` · `GET /api/v1/system/sun` |
 | **OS Diagnostica** | `GET /api/v1/system/diagnostics` · `GET /api/v1/system/diagnostics/export` |
 | **OS Manutenzione** | `POST /api/v1/system/maintenance/enable` · `POST /api/v1/system/maintenance/disable` |
 | **Audit** | `GET /api/v1/audit` |
@@ -711,4 +851,4 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 
 ---
 
-*Domus v1.0.0 — Ottobre 2026 · Licenza MIT*
+*Domus v1.2.0 — Ottobre 2026 · Licenza MIT*

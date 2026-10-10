@@ -315,3 +315,49 @@ func (h *FamilyHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type createGuestRequest struct {
+	Username   string `json:"username"`
+	Pin        string `json:"pin"`
+	ValidHours int    `json:"valid_hours"`
+	KioskMode  bool   `json:"kiosk_mode"`
+}
+
+// CreateGuest handles POST /api/v1/family/guests.
+func (h *FamilyHandler) CreateGuest(w http.ResponseWriter, r *http.Request) {
+	var req createGuestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "failed to parse request body")
+		return
+	}
+
+	guest, err := h.authService.CreateGuest(r.Context(), req.Username, req.Pin, req.ValidHours, req.KioskMode)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, guest)
+}
+
+// ListGuests handles GET /api/v1/family/guests.
+func (h *FamilyHandler) ListGuests(w http.ResponseWriter, r *http.Request) {
+	members, err := h.authService.ListFamilyMembers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+
+	var guests []*user.User
+	for _, m := range members {
+		if m.IsGuest || m.Role == user.RoleGuest {
+			guests = append(guests, m)
+		}
+	}
+	if guests == nil {
+		guests = []*user.User{}
+	}
+
+	writeJSON(w, http.StatusOK, guests)
+}
+

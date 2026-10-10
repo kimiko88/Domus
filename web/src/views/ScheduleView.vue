@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -10,6 +11,8 @@ import {
   FileText
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface TimeSlot {
   start: string
@@ -146,8 +149,8 @@ onMounted(async () => {
           <Clock :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Programmazione Oraria & Calendari</h1>
-          <p class="page-subtitle">Cronotermostato visuale a fasce orarie settimanali e integrazione eventi CalDAV / iCal</p>
+          <h1 class="page-title">{{ t('schedules.title') }}</h1>
+          <p class="page-subtitle">{{ t('schedules.subtitle') }}</p>
         </div>
       </div>
 

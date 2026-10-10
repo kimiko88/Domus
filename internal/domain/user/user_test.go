@@ -55,9 +55,19 @@ func TestUser_Validate(t *testing.T) {
 		u := &User{
 			Username:     "validname",
 			PasswordHash: "hash",
-			Role:         Role("guest"),
+			Role:         Role("unknown"),
 		}
 		assert.ErrorIs(t, u.Validate(), ErrInvalidRole)
+	})
+
+	t.Run("guest role is valid", func(t *testing.T) {
+		u := &User{
+			Username:     "guest_user",
+			PasswordHash: "hash",
+			Role:         RoleGuest,
+			IsGuest:      true,
+		}
+		assert.NoError(t, u.Validate())
 	})
 
 	t.Run("missing password hash", func(t *testing.T) {

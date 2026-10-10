@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   CheckSquare,
   Plus,
@@ -19,6 +20,7 @@ import { useAreasStore } from '../stores/areas'
 import { useNotificationsStore } from '../stores/notifications'
 import type { Chore, ChorePriority, ChoreRecurrence } from '../api/types'
 
+const { t } = useI18n()
 const choresStore = useChoresStore()
 const areasStore = useAreasStore()
 const notifStore = useNotificationsStore()
@@ -128,15 +130,15 @@ async function handleCreateChore() {
     <header class="chores-header">
       <div>
         <div class="title-with-badge">
-          <h1>Faccende Domestiche</h1>
+          <h1>{{ t('chores.title') }}</h1>
           <span class="badge-pill">{{ choresStore.pendingChores.length }} Da fare</span>
         </div>
-        <p class="subtitle">Gestisci compiti, pulizie e manutenzioni con promemoria e notifiche automatiche</p>
+        <p class="subtitle">{{ t('chores.subtitle') }}</p>
       </div>
 
       <button class="btn-primary" @click="showCreateModal = true">
         <Plus class="btn-icon" />
-        Nuova Faccenda
+        {{ t('chores.newChore') }}
       </button>
     </header>
 
@@ -168,7 +170,7 @@ async function handleCreateChore() {
         </div>
         <div class="stat-data">
           <span class="stat-value">{{ choresStore.completedChores.length }}</span>
-          <span class="stat-label">Completate</span>
+          <span class="stat-label">{{ t('chores.completed') }}</span>
         </div>
       </div>
     </div>
@@ -181,28 +183,28 @@ async function handleCreateChore() {
           :class="{ active: currentTab === 'all' }"
           @click="currentTab = 'all'"
         >
-          Tutte ({{ choresStore.chores.length }})
+          {{ t('chores.all') }} ({{ choresStore.chores.length }})
         </button>
         <button
           class="tab-btn"
           :class="{ active: currentTab === 'pending' }"
           @click="currentTab = 'pending'"
         >
-          Da Fare
+          {{ t('chores.pending') }}
         </button>
         <button
           class="tab-btn"
           :class="{ active: currentTab === 'overdue' }"
           @click="currentTab = 'overdue'"
         >
-          Scadute ({{ choresStore.overdueChores.length }})
+          {{ t('chores.overdue') }} ({{ choresStore.overdueChores.length }})
         </button>
         <button
           class="tab-btn"
           :class="{ active: currentTab === 'completed' }"
           @click="currentTab = 'completed'"
         >
-          Completate ({{ choresStore.completedChores.length }})
+          {{ t('chores.completed') }} ({{ choresStore.completedChores.length }})
         </button>
       </div>
     </div>

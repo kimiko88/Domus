@@ -162,6 +162,51 @@ func (s *Service) ExecuteAction(ctx context.Context, entityKey string, action st
 		default:
 			return fmt.Errorf("unknown timer action: %s", action)
 		}
+
+	case helper.DomainClimateCompensator:
+		var cfg helper.ClimateCompensatorConfig
+		_ = json.Unmarshal([]byte(h.ConfigJSON), &cfg)
+
+		switch action {
+		case "set_target":
+			if t, ok := params["temperature"].(float64); ok && t > 0 {
+				cfg.TargetTemperature = t
+			}
+		case "set_room_temp":
+			if t, ok := params["temperature"].(float64); ok {
+				cfg.CurrentRoomTemp = t
+			}
+		case "set_window":
+			if w, ok := params["open"].(bool); ok {
+				cfg.WindowOpen = w
+			}
+		case "sync":
+			// Full recalculation
+		default:
+			return fmt.Errorf("unknown climate_room_compensator action: %s", action)
+		}
+
+		compensated := helper.CalculateCompensatedSetpoint(cfg.TargetTemperature, cfg.CurrentRoomTemp, cfg.CalibrationFactor, cfg.WindowOpen)
+		cfg.CompensatedSetpoint = compensated
+		h.State = fmt.Sprintf("%.1f", compensated)
+		b, _ := json.Marshal(cfg)
+		h.ConfigJSON = string(b)
+
+		if s.bus != nil && cfg.TargetTRVKey != "" {
+			_ = s.bus.Publish(ctx, events.Event{
+				ID:         uuid.NewString(),
+				Type:       events.CommandRequested,
+				OccurredAt: time.Now().UTC(),
+				Source:     "helper:climate_room_compensator",
+				Payload: map[string]any{
+					"entity_key": cfg.TargetTRVKey,
+					"service":    "set_temperature",
+					"params": map[string]any{
+						"temperature": compensated,
+					},
+				},
+			})
+		}
 	}
 
 	if err := s.repo.Update(ctx, h); err != nil {

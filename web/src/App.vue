@@ -7,10 +7,13 @@ import { useWebSocket } from './composables/useWebSocket'
 import AppSidebar from './components/layout/AppSidebar.vue'
 import AppTopbar from './components/layout/AppTopbar.vue'
 import BaseToast from './components/ui/BaseToast.vue'
+import AppTourModal from './components/modals/AppTourModal.vue'
+import { useTourStore } from './stores/tour'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const wsStore = useWsStore()
+const tourStore = useTourStore()
 
 const isSidebarOpen = ref(false)
 
@@ -45,7 +48,17 @@ watch(
   { immediate: true }
 )
 
+watch(isAuthPage, (isAuth) => {
+  if (!isAuth) {
+    tourStore.checkAutoStart()
+  }
+})
+
 onMounted(() => {
+  if (!isAuthPage.value) {
+    tourStore.checkAutoStart()
+  }
+
   // Subscribe to all WS events and route them to wsStore
   subscribe('*', (payload, raw) => {
     const eventType = raw.event_type || raw.type
@@ -57,6 +70,7 @@ onMounted(() => {
 <template>
   <div class="app-layout">
     <BaseToast />
+    <AppTourModal />
 
     <!-- Fullscreen Auth / Setup View -->
     <div v-if="isAuthPage" class="auth-wrapper">

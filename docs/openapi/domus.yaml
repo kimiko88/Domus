@@ -252,6 +252,134 @@ components:
           type: string
           format: date-time
 
+    DynamicTariff:
+      type: object
+      properties:
+        source: { type: string, example: "PUN" }
+        currency: { type: string, example: "EUR/MWh" }
+        current_price: { type: number, example: 104.5 }
+        hourly_prices:
+          type: array
+          items:
+            type: object
+            properties:
+              hour: { type: integer, example: 14 }
+              price: { type: number, example: 89.2 }
+              category: { type: string, enum: [low, medium, high] }
+
+    FlexibleLoad:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        entity_id: { type: string }
+        power_w: { type: integer }
+        duration_minutes: { type: integer }
+        deadline_hour: { type: integer }
+        enabled: { type: boolean }
+
+    Camera:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        stream_url: { type: string }
+        area_id: { type: string, nullable: true }
+        ai_enabled: { type: boolean }
+        status: { type: string }
+
+    CameraZone:
+      type: object
+      properties:
+        id: { type: string }
+        camera_id: { type: string }
+        name: { type: string }
+        polygon:
+          type: array
+          items:
+            type: object
+            properties:
+              x: { type: number }
+              y: { type: number }
+
+    CameraEvent:
+      type: object
+      properties:
+        id: { type: string }
+        camera_id: { type: string }
+        label: { type: string, example: "person" }
+        confidence: { type: number, example: 0.94 }
+        timestamp: { type: string, format: date-time }
+        clip_url: { type: string, nullable: true }
+
+    FirmwareManifest:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        version: { type: string }
+        chip: { type: string, example: "ESP32" }
+        baud_rate: { type: integer, example: 460800 }
+        bin_url: { type: string }
+
+    FailoverStatus:
+      type: object
+      properties:
+        node_role: { type: string, enum: [primary, secondary] }
+        peer_address: { type: string }
+        peer_alive: { type: boolean }
+        vip_address: { type: string }
+        wal_sync_lag_bytes: { type: integer }
+        last_heartbeat_at: { type: string, format: date-time }
+
+    Satellite:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        area_id: { type: string }
+        ip_address: { type: string }
+        wake_word: { type: string, example: "Ehi Domus" }
+        muted: { type: boolean }
+        status: { type: string }
+
+    AlarmPanel:
+      type: object
+      properties:
+        state: { type: string, enum: [disarmed, armed_home, armed_away, armed_night, triggered, pending] }
+        changed_at: { type: string, format: date-time }
+        entry_delay_seconds: { type: integer }
+        exit_delay_seconds: { type: integer }
+
+    DeviceBinding:
+      type: object
+      properties:
+        id: { type: string }
+        source_device_id: { type: string }
+        target_device_id: { type: string }
+        cluster: { type: string, example: "on_off" }
+        created_at: { type: string, format: date-time }
+
+    ShoppingItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string, example: "produce" }
+        quantity: { type: string, example: "1 kg" }
+        completed: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    DiscoveredDevice:
+      type: object
+      properties:
+        id: { type: string }
+        brand: { type: string, example: "shelly" }
+        name: { type: string }
+        ip_address: { type: string }
+        mac_address: { type: string }
+        paired: { type: boolean }
+
 paths:
   /system/health:
     get:
@@ -653,6 +781,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/Area"
 
+  /areas/{id}:
+    get:
+      summary: Get area by ID
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Area"
+        "404":
+          description: Area not found
+    put:
+      summary: Update area
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Area"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Area"
+        "404":
+          description: Area not found
+    delete:
+      summary: Delete area
+      tags: [Areas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Area deleted
+        "404":
+          description: Area not found
+
   /automations:
     get:
       summary: List automations
@@ -764,6 +947,45 @@ paths:
                     state: { type: object }
                     recorded_at: { type: string, format: date-time }
 
+  # ── INTEGRATIONS ───────────────────────────────────────────────
+  /integrations:
+    get:
+      summary: List registered hardware and cloud integrations
+      tags: [Integrations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    type: { type: string }
+                    name: { type: string }
+                    enabled: { type: boolean }
+                    status: { type: string }
+                    last_error: { type: string }
+  /integrations/{id}/reconnect:
+    post:
+      summary: Trigger reconnection for an integration adapter
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  message: { type: string }
+
   # ── SYSTEM & METRICS ───────────────────────────────────────────
   /system/health:
     get:
@@ -834,3 +1056,639 @@ paths:
                         payload: { type: object }
                         created_at: { type: string, format: date-time }
                   total: { type: integer }
+
+  # ── ENERGY & DYNAMIC TARIFFS ───────────────────────────────────
+  /energy/tariffs:
+    get:
+      summary: Get active dynamic electricity tariffs
+      tags: [Energy]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DynamicTariff"
+
+  /energy/dynamic-tariffs:
+    get:
+      summary: Get 24-hour hourly dynamic prices curve
+      tags: [Energy]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    hour: { type: integer }
+                    price: { type: number }
+                    category: { type: string }
+
+  /energy/flexible-loads:
+    put:
+      summary: Update flexible appliance load schedules
+      tags: [Energy]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/FlexibleLoad"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "updated" }
+
+  /energy/evaluate-tariffs:
+    post:
+      summary: Manually trigger tariff evaluation and load rescheduling
+      tags: [Energy]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scheduled_loads: { type: integer }
+
+  # ── CAMERAS & AI COMPUTER VISION NVR ───────────────────────────
+  /cameras:
+    get:
+      summary: List registered cameras
+      tags: [Cameras]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Camera"
+    post:
+      summary: Register a new RTSP / WebRTC camera
+      tags: [Cameras]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Camera"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Camera"
+
+  /cameras/nvr/status:
+    get:
+      summary: Get local AI NVR pipeline status and statistics
+      tags: [Cameras]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running: { type: boolean }
+                  model: { type: string, example: "onnx-yolo-nano" }
+                  fps: { type: number }
+                  active_streams: { type: integer }
+
+  /cameras/{id}/webrtc:
+    post:
+      summary: Negotiate WebRTC session description (SDP)
+      tags: [Cameras]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sdp: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sdp: { type: string }
+
+  /cameras/{id}/zones:
+    get:
+      summary: List motion zones for a camera
+      tags: [Cameras]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CameraZone"
+    post:
+      summary: Save a motion zone for a camera
+      tags: [Cameras]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CameraZone"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CameraZone"
+
+  /cameras/events:
+    get:
+      summary: List AI detection vision events
+      tags: [Cameras]
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CameraEvent"
+
+  /cameras/events/{id}/clip:
+    get:
+      summary: Download or view animated event snapshot clip
+      tags: [Cameras]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            image/webp:
+              schema: { type: string, format: binary }
+            video/mp4:
+              schema: { type: string, format: binary }
+
+  # ── OTA & WEBSERIAL FIRMWARE FLASHER ───────────────────────────
+  /ota/devices:
+    get:
+      summary: List OTA-capable microcontrollers
+      tags: [OTA]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    current_version: { type: string }
+                    latest_version: { type: string }
+
+  /ota/flasher/catalog:
+    get:
+      summary: List firmwares supported by in-browser WebSerial flasher
+      tags: [OTA]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FirmwareManifest"
+
+  /ota/flasher/{id}/manifest:
+    get:
+      summary: Get binary manifest and flash partition offsets
+      tags: [OTA]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareManifest"
+
+  /ota/flasher/provision:
+    post:
+      summary: Generate Wi-Fi and MQTT provisioning payload for flashed MCU
+      tags: [OTA]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ssid, password]
+              properties:
+                ssid: { type: string }
+                password: { type: string }
+                hub_ip: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config_payload: { type: string }
+
+  # ── FAILOVER DUAL-HUB ──────────────────────────────────────────
+  /system/failover/status:
+    get:
+      summary: Get cluster high availability failover status
+      tags: [System]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailoverStatus"
+
+  /system/failover/heartbeat:
+    post:
+      summary: Receive peer heartbeat ping
+      tags: [System]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ack: { type: boolean }
+
+  /system/failover/promote:
+    post:
+      summary: Manually promote node to active cluster leader
+      tags: [System]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  promoted: { type: boolean }
+                  role: { type: string, example: "primary" }
+
+  # ── VOICE ASSISTANT & SATELLITES ───────────────────────────────
+  /assistant/chat:
+    post:
+      summary: Send prompt to local voice/text assistant
+      tags: [Assistant]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response: { type: string }
+
+  /assistant/config:
+    get:
+      summary: Get assistant configuration
+      tags: [Assistant]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled: { type: boolean }
+                  wake_word: { type: string }
+    put:
+      summary: Update assistant configuration
+      tags: [Assistant]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                wake_word: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+
+  /assistant/satellites:
+    get:
+      summary: List registered multi-room voice satellites
+      tags: [Assistant]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Satellite"
+    post:
+      summary: Register a new voice satellite
+      tags: [Assistant]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Satellite"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Satellite"
+
+  # ── ALARM CONTROL PANEL ────────────────────────────────────────
+  /alarm:
+    get:
+      summary: Get security alarm control panel state
+      tags: [Alarm]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlarmPanel"
+
+  /alarm/arm:
+    post:
+      summary: Arm alarm in specified mode
+      tags: [Alarm]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode, pin]
+              properties:
+                mode: { type: string, enum: [armed_home, armed_away, armed_night] }
+                pin: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlarmPanel"
+
+  /alarm/disarm:
+    post:
+      summary: Disarm alarm using PIN
+      tags: [Alarm]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlarmPanel"
+
+  /alarm/trigger:
+    post:
+      summary: Trigger emergency panic alarm
+      tags: [Alarm]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlarmPanel"
+
+  # ── MESH DIRECT BINDINGS ───────────────────────────────────────
+  /devices/bindings:
+    get:
+      summary: List Zigbee direct bindings
+      tags: [Mesh]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceBinding"
+    post:
+      summary: Create a direct device-to-device Zigbee binding
+      tags: [Mesh]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceBinding"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceBinding"
+
+  /devices/bindings/{id}:
+    delete:
+      summary: Remove a Zigbee direct binding
+      tags: [Mesh]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Binding deleted
+
+  # ── SHARED SHOPPING LIST ───────────────────────────────────────
+  /shopping:
+    get:
+      summary: List shared family shopping items
+      tags: [Shopping]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShoppingItem"
+    post:
+      summary: Add an item to the shopping list
+      tags: [Shopping]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShoppingItem"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingItem"
+
+  /shopping/{id}/toggle:
+    post:
+      summary: Toggle bought status of a shopping item
+      tags: [Shopping]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingItem"
+
+  /shopping/{id}:
+    delete:
+      summary: Remove an item from the shopping list
+      tags: [Shopping]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Item removed
+
+  /shopping/clear-completed:
+    post:
+      summary: Remove all completed items from the shopping list
+      tags: [Shopping]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removed: { type: integer }
+
+  # ── BRAND DISCOVERY & 1-CLICK LAN PAIRING ──────────────────────
+  /integrations/catalog:
+    get:
+      summary: List supported brand integrations catalog
+      tags: [Integrations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    brand: { type: string }
+                    name: { type: string }
+                    category: { type: string }
+                    icon: { type: string }
+
+  /integrations/discovery/devices:
+    get:
+      summary: List discovered LAN devices awaiting pairing
+      tags: [Integrations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiscoveredDevice"
+
+  /integrations/discovery/scan:
+    post:
+      summary: Trigger active network scan for smart home devices
+      tags: [Integrations]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  discovered_count: { type: integer }
+
+  /integrations/discovery/pair:
+    post:
+      summary: Pair a discovered LAN device with 1-click
+      tags: [Integrations]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id]
+              properties:
+                device_id: { type: string }
+                area_id: { type: string, nullable: true }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paired: { type: boolean }
+                  device_id: { type: string }

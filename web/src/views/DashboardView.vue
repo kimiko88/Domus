@@ -7,7 +7,8 @@ import LightCard from '../components/cards/LightCard.vue'
 import SwitchCard from '../components/cards/SwitchCard.vue'
 import SensorCard from '../components/cards/SensorCard.vue'
 import ClimateCard from '../components/cards/ClimateCard.vue'
-import { Lightbulb, Power, Radio, Thermometer, Sparkles } from '@lucide/vue'
+import AlarmControlPanelCard from '../components/cards/AlarmControlPanelCard.vue'
+import { Lightbulb, Power, Radio, Thermometer, Sparkles, Shield } from '@lucide/vue'
 import type { Entity } from '../api/types'
 
 const { t } = useI18n()
@@ -53,6 +54,7 @@ const filteredEntities = computed(() => {
 
 const filterOptions = computed(() => [
   { id: 'all', label: t('dashboard.filterAll'), icon: null },
+  { id: 'alarm', label: 'Allarme', icon: Shield },
   { id: 'light', label: t('dashboard.filterLights'), icon: Lightbulb },
   { id: 'switch', label: t('dashboard.filterSwitches'), icon: Power },
   { id: 'sensor', label: t('dashboard.filterSensors'), icon: Radio },
@@ -108,8 +110,13 @@ const filterOptions = computed(() => [
       </button>
     </div>
 
+    <!-- Alarm Control Panel View -->
+    <div v-if="activeDomainFilter === 'alarm'" class="alarm-view-container">
+      <AlarmControlPanelCard />
+    </div>
+
     <!-- Entity Grid -->
-    <div v-if="filteredEntities.length > 0" class="entity-grid">
+    <div v-else-if="filteredEntities.length > 0" class="entity-grid">
       <template v-for="entity in filteredEntities" :key="entity.id">
         <LightCard v-if="entity.domain === 'light'" :entity="entity" />
         <SwitchCard v-else-if="entity.domain === 'switch'" :entity="entity" />

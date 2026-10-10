@@ -61,6 +61,15 @@ const (
 
 	// OTAStateChanged fires when a device firmware upgrade state updates.
 	OTAStateChanged EventType = "ota.state_changed"
+
+	// AlarmTriggered fires when the security alarm enters triggered state.
+	AlarmTriggered EventType = "alarm.triggered"
+
+	// AlarmDisarmed fires when the security alarm is successfully disarmed.
+	AlarmDisarmed EventType = "alarm.disarmed"
+
+	// WebhookReceived fires when an inbound webhook is executed.
+	WebhookReceived EventType = "webhook.received"
 )
 
 // Event is the common envelope for all domain events.

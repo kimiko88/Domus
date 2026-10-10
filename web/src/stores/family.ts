@@ -100,13 +100,51 @@ export const useFamilyStore = defineStore('family', () => {
     }
   }
 
+  const guests = ref<FamilyMember[]>([])
+  const guestLoading = ref<boolean>(false)
+
+  async function fetchGuests(): Promise<void> {
+    guestLoading.value = true
+    try {
+      const data = await apiClient.get<{ guests: FamilyMember[], total: number }>('/api/v1/family/guests')
+      guests.value = data.guests || []
+    } catch {
+      // Graceful fallback for guests
+    } finally {
+      guestLoading.value = false
+    }
+  }
+
+  async function createGuest(username: string, pinCode: string, validHours: number = 24, kioskMode: boolean = false): Promise<FamilyMember> {
+    guestLoading.value = true
+    try {
+      const resp = await apiClient.post<FamilyMember>('/api/v1/family/guests', {
+        username,
+        pin_code: pinCode,
+        valid_hours: validHours,
+        kiosk_mode: kioskMode
+      })
+      await fetchGuests()
+      return resp
+    } catch (err: any) {
+      error.value = err?.message || 'Failed to create guest'
+      throw err
+    } finally {
+      guestLoading.value = false
+    }
+  }
+
   return {
     members,
     invites,
+    guests,
+    guestLoading,
     loading,
     error,
     fetchMembers,
     fetchInvites,
+    fetchGuests,
+    createGuest,
     createInvite,
     revokeInvite,
     updateMemberRole,

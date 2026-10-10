@@ -5,6 +5,69 @@ All notable changes to the Domus project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-10
+
+### Added
+- **Dynamic Energy Tariffs & Flexible Load Management (MS-12)**:
+  - **Tariff Ingestion Engine (`internal/domain/energy`, `internal/application/energy`)**:
+    - Daily ingestion and caching of hourly day-ahead electricity prices from Italian PUN, Nord Pool, and Octopus Agile.
+    - 24-hour interactive pricing curve visualization with low/medium/high threshold color-coding.
+    - Automated scheduling engine for flexible, power-hungry loads (heat pumps, EV charging, storage water heaters) at minimum or negative cost windows.
+    - REST endpoints: `GET /api/v1/energy/tariffs`, `GET /api/v1/energy/dynamic-tariffs`, `PUT /api/v1/energy/flexible-loads`, `POST /api/v1/energy/evaluate-tariffs`.
+- **Local AI Computer Vision NVR & WebRTC (MS-12)**:
+  - **NVR Pipeline (`internal/domain/camera`, `internal/application/camera`)**:
+    - Lightweight Go-native RTSP ingestion and low-latency WebRTC video streaming.
+    - Local ONNX object detection pipeline for zero-cloud classification (people, vehicles, packages, pets).
+    - Customizable polygonal motion detection zones per camera feed.
+    - Event clips generation and instant animated snapshot previews on mobile push notifications.
+    - REST endpoints: `GET /api/v1/cameras`, `POST /api/v1/cameras`, `GET /api/v1/cameras/nvr/status`, `POST /api/v1/cameras/{id}/webrtc`, `GET /api/v1/cameras/{id}/zones`, `POST /api/v1/cameras/{id}/zones`, `POST /api/v1/cameras/{id}/detect`, `GET /api/v1/cameras/events`, `GET /api/v1/cameras/events/{id}/clip`.
+- **In-Browser USB WebSerial Firmware Flasher (MS-12)**:
+  - **WebSerial Flashing Suite (`web/src/components/modals/FirmwareFlasherModal.vue`, `internal/application/ota`)**:
+    - Direct browser-to-MCU USB flashing using W3C WebSerial API (Chrome, Edge, Opera).
+    - Built-in firmware catalog for ESP32, ESP8266, Tasmota, WLED, ESPHome, and Sonoff Zigbee Dongles.
+    - Automatic baud rate negotiation, bootloader handshake, flash offset management, and real-time ANSI terminal logging.
+    - Wi-Fi provisioning injecting network credentials and hub IP directly into firmware images prior to flashing.
+    - REST endpoints: `GET /api/v1/ota/flasher/catalog`, `GET /api/v1/ota/flasher/{id}/manifest`, `POST /api/v1/ota/flasher/provision`.
+- **Visual Flowchart Automation Designer (MS-12)**:
+  - **SVG Flowchart Designer (`web/src/components/modals/AutomationFlowchartModal.vue`)**:
+    - Interactive Node-RED-style SVG canvas integrated in the automations view.
+    - Trigger, condition/gate, and action nodes with drag-and-drop connections.
+    - Real-time dry-run execution simulator tracing event propagation paths.
+    - Bidirectional serialization with Domus native JSON DSL.
+- **Dual-Hub High Availability Failover (MS-12)**:
+  - **HA & Replication Architecture (`internal/application/ecosystem`, `web/src/views/SettingsView.vue`)**:
+    - Keepalived Virtual IP (VIP) sharing between primary and secondary hub nodes.
+    - Real-time SQLite WAL delta streaming synchronization.
+    - Continuous heartbeat monitoring with automated sub-2s failover detection.
+    - Manual leader promotion via Settings view and REST API.
+    - REST endpoints: `GET /api/v1/system/failover/status`, `POST /api/v1/system/failover/heartbeat`, `POST /api/v1/system/failover/promote`.
+- **Multi-Room Always-On Voice Satellites (MS-12)**:
+  - **Voice & Satellite Architecture (`internal/application/assistant`, `web/src/components/modals/VoiceAssistantModal.vue`)**:
+    - Support for micro-satellites (Raspberry Pi Zero 2W, ESP32-S3 Box) with local "Ehi Domus" wake-word detection.
+    - Audio streaming over local WebSocket to the hub for transcription and intent parsing.
+    - Room-aware spatial context: automatic command resolution targeting entities in the satellite's room.
+    - Hardware privacy mute switch support and visual LED indicators.
+    - REST endpoints: `POST /api/v1/assistant/chat`, `GET /api/v1/assistant/config`, `PUT /api/v1/assistant/config`, `GET /api/v1/assistant/satellites`, `POST /api/v1/assistant/satellites`, `POST /api/v1/assistant/satellites/{id}/stream`.
+- **Zero-Cloud Brand Discovery & 1-Click LAN Pairing (MS-12)**:
+  - **Brand Ecosystem (`internal/application/brand`, `web/src/views/IntegrationsView.vue`)**:
+    - Local network discovery via mDNS, SSDP, and broadcast UDP packets.
+    - Native integration adapters for Philips Hue, Shelly (Gen1/Gen2/Gen3), TP-Link Kasa/Tapo, Nanoleaf, Yeelight, Tuya Local, and Zigbee2MQTT.
+    - 1-Click pairing UI in Integrations view mapping physical device endpoints into typed Domus entities.
+    - REST endpoints: `GET /api/v1/integrations/catalog`, `GET /api/v1/integrations/discovery/devices`, `POST /api/v1/integrations/discovery/scan`, `POST /api/v1/integrations/discovery/pair`.
+- **Security Alarm Control Panel & Zigbee Direct Binding (MS-12)**:
+  - **Security Panel & Mesh (`internal/domain/alarm`, `internal/application/alarm`, `internal/application/mesh`)**:
+    - Four security armed modes (Disarmed, Arm Home, Arm Night, Arm Away) with PIN validation and entry/exit delays.
+    - Zigbee direct binding manager enabling sensors to bind directly to actuators, working autonomously even when the hub is offline.
+    - REST endpoints: `GET /api/v1/alarm`, `POST /api/v1/alarm/arm`, `POST /api/v1/alarm/disarm`, `POST /api/v1/alarm/trigger`, `PUT /api/v1/alarm/config`, `GET /api/v1/devices/bindings`, `POST /api/v1/devices/bindings`, `DELETE /api/v1/devices/bindings/{id}`.
+- **Shared Family Shopping List (MS-12)**:
+  - **Collaborative Shopping (`internal/domain/shopping`, `internal/application/shopping`, `web/src/views/ShoppingListView.vue`)**:
+    - Real-time collaborative shopping checklist with WebSocket synchronization.
+    - Automatic grocery department categorization and one-click archiving of completed items.
+    - REST endpoints: `GET /api/v1/shopping`, `POST /api/v1/shopping`, `POST /api/v1/shopping/{id}/toggle`, `DELETE /api/v1/shopping/{id}`, `POST /api/v1/shopping/clear-completed`.
+- **Full Frontend Localization Parity (i18n)**:
+  - 100% key and subkey parity across all 5 supported languages (`it`, `en`, `fr`, `es`, `de`).
+  - Complete coverage across all views, dialogs, charts, flasher terminal, and navigation elements.
+
 ## [1.1.0] - 2026-10-04
 
 ### Added

@@ -25,6 +25,7 @@ import MediaPlayerView from '../views/MediaPlayerView.vue'
 import MeshMapView from '../views/MeshMapView.vue'
 import StoreView from '../views/StoreView.vue'
 import ShoppingListView from '../views/ShoppingListView.vue'
+import GuideView from '../views/GuideView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -146,6 +147,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'family',
     component: FamilyView,
     meta: { requiresAuth: true, title: 'Famiglia' }
+  },
+  {
+    path: '/guide',
+    name: 'guide',
+    component: GuideView,
+    meta: { requiresAuth: true, title: 'Guida & Manuale' }
   },
   {
     path: '/settings',

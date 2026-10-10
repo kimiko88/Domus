@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Network,
   Radio,
@@ -10,6 +11,8 @@ import {
   Info
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface MeshNode {
   id: string
@@ -92,6 +95,48 @@ const topology = ref<MeshTopology>({
 
 const selectedNode = ref<MeshNode | null>(null)
 
+// Zigbee Direct Mesh Binding State
+const bindings = ref<any[]>([])
+const isBindingModalOpen = ref(false)
+const sourceDeviceID = ref('')
+const sourceDeviceName = ref('')
+const targetDeviceID = ref('')
+const targetDeviceName = ref('')
+const selectedClusters = ref<string[]>(['genOnOff'])
+
+async function loadBindings() {
+  try {
+    const list = await apiClient.get<any[]>('/api/v1/devices/bindings')
+    if (list) bindings.value = list
+  } catch {}
+}
+
+async function handleCreateBinding() {
+  if (!sourceDeviceID.value.trim() || !targetDeviceID.value.trim()) return
+  try {
+    const b = await apiClient.post<any>('/api/v1/devices/bindings', {
+      source_device_id: sourceDeviceID.value.trim(),
+      source_device_name: sourceDeviceName.value.trim() || sourceDeviceID.value.trim(),
+      target_device_id: targetDeviceID.value.trim(),
+      target_device_name: targetDeviceName.value.trim() || targetDeviceID.value.trim(),
+      clusters: selectedClusters.value
+    })
+    if (b) bindings.value.push(b)
+    isBindingModalOpen.value = false
+    sourceDeviceID.value = ''
+    sourceDeviceName.value = ''
+    targetDeviceID.value = ''
+    targetDeviceName.value = ''
+  } catch {}
+}
+
+async function handleDeleteBinding(id: string) {
+  try {
+    await apiClient.delete(`/api/v1/devices/bindings/${id}`)
+    bindings.value = bindings.value.filter(b => b.id !== id)
+  } catch {}
+}
+
 async function loadTopology(proto: 'zigbee' | 'zwave' | 'thread') {
   currentProtocol.value = proto
   try {
@@ -104,6 +149,7 @@ async function loadTopology(proto: 'zigbee' | 'zwave' | 'thread') {
 
 onMounted(() => {
   loadTopology('zigbee')
+  loadBindings()
 })
 </script>
 
@@ -115,8 +161,8 @@ onMounted(() => {
           <Network :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Diagnostica Radio & Mappa Mesh</h1>
-          <p class="page-subtitle">Topologia della rete, qualità di segnale LQI e salti di routing per Zigbee, Z-Wave e Thread</p>
+          <h1 class="page-title">{{ t('mesh.title') }}</h1>
+          <p class="page-subtitle">{{ t('mesh.subtitle') }}</p>
         </div>
       </div>
 
@@ -225,6 +271,81 @@ onMounted(() => {
             <span>Batteria Residua:</span>
             <strong>{{ selectedNode.battery }}%</strong>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zigbee Direct Binding Section -->
+    <div class="mesh-binding-section glass-panel">
+      <div class="binding-header">
+        <div class="header-title-box">
+          <div class="icon-circle">
+            <Radio :size="24" class="text-primary" />
+          </div>
+          <div>
+            <h2 class="binding-title">Zigbee Direct Binding (Associazione Diretta Senza Hub)</h2>
+            <p class="binding-desc">Associa direttamente un telecomando wireless o pulsante a una lampadina/gruppo. Continua a funzionare istantaneamente anche se il server Domus è spento!</p>
+          </div>
+        </div>
+        <button class="proto-btn active" @click="isBindingModalOpen = true">
+          + Nuovo Legame Diretto
+        </button>
+      </div>
+
+      <div v-if="bindings.length === 0" class="binding-empty">
+        <Radio :size="32" class="empty-icon" />
+        <p>Nessun legame diretto attivo. Crea una connessione diretta hardware tra un interruttore e un dispositivo attuatore.</p>
+      </div>
+
+      <div v-else class="bindings-grid">
+        <div v-for="b in bindings" :key="b.id" class="binding-card">
+          <div class="binding-card-header">
+            <span class="source-tag">Sorgente: {{ b.source_device_name }}</span>
+            <span class="arrow-tag">➜</span>
+            <span class="target-tag">Destinazione: {{ b.target_device_name }}</span>
+          </div>
+          <div class="binding-card-body">
+            <span>Cluster: <code>{{ b.clusters?.join(', ') || 'genOnOff' }}</code></span>
+            <button class="unbind-btn" title="Rimuovi legame" @click="handleDeleteBinding(b.id)">
+              Elimina
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Binding Modal -->
+    <div v-if="isBindingModalOpen" class="modal-backdrop" @click.self="isBindingModalOpen = false">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <h3>Nuovo Binding Zigbee Diretto</h3>
+          <button class="close-btn" @click="isBindingModalOpen = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Dispositivo Sorgente (Telecomando/Interruttore)</label>
+            <input v-model="sourceDeviceName" type="text" placeholder="Nome (es. Telecomando Letto)" class="form-input" />
+            <input v-model="sourceDeviceID" type="text" placeholder="IEEE / ID Dispositivo" class="form-input" style="margin-top: 6px;" />
+          </div>
+
+          <div class="form-group">
+            <label>Dispositivo Destinazione (Lampadina/Relè/Gruppo)</label>
+            <input v-model="targetDeviceName" type="text" placeholder="Nome (es. Luce Comodino)" class="form-input" />
+            <input v-model="targetDeviceID" type="text" placeholder="IEEE / ID Dispositivo" class="form-input" style="margin-top: 6px;" />
+          </div>
+
+          <div class="form-group">
+            <label>Cluster Funzionale</label>
+            <select v-model="selectedClusters[0]" class="form-input">
+              <option value="genOnOff">Accensione/Spegnimento (genOnOff)</option>
+              <option value="genLevelCtrl">Dimming / Luminosità (genLevelCtrl)</option>
+              <option value="lightingColorCtrl">Colore / Temperatura (lightingColorCtrl)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="isBindingModalOpen = false">Annulla</button>
+          <button class="submit-btn" @click="handleCreateBinding">Crea Legame Diretto</button>
         </div>
       </div>
     </div>

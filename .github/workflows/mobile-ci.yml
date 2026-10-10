@@ -1,0 +1,48 @@
+name: Mobile Apps CI (Android & iOS)
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+
+jobs:
+  test-android:
+    name: Android (Unit, Integration, E2E)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run Android Unit & Contract Tests
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew test --stacktrace
+
+  test-ios:
+    name: iOS (Swift 6 DomusKit Tests)
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Run Swift Package Tests
+        working-directory: mobile/ios
+        run: swift test --verbose

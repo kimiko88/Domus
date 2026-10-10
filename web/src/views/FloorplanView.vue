@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Layers,
   Plus,
@@ -19,6 +20,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useNotificationsStore } from '../stores/notifications'
 import type { Floor, FloorMarker } from '../api/types'
 
+const { t } = useI18n()
 const floorStore = useFloorplanStore()
 const entitiesStore = useEntitiesStore()
 const notifStore = useNotificationsStore()
@@ -152,10 +154,10 @@ const unplacedEntities = computed(() => {
     <header class="floorplan-header">
       <div class="header-left">
         <div class="title-with-badge">
-          <h1>Mappa della Casa</h1>
+          <h1>{{ t('floorplan.title') }}</h1>
           <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} Piani</span>
         </div>
-        <p class="subtitle">Visualizza e controlla lo stato dei dispositivi su ogni piano in tempo reale</p>
+        <p class="subtitle">{{ t('floorplan.subtitle') }}</p>
       </div>
 
       <div class="header-actions">

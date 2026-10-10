@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/domus-hub/domus/internal/application/brand"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	"github.com/go-chi/chi/v5"
@@ -99,3 +100,30 @@ func TestIntegrationHandler_GetByIDAndReconnect(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
+
+func TestIntegrationHandler_BrandCatalogAndDiscovery(t *testing.T) {
+	repos, bus := setupTestEnvironment(t)
+	brandSvc := brand.NewService(repos.Devices, repos.Entities, repos.Integrations, bus, nil)
+	handler := handlers.NewIntegrationHandler(repos.Integrations, bus).WithBrandService(brandSvc)
+
+	// 1. Get Catalog
+	req := httptest.NewRequest(http.MethodGet, "/integrations/catalog", nil)
+	rr := httptest.NewRecorder()
+	handler.GetCatalog(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var catalog []brand.BrandCatalogEntry
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &catalog))
+	assert.NotEmpty(t, catalog)
+
+	// 2. List Discovered
+	req = httptest.NewRequest(http.MethodGet, "/integrations/discovery/devices", nil)
+	rr = httptest.NewRecorder()
+	handler.ListDiscovered(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var discovered []*brand.DiscoveredDevice
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &discovered))
+	assert.Empty(t, discovered)
+}
+

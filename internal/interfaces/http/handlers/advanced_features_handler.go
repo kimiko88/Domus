@@ -15,9 +15,10 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/matter"
 )
 
-// AdvancedFeaturesHandler handles HTTP endpoints for load shedding, presence, and sun calculation.
+// AdvancedFeaturesHandler handles HTTP endpoints for load shedding, dynamic tariffs, presence, and sun calculation.
 type AdvancedFeaturesHandler struct {
 	energyCtrl *energy.Controller
+	tariffOpt  *energy.TariffOptimizer
 	presence   *presence.Service
 	sun        *automation.SunEngine
 }
@@ -29,6 +30,12 @@ func NewAdvancedFeaturesHandler(energyCtrl *energy.Controller, presenceSvc *pres
 		presence:   presenceSvc,
 		sun:        sunEngine,
 	}
+}
+
+// WithTariffOptimizer attaches the dynamic energy tariff optimizer.
+func (h *AdvancedFeaturesHandler) WithTariffOptimizer(opt *energy.TariffOptimizer) *AdvancedFeaturesHandler {
+	h.tariffOpt = opt
+	return h
 }
 
 // GetLoadSheddingStatus handles GET /api/v1/energy/load-shedding.
@@ -206,4 +213,50 @@ func (h *AdvancedFeaturesHandler) CommissionMatter(w http.ResponseWriter, r *htt
 		"product_id":    payload.ProductID,
 	})
 }
+
+// GetDynamicTariffs handles GET /api/v1/energy/dynamic-tariffs.
+func (h *AdvancedFeaturesHandler) GetDynamicTariffs(w http.ResponseWriter, r *http.Request) {
+	if h.tariffOpt == nil {
+		h.tariffOpt = energy.NewTariffOptimizer(energy.MarketPUN, nil)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"schedule":       h.tariffOpt.GetSchedule(),
+		"current_tariff": h.tariffOpt.GetCurrentHourTariff(),
+		"flexible_loads": h.tariffOpt.GetFlexibleLoads(),
+	})
+}
+
+// UpdateFlexibleLoad handles PUT /api/v1/energy/flexible-loads.
+func (h *AdvancedFeaturesHandler) UpdateFlexibleLoad(w http.ResponseWriter, r *http.Request) {
+	if h.tariffOpt == nil {
+		h.tariffOpt = energy.NewTariffOptimizer(energy.MarketPUN, nil)
+	}
+
+	var rule energy.FlexibleLoadRule
+	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	h.tariffOpt.SetFlexibleLoad(rule)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":         "updated",
+		"flexible_loads": h.tariffOpt.GetFlexibleLoads(),
+	})
+}
+
+// EvaluateTariffs handles POST /api/v1/energy/evaluate-tariffs.
+func (h *AdvancedFeaturesHandler) EvaluateTariffs(w http.ResponseWriter, r *http.Request) {
+	if h.tariffOpt == nil {
+		h.tariffOpt = energy.NewTariffOptimizer(energy.MarketPUN, nil)
+	}
+
+	decisions := h.tariffOpt.EvaluateCurrentHour(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":    "evaluated",
+		"decisions": decisions,
+	})
+}
+
 

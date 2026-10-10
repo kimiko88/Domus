@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Zap,
   Sun,
@@ -11,9 +12,15 @@ import {
   Flame,
   ShieldAlert,
   Clock,
-  Sparkles
+  Sparkles,
+  Layers,
+  CalendarCheck,
+  Cpu,
+  CheckCircle
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface SankeyFlow {
   solar_watts: number
@@ -60,6 +67,139 @@ const tariffData = ref({
 const waterVolumeM3 = ref(14.85)
 const gasVolumeSmc = ref(122.40)
 
+interface HourlyTariff {
+  hour: number
+  price_per_kwh: number
+  slot: string
+  is_cheapest: boolean
+  is_expensive: boolean
+  is_negative: boolean
+}
+
+interface FlexibleLoad {
+  entity_key: string
+  name: string
+  required_hours: number
+  max_price_kwh: number
+  active_now: boolean
+  auto_schedule: boolean
+  scheduled_hours: number[]
+  estimated_cost_eur: number
+  savings_percent: number
+}
+
+const currentHour = ref(new Date().getHours())
+
+const dynamicTariffSchedule = ref<{
+  date: string
+  market: string
+  hourly_prices: HourlyTariff[]
+  average_price: number
+  min_price: number
+  max_price: number
+  cheapest_hours: number[]
+} | null>({
+  date: new Date().toISOString().slice(0, 10),
+  market: 'PUN (Mercato Elettrico Italiano)',
+  average_price: 0.124,
+  min_price: 0.052,
+  max_price: 0.245,
+  cheapest_hours: [1, 2, 3, 4, 13, 14],
+  hourly_prices: [
+    { hour: 0, price_per_kwh: 0.082, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 1, price_per_kwh: 0.065, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 2, price_per_kwh: 0.058, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 3, price_per_kwh: 0.052, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 4, price_per_kwh: 0.056, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 5, price_per_kwh: 0.071, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 6, price_per_kwh: 0.098, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 7, price_per_kwh: 0.145, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 8, price_per_kwh: 0.210, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
+    { hour: 9, price_per_kwh: 0.235, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
+    { hour: 10, price_per_kwh: 0.180, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 11, price_per_kwh: 0.140, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 12, price_per_kwh: 0.095, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 13, price_per_kwh: 0.062, slot: 'F1', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 14, price_per_kwh: 0.068, slot: 'F1', is_cheapest: true, is_expensive: false, is_negative: false },
+    { hour: 15, price_per_kwh: 0.110, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 16, price_per_kwh: 0.165, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 17, price_per_kwh: 0.220, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
+    { hour: 18, price_per_kwh: 0.245, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
+    { hour: 19, price_per_kwh: 0.230, slot: 'F2', is_cheapest: false, is_expensive: true, is_negative: false },
+    { hour: 20, price_per_kwh: 0.195, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 21, price_per_kwh: 0.150, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 22, price_per_kwh: 0.120, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
+    { hour: 23, price_per_kwh: 0.095, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false }
+  ]
+})
+
+const flexibleLoads = ref<FlexibleLoad[]>([
+  {
+    entity_key: 'switch.wallbox_auto',
+    name: 'Ricarica Auto Elettrica (Wallbox)',
+    required_hours: 4,
+    max_price_kwh: 0.10,
+    active_now: false,
+    auto_schedule: true,
+    scheduled_hours: [1, 2, 3, 4],
+    estimated_cost_eur: 1.48,
+    savings_percent: 42
+  },
+  {
+    entity_key: 'climate.heat_pump_dhw',
+    name: 'Scaldabagno Pompa di Calore (ACS)',
+    required_hours: 2,
+    max_price_kwh: 0.09,
+    active_now: false,
+    auto_schedule: true,
+    scheduled_hours: [2, 3],
+    estimated_cost_eur: 0.35,
+    savings_percent: 36
+  },
+  {
+    entity_key: 'switch.lavatrice_smart',
+    name: 'Lavatrice con Partenza Ritardata',
+    required_hours: 2,
+    max_price_kwh: 0.12,
+    active_now: false,
+    auto_schedule: true,
+    scheduled_hours: [13, 14],
+    estimated_cost_eur: 0.28,
+    savings_percent: 29
+  }
+])
+
+const evaluating = ref(false)
+
+function getBarHeight(price: number): number {
+  const max = dynamicTariffSchedule.value?.max_price || 0.3
+  return Math.max(16, Math.min(100, Math.round((price / max) * 100)))
+}
+
+function toggleAutoSchedule(load: FlexibleLoad) {
+  load.auto_schedule = !load.auto_schedule
+}
+
+async function fetchDynamicTariffs() {
+  try {
+    const res = await apiClient.get<any>('/api/v1/energy/dynamic-tariffs')
+    if (res) {
+      if (res.schedule && res.schedule.hourly_prices?.length) dynamicTariffSchedule.value = res.schedule
+      if (res.flexible_loads && res.flexible_loads.length) flexibleLoads.value = res.flexible_loads
+    }
+  } catch {}
+}
+
+async function triggerOptimize() {
+  evaluating.value = true
+  try {
+    await apiClient.post('/api/v1/energy/evaluate-tariffs', {})
+    await fetchDynamicTariffs()
+  } catch {} finally {
+    evaluating.value = false
+  }
+}
+
 onMounted(async () => {
   try {
     const f = await apiClient.get<SankeyFlow>('/api/v1/energy/flow')
@@ -70,6 +210,8 @@ onMounted(async () => {
     const t = await apiClient.get<any>('/api/v1/energy/tariffs')
     if (t) tariffData.value = t
   } catch {}
+
+  await fetchDynamicTariffs()
 })
 </script>
 
@@ -81,8 +223,8 @@ onMounted(async () => {
           <Zap :size="24" class="text-warning" />
         </div>
         <div>
-          <h1 class="page-title">Monitoraggio Energetico & Flusso Solare</h1>
-          <p class="page-subtitle">Vettori energetici in tempo reale, fasce orarie ARERA e telemetria utenze</p>
+          <h1 class="page-title">{{ t('energy.title') }}</h1>
+          <p class="page-subtitle">{{ t('energy.subtitle') }}</p>
         </div>
       </div>
     </header>
@@ -92,7 +234,7 @@ onMounted(async () => {
       <div class="summary-card solar">
         <Sun :size="24" class="text-warning" />
         <div class="card-meta">
-          <span class="meta-label">Produzione Solare</span>
+          <span class="meta-label">{{ t('energy.solar') }}</span>
           <span class="meta-val">{{ flow.solar_watts }} W</span>
         </div>
       </div>
@@ -100,23 +242,23 @@ onMounted(async () => {
       <div class="summary-card battery">
         <Battery :size="24" class="text-info" />
         <div class="card-meta">
-          <span class="meta-label">Batteria ({{ flow.battery_soc }}%)</span>
-          <span class="meta-val">{{ Math.abs(flow.battery_watts) }} W {{ flow.battery_watts < 0 ? 'Carica' : 'Scarica' }}</span>
+          <span class="meta-label">{{ t('energy.battery') }} ({{ flow.battery_soc }}%)</span>
+          <span class="meta-val">{{ Math.abs(flow.battery_watts) }} W {{ flow.battery_watts < 0 ? t('energy.charge') : t('energy.discharge') }}</span>
         </div>
       </div>
 
       <div class="summary-card grid">
         <Zap :size="24" class="text-primary" />
         <div class="card-meta">
-          <span class="meta-label">Rete Elettrica</span>
-          <span class="meta-val">{{ flow.grid_watts < 0 ? 'Immissione ' + Math.abs(flow.grid_watts) + ' W' : 'Prelievo ' + flow.grid_watts + ' W' }}</span>
+          <span class="meta-label">{{ t('energy.grid') }}</span>
+          <span class="meta-val">{{ flow.grid_watts < 0 ? t('energy.export') + ' ' + Math.abs(flow.grid_watts) + ' W' : t('energy.import') + ' ' + flow.grid_watts + ' W' }}</span>
         </div>
       </div>
 
       <div class="summary-card house">
         <Home :size="24" class="text-success" />
         <div class="card-meta">
-          <span class="meta-label">Consumo Casa</span>
+          <span class="meta-label">{{ t('energy.house') }}</span>
           <span class="meta-val">{{ flow.house_consumption_watts }} W</span>
         </div>
       </div>
@@ -124,7 +266,7 @@ onMounted(async () => {
 
     <!-- Sankey Flow Diagram SVG -->
     <section class="sankey-section glass-panel">
-      <h2 class="section-title">Diagramma di Sankey Vettori Energetici</h2>
+      <h2 class="section-title">{{ t('energy.sankeyTitle') }}</h2>
       <div class="sankey-svg-wrapper">
         <svg viewBox="0 0 800 360" class="sankey-svg">
           <defs>
@@ -209,18 +351,164 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- Dynamic Tariffs (PUN / Nord Pool / Octopus) & Flexible Loads Scheduler -->
+    <section v-if="dynamicTariffSchedule" class="dynamic-tariffs-section glass-panel">
+      <div class="dynamic-header">
+        <div class="title-cluster">
+          <div class="dynamic-badge-icon">
+            <TrendingDown :size="20" class="text-emerald" />
+          </div>
+          <div>
+            <h2 class="section-title">{{ t('energy.dynamicTitle') }}</h2>
+            <p class="section-sub">
+              {{ t('energy.dynamicSubtitle') }}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-optimize-pun"
+          :disabled="evaluating"
+          @click="triggerOptimize"
+        >
+          <Sparkles :size="16" :class="{ 'spin-anim': evaluating }" />
+          <span>{{ evaluating ? t('energy.optimizing') : t('energy.optimizeNow') }}</span>
+        </button>
+      </div>
+
+      <!-- PUN Key Figures Bar -->
+      <div class="pun-metrics-row">
+        <div class="pun-stat-box">
+          <span class="pun-stat-lbl">{{ t('energy.marketAndDate') }}</span>
+          <span class="pun-stat-val">{{ dynamicTariffSchedule.market }} ({{ dynamicTariffSchedule.date }})</span>
+        </div>
+        <div class="pun-stat-box cheapest">
+          <span class="pun-stat-lbl">{{ t('energy.minPrice') }}</span>
+          <span class="pun-stat-val text-emerald">{{ dynamicTariffSchedule.min_price.toFixed(3) }} €/kWh</span>
+        </div>
+        <div class="pun-stat-box">
+          <span class="pun-stat-lbl">{{ t('energy.avgPrice') }}</span>
+          <span class="pun-stat-val">{{ dynamicTariffSchedule.average_price.toFixed(3) }} €/kWh</span>
+        </div>
+        <div class="pun-stat-box peak">
+          <span class="pun-stat-lbl">{{ t('energy.maxPrice') }}</span>
+          <span class="pun-stat-val text-rose">{{ dynamicTariffSchedule.max_price.toFixed(3) }} €/kWh</span>
+        </div>
+      </div>
+
+      <!-- 24-Hour Price Bar Chart -->
+      <div class="hourly-chart-container">
+        <div class="chart-header-row">
+          <span class="chart-title"><Clock :size="15" /> {{ t('energy.hourlyCurve') }}</span>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="color-dot cheapest"></span> {{ t('energy.legendMin') }}</span>
+            <span class="legend-item"><span class="color-dot regular"></span> {{ t('energy.legendNormal') }}</span>
+            <span class="legend-item"><span class="color-dot peak"></span> {{ t('energy.legendPeak') }}</span>
+            <span class="legend-item"><span class="color-dot now"></span> {{ t('energy.legendNow') }}</span>
+          </div>
+        </div>
+
+        <div class="hourly-bars-grid">
+          <div
+            v-for="item in dynamicTariffSchedule.hourly_prices"
+            :key="item.hour"
+            class="hourly-bar-col"
+            :class="{
+              'is-current': item.hour === currentHour,
+              'is-cheapest': item.is_cheapest,
+              'is-expensive': item.is_expensive
+            }"
+          >
+            <div class="bar-tooltip">
+              <strong>{{ String(item.hour).padStart(2, '0') }}:00</strong>
+              <span>{{ item.price_per_kwh.toFixed(3) }} €/kWh</span>
+              <span class="tooltip-slot">{{ item.slot }}</span>
+            </div>
+
+            <div class="bar-fill-track">
+              <div
+                class="bar-fill"
+                :style="{ height: getBarHeight(item.price_per_kwh) + '%' }"
+              />
+            </div>
+
+            <span class="bar-hour-label">{{ String(item.hour).padStart(2, '0') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flexible Loads Scheduler Grid -->
+      <div class="flexible-loads-section">
+        <div class="sub-header">
+          <Layers :size="18" class="text-primary" />
+          <h3 class="sub-title">{{ t('energy.flexibleTitle') }}</h3>
+        </div>
+
+        <div class="flexible-loads-grid">
+          <div
+            v-for="load in flexibleLoads"
+            :key="load.entity_key"
+            class="flexible-load-card"
+          >
+            <div class="load-card-top">
+              <div>
+                <h4 class="load-name">{{ load.name }}</h4>
+                <span class="load-key font-mono">{{ load.entity_key }}</span>
+              </div>
+              <button
+                type="button"
+                class="toggle-switch"
+                :class="{ active: load.auto_schedule }"
+                @click="toggleAutoSchedule(load)"
+                :title="load.auto_schedule ? 'Disattiva schedulazione automatica' : 'Attiva schedulazione automatica'"
+              >
+                <span class="toggle-thumb" />
+              </button>
+            </div>
+
+            <div class="load-meta-row">
+              <div class="meta-item">
+                <span class="lbl">{{ t('energy.optWindow') }}:</span>
+                <span class="val scheduled-badge">
+                  {{ load.scheduled_hours.map(h => String(h).padStart(2, '0') + ':00').join(', ') }}
+                </span>
+              </div>
+              <div class="meta-item">
+                <span class="lbl">{{ t('energy.duration') }}:</span>
+                <span class="val">{{ load.required_hours }}h</span>
+              </div>
+              <div class="meta-item">
+                <span class="lbl">{{ t('energy.maxPriceThreshold') }}:</span>
+                <span class="val">&le; {{ load.max_price_kwh }} €/kWh</span>
+              </div>
+            </div>
+
+            <div class="load-card-footer">
+              <span class="cost-stat">
+                {{ t('energy.estCost') }}: <strong>{{ load.estimated_cost_eur.toFixed(2) }} €</strong>
+              </span>
+              <span class="savings-tag">
+                {{ t('energy.savings') }} -{{ load.savings_percent }}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Tariffs & Utilities Grid -->
     <div class="bottom-grid">
       <!-- Italian Dynamic Tariffs (PUN / F1, F2, F3) -->
       <section class="tariff-card glass-panel">
         <div class="card-header">
           <Clock :size="20" class="text-primary" />
-          <h3 class="card-title">Tariffe Elettriche Fasce PUN (ARERA)</h3>
+          <h3 class="card-title">{{ t('energy.areraTitle') }}</h3>
         </div>
 
         <div class="tariff-status-row">
           <div class="slot-pill active">
-            <span class="slot-name">Fascia Attuale: {{ tariffData.current_slot }}</span>
+            <span class="slot-name">{{ t('energy.currentSlot') }}: {{ tariffData.current_slot }}</span>
             <span class="slot-price">{{ tariffData.current_price }} €/kWh</span>
           </div>
         </div>
@@ -245,7 +533,7 @@ onMounted(async () => {
       <section class="utilities-card glass-panel">
         <div class="card-header">
           <Droplets :size="20" class="text-info" />
-          <h3 class="card-title">Monitoraggio Acqua e Gas</h3>
+          <h3 class="card-title">{{ t('energy.utilitiesTitle') }}</h3>
         </div>
 
         <div class="utility-items">
@@ -254,7 +542,7 @@ onMounted(async () => {
               <Droplets :size="22" />
             </div>
             <div class="u-meta">
-              <span class="u-title">Contatore Acqua Sanitaria</span>
+              <span class="u-title">{{ t('energy.waterMeter') }}</span>
               <span class="u-val">{{ waterVolumeM3.toFixed(2) }} m³</span>
               <span class="u-cost">Costo stimato: {{ (waterVolumeM3 * tariffData.tariffs.water_m3_price).toFixed(2) }} €</span>
             </div>
@@ -265,7 +553,7 @@ onMounted(async () => {
               <Flame :size="22" />
             </div>
             <div class="u-meta">
-              <span class="u-title">Contatore Gas Metano</span>
+              <span class="u-title">{{ t('energy.gasMeter') }}</span>
               <span class="u-val">{{ gasVolumeSmc.toFixed(2) }} Smc</span>
               <span class="u-cost">Costo stimato: {{ (gasVolumeSmc * tariffData.tariffs.gas_smc_price).toFixed(2) }} €</span>
             </div>
@@ -506,5 +794,416 @@ onMounted(async () => {
 .u-cost {
   font-size: 0.8rem;
   color: #10b981;
+}
+
+/* Dynamic Tariffs Section & 24h Bar Chart */
+.dynamic-tariffs-section {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  margin-bottom: 1.5rem;
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dynamic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.title-cluster {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.dynamic-badge-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-sub {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin: 0.25rem 0 0;
+  max-width: 680px;
+}
+
+.btn-optimize-pun {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-optimize-pun:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+}
+
+.btn-optimize-pun:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.spin-anim {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pun-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.pun-stat-box {
+  background: rgba(31, 41, 55, 0.4);
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pun-stat-lbl {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pun-stat-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.text-emerald {
+  color: #10b981 !important;
+}
+
+.text-rose {
+  color: #f43f5e !important;
+}
+
+/* 24-Hour Price Bar Chart */
+.hourly-chart-container {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.chart-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.chart-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.color-dot.cheapest {
+  background: #10b981;
+}
+
+.color-dot.regular {
+  background: #6366f1;
+}
+
+.color-dot.peak {
+  background: #f43f5e;
+}
+
+.color-dot.now {
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.hourly-bars-grid {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 6px;
+  align-items: flex-end;
+  height: 160px;
+  padding-bottom: 24px;
+  position: relative;
+}
+
+.hourly-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+  cursor: pointer;
+}
+
+.bar-fill-track {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #6366f1, #4338ca);
+  transition: height 0.4s ease;
+}
+
+.hourly-bar-col.is-cheapest .bar-fill {
+  background: linear-gradient(180deg, #10b981, #059669);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.hourly-bar-col.is-expensive .bar-fill {
+  background: linear-gradient(180deg, #f43f5e, #be123c);
+}
+
+.hourly-bar-col.is-current {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.bar-hour-label {
+  position: absolute;
+  bottom: -22px;
+  font-size: 0.7rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.hourly-bar-col.is-current .bar-hour-label {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.bar-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.hourly-bar-col:hover .bar-tooltip {
+  display: flex;
+}
+
+.tooltip-slot {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+/* Flexible Loads Grid */
+.flexible-loads-section {
+  margin-top: 1.5rem;
+}
+
+.sub-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.sub-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0;
+}
+
+.flexible-loads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.flexible-load-card {
+  background: rgba(31, 41, 55, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.85rem;
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  transition: border-color 0.2s ease;
+}
+
+.flexible-load-card:hover {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.load-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.load-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.load-key {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.toggle-switch {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  padding: 2px;
+  transition: background 0.25s ease;
+}
+
+.toggle-switch.active {
+  background: #10b981;
+}
+
+.toggle-thumb {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.25s ease;
+}
+
+.toggle-switch.active .toggle-thumb {
+  transform: translateX(18px);
+}
+
+.load-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.4);
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.5rem;
+}
+
+.meta-item {
+  display: flex;
+  justify-content: space-between;
+}
+
+.meta-item .lbl {
+  color: #94a3b8;
+}
+
+.meta-item .val {
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+.scheduled-badge {
+  color: #10b981 !important;
+  font-weight: 700 !important;
+}
+
+.load-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding-top: 0.25rem;
+}
+
+.cost-stat {
+  color: #94a3b8;
+}
+
+.savings-tag {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 </style>

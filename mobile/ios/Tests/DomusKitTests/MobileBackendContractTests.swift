@@ -1,0 +1,68 @@
+import XCTest
+@testable import DomusKit
+
+final class MobileBackendContractTests: XCTestCase {
+
+    func testWebSocketEventContractDecoding() throws {
+        let jsonString = """
+        {
+            "type": "event",
+            "id": 42,
+            "event": {
+                "entity_id": "light.kitchen",
+                "new_state": {
+                    "entity_id": "light.kitchen",
+                    "state": "on",
+                    "attributes": {
+                        "brightness": 90,
+                        "friendly_name": "Luce Cucina"
+                    },
+                    "last_changed": "2026-10-10T20:00:00Z",
+                    "last_updated": "2026-10-10T20:00:00Z"
+                }
+            }
+        }
+        """
+
+        let data = jsonString.data(using: .utf8)!
+        let msg = try JSONDecoder().decode(DomusWsMessage.self, from: data)
+
+        XCTAssertEqual(msg.type, "event")
+        XCTAssertEqual(msg.id, 42)
+        XCTAssertNotNil(msg.event)
+
+        let snapshot = msg.event?.newState
+        XCTAssertEqual(snapshot?.entityId, "light.kitchen")
+        XCTAssertEqual(snapshot?.state, "on")
+        XCTAssertEqual(snapshot?.attributes["brightness"]?.value as? Int, 90)
+    }
+
+    func testRestEntitiesContractDecoding() throws {
+        let jsonString = """
+        [
+            {
+                "id": "climate.main_thermostat",
+                "name": "Termostato Principale",
+                "domain": "climate",
+                "state": "heat",
+                "attributes": {
+                    "current_temperature": 21.5,
+                    "target_temperature": 22.0
+                },
+                "areaId": "living_room",
+                "lastChanged": "2026-10-10T19:00:00Z",
+                "lastUpdated": "2026-10-10T19:00:00Z"
+            }
+        ]
+        """
+
+        let data = jsonString.data(using: .utf8)!
+        let entities = try JSONDecoder().decode([Entity].self, from: data)
+
+        XCTAssertEqual(entities.count, 1)
+        let thermostat = entities[0]
+        XCTAssertEqual(thermostat.id, "climate.main_thermostat")
+        XCTAssertEqual(thermostat.isClimate, true)
+        XCTAssertEqual(thermostat.currentTemperature, 21.5)
+    }
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Sliders,
   ToggleLeft,
@@ -11,15 +12,18 @@ import {
   Plus,
   Trash2,
   CheckCircle,
-  Sparkles
+  Sparkles,
+  Thermometer
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface Helper {
   id: string
   entity_key: string
   name: string
-  domain: 'input_boolean' | 'input_number' | 'timer'
+  domain: 'input_boolean' | 'input_number' | 'timer' | 'climate_room_compensator'
   state: string
   config_json: string
 }
@@ -61,12 +65,17 @@ const helpers = ref<Helper[]>([
 
 const showCreateModal = ref(false)
 const newName = ref('')
-const newDomain = ref<'input_boolean' | 'input_number' | 'timer'>('input_boolean')
+const newDomain = ref<'input_boolean' | 'input_number' | 'timer' | 'climate_room_compensator'>('input_boolean')
 const newMin = ref(10)
 const newMax = ref(30)
 const newStep = ref(0.5)
 const newUnit = ref('°C')
 const newDurationSec = ref(300)
+const newTrvKey = ref('')
+const newRoomTempKey = ref('')
+const newWindowKey = ref('')
+const newTargetTemp = ref(20.0)
+const newDeltaFactor = ref(1.5)
 
 async function loadHelpers() {
   try {
@@ -128,6 +137,12 @@ async function createHelper() {
     payload.initial_val = Number(newMin.value)
   } else if (newDomain.value === 'timer') {
     payload.duration_sec = Number(newDurationSec.value)
+  } else if (newDomain.value === 'climate_room_compensator') {
+    payload.trv_entity_key = newTrvKey.value
+    payload.room_temp_sensor_key = newRoomTempKey.value
+    payload.window_sensor_key = newWindowKey.value
+    payload.target_temperature = Number(newTargetTemp.value)
+    payload.delta_factor = Number(newDeltaFactor.value)
   }
 
   try {
@@ -160,14 +175,14 @@ onMounted(() => {
           <Sliders :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Entità Virtuali & Helper</h1>
-          <p class="page-subtitle">Crea interruttori logici, cursori numerici e timer controllabili da automazioni</p>
+          <h1 class="page-title">{{ t('helpers.title') }}</h1>
+          <p class="page-subtitle">{{ t('helpers.subtitle') }}</p>
         </div>
       </div>
 
       <button class="create-btn" @click="showCreateModal = true">
         <Plus :size="18" />
-        <span>Nuovo Helper</span>
+        <span>{{ t('helpers.newHelper') }}</span>
       </button>
     </header>
 
@@ -177,9 +192,9 @@ onMounted(() => {
         <div class="card-top">
           <div class="helper-info">
             <component
-              :is="h.domain === 'input_boolean' ? ToggleLeft : h.domain === 'input_number' ? Hash : Timer"
+              :is="h.domain === 'input_boolean' ? ToggleLeft : h.domain === 'input_number' ? Hash : h.domain === 'timer' ? Timer : Thermometer"
               :size="20"
-              :class="h.domain === 'input_boolean' ? 'text-primary' : h.domain === 'input_number' ? 'text-warning' : 'text-info'"
+              :class="h.domain === 'input_boolean' ? 'text-primary' : h.domain === 'input_number' ? 'text-warning' : h.domain === 'timer' ? 'text-info' : 'text-danger'"
             />
             <div>
               <h3 class="helper-name">{{ h.name }}</h3>
@@ -236,6 +251,24 @@ onMounted(() => {
             </button>
           </div>
         </div>
+
+        <!-- 4. Climate Room Compensator (Better Thermostat) -->
+        <div v-else-if="h.domain === 'climate_room_compensator'" class="card-action climate-action">
+          <div class="climate-metric-row">
+            <div>
+              <span class="metric-label">Target Stanza</span>
+              <div class="metric-val">{{ parseConfig(h).target_temperature || 20 }}°C</div>
+            </div>
+            <div>
+              <span class="metric-label">TRV Dinamico</span>
+              <div class="metric-val text-warning">{{ h.state }}°C</div>
+            </div>
+          </div>
+          <div class="climate-targets-info">
+            <span>Sensore: <code>{{ parseConfig(h).room_temp_sensor_key }}</code></span>
+            <span>Valvola: <code>{{ parseConfig(h).trv_entity_key }}</code></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -255,7 +288,33 @@ onMounted(() => {
             <option value="input_boolean">Interruttore Booleano (input_boolean)</option>
             <option value="input_number">Cursore Numerico (input_number)</option>
             <option value="timer">Conto alla Rovescia (timer)</option>
+            <option value="climate_room_compensator">Compensatore Termostati (Better Thermostat)</option>
           </select>
+        </div>
+
+        <div v-if="newDomain === 'climate_room_compensator'" class="compensator-opts">
+          <div class="form-group">
+            <label>Valvola Termostatica (TRV)</label>
+            <input v-model="newTrvKey" type="text" placeholder="climate.valvola_salotto" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Sensore Temperatura Stanza</label>
+            <input v-model="newRoomTempKey" type="text" placeholder="sensor.temperatura_salotto" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label>Sensore Finestra Aperta (opzionale)</label>
+            <input v-model="newWindowKey" type="text" placeholder="binary_sensor.finestra_salotto" class="form-input" />
+          </div>
+          <div class="number-opts-grid">
+            <div class="form-group">
+              <label>Temperatura Target (°C)</label>
+              <input v-model.number="newTargetTemp" type="number" step="0.5" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label>Fattore Offset (1.0 - 2.5)</label>
+              <input v-model.number="newDeltaFactor" type="number" step="0.1" class="form-input" />
+            </div>
+          </div>
         </div>
 
         <div v-if="newDomain === 'input_number'" class="number-opts-grid">

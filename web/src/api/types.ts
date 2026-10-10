@@ -1,9 +1,14 @@
-export type UserRole = 'admin' | 'operator' | 'viewer'
+export type UserRole = 'admin' | 'operator' | 'viewer' | 'guest'
 
 export interface User {
   id: string
   username: string
   role: UserRole
+  email?: string
+  is_guest?: boolean
+  guest_expires_at?: string
+  pin_code?: string
+  kiosk_mode?: boolean
   created_at: string
   updated_at: string
 }
@@ -233,6 +238,10 @@ export interface FamilyMember {
   email?: string
   role: UserRole
   enabled: boolean
+  is_guest?: boolean
+  guest_expires_at?: string
+  pin_code?: string
+  kiosk_mode?: boolean
   created_at: string
 }
 
@@ -359,4 +368,83 @@ export interface Chore {
   last_completed_by?: string
   created_at: string
   updated_at: string
+}
+
+// 1. Alarm Control Panel
+export type AlarmState = 'disarmed' | 'armed_home' | 'armed_away' | 'armed_night' | 'pending' | 'triggered'
+
+export interface AlarmControlPanel {
+  id: string
+  name: string
+  state: AlarmState
+  entry_delay_seconds: number
+  exit_delay_seconds: number
+  trigger_delay_seconds: number
+  perimeter_sensors: string[]
+  interior_sensors: string[]
+  siren_entities: string[]
+  last_changed_by?: string
+  last_triggered_reason?: string
+  triggered_at?: string
+  updated_at: string
+}
+
+// 2. Local Voice & LLM Assistant
+export interface AssistantActionExecuted {
+  entity_key: string
+  service: string
+  params?: Record<string, any>
+  success: boolean
+  message: string
+}
+
+export interface AssistantChatResponse {
+  user_prompt: string
+  response_text: string
+  actions_executed: AssistantActionExecuted[]
+  engine_used: string
+  execution_time_ms: number
+}
+
+export interface AssistantConfig {
+  ollama_url: string
+  model: string
+  enabled: boolean
+  system_prompt: string
+}
+
+// 3. Inbound Webhooks
+export interface InboundWebhook {
+  id: string
+  name: string
+  webhook_id: string
+  secret_token: string
+  allowed_methods: string
+  enabled: boolean
+  trigger_count: number
+  last_triggered_at?: string
+  created_at: string
+}
+
+// 4. Zigbee Direct Binding
+export interface ZigbeeBinding {
+  id: string
+  source_device_id: string
+  source_device_name: string
+  target_device_id: string
+  target_device_name: string
+  clusters: string[]
+  bound_at: string
+}
+
+// 5. Better Thermostat (Climate Room Compensator)
+export interface ClimateCompensatorConfig {
+  trv_entity_key: string
+  room_temp_sensor_key: string
+  window_sensor_key?: string
+  target_temperature: number
+  delta_factor: number
+  current_room_temp?: number
+  compensated_setpoint?: number
+  window_open?: boolean
 }

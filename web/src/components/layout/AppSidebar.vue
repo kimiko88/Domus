@@ -21,7 +21,8 @@ import {
   Music,
   Radio,
   ShoppingBag,
-  ShoppingCart
+  ShoppingCart,
+  BookOpen
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -62,6 +63,7 @@ const navItems = [
   { name: 'Storico', labelKey: 'nav.history', path: '/history', icon: Activity },
   { name: 'Audit', labelKey: 'nav.audit', path: '/audit', icon: ShieldCheck },
   { name: 'Famiglia', labelKey: 'nav.family', path: '/family', icon: Users },
+  { name: 'Guida & Manuale', labelKey: 'nav.guide', path: '/guide', icon: BookOpen },
   { name: 'Impostazioni', labelKey: 'nav.settings', path: '/settings', icon: Settings }
 ]
 

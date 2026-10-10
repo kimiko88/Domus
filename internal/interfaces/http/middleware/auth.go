@@ -55,13 +55,19 @@ func GetSession(ctx context.Context) *user.Session {
 	return nil
 }
 
-// Authenticate extracts and validates the session cookie, attaching User & Session to context.
+// Authenticate extracts and validates the session cookie or Bearer token, attaching User & Session to context.
 func Authenticate(authService *auth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(SessionCookieName)
-			if err == nil && cookie.Value != "" {
-				u, sess, err := authService.ValidateSession(r.Context(), cookie.Value)
+			token := ""
+			if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+			} else if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
+				token = cookie.Value
+			}
+
+			if token != "" {
+				u, sess, err := authService.ValidateSession(r.Context(), token)
 				if err == nil && u != nil && sess != nil {
 					ctx := WithUser(r.Context(), u)
 					ctx = WithSession(ctx, sess)

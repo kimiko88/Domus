@@ -19,6 +19,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatalf("failed to open memory db: %v", err)
 	}
+	db.SetMaxOpenConns(1)
 
 	createTable := `
 	CREATE TABLE user_helpers (
@@ -109,8 +110,55 @@ func TestHelperService_Operations(t *testing.T) {
 		t.Fatal("timed out waiting for timer.finished event")
 	}
 
-	h, _ = svc.GetByID(ctx, "timer_1")
+	h, err := svc.GetByID(ctx, "timer_1")
+	if err != nil {
+		t.Fatalf("get timer_1 failed: %v", err)
+	}
 	if h.State != "idle" {
 		t.Errorf("expected timer state idle after finish, got %s", h.State)
 	}
+
+	// 4. Test Climate Room Compensator (Better Thermostat)
+	compH := domainHelper.NewClimateCompensator("comp_1", "Termostato Smart Salotto", "climate.salotto_compensator", "climate.valvola_salotto", "sensor.temperatura_salotto", "binary_sensor.finestra_salotto", 20.0, 1.5)
+	if err := svc.Create(ctx, compH); err != nil {
+		t.Fatalf("failed to create compensator: %v", err)
+	}
+
+	// Channel to capture CommandRequested sent to target TRV
+	trvCmdCh := make(chan map[string]any, 5)
+	bus.Subscribe(events.CommandRequested, func(c context.Context, e events.Event) error {
+		if payload, ok := e.Payload.(map[string]any); ok {
+			trvCmdCh <- payload
+		}
+		return nil
+	})
+
+	// When room temperature is 18.0°C and target is 20.0°C with factor 1.5:
+	// delta = 2.0, compensated = 20.0 + (2.0 * 1.5) = 23.0°C!
+	err = svc.ExecuteAction(ctx, "climate.salotto_compensator", "set_room_temp", map[string]any{"temperature": 18.0})
+	if err != nil {
+		t.Fatalf("set_room_temp failed: %v", err)
+	}
+
+	h, _ = svc.GetByID(ctx, "comp_1")
+	if h.State != "23.0" {
+		t.Errorf("expected compensated setpoint 23.0, got %s", h.State)
+	}
+
+	select {
+	case cmd := <-trvCmdCh:
+		if cmd["entity_key"] != "climate.valvola_salotto" {
+			t.Errorf("expected target TRV climate.valvola_salotto, got %v", cmd["entity_key"])
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for TRV set_temperature command")
+	}
+
+	// Window open should drop TRV to frost protection (5.0°C)
+	_ = svc.ExecuteAction(ctx, "climate.salotto_compensator", "set_window", map[string]any{"open": true})
+	h, _ = svc.GetByID(ctx, "comp_1")
+	if h.State != "5.0" {
+		t.Errorf("expected 5.0 when window open, got %s", h.State)
+	}
 }
+

@@ -190,7 +190,8 @@ func (m *DeviceMapper) MapBridgeDevices(payload []byte) ([]*MappedDevice, []*ent
 				if name == "" {
 					name = exp.Property
 				}
-				if name == "temperature" || name == "humidity" || name == "battery" || name == "power" || name == "voltage" {
+				switch name {
+				case "temperature", "humidity", "battery", "power", "voltage":
 					unit := exp.Unit
 					if unit == "" {
 						switch name {
@@ -219,7 +220,7 @@ func (m *DeviceMapper) MapBridgeDevices(payload []byte) ([]*MappedDevice, []*ent
 						LastUpdatedAt:     now,
 					}
 					allEntities = append(allEntities, ent)
-				} else if name == "contact" || name == "occupancy" || name == "motion" || name == "water_leak" {
+				case "contact", "occupancy", "motion", "water_leak":
 					ent := &entity.Entity{
 						ID:            uuid.NewString(),
 						DeviceID:      devID,

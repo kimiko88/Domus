@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Volume2,
   VolumeX,
@@ -12,6 +13,8 @@ import {
   Music
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t } = useI18n()
 
 interface MediaPlayer {
   id: string
@@ -108,8 +111,8 @@ onMounted(async () => {
           <Music :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Audio Multi-room & Riproduzione Multimediale</h1>
-          <p class="page-subtitle">Sincronizzazione speaker Google Cast / AirPlay 2 e diffusione annunci vocali Piper TTS</p>
+          <h1 class="page-title">{{ t('media.title') }}</h1>
+          <p class="page-subtitle">{{ t('media.subtitle') }}</p>
         </div>
       </div>
 
