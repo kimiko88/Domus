@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// Screensaver notturno OLED per Tablet a parete — Fase 5.
 /// Mostra orologio minimale, meteo e consumi riducendo al minimo la luminosità.

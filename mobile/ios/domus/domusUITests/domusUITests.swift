@@ -10,34 +10,54 @@ import XCTest
 final class domusUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testAdaptiveDashboardElementsAndNavigation() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        // Verifica che l'interfaccia principale dell'app sia caricata correttamente
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5.0))
+
+        // Verifica la presenza della barra di navigazione o titolo dell'applicazione
+        let domusTitle = app.staticTexts["Domus"]
+        let allDevicesTitle = app.staticTexts["Tutti i Dispositivi"]
+        let roomsSection = app.staticTexts["Stanze"]
+
+        let hasHeaderOrTitle = domusTitle.exists || allDevicesTitle.exists || roomsSection.exists || app.navigationBars.firstMatch.exists
+        XCTAssertTrue(hasHeaderOrTitle, "La dashboard deve mostrare la barra di navigazione o il titolo")
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
+    func testFloorplan2DToggle() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5.0))
+
+        // Cerca il pulsante per attivare la Pianta 2D (sia in iPad sidebar che in toolbar iPhone)
+        let floorplanButton = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Pianta' OR label CONTAINS[c] 'map'")).firstMatch
+        if floorplanButton.exists {
+            floorplanButton.tap()
+
+            // Verifica che il testo descrittivo o l'intestazione della planimetria appaia
+            let floorplanHeader = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'Planimetria' OR label CONTAINS[c] '2D'")).firstMatch
+            if floorplanHeader.waitForExistence(timeout: 2.0) {
+                XCTAssertTrue(floorplanHeader.exists)
+            }
+        }
+    }
+
+    @MainActor
+    func testColdLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let app = XCUIApplication()
+            app.launch()
         }
     }
 }

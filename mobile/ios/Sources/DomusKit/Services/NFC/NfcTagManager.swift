@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(CoreNFC) && os(iOS)
-import CoreNFC
+@preconcurrency import CoreNFC
 #endif
 
 /// Modello di un Tag NFC letto o programmato.
@@ -125,6 +125,15 @@ public final class NfcTagManager: NSObject, ObservableObject {
 // MARK: - NFCNDEFReaderSessionDelegate
 
 #if canImport(CoreNFC) && os(iOS)
+private struct NfcWriteContext: @unchecked Sendable {
+    let session: NFCNDEFReaderSession
+    let tag: NFCNDEFTag
+}
+
+private struct NfcSessionBox: @unchecked Sendable {
+    let session: NFCNDEFReaderSession
+}
+
 extension NfcTagManager: NFCNDEFReaderSessionDelegate {
     public nonisolated func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
         guard let message = messages.first, let record = message.records.first else { return }
@@ -137,72 +146,80 @@ extension NfcTagManager: NFCNDEFReaderSessionDelegate {
             extractedUri = text
         }
 
-        Task { @MainActor in
+        let box = NfcSessionBox(session: session)
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
             let tag = self.parseDomusUri(extractedUri)
             self.lastReadTag = tag
             self.lastStatusMessage = "Tag letto con successo!"
             Haptics.success()
             self.onTagScanned?(tag)
-            session.alertMessage = "Operazione Domus eseguita!"
-            session.invalidate()
+            box.session.alertMessage = "Operazione Domus eseguita!"
+            box.session.invalidate()
             self.isSessionActive = false
         }
     }
 
     public nonisolated func readerSession(_ session: NFCNDEFReaderSession, didDetect tags: [NFCNDEFTag]) {
-        Task { @MainActor in
-            guard case .write(let uri) = self.currentMode else { return }
-            guard let tag = tags.first else { return }
+        guard let tag = tags.first else { return }
+        let ctx = NfcWriteContext(session: session, tag: tag)
 
-            session.connect(to: tag) { error in
-                if error != nil {
-                    session.invalidate(errorMessage: "Errore di connessione al tag")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard case .write(let uri) = self.currentMode else { return }
+            self.writeTag(ctx: ctx, uri: uri)
+        }
+    }
+
+    private nonisolated func writeTag(ctx: NfcWriteContext, uri: String) {
+        ctx.session.connect(to: ctx.tag) { [weak self] error in
+            if error != nil {
+                ctx.session.invalidate(errorMessage: "Errore di connessione al tag")
+                return
+            }
+
+            ctx.tag.queryNDEFStatus { [weak self] status, capacity, error in
+                guard error == nil else {
+                    ctx.session.invalidate(errorMessage: "Errore durante la verifica del tag")
                     return
                 }
 
-                tag.queryNDEFStatus { status, capacity, error in
-                    guard error == nil else {
-                        session.invalidate(errorMessage: "Errore durante la verifica del tag")
+                switch status {
+                case .notSupported:
+                    ctx.session.invalidate(errorMessage: "Tag non compatibile NDEF")
+                case .readOnly:
+                    ctx.session.invalidate(errorMessage: "Tag in sola lettura")
+                case .readWrite:
+                    guard let url = URL(string: uri), let payload = NFCNDEFPayload.wellKnownTypeURIPayload(url: url) else {
+                        ctx.session.invalidate(errorMessage: "URL non valido")
                         return
                     }
-
-                    switch status {
-                    case .notSupported:
-                        session.invalidate(errorMessage: "Tag non compatibile NDEF")
-                    case .readOnly:
-                        session.invalidate(errorMessage: "Tag in sola lettura")
-                    case .readWrite:
-                        guard let url = URL(string: uri), let payload = NFCNDEFPayload.wellKnownTypeURIPayload(url: url) else {
-                            session.invalidate(errorMessage: "URL non valido")
-                            return
-                        }
-                        let message = NFCNDEFMessage(records: [payload])
-                        tag.writeNDEF(message) { writeError in
-                            if writeError != nil {
-                                session.invalidate(errorMessage: "Scrittura fallita")
-                            } else {
-                                session.alertMessage = "Tag Domus programmato con successo!"
-                                session.invalidate()
-                                Task { @MainActor in
-                                    Haptics.success()
-                                    self.lastStatusMessage = "Tag scritto: \(uri)"
-                                    self.isSessionActive = false
-                                }
+                    let message = NFCNDEFMessage(records: [payload])
+                    ctx.tag.writeNDEF(message) { [weak self] writeError in
+                        if writeError != nil {
+                            ctx.session.invalidate(errorMessage: "Scrittura fallita")
+                        } else {
+                            ctx.session.alertMessage = "Tag Domus programmato con successo!"
+                            ctx.session.invalidate()
+                            Task { @MainActor [weak self] in
+                                Haptics.success()
+                                self?.lastStatusMessage = "Tag scritto: \(uri)"
+                                self?.isSessionActive = false
                             }
                         }
-                    @unknown default:
-                        session.invalidate(errorMessage: "Stato tag sconosciuto")
                     }
+                @unknown default:
+                    ctx.session.invalidate(errorMessage: "Stato tag sconosciuto")
                 }
             }
         }
     }
 
-
     public nonisolated func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
-        Task { @MainActor in
-            self.isSessionActive = false
-            self.lastStatusMessage = "Sessione NFC terminata"
+        Task { @MainActor [weak self] in
+            self?.isSessionActive = false
+            self?.lastStatusMessage = "Sessione NFC terminata"
         }
     }
 }
