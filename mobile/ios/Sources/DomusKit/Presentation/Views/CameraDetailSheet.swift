@@ -8,6 +8,7 @@ public struct CameraDetailSheet: View {
     @State private var isLiveActive: Bool = true
     @State private var lastRefreshedAt: Date = Date()
     @State private var isFullscreen: Bool = false
+    @ObservedObject private var pipManager = PictureInPictureManager.shared
 
     public init(entity: Entity, onRefresh: @escaping (String) -> Void) {
         self.entity = entity
@@ -102,6 +103,18 @@ public struct CameraDetailSheet: View {
                                 .foregroundColor(isLiveActive ? .orange : .green)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+
+                        Button(action: {
+                            Haptics.medium()
+                            pipManager.togglePictureInPicture(cameraEntityId: entity.id)
+                        }) {
+                            Image(systemName: pipManager.isPiPActive ? "pip.exit" : "pip.enter")
+                                .font(.system(size: 16, weight: .bold))
+                                .padding(12)
+                                .background(pipManager.isPiPActive ? Color.blue.opacity(0.2) : Color.secondary.opacity(0.12))
+                                .foregroundColor(pipManager.isPiPActive ? .blue : .primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                     }
                     .padding(.horizontal)
 
@@ -135,6 +148,17 @@ public struct CameraDetailSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
+                        Haptics.medium()
+                        pipManager.togglePictureInPicture(cameraEntityId: entity.id)
+                    }) {
+                        Image(systemName: pipManager.isPiPActive ? "pip.exit" : "pip.enter")
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
         }
     }
 

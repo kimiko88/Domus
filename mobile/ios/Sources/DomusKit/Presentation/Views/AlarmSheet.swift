@@ -9,6 +9,7 @@ public struct AlarmSheet: View {
     @State private var pinCode: String = ""
     @State private var selectedAction: String? = nil    // "alarm_arm_home", "alarm_arm_away", "alarm_disarm"
     @State private var isError: Bool = false
+    @StateObject private var biometricManager = LocalAuthenticationManager()
 
     private let maxPinLength = 6
 
@@ -32,6 +33,9 @@ public struct AlarmSheet: View {
 
                     // Selettore Azione Desiderata
                     actionSelector
+
+                    // Sblocco rapido biometrico Face ID / Touch ID
+                    biometricButtonView
 
                     // Indicatore cifre PIN inserite (dots)
                     pinDotsView
@@ -118,6 +122,43 @@ public struct AlarmSheet: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(color, lineWidth: isSelected ? 2 : 0)
             )
+        }
+    }
+
+    private var biometricButtonView: some View {
+        Button(action: {
+            authenticateWithBiometrics()
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: biometricManager.biometryType == .touchID ? "touchid" : "faceid")
+                    .font(.system(size: 18, weight: .bold))
+                Text(biometricManager.biometryType == .touchID ? "Sblocca con Touch ID" : "Sblocca con Face ID")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(Color.blue)
+            .clipShape(Capsule())
+            .shadow(color: Color.blue.opacity(0.3), radius: 6, x: 0, y: 3)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func authenticateWithBiometrics() {
+        Haptics.selection()
+        Task {
+            let res = await biometricManager.authenticate(reason: "Disarma l'allarme Domus con la tua identità")
+            switch res {
+            case .success:
+                Haptics.success()
+                onDisarm(entity.id, "")
+            case .failure(let err):
+                if err != .canceled {
+                    Haptics.error()
+                    isError = true
+                }
+            }
         }
     }
 

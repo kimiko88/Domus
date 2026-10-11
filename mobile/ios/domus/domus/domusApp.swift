@@ -53,11 +53,14 @@ struct domusApp: App {
             syncEntitiesUseCase: syncUseCase,
             toggleEntityUseCase: toggleUseCase
         ))
+
+        // Registrazione task di manutenzione e refresh periodico in background
+        DomusBackgroundTaskManager.shared.registerBackgroundTasks()
     }
 
     var body: some Scene {
         WindowGroup {
-            DashboardView(viewModel: viewModel)
+            AdaptiveMainView(viewModel: viewModel)
         }
     }
 }

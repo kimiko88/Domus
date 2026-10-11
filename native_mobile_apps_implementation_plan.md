@@ -170,6 +170,75 @@ Per gli utenti che montano un tablet Android economico o un iPad all'ingresso co
 - **Blocco Applicazione (Kiosk Lock)**: Utilizzo della modalità *Lock Task* (Android Device Policy) o *Accesso Guidato* (iOS) per impedire a ospiti o bambini di uscire dall'interfaccia Domus.
 - **Protezione della Batteria**: Notifica o comando intelligente collegato a una presa smart Shelly che stacca l'alimentazione del tablet quando la batteria raggiunge l'80% e la riattiva al 20%, prevenendo il rigonfiamento delle batterie al litio.
 
+
+### 4.8 Funzionalità Avanzate dell'Ecosistema & Hardware (iOS vs Android)
+
+La tabella seguente riassume la corrispondenza tecnologica tra le feature avanzate di iOS e i rispettivi framework nativi Android:
+
+| Feature Avanzata | Implementazione Apple (iOS / iPadOS) | Corrispettivo Nativo Google (Android) |
+| :--- | :--- | :--- |
+| **Siri & Spotlight** | `AppShortcutsProvider`, `AppIntent` & CoreSpotlight | Google Assistant App Actions (`shortcuts.xml`), Assistant Interaction API & Android Global Search |
+| **Live Activities & Dynamic Island** | `ActivityKit` (`ActivityAttributes`, `ActivityConfiguration`) | Ongoing Foreground Notifications con `MediaStyle` / Progress bar, Live Updates & Android 14+ Bubble API |
+| **Infotainment Auto** | `CarPlay.framework` (`CPGridTemplate`, `CPListTemplate`) | Android Auto via Android for Cars App Library (`androidx.car.app:car-app`) |
+| **Autenticazione Biometrica** | `LocalAuthentication` (`LAContext`, Face ID / Touch ID / Optic ID) | `androidx.biometric:biometric` (`BiometricPrompt` con `BIOMETRIC_STRONG` Class 3) |
+| **Picture-in-Picture Video** | `AVKit` (`AVPictureInPictureController`) | Android PiP Mode (`enterPictureInPictureMode`, `PictureInPictureParams.Builder`) |
+| **Micro-localizzazione Indoor** | `CoreLocation` (iBeacon BLE RSSI) & `NearbyInteraction` (UWB U1/U2) | `BluetoothLeScanner` con ScanFilter RSSI & Android UWB API (`androidx.core.uwb:uwb`) |
+| **Layout Tablet Multi-Colonna** | `NavigationSplitView` (3-column sidebar/content/detail) | Jetpack Compose Adaptive Navigation Suite & `ListDetailPaneScaffold` (`WindowSizeClass`) |
+| **Pianta 2D / Floorplan** | SwiftUI Canvas / Vector Blueprint con Shape interattive | Jetpack Compose `Canvas` con Path rendering & gesture detection |
+| **Drag & Drop Dashboard** | SwiftUI `onDrag` / `onDrop` con Spring Animations & Haptic Ticks | Jetpack Compose Reorderable Grid (`LazyVerticalGrid` + Drag Gestures) |
+| **VPN On-Demand Automatica** | `NetworkExtension` (`NEVPNManager`, On-Demand SSID Rules, WireGuardKit) | Android `VpnService` con `ConnectivityManager.NetworkCallback` auto-trigger |
+| **Background Maintenance Tasks** | `BackgroundTasks` (`BGTaskScheduler`, `BGAppRefreshTask`, `BGProcessingTask`) | Jetpack `WorkManager` (`PeriodicWorkRequest` con vincoli `setRequiresCharging(true)`) |
+
+#### 4.8.1 Siri & Spotlight via AppShortcutsProvider (iOS) vs Google Assistant App Actions (Android)
+- **iOS**: Con `AppShortcutsProvider`, le frasi vocali ("Ehi Siri, spegni salotto con Domus", "Ehi Siri, attiva Buonanotte") vengono registrate automaticamente all'installazione senza configurazione manuale nell'app Comandi Rapidi. Le stanze e i dispositivi vengono indicizzati tramite `CSSearchableItem` per apparire all'istante nella ricerca globale Spotlight di iOS.
+- **Android**: Definizione di `res/xml/shortcuts.xml` con capability standard (es. comandi Bixby/Google Assistant) che mappano su Intent nativi per eseguire scene e switch tramite voce ("Hey Google, accendi salotto con Domus").
+
+#### 4.8.2 Live Activities & Dynamic Island (ActivityKit) vs Android Live Ongoing Notifications
+- **iOS**: Con `ActivityKit`, l'app proietta widget dinamici nell'isola dinamica (Dynamic Island) e nella Schermata di Blocco:
+  - *Ritardo Allarme*: Conto alla rovescia di 30 secondi con barra di avanzamento e pulsante disarmo diretto.
+  - *Elettrodomestici*: Stato lavatrice/asciugatrice ("Fine ciclo tra 14 min") con icona rotante.
+  - *Allarmi Critici*: Banner persistente ad alto contrasto per allagamento, fuga gas o intrusione finché non tacitato.
+- **Android**: Notifiche persistenti ad alta priorità di tipo *Live Update* con animazioni di progresso continuo, bottoni di azione rapida e supporto a *Heads-Up Notifications* e Android Bubble.
+
+#### 4.8.3 Apple CarPlay (CarPlay.framework) vs Android Auto (Car App Library)
+- **iOS**: Integrazione di `CPApplicationDelegate` con template `CPGridTemplate` per comandi prioritari in auto (apertura basculante garage, sblocco cancello carraio, luci esterne vialetto, disarmo allarme perimetrale) e `CPListTemplate` per consultazione rapida dello stato domestico durante la guida con zero distrazioni.
+- **Android**: Implementazione del servizio `CarAppService` con `Screen` basato su `androidx.car.app`, conformità alle linee guida di sicurezza alla guida di Google (Driver Distraction Guidelines) con template a griglia rapida per cancello e allarme.
+
+#### 4.8.4 Autenticazione Biometrica Nativa (Face ID / Touch ID vs BiometricPrompt)
+- **iOS**: Utilizzo di `LocalAuthentication` (`LAContext`) per disarmare l'allarme, aprire serrature smart o accedere a telecamere private tramite Face ID o Touch ID a 0 attrito, con fallback al PIN numerico.
+- **Android**: `BiometricPrompt` di Jetpack configurato per richiedere biometria forte (Classe 3: impronta digitale sotto schermo o riconoscimento facciale sicuro 3D) con crittografia integrata tramite Android Keystore (`Cipher` autorizzato biometricamente).
+
+#### 4.8.5 Streaming Video Picture-in-Picture (AVKit PiP vs Android PiP Mode)
+- **iOS**: Tramite `AVPictureInPictureController`, l'utente può staccare il flusso video in streaming RTSP/WebRTC della telecamera o del videocitofono in una finestra fluttuante ridimensionabile, continuando a navigare nella dashboard di Domus o in altre app.
+- **Android**: Attivazione di `Activity.enterPictureInPictureMode(PictureInPictureParams)` con aspect ratio 16:9 e azioni remote personalizzate nel riquadro PiP (es. tasto per aprire cancello o silenziare sirena).
+
+#### 4.8.6 Micro-localizzazione Stanza per Stanza (iBeacon & UWB vs Android BLE & Nearby)
+- **iOS**: Rilevamento di prossimità indoor tramite beacon BLE (`CLBeaconRegion`) posizionati nelle stanze (Salotto, Cucina, Camera da letto) e chip UWB Ultra-Wideband (`NearbyInteraction`) per distanze sub-metriche. La dashboard riordina e mette automaticamente in primo piano i controlli della stanza in cui l'utente si trova fisicamente.
+- **Android**: Scansione BLE a basso consumo in background tramite `BluetoothLeScanner` con filtri su UUID/Major/Minor e integrazione con le nuove librerie `androidx.core.uwb` per dispositivi Google Pixel e Samsung Galaxy dotati di chip UWB.
+
+#### 4.8.7 Layout Nativo iPadOS & Tablet (NavigationSplitView vs ListDetailPaneScaffold)
+- **iOS**: Struttura `NavigationSplitView` a tre colonne:
+  - *Colonna 1 (Sidebar)*: Elenco stanze, categorie funzionali e indicatori di stato globali (luci accese, temperatura media, allarme).
+  - *Colonna 2 (Contenuto)*: Griglia principale delle card con supporto drag & drop.
+  - *Colonna 3 (Dettaglio / Inspector)*: Feed telecamere live, termostato circolare o cronologia consumi.
+- **Android**: Supporto tablet e pieghevoli (Foldables) tramite `ListDetailPaneScaffold` di Jetpack Compose Adaptive, calcolando il layout responsive in base a `WindowWidthSizeClass.Expanded`.
+
+#### 4.8.8 Pianta 2D / Floorplan Interattivo
+- **iOS**: Rendering grafico interattivo della planimetria della casa realizzato con SwiftUI `Canvas` e `Path` vettoriali. Le stanze cambiano colore e luminosità in tempo reale al variare delle luci; icone interattive consentono di toccare lampade, termostati e sensori direttamente sulla mappa con gesture di pan e zoom fluido.
+- **Android**: Componente Compose `Canvas` con rendering ottimizzato di grafiche vettoriali SVG/Path, rilevamento di coordinate di tocco (Hit Testing) e animazioni di illuminazione sfumata con `animateColorAsState`.
+
+#### 4.8.9 Personalizzazione Dashboard & Drag & Drop
+- **iOS**: Riordinamento dinamico delle card preferite nella dashboard mediante gesture di trascinamento e rilascio, arricchite da animazioni elastiche (Spring animations) e feedback aptico con `UIImpactFeedbackGenerator`. L'ordine personalizzato viene salvato in cache locale.
+- **Android**: Implementazione di griglia riordinabile in Jetpack Compose con animazioni `Modifier.animateItemPlacement()` e vibrazione aptica tramite `HapticFeedbackType.LongPress`.
+
+#### 4.8.10 Connettività Sicura: VPN On-Demand Automatica (NetworkExtension vs VpnService)
+- **iOS**: Configurazione tramite `NetworkExtension` (`NEVPNManager`) di un tunnel cifrato WireGuard/IPSec con regole on-demand (`NEOnDemandRuleConnect`). Il tunnel si attiva automaticamente non appena l'iPhone si disconnette dal Wi-Fi di casa, garantendo zero esposizione pubblica e cifratura end-to-end senza richiedere Cloudflare Tunnel o porte aperte sul router.
+- **Android**: Servizio `VpnService` nativo collegato a `ConnectivityManager.NetworkCallback` che stabilisce il tunnel WireGuard sicuro in background alla perdita della connessione alla rete LAN locale.
+
+#### 4.8.11 Manutenzione in Background (BGTaskScheduler vs WorkManager)
+- **iOS**: Registrazione di task periodici tramite `BGTaskScheduler` (`BGAppRefreshTask` per aggiornamenti rapidi e `BGProcessingTask` durante la notte mentre il dispositivo è in carica): pulizia cache immagini telecamere, ricalcolo statistiche consumi orari e verifica diagnostica di integrità dell'hub.
+- **Android**: Definizione di `PeriodicWorkRequest` tramite `WorkManager` con `Constraints.Builder().setRequiresCharging(true).setRequiresDeviceIdle(true)`, garantendo esecuzione a impatto zero sulle prestazioni e sulla batteria.
+
 ---
 
 ## 5. Piano di Implementazione & Roadmap a Fasi
@@ -195,6 +264,10 @@ gantt
     section Fase 5: Kiosk & Rilascio
     Tablet Kiosk Mode & CameraX Wake      :2027-03-31, 14d
     CI/CD Fastlane, TestFlight & Play Beta:2027-04-14, 14d
+    section Fase 6: Ecosistema Avanzato
+    Siri/Assistant, Live Activities & PiP :2027-04-28, 14d
+    CarPlay & Android Auto Integration    :2027-05-12, 14d
+    Indoor Beacons, Floorplan & VPN      :2027-05-26, 14d
 ```
 
 ### Dettaglio delle Fasi di Sviluppo
@@ -229,3 +302,14 @@ gantt
 - Pipeline CI/CD automatizzata tramite **Fastlane** e **GitHub Actions**:
   - Compilazione automatica e deploy delle build su **Apple TestFlight** per beta tester iOS.
   - Distribuzione automatica su **Google Play Console (Internal App Sharing & Open Testing)**.
+
+#### **Fase 6: Ecosistema Avanzato di Sistema & Integrazione Hardware (Mese 6)**
+- **Interazione Vocale & Ricerca Globale**: `AppShortcutsProvider` per Siri e indicizzazione Spotlight (iOS) e Google Assistant App Actions con `shortcuts.xml` (Android).
+- **Live Activities & Dynamic Island**: Monitoraggio ritardo allarme, cicli elettrodomestici e allerte critiche su Dynamic Island / Lock Screen (iOS `ActivityKit`) e Ongoing Foreground Live Notifications (Android).
+- **Infotainment Auto**: Template su cruscotto per cancello, garage e allarme tramite Apple CarPlay (`CPGridTemplate`) e Android Auto (`CarAppService`).
+- **Autenticazione Biometrica**: Sblocco istantaneo allarme con Face ID / Touch ID (`LocalAuthentication`) e `BiometricPrompt` (Class 3) su Android con fallback a PIN.
+- **Picture-in-Picture Streaming**: Finestra video fluttuante PiP per telecamere e videocitofono (`AVKit` / Android PiP Mode).
+- **Micro-localizzazione Stanza per Stanza**: Rilevamento beacon BLE e UWB con prioritizzazione automatica dei dispositivi della stanza attuale nella dashboard.
+- **Layout Tablet & Floorplan 2D**: `NavigationSplitView` a 3 colonne per iPadOS/macOS e `ListDetailPaneScaffold` per Android; rendering interattivo della pianta della casa con stato luci in tempo reale e drag-and-drop per riordinare le card.
+- **Sicurezza di Rete & Manutenzione**: Tunnel VPN On-Demand automatico (`NetworkExtension` / `VpnService`) fuori dal Wi-Fi di casa e background maintenance con `BGTaskScheduler` e Android `WorkManager`.
+

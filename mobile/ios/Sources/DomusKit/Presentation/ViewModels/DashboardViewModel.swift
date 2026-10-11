@@ -14,12 +14,20 @@ public final class DashboardViewModel: ObservableObject {
     @Published public var selectedEntityForDetail: Entity? = nil
     @Published public var showAutomationSettings: Bool = false
     @Published public var showKioskSettings: Bool = false
+    @Published public var showFloorplanModal: Bool = false
+    @Published public var customEntityOrder: [String] = []
+    @Published public var autoFocusNearbyRoom: Bool = true
 
     public let presenceManager: GeofencingPresenceManager
     public let notificationManager: NotificationManager
     public let nfcManager: NfcTagManager
     public let kioskManager: KioskModeManager
     public let watchSessionManager: WatchSessionManager
+    public let beaconManager: RoomPresenceBeaconManager
+    public let liveActivityManager: DomusLiveActivityManager
+    public let carPlayManager: DomusCarPlayManager
+    public let vpnManager: VpnOnDemandManager
+    public let backgroundTaskManager: DomusBackgroundTaskManager
 
     private let entityRepository: EntityRepositoryProtocol
     private let connectionRepository: ConnectionRepositoryProtocol
@@ -37,7 +45,12 @@ public final class DashboardViewModel: ObservableObject {
         notificationManager: NotificationManager? = nil,
         nfcManager: NfcTagManager? = nil,
         kioskManager: KioskModeManager? = nil,
-        watchSessionManager: WatchSessionManager? = nil
+        watchSessionManager: WatchSessionManager? = nil,
+        beaconManager: RoomPresenceBeaconManager? = nil,
+        liveActivityManager: DomusLiveActivityManager? = nil,
+        carPlayManager: DomusCarPlayManager? = nil,
+        vpnManager: VpnOnDemandManager? = nil,
+        backgroundTaskManager: DomusBackgroundTaskManager? = nil
     ) {
         self.entityRepository = entityRepository
         self.connectionRepository = connectionRepository
@@ -49,17 +62,39 @@ public final class DashboardViewModel: ObservableObject {
         self.nfcManager = nfcManager ?? NfcTagManager()
         self.kioskManager = kioskManager ?? KioskModeManager()
         self.watchSessionManager = watchSessionManager ?? WatchSessionManager()
+        self.beaconManager = beaconManager ?? RoomPresenceBeaconManager.shared
+        self.liveActivityManager = liveActivityManager ?? DomusLiveActivityManager.shared
+        self.carPlayManager = carPlayManager ?? DomusCarPlayManager.shared
+        self.vpnManager = vpnManager ?? VpnOnDemandManager.shared
+        self.backgroundTaskManager = backgroundTaskManager ?? DomusBackgroundTaskManager.shared
+
+        if let savedOrder = UserDefaults.standard.stringArray(forKey: "domus_custom_card_order") {
+            self.customEntityOrder = savedOrder
+        }
 
         setupAutomationCallbacks()
     }
 
     public var filteredEntities: [Entity] {
-        entities.filter { entity in
+        let base = entities.filter { entity in
             let matchesArea = selectedAreaId == nil || entity.areaId == selectedAreaId
             let matchesQuery = searchQuery.trimmingCharacters(in: .whitespaces).isEmpty ||
                 entity.name.localizedCaseInsensitiveContains(searchQuery) ||
                 entity.domain.localizedCaseInsensitiveContains(searchQuery)
             return matchesArea && matchesQuery
+        }
+
+        if customEntityOrder.isEmpty {
+            return base
+        }
+
+        return base.sorted { a, b in
+            let idxA = customEntityOrder.firstIndex(of: a.id) ?? Int.max
+            let idxB = customEntityOrder.firstIndex(of: b.id) ?? Int.max
+            if idxA != idxB {
+                return idxA < idxB
+            }
+            return a.name < b.name
         }
     }
 
@@ -197,9 +232,21 @@ public final class DashboardViewModel: ObservableObject {
         }
     }
 
+    public func moveEntity(from sourceIndex: Int, to destinationIndex: Int) {
+        let currentList = filteredEntities
+        guard sourceIndex < currentList.count, destinationIndex < currentList.count else { return }
+        Haptics.medium()
+        var currentIds = currentList.map { $0.id }
+        let moved = currentIds.remove(at: sourceIndex)
+        currentIds.insert(moved, at: destinationIndex)
+        self.customEntityOrder = currentIds
+        UserDefaults.standard.set(currentIds, forKey: "domus_custom_card_order")
+    }
+
     // MARK: - Fase 2: Tastierino Allarme (PIN, Arm Home/Away, Disarm)
 
     public func armAlarm(id: String, code: String, mode: String) {
+        liveActivityManager.startAlarmCountdown(seconds: 30, isArming: true)
         Task {
             do {
                 try await entityRepository.callService(
@@ -217,12 +264,14 @@ public final class DashboardViewModel: ObservableObject {
                     }
                 }
             } catch {
+                liveActivityManager.stopActivity()
                 Haptics.error()
             }
         }
     }
 
     public func disarmAlarm(id: String, code: String) {
+        liveActivityManager.stopActivity()
         Task {
             do {
                 try await entityRepository.callService(
@@ -254,9 +303,25 @@ public final class DashboardViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Fase 3: Automazioni NFC & Notifiche Azionabili
+    // MARK: - Fase 3 & 6: Automazioni NFC, Notifiche, Beacon & CarPlay
 
     private func setupAutomationCallbacks() {
+        beaconManager.onRoomChanged = { [weak self] newRoomId in
+            guard let self = self, self.autoFocusNearbyRoom, let newRoomId = newRoomId else { return }
+            self.selectedAreaId = newRoomId
+        }
+
+        carPlayManager.onCarPlayAction = { [weak self] domain, entityId in
+            guard let self = self else { return }
+            self.toggleEntity(id: entityId)
+        }
+
+        backgroundTaskManager.onMaintenanceTriggered = { [weak self] in
+            guard let self = self else { return "Hub non raggiungibile" }
+            _ = try? await self.syncEntitiesUseCase.execute()
+            return "Cache sincronizzata con successo ed entità aggiornate"
+        }
+
         nfcManager.onTagScanned = { [weak self] tag in
             guard let self else { return }
             self.handleNfcTag(tag)
