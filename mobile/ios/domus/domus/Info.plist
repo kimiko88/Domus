@@ -5,6 +5,18 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Domus utilizza la tua posizione per rilevare la vicinanza a casa e sincronizzare la presenza.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Domus monitora il perimetro di casa in background per automatizzare climatizzazione, allarme e scenari di rientro.</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>Domus utilizza il lettore NFC per eseguire istantaneamente scenari o registrare tag domotici.</string>
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>NDEF</string>
 	</array>
 </dict>
 </plist>

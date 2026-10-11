@@ -34,7 +34,7 @@ jobs:
           ./gradlew test --stacktrace
 
   test-ios:
-    name: iOS (Swift 6 DomusKit Tests)
+    name: iOS (DomusKit Tests & Xcode Build)
     runs-on: macos-14
     steps:
       - name: Checkout Repository
@@ -43,6 +43,27 @@ jobs:
       - name: Select Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
-      - name: Run Swift Package Tests
+      - name: Run DomusKit Swift Package Tests
         working-directory: mobile/ios
         run: swift test --verbose
+
+      - name: Build Xcode iOS App (Simulator Validation)
+        working-directory: mobile/ios
+        run: |
+          xcodebuild -project domus/domus.xcodeproj \
+            -scheme domus \
+            -destination "generic/platform=iOS Simulator" \
+            clean build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Setup Ruby for Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Validate Fastlane Configuration
+        working-directory: mobile/ios
+        run: |
+          gem install fastlane --no-document
+          fastlane ios build_simulator

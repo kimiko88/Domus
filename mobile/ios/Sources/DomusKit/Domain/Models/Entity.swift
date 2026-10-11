@@ -53,7 +53,73 @@ public struct Entity: Identifiable, Codable, Hashable, Sendable {
         if let val = attributes["current_temperature"]?.value as? Int { return Double(val) }
         return nil
     }
+
+    public var targetTemperature: Double? {
+        if let val = attributes["temperature"]?.value as? Double { return val }
+        if let val = attributes["target_temperature"]?.value as? Double { return val }
+        if let val = attributes["temperature"]?.value as? Int { return Double(val) }
+        return nil
+    }
+
+    public var hvacMode: String {
+        return state.lowercased()
+    }
+
+    public var isHeating: Bool {
+        let action = (attributes["hvac_action"]?.value as? String)?.lowercased()
+        return action == "heating" || state.lowercased() == "heat"
+    }
+
+    public var isCooling: Bool {
+        let action = (attributes["hvac_action"]?.value as? String)?.lowercased()
+        return action == "cooling" || state.lowercased() == "cool"
+    }
+
+    public var powerWatts: Double? {
+        if let val = attributes["power"]?.value as? Double { return val }
+        if let val = attributes["power"]?.value as? Int { return Double(val) }
+        if let val = attributes["current_power_w"]?.value as? Double { return val }
+        if let val = attributes["current_power_w"]?.value as? Int { return Double(val) }
+        if isSensor && (attributes["unit_of_measurement"]?.value as? String) == "W" {
+            return Double(state)
+        }
+        return nil
+    }
+
+    public var energyKWh: Double? {
+        if let val = attributes["energy"]?.value as? Double { return val }
+        if let val = attributes["energy"]?.value as? Int { return Double(val) }
+        if let val = attributes["total_energy_kwh"]?.value as? Double { return val }
+        return nil
+    }
+
+    public var colorTemp: Int? {
+        if let val = attributes["color_temp"]?.value as? Int { return val }
+        if let val = attributes["color_temp_kelvin"]?.value as? Int { return val }
+        return nil
+    }
+
+    public var rgbColor: (r: Double, g: Double, b: Double)? {
+        if let arr = attributes["rgb_color"]?.value as? [Int], arr.count >= 3 {
+            return (Double(arr[0]) / 255.0, Double(arr[1]) / 255.0, Double(arr[2]) / 255.0)
+        }
+        if let arr = attributes["rgb_color"]?.value as? [Double], arr.count >= 3 {
+            return (arr[0] / 255.0, arr[1] / 255.0, arr[2] / 255.0)
+        }
+        return nil
+    }
+
+    public var isArmed: Bool {
+        state.lowercased().hasPrefix("armed")
+    }
+
+    public var cameraImageUrl: String? {
+        if let pic = attributes["entity_picture"]?.value as? String { return pic }
+        if let pic = attributes["still_image_url"]?.value as? String { return pic }
+        return nil
+    }
 }
+
 
 public struct AnyCodable: Codable, Hashable, @unchecked Sendable {
     public let value: Any

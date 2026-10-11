@@ -1,0 +1,60 @@
+# Domus iOS Fastfile — Fase 5: CI/CD, Test automatizzati e TestFlight
+default_platform(:ios)
+
+platform :ios do
+  desc "Esegue tutti i test unitari del package DomusKit e della suite Xcode"
+  lane :test do
+    # 1. Test Package SPM
+    sh("swift test --package-path .. --verbose")
+
+    # 2. Test del progetto Xcode
+    run_tests(
+      project: "domus/domus.xcodeproj",
+      scheme: "domus",
+      destination: "platform=iOS Simulator,name=iPhone 16,OS=latest",
+      clean: true
+    )
+  end
+
+  desc "Compila la build per il simulatore (usata in CI pull request)"
+  lane :build_simulator do
+    xcodebuild(
+      project: "domus/domus.xcodeproj",
+      scheme: "domus",
+      destination: "generic/platform=iOS Simulator",
+      clean: true,
+      build: true,
+      xcargs: "CODE_SIGNING_ALLOWED=NO"
+    )
+  end
+
+  desc "Compila e distribuisce la nuova build su Apple TestFlight per i beta tester"
+  lane :beta do
+    # Verifica che le variabili d'ambiente per il signing siano presenti
+    ensure_env_vars(
+      env_vars: ["APPLE_ID", "APPLE_TEAM_ID"]
+    )
+
+    # Incrementa il build number basandosi su timestamp o git commit count
+    increment_build_number(
+      xcodeproj: "domus/domus.xcodeproj",
+      build_number: number_of_commits
+    )
+
+    # Compilazione ed esportazione IPA per App Store / TestFlight
+    build_app(
+      project: "domus/domus.xcodeproj",
+      scheme: "domus",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "domus.ipa"
+    )
+
+    # Caricamento su Apple TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      changelog: "Domus Companion Native iOS - Build automatica da CI/CD GitHub Actions"
+    )
+  end
+end

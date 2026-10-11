@@ -51,14 +51,20 @@ public struct ConnectionStatusBannerView: View {
     }
 }
 
-/// Card per una singola entità — vive in DomusKit, importata dal target Xcode.
+/// Card per una singola entità — vive in DomusKit, con supporto ad apertura dettaglio nativo Fase 2.
 public struct EntityCardView: View {
     public let entity: Entity
     public var onToggle: (String) -> Void
+    public var onOpenDetail: (Entity) -> Void
 
-    public init(entity: Entity, onToggle: @escaping (String) -> Void) {
+    public init(
+        entity: Entity,
+        onToggle: @escaping (String) -> Void,
+        onOpenDetail: @escaping (Entity) -> Void = { _ in }
+    ) {
         self.entity = entity
         self.onToggle = onToggle
+        self.onOpenDetail = onOpenDetail
     }
 
     public var body: some View {
@@ -66,43 +72,82 @@ public struct EntityCardView: View {
             HStack {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(entity.isOn ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.2))
+                        .fill(cardAccentColor.opacity(0.2))
                         .frame(width: 38, height: 38)
                     Text(domainIcon)
                         .font(.system(size: 18))
                 }
+
                 Spacer()
+
                 if entity.isLight || entity.isSwitch {
                     Toggle("", isOn: Binding(
                         get: { entity.isOn },
                         set: { _ in onToggle(entity.id) }
                     ))
                     .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle(tint: .cyan))
+                    .toggleStyle(SwitchToggleStyle(tint: cardAccentColor))
                 } else {
-                    Text(entity.state.uppercased())
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    statusBadge
                 }
             }
 
-            Text(entity.name)
-                .font(.system(size: 15, weight: .bold))
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entity.name)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
 
-            Text(subtitle)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            // Barra progressiva luminosità o badge potenza istantanea
+            if entity.isLight && entity.isOn, let b = entity.brightness {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.secondary.opacity(0.2))
+                            .frame(height: 4)
+                        Capsule()
+                            .fill(cardAccentColor)
+                            .frame(width: geo.size.width * CGFloat(b) / 100.0, height: 4)
+                    }
+                }
+                .frame(height: 4)
+            } else if entity.isSwitch && entity.isOn, let watts = entity.powerWatts {
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 9))
+                    Text(String(format: "%.0f W", watts))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                }
+                .foregroundColor(.yellow)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.yellow.opacity(0.12))
+                .clipShape(Capsule())
+            }
         }
         .padding(14)
-        .background(entity.isOn ? Color.cyan.opacity(0.08) : cardBackground)
+        .background(entity.isOn ? cardAccentColor.opacity(0.08) : cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .contentShape(Rectangle())
-        .onTapGesture { onToggle(entity.id) }
+        .onTapGesture {
+            onOpenDetail(entity)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var cardAccentColor: Color {
+        if entity.isLight { return .cyan }
+        if entity.isSwitch { return .green }
+        if entity.isClimate { return entity.isCooling ? .blue : .orange }
+        if entity.isAlarm { return entity.isArmed ? .red : .green }
+        if entity.isCamera { return .purple }
+        return .cyan
     }
 
     private var domainIcon: String {
@@ -112,15 +157,34 @@ public struct EntityCardView: View {
         case "climate":             return "🌡️"
         case "sensor":              return "📊"
         case "alarm_control_panel": return "🛡️"
+        case "camera":              return "📹"
         default:                    return "⚙️"
         }
     }
 
     private var subtitle: String {
-        if entity.isLight && entity.isOn    { return "Accesa • \(entity.brightness ?? 100)%" }
+        if entity.isLight && entity.isOn    { return "Luminosità • \(entity.brightness ?? 100)%" }
         if entity.isLight && !entity.isOn   { return "Spenta" }
-        if entity.isClimate                 { return "Target: \(entity.currentTemperature ?? 21.0)°C" }
+        if entity.isSwitch && entity.isOn   { return "Presa Attiva" }
+        if entity.isSwitch && !entity.isOn  { return "Presa Disattivata" }
+        if entity.isClimate                 {
+            let curr = entity.currentTemperature.map { String(format: "%.1f°C", $0) } ?? "--"
+            let target = entity.targetTemperature.map { String(format: "%.1f°C", $0) } ?? "--"
+            return "\(curr) → Target \(target)"
+        }
+        if entity.isAlarm                   { return entity.isArmed ? "Armato" : "Disarmato" }
+        if entity.isCamera                  { return "Live Streaming" }
         return entity.domain.capitalized
+    }
+
+    private var statusBadge: some View {
+        Text(entity.state.uppercased())
+            .font(.system(size: 10, weight: .bold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(cardAccentColor.opacity(0.2))
+            .foregroundColor(cardAccentColor)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private var cardBackground: Color {
@@ -131,4 +195,3 @@ public struct EntityCardView: View {
         #endif
     }
 }
-

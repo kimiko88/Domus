@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Vista principale della dashboard — vive in DomusKit, importata dal target Xcode.
+/// Vista principale della dashboard — include schede interattive Fase 2, filtro stanze e apertura modale di dettaglio.
 public struct DashboardView: View {
     @ObservedObject public var viewModel: DashboardViewModel
 
@@ -22,13 +22,19 @@ public struct DashboardView: View {
                         .foregroundColor(.secondary)
                     TextField("Cerca dispositivi o stanze...", text: $viewModel.searchQuery)
                         .textFieldStyle(.plain)
+                    if !viewModel.searchQuery.isEmpty {
+                        Button(action: { viewModel.searchQuery = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 .padding(10)
                 .background(Color.secondary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
 
-                // Area Selector Horizontal Scroll
+                // Selettore Stanze / Aree
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         areaButton(label: "Tutte le Stanze", areaId: nil)
@@ -39,10 +45,10 @@ public struct DashboardView: View {
                     .padding(.horizontal)
                 }
 
-                // Grid of Entities
+                // Griglia Dispositivi
                 if viewModel.isRefreshing && viewModel.entities.isEmpty {
                     Spacer()
-                    ProgressView()
+                    ProgressView("Sincronizzazione Domus...")
                     Spacer()
                 } else if viewModel.filteredEntities.isEmpty {
                     Spacer()
@@ -52,28 +58,86 @@ public struct DashboardView: View {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 12) {
                             ForEach(viewModel.filteredEntities) { entity in
-                                EntityCardView(entity: entity) { id in
-                                    viewModel.toggleEntity(id: id)
-                                }
+                                EntityCardView(
+                                    entity: entity,
+                                    onToggle: { id in
+                                        viewModel.toggleEntity(id: id)
+                                    },
+                                    onOpenDetail: { selected in
+                                        viewModel.selectEntityForDetail(selected)
+                                    }
+                                )
                             }
                         }
                         .padding(.horizontal)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 24)
+                    }
+                    .refreshable {
+                        viewModel.initialConnectAndSync()
                     }
                 }
             }
             .navigationTitle("Domus")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
-                    ConnectionStatusBannerView(connection: viewModel.connection) {
-                        viewModel.reconnect()
+                    HStack(spacing: 8) {
+                        ConnectionStatusBannerView(connection: viewModel.connection) {
+                            viewModel.reconnect()
+                        }
+
+                        Button(action: {
+                            Haptics.light()
+                            viewModel.showAutomationSettings = true
+                        }) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.cyan)
+                                .padding(6)
+                                .background(Color.cyan.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+
+                        Button(action: {
+                            Haptics.light()
+                            viewModel.showKioskSettings = true
+                        }) {
+                            Image(systemName: "ipad.landscape")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.primary)
+                                .padding(6)
+                                .background(Color.secondary.opacity(0.12))
+                                .clipShape(Circle())
+                        }
                     }
                 }
             }
+            .sheet(item: $viewModel.selectedEntityForDetail) { entity in
+                EntityDetailRouterView(entity: entity, viewModel: viewModel)
+            }
+            .sheet(isPresented: $viewModel.showAutomationSettings) {
+                PresenceAndNfcSheet(
+                    presenceManager: viewModel.presenceManager,
+                    notificationManager: viewModel.notificationManager,
+                    nfcManager: viewModel.nfcManager
+                )
+            }
+            .sheet(isPresented: $viewModel.showKioskSettings) {
+                KioskSettingsSheet(kioskManager: viewModel.kioskManager)
+            }
+            .overlay {
+                if viewModel.kioskManager.displayState == .ambientScreensaver {
+                    KioskScreensaverView {
+                        viewModel.kioskManager.wakeFromScreensaver()
+                    }
+                    .transition(.opacity)
+                }
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: viewModel.kioskManager.displayState)
         .onAppear {
             viewModel.initialConnectAndSync()
         }
+
     }
 
     // MARK: - Subviews
