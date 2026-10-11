@@ -1,6 +1,6 @@
 import SwiftUI
-import DomusKit
 
+/// Vista principale della dashboard — vive in DomusKit, importata dal target Xcode.
 public struct DashboardView: View {
     @ObservedObject public var viewModel: DashboardViewModel
 
@@ -8,6 +8,10 @@ public struct DashboardView: View {
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
+
+    public init(viewModel: DashboardViewModel) {
+        self.viewModel = viewModel
+    }
 
     public var body: some View {
         NavigationStack {
@@ -27,26 +31,9 @@ public struct DashboardView: View {
                 // Area Selector Horizontal Scroll
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        Button(action: { viewModel.selectArea(nil) }) {
-                            Text("Tutte le Stanze")
-                                .font(.system(size: 13, weight: .semibold))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(viewModel.selectedAreaId == nil ? Color.blue : Color.secondary.opacity(0.15))
-                                .foregroundColor(viewModel.selectedAreaId == nil ? .white : .primary)
-                                .clipShape(Capsule())
-                        }
-
+                        areaButton(label: "Tutte le Stanze", areaId: nil)
                         ForEach(viewModel.areas) { area in
-                            Button(action: { viewModel.selectArea(area.id) }) {
-                                Text(area.name)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(viewModel.selectedAreaId == area.id ? Color.blue : Color.secondary.opacity(0.15))
-                                    .foregroundColor(viewModel.selectedAreaId == area.id ? .white : .primary)
-                                    .clipShape(Capsule())
-                            }
+                            areaButton(label: area.name, areaId: area.id)
                         }
                     }
                     .padding(.horizontal)
@@ -59,17 +46,7 @@ public struct DashboardView: View {
                     Spacer()
                 } else if viewModel.filteredEntities.isEmpty {
                     Spacer()
-                    VStack(spacing: 8) {
-                        Text("📡 Nessun dispositivo trovato")
-                            .font(.headline)
-                        Text("Verifica che il server Domus sia avviato sulla rete locale")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Button("Riprova Scansione LAN") {
-                            viewModel.reconnect()
-                        }
-                        .padding(.top, 10)
-                    }
+                    emptyStateView
                     Spacer()
                 } else {
                     ScrollView {
@@ -87,7 +64,7 @@ public struct DashboardView: View {
             }
             .navigationTitle("Domus")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .automatic) {
                     ConnectionStatusBannerView(connection: viewModel.connection) {
                         viewModel.reconnect()
                     }
@@ -96,6 +73,34 @@ public struct DashboardView: View {
         }
         .onAppear {
             viewModel.initialConnectAndSync()
+        }
+    }
+
+    // MARK: - Subviews
+
+    private func areaButton(label: String, areaId: String?) -> some View {
+        Button(action: { viewModel.selectArea(areaId) }) {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(viewModel.selectedAreaId == areaId ? Color.blue : Color.secondary.opacity(0.15))
+                .foregroundColor(viewModel.selectedAreaId == areaId ? .white : .primary)
+                .clipShape(Capsule())
+        }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 8) {
+            Text("📡 Nessun dispositivo trovato")
+                .font(.headline)
+            Text("Verifica che il server Domus sia avviato sulla rete locale")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Button("Riprova Scansione LAN") {
+                viewModel.reconnect()
+            }
+            .padding(.top, 10)
         }
     }
 }

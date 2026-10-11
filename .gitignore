@@ -3,7 +3,7 @@ bin/
 dist/
 
 # ── Data directory (runtime) ──────────────────────
-data/
+/data/
 *.db
 *.db-shm
 *.db-wal
@@ -46,3 +46,20 @@ coverage.html
 # ── Backups ───────────────────────────────────────
 *.backup
 *.bak
+
+# ── iOS / Xcode / Swift ───────────────────────────
+.build/
+.swiftpm/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+*.xcscmblueprint

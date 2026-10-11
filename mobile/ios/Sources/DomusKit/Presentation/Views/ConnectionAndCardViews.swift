@@ -1,9 +1,9 @@
 import SwiftUI
-import DomusKit
 
+/// Banner di stato connessione — vive in DomusKit, importata dal target Xcode.
 public struct ConnectionStatusBannerView: View {
     public let connection: ServerConnection
-    public var onReconnect: () -> Void = {}
+    public var onReconnect: () -> Void
 
     public init(connection: ServerConnection, onReconnect: @escaping () -> Void = {}) {
         self.connection = connection
@@ -34,23 +34,24 @@ public struct ConnectionStatusBannerView: View {
 
     private var statusColor: Color {
         switch connection.mode {
-        case .localLan: return .green
-        case .remoteTls: return .blue
-        case .connecting: return .orange
+        case .localLan:     return .green
+        case .remoteTls:    return .blue
+        case .connecting:   return .orange
         case .disconnected: return .red
         }
     }
 
     private var statusTitle: String {
         switch connection.mode {
-        case .localLan: return "LAN Diretta • \(connection.latencyMs)ms"
-        case .remoteTls: return "Remoto TLS • \(connection.latencyMs)ms"
-        case .connecting: return "Ricerca Hub..."
+        case .localLan:     return "LAN • \(connection.latencyMs)ms"
+        case .remoteTls:    return "Remoto • \(connection.latencyMs)ms"
+        case .connecting:   return "Ricerca Hub..."
         case .disconnected: return "Disconnesso"
         }
     }
 }
 
+/// Card per una singola entità — vive in DomusKit, importata dal target Xcode.
 public struct EntityCardView: View {
     public let entity: Entity
     public var onToggle: (String) -> Void
@@ -70,9 +71,7 @@ public struct EntityCardView: View {
                     Text(domainIcon)
                         .font(.system(size: 18))
                 }
-
                 Spacer()
-
                 if entity.isLight || entity.isSwitch {
                     Toggle("", isOn: Binding(
                         get: { entity.isOn },
@@ -100,40 +99,36 @@ public struct EntityCardView: View {
                 .lineLimit(1)
         }
         .padding(14)
-        .background(entity.isOn ? Color.cyan.opacity(0.08) : Color(uiColorOrFallback: .secondarySystemBackground))
+        .background(entity.isOn ? Color.cyan.opacity(0.08) : cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .contentShape(Rectangle())
-        .onTapGesture {
-            onToggle(entity.id)
-        }
+        .onTapGesture { onToggle(entity.id) }
     }
 
     private var domainIcon: String {
         switch entity.domain {
-        case "light": return "💡"
-        case "switch": return "🔌"
-        case "climate": return "🌡️"
-        case "sensor": return "📊"
+        case "light":               return "💡"
+        case "switch":              return "🔌"
+        case "climate":             return "🌡️"
+        case "sensor":              return "📊"
         case "alarm_control_panel": return "🛡️"
-        default: return "⚙️"
+        default:                    return "⚙️"
         }
     }
 
     private var subtitle: String {
-        if entity.isLight && entity.isOn {
-            return "Accesa • \(entity.brightness ?? 100)%"
-        } else if entity.isLight && !entity.isOn {
-            return "Spenta"
-        } else if entity.isClimate {
-            return "Target: \(entity.currentTemperature ?? 21.0)°C"
-        } else {
-            return entity.domain.capitalized
-        }
+        if entity.isLight && entity.isOn    { return "Accesa • \(entity.brightness ?? 100)%" }
+        if entity.isLight && !entity.isOn   { return "Spenta" }
+        if entity.isClimate                 { return "Target: \(entity.currentTemperature ?? 21.0)°C" }
+        return entity.domain.capitalized
+    }
+
+    private var cardBackground: Color {
+        #if canImport(UIKit)
+        return Color(UIColor.secondarySystemBackground)
+        #else
+        return Color(.windowBackgroundColor)
+        #endif
     }
 }
 
-extension Color {
-    init(uiColorOrFallback: Any) {
-        self = Color.gray.opacity(0.12)
-    }
-}

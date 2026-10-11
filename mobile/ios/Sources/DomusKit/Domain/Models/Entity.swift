@@ -30,12 +30,12 @@ public struct Entity: Identifiable, Codable, Hashable, Sendable {
         self.lastUpdated = lastUpdated
     }
 
-    public var isLight: Boolean { domain == "light" }
-    public var isSwitch: Boolean { domain == "switch" }
-    public var isSensor: Boolean { domain == "sensor" }
-    public var isClimate: Boolean { domain == "climate" }
-    public var isCamera: Boolean { domain == "camera" }
-    public var isAlarm: Boolean { domain == "alarm_control_panel" }
+    public var isLight: Bool { domain == "light" }
+    public var isSwitch: Bool { domain == "switch" }
+    public var isSensor: Bool { domain == "sensor" }
+    public var isClimate: Bool { domain == "climate" }
+    public var isCamera: Bool { domain == "camera" }
+    public var isAlarm: Bool { domain == "alarm_control_panel" }
 
     public var isOn: Bool {
         let s = state.lowercased()
@@ -55,7 +55,7 @@ public struct Entity: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-public struct AnyCodable: Codable, Hashable, Sendable {
+public struct AnyCodable: Codable, Hashable, @unchecked Sendable {
     public let value: Any
 
     public init(_ value: Any) {
@@ -101,4 +101,4 @@ public struct AnyCodable: Codable, Hashable, Sendable {
     }
 }
 
-public typealias Boolean = Bool
+

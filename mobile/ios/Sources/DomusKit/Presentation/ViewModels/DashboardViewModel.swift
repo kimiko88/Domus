@@ -1,7 +1,8 @@
 import Foundation
 import SwiftUI
-import DomusKit
+import Combine
 
+/// Dashboard ViewModel — vive in DomusKit così il target Xcode non ha dipendenze circolari.
 @MainActor
 public final class DashboardViewModel: ObservableObject {
     @Published public var connection: ServerConnection = ServerConnection()

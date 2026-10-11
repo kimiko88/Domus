@@ -11,23 +11,18 @@ let package = Package(
         .library(
             name: "DomusKit",
             targets: ["DomusKit"]
-        ),
-        .executable(
-            name: "DomusApp",
-            targets: ["DomusApp"]
         )
     ],
     dependencies: [],
     targets: [
+        // Libreria condivisa: Domain (Models, UseCases, Repositories) + Data Layer
         .target(
             name: "DomusKit",
             dependencies: [],
             path: "Sources/DomusKit"
-        ),
-        .executableTarget(
-            name: "DomusApp",
-            dependencies: ["DomusKit"],
-            path: "Sources/DomusApp"
+            // Il path "Sources/DomusKit" include automaticamente:
+            //   Domain/Models/, Domain/UseCases/, Domain/Repositories/
+            //   Data/Network/, Data/Repositories/, Data/Storage/
         ),
         .testTarget(
             name: "DomusKitTests",
