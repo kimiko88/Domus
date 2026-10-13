@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       error.value = null
-      await apiClient.post('/api/v1/auth/kiosk-login', { pin_code: pinCode })
+      await apiClient.post('/api/v1/auth/kiosk-login', { pin: pinCode })
       await fetchMe()
       return true
     } catch (err: any) {

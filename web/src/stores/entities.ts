@@ -87,9 +87,8 @@ export const useEntitiesStore = defineStore('entities', () => {
 
     try {
       await apiClient.post(`/api/v1/entities/${entityId}/command`, {
-        domain,
-        service,
-        data
+        service: `${domain}.${service}`,
+        params: data
       })
     } catch (err) {
       // Revert optimistic update on failure

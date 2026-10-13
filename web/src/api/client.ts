@@ -1,4 +1,4 @@
-export class ApiError extends Error {
+﻿export class ApiError extends Error {
   status: number
   data?: any
 
@@ -12,7 +12,11 @@ export class ApiError extends Error {
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
+  /** Override the per-request timeout in milliseconds. Pass 0 to disable. Default: 30 000. */
+  timeoutMs?: number
 }
+
+const DEFAULT_TIMEOUT_MS = 30_000
 
 class ApiClient {
   private baseUrl: string
@@ -21,7 +25,10 @@ class ApiClient {
     this.baseUrl = baseUrl
   }
 
-  private buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
+  private buildUrl(
+    path: string,
+    params?: Record<string, string | number | boolean | undefined>
+  ): string {
     const url = new URL(path, window?.location?.origin || 'http://localhost')
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -34,8 +41,27 @@ class ApiClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { params, headers, ...customConfig } = options
+    const {
+      params,
+      headers,
+      signal: externalSignal,
+      timeoutMs = DEFAULT_TIMEOUT_MS,
+      ...customConfig
+    } = options
     const url = this.buildUrl(path, params)
+
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    if (timeoutMs > 0) {
+      timer = setTimeout(() => controller.abort(), timeoutMs)
+    }
+
+    // Propagate an external abort signal (e.g. from a component unmount)
+    const onExternalAbort = () => controller.abort()
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', onExternalAbort)
+    }
 
     const config: RequestInit = {
       credentials: 'include',
@@ -43,37 +69,50 @@ class ApiClient {
         Accept: 'application/json',
         ...headers
       },
+      signal: controller.signal,
       ...customConfig
     }
 
-    const response = await fetch(url, config)
+    try {
+      const response = await fetch(url, config)
 
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status} ${response.statusText}`
-      let errorData: any = null
-      try {
-        errorData = await response.json()
-        if (errorData?.error) {
-          errorMessage = errorData.error
-        } else if (errorData?.message) {
-          errorMessage = errorData.message
+      if (!response.ok) {
+        let errorMessage = HTTP  
+        let errorData: any = null
+        try {
+          errorData = await response.json()
+          if (errorData?.error) {
+            errorMessage = errorData.error
+          } else if (errorData?.message) {
+            errorMessage = errorData.message
+          }
+        } catch {
+          // Fallback to status text
         }
-      } catch {
-        // Fallback to text or status text
+        throw new ApiError(response.status, errorMessage, errorData)
       }
-      throw new ApiError(response.status, errorMessage, errorData)
-    }
 
-    if (response.status === 204) {
-      return {} as T
-    }
+      if (response.status === 204) {
+        return {} as T
+      }
 
-    const contentType = response.headers.get('content-type')
-    if (contentType && contentType.includes('application/json')) {
-      return (await response.json()) as T
-    }
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        return (await response.json()) as T
+      }
 
-    return (await response.text()) as unknown as T
+      return (await response.text()) as unknown as T
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        throw new ApiError(408, 'Request timed out')
+      }
+      throw err
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort)
+      }
+    }
   }
 
   get<T>(path: string, params?: Record<string, any>, options?: RequestOptions): Promise<T> {

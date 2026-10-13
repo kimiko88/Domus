@@ -185,8 +185,12 @@ func (h *AutomationHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 func (h *AutomationHandler) ListRuns(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	limit := 20
+	const maxLimit = 200
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+			if l > maxLimit {
+				l = maxLimit
+			}
 			limit = l
 		}
 	}
@@ -257,7 +261,11 @@ func (h *AutomationHandler) DryRun(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	a, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "NOT_FOUND", "automation not found")
+		if errors.Is(err, automation.ErrAutomationNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "automation not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 

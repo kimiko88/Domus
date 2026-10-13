@@ -92,9 +92,9 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   }
 
   const dispatchEvent = (eventType: string, payload: any, raw: WsMessage) => {
-    const handlers = listeners.get(eventType)
-    if (handlers) {
-      handlers.forEach((h) => {
+    const specificHandlers = listeners.get(eventType)
+    if (specificHandlers) {
+      specificHandlers.forEach((h) => {
         try {
           h(payload, raw)
         } catch (err) {
@@ -102,7 +102,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         }
       })
     }
-    // Also dispatch to wildcard '*'
+    // Wildcard '*' receives every event, regardless of whether specific handlers exist
     const wildcards = listeners.get('*')
     if (wildcards) {
       wildcards.forEach((h) => {
@@ -163,10 +163,12 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         startHeartbeat()
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         isConnected.value = false
         isConnecting.value = false
         stopHeartbeat()
+        // Normal closure codes (1000 = normal, 1001 = going away) from server side
+        // are still treated as unexpected if the client did not explicitly close.
         if (!explicitlyClosed) {
           scheduleReconnect()
         }

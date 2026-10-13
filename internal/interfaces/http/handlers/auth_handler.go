@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -37,7 +38,7 @@ type setupRequest struct {
 // Setup handles initial administrator account creation on first boot.
 func (h *AuthHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	var req setupRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
 		return
 	}
@@ -85,12 +86,12 @@ type loginRequest struct {
 // Login authenticates a user and attaches an HttpOnly session cookie.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
 		return
 	}
 
-	ip := h.extractIP(r)
+	ip := extractClientIP(r)
 	ua := r.UserAgent()
 
 	sess, u, err := h.authService.Login(r.Context(), req.Username, req.Password, ip, ua)
@@ -150,12 +151,12 @@ type kioskLoginRequest struct {
 // KioskLogin allows quick authentication with a numeric PIN for wall-mounted tablet kiosk dashboards.
 func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
 	var req kioskLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
 		return
 	}
 
-	ip := h.extractIP(r)
+	ip := extractClientIP(r)
 	ua := r.UserAgent()
 
 	sess, u, err := h.authService.LoginWithPin(r.Context(), req.Pin, ip, ua)
@@ -261,29 +262,28 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *AuthHandler) extractIP(r *http.Request) string {
+func (h *AuthHandler) writeJSON(w http.ResponseWriter, status int, data any) {
+	writeJSON(w, status, data)
+}
+
+func (h *AuthHandler) writeError(w http.ResponseWriter, status int, code, message string) {
+	writeError(w, status, code, message)
+}
+
+// extractClientIP is a package-level helper that extracts client IP from the request.
+func extractClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
+		candidate := strings.TrimSpace(parts[0])
+		if net.ParseIP(candidate) != nil {
+			return candidate
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
 		return host
 	}
 	return r.RemoteAddr
-}
-
-func (h *AuthHandler) writeJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
-}
-
-func (h *AuthHandler) writeError(w http.ResponseWriter, status int, code, message string) {
-	h.writeJSON(w, status, map[string]any{
-		"code":    code,
-		"message": message,
-	})
 }
 
 func generateRandomToken() string {
