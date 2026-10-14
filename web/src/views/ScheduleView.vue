@@ -50,65 +50,9 @@ const daysOfWeek = [
   { key: 'sunday', label: 'Domenica' }
 ]
 
-const schedules = ref<Schedule[]>([
-  {
-    id: 'sched_climate_living',
-    name: 'Cronotermostato Salotto',
-    entity_key: 'climate.living_room',
-    enabled: true,
-    grid: {
-      monday: [
-        { start: '06:30', end: '08:30', value: 21.0 },
-        { start: '18:00', end: '22:30', value: 20.5 }
-      ],
-      tuesday: [
-        { start: '06:30', end: '08:30', value: 21.0 },
-        { start: '18:00', end: '22:30', value: 20.5 }
-      ],
-      wednesday: [
-        { start: '06:30', end: '08:30', value: 21.0 },
-        { start: '18:00', end: '22:30', value: 20.5 }
-      ],
-      thursday: [
-        { start: '06:30', end: '08:30', value: 21.0 },
-        { start: '18:00', end: '22:30', value: 20.5 }
-      ],
-      friday: [
-        { start: '06:30', end: '08:30', value: 21.0 },
-        { start: '17:30', end: '23:00', value: 21.0 }
-      ],
-      saturday: [
-        { start: '08:00', end: '23:30', value: 21.5 }
-      ],
-      sunday: [
-        { start: '08:00', end: '23:00', value: 21.5 }
-      ]
-    }
-  }
-])
-
-const calendarEvents = ref<CalendarEvent[]>([
-  {
-    id: 'evt_1',
-    summary: 'Smart Working da Casa',
-    description: 'Imposta riscaldamento studio a 21.5°C',
-    start_time: '2026-10-15T09:00:00Z',
-    end_time: '2026-10-15T18:00:00Z',
-    location: 'Studio',
-    source: 'google'
-  },
-  {
-    id: 'evt_2',
-    summary: 'Cena con Ospiti',
-    description: 'Attiva illuminazione soffusa e clima 21°C',
-    start_time: '2026-10-17T20:00:00Z',
-    end_time: '2026-10-17T23:30:00Z',
-    location: 'Salotto / Cucina',
-    source: 'local'
-  }
-])
-
-const selectedSchedule = ref<Schedule>(schedules.value[0])
+const schedules = ref<Schedule[]>([])
+const calendarEvents = ref<CalendarEvent[]>([])
+const selectedSchedule = ref<Schedule | null>(null)
 const icsUploadStatus = ref('')
 
 async function handleICalUpload(event: Event) {
@@ -120,6 +64,8 @@ async function handleICalUpload(event: Event) {
     await apiClient.post('/api/v1/calendar/import', text)
     icsUploadStatus.value = 'Calendario importato con successo!'
     setTimeout(() => icsUploadStatus.value = '', 4000)
+    const e = await apiClient.get<CalendarEvent[]>('/api/v1/calendar/events')
+    calendarEvents.value = e || []
   } catch {
     icsUploadStatus.value = 'Errore durante l\'importazione iCal'
   }
@@ -128,16 +74,23 @@ async function handleICalUpload(event: Event) {
 onMounted(async () => {
   try {
     const s = await apiClient.get<Schedule[]>('/api/v1/schedules')
-    if (s && s.length > 0) {
-      schedules.value = s
-      selectedSchedule.value = s[0]
+    schedules.value = s || []
+    if (schedules.value.length > 0) {
+      selectedSchedule.value = schedules.value[0]
+    } else {
+      selectedSchedule.value = null
     }
-  } catch {}
+  } catch {
+    schedules.value = []
+    selectedSchedule.value = null
+  }
 
   try {
     const e = await apiClient.get<CalendarEvent[]>('/api/v1/calendar/events')
-    if (e && e.length > 0) calendarEvents.value = e
-  } catch {}
+    calendarEvents.value = e || []
+  } catch {
+    calendarEvents.value = []
+  }
 })
 </script>
 
@@ -174,7 +127,7 @@ onMounted(async () => {
 
     <!-- Tab 1: Visual Cronotermostato Planner -->
     <div v-if="activeTab === 'schedules'" class="planner-layout">
-      <div class="planner-card glass-panel">
+      <div v-if="selectedSchedule" class="planner-card glass-panel">
         <div class="planner-top">
           <div>
             <h2 class="schedule-title">{{ selectedSchedule.name }}</h2>
@@ -203,6 +156,11 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+      <div v-else class="planner-card glass-panel">
+        <p class="empty-state" style="padding: 32px; text-align: center; color: var(--text-muted);">
+          Nessuna programmazione oraria configurata nel database.
+        </p>
+      </div>
     </div>
 
     <!-- Tab 2: Calendar & iCal Sync -->
@@ -219,7 +177,11 @@ onMounted(async () => {
 
         <p v-if="icsUploadStatus" class="status-msg text-success">{{ icsUploadStatus }}</p>
 
-        <div class="calendar-events-list">
+        <p v-if="calendarEvents.length === 0" class="empty-state" style="padding: 32px; text-align: center; color: var(--text-muted);">
+          Nessun evento sincronizzato nel database.
+        </p>
+
+        <div v-else class="calendar-events-list">
           <div v-for="evt in calendarEvents" :key="evt.id" class="cal-event-card">
             <div class="cal-time-col">
               <span class="cal-date">{{ new Date(evt.start_time).toLocaleDateString('it-IT') }}</span>

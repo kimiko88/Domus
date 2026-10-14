@@ -33,41 +33,7 @@ interface StorePackage {
 const activeType = ref<string>('')
 const searchQuery = ref<string>('')
 
-const packages = ref<StorePackage[]>([
-  {
-    id: 'pkg_aqara_wasm',
-    package_id: 'community.aqara.cube',
-    name: 'Aqara Magic Cube Controller',
-    type: 'wasm_plugin',
-    version: '1.2.0',
-    author: 'DomusCommunity',
-    description: 'Plugin WASM in sandbox sicura per interpretare rotazioni, tap su tavolo e scuotimento del cubo Aqara Zigbee',
-    installed: true,
-    icon: 'box'
-  },
-  {
-    id: 'pkg_bp_circadian',
-    package_id: 'blueprints.lighting.circadian',
-    name: 'Illuminazione Circadiana Dinamica',
-    type: 'blueprint',
-    version: '2.0.1',
-    author: 'SmartHomeItaly',
-    description: 'Regola temperatura colore (Kelvin) e luminosità dei faretti in base all\'elevazione solare reale astronomica',
-    installed: false,
-    icon: 'sun'
-  },
-  {
-    id: 'pkg_widget_gauges',
-    package_id: 'widgets.energy.flow_circle',
-    name: 'Widget Ghiera Consumi Circolare',
-    type: 'widget',
-    version: '1.0.4',
-    author: 'DomusLabs',
-    description: 'Tessera interattiva con misuratore tachimetrico rotante per i carichi elettrici istantanei e distacco carichi',
-    installed: false,
-    icon: 'gauge'
-  }
-])
+const packages = ref<StorePackage[]>([])
 
 const filteredPackages = computed(() => {
   return packages.value.filter(p => !activeType.value || p.type === activeType.value)
@@ -88,8 +54,10 @@ async function toggleInstall(pkg: StorePackage) {
 onMounted(async () => {
   try {
     const list = await apiClient.get<StorePackage[]>('/api/v1/store/packages')
-    if (list && list.length > 0) packages.value = list
-  } catch {}
+    packages.value = list || []
+  } catch {
+    packages.value = []
+  }
 })
 </script>
 
@@ -115,8 +83,15 @@ onMounted(async () => {
       </div>
     </header>
 
+    <!-- Empty State -->
+    <div v-if="filteredPackages.length === 0" class="empty-state glass-panel">
+      <PackageCheck :size="48" class="empty-icon text-muted" />
+      <p class="empty-title">{{ t('common.no_data', 'Nessun pacchetto disponibile') }}</p>
+      <p class="empty-desc">I pacchetti o blueprint caricati nel sistema appariranno qui.</p>
+    </div>
+
     <!-- Packages Grid -->
-    <div class="packages-grid">
+    <div v-else class="packages-grid">
       <div
         v-for="pkg in filteredPackages"
         :key="pkg.id"

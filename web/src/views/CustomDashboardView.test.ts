@@ -52,7 +52,7 @@ describe('CustomDashboardView.vue', () => {
     expect(plusBtn.exists()).toBe(true)
     await plusBtn.trigger('click')
 
-    expect(wrapper.text()).toContain('21.0°C')
+    expect(wrapper.text()).toContain('20.5°C')
   })
 
   it('toggles kiosk mode and full screen view', async () => {

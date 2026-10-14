@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Network,
@@ -41,59 +41,54 @@ const currentProtocol = ref<'zigbee' | 'zwave' | 'thread'>('zigbee')
 
 const topology = ref<MeshTopology>({
   protocol: 'zigbee',
-  nodes: [
-    {
-      id: 'coord_1',
-      name: 'Coordinator Zigbee USB',
-      protocol: 'zigbee',
-      type: 'coordinator',
-      lqi: 255
-    },
-    {
-      id: 'router_1',
-      name: 'Presa Smart Salotto (Router)',
-      protocol: 'zigbee',
-      type: 'router',
-      lqi: 215,
-      parent_id: 'coord_1'
-    },
-    {
-      id: 'router_2',
-      name: 'Relè Incasso Cucina (Router)',
-      protocol: 'zigbee',
-      type: 'router',
-      lqi: 160,
-      parent_id: 'coord_1'
-    },
-    {
-      id: 'sensor_1',
-      name: 'Sensore Balcone (End-device)',
-      protocol: 'zigbee',
-      type: 'end_device',
-      lqi: 75,
-      battery: 85,
-      parent_id: 'router_1'
-    },
-    {
-      id: 'sensor_2',
-      name: 'Sensore Camera (End-device)',
-      protocol: 'zigbee',
-      type: 'end_device',
-      lqi: 190,
-      battery: 92,
-      parent_id: 'router_2'
-    }
-  ],
-  links: [
-    { source: 'coord_1', target: 'router_1', lqi: 215, quality: 'excellent' },
-    { source: 'coord_1', target: 'router_2', lqi: 160, quality: 'good' },
-    { source: 'router_1', target: 'router_2', lqi: 110, quality: 'good' },
-    { source: 'router_1', target: 'sensor_1', lqi: 75, quality: 'weak' },
-    { source: 'router_2', target: 'sensor_2', lqi: 190, quality: 'excellent' }
-  ]
+  nodes: [],
+  links: []
 })
 
 const selectedNode = ref<MeshNode | null>(null)
+
+// Compute dynamic (x, y) coordinates for SVG rendering based on node hierarchy
+const nodePositions = computed(() => {
+  const map = new Map<string, { x: number; y: number }>()
+  const nodes = topology.value.nodes || []
+  if (nodes.length === 0) return map
+
+  const coordinators = nodes.filter(n => n.type === 'coordinator')
+  const routers = nodes.filter(n => n.type === 'router')
+  const endDevices = nodes.filter(n => n.type !== 'coordinator' && n.type !== 'router')
+
+  // Top level: Coordinator(s)
+  coordinators.forEach((n, idx) => {
+    const total = coordinators.length
+    const x = 400 + (idx - (total - 1) / 2) * 140
+    map.set(n.id, { x, y: 80 })
+  })
+
+  // Middle level: Routers
+  routers.forEach((n, idx) => {
+    const total = routers.length
+    const step = 640 / (total + 1)
+    const x = 80 + (idx + 1) * step
+    map.set(n.id, { x, y: 220 })
+  })
+
+  // Bottom level: End devices
+  endDevices.forEach((n, idx) => {
+    const total = endDevices.length
+    const step = 700 / (total + 1)
+    const x = 50 + (idx + 1) * step
+    map.set(n.id, { x, y: 360 })
+  })
+
+  // Any other nodes
+  nodes.forEach((n, idx) => {
+    if (!map.has(n.id)) {
+      map.set(n.id, { x: 100 + ((idx * 100) % 600), y: 220 })
+    }
+  })
+
+  return map
+})
 
 // Zigbee Direct Mesh Binding State
 const bindings = ref<any[]>([])
@@ -107,8 +102,10 @@ const selectedClusters = ref<string[]>(['genOnOff'])
 async function loadBindings() {
   try {
     const list = await apiClient.get<any[]>('/api/v1/devices/bindings')
-    if (list) bindings.value = list
-  } catch {}
+    bindings.value = list || []
+  } catch {
+    bindings.value = []
+  }
 }
 
 async function handleCreateBinding() {
@@ -139,12 +136,13 @@ async function handleDeleteBinding(id: string) {
 
 async function loadTopology(proto: 'zigbee' | 'zwave' | 'thread') {
   currentProtocol.value = proto
+  selectedNode.value = null
   try {
     const data = await apiClient.get<MeshTopology>(`/api/v1/mesh/topology?protocol=${proto}`)
-    if (data && data.nodes && data.nodes.length > 0) {
-      topology.value = data
-    }
-  } catch {}
+    topology.value = data || { protocol: proto, nodes: [], links: [] }
+  } catch {
+    topology.value = { protocol: proto, nodes: [], links: [] }
+  }
 }
 
 onMounted(() => {
@@ -200,54 +198,64 @@ onMounted(() => {
         <div class="legend-item"><span class="link-line weak" /> LQI &lt; 100 (Debole)</div>
       </div>
 
+      <!-- Empty State when no nodes exist -->
+      <div v-if="topology.nodes.length === 0" class="svg-graph-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 12px;">
+        <Network :size="48" style="opacity: 0.4; color: var(--text-muted);" />
+        <p style="font-weight: 600; font-size: 1.05rem; margin: 0;">Nessun dispositivo {{ currentProtocol.toUpperCase() }} rilevato nella rete mesh</p>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">I dispositivi configurati per questo protocollo verranno visualizzati qui con le loro metriche LQI reali.</p>
+      </div>
+
       <!-- Graph Diagram SVG -->
-      <div class="svg-graph-container">
+      <div v-else class="svg-graph-container">
         <svg viewBox="0 0 800 450" class="mesh-svg">
-          <!-- Links -->
-          <line x1="400" y1="80" x2="220" y2="220" stroke="#10b981" stroke-width="3" stroke-dasharray="4" />
-          <line x1="400" y1="80" x2="580" y2="220" stroke="#3b82f6" stroke-width="2.5" />
-          <line x1="220" y1="220" x2="580" y2="220" stroke="#3b82f6" stroke-width="2" stroke-opacity="0.5" />
-          <line x1="220" y1="220" x2="140" y2="360" stroke="#f59e0b" stroke-width="2" />
-          <line x1="580" y1="220" x2="660" y2="360" stroke="#10b981" stroke-width="3" />
-
-          <!-- Link LQI Badges -->
-          <text x="300" y="140" fill="#10b981" font-size="12" font-weight="bold">LQI 215</text>
-          <text x="500" y="140" fill="#3b82f6" font-size="12" font-weight="bold">LQI 160</text>
-          <text x="170" y="295" fill="#f59e0b" font-size="12" font-weight="bold">LQI 75</text>
-          <text x="630" y="295" fill="#10b981" font-size="12" font-weight="bold">LQI 190</text>
-
-          <!-- Nodes -->
-          <!-- 1. Coordinator -->
-          <g class="node-group coordinator" @click="selectedNode = topology.nodes[0]">
-            <circle cx="400" cy="80" r="32" fill="#6366f1" filter="drop-shadow(0 0 12px rgba(99,102,241,0.6))" />
-            <text x="400" y="85" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">GW USB</text>
-            <text x="400" y="125" text-anchor="middle" fill="#fff" font-size="11">Coordinator</text>
+          <!-- Dynamic Links -->
+          <g v-for="(link, i) in topology.links" :key="'link-' + i">
+            <line
+              v-if="nodePositions.get(link.source) && nodePositions.get(link.target)"
+              :x1="nodePositions.get(link.source)!.x"
+              :y1="nodePositions.get(link.source)!.y"
+              :x2="nodePositions.get(link.target)!.x"
+              :y2="nodePositions.get(link.target)!.y"
+              :stroke="link.quality === 'excellent' ? '#10b981' : link.quality === 'good' ? '#3b82f6' : '#f59e0b'"
+              :stroke-width="link.quality === 'excellent' ? 3 : 2"
+              :stroke-dasharray="link.quality === 'weak' ? '4' : '0'"
+            />
+            <text
+              v-if="nodePositions.get(link.source) && nodePositions.get(link.target) && link.lqi"
+              :x="(nodePositions.get(link.source)!.x + nodePositions.get(link.target)!.x) / 2"
+              :y="(nodePositions.get(link.source)!.y + nodePositions.get(link.target)!.y) / 2 - 6"
+              :fill="link.quality === 'excellent' ? '#10b981' : link.quality === 'good' ? '#3b82f6' : '#f59e0b'"
+              font-size="11"
+              font-weight="bold"
+              text-anchor="middle"
+            >
+              LQI {{ link.lqi }}
+            </text>
           </g>
 
-          <!-- 2. Routers -->
-          <g class="node-group router" @click="selectedNode = topology.nodes[1]">
-            <circle cx="220" cy="220" r="26" fill="#10b981" />
-            <text x="220" y="225" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">ROUTER</text>
-            <text x="220" y="260" text-anchor="middle" fill="#fff" font-size="11">Salotto</text>
-          </g>
-
-          <g class="node-group router" @click="selectedNode = topology.nodes[2]">
-            <circle cx="580" cy="220" r="26" fill="#10b981" />
-            <text x="580" y="225" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">ROUTER</text>
-            <text x="580" y="260" text-anchor="middle" fill="#fff" font-size="11">Cucina</text>
-          </g>
-
-          <!-- 3. End Devices -->
-          <g class="node-group end-device" @click="selectedNode = topology.nodes[3]">
-            <circle cx="140" cy="360" r="22" fill="#f59e0b" />
-            <text x="140" y="365" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">85%</text>
-            <text x="140" y="398" text-anchor="middle" fill="#fff" font-size="11">Balcone</text>
-          </g>
-
-          <g class="node-group end-device" @click="selectedNode = topology.nodes[4]">
-            <circle cx="660" cy="360" r="22" fill="#10b981" />
-            <text x="660" y="365" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">92%</text>
-            <text x="660" y="398" text-anchor="middle" fill="#fff" font-size="11">Camera</text>
+          <!-- Dynamic Nodes -->
+          <g
+            v-for="node in topology.nodes"
+            :key="node.id"
+            class="node-group"
+            :class="node.type"
+            @click="selectedNode = node"
+            :transform="`translate(${nodePositions.get(node.id)?.x || 400}, ${nodePositions.get(node.id)?.y || 200})`"
+            style="cursor: pointer;"
+          >
+            <circle
+              cx="0"
+              cy="0"
+              :r="node.type === 'coordinator' ? 30 : node.type === 'router' ? 24 : 20"
+              :fill="node.type === 'coordinator' ? '#6366f1' : node.type === 'router' ? '#10b981' : '#f59e0b'"
+              :filter="node.type === 'coordinator' ? 'drop-shadow(0 0 10px rgba(99,102,241,0.6))' : 'none'"
+            />
+            <text x="0" y="4" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">
+              {{ node.type === 'coordinator' ? 'GW' : node.battery ? `${node.battery}%` : node.type === 'router' ? 'RTR' : 'END' }}
+            </text>
+            <text x="0" y="32" text-anchor="middle" fill="var(--text-primary, #fff)" font-size="11" font-weight="500">
+              {{ node.name.length > 15 ? node.name.slice(0, 13) + '...' : node.name }}
+            </text>
           </g>
         </svg>
       </div>

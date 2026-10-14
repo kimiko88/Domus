@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/domus-hub/domus/internal/domain/device"
 )
 
 type NodeType string
@@ -46,13 +48,19 @@ type MeshTopology struct {
 	Links    []MeshLink `json:"links"`
 }
 
-type Service struct{}
-
-func NewService() *Service {
-	return &Service{}
+type Service struct {
+	devRepo device.Repository
 }
 
-// GetTopology returns the active RF mesh topology for Zigbee, Z-Wave, or Thread.
+func NewService(devRepo ...device.Repository) *Service {
+	var r device.Repository
+	if len(devRepo) > 0 {
+		r = devRepo[0]
+	}
+	return &Service{devRepo: r}
+}
+
+// GetTopology returns the RF mesh topology for Zigbee, Z-Wave, or Thread based on database devices.
 func (s *Service) GetTopology(ctx context.Context, protocol string) (*MeshTopology, error) {
 	proto := strings.ToLower(protocol)
 	if proto == "" {
@@ -65,6 +73,30 @@ func (s *Service) GetTopology(ctx context.Context, protocol string) (*MeshTopolo
 		Links:    make([]MeshLink, 0),
 	}
 
+	if s.devRepo == nil {
+		return topo, nil
+	}
+
+	devices, err := s.devRepo.List(ctx, device.ListFilter{})
+	if err != nil {
+		return nil, fmt.Errorf("mesh: failed to list devices: %w", err)
+	}
+
+	var matchedDevices []*device.Device
+	for _, d := range devices {
+		intID := strings.ToLower(d.IntegrationID)
+		model := strings.ToLower(d.Model)
+		meta := strings.ToLower(d.Metadata)
+		if strings.Contains(intID, proto) || strings.Contains(model, proto) || strings.Contains(meta, proto) {
+			matchedDevices = append(matchedDevices, d)
+		}
+	}
+
+	// If no devices match this protocol in the database, return empty topology
+	if len(matchedDevices) == 0 {
+		return topo, nil
+	}
+
 	coordID := fmt.Sprintf("%s_coordinator", proto)
 	topo.Nodes = append(topo.Nodes, MeshNode{
 		ID:       coordID,
@@ -74,75 +106,43 @@ func (s *Service) GetTopology(ctx context.Context, protocol string) (*MeshTopolo
 		LQI:      255,
 	})
 
-	// Add sample mesh nodes (Routers and EndDevices) for demonstration / telemetry
-	r1ID := fmt.Sprintf("%s_router_salotto", proto)
-	r2ID := fmt.Sprintf("%s_router_cucina", proto)
-	ed1ID := fmt.Sprintf("%s_sensor_balcone", proto)
-	ed2ID := fmt.Sprintf("%s_sensor_camera", proto)
+	for _, d := range matchedDevices {
+		nodeType := NodeEndDevice
+		nameLow := strings.ToLower(d.Name)
+		modelLow := strings.ToLower(d.Model)
+		if strings.Contains(modelLow, "router") || strings.Contains(nameLow, "presa") || strings.Contains(nameLow, "rele") || strings.Contains(nameLow, "relè") || strings.Contains(nameLow, "plug") {
+			nodeType = NodeRouter
+		}
 
-	battery85 := 85
-	battery92 := 92
+		lqi := 200
+		if !d.Online {
+			lqi = 0
+		}
 
-	topo.Nodes = append(topo.Nodes,
-		MeshNode{
-			ID:       r1ID,
-			Name:     "Presa Smart Salotto (Router)",
+		pID := coordID
+		topo.Nodes = append(topo.Nodes, MeshNode{
+			ID:       d.ID,
+			Name:     d.Name,
 			Protocol: proto,
-			Type:     NodeRouter,
-			LQI:      215,
-			ParentID: &coordID,
-		},
-		MeshNode{
-			ID:       r2ID,
-			Name:     "Relè Incasso Cucina (Router)",
-			Protocol: proto,
-			Type:     NodeRouter,
-			LQI:      160,
-			ParentID: &coordID,
-		},
-		MeshNode{
-			ID:       ed1ID,
-			Name:     "Sensore Meteo Balcone",
-			Protocol: proto,
-			Type:     NodeEndDevice,
-			LQI:      75,
-			Battery:  &battery85,
-			ParentID: &r1ID,
-		},
-		MeshNode{
-			ID:       ed2ID,
-			Name:     "Sensore Presenza Camera",
-			Protocol: proto,
-			Type:     NodeEndDevice,
-			LQI:      190,
-			Battery:  &battery92,
-			ParentID: &r2ID,
-		},
-	)
+			Type:     nodeType,
+			LQI:      lqi,
+			ParentID: &pID,
+		})
 
-	// Add links with calculated quality
-	addLink := func(src, dst string, lqi int) {
-		q := QualityCritical
+		q := QualityGood
 		if lqi >= 180 {
 			q = QualityExcellent
-		} else if lqi >= 100 {
-			q = QualityGood
-		} else if lqi >= 30 {
-			q = QualityWeak
+		} else if lqi < 30 {
+			q = QualityCritical
 		}
+
 		topo.Links = append(topo.Links, MeshLink{
-			Source:  src,
-			Target:  dst,
+			Source:  coordID,
+			Target:  d.ID,
 			LQI:     lqi,
 			Quality: q,
 		})
 	}
-
-	addLink(coordID, r1ID, 215)
-	addLink(coordID, r2ID, 160)
-	addLink(r1ID, r2ID, 110)
-	addLink(r1ID, ed1ID, 75)
-	addLink(r2ID, ed2ID, 190)
 
 	return topo, nil
 }

@@ -325,7 +325,8 @@
     "clipDuration": "Clip duration",
     "notifSync": "Delivered to companion notification with quick action",
     "zonesModalTitle": "Motion Zones Configurator",
-    "addZone": "Add Zone"
+    "addZone": "Add Zone",
+    "noCameras": "No cameras configured"
   },
   "shopping": {
     "title": "Shared Family Shopping List",

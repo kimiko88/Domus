@@ -4,12 +4,14 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/automation"
 	"github.com/domus-hub/domus/internal/application/energy"
 	"github.com/domus-hub/domus/internal/application/presence"
+	"github.com/domus-hub/domus/internal/domain/entity"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/homekit"
 	"github.com/domus-hub/domus/internal/plugins/matter"
@@ -21,6 +23,7 @@ type AdvancedFeaturesHandler struct {
 	tariffOpt  *energy.TariffOptimizer
 	presence   *presence.Service
 	sun        *automation.SunEngine
+	entityRepo entity.Repository
 }
 
 // NewAdvancedFeaturesHandler constructs a new AdvancedFeaturesHandler.
@@ -35,6 +38,12 @@ func NewAdvancedFeaturesHandler(energyCtrl *energy.Controller, presenceSvc *pres
 // WithTariffOptimizer attaches the dynamic energy tariff optimizer.
 func (h *AdvancedFeaturesHandler) WithTariffOptimizer(opt *energy.TariffOptimizer) *AdvancedFeaturesHandler {
 	h.tariffOpt = opt
+	return h
+}
+
+// WithEntityRepository attaches the entity repository to calculate real power and energy flow.
+func (h *AdvancedFeaturesHandler) WithEntityRepository(repo entity.Repository) *AdvancedFeaturesHandler {
+	h.entityRepo = repo
 	return h
 }
 
@@ -128,15 +137,34 @@ func (h *AdvancedFeaturesHandler) GetSunPosition(w http.ResponseWriter, r *http.
 
 // GetEnergyFlow handles GET /api/v1/energy/flow.
 func (h *AdvancedFeaturesHandler) GetEnergyFlow(w http.ResponseWriter, r *http.Request) {
-	solar := 3200.0
-	grid := -800.0
-	battery := -1200.0
-	soc := 78.0
+	var solar, grid, battery, soc float64
 
 	if h.energyCtrl != nil {
 		st := h.energyCtrl.GetStatus()
-		if p, ok := st["current_power_watts"].(float64); ok && p > 0 {
+		if p, ok := st["current_power_watts"].(float64); ok {
 			grid = p
+		}
+	}
+
+	if h.entityRepo != nil {
+		entities, err := h.entityRepo.List(r.Context(), entity.ListFilter{})
+		if err == nil {
+			for _, ent := range entities {
+				k := strings.ToLower(ent.EntityKey)
+				val, err := strconv.ParseFloat(ent.State, 64)
+				if err != nil {
+					continue
+				}
+				if strings.Contains(k, "solar") || strings.Contains(k, "pv_power") || strings.Contains(k, "photovoltaic") {
+					solar += val
+				} else if strings.Contains(k, "grid_power") || strings.Contains(k, "main_power") {
+					grid = val
+				} else if strings.Contains(k, "battery_power") {
+					battery = val
+				} else if strings.Contains(k, "battery_soc") || strings.Contains(k, "battery_level") {
+					soc = val
+				}
+			}
 		}
 	}
 

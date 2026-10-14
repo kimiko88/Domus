@@ -109,9 +109,8 @@ describe('Entities Store', () => {
     expect(updated?.attributes.brightness).toBe(200)
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/v1/entities/light.living_room/command', {
-      domain: 'light',
-      service: 'turn_on',
-      data: { brightness: 200 }
+      service: 'light.turn_on',
+      params: { brightness: 200 }
     })
   })
 })

@@ -377,7 +377,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 
 				// Advanced Features: Energy Load Shedding & Multi-tier Presence
-				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine)
+				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine).WithEntityRepository(srv.repos.Entities)
 				domainRouter.Route("/energy", func(eRouter chi.Router) {
 					eRouter.Get("/load-shedding", advH.GetLoadSheddingStatus)
 					eRouter.Get("/flow", advH.GetEnergyFlow)
@@ -431,15 +431,47 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 
 				// Ecosystem routes: Cameras, Tags, Notifications, Schedules/Calendar, Media, Weather/Solar, Mesh, OTA, Store
-				camSvc := appcamera.NewService(appcamera.NewMemoryRepository(), srv.bus)
-				tagSvc := apptag.NewService(apptag.NewMemoryRepository(), srv.bus)
+				var camRepo appcamera.Repository = appcamera.NewMemoryRepository()
+				if srv.repos.Cameras != nil {
+					camRepo = srv.repos.Cameras
+				}
+				camSvc := appcamera.NewService(camRepo, srv.bus)
+
+				var tagRepo apptag.Repository = apptag.NewMemoryRepository()
+				if srv.repos.Tags != nil {
+					tagRepo = srv.repos.Tags
+				}
+				tagSvc := apptag.NewService(tagRepo, srv.bus)
+
 				notifMgr := appnotif.NewManager(srv.bus)
-				calSvc := appcal.NewService(appcal.NewMemoryRepository(), srv.bus)
-				mediaSvc := appmedia.NewService(appmedia.NewMemoryRepository(), srv.bus)
+
+				var calRepo appcal.Repository = appcal.NewMemoryRepository()
+				if srv.repos.Calendar != nil {
+					calRepo = srv.repos.Calendar
+				}
+				calSvc := appcal.NewService(calRepo, srv.bus)
+
+				var mediaRepo appmedia.Repository = appmedia.NewMemoryRepository()
+				if srv.repos.Media != nil {
+					mediaRepo = srv.repos.Media
+				}
+				mediaSvc := appmedia.NewService(mediaRepo, srv.bus)
+
 				weatherCli := appweather.NewClient()
-				meshSvc := appmesh.NewService()
-				otaSvc := appota.NewService(srv.bus)
-				storeSvc := appstore.NewService()
+				meshSvc := appmesh.NewService(srv.repos.Devices)
+
+				var otaRepo appota.Repository = appota.NewMemoryRepository()
+				if srv.repos.OTA != nil {
+					otaRepo = srv.repos.OTA
+				}
+				otaSvc := appota.NewService(otaRepo, srv.bus)
+
+				var storeRepo appstore.Repository = appstore.NewMemoryRepository()
+				if srv.repos.Store != nil {
+					storeRepo = srv.repos.Store
+				}
+				storeSvc := appstore.NewService(storeRepo)
+
 				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc)
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
@@ -511,7 +543,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				// Shared Shopping List routes
-				shopSvc := appshop.NewService(appshop.NewMemoryRepository(), srv.bus)
+				var shopRepo appshop.Repository = appshop.NewMemoryRepository()
+				if srv.repos.Shopping != nil {
+					shopRepo = srv.repos.Shopping
+				}
+				shopSvc := appshop.NewService(shopRepo, srv.bus)
 				shopH := handlers.NewShoppingHandler(shopSvc)
 				domainRouter.Route("/shopping", func(shRouter chi.Router) {
 					shRouter.Get("/", shopH.List)

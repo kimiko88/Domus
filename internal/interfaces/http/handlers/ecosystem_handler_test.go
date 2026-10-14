@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,8 +33,27 @@ func setupEcosystemRouter() (*chi.Mux, *handlers.EcosystemHandler) {
 	mediaSvc := appMedia.NewService(appMedia.NewMemoryRepository(), bus)
 	weatherCli := appWeather.NewClient()
 	meshSvc := appMesh.NewService()
-	otaSvc := appOTA.NewService(bus)
-	storeSvc := appStore.NewService()
+
+	otaRepo := appOTA.NewMemoryRepository()
+	_ = otaRepo.SaveDevice(context.Background(), &appOTA.DeviceOTA{
+		ID:             "ota_1",
+		Name:           "ESP32 Relay",
+		CurrentVersion: "1.0.0",
+		LatestVersion:  "1.1.0",
+		HasUpdate:      true,
+		UpgradeState:   appOTA.StateIdle,
+	})
+	otaSvc := appOTA.NewService(otaRepo, bus)
+
+	storeRepo := appStore.NewMemoryRepository()
+	_ = storeRepo.SavePackage(context.Background(), &appStore.Package{
+		ID:        "pkg_bp_circadian",
+		PackageID: "blueprints.circadian",
+		Name:      "Circadian Lighting",
+		Type:      appStore.TypeBlueprint,
+		Version:   "1.0.0",
+	})
+	storeSvc := appStore.NewService(storeRepo)
 
 	h := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc)
 

@@ -325,7 +325,8 @@
     "clipDuration": "Duración del clip",
     "notifSync": "Enviado a notificación companion con acción rápida",
     "zonesModalTitle": "Configurador de Zonas de Detección",
-    "addZone": "Añadir Zona"
+    "addZone": "Añadir Zona",
+    "noCameras": "No hay cámaras configuradas"
   },
   "shopping": {
     "title": "Lista de la Compra Compartida",

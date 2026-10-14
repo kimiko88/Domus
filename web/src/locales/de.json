@@ -325,7 +325,8 @@
     "clipDuration": "Clip-Dauer",
     "notifSync": "An Begleit-Benachrichtigung mit Schnellaktion gesendet",
     "zonesModalTitle": "Bewegungszonen-Konfigurator",
-    "addZone": "Zone hinzufügen"
+    "addZone": "Zone hinzufügen",
+    "noCameras": "Keine Kameras konfiguriert"
   },
   "shopping": {
     "title": "Gemeinsame Einkaufsliste",

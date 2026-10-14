@@ -28,40 +28,7 @@ interface Helper {
   config_json: string
 }
 
-const helpers = ref<Helper[]>([
-  {
-    id: 'h_bool_1',
-    entity_key: 'input_boolean.guest_mode',
-    name: 'Modalità Ospiti',
-    domain: 'input_boolean',
-    state: 'off',
-    config_json: '{}'
-  },
-  {
-    id: 'h_bool_2',
-    entity_key: 'input_boolean.vacation_mode',
-    name: 'Modalità Vacanza',
-    domain: 'input_boolean',
-    state: 'off',
-    config_json: '{}'
-  },
-  {
-    id: 'h_num_1',
-    entity_key: 'input_number.target_climate',
-    name: 'Soglia Riscaldamento',
-    domain: 'input_number',
-    state: '20.50',
-    config_json: '{"min": 15, "max": 25, "step": 0.5, "unit": "°C"}'
-  },
-  {
-    id: 'h_timer_1',
-    entity_key: 'timer.irrigation',
-    name: 'Timer Irrigazione Giardino',
-    domain: 'timer',
-    state: 'idle',
-    config_json: '{"duration_seconds": 900, "remaining_seconds": 900, "status": "idle"}'
-  }
-])
+const helpers = ref<Helper[]>([])
 
 const showCreateModal = ref(false)
 const newName = ref('')
@@ -80,10 +47,10 @@ const newDeltaFactor = ref(1.5)
 async function loadHelpers() {
   try {
     const list = await apiClient.get<Helper[]>('/api/v1/helpers')
-    if (list && list.length > 0) {
-      helpers.value = list
-    }
-  } catch {}
+    helpers.value = list || []
+  } catch {
+    helpers.value = []
+  }
 }
 
 async function toggleBoolean(h: Helper) {
@@ -187,7 +154,10 @@ onMounted(() => {
     </header>
 
     <!-- Helpers Grid -->
-    <div class="helpers-grid">
+    <div v-if="helpers.length === 0" class="empty-helpers glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted); border-radius: 16px; border: 1px solid var(--border-color);">
+      <p class="empty-state">Nessun helper configurato nel database. Creane uno nuovo con il pulsante in alto a destra.</p>
+    </div>
+    <div v-else class="helpers-grid">
       <div v-for="h in helpers" :key="h.id" class="helper-card glass-panel">
         <div class="card-top">
           <div class="helper-info">

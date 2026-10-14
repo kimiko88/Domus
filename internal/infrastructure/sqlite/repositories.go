@@ -37,6 +37,13 @@ type Repositories struct {
 	Chores       chore.Repository
 	Dashboards   dashboard.Repository
 	Helpers      helper.Repository
+	Shopping     *ShoppingRepository
+	Calendar     *CalendarRepository
+	Tags         *TagRepository
+	Media        *MediaRepository
+	Cameras      *CameraRepository
+	OTA          *OTARepository
+	Store        *StoreRepository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -58,5 +65,12 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Chores:       NewChoreRepository(db),
 		Dashboards:   NewDashboardRepository(db),
 		Helpers:      NewHelperRepository(db),
+		Shopping:     NewShoppingRepository(db),
+		Calendar:     NewCalendarRepository(db),
+		Tags:         NewTagRepository(db),
+		Media:        NewMediaRepository(db),
+		Cameras:      NewCameraRepository(db),
+		OTA:          NewOTARepository(db),
+		Store:        NewStoreRepository(db),
 	}
 }

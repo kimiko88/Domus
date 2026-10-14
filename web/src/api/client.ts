@@ -1,4 +1,4 @@
-﻿export class ApiError extends Error {
+export class ApiError extends Error {
   status: number
   data?: any
 
@@ -77,7 +77,7 @@ class ApiClient {
       const response = await fetch(url, config)
 
       if (!response.ok) {
-        let errorMessage = HTTP  
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         let errorData: any = null
         try {
           errorData = await response.json()

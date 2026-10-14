@@ -29,61 +29,51 @@ type Package struct {
 	Icon        string      `json:"icon,omitempty"`
 }
 
-type Service struct {
+type Repository interface {
+	SavePackage(ctx context.Context, pkg *Package) error
+	GetPackage(ctx context.Context, id string) (*Package, error)
+	ListPackages(ctx context.Context, filterType string) ([]*Package, error)
+	DeletePackage(ctx context.Context, id string) error
+}
+
+type MemoryRepository struct {
 	mu       sync.RWMutex
 	packages map[string]*Package
 }
 
-func NewService() *Service {
-	s := &Service{
+func NewMemoryRepository() *MemoryRepository {
+	return &MemoryRepository{
 		packages: make(map[string]*Package),
 	}
-
-	// Curated Domus Store community packages
-	s.packages["pkg_aqara_wasm"] = &Package{
-		ID:          "pkg_aqara_wasm",
-		PackageID:   "community.aqara.cube",
-		Name:        "Aqara Magic Cube Controller",
-		Type:        TypeWasmPlugin,
-		Version:     "1.2.0",
-		Author:      "DomusCommunity",
-		Description: "Plugin WASM per interpretare rotazioni, tap e scuotimento del cubo Zigbee Aqara",
-		Installed:   true,
-		Icon:        "box",
-	}
-
-	s.packages["pkg_bp_circadian"] = &Package{
-		ID:          "pkg_bp_circadian",
-		PackageID:   "blueprints.lighting.circadian",
-		Name:        "Illuminazione Circadiana Dinamica",
-		Type:        TypeBlueprint,
-		Version:     "2.0.1",
-		Author:      "SmartHomeItaly",
-		Description: "Regola temperatura colore e luminosità dei faretti in base all'elevazione solare reale",
-		Installed:   false,
-		Icon:        "sun",
-	}
-
-	s.packages["pkg_widget_gauges"] = &Package{
-		ID:          "pkg_widget_gauges",
-		PackageID:   "widgets.energy.flow_circle",
-		Name:        "Widget Ghiera Consumi Circolare",
-		Type:        TypeWidget,
-		Version:     "1.0.4",
-		Author:      "DomusLabs",
-		Description: "Tessera dashboard con misuratore tachimetrico rotante per carichi elettrici istantanei",
-		Installed:   false,
-		Icon:        "gauge",
-	}
-
-	return s
 }
 
-func (s *Service) ListPackages(ctx context.Context, filterType string) ([]*Package, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	list := make([]*Package, 0, len(s.packages))
-	for _, p := range s.packages {
+func (m *MemoryRepository) SavePackage(ctx context.Context, pkg *Package) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.packages[pkg.ID] = pkg
+	return nil
+}
+
+func (m *MemoryRepository) GetPackage(ctx context.Context, id string) (*Package, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	p, ok := m.packages[id]
+	if !ok {
+		for _, pkg := range m.packages {
+			if pkg.PackageID == id {
+				return pkg, nil
+			}
+		}
+		return nil, fmt.Errorf("package not found: %s", id)
+	}
+	return p, nil
+}
+
+func (m *MemoryRepository) ListPackages(ctx context.Context, filterType string) ([]*Package, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	list := make([]*Package, 0, len(m.packages))
+	for _, p := range m.packages {
 		if filterType == "" || string(p.Type) == filterType {
 			list = append(list, p)
 		}
@@ -91,27 +81,54 @@ func (s *Service) ListPackages(ctx context.Context, filterType string) ([]*Packa
 	return list, nil
 }
 
+func (m *MemoryRepository) DeletePackage(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.packages, id)
+	return nil
+}
+
+type Service struct {
+	repo Repository
+}
+
+func NewService(repo ...Repository) *Service {
+	var r Repository
+	if len(repo) > 0 && repo[0] != nil {
+		r = repo[0]
+	} else {
+		r = NewMemoryRepository()
+	}
+	return &Service{repo: r}
+}
+
+func (s *Service) ListPackages(ctx context.Context, filterType string) ([]*Package, error) {
+	return s.repo.ListPackages(ctx, filterType)
+}
+
 func (s *Service) InstallPackage(ctx context.Context, packageID string) (*Package, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.packages[packageID]
-	if !ok {
-		return nil, fmt.Errorf("package not found: %s", packageID)
+	p, err := s.repo.GetPackage(ctx, packageID)
+	if err != nil {
+		return nil, err
 	}
 	now := time.Now().UTC()
 	p.Installed = true
 	p.InstalledAt = &now
+	if err := s.repo.SavePackage(ctx, p); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 
 func (s *Service) UninstallPackage(ctx context.Context, packageID string) (*Package, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.packages[packageID]
-	if !ok {
-		return nil, fmt.Errorf("package not found: %s", packageID)
+	p, err := s.repo.GetPackage(ctx, packageID)
+	if err != nil {
+		return nil, err
 	}
 	p.Installed = false
 	p.InstalledAt = nil
+	if err := s.repo.SavePackage(ctx, p); err != nil {
+		return nil, err
+	}
 	return p, nil
 }

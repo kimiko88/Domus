@@ -10,8 +10,20 @@ import (
 )
 
 func TestStoreService_InstallAndList(t *testing.T) {
-	svc := store.NewService()
+	repo := store.NewMemoryRepository()
 	ctx := context.Background()
+
+	testPkg := &store.Package{
+		ID:        "pkg_test_1",
+		PackageID: "blueprints.lighting.test",
+		Name:      "Test Blueprint",
+		Type:      store.TypeBlueprint,
+		Version:   "1.0.0",
+		Author:    "Community",
+	}
+	require.NoError(t, repo.SavePackage(ctx, testPkg))
+
+	svc := store.NewService(repo)
 
 	pkgs, err := svc.ListPackages(ctx, "")
 	require.NoError(t, err)

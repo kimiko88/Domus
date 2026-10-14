@@ -37,14 +37,14 @@ interface SankeyFlow {
 }
 
 const flow = ref<SankeyFlow>({
-  solar_watts: 4200,
-  grid_watts: -950, // exporting
-  battery_watts: -1800, // charging
-  battery_soc: 82,
-  house_consumption_watts: 1450,
-  solar_to_house_watts: 1450,
-  solar_to_battery_watts: 1800,
-  solar_to_grid_watts: 950,
+  solar_watts: 0,
+  grid_watts: 0,
+  battery_watts: 0,
+  battery_soc: 0,
+  house_consumption_watts: 0,
+  solar_to_house_watts: 0,
+  solar_to_battery_watts: 0,
+  solar_to_grid_watts: 0,
   battery_to_house_watts: 0,
   grid_to_house_watts: 0,
   grid_to_battery_watts: 0
@@ -52,20 +52,20 @@ const flow = ref<SankeyFlow>({
 
 const tariffData = ref({
   current_slot: 'F1',
-  current_price: 0.28,
+  current_price: 0,
   currency: 'EUR',
   tariffs: {
-    f1_price: 0.28,
-    f2_price: 0.24,
-    f3_price: 0.19,
-    gas_smc_price: 0.95,
-    water_m3_price: 1.80
+    f1_price: 0,
+    f2_price: 0,
+    f3_price: 0,
+    gas_smc_price: 0,
+    water_m3_price: 0
   }
 })
 
-// Utilities Telemetry
-const waterVolumeM3 = ref(14.85)
-const gasVolumeSmc = ref(122.40)
+// Utilities Telemetry (fetched from registered sensors)
+const waterVolumeM3 = ref(0)
+const gasVolumeSmc = ref(0)
 
 interface HourlyTariff {
   hour: number
@@ -98,76 +98,9 @@ const dynamicTariffSchedule = ref<{
   min_price: number
   max_price: number
   cheapest_hours: number[]
-} | null>({
-  date: new Date().toISOString().slice(0, 10),
-  market: 'PUN (Mercato Elettrico Italiano)',
-  average_price: 0.124,
-  min_price: 0.052,
-  max_price: 0.245,
-  cheapest_hours: [1, 2, 3, 4, 13, 14],
-  hourly_prices: [
-    { hour: 0, price_per_kwh: 0.082, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 1, price_per_kwh: 0.065, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 2, price_per_kwh: 0.058, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 3, price_per_kwh: 0.052, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 4, price_per_kwh: 0.056, slot: 'F3', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 5, price_per_kwh: 0.071, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 6, price_per_kwh: 0.098, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 7, price_per_kwh: 0.145, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 8, price_per_kwh: 0.210, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
-    { hour: 9, price_per_kwh: 0.235, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
-    { hour: 10, price_per_kwh: 0.180, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 11, price_per_kwh: 0.140, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 12, price_per_kwh: 0.095, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 13, price_per_kwh: 0.062, slot: 'F1', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 14, price_per_kwh: 0.068, slot: 'F1', is_cheapest: true, is_expensive: false, is_negative: false },
-    { hour: 15, price_per_kwh: 0.110, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 16, price_per_kwh: 0.165, slot: 'F1', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 17, price_per_kwh: 0.220, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
-    { hour: 18, price_per_kwh: 0.245, slot: 'F1', is_cheapest: false, is_expensive: true, is_negative: false },
-    { hour: 19, price_per_kwh: 0.230, slot: 'F2', is_cheapest: false, is_expensive: true, is_negative: false },
-    { hour: 20, price_per_kwh: 0.195, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 21, price_per_kwh: 0.150, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 22, price_per_kwh: 0.120, slot: 'F2', is_cheapest: false, is_expensive: false, is_negative: false },
-    { hour: 23, price_per_kwh: 0.095, slot: 'F3', is_cheapest: false, is_expensive: false, is_negative: false }
-  ]
-})
+} | null>(null)
 
-const flexibleLoads = ref<FlexibleLoad[]>([
-  {
-    entity_key: 'switch.wallbox_auto',
-    name: 'Ricarica Auto Elettrica (Wallbox)',
-    required_hours: 4,
-    max_price_kwh: 0.10,
-    active_now: false,
-    auto_schedule: true,
-    scheduled_hours: [1, 2, 3, 4],
-    estimated_cost_eur: 1.48,
-    savings_percent: 42
-  },
-  {
-    entity_key: 'climate.heat_pump_dhw',
-    name: 'Scaldabagno Pompa di Calore (ACS)',
-    required_hours: 2,
-    max_price_kwh: 0.09,
-    active_now: false,
-    auto_schedule: true,
-    scheduled_hours: [2, 3],
-    estimated_cost_eur: 0.35,
-    savings_percent: 36
-  },
-  {
-    entity_key: 'switch.lavatrice_smart',
-    name: 'Lavatrice con Partenza Ritardata',
-    required_hours: 2,
-    max_price_kwh: 0.12,
-    active_now: false,
-    auto_schedule: true,
-    scheduled_hours: [13, 14],
-    estimated_cost_eur: 0.28,
-    savings_percent: 29
-  }
-])
+const flexibleLoads = ref<FlexibleLoad[]>([])
 
 const evaluating = ref(false)
 
@@ -209,6 +142,24 @@ onMounted(async () => {
   try {
     const t = await apiClient.get<any>('/api/v1/energy/tariffs')
     if (t) tariffData.value = t
+  } catch {}
+
+  // Fetch real entity values for gas and water if available
+  try {
+    const entities = await apiClient.get<any[]>('/api/v1/entities')
+    if (entities && Array.isArray(entities)) {
+      for (const e of entities) {
+        const id = (e.id || '').toLowerCase()
+        const val = parseFloat(e.state)
+        if (!isNaN(val)) {
+          if (id.includes('water') || id.includes('acqua')) {
+            waterVolumeM3.value = val
+          } else if (id.includes('gas')) {
+            gasVolumeSmc.value = val
+          }
+        }
+      }
+    }
   } catch {}
 
   await fetchDynamicTariffs()

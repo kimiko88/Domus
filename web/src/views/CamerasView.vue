@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Video,
@@ -75,114 +75,28 @@ interface MotionZone {
   enabled: boolean
 }
 
-const cameras = ref<Camera[]>([
-  {
-    id: 'cam_front',
-    name: 'Ingresso Principale',
-    stream_url: 'rtsp://192.168.1.50/live/ch0',
-    snapshot_url: 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=600&q=80',
-    stream_type: 'webrtc',
-    detection_enabled: true
-  },
-  {
-    id: 'cam_garden',
-    name: 'Giardino Posteriore',
-    stream_url: 'rtsp://192.168.1.51/live/ch0',
-    snapshot_url: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?auto=format&fit=crop&w=600&q=80',
-    stream_type: 'webrtc',
-    detection_enabled: true
-  }
-])
-
-const events = ref<DetectionEvent[]>([
-  {
-    id: 'det_1',
-    camera_id: 'cam_front',
-    label: 'person',
-    score: 0.94,
-    detected_at: '2 min fa',
-    clip_duration_sec: 5.4,
-    thumbnail_url: 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=600&q=80'
-  },
-  {
-    id: 'det_2',
-    camera_id: 'cam_garden',
-    label: 'animal',
-    score: 0.88,
-    detected_at: '15 min fa',
-    clip_duration_sec: 4.1,
-    thumbnail_url: 'https://images.unsplash.com/photo-1584467735871-8e85353a8413?auto=format&fit=crop&w=600&q=80'
-  },
-  {
-    id: 'det_3',
-    camera_id: 'cam_front',
-    label: 'package',
-    score: 0.96,
-    detected_at: '1 ora fa',
-    clip_duration_sec: 6.0,
-    thumbnail_url: 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=600&q=80'
-  }
-])
-
+const cameras = ref<Camera[]>([])
+const events = ref<DetectionEvent[]>([])
 const nvrStatus = ref<NVRSystemStatus>({
   engine: 'Domus Local AI Vision (ONNX)',
-  total_cameras: 2,
-  active_streams: 2,
-  detection_fps: 28.5,
-  average_latency_ms: 18,
-  hardware_accel: 'CPU AVX2 SIMD & OpenVINO NPU',
-  storage_used_gb: 34.6,
+  total_cameras: 0,
+  active_streams: 0,
+  detection_fps: 0,
+  average_latency_ms: 0,
+  hardware_accel: 'CPU AVX2 SIMD',
+  storage_used_gb: 0,
   storage_limit_gb: 250.0,
-  cameras: [
-    {
-      camera_id: 'cam_front',
-      camera_name: 'Ingresso Principale',
-      stream_status: 'online',
-      current_fps: 25.0,
-      detection_ms: 17,
-      total_events_24h: 38
-    },
-    {
-      camera_id: 'cam_garden',
-      camera_name: 'Giardino Posteriore',
-      stream_status: 'online',
-      current_fps: 25.0,
-      detection_ms: 19,
-      total_events_24h: 14
-    }
-  ]
+  cameras: []
 })
-
-const motionZones = ref<MotionZone[]>([
-  {
-    id: 'zone_porch',
-    camera_id: 'cam_front',
-    name: 'Portico & Consegna Pacchi',
-    sensitivity: 85,
-    labels: ['person', 'package'],
-    enabled: true
-  },
-  {
-    id: 'zone_driveway',
-    camera_id: 'cam_front',
-    name: "Vialetto d'Accesso & Veicoli",
-    sensitivity: 75,
-    labels: ['person', 'vehicle'],
-    enabled: true
-  },
-  {
-    id: 'zone_garden_lawn',
-    camera_id: 'cam_garden',
-    name: 'Prato Posteriore & Perimetro',
-    sensitivity: 70,
-    labels: ['person', 'animal'],
-    enabled: true
-  }
-])
+const motionZones = ref<MotionZone[]>([])
 
 const activeCamera = ref<Camera | null>(null)
 const isLiveModalOpen = ref(false)
 const selectedCameraForZones = ref<Camera | null>(null)
+const activeCameraZones = computed(() => {
+  if (!selectedCameraForZones.value) return []
+  return motionZones.value.filter((z: MotionZone) => z.camera_id === selectedCameraForZones.value?.id)
+})
 const isZonesModalOpen = ref(false)
 const previewClipModal = ref<{ isOpen: boolean; event: DetectionEvent | null }>({
   isOpen: false,
@@ -226,13 +140,17 @@ function addMockZone() {
 onMounted(async () => {
   try {
     const list = await apiClient.get<Camera[]>('/api/v1/cameras')
-    if (list && list.length > 0) cameras.value = list
-  } catch {}
+    cameras.value = list || []
+  } catch {
+    cameras.value = []
+  }
 
   try {
     const evts = await apiClient.get<DetectionEvent[]>('/api/v1/cameras/events')
-    if (evts && evts.length > 0) events.value = evts
-  } catch {}
+    events.value = evts || []
+  } catch {
+    events.value = []
+  }
 
   try {
     const nvr = await apiClient.get<NVRSystemStatus>('/api/v1/nvr/status')
@@ -298,8 +216,15 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- Empty State for Cameras -->
+    <div v-if="cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
+      <Video :size="48" style="opacity: 0.4; margin: 0 auto 12px; color: var(--text-muted);" />
+      <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;">{{ t('cameras.noCameras', 'Nessuna telecamera configurata') }}</p>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Collega telecamere WebRTC, RTSP o HLS per visualizzare streaming live e rilevamento AI.</p>
+    </div>
+
     <!-- Camera Feeds Grid -->
-    <div class="cameras-grid">
+    <div v-else class="cameras-grid">
       <div v-for="cam in cameras" :key="cam.id" class="camera-card glass-panel">
         <div class="cam-preview-wrapper" @click="openLiveStream(cam)">
           <img :src="cam.snapshot_url" :alt="cam.name" class="cam-img" />
@@ -346,7 +271,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="zones-grid">
+      <div v-if="motionZones.length === 0" style="padding: 24px; text-align: center; color: var(--text-muted);">
+        <p style="margin: 0;">Nessuna zona di rilevamento movimento configurata.</p>
+      </div>
+      <div v-else class="zones-grid">
         <div v-for="zone in motionZones" :key="zone.id" class="zone-card">
           <div class="zone-top">
             <div class="zone-info">
@@ -396,7 +324,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="events-list">
+      <div v-if="events.length === 0" style="padding: 24px; text-align: center; color: var(--text-muted);">
+        <p style="margin: 0;">Nessun evento AI registrato di recente.</p>
+      </div>
+      <div v-else class="events-list">
         <div v-for="e in events" :key="e.id" class="event-row">
           <div class="event-icon-badge" :class="e.label">
             <User v-if="e.label === 'person'" :size="16" />
@@ -501,7 +432,7 @@ onMounted(async () => {
             </div>
 
             <div
-              v-for="zone in motionZones.filter(z => z.camera_id === selectedCameraForZones?.id)"
+              v-for="zone in activeCameraZones"
               :key="zone.id"
               class="zone-editor-item"
             >

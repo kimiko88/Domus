@@ -325,7 +325,8 @@
     "clipDuration": "Durée du clip",
     "notifSync": "Envoyé sur notification mobile avec action rapide",
     "zonesModalTitle": "Configuration des Zones de Détection",
-    "addZone": "Ajouter une Zone"
+    "addZone": "Ajouter une Zone",
+    "noCameras": "Aucune caméra configurée"
   },
   "shopping": {
     "title": "Liste de Courses Partagée",

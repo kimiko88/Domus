@@ -27,36 +27,7 @@ interface MediaPlayer {
   current_artist?: string
 }
 
-const players = ref<MediaPlayer[]>([
-  {
-    id: 'media_living',
-    name: 'Google Nest Hub Salotto',
-    platform: 'cast',
-    state: 'playing',
-    volume: 0.65,
-    muted: false,
-    current_title: 'Radio Monte Carlo',
-    current_artist: 'Live Streaming Web'
-  },
-  {
-    id: 'media_kitchen',
-    name: 'HomePod Mini Cucina',
-    platform: 'airplay',
-    state: 'paused',
-    volume: 0.40,
-    muted: false,
-    current_title: 'Podcast Mattutino',
-    current_artist: 'Notizie & Meteo'
-  },
-  {
-    id: 'media_bedroom',
-    name: 'Speaker Bluetooth Camera',
-    platform: 'local',
-    state: 'idle',
-    volume: 0.30,
-    muted: false
-  }
-])
+const players = ref<MediaPlayer[]>([])
 
 const isBroadcastModalOpen = ref(false)
 const broadcastMessage = ref('Attenzione: Qualcuno ha suonato al campanello!')
@@ -98,8 +69,10 @@ async function sendBroadcast() {
 onMounted(async () => {
   try {
     const list = await apiClient.get<MediaPlayer[]>('/api/v1/media/players')
-    if (list && list.length > 0) players.value = list
-  } catch {}
+    players.value = list || []
+  } catch {
+    players.value = []
+  }
 })
 </script>
 
@@ -123,7 +96,10 @@ onMounted(async () => {
     </header>
 
     <!-- Players Grid -->
-    <div class="players-grid">
+    <div v-if="players.length === 0" class="empty-players glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted); border-radius: 16px; border: 1px solid var(--border-color);">
+      <p class="empty-state">Nessun media player registrato nel database.</p>
+    </div>
+    <div v-else class="players-grid">
       <div v-for="p in players" :key="p.id" class="player-card glass-panel">
         <div class="card-head">
           <div class="player-meta">

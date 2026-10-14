@@ -45,24 +45,8 @@ interface DashboardProfile {
   layout_json: string
 }
 
-const dashboards = ref<DashboardProfile[]>([
-  {
-    id: 'tablet_living_room',
-    title: 'Tablet Salotto',
-    icon: 'tablet',
-    is_default: true,
-    kiosk_config_json: JSON.stringify({
-      enabled: false,
-      screensaverTimeoutSec: 60,
-      wakeOnPresence: true,
-      showClock: true,
-      showWeather: true
-    }),
-    layout_json: '[]'
-  }
-])
-
-const currentDashboardId = ref('tablet_living_room')
+const dashboards = ref<DashboardProfile[]>([])
+const currentDashboardId = ref('')
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
@@ -70,23 +54,25 @@ const currentTime = ref(new Date().toLocaleTimeString('it-IT', { hour: '2-digit'
 const currentDate = ref(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))
 
 // Circular Thermostat State
-const currentTemp = ref(21.4)
-const targetTemp = ref(20.5)
-const isHeating = ref(true)
+const currentTemp = ref(20.0)
+const targetTemp = ref(20.0)
+const isHeating = ref(false)
 
 function adjustTargetTemp(delta: number) {
   targetTemp.value = Math.round((targetTemp.value + delta) * 10) / 10
 }
 
-// Sparkline Mock Data
-const sparklineData = [19.2, 19.5, 20.1, 20.8, 21.2, 21.4, 21.4]
+// Sparkline Telemetry History Data
+const sparklineData = ref<number[]>([])
 const sparklinePoints = computed(() => {
-  const min = Math.min(...sparklineData)
-  const max = Math.max(...sparklineData)
+  const data = sparklineData.value
+  if (!data || data.length < 2) return '0,20 140,20'
+  const min = Math.min(...data)
+  const max = Math.max(...data)
   const range = max - min || 1
-  return sparklineData
+  return data
     .map((val, idx) => {
-      const x = (idx / (sparklineData.length - 1)) * 140
+      const x = (idx / (data.length - 1)) * 140
       const y = 40 - ((val - min) / range) * 35
       return `${x},${y}`
     })
@@ -94,10 +80,10 @@ const sparklinePoints = computed(() => {
 })
 
 // Sankey Real-Time Vectors
-const solarWatts = ref(3450)
-const batteryWatts = ref(-1800) // charging
-const batterySoc = ref(74)
-const gridWatts = ref(-650) // exporting
+const solarWatts = ref(0)
+const batteryWatts = ref(0)
+const batterySoc = ref(0)
+const gridWatts = ref(0)
 const houseWatts = computed(() => Math.max(0, solarWatts.value + gridWatts.value + batteryWatts.value))
 
 // Kiosk Activity & Wakeup
@@ -142,6 +128,31 @@ onMounted(async () => {
     if (list && list.length > 0) {
       dashboards.value = list
       currentDashboardId.value = list[0].id
+    }
+  } catch {}
+
+  try {
+    const f = await apiClient.get<any>('/api/v1/energy/flow')
+    if (f) {
+      solarWatts.value = f.solar_watts || 0
+      batteryWatts.value = f.battery_watts || 0
+      batterySoc.value = f.battery_soc || 0
+      gridWatts.value = f.grid_watts || 0
+    }
+  } catch {}
+
+  try {
+    const entities = await apiClient.get<any[]>('/api/v1/entities')
+    if (entities && Array.isArray(entities)) {
+      const climate = entities.find(e => e.id.startsWith('climate.') || e.id.includes('temp'))
+      if (climate) {
+        const tVal = parseFloat(climate.state)
+        if (!isNaN(tVal)) {
+          currentTemp.value = tVal
+          targetTemp.value = climate.attributes?.temperature || tVal
+          isHeating.value = climate.attributes?.hvac_action === 'heating'
+        }
+      }
     }
   } catch {}
 })

@@ -31,37 +31,7 @@ interface ShoppingItem {
   completed_at?: string
 }
 
-const items = ref<ShoppingItem[]>([
-  {
-    id: 'shop_1',
-    name: 'Latte Parzialmente Scremato',
-    quantity: '2 bottiglie',
-    category: 'bevande',
-    completed: false,
-    added_by: 'Marco',
-    created_at: 'Oggi'
-  },
-  {
-    id: 'shop_2',
-    name: 'Pomodori San Marzano',
-    quantity: '1 kg',
-    category: 'frutta_verdura',
-    completed: false,
-    added_by: 'Chiara',
-    created_at: 'Oggi'
-  },
-  {
-    id: 'shop_3',
-    name: 'Pastiglie Lavastoviglie',
-    quantity: '1 pacco',
-    category: 'casa',
-    completed: true,
-    added_by: 'Marco',
-    completed_by: 'Chiara',
-    created_at: 'Ieri',
-    completed_at: 'Oggi'
-  }
-])
+const items = ref<ShoppingItem[]>([])
 
 const filterStatus = ref<'all' | 'active' | 'completed'>('all')
 const newItemName = ref('')
@@ -147,8 +117,10 @@ async function clearCompleted() {
 onMounted(async () => {
   try {
     const list = await apiClient.get<ShoppingItem[]>('/api/v1/shopping')
-    if (list && list.length > 0) items.value = list
-  } catch {}
+    items.value = list || []
+  } catch {
+    items.value = []
+  }
 })
 </script>
 

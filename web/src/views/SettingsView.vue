@@ -85,47 +85,16 @@ function selectLanguage(code: any) {
   setLanguage(code)
 }
 
-const otaDevices = ref<any[]>([
-  {
-    id: 'ota_1',
-    name: 'Philips Hue Bulb E27',
-    platform: 'zigbee',
-    current_version: '1.93.7',
-    latest_version: '1.104.2',
-    has_update: true
-  },
-  {
-    id: 'ota_2',
-    name: 'Sensore Clima Salotto',
-    platform: 'esphome',
-    current_version: '2024.9.1',
-    latest_version: '2024.10.0',
-    has_update: true
-  }
-])
-
-const nfcTags = ref<any[]>([
-  {
-    id: 'tag_1',
-    name: 'Comodino Notte',
-    tag_id: '04:A2:3B:5C:88',
-    action_type: 'scene',
-    action_target_id: 'Tutto Spento'
-  },
-  {
-    id: 'tag_2',
-    name: 'Ingresso Casa',
-    tag_id: '04:FA:21:88:99',
-    action_type: 'scene',
-    action_target_id: 'Bentornato'
-  }
-])
+const otaDevices = ref<any[]>([])
+const nfcTags = ref<any[]>([])
 
 async function loadOTA() {
   try {
     const list = await apiClient.get<any[]>('/api/v1/ota/devices')
-    if (list && list.length > 0) otaDevices.value = list
-  } catch {}
+    otaDevices.value = list || []
+  } catch {
+    otaDevices.value = []
+  }
 }
 
 async function triggerOTAUpgrade(dev: any) {
@@ -139,8 +108,10 @@ async function triggerOTAUpgrade(dev: any) {
 async function loadTags() {
   try {
     const list = await apiClient.get<any[]>('/api/v1/tags')
-    if (list && list.length > 0) nfcTags.value = list
-  } catch {}
+    nfcTags.value = list || []
+  } catch {
+    nfcTags.value = []
+  }
 }
 
 async function testScanTag(t: any) {
@@ -163,14 +134,14 @@ interface FailoverStatus {
 }
 
 const failoverStatus = ref<FailoverStatus>({
-  node_id: 'hub_primary (Raspberry Pi 5)',
+  node_id: 'hub_primary',
   role: 'leader',
-  peer_node_id: 'hub_secondary (TV Box S905X)',
-  peer_address: '192.168.1.150:8080',
-  virtual_ip: '192.168.1.200 (VIP)',
-  last_heartbeat: '500ms fa',
+  peer_node_id: 'non configurato',
+  peer_address: '-',
+  virtual_ip: '-',
+  last_heartbeat: '-',
   healthy: true,
-  wal_offset: 1845209,
+  wal_offset: 0,
   wal_replication_lag: 0
 })
 
@@ -178,7 +149,7 @@ const isPromoting = ref(false)
 
 async function loadFailover() {
   try {
-    const res = await apiClient.get<FailoverStatus>('/api/v1/failover/status')
+    const res = await apiClient.get<FailoverStatus>('/api/v1/system/failover/status')
     if (res && res.node_id) {
       failoverStatus.value = res
     }
@@ -188,7 +159,7 @@ async function loadFailover() {
 async function triggerPromote() {
   isPromoting.value = true
   try {
-    const res = await apiClient.post<FailoverStatus>('/api/v1/failover/promote', {})
+    const res = await apiClient.post<FailoverStatus>('/api/v1/system/failover/promote', {})
     if (res) failoverStatus.value = res
     alert('Promozione a Leader eseguita con successo!')
   } catch {
@@ -579,7 +550,10 @@ onMounted(() => {
           <p class="theme-desc">Aggiorna le periferiche Zigbee, ESPHome e Z-Wave con 1 click senza software esterni.</p>
 
           <div class="ota-list">
-            <div v-for="dev in otaDevices" :key="dev.id" class="ota-row">
+            <p v-if="otaDevices.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
+              Nessun dispositivo registrato per aggiornamenti OTA.
+            </p>
+            <div v-else v-for="dev in otaDevices" :key="dev.id" class="ota-row">
               <div class="ota-info">
                 <strong>{{ dev.name }}</strong>
                 <span class="text-dim text-xs">{{ dev.platform.toUpperCase() }} • Attuale: {{ dev.current_version }}</span>
@@ -616,7 +590,10 @@ onMounted(() => {
           <p class="theme-desc">Scansiona adesivi NFC da smartphone per lanciare scene o automazioni istantanee.</p>
 
           <div class="tags-list">
-            <div v-for="tag in nfcTags" :key="tag.id" class="tag-row">
+            <p v-if="nfcTags.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
+              Nessun tag NFC registrato nel database.
+            </p>
+            <div v-else v-for="tag in nfcTags" :key="tag.id" class="tag-row">
               <div class="tag-info">
                 <strong>{{ tag.name }}</strong>
                 <span class="text-dim text-xs">UID: {{ tag.tag_id }} &rarr; Scena: {{ tag.action_target_id }}</span>
