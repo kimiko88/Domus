@@ -76,7 +76,7 @@ public final class KioskModeManager: ObservableObject {
         sleepTimer?.invalidate()
         // Dopo 3 minuti di inattività attiva lo screensaver OLED minimale
         sleepTimer = Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 if self?.isKioskModeEnabled == true {
                     self?.displayState = .ambientScreensaver
                 }
