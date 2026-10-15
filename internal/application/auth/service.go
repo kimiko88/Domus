@@ -266,6 +266,11 @@ func (s *Service) LoginWithPin(ctx context.Context, pin, ip, userAgent string) (
 	return sess, u, nil
 }
 
+// KioskLogin is an alias for LoginWithPin to support wall tablets and kiosk PIN authentication.
+func (s *Service) KioskLogin(ctx context.Context, pin, ip, userAgent string) (*user.Session, *user.User, error) {
+	return s.LoginWithPin(ctx, pin, ip, userAgent)
+}
+
 // CreateGuest creates a guest user with PIN, optional expiration, and kiosk mode.
 func (s *Service) CreateGuest(ctx context.Context, username, pin string, validHours int, kioskMode bool) (*user.User, error) {
 	trimmedUser := strings.TrimSpace(username)

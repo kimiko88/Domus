@@ -10,16 +10,21 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	domauth "github.com/domus-hub/domus/internal/domain/auth"
 	"github.com/domus-hub/domus/internal/domain/user"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
-// AuthHandler handles authentication and onboarding HTTP requests.
+// AuthHandler handles authentication, 2FA, brute-force defense, and onboarding HTTP requests.
 type AuthHandler struct {
-	authService  *auth.Service
-	cookieSecure bool
+	authService   *auth.Service
+	cookieSecure  bool
+	twoFactorRepo domauth.TwoFactorRepository
+	bannedRepo    domauth.BannedIPRepository
 }
 
 // NewAuthHandler constructs an AuthHandler.
@@ -28,6 +33,13 @@ func NewAuthHandler(authService *auth.Service, cookieSecure bool) *AuthHandler {
 		authService:  authService,
 		cookieSecure: cookieSecure,
 	}
+}
+
+// WithSecurity attaches 2FA and brute force IP banning repositories.
+func (h *AuthHandler) WithSecurity(twoFactorRepo domauth.TwoFactorRepository, bannedRepo domauth.BannedIPRepository) *AuthHandler {
+	h.twoFactorRepo = twoFactorRepo
+	h.bannedRepo = bannedRepo
+	return h
 }
 
 type setupRequest struct {
@@ -79,23 +91,36 @@ func (h *AuthHandler) SetupStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	TwoFactorCode string `json:"two_factor_code,omitempty"`
 }
 
-// Login authenticates a user and attaches an HttpOnly session cookie.
+// Login authenticates a user, verifies optional 2FA TOTP, and attaches an HttpOnly session cookie.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	ip := extractClientIP(r)
+
+	// 1. Check IP Ban
+	if h.bannedRepo != nil {
+		if banned, _ := h.bannedRepo.Get(r.Context(), ip); banned != nil && banned.IsBanned() {
+			h.writeError(w, http.StatusForbidden, "IP_BANNED", "Indirizzo IP bloccato per troppi tentativi falliti")
+			return
+		}
+	}
+
 	var req loginRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
 		return
 	}
 
-	ip := extractClientIP(r)
 	ua := r.UserAgent()
 
 	sess, u, err := h.authService.Login(r.Context(), req.Username, req.Password, ip, ua)
 	if err != nil {
+		if h.bannedRepo != nil {
+			_, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute)
+		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			h.writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
 			return
@@ -106,6 +131,45 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "login failed")
 		return
+	}
+
+	// 2. Check Two-Factor Authentication
+	if h.twoFactorRepo != nil {
+		twoFactorCfg, err := h.twoFactorRepo.Get(r.Context(), u.ID)
+		if err == nil && twoFactorCfg != nil && twoFactorCfg.IsEnabled {
+			if req.TwoFactorCode == "" {
+				h.writeJSON(w, http.StatusAccepted, map[string]any{
+					"requires_2fa": true,
+					"message":      "Codice di verifica 2FA richiesto",
+				})
+				return
+			}
+
+			// Validate TOTP or backup code
+			isValidTOTP := auth.VerifyTOTP(twoFactorCfg.Secret, req.TwoFactorCode, time.Now().UTC())
+			isBackupCode := false
+			if !isValidTOTP {
+				for _, code := range twoFactorCfg.BackupCodes {
+					if code == req.TwoFactorCode {
+						isBackupCode = true
+						break
+					}
+				}
+			}
+
+			if !isValidTOTP && !isBackupCode {
+				if h.bannedRepo != nil {
+					_, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute)
+				}
+				h.writeError(w, http.StatusUnauthorized, "INVALID_2FA_CODE", "Codice di verifica 2FA non valido")
+				return
+			}
+		}
+	}
+
+	// Reset failed attempts on success
+	if h.bannedRepo != nil {
+		_ = h.bannedRepo.ResetAttempts(r.Context(), ip)
 	}
 
 	// Set session cookie
@@ -140,40 +204,30 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			"role":     u.Role,
 			"email":    u.Email,
 		},
-		"csrf_token": csrfToken,
 	})
 }
 
-type kioskLoginRequest struct {
-	Pin string `json:"pin"`
-}
-
-// KioskLogin allows quick authentication with a numeric PIN for wall-mounted tablet kiosk dashboards.
+// KioskLogin handles quick PIN authentication for wall tablets and dashboard displays.
 func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
-	var req kioskLoginRequest
+	var req struct {
+		PIN string `json:"pin"`
+	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
+		return
+	}
+
+	if req.PIN == "" {
+		h.writeError(w, http.StatusBadRequest, "bad_request", "PIN is required")
 		return
 	}
 
 	ip := extractClientIP(r)
 	ua := r.UserAgent()
 
-	sess, u, err := h.authService.LoginWithPin(r.Context(), req.Pin, ip, ua)
+	sess, u, err := h.authService.KioskLogin(r.Context(), req.PIN, ip, ua)
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
-			h.writeError(w, http.StatusUnauthorized, "invalid_credentials", "PIN non valido")
-			return
-		}
-		if errors.Is(err, user.ErrGuestExpired) {
-			h.writeError(w, http.StatusForbidden, "guest_expired", "account ospite scaduto")
-			return
-		}
-		if errors.Is(err, user.ErrUserDisabled) {
-			h.writeError(w, http.StatusForbidden, "user_disabled", "account disabilitato")
-			return
-		}
-		h.writeError(w, http.StatusInternalServerError, "internal_error", "login fallito")
+		h.writeError(w, http.StatusUnauthorized, "invalid_pin", "invalid kiosk PIN")
 		return
 	}
 
@@ -188,39 +242,24 @@ func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   maxAge,
 	})
 
-	csrfToken := generateRandomToken()
-	http.SetCookie(w, &http.Cookie{
-		Name:     domusmw.CSRFCookieName,
-		Value:    csrfToken,
-		Path:     "/",
-		HttpOnly: false,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   maxAge,
-	})
-
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"token": sess.ID,
 		"user": map[string]any{
 			"id":         u.ID,
 			"username":   u.Username,
 			"role":       u.Role,
-			"is_guest":   u.IsGuest,
-			"kiosk_mode": u.KioskMode,
+			"kiosk_mode": true,
 		},
-		"csrf_token": csrfToken,
 	})
 }
 
-// Logout terminates the current session and clears the cookie.
+// Logout terminates the current user session and clears authentication cookies.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	if sess := domusmw.GetSession(r.Context()); sess != nil {
+	sess := domusmw.GetSession(r.Context())
+	if sess != nil {
 		_ = h.authService.Logout(r.Context(), sess.ID)
-	} else if cookie, err := r.Cookie(domusmw.SessionCookieName); err == nil && cookie.Value != "" {
-		_ = h.authService.Logout(r.Context(), cookie.Value)
 	}
 
-	// Clear session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     domusmw.SessionCookieName,
 		Value:    "",
@@ -231,7 +270,6 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 	})
 
-	// Clear CSRF cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     domusmw.CSRFCookieName,
 		Value:    "",
@@ -253,13 +291,138 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	twoFactorActive := false
+	if h.twoFactorRepo != nil {
+		if cfg, _ := h.twoFactorRepo.Get(r.Context(), u.ID); cfg != nil && cfg.IsEnabled {
+			twoFactorActive = true
+		}
+	}
+
 	h.writeJSON(w, http.StatusOK, map[string]any{
-		"id":         u.ID,
-		"username":   u.Username,
-		"role":       u.Role,
-		"email":      u.Email,
-		"created_at": u.CreatedAt,
+		"id":          u.ID,
+		"username":    u.Username,
+		"role":        u.Role,
+		"email":       u.Email,
+		"two_factor":  twoFactorActive,
+		"created_at":  u.CreatedAt,
 	})
+}
+
+// Setup2FA handles POST /api/v1/auth/2fa/setup.
+func (h *AuthHandler) Setup2FA(w http.ResponseWriter, r *http.Request) {
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+
+	secret, err := auth.GenerateTOTPSecret()
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to generate 2fa secret")
+		return
+	}
+
+	backupCodes := auth.GenerateBackupCodes(8)
+	qrURL := auth.BuildQRCodeURL(u.Username, secret, "Domus")
+
+	// Store pending configuration
+	cfg := &domauth.TwoFactorConfig{
+		UserID:      u.ID,
+		Secret:      secret,
+		IsEnabled:   false,
+		BackupCodes: backupCodes,
+	}
+	if err := h.twoFactorRepo.Save(r.Context(), cfg); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"secret":       secret,
+		"qr_url":       qrURL,
+		"backup_codes": backupCodes,
+	})
+}
+
+// VerifyAndEnable2FA handles POST /api/v1/auth/2fa/verify-and-enable.
+func (h *AuthHandler) VerifyAndEnable2FA(w http.ResponseWriter, r *http.Request) {
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+
+	var req struct {
+		Passcode string `json:"passcode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+		return
+	}
+
+	cfg, err := h.twoFactorRepo.Get(r.Context(), u.ID)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "2FA_NOT_INITIALIZED", "run 2fa setup first")
+		return
+	}
+
+	if !auth.VerifyTOTP(cfg.Secret, req.Passcode, time.Now().UTC()) {
+		h.writeError(w, http.StatusBadRequest, "INVALID_PASSCODE", "codice non valido o scaduto")
+		return
+	}
+
+	cfg.IsEnabled = true
+	if err := h.twoFactorRepo.Save(r.Context(), cfg); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "success",
+		"message": "Autenticazione a due fattori attivata con successo",
+	})
+}
+
+// Disable2FA handles POST /api/v1/auth/2fa/disable.
+func (h *AuthHandler) Disable2FA(w http.ResponseWriter, r *http.Request) {
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+
+	if err := h.twoFactorRepo.Delete(r.Context(), u.ID); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "success",
+		"message": "Autenticazione a due fattori disattivata",
+	})
+}
+
+// ListBannedIPs handles GET /api/v1/security/banned-ips.
+func (h *AuthHandler) ListBannedIPs(w http.ResponseWriter, r *http.Request) {
+	if h.bannedRepo == nil {
+		h.writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	banned, err := h.bannedRepo.ListBanned(r.Context())
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	h.writeJSON(w, http.StatusOK, banned)
+}
+
+// UnbanIP handles DELETE /api/v1/security/banned-ips/{ip}.
+func (h *AuthHandler) UnbanIP(w http.ResponseWriter, r *http.Request) {
+	ip := chi.URLParam(r, "ip")
+	if h.bannedRepo != nil {
+		_ = h.bannedRepo.Unban(r.Context(), ip)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *AuthHandler) writeJSON(w http.ResponseWriter, status int, data any) {
@@ -270,7 +433,6 @@ func (h *AuthHandler) writeError(w http.ResponseWriter, status int, code, messag
 	writeError(w, status, code, message)
 }
 
-// extractClientIP is a package-level helper that extracts client IP from the request.
 func extractClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")

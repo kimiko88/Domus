@@ -70,6 +70,9 @@ const (
 
 	// WebhookReceived fires when an inbound webhook is executed.
 	WebhookReceived EventType = "webhook.received"
+
+	// PresenceUpdated fires when a person's spatial zone or GPS presence state changes.
+	PresenceUpdated EventType = "presence.updated"
 )
 
 // Event is the common envelope for all domain events.

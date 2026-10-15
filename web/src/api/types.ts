@@ -448,3 +448,108 @@ export interface ClimateCompensatorConfig {
   compensated_setpoint?: number
   window_open?: boolean
 }
+
+// 6. Template Entities (Virtual Computed Sensors & Formula Evaluator)
+export interface TemplateEntity {
+  id: string
+  entity_id: string
+  name: string
+  domain: string
+  state_template: string
+  attributes_template?: string
+  unit_of_measurement?: string
+  device_class?: string
+  icon?: string
+  source_entity_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+// 7. Long-Term Statistics (LTS Rollup)
+export interface StatisticsRecord {
+  id: string
+  entity_id: string
+  period: 'hourly' | 'daily'
+  period_start: string
+  period_end: string
+  mean?: number
+  min?: number
+  max?: number
+  sum?: number
+  count: number
+  unit?: string
+  created_at: string
+}
+
+// 8. Multi-Utility Energy Tracking (Electricity, Gas, Water)
+export type UtilityType = 'electricity' | 'gas' | 'water'
+
+export interface UtilityMeter {
+  id: string
+  name: string
+  utility_type: UtilityType
+  unit: string
+  cost_per_unit: number
+  source_entity_id: string
+  current_reading: number
+  created_at: string
+  updated_at: string
+}
+
+export interface MultiUtilitySummary {
+  electricity: {
+    total_consumption: number
+    unit: string
+    cost_eur: number
+  }
+  gas: {
+    total_consumption: number
+    unit: string
+    cost_eur: number
+  }
+  water: {
+    total_consumption: number
+    unit: string
+    cost_eur: number
+  }
+  total_cost_eur: number
+  currency: string
+}
+
+// 9. Multi-Zone Spatial Geofencing & Bayesian Presence
+export interface SpatialZone {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  radius: number
+  icon: string
+  passive: boolean
+  created_at: string
+}
+
+export interface TrackedPerson {
+  id: string
+  name: string
+  user_id?: string
+  state: string
+  latitude?: number
+  longitude?: number
+  device_trackers: string[]
+  updated_at: string
+}
+
+// 10. Two-Factor Authentication & Security Defense
+export interface TwoFactorSetupResponse {
+  secret: string
+  qr_url: string
+  backup_codes: string[]
+}
+
+export interface BannedIP {
+  ip: string
+  failed_attempts: number
+  banned_until?: string
+  updated_at: string
+}
+

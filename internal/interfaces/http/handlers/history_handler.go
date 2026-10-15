@@ -5,16 +5,20 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	apphist "github.com/domus-hub/domus/internal/application/history"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/history"
 	"github.com/go-chi/chi/v5"
 )
 
-// HistoryHandler handles HTTP requests for historical entity states.
+// HistoryHandler handles HTTP requests for historical entity states and aggregated statistics.
 type HistoryHandler struct {
 	historyRepo history.Repository
+	statsRepo   history.StatisticsRepository
+	rollupSvc   *apphist.RollupService
 	entityRepo  entity.Repository
 }
 
@@ -24,6 +28,13 @@ func NewHistoryHandler(historyRepo history.Repository, entityRepo entity.Reposit
 		historyRepo: historyRepo,
 		entityRepo:  entityRepo,
 	}
+}
+
+// WithStatistics attaches long-term statistics repository and rollup service.
+func (h *HistoryHandler) WithStatistics(statsRepo history.StatisticsRepository, rollupSvc *apphist.RollupService) *HistoryHandler {
+	h.statsRepo = statsRepo
+	h.rollupSvc = rollupSvc
+	return h
 }
 
 // GetEntityHistory returns historical state records for a given entity ID or key.
@@ -85,4 +96,84 @@ func (h *HistoryHandler) GetEntityHistory(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, records)
+}
+
+// GetStatistics handles GET /api/v1/history/statistics.
+func (h *HistoryHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
+	if h.statsRepo == nil {
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "statistics repository not configured")
+		return
+	}
+
+	q := r.URL.Query()
+	var entityIDs []string
+	if rawIDs := q.Get("entity_ids"); rawIDs != "" {
+		entityIDs = strings.Split(rawIDs, ",")
+	}
+
+	period := q.Get("period")
+	if period == "" {
+		period = "hourly"
+	}
+
+	filter := history.StatisticsFilter{
+		EntityIDs: entityIDs,
+		Period:    period,
+	}
+
+	if fromStr := q.Get("from"); fromStr != "" {
+		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			filter.From = t
+		}
+	}
+	if toStr := q.Get("to"); toStr != "" {
+		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+			filter.To = t
+		}
+	}
+
+	stats, err := h.statsRepo.GetStatistics(r.Context(), filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	if stats == nil {
+		stats = []*history.StatisticsRecord{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"statistics": stats,
+		"total":      len(stats),
+		"period":     period,
+	})
+}
+
+// TriggerRollup handles POST /api/v1/history/statistics/rollup.
+func (h *HistoryHandler) TriggerRollup(w http.ResponseWriter, r *http.Request) {
+	if h.rollupSvc == nil {
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "rollup service not configured")
+		return
+	}
+
+	lookback := 24
+	if lStr := r.URL.Query().Get("hours"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+			lookback = l
+		}
+	}
+
+	recordsCount, err := h.rollupSvc.ExecuteHourlyRollup(r.Context(), lookback)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "ROLLUP_FAILED", err.Error())
+		return
+	}
+
+	purgedRows, _ := h.rollupSvc.PurgeOldRawHistory(r.Context(), 10)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":          "success",
+		"records_created": recordsCount,
+		"raw_rows_purged": purgedRows,
+	})
 }

@@ -16,9 +16,9 @@ import {
   Layers,
   CalendarCheck,
   Cpu,
-  CheckCircle
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+import type { MultiUtilitySummary, UtilityMeter } from '../api/types'
 
 const { t } = useI18n()
 
@@ -66,6 +66,30 @@ const tariffData = ref({
 // Utilities Telemetry (fetched from registered sensors)
 const waterVolumeM3 = ref(0)
 const gasVolumeSmc = ref(0)
+const multiUtility = ref<MultiUtilitySummary | null>(null)
+const utilityMeters = ref<UtilityMeter[]>([])
+
+async function fetchMultiUtility() {
+  try {
+    const summary = await apiClient.get<MultiUtilitySummary>('/api/v1/energy/multi-utility-summary')
+    if (summary) {
+      multiUtility.value = summary
+      if (summary.water?.total_consumption) {
+        waterVolumeM3.value = summary.water.total_consumption / 1000
+      }
+      if (summary.gas?.total_consumption) {
+        gasVolumeSmc.value = summary.gas.total_consumption
+      }
+    }
+  } catch {}
+
+  try {
+    const res = await apiClient.get<{ meters: UtilityMeter[] }>('/api/v1/energy/utility-meters')
+    if (res && res.meters) {
+      utilityMeters.value = res.meters
+    }
+  } catch {}
+}
 
 interface HourlyTariff {
   hour: number
@@ -163,6 +187,7 @@ onMounted(async () => {
   } catch {}
 
   await fetchDynamicTariffs()
+  await fetchMultiUtility()
 })
 </script>
 
@@ -480,22 +505,34 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- Water and Gas Metering -->
+      <!-- Water, Gas & Multi-Utility Metering -->
       <section class="utilities-card glass-panel">
         <div class="card-header">
           <Droplets :size="20" class="text-info" />
           <h3 class="card-title">{{ t('energy.utilitiesTitle') }}</h3>
+          <span v-if="multiUtility" class="cost-badge">Totale: {{ multiUtility.total_cost_eur.toFixed(2) }} €</span>
         </div>
 
         <div class="utility-items">
+          <div class="utility-item">
+            <div class="u-icon electricity">
+              <Zap :size="22" class="text-warning" />
+            </div>
+            <div class="u-meta">
+              <span class="u-title">Elettricità</span>
+              <span class="u-val">{{ (multiUtility?.electricity.total_consumption ?? (flow.house_consumption_watts / 1000)).toFixed(1) }} kWh</span>
+              <span class="u-cost">Costo: {{ (multiUtility?.electricity.cost_eur ?? 0).toFixed(2) }} €</span>
+            </div>
+          </div>
+
           <div class="utility-item">
             <div class="u-icon water">
               <Droplets :size="22" />
             </div>
             <div class="u-meta">
               <span class="u-title">{{ t('energy.waterMeter') }}</span>
-              <span class="u-val">{{ waterVolumeM3.toFixed(2) }} m³</span>
-              <span class="u-cost">Costo stimato: {{ (waterVolumeM3 * tariffData.tariffs.water_m3_price).toFixed(2) }} €</span>
+              <span class="u-val">{{ (multiUtility?.water.total_consumption ?? (waterVolumeM3 * 1000)).toFixed(0) }} L ({{ waterVolumeM3.toFixed(2) }} m³)</span>
+              <span class="u-cost">Costo: {{ (multiUtility?.water.cost_eur ?? (waterVolumeM3 * tariffData.tariffs.water_m3_price)).toFixed(2) }} €</span>
             </div>
           </div>
 
@@ -505,9 +542,16 @@ onMounted(async () => {
             </div>
             <div class="u-meta">
               <span class="u-title">{{ t('energy.gasMeter') }}</span>
-              <span class="u-val">{{ gasVolumeSmc.toFixed(2) }} Smc</span>
-              <span class="u-cost">Costo stimato: {{ (gasVolumeSmc * tariffData.tariffs.gas_smc_price).toFixed(2) }} €</span>
+              <span class="u-val">{{ (multiUtility?.gas.total_consumption ?? gasVolumeSmc).toFixed(2) }} Smc</span>
+              <span class="u-cost">Costo: {{ (multiUtility?.gas.cost_eur ?? (gasVolumeSmc * tariffData.tariffs.gas_smc_price)).toFixed(2) }} €</span>
             </div>
+          </div>
+        </div>
+
+        <div v-if="utilityMeters.length > 0" class="submeters-list">
+          <div v-for="m in utilityMeters" :key="m.id" class="submeter-chip">
+            <span class="chip-name">{{ m.name }}</span>
+            <span class="chip-val">{{ m.current_reading }} {{ m.unit }}</span>
           </div>
         </div>
       </section>

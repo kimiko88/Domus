@@ -25,6 +25,7 @@ import (
 	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
+	apphist "github.com/domus-hub/domus/internal/application/history"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
@@ -32,8 +33,10 @@ import (
 	appshop "github.com/domus-hub/domus/internal/application/shopping"
 	appstore "github.com/domus-hub/domus/internal/application/store"
 	apptag "github.com/domus-hub/domus/internal/application/tag"
+	appte "github.com/domus-hub/domus/internal/application/template_entity"
 	appweather "github.com/domus-hub/domus/internal/application/weather"
 	appwebhook "github.com/domus-hub/domus/internal/application/webhook"
+	appzone "github.com/domus-hub/domus/internal/application/zone"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
@@ -178,6 +181,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
+		if srv.repos != nil && srv.repos.BannedIPs != nil {
+			api.Use(domusmw.IPBanMiddleware(srv.repos.BannedIPs))
+		}
+
 		api.Route("/system", func(sys chi.Router) {
 			sys.Method(http.MethodGet, "/health", healthHandler)
 			if srv.repos != nil {
@@ -202,6 +209,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// Auth routes
 		if srv.authService != nil {
 			authH := handlers.NewAuthHandler(srv.authService, cfg.CookieSecure)
+			if srv.repos != nil {
+				authH.WithSecurity(srv.repos.TwoFactor, srv.repos.BannedIPs)
+			}
 			familyH := handlers.NewFamilyHandler(srv.authService, cfg.CookieSecure)
 
 			api.Route("/auth", func(authRouter chi.Router) {
@@ -221,9 +231,21 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				authRouter.Post("/kiosk-login", authH.KioskLogin)
 
+				// 2FA TOTP authentication
+				authRouter.With(domusmw.RequireAuth()).Post("/2fa/setup", authH.Setup2FA)
+				authRouter.With(domusmw.RequireAuth()).Post("/2fa/verify", authH.VerifyAndEnable2FA)
+				authRouter.With(domusmw.RequireAuth()).Post("/2fa/disable", authH.Disable2FA)
+
 				// Protected auth routes
 				authRouter.With(domusmw.RequireAuth()).Post("/logout", authH.Logout)
 				authRouter.With(domusmw.RequireAuth()).Get("/me", authH.Me)
+			})
+
+			// Security IP management routes (admin-only)
+			api.Route("/security", func(secRouter chi.Router) {
+				secRouter.Use(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin))
+				secRouter.Get("/banned-ips", authH.ListBannedIPs)
+				secRouter.Post("/banned-ips/unban", authH.UnbanIP)
 			})
 
 			// Family management routes (authenticated)
@@ -305,8 +327,25 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						entRouter.Post("/{id}/command", entityH.Command)
 					}
 					if srv.repos.History != nil {
+						var rollupSvc *apphist.RollupService
+						if srv.repos.Statistics != nil {
+							rollupSvc = apphist.NewRollupService(srv.repos.History, srv.repos.Statistics, srv.repos.Entities)
+							go rollupSvc.Start(context.Background(), 1*time.Hour)
+						}
 						histH := handlers.NewHistoryHandler(srv.repos.History, srv.repos.Entities)
+						if srv.repos.Statistics != nil {
+							histH.WithStatistics(srv.repos.Statistics, rollupSvc)
+						}
 						entRouter.Get("/{id}/history", histH.GetEntityHistory)
+
+						domainRouter.Route("/history", func(hRouter chi.Router) {
+							hRouter.Get("/statistics", histH.GetStatistics)
+							if srv.authService != nil {
+								hRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/statistics/rollup", histH.TriggerRollup)
+							} else {
+								hRouter.Post("/statistics/rollup", histH.TriggerRollup)
+							}
+						})
 					}
 				})
 
@@ -402,7 +441,52 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					} else {
 						eRouter.Put("/load-shedding", advH.UpdateLoadShedding)
 					}
+					if srv.repos.UtilityMeters != nil {
+						umH := handlers.NewUtilityMeterHandler(srv.repos.UtilityMeters, srv.repos.Entities)
+						eRouter.Get("/utility-meters", umH.List)
+						eRouter.Post("/utility-meters", umH.Create)
+						eRouter.Get("/utility-meters/{id}", umH.Get)
+						eRouter.Put("/utility-meters/{id}", umH.Update)
+						eRouter.Delete("/utility-meters/{id}", umH.Delete)
+						eRouter.Get("/multi-utility-summary", umH.Summary)
+					}
 				})
+
+				// Spatial Zones and Tracked Persons (Multi-Zone & Bayesian Presence)
+				if srv.repos.Zones != nil {
+					zoneSvc := appzone.NewService(srv.repos.Zones, srv.bus)
+					zoneH := handlers.NewZoneHandler(zoneSvc, srv.repos.Zones)
+					domainRouter.Route("/zones", func(zRouter chi.Router) {
+						zRouter.Get("/", zoneH.ListZones)
+						zRouter.Post("/", zoneH.CreateZone)
+						zRouter.Get("/{id}", zoneH.GetZone)
+						zRouter.Put("/{id}", zoneH.UpdateZone)
+						zRouter.Delete("/{id}", zoneH.DeleteZone)
+					})
+					domainRouter.Route("/persons", func(pRouter chi.Router) {
+						pRouter.Get("/", zoneH.ListPersons)
+						pRouter.Post("/", zoneH.CreatePerson)
+						pRouter.Get("/{id}", zoneH.GetPerson)
+						pRouter.Put("/{id}", zoneH.UpdatePerson)
+						pRouter.Delete("/{id}", zoneH.DeletePerson)
+						pRouter.Post("/{id}/location", zoneH.UpdatePersonLocation)
+					})
+				}
+
+				// Template Entities (Expressions, Formula Evaluator & Virtual Sensors)
+				if srv.repos.Templates != nil {
+					teSvc := appte.NewService(srv.repos.Templates, srv.repos.Entities, srv.bus)
+					_ = teSvc.Start(context.Background())
+					teH := handlers.NewTemplateEntityHandler(teSvc, srv.repos.Templates)
+					domainRouter.Route("/template-entities", func(teRouter chi.Router) {
+						teRouter.Get("/", teH.List)
+						teRouter.Post("/", teH.Create)
+						teRouter.Post("/preview", teH.Preview)
+						teRouter.Get("/{id}", teH.Get)
+						teRouter.Put("/{id}", teH.Update)
+						teRouter.Delete("/{id}", teH.Delete)
+					})
+				}
 
 				domainRouter.Route("/presence", func(pRouter chi.Router) {
 					pRouter.Post("/gps", advH.UpdateGPS)
