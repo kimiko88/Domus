@@ -4,8 +4,8 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.os.Build
 import android.util.Rational
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -188,13 +188,15 @@ fun CameraStreamScreen(
             }
 
             // Snapshot feedback toast
-            AnimatedVisibility(
-                visible = snapshotTakenNotification,
-                modifier = Modifier.align(Alignment.Center)
-            ) {
+            if (snapshotTakenNotification) {
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(2000)
+                    snapshotTakenNotification = false
+                }
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = EmeraldSuccess.copy(alpha = 0.9f)
+                    color = EmeraldSuccess.copy(alpha = 0.9f),
+                    modifier = Modifier.align(Alignment.Center)
                 ) {
                     Text(
                         text = "📸 Fotogramma salvato in Galleria",
