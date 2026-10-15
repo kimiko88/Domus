@@ -106,6 +106,22 @@ export const useAlarmStore = defineStore('alarm', () => {
     }
   }
 
+  function handleAlarmEvent(eventType: string, payload: any) {
+    if (!panel.value) return
+    if (eventType === 'alarm.state_changed' || eventType === 'alarm.pending_entry') {
+      if (payload.state) panel.value.state = payload.state
+      if (payload.last_changed_by) panel.value.last_changed_by = payload.last_changed_by
+    } else if (eventType === 'alarm.triggered') {
+      panel.value.state = 'triggered'
+      if (payload.reason) panel.value.last_triggered_reason = payload.reason
+      if (payload.triggered_at) panel.value.triggered_at = payload.triggered_at
+    } else if (eventType === 'alarm.disarmed') {
+      panel.value.state = 'disarmed'
+      if (payload.user) panel.value.last_changed_by = payload.user
+    }
+    panel.value.updated_at = new Date().toISOString()
+  }
+
   return {
     panel,
     loading,
@@ -117,6 +133,7 @@ export const useAlarmStore = defineStore('alarm', () => {
     arm,
     disarm,
     trigger,
-    updateConfig
+    updateConfig,
+    handleAlarmEvent
   }
 })

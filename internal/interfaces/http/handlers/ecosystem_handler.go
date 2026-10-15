@@ -297,6 +297,23 @@ func (h *EcosystemHandler) SetPlayerVolume(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, p)
 }
 
+func (h *EcosystemHandler) SetPlayerState(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	p, err := h.mediaSvc.SetState(r.Context(), id, domainMedia.PlayerState(req.State))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
 func (h *EcosystemHandler) BroadcastAnnouncement(w http.ResponseWriter, r *http.Request) {
 	var req domainMedia.BroadcastAnnouncement
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

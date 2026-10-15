@@ -79,6 +79,7 @@ onMounted(() => {
 
     <!-- Main Dashboard Layout -->
     <div v-else class="main-layout">
+      <a href="#main-content" class="skip-link">Salta al contenuto principale</a>
       <AppSidebar
         :is-open="isSidebarOpen"
         :current-path="route?.path || '/'"
@@ -91,7 +92,7 @@ onMounted(() => {
           @toggle-menu="isSidebarOpen = !isSidebarOpen"
         />
 
-        <main class="page-content">
+        <main id="main-content" class="page-content" tabindex="-1">
           <RouterView />
         </main>
       </div>

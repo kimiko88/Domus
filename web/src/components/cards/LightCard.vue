@@ -58,7 +58,9 @@ async function handleBrightnessChange() {
         class="toggle-btn"
         :class="{ active: isOn }"
         :disabled="isExecuting"
-        :aria-label="isOn ? 'Turn off' : 'Turn on'"
+        role="switch"
+        :aria-checked="isOn"
+        :aria-label="isOn ? `Spegni ${entity.name}` : `Accendi ${entity.name}`"
         @click="handleToggle"
       >
         <span class="toggle-indicator" />
@@ -73,7 +75,11 @@ async function handleBrightnessChange() {
         min="1"
         max="100"
         class="brightness-slider"
-        aria-label="Brightness"
+        role="slider"
+        aria-label="Luminosità"
+        aria-valuemin="1"
+        aria-valuemax="100"
+        :aria-valuenow="sliderValue"
         @change="handleBrightnessChange"
       />
     </div>

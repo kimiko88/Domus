@@ -168,6 +168,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	// WebSocket real-time route
 	if srv.wsHub != nil {
 		wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+		if srv.repos != nil {
+			wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
+		} else {
+			wsH.WithBusAndRepo(srv.bus, nil)
+		}
 		r.Method(http.MethodGet, "/ws", wsH)
 	}
 
@@ -304,6 +309,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						entRouter.Get("/{id}/history", histH.GetEntityHistory)
 					}
 				})
+
+				// Mobile & ecosystem services endpoint (/api/v1/services/{domain}/{service})
+				if srv.authService != nil {
+					domainRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/services/{domain}/{service}", entityH.CallService)
+				} else {
+					domainRouter.Post("/services/{domain}/{service}", entityH.CallService)
+				}
 
 				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine).WithEntities(srv.repos.Entities)
 				domainRouter.Route("/automations", func(autoRouter chi.Router) {
@@ -510,8 +522,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
 					mRouter.Post("/players/{id}/volume", ecoH.SetPlayerVolume)
+					mRouter.Post("/players/{id}/state", ecoH.SetPlayerState)
 					mRouter.Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
+
+				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/weather", func(wRouter chi.Router) {
 					wRouter.Get("/forecast", ecoH.GetWeatherForecast)

@@ -45,7 +45,9 @@ async function handleToggle() {
         class="toggle-btn"
         :class="{ active: isOn }"
         :disabled="isExecuting"
-        :aria-label="isOn ? 'Turn off' : 'Turn on'"
+        role="switch"
+        :aria-checked="isOn"
+        :aria-label="isOn ? `Disattiva ${entity.name}` : `Attiva ${entity.name}`"
         @click="handleToggle"
       >
         <span class="toggle-indicator" />

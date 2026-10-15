@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useEntitiesStore } from './entities'
 import { useNotificationsStore } from './notifications'
+import { useAlarmStore } from './alarm'
 import type { EntityStateEventPayload } from '../api/types'
 
 export const useWsStore = defineStore('ws', () => {
@@ -11,6 +12,7 @@ export const useWsStore = defineStore('ws', () => {
 
   const entitiesStore = useEntitiesStore()
   const notificationsStore = useNotificationsStore()
+  const alarmStore = useAlarmStore()
 
   function setConnected(connected: boolean) {
     isConnected.value = connected
@@ -28,6 +30,26 @@ export const useWsStore = defineStore('ws', () => {
     switch (eventType) {
       case 'entity.state_changed':
         entitiesStore.handleStateChange(payload as EntityStateEventPayload)
+        break
+
+      case 'alarm.state_changed':
+      case 'alarm.pending_entry':
+        alarmStore.handleAlarmEvent(eventType, payload)
+        notificationsStore.info('Allarme', `Stato allarme: ${payload.state || 'aggiornato'}`)
+        break
+
+      case 'alarm.triggered':
+        alarmStore.handleAlarmEvent(eventType, payload)
+        notificationsStore.error('ALLARME ATTIVATO', `Allarme intrusione attivato! Motivo: ${payload.reason || 'Sensore perimetrale'}`)
+        break
+
+      case 'alarm.disarmed':
+        alarmStore.handleAlarmEvent(eventType, payload)
+        notificationsStore.success('Allarme Disarmato', 'Centrale allarme disarmata con successo.')
+        break
+
+      case 'tag.scanned':
+        notificationsStore.info('Tag Scansionato', `Tag "${payload.tag_name || payload.tag_id}" elaborato con successo.`)
         break
 
       case 'device.online':

@@ -313,3 +313,310 @@ gantt
 - **Layout Tablet & Floorplan 2D**: `NavigationSplitView` a 3 colonne per iPadOS/macOS e `ListDetailPaneScaffold` per Android; rendering interattivo della pianta della casa con stato luci in tempo reale e drag-and-drop per riordinare le card.
 - **Sicurezza di Rete & Manutenzione**: Tunnel VPN On-Demand automatico (`NetworkExtension` / `VpnService`) fuori dal Wi-Fi di casa e background maintenance con `BGTaskScheduler` e Android `WorkManager`.
 
+---
+
+## 7. Stato Attuale del Codice Mobile & Gap Analysis (iOS vs Android)
+
+Un audit approfondito del codice esistente nei repository `mobile/ios` e `mobile/android` evidenzia lo stato di avanzamento e i divari funzionali:
+
+### 7.1 Matrice Comparativa Funzionale
+
+| Funzionalità / Modulo | Backend / Web | iOS (`DomusKit`) | Android (`com.domus.app`) | Stato di Parità |
+| :--- | :--- | :--- | :--- | :--- |
+| **mDNS Zero-Conf Discovery** | Broadcast `_domus._tcp` | Implementato (`NWBrowser`) | Implementato (`NsdManager`) | Allineato |
+| **Dual-Transport (LAN/Remote)** | WS Hub + JWT REST | Implementato (`DualTransportWebSocketClient`) | Implementato (`DualTransportManager`) | Allineato |
+| **Dashboard & Card Entità** | Vue 3 + Pinia | Implementato (`DashboardView`, `AdaptiveMainView`) | Parziale (`DashboardScreen`, `EntityCard`) | Android necessita di schede specializzate |
+| **Controllo Luci (Luminosità/Colore HSL)** | `light.turn_on` | Implementato (`LightDetailSheet`) | Mancante | Da implementare su Android |
+| **Termostato Circolare Interattivo** | `climate.set_temperature` | Implementato (`ThermostatSheet`) | Mancante | Da implementare su Android (Canvas) |
+| **Pannello Allarme con Tastierino PIN** | `/api/v1/alarm/*` | Implementato (`AlarmSheet`) | Mancante | Da implementare su Android |
+| **Streaming Telecamere & PiP** | RTSP / WebRTC | Implementato (`CameraDetailSheet`, `AVKit`) | Mancante | Da implementare su Android (ExoPlayer + PiP) |
+| **Planimetria 2D / Floorplan** | `/api/v1/floors/*` | Implementato (`FloorplanView` Canvas) | Mancante | Da implementare su Android (Compose Canvas) |
+| **Lista della Spesa Condivisa** | `/api/v1/shopping/*` | Mancante | Mancante | Da implementare su entrambe |
+| **Assistente Vocale & Chat LLM Locale** | `/api/v1/assistant/chat` | Mancante (Solo Siri Shortcuts) | Mancante | Da implementare su entrambe |
+| **Promemoria & Faccende (Chores)** | `/api/v1/chores/*` | Mancante | Mancante | Da implementare su entrambe |
+| **Gestione Energia & Tariffe Dinamiche** | `/api/v1/energy/*` | Parziale (Gauge statico) | Mancante | Da implementare su entrambe |
+| **Tag NFC Fisici (Scan/Write)** | `/api/v1/tags/*` | Implementato (`NfcTagManager`) | Mancante | Da implementare su Android |
+| **Geofencing & Presenza Multi-Tier** | `/api/v1/presence/gps` | Implementato (`GeofencingPresenceManager`) | Mancante | Da implementare su Android |
+| **Autenticazione Biometrica** | LocalAuth / Keystore | Implementato (`LocalAuthenticationManager`) | Mancante | Da implementare su Android (`BiometricPrompt`) |
+| **Allarmi Critici (Bypass Silenzioso)** | Actionable Push | Implementato (`NotificationManager`) | Mancante | Da implementare su Android (`NotificationChannel`) |
+| **Widget Schermata Home** | PWA Manifest | Implementato (`WidgetKit`, AppIntents) | Mancante | Da implementare su Android (`Glance`) |
+| **Riquadri Tendina Rapida** | N/A | Implementato (`ControlWidget` iOS 18) | Mancante | Da implementare su Android (`TileService`) |
+| **Modalità Kiosk per Tablet a Parete** | Fullscreen PWA | Implementato (`KioskModeManager`) | Mancante | Da implementare su Android (CameraX + LockTask) |
+| **Infotainment Auto** | N/A | Implementato (`DomusCarPlayManager`) | Mancante | Da implementare su Android (`CarAppService`) |
+| **Companion Smartwatch** | N/A | Implementato (`WatchSessionManager`) | Mancante | Da implementare su Android (`Wear OS Compose`) |
+
+---
+
+## 8. Piano Operativo di Allineamento e Completamento iOS (Feature Mancanti)
+
+Per completare l'applicazione iOS ed equipararla al 100% delle funzionalità già fruibili sul backend e sulla Web App, è necessario sviluppare i seguenti moduli in `mobile/ios/Sources/DomusKit`:
+
+### 8.1 Lista della Spesa Nativa (`ShoppingListView.swift`)
+- **Modello Dati**: `ShoppingItem` (id, title, quantity, category, completed, completedBy, createdAt).
+- **Data Layer**: `ShoppingRepository` che implementa chiamate asincrone a:
+  - `GET /api/v1/shopping` (lista articoli)
+  - `POST /api/v1/shopping` (nuovo articolo con categoria)
+  - `POST /api/v1/shopping/{id}/toggle` (spunta rapida)
+  - `DELETE /api/v1/shopping/{id}` (rimozione)
+  - `POST /api/v1/shopping/clear-completed` (svuota acquistati)
+- **UI SwiftUI**: Lista interattiva con raggruppamento per reparto del supermercato, checkbox ad animazione elastica, gesture di swipe-to-delete e feedback aptico `UIImpactFeedbackGenerator`.
+
+### 8.2 In-App Voice & Local LLM Assistant Sheet (`AssistantChatSheet.swift`)
+- **Architettura**:
+  - `SpeechRecognitionManager`: Utilizzo del framework nativo `Speech.framework` (`SFSpeechRecognizer`) e `AVAudioEngine` per trascrizione vocale a zero latenza.
+  - Chiamata streaming a `POST /api/v1/assistant/chat` con prompt testuale.
+- **UI SwiftUI**:
+  - Bolle di conversazione in stile iMessage con formattazione Markdown del testo generato da Ollama/Llama 3.2.
+  - Chip visivi che mostrano le azioni effettivamente eseguite sul domotico (es. `light.turn_on [salotto] -> Successo`).
+  - Pulsante microfono centrale con animazione a onde sonore (Siri-like waveform) con `PhaseAnimator`.
+
+### 8.3 Gestione Faccende Domestiche & Promemoria (`ChoresSheet.swift`)
+- **Modello Dati**: `Chore` (id, title, areaId, assignedUserId, priority, dueDate, recurrenceRule, status).
+- **Data Layer**: Integrazione endpoint `/api/v1/chores/*`.
+- **UI SwiftUI**:
+  - Filtro per stanza e per membro della famiglia (avatar dell'assegnatario).
+  - Badge colorati in base alla priorità (`urgent`, `high`, `medium`, `low`).
+  - Animazione di completamento con coriandoli visivi (`Canvas`) ed emissione di punti karma famiglia.
+
+### 8.4 Cruscotto Energetico & Tariffe Dinamiche (`EnergyFlowSheet.swift`)
+- **Visualizzazione Grafica Flusso Energetico**:
+  - Grafico vettoriale interattivo con SwiftUI `Canvas`: Flusso in tempo reale tra Pannelli Solari, Batteria di Accumulo, Rete Nazionale e Carichi Domestici.
+  - Indicatore di potenza attiva istantanea (kW assorbiti vs kW immessi).
+- **Tariffe Dinamiche & Load Shedding**:
+  - Grafico previsionale delle tariffe orarie (PUN / tariffe dinamiche).
+  - Slider per impostare la soglia contrattuale di distacco carichi (es. 3.3 kW o 4.5 kW) collegato a `PUT /api/v1/energy/load-shedding`.
+  - Elenco carichi flessibili con riordinamento drag-and-drop della priorità di spegnimento (es. pompa di calore vs lavatrice).
+
+### 8.5 Centro Notifiche Persistente In-App (`NotificationHistoryView.swift`)
+- Sostituzione delle sole notifiche push effimere con un archivio storico persistente memorizzato in `SwiftData`.
+- Categorizzazione: *Sicurezza & Allarmi*, *Energia*, *Dispositivi Offline*, *Sistema Domus OS*.
+- Azioni rapide ripetibili direttamente dalla cronologia (es. riarmare allarme, verificare clip evento telecamera).
+
+---
+
+## 9. Piano di Implementazione Completo Android (Kotlin 2.x + Jetpack Compose) & Specifiche OS
+
+L'applicazione Android companion deve raggiungere piena parità con iOS, sfruttando l'architettura Clean Architecture già impostata in `mobile/android` ed estendendola con i componenti e i framework nativi più moderni del sistema operativo Google.
+
+### 9.1 Architettura Modulare del Package `com.domus.app`
+
+```
+com.domus.app
+├── data
+│   ├── network          // OkHttp, WebSocket, DomusApiClient, DualTransportManager
+│   ├── storage          // Room Database con crittografia SQLCipher, EncryptedSharedPreferences
+│   ├── mdns             // NsdManager Local Hub Discovery
+│   ├── location         // FusedLocationProvider, GeofencingClient, NetworkCallback
+│   ├── nfc              // NfcAdapter, NDEF Message Parser / Writer
+│   └── repository       // DefaultEntityRepository, DefaultAlarmRepository, DefaultShoppingRepository
+├── domain
+│   ├── model            // Entity, Device, Area, Alarm, Chore, ShoppingItem, Camera, User
+│   ├── repository       // EntityRepository, AlarmRepository, ShoppingRepository, PresenceRepository
+│   └── usecase          // ToggleEntityUseCase, ArmAlarmUseCase, ScanNfcTagUseCase, StreamCameraUseCase
+├── presentation
+│   ├── theme            // Color, Typography, Shape, Material You Dynamic Themes
+│   ├── screens
+│   │   ├── dashboard    // DashboardScreen (Adaptive ListDetailPaneScaffold)
+│   │   ├── alarm        // AlarmBottomSheet, PinKeypadDialog, PanicSosButton
+│   │   ├── climate      // ThermostatDial, HvacModeSelector
+│   │   ├── light        // LightControlSheet, HslColorWheel, BrightnessSlider
+│   │   ├── camera       // CameraStreamScreen, WebRtcPlayer, PiPControls
+│   │   ├── floorplan    // FloorplanCanvas, MarkerBadgeOverlay, InteractiveZoom
+│   │   ├── shopping     // ShoppingListScreen, ShoppingItemRow, AddItemDialog
+│   │   ├── assistant    // AssistantChatScreen, VoiceInputVisualizer, ActionExecutedCard
+│   │   └── chores       // ChoresScreen, ChoreCard, PriorityChip
+│   ├── components       // EntityCard, ConnectionStatusBanner, BiometricPromptDialog
+│   └── viewmodel        // DashboardViewModel, AlarmViewModel, AssistantViewModel, CameraViewModel
+└── services
+    ├── widget           // Glance AppWidgets (DomusQuickControlsWidget, DomusAlarmWidget)
+    ├── quicksettings    // TileService (DomusGateTile, DomusAlarmTile, DomusLightTile)
+    ├── background       // WorkManager (DomusSyncWorker, CacheCleanupWorker)
+    ├── notifications    // DomusFirebaseMessagingService, CriticalAlarmNotificationManager
+    ├── kiosk            // KioskCameraXWakeManager, LockTaskManager, BatteryProtectionReceiver
+    ├── car              // Android Auto (DomusCarAppService, DomusCarScreen)
+    └── wear             // Wear OS TileService, WearableListenerService
+```
+
+---
+
+### 9.2 Moduli di Presentazione Jetpack Compose (Parità Completa con iOS)
+
+#### 9.2.1 Pannello Allarme con Tastierino & Biometria (`AlarmBottomSheet.kt`)
+- Bottom Sheet modale espandibile realizzato con `ModalBottomSheet`.
+- Display dello stato attuale con animazione di transizione pulsante: *Disarmato (Verde)*, *Armato Parziale (Giallo)*, *Armato Totale (Blu)*, *Allarme Innescato (Rosso lampeggiante)*.
+- **Tastierino PIN Numerico**:
+  - Griglia 3x4 in Compose con tasti a forma circolare (`ElevatedButton`) e feedback aptico `HapticFeedbackType.LongPress` su ogni digitazione.
+  - Pulsante biometrico integrato: tocco singolo per avviare `BiometricPrompt` e disarmare istantaneamente con impronta o sblocco facciale senza digitare il PIN.
+- Countdown visivo del ritardo di uscita/ingresso con barra circolare animata (`CircularProgressIndicator`).
+- Pulsante antipanico SOS manuale con conferma a pressione prolungata (3 secondi) per evitare falsi allarmi.
+
+#### 9.2.2 Termostato Circolare Interattivo (`ThermostatDial.kt`)
+- Componente personalizzato ad altissime prestazioni disegnato su Compose `Canvas`:
+  - Rilevamento delle gesture di trascinamento ad arco circolare con calcolo dell'angolo trigonometrico (`atan2(y, x)`).
+  - Ticks aptici a ogni variazione di 0.5°C tramite `LocalHapticFeedback.current`.
+  - Gradiente cromatico sfumato dinamico: azzurro freddo (< 19°C), verde comfort (19-21°C), arancione riscaldamento (> 21°C).
+- Selettore modalità HVAC: *Off*, *Heat*, *Cool*, *Auto*, *Eco*.
+
+#### 9.2.3 Controllo Avanzato Luci con Palette HSL (`LightControlSheet.kt`)
+- Slider di luminosità continuo da 0% a 100% con valore numerico fluttuante.
+- Ruota cromatica dei colori HSL renderizzata con Shader Compose `SweepGradient`.
+- Slider per temperatura bianco (da bianco caldo 2200K a bianco freddo 6500K).
+- Chip di preset rapidi (Lettura, Relax, Notte, Concentrazione).
+
+#### 9.2.4 Streaming Telecamere con WebRTC e PiP (`CameraStreamScreen.kt`)
+- Visualizzazione video fluida tramite ExoPlayer (`Media3`) per streaming RTSP e WebRTC native client.
+- Pulsante Picture-in-Picture: invoca `activity.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())`.
+- Sovrimpressione zone di rilevamento intelligenza artificiale con riquadri di tracking (persone, veicoli, animali).
+
+#### 9.2.5 Planimetria Interattiva Vettoriale (`FloorplanCanvas.kt`)
+- Rendering della pianta della casa su Compose `Canvas` con supporto multi-touch:
+  - Gesture di pinch-to-zoom e trascinamento bidirezionale (`Modifier.pointerInput` con `detectTransformGestures`).
+  - Posizionamento dinamico dei marker delle entità in percentuale rispetto alla larghezza e altezza del canvas.
+  - Tocco sul marker per accendere/spegnere la luce o visualizzare il popup con temperatura/umidità.
+  - Colorazione delle stanze con opacità variabile in base all'intensità delle luci accese.
+
+#### 9.2.6 Lista della Spesa & Assistente Vocale Compose
+- **ShoppingListScreen.kt**: Lista `LazyColumn` con supporto al trascinamento per riordinare (`Modifier.animateItemPlacement()`), checkbox animata, e filtro categorie.
+- **AssistantChatScreen.kt**: Chat con bolle messaggi Material 3, supporto al riconoscimento vocale continuo con `SpeechRecognizer`, onde sonore animate con `rememberInfiniteTransition()`, e schede con anteprima delle azioni domotiche eseguite.
+
+---
+
+### 9.3 Ottimizzazioni & Funzionalità Specifiche del Sistema Operativo Android
+
+#### 9.3.1 Material Design 3 & Dynamic Theming (Material You)
+- Supporto nativo ai colori dinamici di sistema introdotti in Android 12+:
+  ```kotlin
+  val colorScheme = when {
+      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+          val context = LocalContext.current
+          if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+      }
+      darkTheme -> DomusDarkColorScheme
+      else -> DomusLightColorScheme
+  }
+  ```
+- Supporto a dispositivi con schermi ampi (Tablets e Pieghevoli come Galaxy Z Fold e Pixel Fold) mediante `ListDetailPaneScaffold` di Jetpack Compose Adaptive: a sinistra l'elenco stanze e categorie, a destra la griglia entità e l'inspector telecamere/termostato.
+
+#### 9.3.2 Widget Interattivi con Jetpack Compose Glance (`GlanceAppWidget`)
+- A differenza dei vecchi `RemoteViews` basati su XML, i widget Glance vengono scritti interamente in codice dichiarativo Jetpack Compose:
+  - `DomusQuickControlsWidget`: Riquadro 4x2 con le 4 luci/prese preferite; il tocco sul pulsante esegue `actionRunCallback<ToggleEntityActionCallback>()` in background senza lanciare la MainActivity.
+  - `DomusAlarmWidget`: Riquadro 2x2 che mostra lo stato dell'allarme e offre un pulsante per armare/disarmare rapidamente.
+- Aggiornamento automatico dello stato del widget non appena il WebSocket riceve un evento `entity.state_changed` o `alarm.state_changed`.
+
+#### 9.3.3 Riquadri Rapidi nei Quick Settings (`TileService`)
+- Implementazione di 4 servizi dedicati nella tendina di sistema Android:
+  1. `DomusGateTileService`: Apre il cancello o la porta d'ingresso con singolo tap.
+  2. `DomusAlarmTileService`: Visualizza lo stato dell'allarme nell'etichetta del riquadro (`STATE_ACTIVE` o `STATE_INACTIVE`) e apre il dialog PIN con doppio tap.
+  3. `DomusLightTileService`: Spegne tutte le luci della casa in uscita.
+  4. `DomusSceneTileService`: Attiva lo scenario preferito ("Buonanotte" o "Rientro").
+- Aggiornamento istantaneo dell'icona del riquadro tramite `TileService.requestListeningState(context, ComponentName(...))`.
+
+#### 9.3.4 Background Sync & Manutenzione con Jetpack `WorkManager`
+- Pianificazione di task di background intelligenti e a impatto zero sulla batteria:
+  - `DomusSyncWorker`: Eseguito ogni 6 ore per sincronizzare la cache offline dei dispositivi, pulire i file temporanei delle clip telecamere e rinfrescare il catalogo integrazioni.
+  - Vincoli energetici rigorosi:
+    ```kotlin
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .setRequiresCharging(true)
+        .setRequiresDeviceIdle(true)
+        .build()
+    ```
+
+#### 9.3.5 Geofencing a Risparmio Energetico (Google Play Services)
+- Registrazione del recinto virtuale dell'abitazione tramite `GeofencingClient.addGeofences()`:
+  - Raggio configurabile: 150 metri attorno alle coordinate dell'hub.
+  - Responsiveness: 30000ms (30 secondi), ideale per non consumare batteria quando fermi.
+  - Ricezione delle transizioni (`GEOFENCE_TRANSITION_ENTER`, `GEOFENCE_TRANSITION_EXIT`) tramite `PendingIntent` collegato a un `BroadcastReceiver`.
+- **Doppio Canale Wi-Fi / Fused Location**:
+  - Quando lo smartphone si connette al Wi-Fi domestico (verificato tramite `ConnectivityManager.NetworkCallback` su `NetworkCapabilities.TRANSPORT_WIFI`), il sistema invia immediatamente `POST /api/v1/presence/gps` marcando la presenza come "In Casa" con latenza zero senza dover attendere il fix GPS.
+
+#### 9.3.6 Canali di Notifica, Allarmi Critici & Bypass Silenzioso
+- Creazione di canali di notifica specializzati (`NotificationChannel`):
+  1. **Canale Allarmi Critici (`CHANNEL_CRITICAL_ALARM`)**:
+     - Importanza: `NotificationManager.IMPORTANCE_HIGH`.
+     - Suono: Audio personalizzato sirena d'allarme caricato in `res/raw/alarm_siren.ogg`.
+     - Attributi audio: `AudioAttributes.USAGE_ALARM` con flag `FLAG_AUDIBILITY_ENFORCED`, consentendo di emettere suono a volume pieno anche con switch fisico silenzioso e modalità Non Disturbare attiva.
+     - `setFullScreenIntent(pendingIntent, true)` per visualizzazione immediata a tutto schermo in caso di intrusione.
+  2. **Canale Avvisi Domestici & Faccende (`CHANNEL_HOME_NOTICES`)**:
+     - Notifiche azionabili con pulsanti rapidi inline (`AddAction`): `[Spegni Luci]`, `[Chiudi Basculante]`, `[Posticipa 30m]`.
+     - Notifiche con immagine: Allegato snapshot JPEG inviato via payload FCM.
+
+#### 9.3.7 Autenticazione Biometrica ad Alta Sicurezza (`BiometricPrompt`)
+- Configurazione con requisiti biometrici di Classe 3 (Strong):
+  ```kotlin
+  val promptInfo = BiometricPrompt.PromptInfo.Builder()
+      .setTitle("Conferma Sicurezza Domus")
+      .setSubtitle("Autenticati per disarmare l'allarme o sbloccare la serratura")
+      .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+      .setNegativeButtonText("Annulla / Usa PIN")
+      .build()
+  ```
+- Integrazione con Android Keystore per la firma crittografica della richiesta di disarmo, garantendo che nessun malware o processo secondario possa inviare comandi di apertura senza autenticazione biometrica valida.
+
+#### 9.3.8 Modalità Kiosk per Tablet a Parete
+- **CameraX Proximity Wake-Up**:
+  - Utilizzo di CameraX `ImageAnalysis` sulla fotocamera frontale con frame rate limitato (2 fps) per analizzare le variazioni di luminanza e presenza a corto raggio.
+  - All'avvicinarsi di una persona entro 1.5 metri, l'app acquisisce un wake lock temporaneo e accende lo schermo con transizione fluida da salvaschermo minimale a dashboard attiva.
+- **Lock Task Mode (Kiosk Pinning)**:
+  - Blocco dell'applicazione a pieno schermo tramite `activity.startLockTask()`, impedendo l'accesso alla barra di navigazione, tendina notifiche o schermata home.
+- **Protezione Intelligente della Batteria**:
+  - Un `BatteryStatusReceiver` monitora il livello di carica del tablet.
+  - Quando la batteria raggiunge l'85%, invia una richiesta REST alla presa smart Shelly che alimenta il tablet spegnendola.
+  - Quando la carica scende al 20%, la presa smart viene riattivata, mantenendo la batteria sempre nella fascia ideale 20-80% ed evitando il surriscaldamento o il rigonfiamento permanente della batteria al litio.
+
+#### 9.3.9 Android Auto (`androidx.car.app`)
+- Estensione per il display dell'automobile basata su Android for Cars App Library:
+  - Implementazione di `CarAppService` con `Screen` a griglia sicura (`GridTemplate`).
+  - Pulsanti rapidi: *Apri Cancello Carraio*, *Apri Garage Basculante*, *Disarma Perimetrale*, *Accendi Luci Esterne Vialetto*.
+  - Conforme alle Driver Distraction Guidelines di Google per prevenire distrazioni durante la guida.
+
+#### 9.3.10 Wear OS Compose Companion
+- Applicazione autonoma per smartwatch basata su `androidx.wear.compose`:
+  - Scorrimento rapido tra stanze e scenari preferiti con supporto alla corona rotante dell'orologio (`rotary`).
+  - Tiles di Wear OS per accendere le luci principali con un singolo swipe dal quadrante.
+  - Complicazioni quadrante con visualizzazione continua della potenza assorbita in tempo reale (kW) e icona di allarme.
+
+#### 9.3.11 Conformità agli Standard Moderni Android 14 & Android 15
+- **Predictive Back Navigation**: Gestione delle gesture di ritorno fluide con `PredictiveBackHandler` di Jetpack Compose per anteprima fluida della schermata precedente.
+- **Edge-to-Edge Nativo**: Disegno completo dietro le barre di sistema con gestione degli insets (`WindowInsets.systemBars.asPaddingValues()`).
+- **Supporto Pagine di Memoria a 16 KB**: Verifica della compatibilità delle librerie native C++ (SQLCipher/WebRTC) con le dimensioni di pagina a 16 KB richieste su Android 15.
+- **Dichiarazione Tipi Foreground Service**: Dichiarazione specifica dei tipi `foregroundServiceType="specialUse|location"` in conformità ai requisiti restrittivi di Android 14 e Google Play Store.
+
+---
+
+## 10. Checklist Operativa di Validazione, Test di Regressione & Qualità del Codice
+
+### 10.1 Backend & Web Alignment Checklist
+- [x] Correzione line endings CRLF su tutti gli script shell in `os/scripts/*.sh`.
+- [x] Generazione e verifica certificati x.509 RAUC (`ca.cert.pem`, `development.cert.pem`, `development.key.pem`) con superamento di tutti i test in `test/os`.
+- [x] Registrazione endpoint `POST /api/v1/media/players/{id}/state` e allineamento con `MediaPlayerView.vue`.
+- [x] Registrazione alias `GET /api/v1/nvr/status` e risoluzione 404 in `CamerasView.vue`.
+- [x] Robustezza ricerca Tag NFC in `GetTagByTagID` con fallback su `ID` interno e `TagID` seriale.
+- [x] Integrazione eventi WebSocket `alarm.state_changed`, `alarm.triggered`, `alarm.disarmed` e `tag.scanned` in `ws.ts` e `alarm.ts` con notifiche ad alta priorità.
+- [x] Esposizione endpoint REST universale `POST /api/v1/services/{domain}/{service}` per comandi da app native.
+- [x] Integrazione dispatch comandi `call_service` via WebSocket in `internal/interfaces/websocket/ws_handler.go`.
+- [x] Esecuzione `go test ./...` con esito 100% PASS su tutti i pacchetti del backend.
+- [x] Esecuzione `npm run test:run` con esito 100% PASS su tutti i 68 file di test frontend (241 test).
+- [x] Esecuzione `npm run type-check` con 0 errori di compilazione TypeScript.
+
+### 10.2 Roadmap di Esecuzione Mobile iOS
+- [ ] Creazione `ShoppingListView.swift` e relativo repository REST in `DomusKit`.
+- [ ] Sviluppo `AssistantChatSheet.swift` con streaming risposte LLM e riconoscimento vocale nativo.
+- [ ] Implementazione `ChoresSheet.swift` con gestione promemoria e stato faccende domestiche.
+- [ ] Aggiunta cruscotto dinamico `EnergyFlowSheet.swift` con soglie load shedding.
+- [ ] Implementazione archivio notifiche in-app `NotificationHistoryView.swift`.
+
+### 10.3 Roadmap di Esecuzione Mobile Android
+- [ ] Aggiornamento `libs.versions.toml` con dipendenze Compose Material 3, Glance, Biometrics, WorkManager, CameraX, Android Auto e Wear OS.
+- [ ] Implementazione schede Compose (`AlarmBottomSheet`, `ThermostatDial`, `LightControlSheet`, `CameraStreamScreen`, `FloorplanCanvas`, `ShoppingListScreen`, `AssistantChatScreen`, `ChoresScreen`).
+- [ ] Sviluppo Glance AppWidgets interattivi (`DomusQuickControlsWidget`, `DomusAlarmWidget`).
+- [ ] Implementazione dei 4 servizi Quick Settings `TileService`.
+- [ ] Implementazione `DomusSyncWorker` con vincoli `WorkManager`.
+- [ ] Integrazione `GeofencingClient` e `FusedLocationProviderClient` con `BroadcastReceiver` anti-Doze.
+- [ ] Configurazione canali notifiche FCM con priorità elevata e `AudioAttributes.USAGE_ALARM` per allarme critico.
+- [ ] Integrazione `BiometricPrompt` forte (Class 3) con Android Keystore.
+- [ ] Modalità Kiosk a parete con CameraX proximity wake e ciclo batteria protetto 20-80%.
+- [ ] Sviluppo moduli dedicati per Android Auto (`CarAppService`) e smartwatch (`Wear OS Compose`).
+
+

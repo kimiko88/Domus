@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/websocket"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/google/uuid"
 	gorilla "github.com/gorilla/websocket"
 )
 
@@ -26,6 +29,8 @@ var upgrader = gorilla.Upgrader{
 type Handler struct {
 	hub         *websocket.Hub
 	authService *auth.Service
+	bus         events.Bus
+	repo        entity.Repository
 }
 
 // NewHandler constructs a WebSocket Handler.
@@ -34,6 +39,13 @@ func NewHandler(hub *websocket.Hub, authService *auth.Service) *Handler {
 		hub:         hub,
 		authService: authService,
 	}
+}
+
+// WithBusAndRepo sets the event bus and entity repository for incoming WebSocket command dispatching.
+func (h *Handler) WithBusAndRepo(bus events.Bus, repo entity.Repository) *Handler {
+	h.bus = bus
+	h.repo = repo
+	return h
 }
 
 // ServeHTTP upgrades HTTP to WebSocket and runs reader/writer loops.
@@ -119,9 +131,48 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var clientMsg map[string]any
 		if err := json.Unmarshal(message, &clientMsg); err == nil {
-			if clientMsg["type"] == "ping" {
+			msgType, _ := clientMsg["type"].(string)
+			switch msgType {
+			case "ping":
 				_ = conn.WriteJSON(websocket.Message{
 					Type:      "pong",
+					Timestamp: time.Now().UTC().Format(time.RFC3339),
+				})
+			case "call_service":
+				domain, _ := clientMsg["domain"].(string)
+				service, _ := clientMsg["service"].(string)
+				entityID, _ := clientMsg["entity_id"].(string)
+				data, _ := clientMsg["data"].(map[string]any)
+
+				if h.bus != nil && entityID != "" && service != "" {
+					var entityKey string
+					if h.repo != nil {
+						if ent, err := h.repo.GetByID(r.Context(), entityID); err == nil && ent != nil {
+							entityKey = ent.EntityKey
+						}
+					}
+					if entityKey == "" {
+						entityKey = entityID
+					}
+
+					_ = h.bus.Publish(r.Context(), events.Event{
+						ID:         uuid.NewString(),
+						Type:       events.CommandRequested,
+						OccurredAt: time.Now().UTC(),
+						Source:     "ws:" + sessionID,
+						Payload: map[string]any{
+							"entity_id":  entityID,
+							"entity_key": entityKey,
+							"service":    service,
+							"domain":     domain,
+							"params":     data,
+						},
+					})
+				}
+
+				_ = conn.WriteJSON(websocket.Message{
+					Type:      "result",
+					Payload:   map[string]any{"success": true, "entity_id": entityID, "service": service},
 					Timestamp: time.Now().UTC().Format(time.RFC3339),
 				})
 			}

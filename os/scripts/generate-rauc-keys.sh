@@ -2,7 +2,7 @@
 # ─── Domus OS - Generate RAUC x.509 PKI Signing Keys ──────────────────────────
 # Generates a Certificate Authority (CA) and a release signing certificate/key
 # for signing and verifying atomic OTA / offline update bundles (.raucb).
-set -euo pipefail
+set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CERTS_DIR="${SCRIPT_DIR}/../rauc/certs"

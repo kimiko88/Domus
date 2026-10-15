@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 #if canImport(NetworkExtension)
-@preconcurrency import NetworkExtension
+import NetworkExtension
 #endif
 
 /// Stato di connessione della VPN domestica.

@@ -130,3 +130,68 @@ func (h *EntityHandler) Command(w http.ResponseWriter, r *http.Request) {
 		"service":    req.Service,
 	})
 }
+
+type serviceCallRequest struct {
+	EntityID string         `json:"entity_id"`
+	Data     map[string]any `json:"data"`
+}
+
+// CallService accepts commands in mobile/service style: POST /api/v1/services/{domain}/{service}
+func (h *EntityHandler) CallService(w http.ResponseWriter, r *http.Request) {
+	domain := chi.URLParam(r, "domain")
+	service := chi.URLParam(r, "service")
+
+	var req serviceCallRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
+		return
+	}
+
+	if req.EntityID == "" {
+		writeError(w, http.StatusBadRequest, "bad_request", "entity_id is required")
+		return
+	}
+
+	ent, err := h.repo.GetByID(r.Context(), req.EntityID)
+	if err != nil {
+		if errors.Is(err, entity.ErrEntityNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "entity not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to get entity")
+		return
+	}
+
+	if !ent.Writable {
+		writeError(w, http.StatusForbidden, "not_writable", "entity is read-only")
+		return
+	}
+
+	source := "mobile"
+	if u := domusmw.GetUser(r.Context()); u != nil {
+		source = "user:" + u.Username
+	}
+
+	if h.bus != nil {
+		_ = h.bus.Publish(r.Context(), events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.CommandRequested,
+			OccurredAt: time.Now().UTC(),
+			Source:     source,
+			Payload: map[string]any{
+				"entity_id":  ent.ID,
+				"entity_key": ent.EntityKey,
+				"service":    service,
+				"domain":     domain,
+				"params":     req.Data,
+			},
+		})
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"status":     "accepted",
+		"entity_key": ent.EntityKey,
+		"service":    service,
+		"domain":     domain,
+	})
+}

@@ -131,11 +131,45 @@ public struct EntityCardView: View {
             }
         }
         .padding(14)
-        .background(entity.isOn ? cardAccentColor.opacity(0.08) : cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    cardAccentColor.opacity(entity.isOn ? 0.45 : 0.15),
+                                    cardAccentColor.opacity(entity.isOn ? 0.15 : 0.05)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(entity.isOn ? cardAccentColor.opacity(0.08) : Color.clear)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(
+            color: entity.isOn ? cardAccentColor.opacity(0.18) : Color.black.opacity(0.06),
+            radius: entity.isOn ? 10 : 4,
+            x: 0,
+            y: entity.isOn ? 4 : 2
+        )
         .contentShape(Rectangle())
         .onTapGesture {
             onOpenDetail(entity)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(entity.name), \(domainAccessibilityLabel)"))
+        .accessibilityValue(Text(accessibilityValueText))
+        .accessibilityHint(Text("Tocca due volte per visualizzare i dettagli o controlla con le azioni del rotore"))
+        .accessibilityAction(named: entity.isOn ? Text("Spegni") : Text("Accendi")) {
+            onToggle(entity.id)
         }
     }
 
@@ -193,5 +227,30 @@ public struct EntityCardView: View {
         #else
         return Color(.windowBackgroundColor)
         #endif
+    }
+
+    private var domainAccessibilityLabel: String {
+        switch entity.domain {
+        case "light":               return "Luce"
+        case "switch":              return "Interruttore"
+        case "climate":             return "Climatizzazione"
+        case "sensor":              return "Sensore"
+        case "alarm_control_panel": return "Pannello Allarme"
+        case "camera":              return "Telecamera"
+        default:                    return entity.domain.capitalized
+        }
+    }
+
+    private var accessibilityValueText: String {
+        if entity.isLight {
+            return entity.isOn ? "Accesa al \(entity.brightness ?? 100)%" : "Spenta"
+        }
+        if entity.isSwitch {
+            return entity.isOn ? "Attivo" : "Disattivato"
+        }
+        if entity.isAlarm {
+            return entity.isArmed ? "Sistema allarme armato" : "Disarmato"
+        }
+        return subtitle
     }
 }

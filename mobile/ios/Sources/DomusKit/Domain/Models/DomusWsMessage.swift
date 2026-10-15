@@ -3,19 +3,38 @@ import Foundation
 /// Modello di messaggio WebSocket per eventi dal backend Domus.
 public struct DomusWsMessage: Codable, Sendable {
     public let type: String
-    public let id: Int?
+    public let id: Int64?
+    public let accessToken: String?
+    public let eventType: String?
+    public let success: Bool?
     public let event: DomusWsEvent?
 
-    public init(type: String, id: Int? = nil, event: DomusWsEvent? = nil) {
+    enum CodingKeys: String, CodingKey {
+        case type, id, success, event
+        case accessToken = "access_token"
+        case eventType = "event_type"
+    }
+
+    public init(
+        type: String,
+        id: Int64? = nil,
+        accessToken: String? = nil,
+        eventType: String? = nil,
+        success: Bool? = nil,
+        event: DomusWsEvent? = nil
+    ) {
         self.type = type
         self.id = id
+        self.accessToken = accessToken
+        self.eventType = eventType
+        self.success = success
         self.event = event
     }
 }
 
 /// Contenuto dell'evento WebSocket inviato dal backend Domus.
 public struct DomusWsEvent: Codable, Sendable {
-    public let entityId: String
+    public let entityId: String?
     public let newState: DomusWsEntityState?
 
     enum CodingKeys: String, CodingKey {
@@ -23,7 +42,7 @@ public struct DomusWsEvent: Codable, Sendable {
         case newState = "new_state"
     }
 
-    public init(entityId: String, newState: DomusWsEntityState? = nil) {
+    public init(entityId: String? = nil, newState: DomusWsEntityState? = nil) {
         self.entityId = entityId
         self.newState = newState
     }
@@ -59,3 +78,7 @@ public struct DomusWsEntityState: Codable, Sendable {
         self.lastUpdated = lastUpdated
     }
 }
+
+// Backward-compatibility aliases
+public typealias WsEventContainer = DomusWsEvent
+public typealias EntitySnapshot = DomusWsEntityState

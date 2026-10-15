@@ -58,6 +58,39 @@ public actor DomusHttpClient: Sendable {
         try validateResponse(response)
     }
 
+    // MARK: - Auth
+
+    private struct LoginRequestDTO: Encodable {
+        let username: String
+        let password: String
+    }
+
+    private struct UserResponseDTO: Decodable {
+        let username: String?
+        let role: String?
+    }
+
+    private struct LoginResponseDTO: Decodable {
+        let token: String
+        let user: UserResponseDTO?
+    }
+
+    public func login(baseUrl: String, username: String, password: String) async throws -> AuthSession {
+        self.baseURL = baseUrl
+        let res = try await post(
+            path: "/api/v1/auth/login",
+            body: LoginRequestDTO(username: username, password: password),
+            as: LoginResponseDTO.self
+        )
+        self.token = res.token
+        return AuthSession(
+            token: res.token,
+            username: res.user?.username ?? username,
+            role: res.user?.role ?? "admin",
+            isAuthenticated: true
+        )
+    }
+
     // MARK: - Private helpers
 
     private func makeURL(path: String) throws -> URL {

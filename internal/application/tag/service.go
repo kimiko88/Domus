@@ -41,6 +41,11 @@ func (m *MemoryRepository) GetTagByTagID(ctx context.Context, tagID string) (*ta
 	defer m.mu.RUnlock()
 	t, ok := m.tags[tagID]
 	if !ok {
+		for _, v := range m.tags {
+			if v.ID == tagID {
+				return v, nil
+			}
+		}
 		return nil, fmt.Errorf("tag not found: %s", tagID)
 	}
 	return t, nil
