@@ -73,6 +73,9 @@ const (
 
 	// PresenceUpdated fires when a person's spatial zone or GPS presence state changes.
 	PresenceUpdated EventType = "presence.updated"
+
+	// ScheduleTriggered fires when a weekly matrix or time schedule transitions.
+	ScheduleTriggered EventType = "schedule.triggered"
 )
 
 // Event is the common envelope for all domain events.

@@ -132,9 +132,9 @@ fun CameraStreamScreen(
                 // Camera Grid lines
                 Column(modifier = Modifier.fillMaxSize()) {
                     Spacer(modifier = Modifier.weight(1f))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
                     Spacer(modifier = Modifier.weight(1f))
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Row(modifier = Modifier.fillMaxSize()) {

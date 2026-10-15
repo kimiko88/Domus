@@ -1,5 +1,6 @@
 package com.domus.app.services.notifications
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -49,7 +50,6 @@ object DomusNotificationHelper {
                     Uri.parse("android.resource://" + context.packageName + "/raw/alarm_siren"),
                     alarmAudioAttributes
                 )
-                setBypassDnd(true)
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
             }
 
@@ -72,6 +72,7 @@ object DomusNotificationHelper {
     /**
      * Dispatches a high-priority intrusion or critical safety notification.
      */
+    @SuppressLint("MissingPermission")
     fun sendCriticalAlarmNotification(
         context: Context,
         title: String,
@@ -106,6 +107,7 @@ object DomusNotificationHelper {
     /**
      * Dispatches an interactive domestic notification with inline quick action buttons.
      */
+    @SuppressLint("MissingPermission")
     fun sendHomeNoticeNotification(
         context: Context,
         title: String,

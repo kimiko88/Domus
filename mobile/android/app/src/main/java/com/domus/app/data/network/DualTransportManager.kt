@@ -135,7 +135,7 @@ class DualTransportManager(
                             )
                         }
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Ignore non-json or unparseable debug frames
                 }
             }

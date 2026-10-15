@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useEntitiesStore } from '@/stores/entities'
 import { useHistoryStore } from '@/stores/history'
 import SensorHistoryChart from '@/components/charts/SensorHistoryChart.vue'
+import LongTermStatisticsCard from '@/components/LongTermStatisticsCard.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -199,6 +200,14 @@ onMounted(async () => {
         :loading="historyStore.loading"
       />
     </section>
+
+    <!-- Long Term Aggregated Statistics -->
+    <LongTermStatisticsCard
+      v-if="selectedEntityId"
+      :entity-id="selectedEntityId"
+      :entity-name="currentEntity?.name"
+      :unit="currentEntity?.attributes?.unit_of_measurement"
+    />
 
     <!-- Raw Data Log Table -->
     <section v-if="currentHistory.length > 0" class="logs-section glass-panel">

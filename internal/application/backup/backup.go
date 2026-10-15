@@ -43,6 +43,8 @@ type RestoreOptions struct {
 	OutputDir string
 	// Passphrase is required for encrypted archives (must match the one used during backup).
 	Passphrase string
+	// SelectiveFiles optionally filters which files to extract (e.g. ["domus.db"] or ["domus.toml"]).
+	SelectiveFiles []string
 }
 
 // ─── result ───────────────────────────────────────────────────────────────────
@@ -166,7 +168,7 @@ func (s *Service) Restore(opts RestoreOptions) error {
 		tarBytes = raw
 	}
 
-	return extractTarGz(tarBytes, opts.OutputDir)
+	return extractTarGz(tarBytes, opts.OutputDir, opts.SelectiveFiles)
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -259,7 +261,7 @@ func addFileToTar(tw *tar.Writer, srcPath, destName string) (string, error) {
 	return destName, nil
 }
 
-func extractTarGz(tarBytes []byte, destDir string) error {
+func extractTarGz(tarBytes []byte, destDir string, filterFiles []string) error {
 	if err := os.MkdirAll(destDir, 0o750); err != nil {
 		return fmt.Errorf("restore: failed to create output dir: %w", err)
 	}
@@ -284,6 +286,19 @@ func extractTarGz(tarBytes []byte, destDir string) error {
 		cleanName := filepath.Clean(hdr.Name)
 		if strings.HasPrefix(cleanName, "..") {
 			return fmt.Errorf("restore: unsafe path in archive: %s", hdr.Name)
+		}
+
+		if len(filterFiles) > 0 {
+			matched := false
+			for _, f := range filterFiles {
+				if cleanName == f || filepath.Base(cleanName) == f {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
 
 		outPath := filepath.Join(destDir, cleanName)

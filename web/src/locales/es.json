@@ -15,7 +15,8 @@
     "active": "Activos",
     "disabled": "Desactivados",
     "name": "Nombre",
-    "description": "Descripción"
+    "description": "Descripción",
+    "no_data": "No hay datos disponibles"
   },
   "nav": {
     "dashboard": "Panel de Control",
@@ -37,6 +38,9 @@
     "scenes": "Escenas",
     "history": "Historial y Métricas",
     "audit": "Registro de Auditoría",
+    "logbook": "Registro de Eventos",
+    "zones": "Zonas y Geofencing",
+    "templates": "Entidades Plantilla",
     "family": "Familia",
     "settings": "Ajustes",
     "logout": "Cerrar Sesión",

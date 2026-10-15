@@ -280,6 +280,136 @@ func (e *Engine) executeAction(
 			}
 		}
 
+	case "if", "if_then_else":
+		allPassed := true
+		for _, cond := range act.If {
+			passed, err := e.evaluator.EvaluateConditionWithTrigger(ctx, cond, e.entityRepo, triggerID)
+			if err != nil || !passed {
+				allPassed = false
+				break
+			}
+		}
+		if allPassed {
+			*actionLogs = append(*actionLogs, "If branch passed: executing Then")
+			for _, subAct := range act.Then {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+					return err
+				}
+			}
+		} else if len(act.Else) > 0 {
+			*actionLogs = append(*actionLogs, "If branch failed: executing Else")
+			for _, subAct := range act.Else {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+					return err
+				}
+			}
+		}
+
+	case "repeat":
+		if act.Repeat == nil {
+			return nil
+		}
+		cfg := act.Repeat
+		if cfg.Count > 0 {
+			for i := 0; i < cfg.Count; i++ {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				*actionLogs = append(*actionLogs, fmt.Sprintf("Repeat count %d/%d", i+1, cfg.Count))
+				for _, subAct := range cfg.Sequence {
+					if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+						return err
+					}
+				}
+			}
+		} else if len(cfg.While) > 0 {
+			maxIterations := 1000
+			iter := 0
+			for iter < maxIterations {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				whilePassed := true
+				for _, cond := range cfg.While {
+					passed, err := e.evaluator.EvaluateConditionWithTrigger(ctx, cond, e.entityRepo, triggerID)
+					if err != nil || !passed {
+						whilePassed = false
+						break
+					}
+				}
+				if !whilePassed {
+					break
+				}
+				iter++
+				*actionLogs = append(*actionLogs, fmt.Sprintf("Repeat while iteration %d", iter))
+				for _, subAct := range cfg.Sequence {
+					if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+						return err
+					}
+				}
+			}
+		} else if len(cfg.Until) > 0 {
+			maxIterations := 1000
+			iter := 0
+			for iter < maxIterations {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				iter++
+				*actionLogs = append(*actionLogs, fmt.Sprintf("Repeat until iteration %d", iter))
+				for _, subAct := range cfg.Sequence {
+					if err := e.executeAction(ctx, subAct, rule, run, triggerID, actionLogs); err != nil {
+						return err
+					}
+				}
+				untilPassed := true
+				for _, cond := range cfg.Until {
+					passed, err := e.evaluator.EvaluateConditionWithTrigger(ctx, cond, e.entityRepo, triggerID)
+					if err != nil || !passed {
+						untilPassed = false
+						break
+					}
+				}
+				if untilPassed {
+					break
+				}
+			}
+		}
+
+	case "parallel":
+		if len(act.Parallel) == 0 {
+			return nil
+		}
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Executing %d parallel actions", len(act.Parallel)))
+		var wg sync.WaitGroup
+		var parallelErr error
+		var errMu sync.Mutex
+
+		for _, subAct := range act.Parallel {
+			wg.Add(1)
+			go func(a automation.Action) {
+				defer wg.Done()
+				var subLogs []string
+				if err := e.executeAction(ctx, a, rule, run, triggerID, &subLogs); err != nil {
+					errMu.Lock()
+					if parallelErr == nil {
+						parallelErr = err
+					}
+					errMu.Unlock()
+				}
+			}(subAct)
+		}
+		wg.Wait()
+		if parallelErr != nil {
+			return parallelErr
+		}
+
 	case "service":
 		cmdEvt := events.Event{
 			ID:         uuid.NewString(),

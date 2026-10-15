@@ -26,10 +26,14 @@ import (
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
 	apphist "github.com/domus-hub/domus/internal/application/history"
+	appclimate "github.com/domus-hub/domus/internal/application/climate"
+	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
 	appota "github.com/domus-hub/domus/internal/application/ota"
+	appschedule "github.com/domus-hub/domus/internal/application/schedule"
+	appscript "github.com/domus-hub/domus/internal/application/script"
 	appshop "github.com/domus-hub/domus/internal/application/shopping"
 	appstore "github.com/domus-hub/domus/internal/application/store"
 	apptag "github.com/domus-hub/domus/internal/application/tag"
@@ -593,10 +597,70 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					nRouter.Post("/actions/{action_id}", ecoH.HandleNotificationAction)
 				})
 
+				if srv.repos.PushTokens != nil {
+					pushSvc := appnotif.NewPushService(srv.repos.PushTokens, nil, srv.bus, nil)
+					pushH := handlers.NewPushHandler(pushSvc)
+					domainRouter.Route("/notifications/push", func(pRouter chi.Router) {
+						pRouter.Post("/tokens", pushH.RegisterToken)
+						pRouter.Delete("/tokens", pushH.RevokeToken)
+						pRouter.Get("/tokens", pushH.ListTokens)
+						pRouter.Post("/send", pushH.Send)
+					})
+				}
+
 				domainRouter.Route("/schedules", func(sRouter chi.Router) {
 					sRouter.Get("/", ecoH.ListSchedules)
 					sRouter.Post("/", ecoH.CreateSchedule)
 				})
+
+				if srv.repos.WeeklySchedules != nil {
+					weeklySvc := appschedule.NewMatrixService(srv.repos.WeeklySchedules, srv.bus, nil)
+					weeklyH := handlers.NewWeeklyScheduleHandler(weeklySvc)
+					domainRouter.Route("/schedules/weekly", func(wRouter chi.Router) {
+						wRouter.Get("/", weeklyH.List)
+						wRouter.Post("/", weeklyH.Create)
+						wRouter.Get("/{id}", weeklyH.Get)
+						wRouter.Put("/{id}", weeklyH.Update)
+						wRouter.Delete("/{id}", weeklyH.Delete)
+						wRouter.Post("/evaluate", weeklyH.Evaluate)
+					})
+				}
+
+				if srv.repos.Scripts != nil {
+					scriptSvc := appscript.NewService(srv.repos.Scripts, srv.bus)
+					scriptH := handlers.NewScriptHandler(scriptSvc)
+					domainRouter.Route("/scripts", func(scRouter chi.Router) {
+						scRouter.Get("/", scriptH.List)
+						scRouter.Post("/", scriptH.Create)
+						scRouter.Get("/{id}", scriptH.Get)
+						scRouter.Put("/{id}", scriptH.Update)
+						scRouter.Delete("/{id}", scriptH.Delete)
+						scRouter.Post("/{id}/execute", scriptH.Execute)
+					})
+				}
+
+				if srv.repos.Logbook != nil {
+					logbookSvc := applogbook.NewService(srv.repos.Logbook, srv.repos.Entities, srv.bus)
+					_ = logbookSvc.Start(context.Background())
+					logbookH := handlers.NewLogbookHandler(logbookSvc)
+					domainRouter.Route("/logbook", func(lRouter chi.Router) {
+						lRouter.Get("/", logbookH.Query)
+					})
+				}
+
+				if srv.repos.ClimateCompensations != nil {
+					climateSvc, err := appclimate.NewService(srv.repos.ClimateCompensations, srv.bus, nil)
+					if err == nil {
+						climateH := handlers.NewClimateCompensatorHandler(climateSvc)
+						domainRouter.Route("/climate/compensations", func(cRouter chi.Router) {
+							cRouter.Get("/", climateH.List)
+							cRouter.Post("/", climateH.Create)
+							cRouter.Get("/{id}", climateH.Get)
+							cRouter.Put("/{id}", climateH.Update)
+							cRouter.Delete("/{id}", climateH.Delete)
+						})
+					}
+				}
 
 				domainRouter.Route("/calendar", func(calRouter chi.Router) {
 					calRouter.Get("/events", ecoH.ListCalendarEvents)

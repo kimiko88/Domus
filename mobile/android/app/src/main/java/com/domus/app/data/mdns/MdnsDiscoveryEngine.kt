@@ -88,7 +88,7 @@ class MdnsDiscoveryEngine(
                 continuation.invokeOnCancellation {
                     try {
                         nsdManager.stopServiceDiscovery(discoveryListener)
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {}
                 }
             }
         }

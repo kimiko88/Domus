@@ -103,6 +103,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 8, file: "migrations/000008_shopping_list.up.sql"},
 		{version: 9, file: "migrations/000009_advanced_security_and_integrations.up.sql"},
 		{version: 10, file: "migrations/000010_home_assistant_parity.up.sql"},
+		{version: 11, file: "migrations/000011_scripts_logbook_push.up.sql"},
 	}
 
 	for _, m := range migrations {

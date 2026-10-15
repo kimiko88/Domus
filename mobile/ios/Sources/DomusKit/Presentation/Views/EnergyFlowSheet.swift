@@ -36,7 +36,7 @@ public struct EnergyFlowSheet: View {
                 }
                 .padding(.vertical)
             }
-            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .background(Color.domusSystemGroupedBackground.ignoresSafeArea())
             .navigationTitle("Cruscotto Energetico")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -70,7 +70,7 @@ public struct EnergyFlowSheet: View {
             }
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
     }
@@ -78,7 +78,7 @@ public struct EnergyFlowSheet: View {
     private var energyFlowCanvas: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .fill(Color.domusSecondarySystemGroupedBackground)
 
             VStack {
                 // Top: Solare
@@ -142,7 +142,7 @@ public struct EnergyFlowSheet: View {
                 .clipShape(Capsule())
         }
         .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
     }
@@ -166,7 +166,7 @@ public struct EnergyFlowSheet: View {
                 .foregroundColor(.secondary)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
     }
@@ -203,7 +203,7 @@ public struct EnergyFlowSheet: View {
                 .foregroundColor(.primary)
         }
         .padding(12)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

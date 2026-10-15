@@ -15,7 +15,8 @@
     "active": "Actifs",
     "disabled": "Désactivés",
     "name": "Nom",
-    "description": "Description"
+    "description": "Description",
+    "no_data": "Aucune donnée disponible"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -37,6 +38,9 @@
     "scenes": "Scènes",
     "history": "Historique & Métriques",
     "audit": "Journal d'Audit",
+    "logbook": "Journal d'Événements",
+    "zones": "Zones & Présence",
+    "templates": "Entités Modèles",
     "family": "Famille",
     "settings": "Paramètres",
     "logout": "Déconnexion",

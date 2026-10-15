@@ -122,11 +122,7 @@ public struct FloorplanView: View {
                         .stroke(Color.primary.opacity(0.25), lineWidth: 3)
                         .background(
                             RoundedRectangle(cornerRadius: 18)
-                                #if canImport(UIKit)
-                                .fill(Color(uiColor: .systemBackground))
-                                #else
-                                .fill(Color.secondary.opacity(0.08))
-                                #endif
+                                .fill(Color.domusSystemBackground)
                         )
                         .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
 

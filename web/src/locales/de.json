@@ -15,7 +15,8 @@
     "active": "Aktiv",
     "disabled": "Deaktiviert",
     "name": "Name",
-    "description": "Beschreibung"
+    "description": "Beschreibung",
+    "no_data": "Keine Daten verfügbar"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -37,6 +38,9 @@
     "scenes": "Szenen",
     "history": "Verlauf & Metriken",
     "audit": "Audit-Protokoll",
+    "logbook": "Ereignis-Logbuch",
+    "zones": "Zonen & Geofencing",
+    "templates": "Template-Entitäten",
     "family": "Familie",
     "settings": "Einstellungen",
     "logout": "Abmelden",

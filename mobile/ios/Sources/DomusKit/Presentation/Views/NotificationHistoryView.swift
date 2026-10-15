@@ -74,7 +74,7 @@ public struct NotificationHistoryView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                Color.domusSystemGroupedBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Category filter pills
@@ -132,7 +132,7 @@ public struct NotificationHistoryView: View {
                 .fontWeight(.semibold)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(isSelected ? Color.cyan : Color(uiColor: .secondarySystemGroupedBackground))
+                .background(isSelected ? Color.cyan : Color.domusSecondarySystemGroupedBackground)
                 .foregroundColor(isSelected ? .white : .primary)
                 .clipShape(Capsule())
         }

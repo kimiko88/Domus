@@ -103,11 +103,7 @@ public struct DomusLiveActivityLockScreenView: View {
             }
         }
         .padding(16)
-        #if canImport(UIKit)
-        .background(Color(uiColor: .secondarySystemBackground))
-        #else
-        .background(Color.secondary.opacity(0.12))
-        #endif
+        .background(Color.domusSecondarySystemBackground)
     }
 }
 

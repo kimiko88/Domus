@@ -147,18 +147,6 @@ func (s *Service) ExecuteAction(ctx context.Context, entityKey string, action st
 			b, _ := json.Marshal(cfg)
 			h.ConfigJSON = string(b)
 			h.State = "idle"
-
-			if s.bus != nil {
-				_ = s.bus.Publish(ctx, events.Event{
-					ID:         uuid.NewString(),
-					Type:       "timer.finished",
-					OccurredAt: time.Now().UTC(),
-					Source:     "helper_service",
-					Payload: map[string]any{
-						"entity_key": h.EntityKey,
-					},
-				})
-			}
 		default:
 			return fmt.Errorf("unknown timer action: %s", action)
 		}
@@ -213,6 +201,18 @@ func (s *Service) ExecuteAction(ctx context.Context, entityKey string, action st
 		return err
 	}
 	s.publishState(ctx, h)
+
+	if action == "finish" && s.bus != nil {
+		_ = s.bus.Publish(ctx, events.Event{
+			ID:         uuid.NewString(),
+			Type:       "timer.finished",
+			OccurredAt: time.Now().UTC(),
+			Source:     "helper_service",
+			Payload: map[string]any{
+				"entity_key": h.EntityKey,
+			},
+		})
+	}
 	return nil
 }
 

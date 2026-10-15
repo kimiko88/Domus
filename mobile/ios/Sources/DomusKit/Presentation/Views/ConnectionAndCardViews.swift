@@ -222,11 +222,7 @@ public struct EntityCardView: View {
     }
 
     private var cardBackground: Color {
-        #if canImport(UIKit)
-        return Color(UIColor.secondarySystemBackground)
-        #else
-        return Color(.windowBackgroundColor)
-        #endif
+        return Color.domusSecondarySystemBackground
     }
 
     private var domainAccessibilityLabel: String {

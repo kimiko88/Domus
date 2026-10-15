@@ -61,7 +61,7 @@ class DomusKioskController(
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                 "domus:kiosk_proximity_wake"
             ).apply {
-                acquire(10000) // Keep screen awake for 10 seconds or until user interacts
+                acquire(10000L) // Keep screen awake for 10 seconds or until user interacts
             }
             Log.i(TAG, "Proximity wake triggered: Display powered on")
         }

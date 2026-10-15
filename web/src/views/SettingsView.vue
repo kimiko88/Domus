@@ -7,6 +7,7 @@ import { useSystemStore } from '../stores/system'
 import { useTourStore } from '../stores/tour'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
+import TwoFactorModal from '../components/TwoFactorModal.vue'
 import { apiClient } from '../api/client'
 import {
   User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw,
@@ -26,6 +27,47 @@ const activeLang = computed(() => getCurrentLanguage())
 const metrics = computed(() => systemStore.metrics)
 const osDiagnostics = computed(() => systemStore.osDiagnostics)
 const maintenanceStatus = computed(() => systemStore.maintenanceStatus)
+
+const showTwoFactorModal = ref(false)
+const twoFactorData = ref<{ secret: string; qr_url?: string; backup_codes?: string[] }>({
+  secret: '',
+})
+const isTwoFactorEnabled = ref(false)
+
+async function checkTwoFactorStatus() {
+  try {
+    const res = await apiClient.get<any>('/api/v1/auth/me')
+    if (res && res.two_factor) {
+      isTwoFactorEnabled.value = true
+    }
+  } catch {}
+}
+
+async function startTwoFactorSetup() {
+  try {
+    const res = await apiClient.post<any>('/api/v1/auth/2fa/setup', {})
+    twoFactorData.value = {
+      secret: res.secret,
+      qr_url: res.qr_url,
+      backup_codes: res.backup_codes,
+    }
+    showTwoFactorModal.value = true
+  } catch (err: any) {
+    alert('Errore inizializzazione 2FA: ' + (err?.message || 'Riprova'))
+  }
+}
+
+async function disableTwoFactor() {
+  if (confirm('Sei sicuro di voler disattivare l\'autenticazione a due fattori?')) {
+    try {
+      await apiClient.post('/api/v1/auth/2fa/disable', {})
+      isTwoFactorEnabled.value = false
+      alert('2FA disattivata con successo.')
+    } catch (err: any) {
+      alert('Errore disattivazione 2FA: ' + (err?.message || 'Riprova'))
+    }
+  }
+}
 
 const maintDuration = ref(30)
 const sshPubKey = ref('')
@@ -175,6 +217,7 @@ onMounted(() => {
   loadOTA()
   loadTags()
   loadFailover()
+  checkTwoFactorStatus()
 })
 </script>
 
@@ -209,6 +252,30 @@ onMounted(() => {
           <div class="detail-row">
             <span class="detail-label">ID Utente</span>
             <span class="detail-value font-mono text-dim">{{ currentUser.id }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Autenticazione 2FA</span>
+            <div class="two-factor-controls">
+              <span class="two-factor-pill" :class="{ enabled: isTwoFactorEnabled }">
+                {{ isTwoFactorEnabled ? 'Attiva' : 'Non Attiva' }}
+              </span>
+              <button
+                v-if="!isTwoFactorEnabled"
+                type="button"
+                class="btn-2fa-action"
+                @click="startTwoFactorSetup"
+              >
+                Configura
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn-2fa-action disable"
+                @click="disableTwoFactor"
+              >
+                Disattiva
+              </button>
+            </div>
           </div>
 
           <div class="action-row">
@@ -688,6 +755,16 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 2FA Setup Modal -->
+    <TwoFactorModal
+      v-if="showTwoFactorModal"
+      :secret="twoFactorData.secret"
+      :qr-url="twoFactorData.qr_url"
+      :initial-backup-codes="twoFactorData.backup_codes"
+      @close="showTwoFactorModal = false"
+      @enabled="isTwoFactorEnabled = true"
+    />
   </div>
 </template>
 
@@ -1171,5 +1248,56 @@ onMounted(() => {
 .btn-ha-promote:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.two-factor-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.two-factor-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.two-factor-pill.enabled {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.btn-2fa-action {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-2fa-action:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-2fa-action.disable:hover {
+  border-color: #ef4444;
+  color: #ef4444;
 }
 </style>

@@ -47,7 +47,7 @@ public struct AssistantChatSheet: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                Color.domusSystemGroupedBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Chat messages scroll view
@@ -62,7 +62,7 @@ public struct AssistantChatSheet: View {
                                         ProgressView()
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
-                                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                                            .background(Color.domusSecondarySystemGroupedBackground)
                                             .clipShape(Capsule())
                                         Spacer()
                                     }
@@ -108,7 +108,7 @@ public struct AssistantChatSheet: View {
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .background(Color.domusSecondarySystemGroupedBackground)
                             .clipShape(RoundedRectangle(cornerRadius: 18))
                             .onSubmit {
                                 sendCurrentMessage()
@@ -226,7 +226,7 @@ private struct MessageBubbleView: View {
                     .foregroundColor(message.isUser ? .white : .primary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(message.isUser ? Color.cyan : Color(uiColor: .secondarySystemGroupedBackground))
+                    .background(message.isUser ? Color.cyan : Color.domusSecondarySystemGroupedBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
 
                 if let action = message.actionExecuted {

@@ -15,7 +15,8 @@
     "active": "Active",
     "disabled": "Disabled",
     "name": "Name",
-    "description": "Description"
+    "description": "Description",
+    "no_data": "No data available"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -37,6 +38,9 @@
     "scenes": "Scenes",
     "history": "History & Metrics",
     "audit": "Security Audit Log",
+    "logbook": "Event Logbook",
+    "zones": "Zones & Geofencing",
+    "templates": "Template Entities",
     "family": "Family",
     "settings": "Settings",
     "logout": "Log Out",

@@ -18,6 +18,7 @@ type Engine struct {
 	apps          *AppManager
 	diagnostics   *DiagnosticsCollector
 	maintenance   *MaintenanceManager
+	watchdog      Watchdog
 	startTime     time.Time
 	coreHealthy   bool
 	slotConfirmed bool
@@ -41,6 +42,20 @@ func NewEngine(cfg Config, runtime ContainerRuntime, rauc RaucController, health
 		maintenance: maintMgr,
 		startTime:   time.Now(),
 	}
+}
+
+// SetWatchdog sets the hardware watchdog client for heartbeat pinging.
+func (e *Engine) SetWatchdog(w Watchdog) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.watchdog = w
+}
+
+// IsCoreHealthy reports whether Domus Core is currently healthy.
+func (e *Engine) IsCoreHealthy() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.coreHealthy
 }
 
 // GetAppManager returns the managed AppManager instance.
@@ -94,6 +109,11 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.cancelHealth = cancel
 	go e.pollHealthcheck(healthCtx)
 
+	// 4. Launch hardware watchdog loop if configured
+	if e.watchdog != nil {
+		StartWatchdogLoop(healthCtx, e.watchdog, e.cfg.WatchdogPingInterval, e.IsCoreHealthy)
+	}
+
 	return nil
 }
 
@@ -128,8 +148,18 @@ func (e *Engine) pollHealthcheck(ctx context.Context) {
 			if retries >= e.cfg.MaxHealthRetries {
 				e.mu.Lock()
 				e.coreHealthy = false
+				needsRollback := e.cfg.AutoRollbackOnFail && !e.slotConfirmed
 				e.mu.Unlock()
+
 				log.Printf("[Supervisor] Alert: Domus Core healthcheck failed after %d retries.", retries)
+				if needsRollback {
+					log.Printf("[Supervisor] Critical: Domus Core unresponsive. Executing automatic RAUC rollback to previous slot!")
+					if rbErr := e.rauc.Rollback(ctx); rbErr != nil {
+						log.Printf("[Supervisor] Error during automatic RAUC rollback: %v", rbErr)
+					} else {
+						log.Printf("[Supervisor] Automatic RAUC rollback succeeded. Slot marked bad for fallback reboot.")
+					}
+				}
 				return
 			}
 		}

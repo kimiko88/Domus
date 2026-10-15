@@ -47,7 +47,7 @@ public struct ChoresSheet: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                Color.domusSystemGroupedBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Karma Header Card
@@ -109,7 +109,7 @@ public struct ChoresSheet: View {
                 .foregroundColor(.orange)
         }
         .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 

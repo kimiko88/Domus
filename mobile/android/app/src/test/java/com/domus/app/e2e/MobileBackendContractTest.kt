@@ -43,7 +43,7 @@ class MobileBackendContractTest {
     fun tearDown() {
         try {
             server.shutdown()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
     }
 
     @Test

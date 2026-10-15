@@ -162,3 +162,18 @@ fun ThermostatSheet(
         }
     }
 }
+
+@Composable
+fun ThermostatDial(
+    entity: Entity,
+    onSetTemperature: (String, Double) -> Unit,
+    onSetMode: (String, String) -> Unit = { _, _ -> },
+    onDismiss: () -> Unit
+) {
+    ThermostatSheet(
+        entity = entity,
+        onSetTemperature = onSetTemperature,
+        onSetMode = onSetMode,
+        onDismiss = onDismiss
+    )
+}

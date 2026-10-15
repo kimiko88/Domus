@@ -98,13 +98,25 @@ export interface AutomationCondition {
 
 export interface AutomationAction {
   id?: string
-  type: string // 'service' | 'delay' | 'event'
+  type: string // 'service' | 'delay' | 'event' | 'choose' | 'if' | 'repeat' | 'parallel'
   service?: string
   target_entity_key?: string
   params?: Record<string, any>
   delay_ms?: number
   event_type?: string
   event_payload?: Record<string, any>
+  choose?: { conditions: AutomationCondition[]; sequence: AutomationAction[] }[]
+  default?: AutomationAction[]
+  if?: AutomationCondition[]
+  then?: AutomationAction[]
+  else?: AutomationAction[]
+  repeat?: {
+    count?: number
+    while?: AutomationCondition[]
+    until?: AutomationCondition[]
+    sequence: AutomationAction[]
+  }
+  parallel?: AutomationAction[]
 }
 
 export interface Automation {
@@ -552,4 +564,109 @@ export interface BannedIP {
   banned_until?: string
   updated_at: string
 }
+
+// 11. Reusable Scripts (script.*)
+export interface ScriptField {
+  name: string
+  description?: string
+  required?: boolean
+  default?: any
+  example?: any
+  selector?: Record<string, any>
+}
+
+export interface Script {
+  id: string
+  name: string
+  description?: string
+  icon?: string
+  mode: 'single' | 'restart' | 'queued' | 'parallel'
+  max_runs?: number
+  fields?: Record<string, ScriptField>
+  sequence: AutomationAction[]
+  created_at?: string
+  updated_at?: string
+}
+
+// 12. Human Contextual Activity Logbook
+export interface LogbookEntry {
+  id: string
+  entity_id: string
+  entity_name: string
+  domain: string
+  state: string
+  message: string
+  context_type: 'user' | 'automation' | 'script' | 'system'
+  context_id?: string
+  context_name?: string
+  timestamp: string
+}
+
+export interface LogbookFilter {
+  entity_id?: string
+  domain?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+// 13. Weekly Schedule Matrix (7-day x 24h Cronotermostato)
+export interface TimeSlot {
+  start: string
+  end: string
+  value?: number
+  state?: string
+}
+
+export type WeeklyGrid = Record<string, TimeSlot[]>
+
+export interface WeeklySchedule {
+  id: string
+  name: string
+  icon?: string
+  target_entity_id: string
+  target_service?: string
+  grid: WeeklyGrid
+  current_slot_state: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 14. Native Push Companion Device Tokens
+export interface DevicePushToken {
+  id?: string
+  user_id?: string
+  platform: 'ios' | 'android'
+  device_token: string
+  device_name?: string
+  app_version?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// 15. Intelligent Climate Compensation (Better Thermostat)
+export interface ClimateCompensation {
+  id?: string
+  trv_entity_key: string
+  room_temp_sensor_key: string
+  window_sensor_key?: string
+  target_temperature: number
+  delta_factor: number
+  compensated_setpoint?: number
+  window_open?: boolean
+  enabled?: boolean
+  updated_at?: string
+}
+
+// 16. Long Term Statistics
+export interface LongTermStatistic {
+  start: string
+  end: string
+  mean?: number
+  min?: number
+  max?: number
+  sum?: number
+  state?: number
+}
+
 

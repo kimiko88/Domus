@@ -303,43 +303,31 @@ fun DashboardScreen(
 
     // Entity Specific Modal Inspectors
     selectedLightEntity?.let { light ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedLightEntity = null }
-        ) {
-            LightControlSheet(
-                entity = light,
-                onToggle = { viewModel.toggleEntity(light.id) },
-                onBrightnessChange = { /* Send brightness */ },
-                onDismiss = { selectedLightEntity = null }
-            )
-        }
+        LightControlSheet(
+            entity = light,
+            onToggle = { viewModel.toggleEntity(light.id) },
+            onSetBrightness = { _, _ -> /* Send brightness */ },
+            onDismiss = { selectedLightEntity = null }
+        )
     }
 
     selectedClimateEntity?.let { climate ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedClimateEntity = null }
-        ) {
-            ThermostatDial(
-                entity = climate,
-                onSetTemperature = { /* Send target temp */ },
-                onSetHvacMode = { /* Send mode */ },
-                onDismiss = { selectedClimateEntity = null }
-            )
-        }
+        ThermostatDial(
+            entity = climate,
+            onSetTemperature = { _, _ -> /* Send target temp */ },
+            onSetMode = { _, _ -> /* Send mode */ },
+            onDismiss = { selectedClimateEntity = null }
+        )
     }
 
     selectedAlarmEntity?.let { alarm ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedAlarmEntity = null }
-        ) {
-            AlarmBottomSheet(
-                entity = alarm,
-                onArmHome = { viewModel.toggleEntity(alarm.id) },
-                onArmAway = { viewModel.toggleEntity(alarm.id) },
-                onDisarm = { _, _ -> viewModel.toggleEntity(alarm.id) },
-                onDismiss = { selectedAlarmEntity = null }
-            )
-        }
+        AlarmBottomSheet(
+            entity = alarm,
+            onArmHome = { viewModel.toggleEntity(alarm.id) },
+            onArmAway = { viewModel.toggleEntity(alarm.id) },
+            onDisarm = { _, _ -> viewModel.toggleEntity(alarm.id) },
+            onDismiss = { selectedAlarmEntity = null }
+        )
     }
 
     selectedCameraEntity?.let { camera ->

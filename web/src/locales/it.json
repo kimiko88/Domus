@@ -15,7 +15,8 @@
     "active": "Attivi",
     "disabled": "Disabilitati",
     "name": "Nome",
-    "description": "Descrizione"
+    "description": "Descrizione",
+    "no_data": "Nessun dato disponibile"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -37,6 +38,9 @@
     "scenes": "Scene",
     "history": "Storico & Metriche",
     "audit": "Registro Audit",
+    "logbook": "Registro Eventi",
+    "zones": "Zone & Presenza",
+    "templates": "Entità Template",
     "family": "Famiglia",
     "settings": "Impostazioni",
     "logout": "Disconnetti",

@@ -30,6 +30,7 @@ func main() {
 		coreImage     = flag.String("core-image", cfg.CoreImage, "OCI container image for Domus Core")
 		dataDir       = flag.String("data-dir", cfg.DataDir, "Root persistent data directory (/data)")
 		coreHealthURL = flag.String("health-url", cfg.CoreHealthURL, "HTTP health check endpoint for Domus Core")
+		watchdogDev   = flag.String("watchdog", cfg.WatchdogDevicePath, "Path to Linux hardware watchdog device (/dev/watchdog)")
 		showVersion   = flag.Bool("version", false, "Print version and exit")
 	)
 	flag.Parse()
@@ -44,11 +45,13 @@ func main() {
 	cfg.CoreImage = *coreImage
 	cfg.DataDir = *dataDir
 	cfg.CoreHealthURL = *coreHealthURL
+	cfg.WatchdogDevicePath = *watchdogDev
 
 	log.Printf("[Supervisor] Starting Domus Supervisor v%s...", Version)
 	log.Printf("[Supervisor] Containerd socket: %s", cfg.ContainerdSocket)
 	log.Printf("[Supervisor] API Unix socket:   %s", cfg.SupervisorSocket)
 	log.Printf("[Supervisor] Data directory:    %s", cfg.DataDir)
+	log.Printf("[Supervisor] Watchdog device:   %s", cfg.WatchdogDevicePath)
 
 	// Ensure parent socket directory exists
 	if err := os.MkdirAll(filepath.Dir(cfg.SupervisorSocket), 0755); err != nil {
@@ -61,6 +64,9 @@ func main() {
 	healthChecker := supervisor.NewHTTPHealthChecker(cfg.HealthCheckTimeout)
 
 	engine := supervisor.NewEngine(cfg, runtime, rauc, healthChecker)
+	if cfg.WatchdogDevicePath != "" {
+		engine.SetWatchdog(supervisor.NewDeviceWatchdog(cfg.WatchdogDevicePath))
+	}
 	apiServer := supervisor.NewAPIServer(engine)
 
 	ctx, cancel := context.WithCancel(context.Background())

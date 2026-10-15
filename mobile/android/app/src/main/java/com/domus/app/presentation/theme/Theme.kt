@@ -18,6 +18,7 @@ val IndigoPrimary = Color(0xFF6366F1)
 val EmeraldSuccess = Color(0xFF10B981)
 val AmberWarning = Color(0xFFF59E0B)
 val RoseError = Color(0xFFF43F5E)
+val RoseDanger = RoseError
 
 private val DarkColorScheme = darkColorScheme(
     primary = CyanAccent,

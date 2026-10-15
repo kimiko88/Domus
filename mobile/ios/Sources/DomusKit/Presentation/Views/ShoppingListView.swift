@@ -51,7 +51,7 @@ public struct ShoppingListView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                Color.domusSystemGroupedBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Barra di inserimento rapido
@@ -109,7 +109,7 @@ public struct ShoppingListView: View {
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .background(Color.domusSecondarySystemGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
             TextField("Qtà", text: $newQuantity)
@@ -117,7 +117,7 @@ public struct ShoppingListView: View {
                 .frame(width: 50)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 8)
-                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .background(Color.domusSecondarySystemGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Button(action: addItem) {

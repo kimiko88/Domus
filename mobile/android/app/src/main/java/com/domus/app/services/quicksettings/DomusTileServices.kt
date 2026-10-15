@@ -3,6 +3,8 @@ package com.domus.app.services.quicksettings
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
@@ -32,7 +34,7 @@ class DomusGateTileService : TileService() {
         tile.updateTile()
 
         // Send gate trigger command via background service or intent
-        tile.postDelayed({
+        Handler(Looper.getMainLooper()).postDelayed({
             tile.state = Tile.STATE_INACTIVE
             tile.subtitle = "Aperto"
             tile.updateTile()
@@ -108,7 +110,7 @@ class DomusLightTileService : TileService() {
         tile.subtitle = "Luci Spente ✓"
         tile.updateTile()
 
-        tile.postDelayed({
+        Handler(Looper.getMainLooper()).postDelayed({
             tile.state = Tile.STATE_INACTIVE
             tile.subtitle = "Spegni Tutte"
             tile.updateTile()
@@ -141,7 +143,7 @@ class DomusSceneTileService : TileService() {
         tile.subtitle = "Attivazione $currentScene..."
         tile.updateTile()
 
-        tile.postDelayed({
+        Handler(Looper.getMainLooper()).postDelayed({
             currentScene = if (currentScene == "Buonanotte") "Rientro Casa" else "Buonanotte"
             tile.state = Tile.STATE_INACTIVE
             tile.subtitle = currentScene

@@ -96,21 +96,27 @@ type Config struct {
 	MaxHealthRetries    int           `json:"max_health_retries"`
 	AutoConfirmSlot     bool          `json:"auto_confirm_slot"`
 	RaucAgentPath       string        `json:"rauc_agent_path"`
+	WatchdogDevicePath  string        `json:"watchdog_device_path"`
+	WatchdogPingInterval time.Duration `json:"watchdog_ping_interval"`
+	AutoRollbackOnFail  bool          `json:"auto_rollback_on_fail"`
 }
 
 // DefaultConfig returns reasonable default configuration values.
 func DefaultConfig() Config {
 	return Config{
-		Version:             "1.0.0",
-		SupervisorSocket:    "/run/domus/supervisor.sock",
-		ContainerdSocket:    "/run/containerd/containerd.sock",
-		CoreImage:           "ghcr.io/domus-hub/domus:latest",
-		CoreHealthURL:       "http://127.0.0.1:8080/health",
-		DataDir:             "/data",
-		HealthCheckInterval: 500 * time.Millisecond,
-		HealthCheckTimeout:  2 * time.Second,
-		MaxHealthRetries:    15,
-		AutoConfirmSlot:     true,
-		RaucAgentPath:       "/usr/sbin/domus-update",
+		Version:              "1.0.0",
+		SupervisorSocket:     "/run/domus/supervisor.sock",
+		ContainerdSocket:     "/run/containerd/containerd.sock",
+		CoreImage:            "ghcr.io/domus-hub/domus:latest",
+		CoreHealthURL:        "http://127.0.0.1:8080/health",
+		DataDir:              "/data",
+		HealthCheckInterval:  500 * time.Millisecond,
+		HealthCheckTimeout:   2 * time.Second,
+		MaxHealthRetries:     15,
+		AutoConfirmSlot:      true,
+		RaucAgentPath:        "/usr/sbin/domus-update",
+		WatchdogDevicePath:   "/dev/watchdog",
+		WatchdogPingInterval: 10 * time.Second,
+		AutoRollbackOnFail:   true,
 	}
 }

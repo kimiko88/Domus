@@ -100,7 +100,7 @@ class DomusApiClient(
                 val areas = json.decodeFromString<List<Area>>(bodyStr)
                 Result.success(areas)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             Result.success(emptyList())
         }
     }

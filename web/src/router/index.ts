@@ -26,6 +26,9 @@ import MeshMapView from '../views/MeshMapView.vue'
 import StoreView from '../views/StoreView.vue'
 import ShoppingListView from '../views/ShoppingListView.vue'
 import GuideView from '../views/GuideView.vue'
+import LogbookView from '../views/LogbookView.vue'
+import ZonesView from '../views/ZonesView.vue'
+import TemplateEntitiesView from '../views/TemplateEntitiesView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -153,6 +156,24 @@ export const routes: RouteRecordRaw[] = [
     name: 'guide',
     component: GuideView,
     meta: { requiresAuth: true, title: 'Guida & Manuale' }
+  },
+  {
+    path: '/logbook',
+    name: 'logbook',
+    component: LogbookView,
+    meta: { requiresAuth: true, title: 'Registro Eventi' }
+  },
+  {
+    path: '/zones',
+    name: 'zones',
+    component: ZonesView,
+    meta: { requiresAuth: true, title: 'Zone & Geofencing' }
+  },
+  {
+    path: '/templates',
+    name: 'templates',
+    component: TemplateEntitiesView,
+    meta: { requiresAuth: true, title: 'Entità Template' }
   },
   {
     path: '/settings',

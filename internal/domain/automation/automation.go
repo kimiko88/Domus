@@ -54,9 +54,17 @@ type ChooseBranch struct {
 	Sequence   []Action    `json:"sequence"`
 }
 
+// RepeatConfig defines loop configurations for repeat action.
+type RepeatConfig struct {
+	Count    int         `json:"count,omitempty"`
+	While    []Condition `json:"while,omitempty"`
+	Until    []Condition `json:"until,omitempty"`
+	Sequence []Action    `json:"sequence"`
+}
+
 // Action defines an operation performed when triggers and conditions pass.
 type Action struct {
-	Type            string         `json:"type"`              // "service", "delay", "event", "choose"
+	Type            string         `json:"type"`              // "service", "delay", "event", "choose", "if", "repeat", "parallel"
 	Service         string         `json:"service,omitempty"` // "turn_on", "turn_off", "toggle"
 	TargetEntityKey string         `json:"target_entity_key,omitempty"`
 	Params          map[string]any `json:"params,omitempty"`
@@ -65,6 +73,11 @@ type Action struct {
 	EventPayload    map[string]any `json:"event_payload,omitempty"`
 	Choose          []ChooseBranch `json:"choose,omitempty"`
 	Default         []Action       `json:"default,omitempty"`
+	If              []Condition    `json:"if,omitempty"`
+	Then            []Action       `json:"then,omitempty"`
+	Else            []Action       `json:"else,omitempty"`
+	Repeat          *RepeatConfig  `json:"repeat,omitempty"`
+	Parallel        []Action       `json:"parallel,omitempty"`
 }
 
 // Automation represents an event-driven automation rule.
