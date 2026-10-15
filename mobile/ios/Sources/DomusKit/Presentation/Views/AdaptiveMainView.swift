@@ -10,6 +10,11 @@ public struct AdaptiveMainView: View {
     @State private var selectedCategory: String? = nil
     @State private var showFloorplan: Bool = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var showShoppingList: Bool = false
+    @State private var showAssistant: Bool = false
+    @State private var showChores: Bool = false
+    @State private var showEnergyFlow: Bool = false
+    @State private var showNotifications: Bool = false
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -43,6 +48,21 @@ public struct AdaptiveMainView: View {
             detailInspectorView
         }
         .navigationSplitViewStyle(.balanced)
+        .sheet(isPresented: $showShoppingList) {
+            ShoppingListView()
+        }
+        .sheet(isPresented: $showAssistant) {
+            AssistantChatSheet()
+        }
+        .sheet(isPresented: $showChores) {
+            ChoresSheet()
+        }
+        .sheet(isPresented: $showEnergyFlow) {
+            EnergyFlowSheet()
+        }
+        .sheet(isPresented: $showNotifications) {
+            NotificationHistoryView()
+        }
     }
 
     // MARK: - Sidebar
@@ -79,6 +99,48 @@ public struct AdaptiveMainView: View {
                 }) {
                     Label(showFloorplan ? "Mostra Griglia Dispositivi" : "Mostra Pianta 2D", systemImage: showFloorplan ? "square.grid.2x2" : "map.fill")
                         .foregroundColor(.blue)
+                }
+            }
+
+            Section(header: Text("Funzionalità Casa")) {
+                Button(action: {
+                    Haptics.selection()
+                    showAssistant = true
+                }) {
+                    Label("Assistente AI", systemImage: "sparkles")
+                        .foregroundColor(.cyan)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showEnergyFlow = true
+                }) {
+                    Label("Cruscotto Energia", systemImage: "bolt.fill")
+                        .foregroundColor(.yellow)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showShoppingList = true
+                }) {
+                    Label("Lista della Spesa", systemImage: "cart.fill")
+                        .foregroundColor(.green)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showChores = true
+                }) {
+                    Label("Faccende Domestiche", systemImage: "checklist")
+                        .foregroundColor(.orange)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showNotifications = true
+                }) {
+                    Label("Centro Notifiche", systemImage: "bell.fill")
+                        .foregroundColor(.red)
                 }
             }
 

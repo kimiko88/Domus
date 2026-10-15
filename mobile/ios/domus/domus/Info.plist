@@ -14,6 +14,16 @@
 	<string>Domus monitora il perimetro di casa in background per automatizzare climatizzazione, allarme e scenari di rientro.</string>
 	<key>NFCReaderUsageDescription</key>
 	<string>Domus utilizza il lettore NFC per eseguire istantaneamente scenari o registrare tag domotici.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Domus utilizza il microfono per l'assistente vocale locale e l'interfono telecamere.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Domus elabora la voce per consentirti di impartire comandi all'assistente domotico.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Domus scopre l'hub locale in rete e garantisce comunicazioni sub-millisecondo senza passare dal cloud.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_domus._tcp</string>
+	</array>
 	<key>com.apple.developer.nfc.readersession.formats</key>
 	<array>
 		<string>NDEF</string>

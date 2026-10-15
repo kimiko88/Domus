@@ -29,4 +29,10 @@ data class Entity(
 
     val currentTemperature: Double?
         get() = attributes["current_temperature"]?.toString()?.toDoubleOrNull()
+
+    val targetTemperature: Double?
+        get() = attributes["temperature"]?.toString()?.toDoubleOrNull() ?: attributes["target_temperature"]?.toString()?.toDoubleOrNull()
+
+    val isArmed: Boolean
+        get() = state.lowercase().startsWith("armed")
 }

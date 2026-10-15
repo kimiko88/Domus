@@ -30,6 +30,7 @@ import com.domus.app.presentation.theme.Slate700
 fun EntityCard(
     entity: Entity,
     onToggle: (String) -> Unit,
+    onClick: ((Entity) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isOn = entity.isOn
@@ -75,8 +76,14 @@ fun EntityCard(
                 role = if (entity.isLight || entity.isSwitch) Role.Switch else Role.Button
             }
             .clickable(
-                onClickLabel = if (isOn) "Spegni ${entity.name}" else "Accendi ${entity.name}"
-            ) { onToggle(entity.id) }
+                onClickLabel = if (isOn) "Gestisci ${entity.name}" else "Accendi ${entity.name}"
+            ) {
+                if (onClick != null) {
+                    onClick(entity)
+                } else {
+                    onToggle(entity.id)
+                }
+            }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

@@ -6,6 +6,11 @@ public struct DashboardView: View {
 
     @State private var isFloorplanMode: Bool = false
     @State private var draggedEntityId: String? = nil
+    @State private var showShoppingList: Bool = false
+    @State private var showAssistant: Bool = false
+    @State private var showChores: Bool = false
+    @State private var showEnergyFlow: Bool = false
+    @State private var showNotifications: Bool = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -59,6 +64,28 @@ public struct DashboardView: View {
                 .background(Color.secondary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
+
+                // Barra Accesso Rapido Moduli Casa
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        quickFeaturePill(icon: "sparkles", label: "Assistant", color: .cyan) {
+                            showAssistant = true
+                        }
+                        quickFeaturePill(icon: "bolt.fill", label: "Energia", color: .yellow) {
+                            showEnergyFlow = true
+                        }
+                        quickFeaturePill(icon: "cart.fill", label: "Spesa", color: .green) {
+                            showShoppingList = true
+                        }
+                        quickFeaturePill(icon: "checklist", label: "Faccende", color: .orange) {
+                            showChores = true
+                        }
+                        quickFeaturePill(icon: "bell.fill", label: "Notifiche", color: .red) {
+                            showNotifications = true
+                        }
+                    }
+                    .padding(.horizontal)
+                }
 
                 if isFloorplanMode {
                     // Vista Pianta 2D Interattiva
@@ -188,6 +215,21 @@ public struct DashboardView: View {
                     nfcManager: viewModel.nfcManager
                 )
             }
+            .sheet(isPresented: $showShoppingList) {
+                ShoppingListView()
+            }
+            .sheet(isPresented: $showAssistant) {
+                AssistantChatSheet()
+            }
+            .sheet(isPresented: $showChores) {
+                ChoresSheet()
+            }
+            .sheet(isPresented: $showEnergyFlow) {
+                EnergyFlowSheet()
+            }
+            .sheet(isPresented: $showNotifications) {
+                NotificationHistoryView()
+            }
             .sheet(isPresented: $viewModel.showKioskSettings) {
                 KioskSettingsSheet(kioskManager: viewModel.kioskManager)
             }
@@ -208,6 +250,25 @@ public struct DashboardView: View {
     }
 
     // MARK: - Subviews
+
+    private func quickFeaturePill(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            Haptics.light()
+            action()
+        }) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(color.opacity(0.14))
+            .foregroundColor(color)
+            .clipShape(Capsule())
+        }
+    }
 
     private func areaButton(label: String, areaId: String?) -> some View {
         Button(action: { viewModel.selectArea(areaId) }) {

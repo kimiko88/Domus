@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        com.domus.app.services.notifications.DomusNotificationHelper.createNotificationChannels(this)
+
         val nsdManager = getSystemService(Context.NSD_SERVICE) as? NsdManager
         val mdnsEngine = MdnsDiscoveryEngine(nsdManager = nsdManager)
         val transportManager = DualTransportManager()

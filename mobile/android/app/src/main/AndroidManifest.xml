@@ -5,6 +5,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -15,14 +20,71 @@
         android:usesCleartextTraffic="true"
         android:windowSoftInputMode="adjustResize"
         android:theme="@style/Theme.Domus">
+
         <activity
             android:name="com.domus.app.MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Quick Settings Tile Services -->
+        <service
+            android:name="com.domus.app.services.quicksettings.DomusGateTileService"
+            android:icon="@android:drawable/ic_lock_power_off"
+            android:label="Cancello Domus"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.domus.app.services.quicksettings.DomusAlarmTileService"
+            android:icon="@android:drawable/ic_lock_idle_alarm"
+            android:label="Allarme Domus"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.domus.app.services.quicksettings.DomusLightTileService"
+            android:icon="@android:drawable/btn_star"
+            android:label="Luci Domus"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.domus.app.services.quicksettings.DomusSceneTileService"
+            android:icon="@android:drawable/ic_media_play"
+            android:label="Scenario Domus"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Geofence & Presence BroadcastReceiver -->
+        <receiver
+            android:name="com.domus.app.services.location.DomusGeofenceReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.domus.app.ACTION_GEOFENCE_EVENT" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

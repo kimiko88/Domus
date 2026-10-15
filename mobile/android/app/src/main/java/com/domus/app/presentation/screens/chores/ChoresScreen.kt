@@ -1,0 +1,306 @@
+package com.domus.app.presentation.screens.chores
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.domus.app.presentation.theme.AmberWarning
+import com.domus.app.presentation.theme.CyanAccent
+import com.domus.app.presentation.theme.EmeraldSuccess
+import com.domus.app.presentation.theme.IndigoPrimary
+import com.domus.app.presentation.theme.RoseDanger
+import com.domus.app.presentation.theme.Slate700
+import com.domus.app.presentation.theme.Slate800
+import com.domus.app.presentation.theme.Slate900
+
+enum class ChorePriority(val label: String, val color: Color) {
+    URGENT("Urgente", RoseDanger),
+    HIGH("Alta", AmberWarning),
+    MEDIUM("Media", CyanAccent),
+    LOW("Bassa", Slate700)
+}
+
+data class Chore(
+    val id: String,
+    val title: String,
+    val room: String,
+    val assignee: String,
+    val points: Int,
+    val priority: ChorePriority,
+    val frequency: String,
+    var isDone: Boolean = false
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChoresScreen(
+    onDismiss: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val chores = remember {
+        mutableStateListOf(
+            Chore("1", "Svuotare lavastoviglie", "Cucina", "Marco", 15, ChorePriority.HIGH, "Giornaliero", isDone = false),
+            Chore("2", "Pulizia filtri condizionatore", "Salotto", "Giulia", 50, ChorePriority.URGENT, "Ogni mese", isDone = false),
+            Chore("3", "Annaffiare piante terrazzo", "Terrazzo", "Tutti", 20, ChorePriority.MEDIUM, "Ogni 2 gg", isDone = true),
+            Chore("4", "Svuotare cassetto robot aspirapolvere", "Ingresso", "Marco", 25, ChorePriority.MEDIUM, "Settimanale", isDone = false),
+            Chore("5", "Sostituire sacchetto aspirapolvere", "Ripostiglio", "Giulia", 30, ChorePriority.LOW, "Ogni 3 mesi", isDone = true)
+        )
+    }
+
+    var selectedFilter by remember { mutableStateOf("Tutti") }
+    val filters = listOf("Tutti", "Marco", "Giulia", "Cucina", "Salotto")
+
+    val totalPoints = chores.filter { it.isDone }.sumOf { it.points }
+    val pendingCount = chores.count { !it.isDone }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Slate900)
+    ) {
+        // Top Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onDismiss) {
+                Text("✕", fontSize = 20.sp, color = Color.White)
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Faccende Domestiche",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White
+                )
+                Text(
+                    text = "$pendingCount attività in attesa",
+                    fontSize = 12.sp,
+                    color = AmberWarning
+                )
+            }
+
+            // Family Karma Points Badge
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = AmberWarning.copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, AmberWarning)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⭐", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "$totalPoints pt",
+                        color = AmberWarning,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        // Leaderboard Karma Row
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Slate800),
+            border = BorderStroke(1.dp, Slate700),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("👦 Marco", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                    Text("75 Karma", color = CyanAccent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
+                Box(modifier = Modifier.height(28.dp).width(1.dp).background(Slate700))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("👧 Giulia", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                    Text("90 Karma 🏆", color = AmberWarning, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
+            }
+        }
+
+        // Filter Pills Row
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            filters.forEach { filter ->
+                val isSelected = selectedFilter == filter
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) IndigoPrimary else Slate800,
+                    border = BorderStroke(1.dp, if (isSelected) CyanAccent else Slate700),
+                    modifier = Modifier.clickable { selectedFilter = filter }
+                ) {
+                    Text(
+                        text = filter,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Chores LazyColumn
+        val filteredChores = chores.filter {
+            when (selectedFilter) {
+                "Tutti" -> true
+                "Marco", "Giulia" -> it.assignee == selectedFilter || it.assignee == "Tutti"
+                else -> it.room == selectedFilter
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(vertical = 10.dp)
+        ) {
+            items(filteredChores, key = { it.id }) { chore ->
+                val isDone = chore.isDone
+                val cardColor by animateColorAsState(
+                    targetValue = if (isDone) Slate800.copy(alpha = 0.4f) else Slate800,
+                    label = "chore_bg"
+                )
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isDone) Color.Transparent else chore.priority.color.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            role = Role.Checkbox
+                            contentDescription = "${chore.title}, stanza ${chore.room}, assegnato a ${chore.assignee}, ${if (isDone) "completato" else "da fare"}"
+                        }
+                        .clickable {
+                            val index = chores.indexOfFirst { it.id == chore.id }
+                            if (index != -1) {
+                                chores[index] = chore.copy(isDone = !chore.isDone)
+                            }
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Checkbox
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDone) EmeraldSuccess else Color.Transparent,
+                            border = BorderStroke(
+                                2.dp,
+                                if (isDone) EmeraldSuccess else Color.White.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            if (isDone) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = chore.title,
+                                    fontSize = 15.sp,
+                                    fontWeight = if (isDone) FontWeight.Normal else FontWeight.Bold,
+                                    color = if (isDone) Color.White.copy(alpha = 0.4f) else Color.White,
+                                    textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = chore.priority.color.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = chore.priority.label,
+                                        color = chore.priority.color,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "📍 ${chore.room} • 👤 ${chore.assignee} • ⏱️ ${chore.frequency}",
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+
+                        // Points Tag
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = IndigoPrimary.copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, IndigoPrimary.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "+${chore.points} pt",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CyanAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

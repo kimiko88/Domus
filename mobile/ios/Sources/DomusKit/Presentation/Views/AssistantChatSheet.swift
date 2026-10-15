@@ -1,0 +1,251 @@
+import SwiftUI
+
+public struct AssistantMessage: Identifiable, Sendable {
+    public let id: String
+    public let text: String
+    public let isUser: Bool
+    public let actionExecuted: String?
+    public let timestamp: Date
+
+    public init(
+        id: String = UUID().uuidString,
+        text: String,
+        isUser: Bool,
+        actionExecuted: String? = nil,
+        timestamp: Date = Date()
+    ) {
+        self.id = id
+        self.text = text
+        self.isUser = isUser
+        self.actionExecuted = actionExecuted
+        self.timestamp = timestamp
+    }
+}
+
+public struct AssistantChatSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var messages: [AssistantMessage] = [
+        AssistantMessage(
+            text: "Ciao! Sono l'assistente locale di Domus basato su LLM. Come posso aiutarti con la tua casa?",
+            isUser: false
+        )
+    ]
+    @State private var inputText: String = ""
+    @State private var isListening: Bool = false
+    @State private var isProcessing: Bool = false
+
+    private let suggestions = [
+        "Spegni tutte le luci",
+        "Qual è la temperatura in salotto?",
+        "Attiva scenario Buonanotte",
+        "Chiudi il cancello carraio"
+    ]
+
+    public init() {}
+
+    public var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    // Chat messages scroll view
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(messages) { msg in
+                                    MessageBubbleView(message: msg)
+                                }
+                                if isProcessing {
+                                    HStack {
+                                        ProgressView()
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                                            .clipShape(Capsule())
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                            .padding(.vertical, 14)
+                        }
+                        .onChange(of: messages.count) { _ in
+                            if let last = messages.last {
+                                withAnimation {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+
+                    // Suggestions pills
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button(action: { sendPrompt(suggestion) }) {
+                                    Text(suggestion)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.cyan.opacity(0.12))
+                                        .foregroundColor(.cyan)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 6)
+                    }
+
+                    Divider()
+
+                    // Input bar with text & voice waveform button
+                    HStack(spacing: 10) {
+                        TextField("Chiedi a Domus...", text: $inputText)
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                            .onSubmit {
+                                sendCurrentMessage()
+                            }
+
+                        // Pulsante microfono vocale
+                        Button(action: toggleVoiceInput) {
+                            ZStack {
+                                Circle()
+                                    .fill(isListening ? Color.red : Color.cyan)
+                                    .frame(width: 42, height: 42)
+                                Image(systemName: isListening ? "waveform" : "mic.fill")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 18, weight: .bold))
+                            }
+                        }
+
+                        if !inputText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            Button(action: sendCurrentMessage) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.cyan)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial)
+                }
+            }
+            .navigationTitle("Assistente AI Locale")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Chiudi") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func sendCurrentMessage() {
+        let text = inputText.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        inputText = ""
+        sendPrompt(text)
+    }
+
+    private func sendPrompt(_ text: String) {
+        let userMsg = AssistantMessage(text: text, isUser: true)
+        messages.append(userMsg)
+        isProcessing = true
+
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
+
+        // Simulazione risposta AI con esecuzione comando
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isProcessing = false
+            let lower = text.lowercased()
+            let responseText: String
+            let action: String?
+
+            if lower.contains("spegni") && lower.contains("luci") {
+                responseText = "Ho spento tutte le luci attive dell'abitazione."
+                action = "light.turn_off [all_lights] -> Eseguito"
+            } else if lower.contains("temperatura") {
+                responseText = "La temperatura media rilevata in casa è di 21.2°C con umidità al 48%."
+                action = "sensor.temperature [living_room] -> Letto"
+            } else if lower.contains("buonanotte") {
+                responseText = "Scenario Buonanotte attivato: luci spente, tapparelle abbassate e allarme perimetrale inserito."
+                action = "scene.activate [buonanotte] -> Eseguito"
+            } else {
+                responseText = "Ho compreso la tua richiesta: '\(text)'. Tutto è stato allineato e verificato nel sistema domotico."
+                action = nil
+            }
+
+            messages.append(AssistantMessage(text: responseText, isUser: false, actionExecuted: action))
+            #if canImport(UIKit)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            #endif
+        }
+    }
+
+    private func toggleVoiceInput() {
+        withAnimation(.easeInOut) {
+            isListening.toggle()
+        }
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        #endif
+        if isListening {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                if self.isListening {
+                    self.isListening = false
+                    self.sendPrompt("Spegni le luci del salotto")
+                }
+            }
+        }
+    }
+}
+
+private struct MessageBubbleView: View {
+    let message: AssistantMessage
+
+    var body: some View {
+        HStack {
+            if message.isUser { Spacer() }
+
+            VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundColor(message.isUser ? .white : .primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(message.isUser ? Color.cyan : Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                if let action = message.actionExecuted {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 10))
+                        Text(action)
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    }
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.green.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal)
+
+            if !message.isUser { Spacer() }
+        }
+    }
+}

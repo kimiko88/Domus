@@ -171,3 +171,5 @@ Introdurre middleware OpenTelemetry per distributed tracing su HTTP, DB SQLite e
 Configurare Playwright per i test E2E reali su browser.
 
 
+Controlla la 
+### 7.1 Matrice Comparativa Funzionale[native_mobile_apps_implementation_plan.md](file;file:///c%3A/Users/chimi/Desktop/Programmazione/Domus/native_mobile_apps_implementation_plan.md) e implementa nei due progetti le funzionalità mancanti, sia ios sia android e svolgi ## 8. Piano Operativo di Allineamento e Completamento iOS (Feature Mancanti) e ### 9.2 Moduli di Presentazione Jetpack Compose (Parità Completa con iOS) e ## 10. Checklist Operativa di Validazione, Test di Regressione & Qualità del Codice
