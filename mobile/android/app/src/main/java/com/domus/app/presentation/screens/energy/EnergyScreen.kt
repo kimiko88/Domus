@@ -303,7 +303,7 @@ fun EnergyScreen(
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = CyanAccent,
-            modifier = Modifier.padding(horizontal = 16.dp, top = 8.dp, bottom = 4.dp)
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
         )
 
         LazyColumn(
