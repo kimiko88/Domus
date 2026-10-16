@@ -250,3 +250,87 @@ public struct DomusMasterLightControl: ControlWidget {
     }
 }
 #endif
+
+// MARK: - iOS 17+ StandBy Mode Widget (WidgetFamily.systemSmall)
+
+/// Widget ottimizzato per la modalità StandBy di iOS 17+ (su supporto MagSafe orizzontale notturno o da cucina).
+/// Presenta orologio digitale grande, indicatore temperatura interna, allarme e pulsante rapido "Buonanotte".
+public struct DomusStandByWidgetView: View {
+    public let entry: DomusWidgetEntry
+
+    public init(entry: DomusWidgetEntry) {
+        self.entry = entry
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header: Orologio digitale + icona allarme
+            HStack(alignment: .top) {
+                Text(entry.date, style: .time)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Image(systemName: entry.isAlarmArmed ? "shield.fill" : "shield")
+                        .foregroundColor(entry.isAlarmArmed ? .red : .green)
+                        .font(.caption2)
+                    Text(entry.isAlarmArmed ? "Armato" : "Disarmato")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(entry.isAlarmArmed ? .red : .green)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.1))
+                .clipShape(Capsule())
+            }
+
+            Spacer()
+
+            // Info Clima e Luci
+            HStack(spacing: 8) {
+                Label(String(format: "%.1f°C", entry.homeTemperature), systemImage: "thermometer.medium")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.cyan)
+
+                Text("•")
+                    .foregroundColor(.secondary)
+
+                Label("\(entry.activeDevicesCount) accese", systemImage: "lightbulb.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(entry.activeDevicesCount > 0 ? .yellow : .secondary)
+            }
+
+            // Pulsante rapido "Buonanotte" per spegnere l'intera casa
+            Button(intent: RunSceneIntent(sceneId: "scene.goodnight")) {
+                HStack(spacing: 6) {
+                    Image(systemName: "moon.stars.fill")
+                        .foregroundColor(.indigo)
+                    Text("Buonanotte")
+                        .font(.caption.bold())
+                        .foregroundColor(.white)
+                    Spacer()
+                    Image(systemName: "power")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color(red: 0.12, green: 0.14, blue: 0.24))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.indigo.opacity(0.5), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Esegui scenario Buonanotte, spegni tutte le luci")
+        }
+        .padding(12)
+        .containerBackground(for: .widget) {
+            Color(red: 0.03, green: 0.04, blue: 0.08)
+        }
+    }
+}
+

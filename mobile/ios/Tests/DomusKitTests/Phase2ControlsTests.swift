@@ -144,4 +144,41 @@ final class Phase2ControlsTests: XCTestCase {
         vm.setThermostatHvacMode(id: "climate.1", mode: "heat")
         XCTAssertEqual(vm.entities.first?.state, "heat")
     }
+
+    func testAccessibilityAnnouncementsAndControlViews() {
+        // Verifica che DomusAccessibility.announce non sollevi eccezioni e possa essere invocato
+        DomusAccessibility.announce("Test annuncio VoiceOver")
+
+        let climate = Entity(id: "climate.test", name: "Termostato Studio", domain: "climate", state: "heat")
+        let thermostatView = ThermostatSheet(
+            entity: climate,
+            onTemperatureChange: { _, _ in },
+            onModeChange: { _, _ in }
+        )
+        XCTAssertNotNil(thermostatView)
+
+        let light = Entity(id: "light.test", name: "Luce Studio", domain: "light", state: "on")
+        let lightView = LightDetailSheet(
+            entity: light,
+            onToggle: { _ in },
+            onBrightnessChange: { _, _ in },
+            onColorChange: { _, _, _, _ in },
+            onColorTempChange: { _, _ in }
+        )
+        XCTAssertNotNil(lightView)
+
+        let alarm = Entity(id: "alarm.test", name: "Allarme", domain: "alarm_control_panel", state: "disarmed")
+        let alarmView = AlarmSheet(
+            entity: alarm,
+            onArm: { _, _, _ in },
+            onDisarm: { _, _ in }
+        )
+        XCTAssertNotNil(alarmView)
+
+        let chatView = AssistantChatSheet()
+        XCTAssertNotNil(chatView)
+
+        let energyView = EnergyFlowSheet()
+        XCTAssertNotNil(energyView)
+    }
 }

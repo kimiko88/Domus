@@ -57,6 +57,10 @@ public struct EntityCardView: View {
     public var onToggle: (String) -> Void
     public var onOpenDetail: (Entity) -> Void
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init(
         entity: Entity,
         onToggle: @escaping (String) -> Void,
@@ -72,7 +76,7 @@ public struct EntityCardView: View {
             HStack {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(cardAccentColor.opacity(0.2))
+                        .fill(cardAccentColor.opacity(reduceTransparency ? 0.35 : 0.2))
                         .frame(width: 38, height: 38)
                     Text(domainIcon)
                         .font(.system(size: 18))
@@ -94,11 +98,11 @@ public struct EntityCardView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(entity.name)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(1)
+                    .font(.subheadline.bold())
+                    .lineLimit(2)
 
                 Text(subtitle)
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
@@ -121,7 +125,7 @@ public struct EntityCardView: View {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 9))
                     Text(String(format: "%.0f W", watts))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.caption2.monospaced().bold())
                 }
                 .foregroundColor(.yellow)
                 .padding(.horizontal, 6)
@@ -133,7 +137,7 @@ public struct EntityCardView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.domusSecondarySystemGroupedBackground.opacity(0.85))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(
@@ -150,12 +154,16 @@ public struct EntityCardView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(differentiateWithoutColor ? cardAccentColor.opacity(entity.isOn ? 0.9 : 0.4) : Color.clear, lineWidth: 1.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(entity.isOn ? cardAccentColor.opacity(0.08) : Color.clear)
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(
-            color: entity.isOn ? cardAccentColor.opacity(0.18) : Color.black.opacity(0.06),
+            color: reduceMotion ? .clear : (entity.isOn ? cardAccentColor.opacity(0.18) : Color.black.opacity(0.06)),
             radius: entity.isOn ? 10 : 4,
             x: 0,
             y: entity.isOn ? 4 : 2
@@ -168,8 +176,11 @@ public struct EntityCardView: View {
         .accessibilityLabel(Text("\(entity.name), \(domainAccessibilityLabel)"))
         .accessibilityValue(Text(accessibilityValueText))
         .accessibilityHint(Text("Tocca due volte per visualizzare i dettagli o controlla con le azioni del rotore"))
-        .accessibilityAction(named: entity.isOn ? Text("Spegni") : Text("Accendi")) {
-            onToggle(entity.id)
+        .accessibilityAddTraits(entity.domain == "sensor" ? [] : .isButton)
+        .accessibilityAction(named: (entity.isLight || entity.isSwitch) ? (entity.isOn ? Text("Spegni") : Text("Accendi")) : Text("")) {
+            if entity.isLight || entity.isSwitch {
+                onToggle(entity.id)
+            }
         }
     }
 

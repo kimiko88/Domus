@@ -4,6 +4,11 @@ import SwiftUI
 public struct DashboardView: View {
     @ObservedObject public var viewModel: DashboardViewModel
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var isFloorplanMode: Bool = false
     @State private var draggedEntityId: String? = nil
     @State private var showShoppingList: Bool = false
@@ -11,11 +16,20 @@ public struct DashboardView: View {
     @State private var showChores: Bool = false
     @State private var showEnergyFlow: Bool = false
     @State private var showNotifications: Bool = false
+    @State private var showAutomationBuilder: Bool = false
+    @State private var showActivityTimeline: Bool = false
+    @State private var showMeshDiagnostics: Bool = false
+    @State private var showGuestAccess: Bool = false
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible(), spacing: 12)]
+        }
+        return [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ]
+    }
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -41,10 +55,16 @@ public struct DashboardView: View {
                         }
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.cyan.opacity(0.12))
+                    .padding(.vertical, 8)
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.cyan.opacity(0.12))
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(differentiateWithoutColor ? Color.cyan : Color.clear, lineWidth: 1)
+                    )
                     .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Stanza rilevata: \(roomName)\(viewModel.beaconManager.currentDistanceMeters != nil ? String(format: ", distanza %.1f metri", viewModel.beaconManager.currentDistanceMeters!) : "")")
                 }
 
                 // Search Bar
@@ -53,15 +73,19 @@ public struct DashboardView: View {
                         .foregroundColor(.secondary)
                     TextField("Cerca dispositivi o stanze...", text: $viewModel.searchQuery)
                         .textFieldStyle(.plain)
+                        .accessibilityLabel("Cerca dispositivi o stanze")
                     if !viewModel.searchQuery.isEmpty {
                         Button(action: { viewModel.searchQuery = "" }) {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.secondary)
+                                .frame(width: 44, height: 44)
                         }
+                        .accessibilityLabel("Cancella testo di ricerca")
                     }
                 }
-                .padding(10)
-                .background(Color.secondary.opacity(0.12))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
 
@@ -71,10 +95,22 @@ public struct DashboardView: View {
                         quickFeaturePill(icon: "sparkles", label: "Assistant", color: .cyan) {
                             showAssistant = true
                         }
+                        quickFeaturePill(icon: "wand.and.stars", label: "Automazioni", color: .purple) {
+                            showAutomationBuilder = true
+                        }
+                        quickFeaturePill(icon: "clock.arrow.circlepath", label: "Timeline", color: .blue) {
+                            showActivityTimeline = true
+                        }
                         quickFeaturePill(icon: "bolt.fill", label: "Energia", color: .yellow) {
                             showEnergyFlow = true
                         }
-                        quickFeaturePill(icon: "cart.fill", label: "Spesa", color: .green) {
+                        quickFeaturePill(icon: "antenna.radiowaves.left.and.right", label: "Rete & Mesh", color: .green) {
+                            showMeshDiagnostics = true
+                        }
+                        quickFeaturePill(icon: "person.2.fill", label: "Ospiti", color: .indigo) {
+                            showGuestAccess = true
+                        }
+                        quickFeaturePill(icon: "cart.fill", label: "Spesa", color: .mint) {
                             showShoppingList = true
                         }
                         quickFeaturePill(icon: "checklist", label: "Faccende", color: .orange) {
@@ -141,7 +177,7 @@ public struct DashboardView: View {
                                               let fromIndex = viewModel.filteredEntities.firstIndex(where: { $0.id == dragged }) else {
                                             return false
                                         }
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.8)) {
                                             viewModel.moveEntity(from: fromIndex, to: index)
                                         }
                                         return true
@@ -163,17 +199,19 @@ public struct DashboardView: View {
                     HStack(spacing: 8) {
                         Button(action: {
                             Haptics.selection()
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.8)) {
                                 isFloorplanMode.toggle()
                             }
                         }) {
                             Image(systemName: isFloorplanMode ? "square.grid.2x2.fill" : "map.fill")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.bold())
                                 .foregroundColor(.blue)
-                                .padding(6)
+                                .frame(width: 44, height: 44)
                                 .background(Color.blue.opacity(0.12))
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel(isFloorplanMode ? "Passa a vista griglia dispositivi" : "Passa a vista planimetria 2D")
+                        .accessibilityAddTraits(.isButton)
 
                         ConnectionStatusBannerView(connection: viewModel.connection) {
                             viewModel.reconnect()
@@ -184,37 +222,42 @@ public struct DashboardView: View {
                             viewModel.showAutomationSettings = true
                         }) {
                             Image(systemName: "antenna.radiowaves.left.and.right")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.bold())
                                 .foregroundColor(.cyan)
-                                .padding(6)
+                                .frame(width: 44, height: 44)
                                 .background(Color.cyan.opacity(0.12))
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel("Automazioni e Rilevamento Presenza")
+                        .accessibilityAddTraits(.isButton)
 
                         Button(action: {
                             Haptics.light()
                             viewModel.showKioskSettings = true
                         }) {
                             Image(systemName: "ipad.landscape")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.bold())
                                 .foregroundColor(.primary)
-                                .padding(6)
+                                .frame(width: 44, height: 44)
                                 .background(Color.secondary.opacity(0.12))
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel("Impostazioni Chiosco")
+                        .accessibilityAddTraits(.isButton)
 
                         Button(action: {
                             Haptics.light()
                             viewModel.showLoginSheet = true
                         }) {
                             Image(systemName: viewModel.authSession.isAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.bold())
                                 .foregroundColor(viewModel.authSession.isAuthenticated ? .blue : .orange)
-                                .padding(6)
+                                .frame(width: 44, height: 44)
                                 .background((viewModel.authSession.isAuthenticated ? Color.blue : Color.orange).opacity(0.12))
                                 .clipShape(Circle())
                         }
                         .accessibilityLabel(viewModel.authSession.isAuthenticated ? "Profilo e Server Domus (\(viewModel.authSession.username ?? "Utente"))" : "Accedi a Domus")
+                        .accessibilityAddTraits(.isButton)
                     }
                 }
             }
@@ -246,6 +289,18 @@ public struct DashboardView: View {
             .sheet(isPresented: $showNotifications) {
                 NotificationHistoryView()
             }
+            .sheet(isPresented: $showAutomationBuilder) {
+                AutomationBuilderSheet()
+            }
+            .sheet(isPresented: $showActivityTimeline) {
+                ActivityTimelineSheet()
+            }
+            .sheet(isPresented: $showMeshDiagnostics) {
+                NetworkAndMeshDiagnosticsSheet()
+            }
+            .sheet(isPresented: $showGuestAccess) {
+                GuestAccessAndFamilySheet()
+            }
             .sheet(isPresented: $viewModel.showKioskSettings) {
                 KioskSettingsSheet(kioskManager: viewModel.kioskManager)
             }
@@ -258,11 +313,10 @@ public struct DashboardView: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: viewModel.kioskManager.displayState)
+        .animation(reduceMotion ? .none : .easeInOut(duration: 0.3), value: viewModel.kioskManager.displayState)
         .onAppear {
             viewModel.initialConnectAndSync()
         }
-
     }
 
     // MARK: - Subviews
@@ -274,28 +328,42 @@ public struct DashboardView: View {
         }) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.caption2.weight(.bold))
                 Text(label)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
             }
-            .padding(.horizontal, 11)
+            .frame(minHeight: 44)
+            .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(color.opacity(0.14))
+            .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : color.opacity(0.14))
             .foregroundColor(color)
             .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(differentiateWithoutColor ? color.opacity(0.5) : Color.clear, lineWidth: 1)
+            )
         }
+        .accessibilityLabel("\(label), modulo rapido")
+        .accessibilityAddTraits(.isButton)
     }
 
     private func areaButton(label: String, areaId: String?) -> some View {
         Button(action: { viewModel.selectArea(areaId) }) {
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(viewModel.selectedAreaId == areaId ? Color.blue : Color.secondary.opacity(0.15))
+                .background(viewModel.selectedAreaId == areaId ? Color.blue : (reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.15)))
                 .foregroundColor(viewModel.selectedAreaId == areaId ? .white : .primary)
                 .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(differentiateWithoutColor && viewModel.selectedAreaId == areaId ? Color.white : Color.clear, lineWidth: 1.5)
+                )
         }
+        .accessibilityLabel("Stanza: \(label)")
+        .accessibilityAddTraits(viewModel.selectedAreaId == areaId ? [.isSelected, .isButton] : .isButton)
     }
 
     private var emptyStateView: some View {
@@ -308,6 +376,8 @@ public struct DashboardView: View {
             Button("Riprova Scansione LAN") {
                 viewModel.reconnect()
             }
+            .font(.subheadline.bold())
+            .frame(minHeight: 44)
             .padding(.top, 10)
         }
     }

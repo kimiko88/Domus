@@ -8,6 +8,10 @@ public struct LightDetailSheet: View {
     public var onColorChange: (String, Double, Double, Double) -> Void
     public var onColorTempChange: (String, Int) -> Void
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var brightness: Double = 100
     @State private var selectedColor: Color = .cyan
 
@@ -50,7 +54,7 @@ public struct LightDetailSheet: View {
                         Circle()
                             .fill(entity.isOn ? selectedColor.opacity(0.25) : Color.gray.opacity(0.15))
                             .frame(width: 120, height: 120)
-                            .blur(radius: entity.isOn ? 18 : 0)
+                            .blur(radius: (entity.isOn && !reduceMotion) ? 18 : 0)
 
                         Circle()
                             .fill(entity.isOn ? selectedColor.opacity(0.2) : Color.gray.opacity(0.1))
@@ -60,6 +64,7 @@ public struct LightDetailSheet: View {
                             .font(.system(size: 44))
                             .foregroundColor(entity.isOn ? selectedColor : .secondary)
                     }
+                    .accessibilityHidden(true)
                     .padding(.top, 16)
 
                     // Nome e stato
@@ -70,23 +75,32 @@ public struct LightDetailSheet: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(entity.name): \(entity.isOn ? "Accesa al \(Int(brightness)) percento" : "Spenta")")
 
                     // Tasto On/Off principale
                     Button(action: {
                         Haptics.medium()
                         onToggle(entity.id)
+                        DomusAccessibility.announce(entity.isOn ? "Luce spenta" : "Luce accesa")
                     }) {
                         HStack {
                             Image(systemName: "power")
                             Text(entity.isOn ? "Spegni" : "Accendi")
                         }
                         .font(.headline)
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .padding(.vertical, 14)
-                        .background(entity.isOn ? Color.red.opacity(0.15) : Color.cyan.opacity(0.15))
+                        .background(entity.isOn ? Color.red.opacity(reduceTransparency ? 0.3 : 0.15) : Color.cyan.opacity(reduceTransparency ? 0.3 : 0.15))
                         .foregroundColor(entity.isOn ? .red : .cyan)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(differentiateWithoutColor ? (entity.isOn ? Color.red : Color.cyan) : Color.clear, lineWidth: 1.5)
+                        )
                     }
+                    .accessibilityLabel(entity.isOn ? "Spegni luce" : "Accendi luce")
+                    .accessibilityAddTraits(.isButton)
                     .padding(.horizontal)
 
                     // Slider Luminosità fluida
@@ -108,13 +122,16 @@ public struct LightDetailSheet: View {
                                 if !isEditing {
                                     Haptics.light()
                                     onBrightnessChange(entity.id, Int(brightness))
+                                    DomusAccessibility.announce("Luminosità impostata al \(Int(brightness)) percento")
                                 }
                             }
                         )
                         .tint(selectedColor)
+                        .accessibilityLabel("Luminosità")
+                        .accessibilityValue("\(Int(brightness)) percento")
                     }
                     .padding(16)
-                    .background(Color.secondary.opacity(0.1))
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
 
@@ -129,6 +146,7 @@ public struct LightDetailSheet: View {
                                     Haptics.selection()
                                     selectedColor = preset.color
                                     onColorChange(entity.id, preset.rgb.0, preset.rgb.1, preset.rgb.2)
+                                    DomusAccessibility.announce("Colore impostato su \(preset.name)")
                                 }) {
                                     Circle()
                                         .fill(preset.color)
@@ -137,14 +155,21 @@ public struct LightDetailSheet: View {
                                             Circle()
                                                 .stroke(Color.white, lineWidth: selectedColor == preset.color ? 3 : 0)
                                         )
-                                        .shadow(color: preset.color.opacity(0.4), radius: 6, x: 0, y: 3)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.primary.opacity(0.3), lineWidth: (differentiateWithoutColor && selectedColor != preset.color) ? 1 : 0)
+                                        )
+                                        .shadow(color: reduceMotion ? .clear : preset.color.opacity(0.4), radius: 6, x: 0, y: 3)
                                 }
+                                .accessibilityLabel("Colore \(preset.name)")
+                                .accessibilityValue(selectedColor == preset.color ? "Selezionato" : "Non selezionato")
+                                .accessibilityAddTraits(selectedColor == preset.color ? [.isSelected, .isButton] : .isButton)
                             }
                         }
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.secondary.opacity(0.1))
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
 
@@ -158,26 +183,29 @@ public struct LightDetailSheet: View {
                                 Button(action: {
                                     Haptics.selection()
                                     onColorTempChange(entity.id, preset.mireds)
+                                    DomusAccessibility.announce("Temperatura luce impostata su \(preset.name), \(preset.kelvin)")
                                 }) {
                                     VStack(spacing: 4) {
                                         Text(preset.name)
-                                            .font(.system(size: 13, weight: .semibold))
+                                            .font(.caption2.weight(.semibold))
                                         Text(preset.kelvin)
                                             .font(.caption2)
                                             .foregroundColor(.secondary)
                                     }
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
                                     .padding(.vertical, 10)
-                                    .background(Color.secondary.opacity(0.15))
+                                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.15))
                                     .foregroundColor(.primary)
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
+                                .accessibilityLabel("Temperatura luce \(preset.name), \(preset.kelvin)")
+                                .accessibilityAddTraits(.isButton)
                             }
                         }
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.secondary.opacity(0.1))
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
                     .padding(.bottom, 24)

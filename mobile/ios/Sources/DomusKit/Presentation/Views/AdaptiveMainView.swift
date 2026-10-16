@@ -15,6 +15,10 @@ public struct AdaptiveMainView: View {
     @State private var showChores: Bool = false
     @State private var showEnergyFlow: Bool = false
     @State private var showNotifications: Bool = false
+    @State private var showAutomationBuilder: Bool = false
+    @State private var showActivityTimeline: Bool = false
+    @State private var showMeshDiagnostics: Bool = false
+    @State private var showGuestAccess: Bool = false
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -62,6 +66,18 @@ public struct AdaptiveMainView: View {
         }
         .sheet(isPresented: $showNotifications) {
             NotificationHistoryView()
+        }
+        .sheet(isPresented: $showAutomationBuilder) {
+            AutomationBuilderSheet()
+        }
+        .sheet(isPresented: $showActivityTimeline) {
+            ActivityTimelineSheet()
+        }
+        .sheet(isPresented: $showMeshDiagnostics) {
+            NetworkAndMeshDiagnosticsSheet()
+        }
+        .sheet(isPresented: $showGuestAccess) {
+            GuestAccessAndFamilySheet()
         }
         .sheet(isPresented: $viewModel.showLoginSheet) {
             LoginView(viewModel: viewModel)
@@ -140,6 +156,38 @@ public struct AdaptiveMainView: View {
                 }) {
                     Label("Faccende Domestiche", systemImage: "checklist")
                         .foregroundColor(.orange)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showAutomationBuilder = true
+                }) {
+                    Label("Regole & Automazioni", systemImage: "wand.and.stars")
+                        .foregroundColor(.purple)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showActivityTimeline = true
+                }) {
+                    Label("Timeline della Casa", systemImage: "clock.arrow.circlepath")
+                        .foregroundColor(.blue)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showMeshDiagnostics = true
+                }) {
+                    Label("Diagnostica Mesh & Hub", systemImage: "antenna.radiowaves.left.and.right")
+                        .foregroundColor(.green)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showGuestAccess = true
+                }) {
+                    Label("Accesso Ospiti & Membri", systemImage: "person.2.fill")
+                        .foregroundColor(.indigo)
                 }
 
                 Button(action: {

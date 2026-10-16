@@ -6,6 +6,10 @@ public struct AlarmSheet: View {
     public var onArm: (String, String, String) -> Void   // (id, code, mode)
     public var onDisarm: (String, String) -> Void        // (id, code)
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var pinCode: String = ""
     @State private var selectedAction: String? = nil    // "alarm_arm_home", "alarm_arm_away", "alarm_disarm"
     @State private var isError: Bool = false
@@ -59,8 +63,12 @@ public struct AlarmSheet: View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(statusColor.opacity(0.2))
+                    .fill(statusColor.opacity(reduceTransparency ? 0.35 : 0.2))
                     .frame(width: 80, height: 80)
+                    .overlay(
+                        Circle()
+                            .stroke(statusColor, lineWidth: differentiateWithoutColor ? 2 : 0)
+                    )
                 Image(systemName: statusIcon)
                     .font(.system(size: 36))
                     .foregroundColor(statusColor)
@@ -73,6 +81,8 @@ public struct AlarmSheet: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Stato centrale allarme: \(statusTitle), dispositivo \(entity.name)")
     }
 
     private var actionSelector: some View {
@@ -106,23 +116,28 @@ public struct AlarmSheet: View {
         return Button(action: {
             Haptics.selection()
             selectedAction = mode
+            DomusAccessibility.announce("Selezionato \(title). Inserisci il codice PIN per confermare.")
         }) {
             VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 20))
                 Text(title)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.caption2.bold())
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(isSelected ? color : Color.secondary.opacity(0.12))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.vertical, 10)
+            .background(isSelected ? color : (reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.12)))
             .foregroundColor(isSelected ? .white : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(color, lineWidth: isSelected ? 2 : 0)
+                    .stroke(isSelected ? Color.white : (differentiateWithoutColor ? color.opacity(0.5) : Color.clear), lineWidth: isSelected ? 2 : 1)
             )
         }
+        .accessibilityLabel("Modalità: \(title)")
+        .accessibilityValue(isSelected ? "Selezionata" : "Non selezionata")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+        .accessibilityHint("Tocca per selezionare questa operazione prima di inserire il PIN")
     }
 
     private var biometricButtonView: some View {
@@ -133,15 +148,19 @@ public struct AlarmSheet: View {
                 Image(systemName: biometricManager.biometryType == .touchID ? "touchid" : "faceid")
                     .font(.system(size: 18, weight: .bold))
                 Text(biometricManager.biometryType == .touchID ? "Sblocca con Touch ID" : "Sblocca con Face ID")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.subheadline.bold())
             }
             .foregroundColor(.white)
+            .frame(minHeight: 44)
             .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .background(Color.blue)
             .clipShape(Capsule())
-            .shadow(color: Color.blue.opacity(0.3), radius: 6, x: 0, y: 3)
+            .shadow(color: reduceMotion ? .clear : Color.blue.opacity(0.3), radius: 6, x: 0, y: 3)
         }
+        .accessibilityLabel(biometricManager.biometryType == .touchID ? "Disarma con Touch ID" : "Disarma con Face ID")
+        .accessibilityHint("Effettua l'autenticazione biometrica per disarmare immediatamente l'allarme senza digitare il PIN")
+        .accessibilityAddTraits(.isButton)
         .padding(.vertical, 4)
     }
 
@@ -153,10 +172,12 @@ public struct AlarmSheet: View {
             case .success:
                 Haptics.success()
                 onDisarm(entity.id, "")
+                DomusAccessibility.announce("Autenticazione biometrica riuscita. Allarme disarmato.")
             case .failure(let err):
                 if err != .canceled {
                     Haptics.error()
                     isError = true
+                    DomusAccessibility.announce("Autenticazione biometrica non riuscita")
                 }
             }
         }
@@ -177,6 +198,8 @@ public struct AlarmSheet: View {
             }
             .padding(.vertical, 8)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(selectedAction == nil ? "Seleziona prima un'operazione tra disarma, parziale o totale" : (isError ? "Codice PIN errato. Riprova." : "PIN: \(pinCode.count) cifre su 4 inserite"))
     }
 
     private var numericKeypad: some View {
@@ -200,6 +223,8 @@ public struct AlarmSheet: View {
                                 .clipShape(Circle())
                         }
                         .disabled(selectedAction == nil && key != "C")
+                        .accessibilityLabel(key == "C" ? "Cancella cifra PIN" : (key == "✓" ? "Conferma codice PIN" : "Cifra \(key)"))
+                        .accessibilityAddTraits(.isButton)
                     }
                 }
             }
@@ -213,12 +238,14 @@ public struct AlarmSheet: View {
             Haptics.light()
             pinCode = ""
             isError = false
+            DomusAccessibility.announce("PIN cancellato")
         } else if key == "✓" {
             submitAction()
         } else {
             if pinCode.count < maxPinLength {
                 Haptics.light()
                 pinCode.append(key)
+                DomusAccessibility.announce("\(pinCode.count) cifre inserite")
                 if pinCode.count == 4 {
                     // Auto submit when 4 digits entered if an action is picked
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -232,13 +259,16 @@ public struct AlarmSheet: View {
     private func submitAction() {
         guard let action = selectedAction, !pinCode.isEmpty else {
             Haptics.warning()
+            DomusAccessibility.announce("Seleziona prima un'operazione")
             return
         }
 
         if action == "alarm_disarm" {
             onDisarm(entity.id, pinCode)
+            DomusAccessibility.announce("Comando disarmo allarme inviato")
         } else {
             onArm(entity.id, pinCode, action)
+            DomusAccessibility.announce("Comando inserimento allarme inviato")
         }
 
         pinCode = ""

@@ -34,6 +34,10 @@ public struct FloorplanView: View {
     public var onToggleEntity: (String) -> Void
     public var onSelectEntityForDetail: (Entity) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @State private var floors: [FloorDTO] = []
     @State private var selectedFloorId: String = ""
     @State private var markers: [FloorMarkerDTO] = []
@@ -41,6 +45,7 @@ public struct FloorplanView: View {
     @State private var isLoading: Bool = false
     @State private var showAddFloorSheet: Bool = false
     @State private var showAddDeviceSheet: Bool = false
+    @State private var showAccessibleListView: Bool = false
     @State private var scale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var dragOffsets: [String: CGSize] = [:]
@@ -74,8 +79,12 @@ public struct FloorplanView: View {
                 editModeBanner
             }
 
-            // Canvas Interattivo della Planimetria
-            floorplanCanvas
+            // Canvas Interattivo della Planimetria o Elenco Accessibile
+            if showAccessibleListView {
+                accessibleDeviceListView
+            } else {
+                floorplanCanvas
+            }
 
             // Barra delle Azioni in Modalità Modifica
             if isEditMode {
@@ -131,16 +140,34 @@ public struct FloorplanView: View {
 
             Spacer()
 
+            // Pulsante Modalità Elenco Accessibile
+            Button(action: {
+                Haptics.light()
+                withAnimation(reduceMotion ? .none : .spring()) {
+                    showAccessibleListView.toggle()
+                }
+                DomusAccessibility.announce(showAccessibleListView ? "Visualizzazione elenco dispositivi attiva" : "Visualizzazione planimetria grafica attiva")
+            }) {
+                Image(systemName: showAccessibleListView ? "map" : "list.bullet")
+                    .font(.caption.bold())
+                    .frame(width: 44, height: 44)
+                    .background(showAccessibleListView ? Color.blue.opacity(0.15) : Color.secondary.opacity(0.12))
+                    .foregroundColor(showAccessibleListView ? .blue : .primary)
+                    .clipShape(Circle())
+            }
+            .accessibilityLabel(showAccessibleListView ? "Mostra planimetria grafica" : "Mostra elenco dispositivi accessibile")
+            .accessibilityHint("Passa a un elenco accessibile con tutti i dispositivi presenti su questo piano")
+
             // Pulsante Reset Zoom/Pan
             Button(action: {
-                withAnimation(.spring()) {
+                withAnimation(reduceMotion ? .none : .spring()) {
                     scale = 1.0
                     offset = .zero
                 }
             }) {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.caption.bold())
-                    .padding(8)
+                    .frame(width: 44, height: 44)
                     .background(Color.secondary.opacity(0.12))
                     .clipShape(Circle())
             }
@@ -149,7 +176,7 @@ public struct FloorplanView: View {
             // Toggle Modalità Modifica / Aggiusta Planimetria
             Button(action: {
                 Haptics.medium()
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.8)) {
                     isEditMode.toggle()
                 }
             }) {
@@ -158,6 +185,7 @@ public struct FloorplanView: View {
                     Text(isEditMode ? "Fine" : "Aggiusta")
                 }
                 .font(.caption.bold())
+                .frame(minHeight: 44)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(isEditMode ? Color.green : Color.blue.opacity(0.15))
@@ -178,6 +206,7 @@ public struct FloorplanView: View {
                         Haptics.selection()
                         selectedFloorId = floor.id
                         Task { await loadMarkersForCurrentFloor() }
+                        DomusAccessibility.announce("Selezionato piano \(floor.name)")
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "square.2.layers.3d")
@@ -185,12 +214,19 @@ public struct FloorplanView: View {
                             Text(floor.name)
                                 .font(.caption.bold())
                         }
+                        .frame(minHeight: 44)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
+                        .background(isSelected ? Color.blue : (reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.12)))
                         .foregroundColor(isSelected ? .white : .primary)
                         .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(differentiateWithoutColor && isSelected ? Color.white : Color.clear, lineWidth: 1.5)
+                        )
                     }
+                    .accessibilityLabel("Piano: \(floor.name)")
+                    .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
                 }
 
                 Button(action: {
@@ -203,12 +239,15 @@ public struct FloorplanView: View {
                         Text("Nuovo Piano")
                     }
                     .font(.caption.bold())
+                    .frame(minHeight: 44)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.secondary.opacity(0.12))
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.12))
                     .foregroundColor(.blue)
                     .clipShape(Capsule())
                 }
+                .accessibilityLabel("Crea un nuovo piano")
+                .accessibilityAddTraits(.isButton)
             }
             .padding(.horizontal)
         }
@@ -377,6 +416,14 @@ public struct FloorplanView: View {
                 if !isEditMode {
                     handleMarkerTap(marker: marker, entity: matchingEntity)
                 }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(matchingEntity?.name ?? marker.entityKey), dispositivo \(domain)")
+            .accessibilityValue(isOn ? "Attivo / Acceso" : "Spento / Inattivo")
+            .accessibilityHint(isEditMode ? "Trascina per riposizionare" : "Tocca due volte per controllare")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: isOn ? "Spegni" : "Accendi") {
+                handleMarkerTap(marker: marker, entity: matchingEntity)
             }
 
             // Pulsante elimina marker in modalità modifica
@@ -646,5 +693,67 @@ public struct FloorplanView: View {
                 }
             }
         }
+    }
+
+    private var accessibleDeviceListView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Dispositivi su \(currentFloor?.name ?? "questo piano") (\(markers.count))")
+                .font(.subheadline.bold())
+                .padding(.horizontal)
+
+            if markers.isEmpty {
+                Text("Nessun dispositivo posizionato su questo piano.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+            } else {
+                ForEach(markers) { marker in
+                    let matchingEntity = entities.first(where: { $0.id == marker.entityKey })
+                    let isOn = matchingEntity?.isOn ?? false
+                    HStack {
+                        Image(systemName: markerIcon(marker: marker, entity: matchingEntity))
+                            .font(.headline)
+                            .foregroundColor(isOn ? markerActiveColor(domain: matchingEntity?.domain ?? "switch") : .secondary)
+                            .frame(width: 44, height: 44)
+                            .background(Color.secondary.opacity(0.12))
+                            .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(matchingEntity?.name ?? marker.entityKey)
+                                .font(.subheadline.bold())
+                            Text(isOn ? "Acceso / Attivo" : "Spento / Inattivo")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Button(action: {
+                            handleMarkerTap(marker: marker, entity: matchingEntity)
+                        }) {
+                            Text(isOn ? "Spegni" : "Accendi")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(isOn ? Color.orange.opacity(0.15) : Color.blue.opacity(0.15))
+                                .foregroundColor(isOn ? .orange : .blue)
+                                .clipShape(Capsule())
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .padding(12)
+                    .background(Color.domusSecondarySystemGroupedBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(matchingEntity?.name ?? marker.entityKey), stato: \(isOn ? "Acceso" : "Spento")")
+                    .accessibilityHint("Tocca due volte per controllare il dispositivo")
+                    .accessibilityAction(named: isOn ? "Spegni" : "Accendi") {
+                        handleMarkerTap(marker: marker, entity: matchingEntity)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
     }
 }

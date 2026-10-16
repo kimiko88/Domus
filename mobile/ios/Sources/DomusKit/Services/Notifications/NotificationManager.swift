@@ -15,6 +15,9 @@ public enum DomusNotificationAction: String, Sendable {
     case closeCovers = "ACTION_CLOSE_COVERS"
     case viewCamera = "ACTION_VIEW_CAMERA"
     case snooze = "ACTION_SNOOZE"
+    case soundSiren = "ACTION_SOUND_SIREN"
+    case falseAlarm = "ACTION_FALSE_ALARM"
+    case unlockGate = "ACTION_UNLOCK_GATE"
 }
 
 /// Gestore notifiche interattive e Allarmi Critici (Critical Alerts) — Fase 3.
@@ -117,17 +120,32 @@ public final class NotificationManager: NSObject, ObservableObject {
             options: []
         )
 
-        // 3. Telecamera Movimento
+        // 3. Telecamera Movimento con Azioni Rapide Rich Push
         let viewCameraAction = UNNotificationAction(
             identifier: DomusNotificationAction.viewCamera.rawValue,
             title: "Guarda Live",
             options: [.foreground]
         )
+        let soundSirenAction = UNNotificationAction(
+            identifier: DomusNotificationAction.soundSiren.rawValue,
+            title: "Suona Sirena",
+            options: [.destructive, .authenticationRequired]
+        )
+        let falseAlarmAction = UNNotificationAction(
+            identifier: DomusNotificationAction.falseAlarm.rawValue,
+            title: "Falso Allarme",
+            options: []
+        )
+        let unlockGateAction = UNNotificationAction(
+            identifier: DomusNotificationAction.unlockGate.rawValue,
+            title: "Apri Cancello",
+            options: [.authenticationRequired]
+        )
         let cameraCategory = UNNotificationCategory(
             identifier: DomusNotificationCategory.securityCamera.rawValue,
-            actions: [viewCameraAction],
+            actions: [viewCameraAction, soundSirenAction, falseAlarmAction, unlockGateAction],
             intentIdentifiers: [],
-            options: []
+            options: [.customDismissAction]
         )
 
         center.setNotificationCategories([alarmCategory, windowCategory, cameraCategory])
@@ -160,6 +178,47 @@ public final class NotificationManager: NSObject, ObservableObject {
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
         try await center.add(request)
     }
+
+    /// Invia una notifica ricca con snapshot della telecamera e azioni rapide interattive (Sirena / Falso Allarme / Apri Cancello).
+    public func sendRichCameraNotification(
+        title: String = "Rilevato Movimento al Cancello",
+        body: String = "La telecamera esterna ha rilevato una persona vicino all'ingresso.",
+        imageUrl: String? = nil,
+        cameraEntityId: String = "camera.front_door",
+        isCritical: Bool = false
+    ) async throws {
+        guard let center else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = DomusNotificationCategory.securityCamera.rawValue
+        content.userInfo = [
+            "camera_entity_id": cameraEntityId,
+            "image_url": imageUrl ?? "",
+            "timestamp": ISO8601DateFormatter().string(from: Date())
+        ]
+
+        #if os(iOS)
+        if isCritical && criticalAlertsAllowed {
+            content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
+        } else {
+            content.sound = .default
+        }
+        #else
+        content.sound = .default
+        #endif
+
+        if let imgStr = imageUrl, let localUrl = URL(string: imgStr), localUrl.isFileURL {
+            if let attachment = try? UNNotificationAttachment(identifier: "snapshot", url: localUrl, options: nil) {
+                content.attachments = [attachment]
+            }
+        }
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        try await center.add(request)
+    }
 }
 
 // MARK: - UNUserNotificationCenterDelegate
@@ -183,6 +242,22 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         Task { @MainActor in
             self.lastReceivedNotification = userInfo
             self.onActionTriggered?(actionId, categoryId, userInfo)
+
+            // Esecuzione comandi rapidi di sicurezza
+            if actionId == DomusNotificationAction.soundSiren.rawValue {
+                try? await DomusHttpClient.shared.callService(
+                    domain: "siren",
+                    service: "turn_on",
+                    entityId: "siren.alarm_siren"
+                )
+            } else if actionId == DomusNotificationAction.unlockGate.rawValue {
+                let lockId = (userInfo["lock_entity_id"] as? String) ?? "lock.main_gate"
+                try? await DomusHttpClient.shared.callService(
+                    domain: "lock",
+                    service: "unlock",
+                    entityId: lockId
+                )
+            }
         }
     }
 }

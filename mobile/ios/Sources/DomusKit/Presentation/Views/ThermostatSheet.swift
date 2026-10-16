@@ -6,6 +6,9 @@ public struct ThermostatSheet: View {
     public var onTemperatureChange: (String, Double) -> Void
     public var onModeChange: (String, String) -> Void
 
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @State private var targetTemperature: Double
     @State private var dragAngle: Double = 0.0
 
@@ -33,15 +36,25 @@ public struct ThermostatSheet: View {
                         Circle()
                             .fill(statusColor)
                             .frame(width: 10, height: 10)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary, lineWidth: differentiateWithoutColor ? 1.5 : 0)
+                            )
                         Text(statusDescription)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundColor(statusColor)
                     }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(statusColor.opacity(0.12))
+                    .padding(.vertical, 8)
+                    .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : statusColor.opacity(0.12))
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(statusColor.opacity(differentiateWithoutColor ? 0.6 : 0), lineWidth: 1)
+                    )
                     .padding(.top, 16)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Stato termostato: \(statusDescription)")
 
                     // Ghiera circolare interattiva del termostato
                     ZStack {
@@ -90,7 +103,7 @@ public struct ThermostatSheet: View {
                                 .font(.system(size: 48, weight: .heavy, design: .rounded))
 
                             Text("TARGET")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.caption2.bold())
                                 .foregroundColor(.secondary)
 
                             HStack(spacing: 4) {
@@ -113,8 +126,22 @@ public struct ThermostatSheet: View {
                             .onEnded { _ in
                                 Haptics.medium()
                                 onTemperatureChange(entity.id, targetTemperature)
+                                DomusAccessibility.announce("Temperatura bersaglio impostata a \(String(format: "%.1f", targetTemperature)) gradi")
                             }
                     )
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Temperatura bersaglio termostato")
+                    .accessibilityValue("\(String(format: "%.1f", targetTemperature)) gradi centigradi\(entity.currentTemperature != nil ? ", rilevata \(String(format: "%.1f", entity.currentTemperature!)) gradi centigradi" : "")")
+                    .accessibilityAdjustableAction { direction in
+                        switch direction {
+                        case .increment:
+                            adjustTemperature(by: +0.5)
+                        case .decrement:
+                            adjustTemperature(by: -0.5)
+                        @unknown default:
+                            break
+                        }
+                    }
 
                     // Tasti regolazione fine +/- 0.5 °C
                     HStack(spacing: 28) {
@@ -128,6 +155,8 @@ public struct ThermostatSheet: View {
                                 .foregroundColor(.primary)
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel("Diminuisci temperatura bersaglio")
+                        .accessibilityHint("Riduce la temperatura di mezzo grado centigrado")
 
                         VStack(spacing: 2) {
                             Text("Passo 0.5°C")
@@ -136,6 +165,8 @@ public struct ThermostatSheet: View {
                             Text("\(minTemp, specifier: "%.0f")° - \(maxTemp, specifier: "%.0f")°")
                                 .font(.caption.bold())
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Intervallo temperatura da \(Int(minTemp)) a \(Int(maxTemp)) gradi con passo di 0.5 gradi")
 
                         Button(action: {
                             adjustTemperature(by: +0.5)
@@ -147,6 +178,8 @@ public struct ThermostatSheet: View {
                                 .foregroundColor(.primary)
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel("Aumenta temperatura bersaglio")
+                        .accessibilityHint("Aumenta la temperatura di mezzo grado centigrado")
                     }
 
                     // Selettore Modalità HVAC
@@ -209,6 +242,7 @@ public struct ThermostatSheet: View {
             Haptics.light()
             targetTemperature = rounded
             onTemperatureChange(entity.id, rounded)
+            DomusAccessibility.announce("\(String(format: "%.1f", rounded)) gradi")
         }
     }
 
@@ -240,18 +274,25 @@ public struct ThermostatSheet: View {
         return Button(action: {
             Haptics.selection()
             onModeChange(entity.id, mode)
+            DomusAccessibility.announce("Modalità impostata su \(title)")
         }) {
             VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 18))
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 10)
+            .background(isSelected ? Color.blue : (reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.12)))
             .foregroundColor(isSelected ? .white : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.white : (differentiateWithoutColor ? Color.primary.opacity(0.3) : Color.clear), lineWidth: 1.5)
+            )
         }
+        .accessibilityLabel("Modalità \(title)")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 }

@@ -24,6 +24,8 @@ public struct AssistantMessage: Identifiable, Sendable {
 
 public struct AssistantChatSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var messages: [AssistantMessage] = [
         AssistantMessage(
@@ -67,13 +69,15 @@ public struct AssistantChatSheet: View {
                                         Spacer()
                                     }
                                     .padding(.horizontal)
+                                    .accessibilityElement(children: .combine)
+                                    .accessibilityLabel("L'assistente sta elaborando la richiesta...")
                                 }
                             }
                             .padding(.vertical, 14)
                         }
                         .onChange(of: messages.count) { _, _ in
                             if let last = messages.last {
-                                withAnimation {
+                                withAnimation(reduceMotion ? .none : .default) {
                                     proxy.scrollTo(last.id, anchor: .bottom)
                                 }
                             }
@@ -86,14 +90,18 @@ public struct AssistantChatSheet: View {
                             ForEach(suggestions, id: \.self) { suggestion in
                                 Button(action: { sendPrompt(suggestion) }) {
                                     Text(suggestion)
-                                        .font(.caption)
+                                        .font(.footnote)
                                         .fontWeight(.medium)
                                         .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(Color.cyan.opacity(0.12))
+                                        .padding(.vertical, 8)
+                                        .background(Color.cyan.opacity(reduceTransparency ? 0.3 : 0.12))
                                         .foregroundColor(.cyan)
                                         .clipShape(Capsule())
                                 }
+                                .frame(minHeight: 44)
+                                .accessibilityLabel("Suggerimento rapido: \(suggestion)")
+                                .accessibilityHint("Tocca due volte per inviare questa richiesta all'assistente")
+                                .accessibilityAddTraits(.isButton)
                             }
                         }
                         .padding(.horizontal)
@@ -113,30 +121,43 @@ public struct AssistantChatSheet: View {
                             .onSubmit {
                                 sendCurrentMessage()
                             }
+                            .accessibilityLabel("Campo inserimento testo per l'assistente")
 
                         // Pulsante microfono vocale
                         Button(action: toggleVoiceInput) {
                             ZStack {
                                 Circle()
                                     .fill(isListening ? Color.red : Color.cyan)
-                                    .frame(width: 42, height: 42)
+                                    .frame(width: 44, height: 44)
                                 Image(systemName: isListening ? "waveform" : "mic.fill")
                                     .foregroundColor(.white)
                                     .font(.system(size: 18, weight: .bold))
                             }
                         }
+                        .accessibilityLabel(isListening ? "Interrompi ascolto vocale" : "Avvia dettatura vocale")
+                        .accessibilityHint("Attiva il microfono per formulare una richiesta vocale")
+                        .accessibilityAddTraits(.isButton)
 
                         if !inputText.trimmingCharacters(in: .whitespaces).isEmpty {
                             Button(action: sendCurrentMessage) {
                                 Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 32))
+                                    .font(.system(size: 34))
                                     .foregroundColor(.cyan)
                             }
+                            .frame(width: 44, height: 44)
+                            .accessibilityLabel("Invia messaggio")
+                            .accessibilityAddTraits(.isButton)
                         }
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 10)
-                    .background(.ultraThinMaterial)
+                    .background {
+                        if reduceTransparency {
+                            Color.domusSecondarySystemGroupedBackground
+                        } else {
+                            Rectangle().fill(.ultraThinMaterial)
+                        }
+                    }
                 }
             }
             .navigationTitle("Assistente AI Locale")
@@ -148,6 +169,7 @@ public struct AssistantChatSheet: View {
                     Button("Chiudi") {
                         dismiss()
                     }
+                    .accessibilityLabel("Chiudi assistente")
                 }
             }
         }
@@ -164,6 +186,7 @@ public struct AssistantChatSheet: View {
         let userMsg = AssistantMessage(text: text, isUser: true)
         messages.append(userMsg)
         isProcessing = true
+        DomusAccessibility.announce("Messaggio inviato: \(text). Elaborazione in corso.")
 
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -180,6 +203,7 @@ public struct AssistantChatSheet: View {
                         isUser: false,
                         actionExecuted: action
                     ))
+                    DomusAccessibility.announce("Risposta ricevuta dall'assistente: \(response.responseText)")
                     #if canImport(UIKit)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                     #endif
@@ -187,11 +211,13 @@ public struct AssistantChatSheet: View {
             } catch {
                 await MainActor.run {
                     isProcessing = false
+                    let errMsg = "Errore durante la comunicazione con l'assistente: \(error.localizedDescription)"
                     messages.append(AssistantMessage(
-                        text: "Errore durante la comunicazione con l'assistente: \(error.localizedDescription)",
+                        text: errMsg,
                         isUser: false,
                         actionExecuted: nil
                     ))
+                    DomusAccessibility.announce(errMsg)
                     #if canImport(UIKit)
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
                     #endif
@@ -201,19 +227,22 @@ public struct AssistantChatSheet: View {
     }
 
     private func toggleVoiceInput() {
-        withAnimation(.easeInOut) {
+        withAnimation(reduceMotion ? .none : .easeInOut) {
             isListening.toggle()
         }
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         #endif
         if isListening {
+            DomusAccessibility.announce("Microfono attivo. Parla adesso.")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                 if self.isListening {
                     self.isListening = false
                     self.sendPrompt("Spegni le luci del salotto")
                 }
             }
+        } else {
+            DomusAccessibility.announce("Microfono disattivato.")
         }
     }
 }
@@ -227,7 +256,7 @@ private struct MessageBubbleView: View {
 
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
                 Text(message.text)
-                    .font(.system(size: 15))
+                    .font(.subheadline)
                     .foregroundColor(message.isUser ? .white : .primary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -239,7 +268,7 @@ private struct MessageBubbleView: View {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 10))
                         Text(action)
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .font(.caption2.monospaced().bold())
                     }
                     .foregroundColor(.green)
                     .padding(.horizontal, 8)
@@ -249,6 +278,8 @@ private struct MessageBubbleView: View {
                 }
             }
             .padding(.horizontal)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(message.isUser ? "Il tuo messaggio: \(message.text)" : "Risposta assistente: \(message.text)\(message.actionExecuted != nil ? ". Azione eseguita: \(message.actionExecuted!)" : "")")
 
             if !message.isUser { Spacer() }
         }

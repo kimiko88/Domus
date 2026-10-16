@@ -2,6 +2,9 @@ import SwiftUI
 
 public struct EnergyFlowSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var solarPowerWatts: Double = 0.0
     @State private var gridPowerWatts: Double = 0.0
@@ -46,6 +49,7 @@ public struct EnergyFlowSheet: View {
                     Button("Chiudi") {
                         dismiss()
                     }
+                    .accessibilityLabel("Chiudi cruscotto energetico")
                 }
             }
             .task {
@@ -65,6 +69,7 @@ public struct EnergyFlowSheet: View {
             self.batteryPowerWatts = flow.batteryWatts
             self.batteryLevelPercent = Int(flow.batterySoc)
             self.homeConsumptionWatts = flow.houseConsumptionWatts
+            DomusAccessibility.announce("Dati energetici aggiornati: autoconsumo \(String(format: "%.1f", flow.houseConsumptionWatts / 1000.0)) kilowatt")
         } catch {
             // Rete non raggiungibile
         }
@@ -77,7 +82,7 @@ public struct EnergyFlowSheet: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Text(String(format: "%.1f kW", homeConsumptionWatts / 1000.0))
-                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .font(.system(.title, design: .rounded).bold())
                     .foregroundColor(.primary)
             }
             Spacer()
@@ -86,7 +91,7 @@ public struct EnergyFlowSheet: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Text(String(format: "%.1f kW", solarPowerWatts / 1000.0))
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(.title2, design: .rounded).bold())
                     .foregroundColor(.yellow)
             }
         }
@@ -94,6 +99,8 @@ public struct EnergyFlowSheet: View {
         .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Autoconsumo attivo: \(String(format: "%.1f", homeConsumptionWatts / 1000.0)) kilowatt. Produzione solare: \(String(format: "%.1f", solarPowerWatts / 1000.0)) kilowatt")
     }
 
     private var energyFlowCanvas: some View {
@@ -122,25 +129,33 @@ public struct EnergyFlowSheet: View {
             }
             .padding(.vertical, 16)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Diagramma di flusso energetico della casa")
     }
 
     private func flowNode(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(color.opacity(0.18))
+                    .fill(color.opacity(reduceTransparency ? 0.35 : 0.18))
                     .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(color, lineWidth: differentiateWithoutColor ? 1.5 : 0)
+                    )
                 Image(systemName: icon)
                     .foregroundColor(color)
                     .font(.system(size: 20))
             }
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundColor(.secondary)
             Text(value)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.footnote.bold())
                 .foregroundColor(.primary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value)")
     }
 
     private var tariffCard: some View {
@@ -155,17 +170,23 @@ public struct EnergyFlowSheet: View {
             }
             Spacer()
             Text("Economica")
-                .font(.system(size: 11, weight: .bold))
+                .font(.caption2.bold())
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(Color.green.opacity(0.15))
+                .background(Color.green.opacity(reduceTransparency ? 0.3 : 0.15))
                 .foregroundColor(.green)
                 .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(differentiateWithoutColor ? Color.green : Color.clear, lineWidth: 1)
+                )
         }
         .padding(14)
         .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tariffa dinamica attuale: \(String(format: "%.3f", currentTariffEurKwh)) euro per kilowattora, fascia F1 economica")
     }
 
     private var loadSheddingCard: some View {
@@ -181,6 +202,8 @@ public struct EnergyFlowSheet: View {
 
             Slider(value: $loadSheddingLimitKw, in: 3.0...6.6, step: 0.1)
                 .tint(.cyan)
+                .accessibilityLabel("Soglia contrattuale antidistacco")
+                .accessibilityValue(String(format: "%.1f kilowatt", loadSheddingLimitKw))
 
             Text("Se l'assorbimento totale supera la soglia per oltre 2 minuti, Domus spegne automaticamente i carichi a bassa priorità.")
                 .font(.caption)
@@ -213,9 +236,16 @@ public struct EnergyFlowSheet: View {
                 Text(name)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Text(priority)
-                    .font(.caption2)
-                    .foregroundColor(safe ? .green : .orange)
+                HStack(spacing: 4) {
+                    if differentiateWithoutColor {
+                        Image(systemName: safe ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(safe ? .green : .orange)
+                    }
+                    Text(priority)
+                        .font(.caption2)
+                        .foregroundColor(safe ? .green : .orange)
+                }
             }
             Spacer()
             Text(power)
@@ -226,5 +256,7 @@ public struct EnergyFlowSheet: View {
         .padding(12)
         .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(name), consumo: \(power), \(priority)")
     }
 }
