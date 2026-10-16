@@ -10,6 +10,9 @@ on:
       - 'mobile/**'
       - '.github/workflows/mobile-ci.yml'
 
+env:
+  ACTIONS_RUNNER_FORCE_NODE24: 'true'
+
 jobs:
   test-android:
     name: Android (Unit, Integration, E2E)

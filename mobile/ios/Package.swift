@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "DomusMobile",
+    defaultLocalization: "it",
     platforms: [
         .iOS(.v17),
         .macOS(.v14)

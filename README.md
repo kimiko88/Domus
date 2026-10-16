@@ -4,7 +4,9 @@
 
 Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high-performance, resource-efficient alternative to heavier home automation platforms. It runs entirely on your local network without external cloud dependencies.
 
----## ⚡ Highlights
+---
+
+## ⚡ Highlights
 
 - **Local-First Core**: Automations, state evaluation, MQTT communication, telemetry history, and dashboards run locally without Internet access.
 - **Ultra-Low Resource Footprint**: Written in pure Go with zero CGO dependencies; runs comfortably in ~20-30 MB RAM on Raspberry Pi 4 ARM64.
