@@ -71,7 +71,7 @@ public struct AssistantChatSheet: View {
                             }
                             .padding(.vertical, 14)
                         }
-                        .onChange(of: messages.count) { _ in
+                        .onChange(of: messages.count) { _, _ in
                             if let last = messages.last {
                                 withAnimation {
                                     proxy.scrollTo(last.id, anchor: .bottom)
@@ -140,9 +140,11 @@ public struct AssistantChatSheet: View {
                 }
             }
             .navigationTitle("Assistente AI Locale")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }
@@ -172,11 +174,11 @@ public struct AssistantChatSheet: View {
                 let response = try await DomusHttpClient.shared.sendAssistantPrompt(prompt: text)
                 await MainActor.run {
                     isProcessing = false
-                    let action = response.actionsExecuted?.joined(separator: ", ")
+                    let action = response.actionSummary
                     messages.append(AssistantMessage(
                         text: response.responseText,
                         isUser: false,
-                        actionExecuted: (action?.isEmpty == false) ? action : nil
+                        actionExecuted: action
                     ))
                     #if canImport(UIKit)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)

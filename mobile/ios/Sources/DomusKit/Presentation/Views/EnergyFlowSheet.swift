@@ -38,9 +38,11 @@ public struct EnergyFlowSheet: View {
             }
             .background(Color.domusSystemGroupedBackground.ignoresSafeArea())
             .navigationTitle("Cruscotto Energetico")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }

@@ -42,6 +42,21 @@ public struct DomusWidgetEntry: TimelineEntry, Sendable {
         self.isAlarmArmed = isAlarmArmed
         self.entities = entities
     }
+
+    public static let sampleEntities: [WidgetEntitySummary] = [
+        WidgetEntitySummary(id: "light.living_room", name: "Salotto", domain: "light", isOn: true, icon: "lightbulb.fill", subtitle: "85%"),
+        WidgetEntitySummary(id: "switch.coffee", name: "Caffè", domain: "switch", isOn: false, icon: "powerplug.fill", subtitle: "Spenta"),
+        WidgetEntitySummary(id: "switch.gate", name: "Cancello", domain: "switch", isOn: false, icon: "door.left.hand.open", subtitle: "Chiuso"),
+        WidgetEntitySummary(id: "alarm.home", name: "Allarme", domain: "alarm", isOn: true, icon: "shield.fill", subtitle: "Armato")
+    ]
+
+    public static let sample = DomusWidgetEntry(
+        date: Date(),
+        homeTemperature: 21.5,
+        activeDevicesCount: 3,
+        isAlarmArmed: true,
+        entities: sampleEntities
+    )
 }
 
 // MARK: - Widget Schermata Home: Taglia Piccola (systemSmall)

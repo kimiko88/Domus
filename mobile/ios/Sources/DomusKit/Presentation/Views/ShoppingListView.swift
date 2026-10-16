@@ -114,19 +114,25 @@ public struct ShoppingListView: View {
                                 }
                             }
                         }
+#if os(iOS)
                         .listStyle(.insetGrouped)
+#else
+                        .listStyle(.inset)
+#endif
                     }
                 }
             }
             .navigationTitle("Lista della Spesa")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button(role: .destructive, action: clearCompleted) {
                             Label("Rimuovi completati", systemImage: "trash")

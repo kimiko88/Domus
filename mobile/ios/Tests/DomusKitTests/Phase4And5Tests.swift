@@ -16,7 +16,7 @@ final class Phase4And5Tests: XCTestCase {
     }
 
     func testWidgetEntryDefaultsAndSamples() {
-        let entry = DomusWidgetEntry()
+        let entry = DomusWidgetEntry.sample
         XCTAssertEqual(entry.homeTemperature, 21.5)
         XCTAssertEqual(entry.activeDevicesCount, 3)
         XCTAssertTrue(entry.isAlarmArmed)
@@ -26,6 +26,12 @@ final class Phase4And5Tests: XCTestCase {
         XCTAssertEqual(first?.id, "light.living_room")
         XCTAssertEqual(first?.domain, "light")
         XCTAssertTrue(first?.isOn == true)
+
+        let defaultEntry = DomusWidgetEntry()
+        XCTAssertEqual(defaultEntry.homeTemperature, 0.0)
+        XCTAssertEqual(defaultEntry.activeDevicesCount, 0)
+        XCTAssertFalse(defaultEntry.isAlarmArmed)
+        XCTAssertTrue(defaultEntry.entities.isEmpty)
     }
 
     // MARK: - Fase 4: WatchComplication Tests

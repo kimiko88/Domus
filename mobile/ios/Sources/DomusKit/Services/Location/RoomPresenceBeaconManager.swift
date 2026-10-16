@@ -51,7 +51,13 @@ public final class RoomPresenceBeaconManager: NSObject, ObservableObject {
 
     private var locationManager: CLLocationManager?
 
-    public init(configuredBeacons: [DomusRoomBeacon] = []) {
+    nonisolated public static let defaultBeacons: [DomusRoomBeacon] = [
+        DomusRoomBeacon(id: "b1", roomId: "living_room", roomName: "Salotto", major: 1, minor: 1, rssiThreshold: -65),
+        DomusRoomBeacon(id: "b2", roomId: "kitchen", roomName: "Cucina", major: 1, minor: 2, rssiThreshold: -65),
+        DomusRoomBeacon(id: "b3", roomId: "bedroom", roomName: "Camera da Letto", major: 1, minor: 3, rssiThreshold: -68)
+    ]
+
+    public init(configuredBeacons: [DomusRoomBeacon] = RoomPresenceBeaconManager.defaultBeacons) {
         super.init()
         self.configuredBeacons = configuredBeacons
     }
@@ -77,10 +83,10 @@ public final class RoomPresenceBeaconManager: NSObject, ObservableObject {
     }
 
     /// Aggiorna manualmente o via simulazione la stanza attiva (usato anche nei test unitari e simulatore)
-    public func simulateRoomProximity(roomId: String?, distanceMeters: Double? = 0.8) {
+    public func simulateRoomProximity(roomId: String?, roomName: String? = nil, distanceMeters: Double? = 0.8) {
         let matched = configuredBeacons.first(where: { $0.roomId == roomId })
         self.activeRoomId = roomId
-        self.activeRoomName = matched?.roomName
+        self.activeRoomName = roomName ?? matched?.roomName ?? (roomId == "living_room" ? "Salotto" : roomId?.capitalized)
         self.currentDistanceMeters = distanceMeters
         onRoomChanged?(roomId)
     }

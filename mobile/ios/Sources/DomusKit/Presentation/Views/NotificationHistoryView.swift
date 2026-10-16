@@ -4,10 +4,10 @@ public struct InAppNotificationItem: Identifiable, Sendable {
     public let id: String
     public let title: String
     public let message: String
-    public let category: String // "security", "energy", "devices", "system"
+    public let category: String // "Sicurezza", "Energia", "Dispositivi", "Sistema"
     public let timestamp: String
     public var isRead: Bool
-    public let quickAction: String?
+    public let actions: [NotificationActionDTO]
 
     public init(
         id: String = UUID().uuidString,
@@ -16,7 +16,7 @@ public struct InAppNotificationItem: Identifiable, Sendable {
         category: String,
         timestamp: String,
         isRead: Bool = false,
-        quickAction: String? = nil
+        actions: [NotificationActionDTO] = []
     ) {
         self.id = id
         self.title = title
@@ -24,7 +24,7 @@ public struct InAppNotificationItem: Identifiable, Sendable {
         self.category = category
         self.timestamp = timestamp
         self.isRead = isRead
-        self.quickAction = quickAction
+        self.actions = actions
     }
 }
 
@@ -35,7 +35,7 @@ public struct NotificationHistoryView: View {
     @State private var selectedCategory: String = "Tutte"
     @State private var isLoading: Bool = false
 
-    private let categories = ["Tutte", "security", "energy", "devices", "system"]
+    private let categories = ["Tutte", "Sicurezza", "Energia", "Dispositivi", "Sistema"]
 
     public init() {}
 
@@ -75,24 +75,32 @@ public struct NotificationHistoryView: View {
                     } else {
                         List {
                             ForEach(filteredNotifications) { item in
-                                NotificationRowView(item: item) {
-                                    markAsRead(item)
-                                }
+                                NotificationRowView(
+                                    item: item,
+                                    onMarkRead: { markAsRead(item) },
+                                    onAction: { action in executeAction(item: item, action: action) }
+                                )
                             }
                         }
+#if os(iOS)
                         .listStyle(.insetGrouped)
+#else
+                        .listStyle(.inset)
+#endif
                     }
                 }
             }
             .navigationTitle("Centro Notifiche")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button("Segna lette") {
                         markAllAsRead()
                     }
@@ -118,9 +126,9 @@ public struct NotificationHistoryView: View {
                     title: $0.title,
                     message: $0.message,
                     category: $0.category,
-                    timestamp: $0.createdAt,
-                    isRead: false,
-                    quickAction: $0.action
+                    timestamp: $0.createdAt.isEmpty ? "Recente" : $0.createdAt,
+                    isRead: $0.resolvedAt != nil,
+                    actions: $0.actions ?? []
                 )
             }
         } catch {
@@ -138,13 +146,14 @@ public struct NotificationHistoryView: View {
     private func categoryPill(_ cat: String) -> some View {
         let isSelected = selectedCategory == cat
         let label = categoryLabel(cat)
+        let color = categoryColor(cat)
         return Button(action: { selectedCategory = cat }) {
             Text(label)
                 .font(.caption)
                 .fontWeight(.semibold)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(isSelected ? Color.cyan : Color.domusSecondarySystemGroupedBackground)
+                .background(isSelected ? color : Color.domusSecondarySystemGroupedBackground)
                 .foregroundColor(isSelected ? .white : .primary)
                 .clipShape(Capsule())
         }
@@ -152,17 +161,36 @@ public struct NotificationHistoryView: View {
 
     private func categoryLabel(_ cat: String) -> String {
         switch cat {
-        case "security": return "🛡️ Sicurezza"
-        case "energy":   return "⚡ Energia"
-        case "devices":  return "🔌 Dispositivi"
-        case "system":   return "⚙️ Sistema"
-        default:         return "Tutte"
+        case "Sicurezza": return "🛡️ Sicurezza"
+        case "Energia":   return "⚡ Energia"
+        case "Dispositivi": return "🔌 Dispositivi"
+        case "Sistema":   return "⚙️ Sistema"
+        default:          return "🔔 Tutte"
+        }
+    }
+
+    private func categoryColor(_ cat: String) -> Color {
+        switch cat {
+        case "Sicurezza": return .red
+        case "Energia":   return .orange
+        case "Sistema":   return .indigo
+        default:          return .cyan
         }
     }
 
     private func markAsRead(_ item: InAppNotificationItem) {
         if let idx = notifications.firstIndex(where: { $0.id == item.id }) {
             notifications[idx].isRead = true
+        }
+    }
+
+    private func executeAction(item: InAppNotificationItem, action: NotificationActionDTO) {
+        markAsRead(item)
+        Task {
+            try? await DomusHttpClient.shared.handleNotificationAction(notificationId: item.id, actionId: action.id)
+            #if canImport(UIKit)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            #endif
         }
     }
 
@@ -178,13 +206,14 @@ public struct NotificationHistoryView: View {
 private struct NotificationRowView: View {
     let item: InAppNotificationItem
     var onMarkRead: () -> Void
+    var onAction: (NotificationActionDTO) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 if !item.isRead {
                     Circle()
-                        .fill(Color.cyan)
+                        .fill(categoryColor(item.category))
                         .frame(width: 8, height: 8)
                 }
 
@@ -203,20 +232,22 @@ private struct NotificationRowView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            if let action = item.quickAction {
-                HStack {
+            if !item.actions.isEmpty {
+                HStack(spacing: 8) {
                     Spacer()
-                    Button(action: onMarkRead) {
-                        Text(action)
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(Color.cyan.opacity(0.15))
-                            .foregroundColor(.cyan)
-                            .clipShape(Capsule())
+                    ForEach(item.actions) { action in
+                        Button(action: { onAction(action) }) {
+                            Text(action.title)
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .background((action.destructive == true ? Color.red : Color.cyan).opacity(0.15))
+                                .foregroundColor(action.destructive == true ? .red : .cyan)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.top, 4)
             }
@@ -224,5 +255,14 @@ private struct NotificationRowView: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture(perform: onMarkRead)
+    }
+
+    private func categoryColor(_ cat: String) -> Color {
+        switch cat {
+        case "Sicurezza": return .red
+        case "Energia":   return .orange
+        case "Sistema":   return .indigo
+        default:          return .cyan
+        }
     }
 }

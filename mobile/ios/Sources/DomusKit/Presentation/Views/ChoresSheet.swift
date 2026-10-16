@@ -6,15 +6,17 @@ public struct ChoreItem: Identifiable, Sendable {
     public var areaName: String
     public var assignedTo: String
     public var priority: String // "urgent", "high", "medium", "low"
+    public var frequency: String
     public var completed: Bool
     public var karmaPoints: Int
 
     public init(
         id: String = UUID().uuidString,
         title: String,
-        areaName: String,
-        assignedTo: String,
+        areaName: String = "Casa",
+        assignedTo: String = "Tutti",
         priority: String = "medium",
+        frequency: String = "Una tantum",
         completed: Bool = false,
         karmaPoints: Int = 20
     ) {
@@ -23,6 +25,7 @@ public struct ChoreItem: Identifiable, Sendable {
         self.areaName = areaName
         self.assignedTo = assignedTo
         self.priority = priority
+        self.frequency = frequency
         self.completed = completed
         self.karmaPoints = karmaPoints
     }
@@ -35,8 +38,24 @@ public struct ChoresSheet: View {
     @State private var selectedFilter: String = "Tutti"
     @State private var totalKarma: Int = 0
     @State private var isLoading: Bool = false
+    @State private var showingAddSheet: Bool = false
+
+    // Form per nuova faccenda
+    @State private var newTitle: String = ""
+    @State private var newArea: String = "Casa"
+    @State private var newAssignee: String = "Tutti"
+    @State private var newPriority: String = "medium"
+    @State private var isSubmitting: Bool = false
 
     private let filters = ["Tutti", "Da Fare", "Completati"]
+    private let roomSuggestions = ["Casa", "Cucina", "Salotto", "Bagno", "Camera", "Giardino"]
+    private let familyMembers = ["Tutti", "Marco", "Giulia"]
+    private let priorities = [
+        ("low", "Bassa", Color.gray),
+        ("medium", "Media", Color.blue),
+        ("high", "Alta", Color.orange),
+        ("urgent", "Urgente", Color.red)
+    ]
 
     public init() {}
 
@@ -50,6 +69,11 @@ public struct ChoresSheet: View {
                     karmaHeader
                         .padding(.horizontal)
                         .padding(.top, 10)
+
+                    // Leaderboard Card
+                    leaderboardCard
+                        .padding(.horizontal)
+                        .padding(.top, 8)
 
                     // Picker filtro
                     Picker("Filtro", selection: $selectedFilter) {
@@ -84,17 +108,31 @@ public struct ChoresSheet: View {
                                     toggleChore(chore)
                                 }
                             }
+                            .onDelete(perform: deleteChores)
                         }
+#if os(iOS)
                         .listStyle(.insetGrouped)
+#else
+                        .listStyle(.inset)
+#endif
                     }
                 }
             }
             .navigationTitle("Faccende & Promemoria")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingAddSheet = true
+                    } label: {
+                        Image(systemName: "plus")
                     }
                 }
             }
@@ -103,6 +141,9 @@ public struct ChoresSheet: View {
             }
             .refreshable {
                 await loadChores()
+            }
+            .sheet(isPresented: $showingAddSheet) {
+                addChoreNavigationStack
             }
         }
     }
@@ -123,13 +164,51 @@ public struct ChoresSheet: View {
                 }
             }
             Spacer()
-            Image(systemName: "medal.fill")
-                .font(.system(size: 34))
-                .foregroundColor(.orange)
+            VStack(alignment: .trailing, spacing: 2) {
+                let pending = chores.count { !$0.completed }
+                Text("\(pending) in attesa")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
+                Image(systemName: "medal.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.orange)
+            }
         }
         .padding(14)
         .background(Color.domusSecondarySystemGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var leaderboardCard: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Text("👦 Marco")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                Text("75 Karma")
+                    .font(.caption)
+                    .foregroundColor(.cyan)
+                    .fontWeight(.semibold)
+            }
+            Spacer()
+            Divider()
+                .frame(height: 20)
+            Spacer()
+            HStack(spacing: 8) {
+                Text("👧 Giulia")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                Text("90 Karma 🏆")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    .fontWeight(.semibold)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.domusSecondarySystemGroupedBackground.opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var filteredChores: [ChoreItem] {
@@ -149,9 +228,10 @@ public struct ChoresSheet: View {
                 ChoreItem(
                     id: $0.id,
                     title: $0.title,
-                    areaName: $0.areaName,
-                    assignedTo: $0.assignedTo,
+                    areaName: $0.areaName.isEmpty ? "Casa" : $0.areaName,
+                    assignedTo: $0.assignedTo.isEmpty ? "Tutti" : $0.assignedTo,
                     priority: $0.priority,
+                    frequency: "Una tantum",
                     completed: $0.completed,
                     karmaPoints: $0.karmaPoints
                 )
@@ -171,6 +251,94 @@ public struct ChoresSheet: View {
                 #endif
                 await loadChores()
             } catch {
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                #endif
+            }
+        }
+    }
+
+    private func deleteChores(at offsets: IndexSet) {
+        for index in offsets {
+            let chore = filteredChores[index]
+            Task {
+                try? await DomusHttpClient.shared.deleteChore(id: chore.id)
+                await loadChores()
+            }
+        }
+    }
+
+    private var addChoreNavigationStack: some View {
+        NavigationStack {
+            Form {
+                Section("Dettagli Attività") {
+                    TextField("Nome attività (es. Svuota lavastoviglie)", text: $newTitle)
+
+                    Picker("Stanza / Area", selection: $newArea) {
+                        ForEach(roomSuggestions, id: \.self) { room in
+                            Text(room).tag(room)
+                        }
+                    }
+
+                    Picker("Assegnato a", selection: $newAssignee) {
+                        ForEach(familyMembers, id: \.self) { member in
+                            Text(member).tag(member)
+                        }
+                    }
+
+                    Picker("Priorità", selection: $newPriority) {
+                        ForEach(priorities, id: \.0) { p in
+                            Text(p.1).tag(p.0)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Nuova Faccenda")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annulla") {
+                        showingAddSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Aggiungi") {
+                        addNewChore()
+                    }
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
+                }
+            }
+        }
+    }
+
+    private func addNewChore() {
+        let title = newTitle.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        isSubmitting = true
+
+        Task {
+            do {
+                _ = try await DomusHttpClient.shared.createChore(
+                    title: title,
+                    areaName: newArea,
+                    assignedTo: newAssignee,
+                    priority: newPriority
+                )
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                #endif
+                await loadChores()
+                await MainActor.run {
+                    newTitle = ""
+                    isSubmitting = false
+                    showingAddSheet = false
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                }
                 #if canImport(UIKit)
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 #endif
@@ -200,7 +368,7 @@ private struct ChoreRowView: View {
                     .foregroundColor(chore.completed ? .secondary : .primary)
 
                 HStack(spacing: 6) {
-                    Text(chore.areaName)
+                    Text("📍 \(chore.areaName)")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -208,10 +376,18 @@ private struct ChoreRowView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    Text(chore.assignedTo)
+                    Text("👤 \(chore.assignedTo)")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.cyan)
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("⏱️ \(chore.frequency)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
 
@@ -240,7 +416,7 @@ private struct ChoreRowView: View {
     }
 
     private var priorityData: (Color, String) {
-        switch chore.priority {
+        switch chore.priority.lowercased() {
         case "urgent": return (.red, "URGENTE")
         case "high":   return (.orange, "ALTA")
         case "medium": return (.blue, "MEDIA")

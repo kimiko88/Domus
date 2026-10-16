@@ -134,8 +134,8 @@ public actor DomusHttpClient: Sendable {
         try await get(path: "/api/v1/chores", as: [ChoreDTO].self)
     }
 
-    public func createChore(title: String, areaName: String, assignedTo: String, priority: String, karmaPoints: Int) async throws -> ChoreDTO {
-        let body = CreateChoreDTO(title: title, areaName: areaName, assignedTo: assignedTo, priority: priority, karmaPoints: karmaPoints)
+    public func createChore(title: String, areaName: String = "", assignedTo: String = "", priority: String = "medium", karmaPoints: Int = 20, description: String = "") async throws -> ChoreDTO {
+        let body = CreateChoreDTO(title: title, areaName: areaName, assignedTo: assignedTo, priority: priority, karmaPoints: karmaPoints, description: description)
         return try await post(path: "/api/v1/chores", body: body, as: ChoreDTO.self)
     }
 
@@ -151,8 +151,8 @@ public actor DomusHttpClient: Sendable {
         try await get(path: "/api/v1/shopping", as: [ShoppingItemDTO].self)
     }
 
-    public func createShopping(title: String, quantity: String, category: String) async throws -> ShoppingItemDTO {
-        let body = CreateShoppingDTO(title: title, quantity: quantity, category: category)
+    public func createShopping(title: String, quantity: String, category: String, addedBy: String = "iOS Companion") async throws -> ShoppingItemDTO {
+        let body = CreateShoppingDTO(title: title, quantity: quantity, category: category, addedBy: addedBy)
         return try await post(path: "/api/v1/shopping", body: body, as: ShoppingItemDTO.self)
     }
 
@@ -174,6 +174,51 @@ public actor DomusHttpClient: Sendable {
 
     public func fetchNotifications() async throws -> [InAppNotificationDTO] {
         try await get(path: "/api/v1/notifications", as: [InAppNotificationDTO].self)
+    }
+
+    public func handleNotificationAction(notificationId: String, actionId: String, user: String = "iOS") async throws {
+        struct ActionBody: Encodable {
+            let notificationId: String
+            let user: String
+            enum CodingKeys: String, CodingKey {
+                case notificationId = "notification_id"
+                case user
+            }
+        }
+        try await postVoid(path: "/api/v1/notifications/actionable/actions/\(actionId)", body: ActionBody(notificationId: notificationId, user: user))
+    }
+
+    public func applyScene(id: String) async throws {
+        try await postVoid(path: "/api/v1/scenes/\(id)/apply", body: EmptyBodyDTO())
+    }
+
+    public func scanTag(id: String, scannedBy: String = "iOS_Companion") async throws {
+        struct TagScanBody: Encodable {
+            let scannedBy: String
+            enum CodingKeys: String, CodingKey {
+                case scannedBy = "scanned_by"
+            }
+        }
+        try await postVoid(path: "/api/v1/tags/\(id)/scan", body: TagScanBody(scannedBy: scannedBy))
+    }
+
+    public func registerPushToken(deviceToken: String, deviceName: String = "Apple Device") async throws {
+        struct PushTokenBody: Encodable {
+            let platform: String
+            let deviceToken: String
+            let deviceName: String
+            let appVersion: String
+            enum CodingKeys: String, CodingKey {
+                case platform
+                case deviceToken = "device_token"
+                case deviceName = "device_name"
+                case appVersion = "app_version"
+            }
+        }
+        try await postVoid(
+            path: "/api/v1/notifications/push/tokens",
+            body: PushTokenBody(platform: "apns", deviceToken: deviceToken, deviceName: deviceName, appVersion: "1.0.0")
+        )
     }
 
     public func toggleEntity(id: String, domain: String = "") async throws {
@@ -234,41 +279,116 @@ public struct AssistantChatRequestDTO: Encodable, Sendable {
     public init(prompt: String) { self.prompt = prompt }
 }
 
-public struct AssistantChatResponseDTO: Decodable, Sendable {
-    public let responseText: String
-    public let actionsExecuted: [String]?
+public struct AssistantActionDTO: Codable, Sendable {
+    public let entityKey: String
+    public let service: String
+    public let success: Bool
+    public let message: String
 
     enum CodingKeys: String, CodingKey {
-        case responseText = "response_text"
-        case actionsExecuted = "actions_executed"
+        case entityKey = "entity_key"
+        case service
+        case success
+        case message
     }
 
-    public init(responseText: String, actionsExecuted: [String]? = nil) {
+    public init(entityKey: String = "", service: String = "", success: Bool = true, message: String = "") {
+        self.entityKey = entityKey
+        self.service = service
+        self.success = success
+        self.message = message
+    }
+}
+
+public struct AssistantChatResponseDTO: Decodable, Sendable {
+    public let userPrompt: String?
+    public let responseText: String
+    public let actionsExecuted: [AssistantActionDTO]?
+    public let engineUsed: String?
+    public let executionTimeMs: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case userPrompt = "user_prompt"
+        case responseText = "response_text"
+        case actionsExecuted = "actions_executed"
+        case engineUsed = "engine_used"
+        case executionTimeMs = "execution_time_ms"
+    }
+
+    public init(responseText: String, actionsExecuted: [AssistantActionDTO]? = nil, userPrompt: String? = nil, engineUsed: String? = nil, executionTimeMs: Int64? = nil) {
         self.responseText = responseText
         self.actionsExecuted = actionsExecuted
+        self.userPrompt = userPrompt
+        self.engineUsed = engineUsed
+        self.executionTimeMs = executionTimeMs
+    }
+
+    public var actionSummary: String? {
+        guard let actions = actionsExecuted, !actions.isEmpty else { return nil }
+        return actions.map { "\($0.entityKey) → \($0.service)" }.joined(separator: ", ")
     }
 }
 
 public struct ChoreDTO: Codable, Identifiable, Sendable {
     public let id: String
     public let title: String
+    public let description: String?
+    public let areaId: String?
     public let areaName: String
+    public let assignedUserId: String?
     public let assignedTo: String
     public let priority: String
+    public let status: String?
     public let completed: Bool
     public let karmaPoints: Int
 
     enum CodingKeys: String, CodingKey {
         case id
         case title
+        case description
+        case areaId = "area_id"
         case areaName = "area_name"
+        case assignedUserId = "assigned_user_id"
         case assignedTo = "assigned_to"
         case priority
+        case status
         case completed
         case karmaPoints = "karma_points"
     }
 
-    public init(id: String, title: String, areaName: String, assignedTo: String, priority: String, completed: Bool, karmaPoints: Int) {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.areaId = try container.decodeIfPresent(String.self, forKey: .areaId)
+        self.areaName = try container.decodeIfPresent(String.self, forKey: .areaName) ?? self.areaId ?? "Casa"
+        self.assignedUserId = try container.decodeIfPresent(String.self, forKey: .assignedUserId)
+        self.assignedTo = try container.decodeIfPresent(String.self, forKey: .assignedTo) ?? self.assignedUserId ?? "Tutti"
+        self.priority = try container.decodeIfPresent(String.self, forKey: .priority) ?? "medium"
+        self.status = try container.decodeIfPresent(String.self, forKey: .status)
+
+        if let comp = try container.decodeIfPresent(Bool.self, forKey: .completed) {
+            self.completed = comp
+        } else if let st = self.status {
+            self.completed = (st == "completed")
+        } else {
+            self.completed = false
+        }
+
+        if let kp = try container.decodeIfPresent(Int.self, forKey: .karmaPoints) {
+            self.karmaPoints = kp
+        } else {
+            switch self.priority.lowercased() {
+            case "urgent": self.karmaPoints = 50
+            case "high":   self.karmaPoints = 30
+            case "medium": self.karmaPoints = 20
+            default:       self.karmaPoints = 10
+            }
+        }
+    }
+
+    public init(id: String, title: String, areaName: String = "Casa", assignedTo: String = "Tutti", priority: String = "medium", completed: Bool = false, karmaPoints: Int = 20, description: String? = nil, areaId: String? = nil, assignedUserId: String? = nil, status: String? = nil) {
         self.id = id
         self.title = title
         self.areaName = areaName
@@ -276,22 +396,34 @@ public struct ChoreDTO: Codable, Identifiable, Sendable {
         self.priority = priority
         self.completed = completed
         self.karmaPoints = karmaPoints
+        self.description = description
+        self.areaId = areaId
+        self.assignedUserId = assignedUserId
+        self.status = status
     }
 }
 
 public struct CreateChoreDTO: Encodable, Sendable {
     public let title: String
-    public let areaName: String
-    public let assignedTo: String
+    public let description: String
+    public let areaId: String
+    public let assignedUserId: String
     public let priority: String
-    public let karmaPoints: Int
 
     enum CodingKeys: String, CodingKey {
         case title
-        case areaName = "area_name"
-        case assignedTo = "assigned_to"
+        case description
+        case areaId = "area_id"
+        case assignedUserId = "assigned_user_id"
         case priority
-        case karmaPoints = "karma_points"
+    }
+
+    public init(title: String, areaName: String = "", assignedTo: String = "", priority: String = "medium", karmaPoints: Int = 20, description: String = "") {
+        self.title = title
+        self.description = description
+        self.areaId = areaName
+        self.assignedUserId = assignedTo
+        self.priority = priority
     }
 }
 
@@ -301,20 +433,53 @@ public struct ShoppingItemDTO: Codable, Identifiable, Sendable {
     public let quantity: String
     public let category: String
     public let completed: Bool
+    public let addedBy: String?
     public let completedBy: String?
     public let createdAt: String?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case name
         case title
         case quantity
         case category
         case completed
+        case addedBy = "added_by"
         case completedBy = "completed_by"
         case createdAt = "created_at"
     }
 
-    public init(id: String, title: String, quantity: String, category: String, completed: Bool, completedBy: String? = nil, createdAt: String? = nil) {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        if let name = try container.decodeIfPresent(String.self, forKey: .name) {
+            self.title = name
+        } else if let title = try container.decodeIfPresent(String.self, forKey: .title) {
+            self.title = title
+        } else {
+            self.title = ""
+        }
+        self.quantity = try container.decodeIfPresent(String.self, forKey: .quantity) ?? "1"
+        self.category = try container.decodeIfPresent(String.self, forKey: .category) ?? "Dispensa"
+        self.completed = try container.decodeIfPresent(Bool.self, forKey: .completed) ?? false
+        self.addedBy = try container.decodeIfPresent(String.self, forKey: .addedBy)
+        self.completedBy = try container.decodeIfPresent(String.self, forKey: .completedBy)
+        self.createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .name)
+        try container.encode(quantity, forKey: .quantity)
+        try container.encode(category, forKey: .category)
+        try container.encode(completed, forKey: .completed)
+        try container.encodeIfPresent(addedBy, forKey: .addedBy)
+        try container.encodeIfPresent(completedBy, forKey: .completedBy)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+    }
+
+    public init(id: String, title: String, quantity: String, category: String, completed: Bool, completedBy: String? = nil, createdAt: String? = nil, addedBy: String? = nil) {
         self.id = id
         self.title = title
         self.quantity = quantity
@@ -322,18 +487,28 @@ public struct ShoppingItemDTO: Codable, Identifiable, Sendable {
         self.completed = completed
         self.completedBy = completedBy
         self.createdAt = createdAt
+        self.addedBy = addedBy
     }
 }
 
 public struct CreateShoppingDTO: Encodable, Sendable {
-    public let title: String
+    public let name: String
     public let quantity: String
     public let category: String
+    public let addedBy: String
 
-    public init(title: String, quantity: String, category: String) {
-        self.title = title
+    enum CodingKeys: String, CodingKey {
+        case name
+        case quantity
+        case category
+        case addedBy = "added_by"
+    }
+
+    public init(title: String, quantity: String, category: String, addedBy: String = "iOS Companion") {
+        self.name = title
         self.quantity = quantity
         self.category = category
+        self.addedBy = addedBy
     }
 }
 
@@ -343,6 +518,12 @@ public struct EnergyFlowDTO: Codable, Sendable {
     public let batteryWatts: Double
     public let batterySoc: Double
     public let houseConsumptionWatts: Double
+    public let solarToHouseWatts: Double?
+    public let solarToBatteryWatts: Double?
+    public let solarToGridWatts: Double?
+    public let batteryToHouseWatts: Double?
+    public let gridToHouseWatts: Double?
+    public let gridToBatteryWatts: Double?
 
     enum CodingKeys: String, CodingKey {
         case solarWatts = "solar_watts"
@@ -350,14 +531,50 @@ public struct EnergyFlowDTO: Codable, Sendable {
         case batteryWatts = "battery_watts"
         case batterySoc = "battery_soc"
         case houseConsumptionWatts = "house_consumption_watts"
+        case solarToHouseWatts = "solar_to_house_watts"
+        case solarToBatteryWatts = "solar_to_battery_watts"
+        case solarToGridWatts = "solar_to_grid_watts"
+        case batteryToHouseWatts = "battery_to_house_watts"
+        case gridToHouseWatts = "grid_to_house_watts"
+        case gridToBatteryWatts = "grid_to_battery_watts"
     }
 
-    public init(solarWatts: Double, gridWatts: Double, batteryWatts: Double, batterySoc: Double, houseConsumptionWatts: Double) {
+    public init(
+        solarWatts: Double,
+        gridWatts: Double,
+        batteryWatts: Double,
+        batterySoc: Double,
+        houseConsumptionWatts: Double,
+        solarToHouseWatts: Double? = nil,
+        solarToBatteryWatts: Double? = nil,
+        solarToGridWatts: Double? = nil,
+        batteryToHouseWatts: Double? = nil,
+        gridToHouseWatts: Double? = nil,
+        gridToBatteryWatts: Double? = nil
+    ) {
         self.solarWatts = solarWatts
         self.gridWatts = gridWatts
         self.batteryWatts = batteryWatts
         self.batterySoc = batterySoc
         self.houseConsumptionWatts = houseConsumptionWatts
+        self.solarToHouseWatts = solarToHouseWatts
+        self.solarToBatteryWatts = solarToBatteryWatts
+        self.solarToGridWatts = solarToGridWatts
+        self.batteryToHouseWatts = batteryToHouseWatts
+        self.gridToHouseWatts = gridToHouseWatts
+        self.gridToBatteryWatts = gridToBatteryWatts
+    }
+}
+
+public struct NotificationActionDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let destructive: Bool?
+
+    public init(id: String, title: String, destructive: Bool? = nil) {
+        self.id = id
+        self.title = title
+        self.destructive = destructive
     }
 }
 
@@ -366,25 +583,62 @@ public struct InAppNotificationDTO: Codable, Identifiable, Sendable {
     public let title: String
     public let message: String
     public let category: String
+    public let critical: Bool
+    public let imageUrl: String?
+    public let actions: [NotificationActionDTO]?
     public let createdAt: String
-    public let action: String?
+    public let resolvedAt: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case title
         case message
         case category
+        case critical
+        case imageUrl = "image_url"
+        case actions
         case createdAt = "created_at"
-        case action
+        case resolvedAt = "resolved_at"
     }
 
-    public init(id: String, title: String, message: String, category: String, createdAt: String, action: String? = nil) {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.message = try container.decode(String.self, forKey: .message)
+        let isCrit = try container.decodeIfPresent(Bool.self, forKey: .critical) ?? false
+        self.critical = isCrit
+        self.imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
+        self.actions = try container.decodeIfPresent([NotificationActionDTO].self, forKey: .actions)
+        self.createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
+        self.resolvedAt = try container.decodeIfPresent(String.self, forKey: .resolvedAt)
+
+        if let cat = try container.decodeIfPresent(String.self, forKey: .category), !cat.isEmpty {
+            self.category = cat
+        } else {
+            let lower = self.title.lowercased()
+            if isCrit || lower.contains("allarme") || lower.contains("sicurezza") {
+                self.category = "Sicurezza"
+            } else if lower.contains("energia") || lower.contains("kw") || lower.contains("consum") {
+                self.category = "Energia"
+            } else if lower.contains("aggiornamento") || lower.contains("sistema") {
+                self.category = "Sistema"
+            } else {
+                self.category = "Dispositivi"
+            }
+        }
+    }
+
+    public init(id: String, title: String, message: String, category: String, createdAt: String, critical: Bool = false, imageUrl: String? = nil, actions: [NotificationActionDTO]? = nil, resolvedAt: String? = nil) {
         self.id = id
         self.title = title
         self.message = message
         self.category = category
         self.createdAt = createdAt
-        self.action = action
+        self.critical = critical
+        self.imageUrl = imageUrl
+        self.actions = actions
+        self.resolvedAt = resolvedAt
     }
 }
 
