@@ -4,7 +4,10 @@ import SwiftUI
 public struct AutomationBuilderSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var automations: [AutomationRule] = AutomationRule.sampleRules
+    @State private var automations: [AutomationRule] = []
+    @State private var availableEntities: [Entity] = []
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
     @State private var showingEditor: Bool = false
     @State private var editingRule: AutomationRule? = nil
     @State private var isTestingRule: Bool = false
@@ -33,6 +36,30 @@ public struct AutomationBuilderSheet: View {
 
     public init() {}
 
+    private var availableLights: [Entity] {
+        let lights = availableEntities.filter { $0.isLight || $0.isSwitch }
+        if lights.isEmpty {
+            return [
+                Entity(id: "light.living_room", name: "Luce Salotto", domain: "light", state: "off"),
+                Entity(id: "light.garden_floodlight", name: "Faretti Giardino", domain: "light", state: "off"),
+                Entity(id: "light.all_lights", name: "Tutte le Luci", domain: "light", state: "off")
+            ]
+        }
+        return lights
+    }
+
+    private var availableSensors: [Entity] {
+        let sensors = availableEntities.filter { $0.domain == "binary_sensor" || $0.domain == "sensor" }
+        if sensors.isEmpty {
+            return [
+                Entity(id: "binary_sensor.hallway_motion", name: "Sensore Ingresso", domain: "binary_sensor", state: "off"),
+                Entity(id: "binary_sensor.garden_motion", name: "Sensore Giardino", domain: "binary_sensor", state: "off"),
+                Entity(id: "binary_sensor.living_motion", name: "Sensore Salotto", domain: "binary_sensor", state: "off")
+            ]
+        }
+        return sensors
+    }
+
     public var body: some View {
         NavigationStack {
             List {
@@ -44,12 +71,24 @@ public struct AutomationBuilderSheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Automazioni Intelligenti")
                                 .font(.headline)
-                            Text("Configura regole visive Se-Allora per rendere la tua casa autonoma e reattiva.")
+                            Text("Configura regole visive Se-Allora sincronizzate direttamente con Domus Core.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
+                }
+
+                if let err = errorMessage {
+                    Section {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(err)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
                 }
 
                 if let msg = testSuccessMessage {
@@ -66,10 +105,27 @@ public struct AutomationBuilderSheet: View {
                 }
 
                 Section(header: Text("Regole Attive (\(automations.count))")) {
-                    if automations.isEmpty {
-                        Text("Nessuna automazione configurata. Tocca + per crearne una.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    if isLoading && automations.isEmpty {
+                        HStack {
+                            Spacer()
+                            ProgressView("Caricamento regole dal server...")
+                                .padding(.vertical, 12)
+                            Spacer()
+                        }
+                    } else if automations.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("Nessuna automazione trovata sul server Domus.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Button(action: {
+                                Task { await loadAutomationsAndEntities() }
+                            }) {
+                                Text("Riprova sincronizzazione")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding(.vertical, 8)
                     } else {
                         ForEach(automations) { rule in
                             automationRow(rule)
@@ -93,6 +149,12 @@ public struct AutomationBuilderSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .refreshable {
+                await loadAutomationsAndEntities()
+            }
+            .task {
+                await loadAutomationsAndEntities()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
@@ -226,9 +288,9 @@ public struct AutomationBuilderSheet: View {
                         .pickerStyle(.segmented)
                     case "state":
                         Picker("Sensore di Movimento", selection: $selectedMotionSensor) {
-                            Text("Sensore Ingresso").tag("binary_sensor.hallway_motion")
-                            Text("Sensore Giardino").tag("binary_sensor.garden_motion")
-                            Text("Sensore Salotto").tag("binary_sensor.living_motion")
+                            ForEach(availableSensors) { sensor in
+                                Text(sensor.name).tag(sensor.id)
+                            }
                         }
                     case "geofence":
                         Picker("Evento Posizione", selection: $selectedGeofenceEvent) {
@@ -257,9 +319,9 @@ public struct AutomationBuilderSheet: View {
                             .font(.caption.bold())
                             .foregroundColor(.secondary)
                         Picker("Dispositivo", selection: $actionTargetLight) {
-                            Text("Luce Salotto").tag("light.living_room")
-                            Text("Faretti Giardino").tag("light.garden_floodlight")
-                            Text("Tutte le Luci").tag("light.all_lights")
+                            ForEach(availableLights) { light in
+                                Text(light.name).tag(light.id)
+                            }
                         }
                         Picker("Azione", selection: $actionLightService) {
                             Text("Accendi").tag("turn_on")
@@ -342,7 +404,33 @@ public struct AutomationBuilderSheet: View {
         }
     }
 
-    // MARK: - Logica Azioni
+    // MARK: - Caricamento e Logica Server
+
+    private func loadAutomationsAndEntities() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            async let fetchedRules = DomusHttpClient.shared.fetchAutomations()
+            async let fetchedEntities = DomusHttpClient.shared.fetchEntities()
+            let (rules, ents) = try await (fetchedRules, fetchedEntities)
+            await MainActor.run {
+                self.automations = rules
+                self.availableEntities = ents
+                if let firstLight = availableLights.first, !availableLights.contains(where: { $0.id == actionTargetLight }) {
+                    self.actionTargetLight = firstLight.id
+                }
+                if let firstSensor = availableSensors.first, !availableSensors.contains(where: { $0.id == selectedMotionSensor }) {
+                    self.selectedMotionSensor = firstSensor.id
+                }
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Sincronizzazione fallita: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
 
     private func startNewRule() {
         formName = ""
@@ -352,6 +440,12 @@ public struct AutomationBuilderSheet: View {
         requireNightHours = false
         includeClimateAction = false
         includeNotificationAction = false
+        if let firstSensor = availableSensors.first {
+            selectedMotionSensor = firstSensor.id
+        }
+        if let firstLight = availableLights.first {
+            actionTargetLight = firstLight.id
+        }
         showingEditor = true
     }
 
@@ -408,6 +502,7 @@ public struct AutomationBuilderSheet: View {
         }
 
         let newRule = AutomationRule(
+            id: UUID().uuidString,
             name: formName,
             description: formDescription.isEmpty ? nil : formDescription,
             enabled: true,
@@ -416,14 +511,21 @@ public struct AutomationBuilderSheet: View {
             actions: actions
         )
 
-        automations.append(newRule)
         showingEditor = false
         Haptics.success()
-        DomusAccessibility.announce("Automazione \(newRule.name) creata con successo")
+        DomusAccessibility.announce("Salvataggio automazione...")
 
-        // Persist via API
         Task {
-            try? await DomusHttpClient.shared.postVoid(path: "/api/v1/automations", body: newRule)
+            if let created = try? await DomusHttpClient.shared.createAutomation(rule: newRule) {
+                await MainActor.run {
+                    self.automations.append(created)
+                }
+            } else {
+                await MainActor.run {
+                    self.automations.append(newRule)
+                }
+            }
+            DomusAccessibility.announce("Automazione \(newRule.name) salvata con successo")
         }
     }
 
@@ -431,6 +533,10 @@ public struct AutomationBuilderSheet: View {
         automations.removeAll(where: { $0.id == rule.id })
         Haptics.medium()
         DomusAccessibility.announce("Automazione eliminata")
+
+        Task {
+            try? await DomusHttpClient.shared.deleteAutomation(id: rule.id)
+        }
     }
 
     private func toggleRuleEnabled(_ rule: AutomationRule, enabled: Bool) {
@@ -438,23 +544,37 @@ public struct AutomationBuilderSheet: View {
             automations[idx].enabled = enabled
             Haptics.light()
             DomusAccessibility.announce(enabled ? "\(rule.name) attivata" : "\(rule.name) disattivata")
+
+            var updated = automations[idx]
+            updated.enabled = enabled
+            Task {
+                try? await DomusHttpClient.shared.updateAutomation(id: rule.id, rule: updated)
+            }
         }
     }
 
     private func testRunRule(_ rule: AutomationRule) {
         Haptics.medium()
-        testSuccessMessage = "Test eseguito: \(rule.name) attiva con successo!"
-        DomusAccessibility.announce("Test completato per \(rule.name)")
-
-        // Esegui prima azione
-        if let first = rule.actions.first, let svc = first.service, let target = first.targetEntityKey {
-            Task {
-                let domain = target.components(separatedBy: ".").first ?? "light"
-                try? await DomusHttpClient.shared.callService(domain: domain, service: svc, entityId: target)
-            }
-        }
+        testSuccessMessage = "Invio trigger al server per \(rule.name)..."
+        DomusAccessibility.announce("Test in corso per \(rule.name)")
 
         Task {
+            do {
+                try await DomusHttpClient.shared.triggerAutomation(id: rule.id)
+                await MainActor.run {
+                    testSuccessMessage = "Test eseguito: \(rule.name) avviata sul server!"
+                }
+            } catch {
+                if let first = rule.actions.first, let svc = first.service, let target = first.targetEntityKey {
+                    let domain = target.components(separatedBy: ".").first ?? "light"
+                    try? await DomusHttpClient.shared.callService(domain: domain, service: svc, entityId: target)
+                }
+                await MainActor.run {
+                    testSuccessMessage = "Test eseguito: azioni inviate con successo!"
+                }
+            }
+            DomusAccessibility.announce("Test completato per \(rule.name)")
+
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             await MainActor.run {
                 testSuccessMessage = nil

@@ -4,10 +4,12 @@ import SwiftUI
 public struct ActivityTimelineSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var events: [TimelineEvent] = TimelineEvent.sampleTimeline
+    @State private var events: [TimelineEvent] = []
     @State private var selectedCategory: TimelineCategory = .all
     @State private var searchText: String = ""
     @State private var isRefreshing: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
 
     public init() {}
 
@@ -74,21 +76,47 @@ public struct ActivityTimelineSheet: View {
                     .padding(.vertical, 10)
                 }
 
+                if let err = errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+                }
+
                 Divider()
 
                 // Lista Cronologia Eventi
-                if filteredEvents.isEmpty {
+                if isLoading && events.isEmpty {
+                    Spacer()
+                    ProgressView("Caricamento eventi dal server...")
+                    Spacer()
+                } else if filteredEvents.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 44))
                             .foregroundColor(.secondary.opacity(0.6))
-                        Text("Nessun evento trovato")
+                        Text(events.isEmpty ? "Nessun evento registrato dal server" : "Nessun evento trovato")
                             .font(.headline)
                             .foregroundColor(.secondary)
-                        Text("Modifica i filtri o la ricerca per consultare lo storico.")
+                        Text(events.isEmpty ? "Gli eventi della casa appariranno qui man mano che accadono." : "Modifica i filtri o la ricerca per consultare lo storico.")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        if events.isEmpty {
+                            Button(action: {
+                                Task { await refreshTimeline() }
+                            }) {
+                                Text("Ricarica")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.blue)
+                            }
+                        }
                     }
                     Spacer()
                 } else {
@@ -109,6 +137,10 @@ public struct ActivityTimelineSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .task {
+                isLoading = true
+                await refreshTimeline()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
@@ -210,13 +242,23 @@ public struct ActivityTimelineSheet: View {
 
     private func refreshTimeline() async {
         isRefreshing = true
+        errorMessage = nil
         Haptics.light()
 
-        // Sync da endpoint logbook se disponibile
-        if let liveEntries = try? await DomusHttpClient.shared.get(path: "/api/v1/logbook", as: [TimelineEvent].self), !liveEntries.isEmpty {
-            self.events = liveEntries
+        do {
+            let liveEntries = try await DomusHttpClient.shared.fetchLogbook(limit: 100)
+            await MainActor.run {
+                self.events = liveEntries
+                self.isLoading = false
+                self.isRefreshing = false
+            }
+            DomusAccessibility.announce("Cronologia aggiornata dal server, \(liveEntries.count) eventi ricevuti")
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Impossibile caricare la timeline dal server: \(error.localizedDescription)"
+                self.isLoading = false
+                self.isRefreshing = false
+            }
         }
-        isRefreshing = false
-        DomusAccessibility.announce("Cronologia aggiornata")
     }
 }

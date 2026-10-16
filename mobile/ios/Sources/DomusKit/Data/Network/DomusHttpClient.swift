@@ -344,11 +344,90 @@ public actor DomusHttpClient: Sendable {
         try await delete(path: "/api/v1/floors/\(floorId)/markers/\(markerId)")
     }
 
+    // MARK: - Automations API
+
+    public func fetchAutomations() async throws -> [AutomationRule] {
+        let res = try await get(path: "/api/v1/automations", as: AutomationsResponseDTO.self)
+        return res.automations
+    }
+
+    public func createAutomation(rule: AutomationRule) async throws -> AutomationRule {
+        try await post(path: "/api/v1/automations", body: rule, as: AutomationRule.self)
+    }
+
+    public func updateAutomation(id: String, rule: AutomationRule) async throws -> AutomationRule {
+        try await put(path: "/api/v1/automations/\(id)", body: rule, as: AutomationRule.self)
+    }
+
+    public func deleteAutomation(id: String) async throws {
+        try await delete(path: "/api/v1/automations/\(id)")
+    }
+
+    public func triggerAutomation(id: String) async throws {
+        try await postVoid(path: "/api/v1/automations/\(id)/trigger", body: EmptyBodyDTO())
+    }
+
+    // MARK: - Timeline & Logbook API
+
+    public func fetchLogbook(limit: Int = 100) async throws -> [TimelineEvent] {
+        let res = try await get(path: "/api/v1/logbook?limit=\(limit)", as: LogbookResponseDTO.self)
+        return res.entries
+    }
+
+    // MARK: - RF Mesh & Hardware Diagnostics API
+
+    public func fetchMeshTopology(protocol: String? = nil) async throws -> MeshTopologyDTO {
+        let query = `protocol`.flatMap { "?protocol=\($0)" } ?? ""
+        return try await get(path: "/api/v1/mesh/topology\(query)", as: MeshTopologyDTO.self)
+    }
+
+    public func fetchSystemHealth() async throws -> (health: SystemHealthDTO, latencyMs: Int) {
+        let start = CFAbsoluteTimeGetCurrent()
+        let health = try await get(path: "/api/v1/system/health", as: SystemHealthDTO.self)
+        let latency = max(1, Int((CFAbsoluteTimeGetCurrent() - start) * 1000))
+        return (health, latency)
+    }
+
     // MARK: - Family & Users API
 
     public func fetchFamilyMembers() async throws -> [FamilyMemberDTO] {
         let res = try await get(path: "/api/v1/family/members", as: FamilyMembersResponseDTO.self)
         return res.members
+    }
+
+    public func fetchFamilyInvites() async throws -> [FamilyInviteDTO] {
+        let res = try await get(path: "/api/v1/family/invites", as: FamilyInvitesResponseDTO.self)
+        return res.invites
+    }
+
+    public func createFamilyInvite(role: String, expiresInHours: Int) async throws -> FamilyInviteDTO {
+        try await post(
+            path: "/api/v1/family/invites",
+            body: CreateInviteRequestDTO(role: role, expiresInHours: expiresInHours),
+            as: FamilyInviteDTO.self
+        )
+    }
+
+    public func revokeFamilyInvite(id: String) async throws {
+        try await delete(path: "/api/v1/family/invites/\(id)")
+    }
+
+    public func fetchAreas() async throws -> [Area] {
+        try await get(path: "/api/v1/areas", as: [Area].self)
+    }
+
+    public func fetchEntities() async throws -> [Entity] {
+        let dtos = try await get(path: "/api/v1/entities", as: [EntityResponseDTO].self)
+        return dtos.map { dto in
+            Entity(
+                id: dto.id,
+                name: dto.name,
+                domain: dto.domain,
+                state: dto.state,
+                attributes: dto.attributes,
+                areaId: dto.areaId
+            )
+        }
     }
 
     // MARK: - Private helpers
@@ -841,6 +920,187 @@ public struct FamilyMembersResponseDTO: Codable, Sendable {
         self.total = total
     }
 }
+
+public struct AutomationsResponseDTO: Codable, Sendable {
+    public let automations: [AutomationRule]
+    public let total: Int?
+
+    public init(automations: [AutomationRule], total: Int? = nil) {
+        self.automations = automations
+        self.total = total
+    }
+}
+
+public struct LogbookResponseDTO: Codable, Sendable {
+    public let entries: [TimelineEvent]
+    public let total: Int?
+
+    public init(entries: [TimelineEvent], total: Int? = nil) {
+        self.entries = entries
+        self.total = total
+    }
+}
+
+public struct MeshNodeDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let protocolType: String
+    public let type: String
+    public let lqi: Int
+    public let battery: Int?
+    public let parentId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case protocolType = "protocol"
+        case type
+        case lqi
+        case battery
+        case parentId = "parent_id"
+    }
+
+    public init(
+        id: String,
+        name: String,
+        protocolType: String,
+        type: String = "end_device",
+        lqi: Int = 200,
+        battery: Int? = nil,
+        parentId: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.protocolType = protocolType
+        self.type = type
+        self.lqi = lqi
+        self.battery = battery
+        self.parentId = parentId
+    }
+}
+
+public struct MeshTopologyDTO: Codable, Sendable {
+    public let protocolType: String?
+    public let nodes: [MeshNodeDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case protocolType = "protocol"
+        case nodes
+    }
+
+    public init(protocolType: String? = nil, nodes: [MeshNodeDTO] = []) {
+        self.protocolType = protocolType
+        self.nodes = nodes
+    }
+}
+
+public struct SystemHealthDTO: Codable, Sendable {
+    public let status: String
+    public let version: String?
+    public let uptimeSeconds: Int64?
+    public let database: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case version
+        case uptimeSeconds = "uptime_s"
+        case database
+    }
+
+    public init(status: String = "ok", version: String? = "1.0.0", uptimeSeconds: Int64? = 0, database: String? = "healthy") {
+        self.status = status
+        self.version = version
+        self.uptimeSeconds = uptimeSeconds
+        self.database = database
+    }
+}
+
+public struct FamilyInviteDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let token: String
+    public let role: String
+    public let expiresAt: String?
+    public let inviteUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case token
+        case role
+        case expiresAt = "expires_at"
+        case inviteUrl = "invite_url"
+    }
+
+    public init(id: String, token: String, role: String, expiresAt: String? = nil, inviteUrl: String? = nil) {
+        self.id = id
+        self.token = token
+        self.role = role
+        self.expiresAt = expiresAt
+        self.inviteUrl = inviteUrl
+    }
+}
+
+public struct FamilyInvitesResponseDTO: Codable, Sendable {
+    public let invites: [FamilyInviteDTO]
+    public let total: Int?
+
+    public init(invites: [FamilyInviteDTO], total: Int? = nil) {
+        self.invites = invites
+        self.total = total
+    }
+}
+
+public struct CreateInviteRequestDTO: Encodable, Sendable {
+    public let role: String
+    public let expiresInHours: Int
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case expiresInHours = "expires_in_hours"
+    }
+
+    public init(role: String, expiresInHours: Int) {
+        self.role = role
+        self.expiresInHours = expiresInHours
+    }
+}
+
+public struct EntityResponseDTO: Decodable, Sendable {
+    public let id: String
+    public let name: String
+    public let domain: String
+    public let state: String
+    public let attributes: [String: AnyCodable]
+    public let areaId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case entityId = "entity_id"
+        case entityKey = "entity_key"
+        case name
+        case friendlyName = "friendly_name"
+        case domain
+        case state
+        case attributes
+        case areaId = "area_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decodeIfPresent(String.self, forKey: .id))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .entityId))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .entityKey))
+            ?? UUID().uuidString
+        self.name = (try? container.decodeIfPresent(String.self, forKey: .name))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .friendlyName))
+            ?? self.id
+        self.domain = (try? container.decodeIfPresent(String.self, forKey: .domain))
+            ?? (self.id.contains(".") ? String(self.id.split(separator: ".")[0]) : "switch")
+        self.state = (try? container.decodeIfPresent(String.self, forKey: .state)) ?? "off"
+        self.areaId = try? container.decodeIfPresent(String.self, forKey: .areaId)
+        self.attributes = (try? container.decodeIfPresent([String: AnyCodable].self, forKey: .attributes)) ?? [:]
+    }
+}
+
 
 public enum DomusNetworkError: Error, LocalizedError {
     case invalidURL(String)

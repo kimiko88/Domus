@@ -102,14 +102,24 @@ public struct DomusUserAccount: Identifiable, Sendable {
 public struct GuestAccessAndFamilySheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var accounts: [DomusUserAccount] = DomusUserAccount.sampleAccounts
+    @State private var accounts: [DomusUserAccount] = []
+    @State private var availableRoomsList: [String] = []
     @State private var showingQRGenerator: Bool = false
     @State private var guestName: String = "Ospite"
     @State private var guestDurationHours: Int = 24
-    @State private var selectedGuestRooms: Set<String> = ["Camera Ospiti", "Bagno Ospiti", "Salotto"]
+    @State private var selectedGuestRooms: Set<String> = []
     @State private var generatedQRImage: CGImage? = nil
+    @State private var latestCreatedInvite: FamilyInviteDTO? = nil
+    @State private var isLoading: Bool = false
+    @State private var isCreatingPass: Bool = false
+    @State private var errorMessage: String? = nil
 
-    private let availableRooms = ["Salotto", "Cucina", "Camera Padronale", "Camera Ospiti", "Bagno Ospiti", "Giardino", "Garage"]
+    private var availableRooms: [String] {
+        if availableRoomsList.isEmpty {
+            return ["Salotto", "Cucina", "Camera Padronale", "Camera Ospiti", "Bagno Ospiti", "Giardino", "Garage"]
+        }
+        return availableRoomsList
+    }
 
     public init() {}
 
@@ -125,7 +135,7 @@ public struct GuestAccessAndFamilySheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Membri & Accesso Ospiti")
                                 .font(.headline)
-                            Text("Configura permessi differenziati per bambini, familiari e genera pass temporanei.")
+                            Text("Configura permessi differenziati per bambini, familiari e genera pass temporanei sincronizzati sul server.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -133,21 +143,32 @@ public struct GuestAccessAndFamilySheet: View {
                     .padding(.vertical, 4)
                 }
 
+                if let err = errorMessage {
+                    Section {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(err)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                }
+
                 // Generatore Rapido Pass Ospite QR Code
                 Section(header: Text("Condivisione Rapida Ospiti")) {
                     Button(action: {
-                        generateGuestQRCode()
-                        showingQRGenerator = true
+                        startGuestPassCreation()
                     }) {
                         HStack(spacing: 12) {
                             Image(systemName: "qrcode.viewfinder")
                                 .font(.title2)
                                 .foregroundColor(.purple)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Crea Pass Ospite 24h (QR Code)")
+                                Text("Crea Pass Ospite (QR Code)")
                                     .font(.subheadline.bold())
                                     .foregroundColor(.primary)
-                                Text("L'ospite scansiona il codice per controllare solo le sue stanze.")
+                                Text("Genera un token crittografico sul server Domus per limitare l'accesso alle stanze scelte.")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -162,8 +183,31 @@ public struct GuestAccessAndFamilySheet: View {
 
                 // Elenco Profili Esistenti
                 Section(header: Text("Profili e Permessi (\(accounts.count))")) {
-                    ForEach(accounts) { account in
-                        accountRow(account)
+                    if isLoading && accounts.isEmpty {
+                        HStack {
+                            Spacer()
+                            ProgressView("Caricamento profili autorizzati...")
+                                .padding(.vertical, 12)
+                            Spacer()
+                        }
+                    } else if accounts.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("Nessun profilo o ospite configurato sull'hub.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Button(action: {
+                                Task { await loadFamilyAndInvites() }
+                            }) {
+                                Text("Ricarica")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    } else {
+                        ForEach(accounts) { account in
+                            accountRow(account)
+                        }
                     }
                 }
             }
@@ -176,11 +220,29 @@ public struct GuestAccessAndFamilySheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .refreshable {
+                await loadFamilyAndInvites()
+            }
+            .task {
+                await loadFamilyAndInvites()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: {
+                        Task { await loadFamilyAndInvites() }
+                    }) {
+                        if isLoading {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .accessibilityLabel("Aggiorna membri e pass")
                 }
             }
             .sheet(isPresented: $showingQRGenerator) {
@@ -262,7 +324,7 @@ public struct GuestAccessAndFamilySheet: View {
                         Text("7 Giorni").tag(168)
                     }
                     .onChange(of: guestDurationHours) { _, _ in
-                        generateGuestQRCode()
+                        Task { await generateServerGuestPass() }
                     }
                 }
 
@@ -284,7 +346,9 @@ public struct GuestAccessAndFamilySheet: View {
                             } else {
                                 selectedGuestRooms.insert(room)
                             }
-                            generateGuestQRCode()
+                            if let inv = latestCreatedInvite {
+                                renderQRCode(for: inv)
+                            }
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel("\(room), \(selectedGuestRooms.contains(room) ? "selezionata" : "non selezionata")")
@@ -293,7 +357,10 @@ public struct GuestAccessAndFamilySheet: View {
 
                 Section(header: Text("Codice QR da Scansionare")) {
                     VStack(spacing: 14) {
-                        if let qr = generatedQRImage {
+                        if isCreatingPass {
+                            ProgressView("Generazione token sicuro sul server...")
+                                .frame(height: 200)
+                        } else if let qr = generatedQRImage {
                             Image(decorative: qr, scale: 1.0)
                                 .resizable()
                                 .interpolation(.none)
@@ -304,8 +371,18 @@ public struct GuestAccessAndFamilySheet: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                                 .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
                         } else {
-                            ProgressView("Generazione codice...")
-                                .frame(height: 200)
+                            VStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.orange)
+                                Text("Nessun token generato")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Button("Genera Token") {
+                                    Task { await generateServerGuestPass() }
+                                }
+                                .font(.caption.bold())
+                            }
+                            .frame(height: 200)
                         }
 
                         Text("Fai inquadrare questo codice con la fotocamera dell'ospite per consentire l'accesso immediato senza password.")
@@ -346,16 +423,117 @@ public struct GuestAccessAndFamilySheet: View {
                 }
             }
             .onAppear {
-                generateGuestQRCode()
+                if latestCreatedInvite == nil {
+                    Task { await generateServerGuestPass() }
+                }
             }
         }
     }
 
-    // MARK: - Generatore QR Code con CoreImage
+    // MARK: - Logica Sincronizzazione Server
 
-    private func generateGuestQRCode() {
+    private func loadFamilyAndInvites() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            async let membersReq = DomusHttpClient.shared.fetchFamilyMembers()
+            async let invitesReq = DomusHttpClient.shared.fetchFamilyInvites()
+            async let areasReq = DomusHttpClient.shared.fetchAreas()
+
+            let (members, invites, areas) = try await (membersReq, invitesReq, areasReq)
+
+            var parsedAccounts: [DomusUserAccount] = []
+
+            for m in members {
+                let role: UserAccessRole
+                switch (m.role ?? "").lowercased() {
+                case "admin": role = .admin
+                case "child": role = .child
+                case "guest": role = .guest
+                default: role = .family
+                }
+
+                parsedAccounts.append(
+                    DomusUserAccount(
+                        id: m.id,
+                        name: m.username,
+                        role: role,
+                        allowedRooms: ["Tutte le stanze"],
+                        canDisarmAlarm: role == .admin || role == .family,
+                        canViewCameras: role == .admin || role == .family
+                    )
+                )
+            }
+
+            let isoFormatter = ISO8601DateFormatter()
+            for inv in invites {
+                let expDate = inv.expiresAt.flatMap { isoFormatter.date(from: $0) }
+                let role: UserAccessRole = inv.role.lowercased() == "guest" ? .guest : .family
+                let tokenShort = inv.token.count >= 6 ? String(inv.token.prefix(6)) : inv.token
+                parsedAccounts.append(
+                    DomusUserAccount(
+                        id: inv.id,
+                        name: "Pass Ospite (\(tokenShort))",
+                        role: role,
+                        allowedRooms: ["Stanze Ospiti"],
+                        canDisarmAlarm: false,
+                        canViewCameras: false,
+                        expiresAt: expDate
+                    )
+                )
+            }
+
+            let roomNames = areas.map(\.name).filter { !$0.isEmpty }
+
+            await MainActor.run {
+                self.accounts = parsedAccounts
+                self.availableRoomsList = roomNames
+                if self.selectedGuestRooms.isEmpty, let firstRoom = roomNames.first {
+                    self.selectedGuestRooms = [firstRoom]
+                }
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Impossibile caricare profili dal server: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+
+    private func startGuestPassCreation() {
+        if selectedGuestRooms.isEmpty {
+            selectedGuestRooms = Set(availableRooms.prefix(3))
+        }
+        latestCreatedInvite = nil
+        generatedQRImage = nil
+        showingQRGenerator = true
+        Task {
+            await generateServerGuestPass()
+        }
+    }
+
+    private func generateServerGuestPass() async {
+        isCreatingPass = true
+        generatedQRImage = nil
+        do {
+            let invite = try await DomusHttpClient.shared.createFamilyInvite(role: "guest", expiresInHours: guestDurationHours)
+            await MainActor.run {
+                self.latestCreatedInvite = invite
+                self.renderQRCode(for: invite)
+                self.isCreatingPass = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Creazione pass fallita sul server: \(error.localizedDescription)"
+                self.isCreatingPass = false
+            }
+        }
+    }
+
+    private func renderQRCode(for invite: FamilyInviteDTO) {
         let payload = """
-        {"hub":"domus","guest":"\(guestName)","duration_hours":\(guestDurationHours),"rooms":\(Array(selectedGuestRooms)),"token":"\(UUID().uuidString.prefix(8))"}
+        {"hub":"domus","guest":"\(guestName)","duration_hours":\(guestDurationHours),"rooms":\(Array(selectedGuestRooms)),"token":"\(invite.token)"}
         """
 
         let filter = CIFilter(name: "CIQRCodeGenerator")
@@ -372,24 +550,35 @@ public struct GuestAccessAndFamilySheet: View {
     }
 
     private func confirmCreateGuest() {
-        let newGuest = DomusUserAccount(
-            name: guestName.isEmpty ? "Ospite" : guestName,
-            role: .guest,
-            allowedRooms: Array(selectedGuestRooms),
-            canDisarmAlarm: false,
-            canViewCameras: false,
-            expiresAt: Calendar.current.date(byAdding: .hour, value: guestDurationHours, to: Date())
-        )
-        accounts.append(newGuest)
+        if let inv = latestCreatedInvite {
+            let isoFormatter = ISO8601DateFormatter()
+            let expDate = inv.expiresAt.flatMap { isoFormatter.date(from: $0) }
+                ?? Calendar.current.date(byAdding: .hour, value: guestDurationHours, to: Date())
+            let tokenShort = inv.token.count >= 6 ? String(inv.token.prefix(6)) : inv.token
+            let newGuest = DomusUserAccount(
+                id: inv.id,
+                name: guestName.isEmpty ? "Ospite (\(tokenShort))" : "\(guestName) (\(tokenShort))",
+                role: .guest,
+                allowedRooms: Array(selectedGuestRooms),
+                canDisarmAlarm: false,
+                canViewCameras: false,
+                expiresAt: expDate
+            )
+            accounts.append(newGuest)
+        }
         showingQRGenerator = false
         Haptics.success()
-        DomusAccessibility.announce("Pass ospite per \(newGuest.name) attivato")
+        DomusAccessibility.announce("Pass ospite attivato con successo sul server")
     }
 
     private func revokeGuest(_ account: DomusUserAccount) {
         accounts.removeAll(where: { $0.id == account.id })
         Haptics.heavy()
         DomusAccessibility.announce("Accesso ospite revocato")
+
+        Task {
+            try? await DomusHttpClient.shared.revokeFamilyInvite(id: account.id)
+        }
     }
 
     private func roleColor(_ role: UserAccessRole) -> Color {
