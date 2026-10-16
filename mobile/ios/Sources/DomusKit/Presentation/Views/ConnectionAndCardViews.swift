@@ -73,101 +73,14 @@ public struct EntityCardView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(cardAccentColor.opacity(reduceTransparency ? 0.35 : 0.2))
-                        .frame(width: 38, height: 38)
-                    Text(domainIcon)
-                        .font(.system(size: 18))
-                }
-
-                Spacer()
-
-                if entity.isLight || entity.isSwitch {
-                    Toggle("", isOn: Binding(
-                        get: { entity.isOn },
-                        set: { _ in onToggle(entity.id) }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle(tint: cardAccentColor))
-                } else {
-                    statusBadge
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(entity.name)
-                    .font(.subheadline.bold())
-                    .lineLimit(2)
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-
-            // Barra progressiva luminosità o badge potenza istantanea
-            if entity.isLight && entity.isOn, let b = entity.brightness {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.secondary.opacity(0.2))
-                            .frame(height: 4)
-                        Capsule()
-                            .fill(cardAccentColor)
-                            .frame(width: geo.size.width * CGFloat(b) / 100.0, height: 4)
-                    }
-                }
-                .frame(height: 4)
-            } else if entity.isSwitch && entity.isOn, let watts = entity.powerWatts {
-                HStack(spacing: 4) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 9))
-                    Text(String(format: "%.0f W", watts))
-                        .font(.caption2.monospaced().bold())
-                }
-                .foregroundColor(.yellow)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.yellow.opacity(0.12))
-                .clipShape(Capsule())
-            }
+            headerSection
+            titleSection
+            bottomIndicatorSection
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.domusSecondarySystemGroupedBackground.opacity(0.85))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    cardAccentColor.opacity(entity.isOn ? 0.45 : 0.15),
-                                    cardAccentColor.opacity(entity.isOn ? 0.15 : 0.05)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(differentiateWithoutColor ? cardAccentColor.opacity(entity.isOn ? 0.9 : 0.4) : Color.clear, lineWidth: 1.5)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(entity.isOn ? cardAccentColor.opacity(0.08) : Color.clear)
-                )
-        )
+        .background(cardBackgroundView)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(
-            color: reduceMotion ? .clear : (entity.isOn ? cardAccentColor.opacity(0.18) : Color.black.opacity(0.06)),
-            radius: entity.isOn ? 10 : 4,
-            x: 0,
-            y: entity.isOn ? 4 : 2
-        )
+        .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
         .contentShape(Rectangle())
         .onTapGesture {
             onOpenDetail(entity)
@@ -177,11 +90,140 @@ public struct EntityCardView: View {
         .accessibilityValue(Text(accessibilityValueText))
         .accessibilityHint(Text("Tocca due volte per visualizzare i dettagli o controlla con le azioni del rotore"))
         .accessibilityAddTraits(entity.domain == "sensor" ? [] : .isButton)
-        .accessibilityAction(named: (entity.isLight || entity.isSwitch) ? (entity.isOn ? Text("Spegni") : Text("Accendi")) : Text("")) {
+        .accessibilityAction(named: accessibilityActionName) {
             if entity.isLight || entity.isSwitch {
                 onToggle(entity.id)
             }
         }
+    }
+
+    // MARK: - Subviews
+
+    private var headerSection: some View {
+        HStack {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(cardAccentColor.opacity(reduceTransparency ? 0.35 : 0.2))
+                    .frame(width: 38, height: 38)
+                Text(domainIcon)
+                    .font(.system(size: 18))
+            }
+
+            Spacer()
+
+            if entity.isLight || entity.isSwitch {
+                Toggle("", isOn: Binding(
+                    get: { entity.isOn },
+                    set: { _ in onToggle(entity.id) }
+                ))
+                .labelsHidden()
+                .toggleStyle(SwitchToggleStyle(tint: cardAccentColor))
+            } else {
+                statusBadge
+            }
+        }
+    }
+
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(entity.name)
+                .font(.subheadline.bold())
+                .lineLimit(2)
+
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    @ViewBuilder
+    private var bottomIndicatorSection: some View {
+        if entity.isLight && entity.isOn, let b = entity.brightness {
+            brightnessProgressBar(brightness: b)
+        } else if entity.isSwitch && entity.isOn, let watts = entity.powerWatts {
+            powerWattsBadge(watts: watts)
+        }
+    }
+
+    private func brightnessProgressBar(brightness: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(height: 4)
+                Capsule()
+                    .fill(cardAccentColor)
+                    .frame(width: geo.size.width * CGFloat(brightness) / 100.0, height: 4)
+            }
+        }
+        .frame(height: 4)
+    }
+
+    private func powerWattsBadge(watts: Double) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 9))
+            Text(String(format: "%.0f W", watts))
+                .font(.caption2.monospaced().bold())
+        }
+        .foregroundColor(.yellow)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.yellow.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private var cardBackgroundView: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.domusSecondarySystemGroupedBackground.opacity(0.85))
+            .overlay(cardGradientBorder)
+            .overlay(cardHighContrastBorder)
+            .overlay(cardActiveTintOverlay)
+    }
+
+    private var cardGradientBorder: some View {
+        let opacity1: Double = entity.isOn ? 0.45 : 0.15
+        let opacity2: Double = entity.isOn ? 0.15 : 0.05
+        let gradient = LinearGradient(
+            colors: [cardAccentColor.opacity(opacity1), cardAccentColor.opacity(opacity2)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        return RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .stroke(gradient, lineWidth: 1)
+    }
+
+    private var cardHighContrastBorder: some View {
+        let strokeColor: Color = differentiateWithoutColor ? cardAccentColor.opacity(entity.isOn ? 0.9 : 0.4) : Color.clear
+        return RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .stroke(strokeColor, lineWidth: 1.5)
+    }
+
+    private var cardActiveTintOverlay: some View {
+        let fillColor: Color = entity.isOn ? cardAccentColor.opacity(0.08) : Color.clear
+        return RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(fillColor)
+    }
+
+    private var shadowColor: Color {
+        if reduceMotion { return .clear }
+        return entity.isOn ? cardAccentColor.opacity(0.18) : Color.black.opacity(0.06)
+    }
+
+    private var shadowRadius: CGFloat {
+        entity.isOn ? 10 : 4
+    }
+
+    private var shadowY: CGFloat {
+        entity.isOn ? 4 : 2
+    }
+
+    private var accessibilityActionName: Text {
+        guard entity.isLight || entity.isSwitch else {
+            return Text("")
+        }
+        return entity.isOn ? Text("Spegni") : Text("Accendi")
     }
 
     // MARK: - Helpers
