@@ -31,6 +31,7 @@ import com.domus.app.presentation.theme.RoseDanger
 import com.domus.app.presentation.theme.Slate700
 import com.domus.app.presentation.theme.Slate800
 import com.domus.app.presentation.theme.Slate900
+import com.domus.app.presentation.viewmodel.DashboardViewModel
 import kotlinx.coroutines.launch
 
 data class ChatMessage(
@@ -51,6 +52,7 @@ data class ActionCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantChatScreen(
+    viewModel: DashboardViewModel? = null,
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -63,27 +65,10 @@ fun AssistantChatScreen(
     val messages = remember {
         mutableStateListOf(
             ChatMessage(
-                id = "1",
+                id = "welcome",
                 text = "Ciao! Sono il tuo assistente locale Domus. Come posso aiutarti con la tua casa?",
                 isUser = false,
-                timestamp = "12:00"
-            ),
-            ChatMessage(
-                id = "2",
-                text = "Accendi le luci del salotto all'80%",
-                isUser = true,
-                timestamp = "12:01"
-            ),
-            ChatMessage(
-                id = "3",
-                text = "Ho regolato l'illuminazione del salotto all'80% per te.",
-                isUser = false,
-                timestamp = "12:01",
-                executedAction = ActionCard(
-                    title = "light.salotto • Luminosità 80%",
-                    domain = "light",
-                    status = "Eseguito con successo"
-                )
+                timestamp = "Ora"
             )
         )
     }
@@ -122,41 +107,35 @@ fun AssistantChatScreen(
             id = System.currentTimeMillis().toString(),
             text = text.trim(),
             isUser = true,
-            timestamp = "12:02"
+            timestamp = "Ora"
         )
         messages.add(userMsg)
         inputText = ""
 
-        // Automated smart assistant response
         coroutineScope.launch {
-            kotlinx.coroutines.delay(600)
-            val reply = when {
-                text.contains("spegni", ignoreCase = true) -> ChatMessage(
-                    id = (System.currentTimeMillis() + 1).toString(),
-                    text = "Ho spento le luci richieste.",
+            val response = viewModel?.sendAssistantPrompt(text.trim())
+            val reply = if (response != null) {
+                val action = response.actions_executed.firstOrNull()?.let {
+                    ActionCard(
+                        title = "${it.entity_key} • ${it.service}",
+                        domain = it.entity_key.substringBefore("."),
+                        status = if (it.success) "Eseguito con successo" else "Errore esecuzione",
+                        isSuccess = it.success
+                    )
+                }
+                ChatMessage(
+                    id = System.currentTimeMillis().toString(),
+                    text = response.response_text.ifBlank { "Comando elaborato con successo." },
                     isUser = false,
-                    timestamp = "12:02",
-                    executedAction = ActionCard("light.all_off", "light", "Tutte le luci spente")
+                    timestamp = "Ora",
+                    executedAction = action
                 )
-                text.contains("allarme", ignoreCase = true) -> ChatMessage(
-                    id = (System.currentTimeMillis() + 1).toString(),
-                    text = "Allarme impostato in modalità Perimetrale Notte.",
+            } else {
+                ChatMessage(
+                    id = System.currentTimeMillis().toString(),
+                    text = "Impossibile contattare l'assistente locale. Verifica la connessione al server Domus.",
                     isUser = false,
-                    timestamp = "12:02",
-                    executedAction = ActionCard("alarm.arm_home", "alarm", "Armato: Notturno")
-                )
-                text.contains("termostato", ignoreCase = true) || text.contains("temperatura", ignoreCase = true) -> ChatMessage(
-                    id = (System.currentTimeMillis() + 1).toString(),
-                    text = "Target temperatura impostato a 21.0°C in tutta la casa.",
-                    isUser = false,
-                    timestamp = "12:02",
-                    executedAction = ActionCard("climate.set_temp", "climate", "Target 21.0°C applicato")
-                )
-                else -> ChatMessage(
-                    id = (System.currentTimeMillis() + 1).toString(),
-                    text = "Comando ricevuto e interpretato dal modello locale LLM.",
-                    isUser = false,
-                    timestamp = "12:02"
+                    timestamp = "Ora"
                 )
             }
             messages.add(reply)
@@ -377,14 +356,6 @@ fun AssistantChatScreen(
                     .size(48.dp)
                     .clickable {
                         isListening = !isListening
-                        if (isListening) {
-                            // Simulated speech query completion
-                            coroutineScope.launch {
-                                kotlinx.coroutines.delay(2200)
-                                isListening = false
-                                sendMessage("Mostra telecamera giardino")
-                            }
-                        }
                     }
             ) {
                 Box(contentAlignment = Alignment.Center) {

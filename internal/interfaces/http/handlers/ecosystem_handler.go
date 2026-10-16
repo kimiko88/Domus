@@ -187,6 +187,14 @@ func (h *EcosystemHandler) ScanTag(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Actionable Notifications ---
+func (h *EcosystemHandler) ListActionableNotifications(w http.ResponseWriter, r *http.Request) {
+	list := h.notifMgr.ListNotifications(r.Context())
+	if list == nil {
+		list = []*appNotif.ActionableNotification{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
 func (h *EcosystemHandler) CreateActionableNotification(w http.ResponseWriter, r *http.Request) {
 	var req appNotif.ActionableNotification
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

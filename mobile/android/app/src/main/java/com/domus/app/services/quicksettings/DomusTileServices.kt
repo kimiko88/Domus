@@ -9,12 +9,18 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.annotation.RequiresApi
 import com.domus.app.MainActivity
+import com.domus.app.data.network.DomusApiClient
+import com.domus.app.data.storage.SharedPreferencesTokenStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * 1. Quick Settings Tile: Apertura rapida cancello o portone d'ingresso.
  */
 @RequiresApi(Build.VERSION_CODES.N)
 class DomusGateTileService : TileService() {
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartListening() {
         super.onStartListening()
@@ -33,12 +39,18 @@ class DomusGateTileService : TileService() {
         tile.subtitle = "Apertura in corso..."
         tile.updateTile()
 
-        // Send gate trigger command via background service or intent
-        Handler(Looper.getMainLooper()).postDelayed({
-            tile.state = Tile.STATE_INACTIVE
-            tile.subtitle = "Aperto"
-            tile.updateTile()
-        }, 1500)
+        scope.launch {
+            val storage = SharedPreferencesTokenStorage(applicationContext)
+            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
+            val token = storage.getToken()
+            DomusApiClient().callService(baseUrl, token, "cover", "open_cover", "cover.cancello")
+
+            Handler(Looper.getMainLooper()).post {
+                tile.state = Tile.STATE_INACTIVE
+                tile.subtitle = "Aperto"
+                tile.updateTile()
+            }
+        }
     }
 }
 
@@ -49,6 +61,7 @@ class DomusGateTileService : TileService() {
 class DomusAlarmTileService : TileService() {
 
     private var isArmed = false
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartListening() {
         super.onStartListening()
@@ -67,6 +80,14 @@ class DomusAlarmTileService : TileService() {
     private fun toggleAlarm() {
         isArmed = !isArmed
         updateTileState()
+
+        scope.launch {
+            val storage = SharedPreferencesTokenStorage(applicationContext)
+            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
+            val token = storage.getToken()
+            val service = if (isArmed) "alarm_arm_home" else "alarm_disarm"
+            DomusApiClient().callService(baseUrl, token, "alarm_control_panel", service, "alarm.home")
+        }
 
         if (!isArmed) {
             // If disarming, prompt for PIN or Biometrics by launching Domus app
@@ -92,6 +113,7 @@ class DomusAlarmTileService : TileService() {
  */
 @RequiresApi(Build.VERSION_CODES.N)
 class DomusLightTileService : TileService() {
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartListening() {
         super.onStartListening()
@@ -107,14 +129,21 @@ class DomusLightTileService : TileService() {
         val tile = qsTile ?: return
 
         tile.state = Tile.STATE_ACTIVE
-        tile.subtitle = "Luci Spente ✓"
+        tile.subtitle = "Invio comando..."
         tile.updateTile()
 
-        Handler(Looper.getMainLooper()).postDelayed({
-            tile.state = Tile.STATE_INACTIVE
-            tile.subtitle = "Spegni Tutte"
-            tile.updateTile()
-        }, 2000)
+        scope.launch {
+            val storage = SharedPreferencesTokenStorage(applicationContext)
+            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
+            val token = storage.getToken()
+            DomusApiClient().callService(baseUrl, token, "light", "turn_off", "light.all")
+
+            Handler(Looper.getMainLooper()).post {
+                tile.state = Tile.STATE_INACTIVE
+                tile.subtitle = "Luci Spente ✓"
+                tile.updateTile()
+            }
+        }
     }
 }
 
@@ -125,6 +154,7 @@ class DomusLightTileService : TileService() {
 class DomusSceneTileService : TileService() {
 
     private var currentScene = "Buonanotte"
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartListening() {
         super.onStartListening()
@@ -143,11 +173,19 @@ class DomusSceneTileService : TileService() {
         tile.subtitle = "Attivazione $currentScene..."
         tile.updateTile()
 
-        Handler(Looper.getMainLooper()).postDelayed({
-            currentScene = if (currentScene == "Buonanotte") "Rientro Casa" else "Buonanotte"
-            tile.state = Tile.STATE_INACTIVE
-            tile.subtitle = currentScene
-            tile.updateTile()
-        }, 1200)
+        scope.launch {
+            val storage = SharedPreferencesTokenStorage(applicationContext)
+            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
+            val token = storage.getToken()
+            val sceneId = if (currentScene == "Buonanotte") "scene.buonanotte" else "scene.rientro"
+            DomusApiClient().callService(baseUrl, token, "scene", "turn_on", sceneId)
+
+            Handler(Looper.getMainLooper()).post {
+                currentScene = if (currentScene == "Buonanotte") "Rientro Casa" else "Buonanotte"
+                tile.state = Tile.STATE_INACTIVE
+                tile.subtitle = currentScene
+                tile.updateTile()
+            }
+        }
     }
 }

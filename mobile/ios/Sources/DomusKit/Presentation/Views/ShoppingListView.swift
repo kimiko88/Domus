@@ -33,16 +33,12 @@ public struct ShoppingItem: Identifiable, Codable, Sendable, Equatable {
 public struct ShoppingListView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var items: [ShoppingItem] = [
-        ShoppingItem(title: "Latte di avena", quantity: "2L", category: "Latticini & Bevande", completed: false),
-        ShoppingItem(title: "Mele Golden", quantity: "1 kg", category: "Ortofrutta", completed: false),
-        ShoppingItem(title: "Pasta integrale", quantity: "500g", category: "Dispensa", completed: true),
-        ShoppingItem(title: "Detersivo piatti ecologico", quantity: "1 flacone", category: "Cura Casa", completed: false)
-    ]
+    @State private var items: [ShoppingItem] = []
     @State private var newTitle: String = ""
     @State private var newQuantity: String = "1"
     @State private var selectedCategory: String = "Dispensa"
     @State private var isAdding: Bool = false
+    @State private var isLoading: Bool = false
 
     private let categories = ["Ortofrutta", "Latticini & Bevande", "Dispensa", "Cura Casa", "Altro"]
 
@@ -60,25 +56,66 @@ public struct ShoppingListView: View {
                         .padding(.top, 10)
                         .padding(.bottom, 6)
 
+                    // Categoria rapida
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(categories, id: \.self) { cat in
+                                Button(action: {
+                                    selectedCategory = cat
+                                }) {
+                                    Text(cat)
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(selectedCategory == cat ? Color.cyan : Color.secondary.opacity(0.12))
+                                        .foregroundColor(selectedCategory == cat ? .black : .primary)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 4)
+                    }
+
                     // Lista raggruppata per categoria
-                    List {
-                        ForEach(categories, id: \.self) { cat in
-                            let catItems = items.filter { $0.category == cat }
-                            if !catItems.isEmpty {
-                                Section(header: Text(cat).font(.headline).foregroundColor(.primary)) {
-                                    ForEach(catItems) { item in
-                                        ShoppingItemRow(item: item) {
-                                            toggleItem(item)
+                    if isLoading && items.isEmpty {
+                        Spacer()
+                        ProgressView("Caricamento lista della spesa...")
+                        Spacer()
+                    } else if items.isEmpty {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "cart")
+                                .font(.system(size: 44))
+                                .foregroundColor(.secondary)
+                            Text("Lista della spesa vuota")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            Text("Aggiungi articoli usando la barra in alto")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    } else {
+                        List {
+                            ForEach(categories, id: \.self) { cat in
+                                let catItems = items.filter { $0.category == cat }
+                                if !catItems.isEmpty {
+                                    Section(header: Text(cat).font(.headline).foregroundColor(.primary)) {
+                                        ForEach(catItems) { item in
+                                            ShoppingItemRow(item: item) {
+                                                toggleItem(item)
+                                            }
                                         }
-                                    }
-                                    .onDelete { indexSet in
-                                        deleteItems(at: indexSet, in: cat)
+                                        .onDelete { indexSet in
+                                            deleteItems(at: indexSet, in: cat)
+                                        }
                                     }
                                 }
                             }
                         }
+                        .listStyle(.insetGrouped)
                     }
-                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Lista della Spesa")
@@ -99,6 +136,12 @@ public struct ShoppingListView: View {
                             .font(.system(size: 18))
                     }
                 }
+            }
+            .task {
+                await loadItems()
+            }
+            .refreshable {
+                await loadItems()
             }
         }
     }
@@ -129,46 +172,85 @@ public struct ShoppingListView: View {
         }
     }
 
-    private func addItem() {
-        guard !newTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        let newItem = ShoppingItem(
-            title: newTitle.trimmingCharacters(in: .whitespaces),
-            quantity: newQuantity.isEmpty ? "1" : newQuantity,
-            category: selectedCategory,
-            completed: false
-        )
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            items.insert(newItem, at: 0)
-            newTitle = ""
-            newQuantity = "1"
+    private func loadItems() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let dtos = try await DomusHttpClient.shared.fetchShopping()
+            self.items = dtos.map {
+                ShoppingItem(
+                    id: $0.id,
+                    title: $0.title,
+                    quantity: $0.quantity,
+                    category: $0.category,
+                    completed: $0.completed,
+                    completedBy: $0.completedBy,
+                    createdAt: $0.createdAt ?? ""
+                )
+            }
+        } catch {
+            // Rete non raggiungibile
         }
-        #if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #endif
+    }
+
+    private func addItem() {
+        let title = newTitle.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        let qty = newQuantity.isEmpty ? "1" : newQuantity
+        let cat = selectedCategory
+        newTitle = ""
+        newQuantity = "1"
+
+        Task {
+            do {
+                _ = try await DomusHttpClient.shared.createShopping(title: title, quantity: qty, category: cat)
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                #endif
+                await loadItems()
+            } catch {
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                #endif
+            }
+        }
     }
 
     private func toggleItem(_ item: ShoppingItem) {
-        if let idx = items.firstIndex(where: { $0.id == item.id }) {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                items[idx].completed.toggle()
+        Task {
+            do {
+                _ = try await DomusHttpClient.shared.toggleShopping(id: item.id)
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+                await loadItems()
+            } catch {
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                #endif
             }
-            #if canImport(UIKit)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            #endif
         }
     }
 
     private func deleteItems(at offsets: IndexSet, in category: String) {
         let catItems = items.filter { $0.category == category }
-        let toRemove = offsets.map { catItems[$0] }
-        withAnimation {
-            items.removeAll { toRemove.contains($0) }
+        for index in offsets {
+            let item = catItems[index]
+            Task {
+                try? await DomusHttpClient.shared.deleteShopping(id: item.id)
+                await loadItems()
+            }
         }
     }
 
     private func clearCompleted() {
-        withAnimation(.easeInOut) {
-            items.removeAll { $0.completed }
+        Task {
+            do {
+                try await DomusHttpClient.shared.clearCompletedShopping()
+                await loadItems()
+            } catch {
+                // Rete non raggiungibile
+            }
         }
     }
 }

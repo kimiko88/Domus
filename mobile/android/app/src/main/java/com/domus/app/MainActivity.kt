@@ -51,7 +51,9 @@ class MainActivity : ComponentActivity() {
             connectionRepository = connectionRepo,
             discoverAndConnectUseCase = discoverUseCase,
             syncEntitiesUseCase = syncUseCase,
-            toggleEntityUseCase = toggleUseCase
+            toggleEntityUseCase = toggleUseCase,
+            apiClient = apiClient,
+            tokenStorage = tokenStorage
         )
 
         setContent {

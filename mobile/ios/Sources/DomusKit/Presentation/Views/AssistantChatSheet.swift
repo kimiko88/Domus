@@ -167,31 +167,34 @@ public struct AssistantChatSheet: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
 
-        // Simulazione risposta AI con esecuzione comando
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isProcessing = false
-            let lower = text.lowercased()
-            let responseText: String
-            let action: String?
-
-            if lower.contains("spegni") && lower.contains("luci") {
-                responseText = "Ho spento tutte le luci attive dell'abitazione."
-                action = "light.turn_off [all_lights] -> Eseguito"
-            } else if lower.contains("temperatura") {
-                responseText = "La temperatura media rilevata in casa è di 21.2°C con umidità al 48%."
-                action = "sensor.temperature [living_room] -> Letto"
-            } else if lower.contains("buonanotte") {
-                responseText = "Scenario Buonanotte attivato: luci spente, tapparelle abbassate e allarme perimetrale inserito."
-                action = "scene.activate [buonanotte] -> Eseguito"
-            } else {
-                responseText = "Ho compreso la tua richiesta: '\(text)'. Tutto è stato allineato e verificato nel sistema domotico."
-                action = nil
+        Task {
+            do {
+                let response = try await DomusHttpClient.shared.sendAssistantPrompt(prompt: text)
+                await MainActor.run {
+                    isProcessing = false
+                    let action = response.actionsExecuted?.joined(separator: ", ")
+                    messages.append(AssistantMessage(
+                        text: response.responseText,
+                        isUser: false,
+                        actionExecuted: (action?.isEmpty == false) ? action : nil
+                    ))
+                    #if canImport(UIKit)
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    #endif
+                }
+            } catch {
+                await MainActor.run {
+                    isProcessing = false
+                    messages.append(AssistantMessage(
+                        text: "Errore durante la comunicazione con l'assistente: \(error.localizedDescription)",
+                        isUser: false,
+                        actionExecuted: nil
+                    ))
+                    #if canImport(UIKit)
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    #endif
+                }
             }
-
-            messages.append(AssistantMessage(text: responseText, isUser: false, actionExecuted: action))
-            #if canImport(UIKit)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            #endif
         }
     }
 

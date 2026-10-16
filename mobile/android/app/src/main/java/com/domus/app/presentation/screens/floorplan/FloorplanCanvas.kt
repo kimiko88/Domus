@@ -75,15 +75,29 @@ fun FloorplanCanvas(
         )
     }
 
-    val markers = remember {
-        mutableStateListOf(
-            FloorplanMarker("light.salotto", "Luce Salotto", "light", 0.30f, 0.25f, isOn = true, valueText = "80%"),
-            FloorplanMarker("sensor.temp_salotto", "Sensore Clima", "climate", 0.48f, 0.15f, isOn = true, valueText = "21.5°C"),
-            FloorplanMarker("light.camera", "Luce Camera", "light", 0.78f, 0.25f, isOn = false, valueText = "Off"),
-            FloorplanMarker("camera.ingresso", "Cam Ingresso", "camera", 0.07f, 0.10f, isOn = true, valueText = "Live"),
-            FloorplanMarker("light.studio", "Luce Studio", "light", 0.50f, 0.70f, isOn = true, valueText = "100%"),
-            FloorplanMarker("switch.presa_pc", "Presa PC", "switch", 0.42f, 0.82f, isOn = true, valueText = "142W")
-        )
+    val markers = remember(entities) {
+        if (entities.isEmpty()) {
+            emptyList()
+        } else {
+            entities.take(12).mapIndexed { index, entity ->
+                val x = 0.15f + (index % 3) * 0.35f
+                val y = 0.18f + (index / 3) * 0.26f
+                FloorplanMarker(
+                    entityId = entity.id,
+                    label = entity.name,
+                    domain = entity.domain,
+                    normalizedX = x.coerceIn(0.08f, 0.92f),
+                    normalizedY = y.coerceIn(0.12f, 0.88f),
+                    isOn = entity.isOn,
+                    valueText = when {
+                        entity.domain == "climate" -> "${entity.attributes["temperature"] ?: "21.0"}°C"
+                        entity.domain == "light" && entity.isOn -> "${entity.attributes["brightness"] ?: "On"}"
+                        entity.isOn -> "On"
+                        else -> "Off"
+                    }
+                )
+            }
+        }
     }
 
     Column(

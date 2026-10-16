@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0B1120</color>
+    <color name="domus_primary">#0EA5E9</color>
+    <color name="domus_accent">#38BDF8</color>
+    <color name="domus_dark_bg">#0B1120</color>
+</resources>

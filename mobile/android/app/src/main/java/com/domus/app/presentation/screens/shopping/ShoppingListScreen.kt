@@ -30,6 +30,7 @@ import com.domus.app.presentation.theme.RoseDanger
 import com.domus.app.presentation.theme.Slate700
 import com.domus.app.presentation.theme.Slate800
 import com.domus.app.presentation.theme.Slate900
+import com.domus.app.presentation.viewmodel.DashboardViewModel
 
 data class ShoppingItem(
     val id: String,
@@ -41,18 +42,25 @@ data class ShoppingItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShoppingListScreen(
+    viewModel: DashboardViewModel? = null,
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val items = remember {
-        mutableStateListOf(
-            ShoppingItem("1", "Mele Gala & Banane Bio", "Ortofrutta", isCompleted = false),
-            ShoppingItem("2", "Latte di Avena Integrale", "Latticini & Freschi", isCompleted = true),
-            ShoppingItem("3", "Caffè in Grani Arabica", "Dispensa & Colazione", isCompleted = false),
-            ShoppingItem("4", "Detersivo Piatti Ecologico", "Cura Casa & Pulizia", isCompleted = false),
-            ShoppingItem("5", "Parmigiano Reggiano 24 Mesi", "Latticini & Freschi", isCompleted = false),
-            ShoppingItem("6", "Pane di Segale Fresco", "Dispensa & Colazione", isCompleted = true)
-        )
+    LaunchedEffect(Unit) {
+        viewModel?.loadShopping()
+    }
+
+    val serverItems by viewModel?.shoppingItems?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+
+    val items = remember(serverItems) {
+        serverItems.map { dto ->
+            ShoppingItem(
+                id = dto.id,
+                name = dto.name,
+                category = dto.category.ifBlank { "Dispensa & Colazione" },
+                isCompleted = dto.completed
+            )
+        }
     }
 
     var newItemName by remember { mutableStateOf("") }
@@ -96,7 +104,7 @@ fun ShoppingListScreen(
 
             // Clear completed items button
             IconButton(
-                onClick = { items.removeAll { it.isCompleted } },
+                onClick = { viewModel?.clearCompletedShopping() },
                 enabled = completedCount > 0
             ) {
                 Text("🗑️", fontSize = 18.sp)
@@ -135,15 +143,7 @@ fun ShoppingListScreen(
                     Button(
                         onClick = {
                             if (newItemName.isNotBlank()) {
-                                items.add(
-                                    0,
-                                    ShoppingItem(
-                                        id = System.currentTimeMillis().toString(),
-                                        name = newItemName.trim(),
-                                        category = selectedCategory,
-                                        isCompleted = false
-                                    )
-                                )
+                                viewModel?.createShopping(newItemName.trim(), selectedCategory, "1")
                                 newItemName = ""
                             }
                         },
@@ -229,10 +229,7 @@ fun ShoppingListScreen(
                                     contentDescription = "${item.name}, ${if (item.isCompleted) "acquistato" else "da acquistare"}"
                                 }
                                 .clickable {
-                                    val index = items.indexOfFirst { it.id == item.id }
-                                    if (index != -1) {
-                                        items[index] = item.copy(isCompleted = !item.isCompleted)
-                                    }
+                                    viewModel?.toggleShopping(item.id)
                                 }
                         ) {
                             Row(

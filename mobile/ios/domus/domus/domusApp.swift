@@ -23,7 +23,7 @@ struct domusApp: App {
         // Data Layer
         let mdns         = MdnsDiscoveryEngine()
         let ws           = DualTransportWebSocketClient()
-        let http         = DomusHttpClient()
+        let http         = DomusHttpClient.shared
         let tokenStorage = KeychainManager()
         let cache        = OfflineEntityCache()
 

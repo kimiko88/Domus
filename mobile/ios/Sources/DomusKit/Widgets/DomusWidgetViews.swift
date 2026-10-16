@@ -31,24 +31,17 @@ public struct DomusWidgetEntry: TimelineEntry, Sendable {
 
     public init(
         date: Date = Date(),
-        homeTemperature: Double = 21.5,
-        activeDevicesCount: Int = 3,
-        isAlarmArmed: Bool = true,
+        homeTemperature: Double = 0.0,
+        activeDevicesCount: Int = 0,
+        isAlarmArmed: Bool = false,
         entities: [WidgetEntitySummary] = []
     ) {
         self.date = date
         self.homeTemperature = homeTemperature
         self.activeDevicesCount = activeDevicesCount
         self.isAlarmArmed = isAlarmArmed
-        self.entities = entities.isEmpty ? Self.sampleEntities : entities
+        self.entities = entities
     }
-
-    public static let sampleEntities: [WidgetEntitySummary] = [
-        WidgetEntitySummary(id: "light.living_room", name: "Salotto", domain: "light", isOn: true, icon: "lightbulb.fill", subtitle: "85%"),
-        WidgetEntitySummary(id: "switch.coffee", name: "Caffè", domain: "switch", isOn: false, icon: "powerplug.fill", subtitle: "Spenta"),
-        WidgetEntitySummary(id: "switch.gate", name: "Cancello", domain: "switch", isOn: false, icon: "door.left.hand.open", subtitle: "Chiuso"),
-        WidgetEntitySummary(id: "alarm.home", name: "Allarme", domain: "alarm", isOn: true, icon: "shield.fill", subtitle: "Armato")
-    ]
 }
 
 // MARK: - Widget Schermata Home: Taglia Piccola (systemSmall)

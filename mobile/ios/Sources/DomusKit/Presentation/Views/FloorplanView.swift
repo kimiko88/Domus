@@ -211,7 +211,7 @@ public struct FloorplanView: View {
 
         return HStack(spacing: 8) {
             // Nodo Luce
-            if let lightId = room.lightEntityId, let light = entities.first(where: { $0.id == lightId }) {
+            if let light = findRoomLight(room) {
                 Button(action: {
                     Haptics.medium()
                     onToggleEntity(light.id)
@@ -228,7 +228,7 @@ public struct FloorplanView: View {
             }
 
             // Nodo Clima
-            if let climateId = room.climateEntityId, let climate = entities.first(where: { $0.id == climateId }) {
+            if let climate = findRoomClimate(room) {
                 Button(action: {
                     Haptics.light()
                     onSelectEntityForDetail(climate)
@@ -253,11 +253,26 @@ public struct FloorplanView: View {
         .position(x: rx + rw / 2, y: ry + rh / 2 + 10)
     }
 
-    private func isRoomLightOn(_ room: FloorplanRoom) -> Bool {
-        guard let lightId = room.lightEntityId, let light = entities.first(where: { $0.id == lightId }) else {
-            return false
+    private func findRoomLight(_ room: FloorplanRoom) -> Entity? {
+        if let lightId = room.lightEntityId, let light = entities.first(where: { $0.id == lightId }) {
+            return light
         }
-        return light.isOn
+        return entities.first { ent in
+            ent.domain == "light" && (ent.areaId == room.id || ent.id.lowercased().contains(room.id) || ent.name.lowercased().contains(room.name.lowercased()))
+        }
+    }
+
+    private func findRoomClimate(_ room: FloorplanRoom) -> Entity? {
+        if let climateId = room.climateEntityId, let climate = entities.first(where: { $0.id == climateId }) {
+            return climate
+        }
+        return entities.first { ent in
+            ent.domain == "climate" && (ent.areaId == room.id || ent.id.lowercased().contains(room.id) || ent.name.lowercased().contains(room.name.lowercased()))
+        }
+    }
+
+    private func isRoomLightOn(_ room: FloorplanRoom) -> Bool {
+        return findRoomLight(room)?.isOn ?? false
     }
 
     private func legendItem(title: String, color: Color, icon: String) -> some View {

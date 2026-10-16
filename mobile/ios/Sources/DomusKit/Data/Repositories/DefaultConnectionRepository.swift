@@ -55,6 +55,7 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
                     connection.localAddress = discovered
                     connection.activeUrl = wsURL
                     connection.isConnected = true
+                    await DomusHttpClient.shared.configure(baseURL: discovered, token: token)
                     return
                 }
                 throw DomusNetworkError.notConnected
@@ -65,6 +66,7 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
             connection.localAddress = local
             connection.activeUrl = wsURL
             connection.isConnected = true
+            await DomusHttpClient.shared.configure(baseURL: local, token: token)
 
         case .remoteTls:
             guard let remote = remoteAddress else {
@@ -76,6 +78,7 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
             connection.remoteAddress = remote
             connection.activeUrl = wsURL
             connection.isConnected = true
+            await DomusHttpClient.shared.configure(baseURL: remote, token: token)
 
         default:
             throw DomusNetworkError.notConnected

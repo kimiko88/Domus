@@ -31,6 +31,7 @@ import com.domus.app.presentation.theme.RoseDanger
 import com.domus.app.presentation.theme.Slate700
 import com.domus.app.presentation.theme.Slate800
 import com.domus.app.presentation.theme.Slate900
+import com.domus.app.presentation.viewmodel.DashboardViewModel
 
 data class HeavyConsumer(
     val id: String,
@@ -43,26 +44,40 @@ data class HeavyConsumer(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnergyScreen(
+    viewModel: DashboardViewModel? = null,
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // Energy nodes metrics
-    var solarWatts by remember { mutableStateOf(3420) }
-    var homeWatts by remember { mutableStateOf(2150) }
-    var batteryWatts by remember { mutableStateOf(850) }
-    var batteryPercentage by remember { mutableStateOf(84) }
-    var gridWatts by remember { mutableStateOf(-420) } // Negative = Exporting to grid
+    LaunchedEffect(Unit) {
+        viewModel?.loadEnergyFlow()
+    }
 
-    var contractLimitKw by remember { mutableStateOf(4.5f) }
+    val serverFlow by viewModel?.energyFlow?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    // Energy nodes metrics
+    val solarWatts = serverFlow?.solar_watts?.toInt() ?: 0
+    val homeWatts = serverFlow?.house_consumption_watts?.toInt() ?: 0
+    val batteryWatts = serverFlow?.battery_watts?.toInt() ?: 0
+    val batteryPercentage = serverFlow?.battery_soc?.toInt() ?: 0
+    val gridWatts = serverFlow?.grid_watts?.toInt() ?: 0 // Negative = Exporting to grid
+
+    val contractLimitKw = 4.5f
     val punTariffEur = 0.128 // €/kWh PUN attuale
 
-    val consumers = remember {
-        mutableStateListOf(
-            HeavyConsumer("1", "Pompa di Calore (HVAC)", 1250, 1, isEnabled = true),
-            HeavyConsumer("2", "Colonnina Wallbox Auto", 2300, 4, isEnabled = false),
-            HeavyConsumer("3", "Forno Elettrico Cucina", 1800, 2, isEnabled = false),
-            HeavyConsumer("4", "Lavatrice con Asciugatrice", 900, 3, isEnabled = true)
-        )
+    val entities by viewModel?.filteredEntities?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+    val consumers = remember(entities) {
+        entities.filter { it.domain == "switch" || it.domain == "climate" || it.domain == "heater" }.take(6).mapIndexed { i, e ->
+            val power = (e.attributes["current_power_w"] as? Number)?.toInt()
+                ?: (e.attributes["power"] as? Number)?.toInt()
+                ?: (if (e.isOn) 1200 else 0)
+            HeavyConsumer(
+                id = e.id,
+                name = e.name,
+                powerWatts = power,
+                priority = i + 1,
+                isEnabled = e.isOn
+            )
+        }
     }
 
     // Animated energy particles line effect
@@ -359,10 +374,7 @@ fun EnergyScreen(
                         Switch(
                             checked = consumer.isEnabled,
                             onCheckedChange = {
-                                val idx = consumers.indexOfFirst { c -> c.id == consumer.id }
-                                if (idx != -1) {
-                                    consumers[idx] = consumer.copy(isEnabled = it)
-                                }
+                                viewModel?.toggleEntity(consumer.id)
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,

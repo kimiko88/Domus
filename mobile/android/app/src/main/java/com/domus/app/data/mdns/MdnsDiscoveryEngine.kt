@@ -54,6 +54,7 @@ class MdnsDiscoveryEngine(
 
                     override fun onDiscoveryStopped(serviceType: String?) {}
 
+                    @Suppress("DEPRECATION")
                     override fun onServiceFound(serviceInfo: NsdServiceInfo?) {
                         serviceInfo?.let { info ->
                             nsdManager.resolveService(info, object : NsdManager.ResolveListener {

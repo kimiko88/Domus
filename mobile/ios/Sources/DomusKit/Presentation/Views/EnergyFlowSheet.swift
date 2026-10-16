@@ -3,11 +3,11 @@ import SwiftUI
 public struct EnergyFlowSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var solarPowerWatts: Double = 3450.0
-    @State private var gridPowerWatts: Double = -1200.0 // Negativo = immissione in rete
-    @State private var batteryPowerWatts: Double = 800.0 // Ricarica
-    @State private var batteryLevelPercent: Int = 82
-    @State private var homeConsumptionWatts: Double = 1450.0
+    @State private var solarPowerWatts: Double = 0.0
+    @State private var gridPowerWatts: Double = 0.0
+    @State private var batteryPowerWatts: Double = 0.0
+    @State private var batteryLevelPercent: Int = 0
+    @State private var homeConsumptionWatts: Double = 0.0
     @State private var loadSheddingLimitKw: Double = 4.5
     @State private var currentTariffEurKwh: Double = 0.185
 
@@ -46,6 +46,25 @@ public struct EnergyFlowSheet: View {
                     }
                 }
             }
+            .task {
+                await loadEnergyFlow()
+            }
+            .refreshable {
+                await loadEnergyFlow()
+            }
+        }
+    }
+
+    private func loadEnergyFlow() async {
+        do {
+            let flow = try await DomusHttpClient.shared.fetchEnergyFlow()
+            self.solarPowerWatts = flow.solarWatts
+            self.gridPowerWatts = flow.gridWatts
+            self.batteryPowerWatts = flow.batteryWatts
+            self.batteryLevelPercent = Int(flow.batterySoc)
+            self.homeConsumptionWatts = flow.houseConsumptionWatts
+        } catch {
+            // Rete non raggiungibile
         }
     }
 

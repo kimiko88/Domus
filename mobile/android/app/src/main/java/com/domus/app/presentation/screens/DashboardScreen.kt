@@ -248,7 +248,7 @@ fun DashboardScreen(
             onDismissRequest = { showShoppingSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            ShoppingListScreen(onDismiss = { showShoppingSheet = false })
+            ShoppingListScreen(viewModel = viewModel, onDismiss = { showShoppingSheet = false })
         }
     }
 
@@ -257,7 +257,7 @@ fun DashboardScreen(
             onDismissRequest = { showAssistantSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            AssistantChatScreen(onDismiss = { showAssistantSheet = false })
+            AssistantChatScreen(viewModel = viewModel, onDismiss = { showAssistantSheet = false })
         }
     }
 
@@ -266,7 +266,7 @@ fun DashboardScreen(
             onDismissRequest = { showChoresSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            ChoresScreen(onDismiss = { showChoresSheet = false })
+            ChoresScreen(viewModel = viewModel, onDismiss = { showChoresSheet = false })
         }
     }
 
@@ -275,7 +275,7 @@ fun DashboardScreen(
             onDismissRequest = { showEnergySheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            EnergyScreen(onDismiss = { showEnergySheet = false })
+            EnergyScreen(viewModel = viewModel, onDismiss = { showEnergySheet = false })
         }
     }
 
@@ -284,7 +284,7 @@ fun DashboardScreen(
             onDismissRequest = { showNotificationsSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
-            NotificationHistoryScreen(onDismiss = { showNotificationsSheet = false })
+            NotificationHistoryScreen(viewModel = viewModel, onDismiss = { showNotificationsSheet = false })
         }
     }
 
@@ -306,7 +306,9 @@ fun DashboardScreen(
         LightControlSheet(
             entity = light,
             onToggle = { viewModel.toggleEntity(light.id) },
-            onSetBrightness = { _, _ -> /* Send brightness */ },
+            onSetBrightness = { id, brightness ->
+                viewModel.callService("light", "turn_on", id, mapOf("brightness" to brightness))
+            },
             onDismiss = { selectedLightEntity = null }
         )
     }
@@ -314,8 +316,12 @@ fun DashboardScreen(
     selectedClimateEntity?.let { climate ->
         ThermostatDial(
             entity = climate,
-            onSetTemperature = { _, _ -> /* Send target temp */ },
-            onSetMode = { _, _ -> /* Send mode */ },
+            onSetTemperature = { id, temp ->
+                viewModel.callService("climate", "set_temperature", id, mapOf("temperature" to temp))
+            },
+            onSetMode = { id, mode ->
+                viewModel.callService("climate", "set_hvac_mode", id, mapOf("hvac_mode" to mode))
+            },
             onDismiss = { selectedClimateEntity = null }
         )
     }
@@ -323,9 +329,9 @@ fun DashboardScreen(
     selectedAlarmEntity?.let { alarm ->
         AlarmBottomSheet(
             entity = alarm,
-            onArmHome = { viewModel.toggleEntity(alarm.id) },
-            onArmAway = { viewModel.toggleEntity(alarm.id) },
-            onDisarm = { _, _ -> viewModel.toggleEntity(alarm.id) },
+            onArmHome = { viewModel.callService("alarm_control_panel", "alarm_arm_home", alarm.id) },
+            onArmAway = { viewModel.callService("alarm_control_panel", "alarm_arm_away", alarm.id) },
+            onDisarm = { id, code -> viewModel.callService("alarm_control_panel", "alarm_disarm", id, mapOf("code" to code)) },
             onDismiss = { selectedAlarmEntity = null }
         )
     }

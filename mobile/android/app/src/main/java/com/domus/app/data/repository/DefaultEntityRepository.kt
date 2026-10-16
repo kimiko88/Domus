@@ -129,7 +129,7 @@ class DefaultEntityRepository(
             ?: "http://192.168.1.100:8080"
         val token = tokenStorage.getToken()
 
-        return apiClient.callService(baseUrl, token, domain, service, entityId)
+        return apiClient.callService(baseUrl, token, domain, service, entityId, data)
     }
 
     override suspend fun updateLocalEntity(entity: Entity) {

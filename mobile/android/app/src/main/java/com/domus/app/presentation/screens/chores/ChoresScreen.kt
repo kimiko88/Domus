@@ -33,6 +33,7 @@ import com.domus.app.presentation.theme.RoseDanger
 import com.domus.app.presentation.theme.Slate700
 import com.domus.app.presentation.theme.Slate800
 import com.domus.app.presentation.theme.Slate900
+import com.domus.app.presentation.viewmodel.DashboardViewModel
 
 enum class ChorePriority(val label: String, val color: Color) {
     URGENT("Urgente", RoseDanger),
@@ -55,17 +56,39 @@ data class Chore(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChoresScreen(
+    viewModel: DashboardViewModel? = null,
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val chores = remember {
-        mutableStateListOf(
-            Chore("1", "Svuotare lavastoviglie", "Cucina", "Marco", 15, ChorePriority.HIGH, "Giornaliero", isDone = false),
-            Chore("2", "Pulizia filtri condizionatore", "Salotto", "Giulia", 50, ChorePriority.URGENT, "Ogni mese", isDone = false),
-            Chore("3", "Annaffiare piante terrazzo", "Terrazzo", "Tutti", 20, ChorePriority.MEDIUM, "Ogni 2 gg", isDone = true),
-            Chore("4", "Svuotare cassetto robot aspirapolvere", "Ingresso", "Marco", 25, ChorePriority.MEDIUM, "Settimanale", isDone = false),
-            Chore("5", "Sostituire sacchetto aspirapolvere", "Ripostiglio", "Giulia", 30, ChorePriority.LOW, "Ogni 3 mesi", isDone = true)
-        )
+    LaunchedEffect(Unit) {
+        viewModel?.loadChores()
+    }
+
+    val serverChores by viewModel?.chores?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+
+    val chores = remember(serverChores) {
+        serverChores.map { dto ->
+            Chore(
+                id = dto.id,
+                title = dto.title,
+                room = dto.area_id.ifBlank { "Casa" },
+                assignee = dto.assigned_user_id.ifBlank { "Tutti" },
+                points = when (dto.priority.lowercase()) {
+                    "urgent" -> 50
+                    "high" -> 30
+                    "medium" -> 20
+                    else -> 10
+                },
+                priority = when (dto.priority.lowercase()) {
+                    "urgent" -> ChorePriority.URGENT
+                    "high" -> ChorePriority.HIGH
+                    "medium" -> ChorePriority.MEDIUM
+                    else -> ChorePriority.LOW
+                },
+                frequency = dto.recurrence_rule.ifBlank { if (dto.recurrence_type != "none") dto.recurrence_type else "Una tantum" },
+                isDone = dto.status == "completed"
+            )
+        }
     }
 
     var selectedFilter by remember { mutableStateOf("Tutti") }
@@ -218,10 +241,7 @@ fun ChoresScreen(
                             contentDescription = "${chore.title}, stanza ${chore.room}, assegnato a ${chore.assignee}, ${if (isDone) "completato" else "da fare"}"
                         }
                         .clickable {
-                            val index = chores.indexOfFirst { it.id == chore.id }
-                            if (index != -1) {
-                                chores[index] = chore.copy(isDone = !chore.isDone)
-                            }
+                            viewModel?.completeChore(chore.id)
                         }
                 ) {
                     Row(

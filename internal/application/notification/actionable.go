@@ -46,6 +46,16 @@ func NewManager(bus events.Bus) *Manager {
 	}
 }
 
+func (m *Manager) ListNotifications(ctx context.Context) []*ActionableNotification {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	res := make([]*ActionableNotification, 0, len(m.notifications))
+	for _, n := range m.notifications {
+		res = append(res, n)
+	}
+	return res
+}
+
 func (m *Manager) CreateNotification(ctx context.Context, notif *ActionableNotification) (*MobilePushPayload, error) {
 	if notif.ID == "" {
 		notif.ID = "notif_" + uuid.NewString()[:8]

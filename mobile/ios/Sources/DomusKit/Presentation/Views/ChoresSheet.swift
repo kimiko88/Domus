@@ -31,14 +31,10 @@ public struct ChoreItem: Identifiable, Sendable {
 public struct ChoresSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var chores: [ChoreItem] = [
-        ChoreItem(title: "Pulizia filtro aspirapolvere", areaName: "Soggiorno", assignedTo: "Fabrizio", priority: "high", completed: false, karmaPoints: 30),
-        ChoreItem(title: "Innaffiare le piante sul balcone", areaName: "Terrazzo", assignedTo: "Sara", priority: "medium", completed: false, karmaPoints: 15),
-        ChoreItem(title: "Svuotare la lavastoviglie", areaName: "Cucina", assignedTo: "Tutti", priority: "low", completed: true, karmaPoints: 10),
-        ChoreItem(title: "Sostituzione pastiglie anticalcare", areaName: "Bagno", assignedTo: "Fabrizio", priority: "urgent", completed: false, karmaPoints: 50)
-    ]
+    @State private var chores: [ChoreItem] = []
     @State private var selectedFilter: String = "Tutti"
-    @State private var totalKarma: Int = 145
+    @State private var totalKarma: Int = 0
+    @State private var isLoading: Bool = false
 
     private let filters = ["Tutti", "Da Fare", "Completati"]
 
@@ -66,14 +62,31 @@ public struct ChoresSheet: View {
                     .padding(.vertical, 10)
 
                     // Lista Faccende
-                    List {
-                        ForEach(filteredChores) { chore in
-                            ChoreRowView(chore: chore) {
-                                toggleChore(chore)
+                    if isLoading && chores.isEmpty {
+                        Spacer()
+                        ProgressView("Caricamento faccende...")
+                        Spacer()
+                    } else if filteredChores.isEmpty {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "checklist.checked")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text("Nessuna faccenda presente")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    } else {
+                        List {
+                            ForEach(filteredChores) { chore in
+                                ChoreRowView(chore: chore) {
+                                    toggleChore(chore)
+                                }
                             }
                         }
+                        .listStyle(.insetGrouped)
                     }
-                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Faccende & Promemoria")
@@ -84,6 +97,12 @@ public struct ChoresSheet: View {
                         dismiss()
                     }
                 }
+            }
+            .task {
+                await loadChores()
+            }
+            .refreshable {
+                await loadChores()
             }
         }
     }
@@ -121,19 +140,41 @@ public struct ChoresSheet: View {
         }
     }
 
-    private func toggleChore(_ chore: ChoreItem) {
-        if let idx = chores.firstIndex(where: { $0.id == chore.id }) {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                chores[idx].completed.toggle()
-                if chores[idx].completed {
-                    totalKarma += chores[idx].karmaPoints
-                } else {
-                    totalKarma -= chores[idx].karmaPoints
-                }
+    private func loadChores() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let dtos = try await DomusHttpClient.shared.fetchChores()
+            self.chores = dtos.map {
+                ChoreItem(
+                    id: $0.id,
+                    title: $0.title,
+                    areaName: $0.areaName,
+                    assignedTo: $0.assignedTo,
+                    priority: $0.priority,
+                    completed: $0.completed,
+                    karmaPoints: $0.karmaPoints
+                )
             }
-            #if canImport(UIKit)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            #endif
+            self.totalKarma = self.chores.filter { $0.completed }.reduce(0) { $0 + $1.karmaPoints }
+        } catch {
+            // In caso di errore di rete
+        }
+    }
+
+    private func toggleChore(_ chore: ChoreItem) {
+        Task {
+            do {
+                try await DomusHttpClient.shared.completeChore(id: chore.id)
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                #endif
+                await loadChores()
+            } catch {
+                #if canImport(UIKit)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                #endif
+            }
         }
     }
 }

@@ -31,41 +31,9 @@ public struct InAppNotificationItem: Identifiable, Sendable {
 public struct NotificationHistoryView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var notifications: [InAppNotificationItem] = [
-        InAppNotificationItem(
-            title: "Allarme Perimetrale Inserito",
-            message: "Tutti i sensori finestra del piano terra sono armati.",
-            category: "security",
-            timestamp: "10 min fa",
-            isRead: false,
-            quickAction: "Disarma"
-        ),
-        InAppNotificationItem(
-            title: "Picco Assorbimento Energetico",
-            message: "Superati 3.8 kW. Lo shedder ha temporaneamente messo in pausa la ricarica auto.",
-            category: "energy",
-            timestamp: "1 ora fa",
-            isRead: false,
-            quickAction: "Vedi Consumi"
-        ),
-        InAppNotificationItem(
-            title: "Batteria Sensore Bagno Bassa",
-            message: "Il sensore di allagamento ha carica residua al 12%.",
-            category: "devices",
-            timestamp: "3 ore fa",
-            isRead: true,
-            quickAction: nil
-        ),
-        InAppNotificationItem(
-            title: "Aggiornamento Domus OS 1.2 Disponibile",
-            message: "Partizione B pronta per l'aggiornamento atomico RAUC A/B.",
-            category: "system",
-            timestamp: "Ieri",
-            isRead: true,
-            quickAction: "Installa"
-        )
-    ]
+    @State private var notifications: [InAppNotificationItem] = []
     @State private var selectedCategory: String = "Tutte"
+    @State private var isLoading: Bool = false
 
     private let categories = ["Tutte", "security", "energy", "devices", "system"]
 
@@ -89,14 +57,31 @@ public struct NotificationHistoryView: View {
                     }
 
                     // Notifications list
-                    List {
-                        ForEach(filteredNotifications) { item in
-                            NotificationRowView(item: item) {
-                                markAsRead(item)
+                    if isLoading && notifications.isEmpty {
+                        Spacer()
+                        ProgressView("Caricamento notifiche...")
+                        Spacer()
+                    } else if filteredNotifications.isEmpty {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "bell.slash")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text("Nessuna notifica presente")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    } else {
+                        List {
+                            ForEach(filteredNotifications) { item in
+                                NotificationRowView(item: item) {
+                                    markAsRead(item)
+                                }
                             }
                         }
+                        .listStyle(.insetGrouped)
                     }
-                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Centro Notifiche")
@@ -113,6 +98,33 @@ public struct NotificationHistoryView: View {
                     }
                 }
             }
+            .task {
+                await loadNotifications()
+            }
+            .refreshable {
+                await loadNotifications()
+            }
+        }
+    }
+
+    private func loadNotifications() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let dtos = try await DomusHttpClient.shared.fetchNotifications()
+            self.notifications = dtos.map {
+                InAppNotificationItem(
+                    id: $0.id,
+                    title: $0.title,
+                    message: $0.message,
+                    category: $0.category,
+                    timestamp: $0.createdAt,
+                    isRead: false,
+                    quickAction: $0.action
+                )
+            }
+        } catch {
+            // Rete non raggiungibile
         }
     }
 

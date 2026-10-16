@@ -53,15 +53,7 @@ public final class RoomPresenceBeaconManager: NSObject, ObservableObject {
 
     public init(configuredBeacons: [DomusRoomBeacon] = []) {
         super.init()
-        if configuredBeacons.isEmpty {
-            self.configuredBeacons = [
-                DomusRoomBeacon(id: "b1", roomId: "living_room", roomName: "Salotto", major: 1, minor: 1, rssiThreshold: -65),
-                DomusRoomBeacon(id: "b2", roomId: "kitchen", roomName: "Cucina", major: 1, minor: 2, rssiThreshold: -65),
-                DomusRoomBeacon(id: "b3", roomId: "bedroom", roomName: "Camera da Letto", major: 1, minor: 3, rssiThreshold: -68)
-            ]
-        } else {
-            self.configuredBeacons = configuredBeacons
-        }
+        self.configuredBeacons = configuredBeacons
     }
 
     /// Avvia il monitoraggio dei beacon indoor

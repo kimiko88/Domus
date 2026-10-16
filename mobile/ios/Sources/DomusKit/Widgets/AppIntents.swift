@@ -24,10 +24,12 @@ public struct ToggleEntityIntent: AppIntent {
     }
 
     public func perform() async throws -> some IntentResult {
-        // Esegue il toggle del dispositivo comunicando con il server o la cache
         #if canImport(UIKit)
         Haptics.medium()
         #endif
+        if !entityId.isEmpty {
+            try? await DomusHttpClient.shared.toggleEntity(id: entityId)
+        }
         return .result()
     }
 }
@@ -52,6 +54,9 @@ public struct RunSceneIntent: AppIntent {
         #if canImport(UIKit)
         Haptics.success()
         #endif
+        if !sceneId.isEmpty {
+            try? await DomusHttpClient.shared.callService(domain: "scene", service: "turn_on", entityId: sceneId)
+        }
         return .result()
     }
 }

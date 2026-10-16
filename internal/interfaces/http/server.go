@@ -593,9 +593,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/notifications/actionable", func(nRouter chi.Router) {
+					nRouter.Get("/", ecoH.ListActionableNotifications)
 					nRouter.Post("/", ecoH.CreateActionableNotification)
 					nRouter.Post("/actions/{action_id}", ecoH.HandleNotificationAction)
 				})
+				domainRouter.Get("/notifications", ecoH.ListActionableNotifications)
 
 				if srv.repos.PushTokens != nil {
 					pushSvc := appnotif.NewPushService(srv.repos.PushTokens, nil, srv.bus, nil)

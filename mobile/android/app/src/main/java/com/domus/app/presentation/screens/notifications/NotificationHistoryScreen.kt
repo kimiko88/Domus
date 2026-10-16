@@ -29,6 +29,7 @@ import com.domus.app.presentation.theme.RoseDanger
 import com.domus.app.presentation.theme.Slate700
 import com.domus.app.presentation.theme.Slate800
 import com.domus.app.presentation.theme.Slate900
+import com.domus.app.presentation.viewmodel.DashboardViewModel
 
 enum class NotificationCategory(val label: String, val icon: String, val color: Color) {
     ALL("Tutte", "🔔", CyanAccent),
@@ -51,47 +52,34 @@ data class InAppNotification(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationHistoryScreen(
+    viewModel: DashboardViewModel? = null,
     onDismiss: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val notifications = remember {
-        mutableStateListOf(
+    LaunchedEffect(Unit) {
+        viewModel?.loadNotifications()
+    }
+
+    val serverNotifs by viewModel?.notifications?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
+
+    val notifications = remember(serverNotifs) {
+        serverNotifs.map { dto ->
+            val cat = when {
+                dto.critical || dto.title.contains("allarme", true) || dto.title.contains("sicurezza", true) -> NotificationCategory.SECURITY
+                dto.title.contains("energia", true) || dto.title.contains("consum", true) || dto.title.contains("kw", true) -> NotificationCategory.ENERGY
+                dto.title.contains("aggiornamento", true) || dto.title.contains("sistema", true) -> NotificationCategory.SYSTEM
+                else -> NotificationCategory.DEVICES
+            }
             InAppNotification(
-                id = "1",
-                title = "Allarme Perimetrale Attivo",
-                message = "Rilevato movimento anomalo nel giardino nord durante la modalità Notte.",
-                category = NotificationCategory.SECURITY,
-                timeAgo = "10 min fa",
-                isRead = false,
-                actionLabel = "Guarda Live Cam"
-            ),
-            InAppNotification(
-                id = "2",
-                title = "Picco Consumi Evitato",
-                message = "Soglia load shedding a 4.5 kW: ricarica auto temporaneamente ridotta a 6A.",
-                category = NotificationCategory.ENERGY,
-                timeAgo = "35 min fa",
-                isRead = false,
-                actionLabel = "Apri Energia"
-            ),
-            InAppNotification(
-                id = "3",
-                title = "Batteria Sensore Bassa",
-                message = "Il sensore porta 'Finestra Cucina' ha una carica residua del 12%.",
-                category = NotificationCategory.DEVICES,
-                timeAgo = "2 ore fa",
-                isRead = true
-            ),
-            InAppNotification(
-                id = "4",
-                title = "Aggiornamento Domus OS Pronto",
-                message = "Disponibile Domus Core v2.4.0 (RAUC A/B slot B) con supporto Matter 1.3.",
-                category = NotificationCategory.SYSTEM,
-                timeAgo = "1 giorno fa",
-                isRead = true,
-                actionLabel = "Installa Ora"
+                id = dto.id,
+                title = dto.title,
+                message = dto.message,
+                category = cat,
+                timeAgo = "Recente",
+                isRead = dto.resolved_at != null,
+                actionLabel = dto.actions.firstOrNull()?.title
             )
-        )
+        }
     }
 
     var selectedCategory by remember { mutableStateOf(NotificationCategory.ALL) }
