@@ -3,11 +3,16 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		D67A0D85307B66EB00799BCC /* DomusKit in Frameworks */ = {isa = PBXBuildFile; productRef = D67A0D84307B66EB00799BCC /* DomusKit */; };
+		D67A0D90307B670000799BCC /* domusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A0D95307B670000799BCC /* domusApp.swift */; };
+		D67A0D91307B670000799BCC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D67A0D96307B670000799BCC /* Assets.xcassets */; };
+		D67A0D92307B670000799BCC /* domusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A0D99307B670000799BCC /* domusTests.swift */; };
+		D67A0D93307B670000799BCC /* domusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A0D9A307B670000799BCC /* domusUITests.swift */; };
+		D67A0D94307B670000799BCC /* domusUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67A0D9B307B670000799BCC /* domusUITestsLaunchTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,38 +36,14 @@
 		D67A0D4C307B65C800799BCC /* domus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = domus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D67A0D5D307B65C900799BCC /* domusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = domusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D67A0D67307B65C900799BCC /* domusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = domusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D67A0D95307B670000799BCC /* domusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = domusApp.swift; sourceTree = "<group>"; };
+		D67A0D96307B670000799BCC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D67A0D97307B670000799BCC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D67A0D98307B670000799BCC /* domus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = domus.entitlements; sourceTree = "<group>"; };
+		D67A0D99307B670000799BCC /* domusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = domusTests.swift; sourceTree = "<group>"; };
+		D67A0D9A307B670000799BCC /* domusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = domusUITests.swift; sourceTree = "<group>"; };
+		D67A0D9B307B670000799BCC /* domusUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = domusUITestsLaunchTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D67A0D6F307B65C900799BCC /* Exceptions for "domus" folder in "domus" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = D67A0D4B307B65C800799BCC /* domus */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		D67A0D4E307B65C800799BCC /* domus */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				D67A0D6F307B65C900799BCC /* Exceptions for "domus" folder in "domus" target */,
-			);
-			path = domus;
-			sourceTree = "<group>";
-		};
-		D67A0D60307B65C900799BCC /* domusTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = domusTests;
-			sourceTree = "<group>";
-		};
-		D67A0D6A307B65C900799BCC /* domusUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = domusUITests;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D67A0D49307B65C800799BCC /* Frameworks */ = {
@@ -110,6 +91,34 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		D67A0D4E307B65C800799BCC /* domus */ = {
+			isa = PBXGroup;
+			children = (
+				D67A0D95307B670000799BCC /* domusApp.swift */,
+				D67A0D96307B670000799BCC /* Assets.xcassets */,
+				D67A0D97307B670000799BCC /* Info.plist */,
+				D67A0D98307B670000799BCC /* domus.entitlements */,
+			);
+			path = domus;
+			sourceTree = "<group>";
+		};
+		D67A0D60307B65C900799BCC /* domusTests */ = {
+			isa = PBXGroup;
+			children = (
+				D67A0D99307B670000799BCC /* domusTests.swift */,
+			);
+			path = domusTests;
+			sourceTree = "<group>";
+		};
+		D67A0D6A307B65C900799BCC /* domusUITests */ = {
+			isa = PBXGroup;
+			children = (
+				D67A0D9A307B670000799BCC /* domusUITests.swift */,
+				D67A0D9B307B670000799BCC /* domusUITestsLaunchTests.swift */,
+			);
+			path = domusUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -124,9 +133,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				D67A0D4E307B65C800799BCC /* domus */,
 			);
 			name = domus;
 			packageProductDependencies = (
@@ -149,9 +155,6 @@
 			dependencies = (
 				D67A0D5F307B65C900799BCC /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				D67A0D60307B65C900799BCC /* domusTests */,
-			);
 			name = domusTests;
 			packageProductDependencies = (
 			);
@@ -172,9 +175,6 @@
 			dependencies = (
 				D67A0D69307B65C900799BCC /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				D67A0D6A307B65C900799BCC /* domusUITests */,
-			);
 			name = domusUITests;
 			packageProductDependencies = (
 			);
@@ -189,23 +189,24 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2660;
-				LastUpgradeCheck = 2660;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 2710;
 				TargetAttributes = {
 					D67A0D4B307B65C800799BCC = {
-						CreatedOnToolsVersion = 26.6;
+						CreatedOnToolsVersion = 15.4;
 					};
 					D67A0D5C307B65C900799BCC = {
-						CreatedOnToolsVersion = 26.6;
+						CreatedOnToolsVersion = 15.4;
 						TestTargetID = D67A0D4B307B65C800799BCC;
 					};
 					D67A0D66307B65C900799BCC = {
-						CreatedOnToolsVersion = 26.6;
+						CreatedOnToolsVersion = 15.4;
 						TestTargetID = D67A0D4B307B65C800799BCC;
 					};
 				};
 			};
 			buildConfigurationList = D67A0D47307B65C800799BCC /* Build configuration list for PBXProject "domus" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -217,7 +218,6 @@
 			packageReferences = (
 				D67A0D83307B66EB00799BCC /* XCLocalSwiftPackageReference "../../ios" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = D67A0D4D307B65C800799BCC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -234,6 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D67A0D91307B670000799BCC /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +259,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D67A0D90307B670000799BCC /* domusApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -265,6 +267,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D67A0D92307B670000799BCC /* domusTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -272,6 +275,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D67A0D93307B670000799BCC /* domusUITests.swift in Sources */,
+				D67A0D94307B670000799BCC /* domusUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -315,11 +320,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -349,11 +349,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -412,12 +407,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -470,11 +466,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -488,14 +485,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LLNSXF9WW4;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domusTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/domus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/domus";
@@ -510,14 +503,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LLNSXF9WW4;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domusTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/domus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/domus";
@@ -534,10 +523,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domusUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = domus;
@@ -554,10 +539,6 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fabriziochimienti.domusUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = domus;
