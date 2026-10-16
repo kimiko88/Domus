@@ -167,4 +167,10 @@ public struct AnyCodable: Codable, Hashable, @unchecked Sendable {
     }
 }
 
+extension AnyCodable: CustomStringConvertible {
+    public var description: String {
+        "\(value)"
+    }
+}
+
 

@@ -10,6 +10,29 @@ public struct Area: Identifiable, Codable, Hashable, Sendable {
         self.name = name
         self.icon = icon
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case areaId = "area_id"
+        case name
+        case icon
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decodeIfPresent(String.self, forKey: .id))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .areaId))
+            ?? ""
+        self.name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        self.icon = (try? container.decodeIfPresent(String.self, forKey: .icon)) ?? "home"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(icon, forKey: .icon)
+    }
 }
 
 public struct Device: Identifiable, Codable, Hashable, Sendable {
@@ -45,6 +68,15 @@ public enum TransportMode: String, Codable, Sendable {
     case remoteTls = "REMOTE_TLS"
     case connecting = "CONNECTING"
     case disconnected = "DISCONNECTED"
+
+    public var displayName: String {
+        switch self {
+        case .localLan: return "LAN Locale"
+        case .remoteTls: return "TLS Remoto (Fuori Casa)"
+        case .connecting: return "Connessione..."
+        case .disconnected: return "Disconnesso"
+        }
+    }
 }
 
 public struct ServerConnection: Equatable, Sendable {

@@ -13,14 +13,60 @@ private struct EntityDTO: Decodable {
     let lastUpdated: String
 
     enum CodingKeys: String, CodingKey {
+        case id
         case entityId = "entity_id"
-        case name = "friendly_name"
+        case entityKey = "entity_key"
+        case name
+        case friendlyName = "friendly_name"
         case domain
         case state
         case attributes
         case areaId = "area_id"
+        case areaIdCamel = "areaId"
         case lastChanged = "last_changed"
+        case lastChangedAt = "last_changed_at"
         case lastUpdated = "last_updated"
+        case lastUpdatedAt = "last_updated_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let resolvedId = (try? container.decodeIfPresent(String.self, forKey: .id))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .entityId))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .entityKey))
+            ?? UUID().uuidString
+        self.entityId = resolvedId
+
+        let resolvedName = (try? container.decodeIfPresent(String.self, forKey: .name))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .friendlyName))
+            ?? resolvedId
+        self.name = resolvedName
+
+        let resolvedDomain = (try? container.decodeIfPresent(String.self, forKey: .domain))
+            ?? (resolvedId.contains(".") ? String(resolvedId.split(separator: ".")[0]) : "switch")
+        self.domain = resolvedDomain
+
+        self.state = (try? container.decodeIfPresent(String.self, forKey: .state)) ?? "off"
+        self.areaId = (try? container.decodeIfPresent(String.self, forKey: .areaId))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .areaIdCamel))
+
+        self.lastChanged = (try? container.decodeIfPresent(String.self, forKey: .lastChanged))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .lastChangedAt))
+            ?? ""
+        self.lastUpdated = (try? container.decodeIfPresent(String.self, forKey: .lastUpdated))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .lastUpdatedAt))
+            ?? ""
+
+        if let dict = try? container.decodeIfPresent([String: AnyCodable].self, forKey: .attributes) {
+            self.attributes = dict
+        } else if let str = try? container.decodeIfPresent(String.self, forKey: .attributes),
+                  let data = str.data(using: .utf8),
+                  let dict = try? JSONDecoder().decode([String: AnyCodable].self, from: data) {
+            self.attributes = dict
+        } else {
+            self.attributes = [:]
+        }
     }
 
     func toDomain() -> Entity {
@@ -43,9 +89,19 @@ private struct AreaDTO: Decodable {
     let icon: String?
 
     enum CodingKeys: String, CodingKey {
+        case id
         case areaId = "area_id"
         case name
         case icon
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.areaId = (try? container.decodeIfPresent(String.self, forKey: .id))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .areaId))
+            ?? UUID().uuidString
+        self.name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Stanza"
+        self.icon = try? container.decodeIfPresent(String.self, forKey: .icon)
     }
 
     func toDomain() -> Area {

@@ -23,16 +23,60 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
     }
 
     public func login(username: String, password: String) async throws -> AuthSession {
-        let conn = await connectionRepository.getCurrentConnection()
-        let baseUrl = conn.activeUrl ?? conn.localAddress ?? "http://192.168.1.100:8080"
+        try await login(username: username, password: password, localEndpoint: nil, remoteEndpoint: nil)
+    }
 
-        let loggedSession = try await httpClient.login(baseUrl: baseUrl, username: username, password: password)
+    public func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?) async throws -> AuthSession {
+        if localEndpoint != nil || remoteEndpoint != nil {
+            await connectionRepository.setEndpoints(local: localEndpoint, remote: remoteEndpoint)
+        }
+        let conn = await connectionRepository.getCurrentConnection()
+        let localCandidate = localEndpoint ?? conn.localAddress ?? UserDefaults.standard.string(forKey: "domus_local_endpoint")
+        let remoteCandidate = remoteEndpoint ?? conn.remoteAddress ?? UserDefaults.standard.string(forKey: "domus_remote_endpoint")
+
+        var sessionResult: AuthSession?
+        var lastError: Error?
+
+        // 1. Prova prima l'endpoint locale se configurato (LAN)
+        if let local = localCandidate, !local.trimmingCharacters(in: .whitespaces).isEmpty {
+            do {
+                sessionResult = try await httpClient.login(baseUrl: local, username: username, password: password)
+            } catch {
+                lastError = error
+            }
+        }
+
+        // 2. Se l'endpoint locale fallisce o non c'è, prova l'endpoint remoto TLS (accesso fuori casa / 4G / 5G)
+        if sessionResult == nil, let remote = remoteCandidate, !remote.trimmingCharacters(in: .whitespaces).isEmpty {
+            do {
+                sessionResult = try await httpClient.login(baseUrl: remote, username: username, password: password)
+            } catch {
+                lastError = error
+            }
+        }
+
+        // 3. Fallback su activeUrl o default
+        if sessionResult == nil {
+            if let active = conn.activeUrl, active != localCandidate && active != remoteCandidate {
+                sessionResult = try await httpClient.login(baseUrl: active, username: username, password: password)
+            } else if let err = lastError {
+                throw err
+            } else {
+                let defaultUrl = "http://192.168.1.100:8080"
+                sessionResult = try await httpClient.login(baseUrl: defaultUrl, username: username, password: password)
+            }
+        }
+
+        guard let loggedSession = sessionResult else {
+            throw DomusNetworkError.notConnected
+        }
+
         if let token = loggedSession.token {
             await keychainManager.saveToken(token)
         }
         await keychainManager.saveUsername(username)
         self.session = loggedSession
-        try? await connectionRepository.connect(mode: conn.mode)
+        try? await connectionRepository.connect(mode: nil)
         return loggedSession
     }
 

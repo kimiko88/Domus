@@ -21,7 +21,14 @@ public protocol ConnectionRepositoryProtocol: Sendable {
 public protocol AuthRepositoryProtocol: Sendable {
     func getSession() async -> AuthSession
     func login(username: String, password: String) async throws -> AuthSession
+    func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?) async throws -> AuthSession
     func logout() async
     func getSavedToken() async -> String?
     func restoreSession() async -> AuthSession
+}
+
+public extension AuthRepositoryProtocol {
+    func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?) async throws -> AuthSession {
+        try await login(username: username, password: password)
+    }
 }

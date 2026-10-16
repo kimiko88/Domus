@@ -63,6 +63,9 @@ public struct AdaptiveMainView: View {
         .sheet(isPresented: $showNotifications) {
             NotificationHistoryView()
         }
+        .sheet(isPresented: $viewModel.showLoginSheet) {
+            LoginView(viewModel: viewModel)
+        }
     }
 
     // MARK: - Sidebar
@@ -84,10 +87,14 @@ public struct AdaptiveMainView: View {
                     color: .green
                 )
 
+                let powerSensor = viewModel.entities.first(where: {
+                    $0.domain == "sensor" && ($0.id.contains("power") || $0.id.contains("energy") || $0.id.contains("potenza"))
+                })
+                let powerValue = powerSensor.map { "\($0.state) \($0.attributes["unit_of_measurement"]?.description ?? "W")" } ?? "0 W"
                 statusPillRow(
                     icon: "bolt.fill",
                     title: "Potenza Attuale",
-                    value: "1.4 kW",
+                    value: powerValue,
                     color: .cyan
                 )
             }
@@ -174,7 +181,35 @@ public struct AdaptiveMainView: View {
                             }
                         }
                     }
-                    .foregroundColor(viewModel.selectedAreaId == area.id ? .blue : .primary)
+                }
+            }
+
+            Section(header: Text("Server & Account")) {
+                Button(action: {
+                    Haptics.selection()
+                    viewModel.showLoginSheet = true
+                }) {
+                    HStack {
+                        Label(
+                            viewModel.authSession.isAuthenticated ? (viewModel.authSession.username ?? "Utente") : "Accedi al Server",
+                            systemImage: viewModel.authSession.isAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark"
+                        )
+                        .foregroundColor(viewModel.authSession.isAuthenticated ? .primary : .orange)
+                        Spacer()
+                        Text(viewModel.connection.mode.displayName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if viewModel.authSession.isAuthenticated {
+                    Button(action: {
+                        Haptics.selection()
+                        viewModel.logout()
+                    }) {
+                        Label("Disconnetti", systemImage: "rectangle.portrait.and.arrow.right")
+                            .foregroundColor(.red)
+                    }
                 }
             }
         }

@@ -39,6 +39,11 @@ struct domusApp: App {
             webSocketClient: ws,
             tokenStorage: tokenStorage
         )
+        let authRepo = DefaultAuthRepository(
+            httpClient: http,
+            keychainManager: tokenStorage,
+            connectionRepository: connRepo
+        )
 
         // Use Cases
         let discoverUseCase = DiscoverAndConnectUseCase(connectionRepository: connRepo)
@@ -51,7 +56,8 @@ struct domusApp: App {
             connectionRepository: connRepo,
             discoverAndConnectUseCase: discoverUseCase,
             syncEntitiesUseCase: syncUseCase,
-            toggleEntityUseCase: toggleUseCase
+            toggleEntityUseCase: toggleUseCase,
+            authRepository: authRepo
         ))
 
         // Registrazione task di manutenzione e refresh periodico in background

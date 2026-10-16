@@ -188,6 +188,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
+		if srv.wsHub != nil {
+			wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+			if srv.repos != nil {
+				wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
+			} else {
+				wsH.WithBusAndRepo(srv.bus, nil)
+			}
+			api.Method(http.MethodGet, "/ws", wsH)
+		}
 		if srv.repos != nil && srv.repos.BannedIPs != nil {
 			api.Use(domusmw.IPBanMiddleware(srv.repos.BannedIPs))
 		}

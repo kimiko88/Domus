@@ -17,6 +17,10 @@ public final class DashboardViewModel: ObservableObject {
     @Published public var showFloorplanModal: Bool = false
     @Published public var customEntityOrder: [String] = []
     @Published public var autoFocusNearbyRoom: Bool = true
+    @Published public var authSession: AuthSession = AuthSession()
+    @Published public var showLoginSheet: Bool = false
+    @Published public var isLoggingIn: Bool = false
+    @Published public var loginError: String? = nil
 
     public let presenceManager: GeofencingPresenceManager
     public let notificationManager: NotificationManager
@@ -31,6 +35,7 @@ public final class DashboardViewModel: ObservableObject {
 
     private let entityRepository: EntityRepositoryProtocol
     private let connectionRepository: ConnectionRepositoryProtocol
+    private let authRepository: AuthRepositoryProtocol?
     private let discoverAndConnectUseCase: DiscoverAndConnectUseCase
     private let syncEntitiesUseCase: SyncEntitiesUseCase
     private let toggleEntityUseCase: ToggleEntityUseCase
@@ -41,6 +46,7 @@ public final class DashboardViewModel: ObservableObject {
         discoverAndConnectUseCase: DiscoverAndConnectUseCase,
         syncEntitiesUseCase: SyncEntitiesUseCase,
         toggleEntityUseCase: ToggleEntityUseCase,
+        authRepository: AuthRepositoryProtocol? = nil,
         presenceManager: GeofencingPresenceManager? = nil,
         notificationManager: NotificationManager? = nil,
         nfcManager: NfcTagManager? = nil,
@@ -57,6 +63,7 @@ public final class DashboardViewModel: ObservableObject {
         self.discoverAndConnectUseCase = discoverAndConnectUseCase
         self.syncEntitiesUseCase = syncEntitiesUseCase
         self.toggleEntityUseCase = toggleEntityUseCase
+        self.authRepository = authRepository
         self.presenceManager = presenceManager ?? GeofencingPresenceManager()
         self.notificationManager = notificationManager ?? NotificationManager()
         self.nfcManager = nfcManager ?? NfcTagManager()
@@ -101,12 +108,54 @@ public final class DashboardViewModel: ObservableObject {
     public func initialConnectAndSync() {
         Task {
             isRefreshing = true
+            if let authRepo = authRepository {
+                let sess = await authRepo.restoreSession()
+                self.authSession = sess
+                if !sess.isAuthenticated {
+                    self.showLoginSheet = true
+                    self.isRefreshing = false
+                    return
+                }
+            }
             _ = try? await discoverAndConnectUseCase.execute(preferLocal: true)
             self.connection = await connectionRepository.getCurrentConnection()
             self.entities = (try? await syncEntitiesUseCase.execute()) ?? []
             self.areas = await entityRepository.getAreas()
             isRefreshing = false
         }
+    }
+
+    public func login(username: String, password: String, localEndpoint: String? = nil, remoteEndpoint: String? = nil) async -> Bool {
+        guard let authRepository else { return false }
+        isLoggingIn = true
+        loginError = nil
+        defer { isLoggingIn = false }
+        do {
+            let session = try await authRepository.login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint)
+            self.authSession = session
+            self.connection = await connectionRepository.getCurrentConnection()
+            self.showLoginSheet = false
+            self.entities = (try? await syncEntitiesUseCase.execute()) ?? []
+            self.areas = await entityRepository.getAreas()
+            return true
+        } catch {
+            self.loginError = error.localizedDescription
+            return false
+        }
+    }
+
+    public func logout() {
+        Task {
+            await authRepository?.logout()
+            self.authSession = AuthSession()
+            self.entities = []
+            self.areas = []
+            self.showLoginSheet = true
+        }
+    }
+
+    public func discoverLocalHub() async -> String? {
+        return await connectionRepository.discoverLocalHub(timeoutSeconds: 2.0)
     }
 
     public func toggleEntity(id: String) {

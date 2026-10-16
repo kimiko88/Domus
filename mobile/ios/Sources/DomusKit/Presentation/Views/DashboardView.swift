@@ -202,11 +202,27 @@ public struct DashboardView: View {
                                 .background(Color.secondary.opacity(0.12))
                                 .clipShape(Circle())
                         }
+
+                        Button(action: {
+                            Haptics.light()
+                            viewModel.showLoginSheet = true
+                        }) {
+                            Image(systemName: viewModel.authSession.isAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(viewModel.authSession.isAuthenticated ? .blue : .orange)
+                                .padding(6)
+                                .background((viewModel.authSession.isAuthenticated ? Color.blue : Color.orange).opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .accessibilityLabel(viewModel.authSession.isAuthenticated ? "Profilo e Server Domus (\(viewModel.authSession.username ?? "Utente"))" : "Accedi a Domus")
                     }
                 }
             }
             .sheet(item: $viewModel.selectedEntityForDetail) { entity in
                 EntityDetailRouterView(entity: entity, viewModel: viewModel)
+            }
+            .sheet(isPresented: $viewModel.showLoginSheet) {
+                LoginView(viewModel: viewModel)
             }
             .sheet(isPresented: $viewModel.showAutomationSettings) {
                 PresenceAndNfcSheet(

@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Modello geometrico per una stanza nella planimetria 2D.
+/// Modello geometrico per una stanza nella planimetria 2D (mantenuto per calcoli geometrici e test unitari).
 public struct FloorplanRoom: Identifiable, Sendable {
     public var id: String
     public var name: String
-    public var rect: CGRect         // Coordinate relative normalizzate (0.0 ... 1.0)
+    public var rect: CGRect // Coordinate relative normalizzate (0.0 ... 1.0)
     public var lightEntityId: String?
     public var climateEntityId: String?
     public var motionEntityId: String?
@@ -26,50 +26,27 @@ public struct FloorplanRoom: Identifiable, Sendable {
     }
 }
 
-/// Vista interattiva Pianta 2D / Floorplan con illuminazione reattiva e nodi interattivi.
+/// Vista interattiva Pianta 2D / Floorplan alimentata al 100% dal server Domus.
+/// Supporta caricamento piani e marker da `/api/v1/floors`, modalità di modifica con drag-and-drop
+/// per aggiustare e impostare la planimetria reale, e interazione live con i dispositivi.
 public struct FloorplanView: View {
     public let entities: [Entity]
     public var onToggleEntity: (String) -> Void
     public var onSelectEntityForDetail: (Entity) -> Void
 
+    @State private var floors: [FloorDTO] = []
+    @State private var selectedFloorId: String = ""
+    @State private var markers: [FloorMarkerDTO] = []
+    @State private var isEditMode: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var showAddFloorSheet: Bool = false
+    @State private var showAddDeviceSheet: Bool = false
     @State private var scale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
-    @State private var selectedRoomId: String? = nil
-
-    private let rooms: [FloorplanRoom] = [
-        FloorplanRoom(
-            id: "living_room",
-            name: "Salotto",
-            rect: CGRect(x: 0.05, y: 0.05, width: 0.55, height: 0.48),
-            lightEntityId: "light.living_room",
-            climateEntityId: "climate.living_room",
-            motionEntityId: "binary_sensor.motion_living_room"
-        ),
-        FloorplanRoom(
-            id: "kitchen",
-            name: "Cucina",
-            rect: CGRect(x: 0.63, y: 0.05, width: 0.32, height: 0.48),
-            lightEntityId: "light.kitchen",
-            climateEntityId: nil,
-            motionEntityId: nil
-        ),
-        FloorplanRoom(
-            id: "bedroom",
-            name: "Camera da Letto",
-            rect: CGRect(x: 0.05, y: 0.56, width: 0.45, height: 0.38),
-            lightEntityId: "light.bedroom",
-            climateEntityId: "climate.bedroom",
-            motionEntityId: nil
-        ),
-        FloorplanRoom(
-            id: "bathroom",
-            name: "Bagno",
-            rect: CGRect(x: 0.53, y: 0.56, width: 0.42, height: 0.38),
-            lightEntityId: "light.bathroom",
-            climateEntityId: nil,
-            motionEntityId: nil
-        )
-    ]
+    @State private var dragOffsets: [String: CGSize] = [:]
+    @State private var newFloorName: String = ""
+    @State private var newFloorLevel: Int = 0
+    @State private var statusFeedback: String? = nil
 
     public init(
         entities: [Entity],
@@ -81,198 +58,494 @@ public struct FloorplanView: View {
         self.onSelectEntityForDetail = onSelectEntityForDetail
     }
 
+    private var currentFloor: FloorDTO? {
+        floors.first(where: { $0.id == selectedFloorId }) ?? floors.first
+    }
+
     public var body: some View {
         VStack(spacing: 12) {
-            // Header e indicatore stanza selezionata
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Planimetria Interattiva 2D")
-                        .font(.headline)
-                    Text("Tocca una stanza o un'icona per interagire")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // Barra Superiore: Selettore Piano & Toggle Modifica
+            headerControlBar
+
+            // Selettore Piani (se multipli o per crearne di nuovi)
+            floorSelectorBar
+
+            if isEditMode {
+                editModeBanner
+            }
+
+            // Canvas Interattivo della Planimetria
+            floorplanCanvas
+
+            // Barra delle Azioni in Modalità Modifica
+            if isEditMode {
+                HStack(spacing: 12) {
+                    Button(action: { showAddDeviceSheet = true }) {
+                        Label("Aggiungi Dispositivo", systemImage: "plus.circle.fill")
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                    }
+                    .accessibilityLabel("Aggiungi un dispositivo su questo piano")
+
+                    Spacer()
+
+                    if let feedback = statusFeedback {
+                        Text(feedback)
+                            .font(.caption2.bold())
+                            .foregroundColor(.secondary)
+                    }
                 }
-                Spacer()
+                .padding(.horizontal)
+            } else {
+                // Legenda Dispositivi
+                legendBar
+            }
+        }
+        .task {
+            await loadFloorsAndMarkers()
+        }
+        .sheet(isPresented: $showAddFloorSheet) {
+            addFloorSheetView
+        }
+        .sheet(isPresented: $showAddDeviceSheet) {
+            addDeviceSheetView
+        }
+    }
+
+    // MARK: - Header Controls
+
+    private var headerControlBar: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(currentFloor?.name ?? "Planimetria Casa")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text(isEditMode ? "Trascina i nodi per posizionarli sulla pianta" : "Tocca un dispositivo per interagire")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Pulsante Reset Zoom/Pan
+            Button(action: {
+                withAnimation(.spring()) {
+                    scale = 1.0
+                    offset = .zero
+                }
+            }) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.caption.bold())
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(Circle())
+            }
+            .accessibilityLabel("Ripristina zoom e posizione")
+
+            // Toggle Modalità Modifica / Aggiusta Planimetria
+            Button(action: {
+                Haptics.medium()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isEditMode.toggle()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: isEditMode ? "checkmark.circle.fill" : "slider.horizontal.3")
+                    Text(isEditMode ? "Fine" : "Aggiusta")
+                }
+                .font(.caption.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(isEditMode ? Color.green : Color.blue.opacity(0.15))
+                .foregroundColor(isEditMode ? .white : .blue)
+                .clipShape(Capsule())
+            }
+            .accessibilityLabel(isEditMode ? "Termina aggiustamento planimetria" : "Aggiusta e imposta planimetria")
+        }
+        .padding(.horizontal)
+    }
+
+    private var floorSelectorBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(floors) { floor in
+                    let isSelected = (floor.id == selectedFloorId) || (selectedFloorId.isEmpty && floor.id == floors.first?.id)
+                    Button(action: {
+                        Haptics.selection()
+                        selectedFloorId = floor.id
+                        Task { await loadMarkersForCurrentFloor() }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.2.layers.3d")
+                                .font(.caption2)
+                            Text(floor.name)
+                                .font(.caption.bold())
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(isSelected ? Color.blue : Color.secondary.opacity(0.12))
+                        .foregroundColor(isSelected ? .white : .primary)
+                        .clipShape(Capsule())
+                    }
+                }
 
                 Button(action: {
-                    withAnimation(.spring()) {
-                        scale = 1.0
-                        offset = .zero
-                        selectedRoomId = nil
-                    }
+                    newFloorName = ""
+                    newFloorLevel = floors.count
+                    showAddFloorSheet = true
                 }) {
-                    Label("Ripristina", systemImage: "arrow.counterclockwise")
-                        .font(.caption.bold())
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Nuovo Piano")
+                    }
+                    .font(.caption.bold())
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.secondary.opacity(0.12))
+                    .foregroundColor(.blue)
+                    .clipShape(Capsule())
                 }
             }
             .padding(.horizontal)
+        }
+    }
 
-            // Canvas della Pianta
-            GeometryReader { geo in
-                let w = geo.size.width
-                let h = geo.size.height
+    private var editModeBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hand.draw.fill")
+                .foregroundColor(.orange)
+            Text("Trascina qualsiasi dispositivo per regolarne la posizione. I cambiamenti vengono salvati automaticamente sul server.")
+                .font(.caption)
+                .foregroundColor(.primary)
+            Spacer()
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+    }
 
-                ZStack {
-                    // Sfondo perimetro casa
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.primary.opacity(0.25), lineWidth: 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(Color.domusSystemBackground)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+    // MARK: - Canvas
 
-                    // Stanze disegnate
-                    ForEach(rooms) { room in
-                        roomShapeView(room: room, totalWidth: w, totalHeight: h)
-                    }
+    private var floorplanCanvas: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
 
-                    // Nodi interattivi (Luci, Clima, Movimento)
-                    ForEach(rooms) { room in
-                        roomDevicesOverlay(room: room, totalWidth: w, totalHeight: h)
+            ZStack {
+                // Sfondo Grigio Architettonico con Griglia
+                blueprintBackground(width: w, height: h)
+
+                // Render dei Marker dal Server
+                ForEach(markers) { marker in
+                    markerNodeView(marker: marker, totalWidth: w, totalHeight: h)
+                }
+
+                if markers.isEmpty && !isLoading {
+                    VStack(spacing: 8) {
+                        Image(systemName: "map")
+                            .font(.system(size: 32))
+                            .foregroundColor(.secondary)
+                        Text("Nessun dispositivo posizionato su questo piano")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Button("Aggiungi Dispositivo") {
+                            showAddDeviceSheet = true
+                        }
+                        .font(.caption.bold())
+                        .foregroundColor(.blue)
                     }
                 }
-                .scaleEffect(scale)
-                .offset(offset)
-                .gesture(
-                    SimultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { val in
-                                scale = max(0.8, min(val, 2.5))
-                            },
-                        DragGesture()
-                            .onChanged { val in
+            }
+            .scaleEffect(scale)
+            .offset(offset)
+            .gesture(
+                SimultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { val in
+                            scale = max(0.8, min(val, 2.5))
+                        },
+                    DragGesture()
+                        .onChanged { val in
+                            if !isEditMode {
                                 offset = val.translation
                             }
-                    )
-                )
-            }
-            .frame(height: 380)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .padding(.horizontal)
-
-            // Legenda di stato
-            HStack(spacing: 16) {
-                legendItem(title: "Luce Accesa", color: .yellow, icon: "lightbulb.fill")
-                legendItem(title: "Clima Attivo", color: .orange, icon: "thermometer.medium")
-                legendItem(title: "Nessun Movimento", color: .green, icon: "checkmark.circle.fill")
-            }
-            .font(.caption2)
-            .padding(.vertical, 6)
-        }
-    }
-
-    // MARK: - Subviews
-
-    private func roomShapeView(room: FloorplanRoom, totalWidth: CGFloat, totalHeight: CGFloat) -> some View {
-        let isLightOn = isRoomLightOn(room)
-        let isSelected = selectedRoomId == room.id
-
-        let rx = room.rect.origin.x * totalWidth
-        let ry = room.rect.origin.y * totalHeight
-        let rw = room.rect.size.width * totalWidth
-        let rh = room.rect.size.height * totalHeight
-
-        return ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isLightOn ? Color.yellow.opacity(0.18) : Color.secondary.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            isSelected ? Color.blue : (isLightOn ? Color.yellow.opacity(0.8) : Color.primary.opacity(0.15)),
-                            lineWidth: isSelected ? 2.5 : 1.5
-                        )
-                )
-                .frame(width: rw, height: rh)
-
-            Text(room.name)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(isSelected ? .blue : .primary)
-                .padding(8)
-        }
-        .position(x: rx + rw / 2, y: ry + rh / 2)
-        .onTapGesture {
-            Haptics.selection()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                selectedRoomId = (selectedRoomId == room.id) ? nil : room.id
-            }
-        }
-    }
-
-    private func roomDevicesOverlay(room: FloorplanRoom, totalWidth: CGFloat, totalHeight: CGFloat) -> some View {
-        let rx = room.rect.origin.x * totalWidth
-        let ry = room.rect.origin.y * totalHeight
-        let rw = room.rect.size.width * totalWidth
-        let rh = room.rect.size.height * totalHeight
-
-        return HStack(spacing: 8) {
-            // Nodo Luce
-            if let light = findRoomLight(room) {
-                Button(action: {
-                    Haptics.medium()
-                    onToggleEntity(light.id)
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(light.isOn ? Color.yellow : Color.secondary.opacity(0.2))
-                            .frame(width: 30, height: 30)
-                        Image(systemName: "lightbulb.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(light.isOn ? .black : .secondary)
-                    }
-                }
-            }
-
-            // Nodo Clima
-            if let climate = findRoomClimate(room) {
-                Button(action: {
-                    Haptics.light()
-                    onSelectEntityForDetail(climate)
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.orange.opacity(0.2))
-                            .frame(width: 30, height: 30)
-                        VStack(spacing: 0) {
-                            Image(systemName: "thermometer.medium")
-                                .font(.system(size: 10, weight: .bold))
-                            if let temp = climate.targetTemperature ?? climate.currentTemperature {
-                                Text("\(Int(temp))°")
-                                    .font(.system(size: 9, weight: .heavy))
-                            }
                         }
-                        .foregroundColor(.orange)
+                )
+            )
+        }
+        .frame(height: 380)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .padding(.horizontal)
+    }
+
+    private func blueprintBackground(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.domusSystemBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.primary.opacity(isEditMode ? 0.35 : 0.15), lineWidth: 2)
+                )
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+
+            // Griglia millimetrata visibile in modalità modifica
+            if isEditMode {
+                Canvas { context, size in
+                    let step: CGFloat = 30.0
+                    var path = Path()
+                    for x in stride(from: step, to: size.width, by: step) {
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: size.height))
                     }
+                    for y in stride(from: step, to: size.height, by: step) {
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    context.stroke(path, with: .color(Color.blue.opacity(0.08)), lineWidth: 1)
                 }
+                .clipShape(RoundedRectangle(cornerRadius: 18))
             }
         }
-        .position(x: rx + rw / 2, y: ry + rh / 2 + 10)
     }
 
-    private func findRoomLight(_ room: FloorplanRoom) -> Entity? {
-        if let lightId = room.lightEntityId, let light = entities.first(where: { $0.id == lightId }) {
-            return light
+    // MARK: - Marker Node
+
+    private func markerNodeView(marker: FloorMarkerDTO, totalWidth: CGFloat, totalHeight: CGFloat) -> some View {
+        let matchingEntity = entities.first(where: { $0.id == marker.entityKey })
+        let currentDrag = dragOffsets[marker.id] ?? .zero
+
+        let baseX = (marker.xPercent / 100.0) * totalWidth
+        let baseY = (marker.yPercent / 100.0) * totalHeight
+        let posX = baseX + currentDrag.width
+        let posY = baseY + currentDrag.height
+
+        let isOn = matchingEntity?.isOn ?? false
+        let domain = matchingEntity?.domain ?? "switch"
+
+        return ZStack(alignment: .topTrailing) {
+            VStack(spacing: 2) {
+                ZStack {
+                    // Alone luminoso se attivo
+                    if isOn {
+                        Circle()
+                            .fill(markerActiveColor(domain: domain).opacity(0.3))
+                            .frame(width: 44, height: 44)
+                    }
+
+                    Circle()
+                        .fill(isOn ? markerActiveColor(domain: domain) : Color.domusSecondarySystemGroupedBackground)
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            Circle()
+                                .stroke(isEditMode ? Color.orange : Color.primary.opacity(0.2), lineWidth: isEditMode ? 2 : 1)
+                        )
+                        .shadow(color: isOn ? markerActiveColor(domain: domain).opacity(0.4) : Color.clear, radius: 6)
+
+                    Image(systemName: markerIcon(marker: marker, entity: matchingEntity))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(isOn ? .black : .primary)
+                }
+
+                // Nome ed eventuale stato / temperatura
+                if marker.showBadge {
+                    VStack(spacing: 1) {
+                        Text(matchingEntity?.name ?? marker.entityKey)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .frame(maxWidth: 80)
+
+                        if let badge = markerBadgeText(matchingEntity) {
+                            Text(badge)
+                                .font(.system(size: 8, weight: .heavy))
+                                .foregroundColor(isOn ? .orange : .secondary)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(Color.domusSystemBackground.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isEditMode {
+                    handleMarkerTap(marker: marker, entity: matchingEntity)
+                }
+            }
+
+            // Pulsante elimina marker in modalità modifica
+            if isEditMode {
+                Button(action: {
+                    Task { await deleteMarker(marker) }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.red)
+                        .background(Circle().fill(Color.white))
+                }
+                .offset(x: 10, y: -10)
+                .accessibilityLabel("Rimuovi dispositivo dal piano")
+            }
         }
-        return entities.first { ent in
-            ent.domain == "light" && (ent.areaId == room.id || ent.id.lowercased().contains(room.id) || ent.name.lowercased().contains(room.name.lowercased()))
+        .position(x: posX, y: posY)
+        .gesture(
+            isEditMode ? DragGesture()
+                .onChanged { val in
+                    dragOffsets[marker.id] = val.translation
+                }
+                .onEnded { val in
+                    let finalX = baseX + val.translation.width
+                    let finalY = baseY + val.translation.height
+                    let clampedX = max(10, min(totalWidth - 10, finalX))
+                    let clampedY = max(10, min(totalHeight - 10, finalY))
+                    let newXPercent = Double(clampedX / totalWidth) * 100.0
+                    let newYPercent = Double(clampedY / totalHeight) * 100.0
+
+                    dragOffsets[marker.id] = .zero
+                    Task {
+                        await saveUpdatedMarkerPosition(marker: marker, xPercent: newXPercent, yPercent: newYPercent)
+                    }
+                }
+            : nil
+        )
+    }
+
+    // MARK: - Actions & Logic
+
+    private func handleMarkerTap(marker: FloorMarkerDTO, entity: Entity?) {
+        guard let entity else {
+            Haptics.light()
+            onToggleEntity(marker.entityKey)
+            return
+        }
+
+        switch entity.domain {
+        case "light", "switch":
+            Haptics.medium()
+            onToggleEntity(entity.id)
+        default:
+            Haptics.light()
+            onSelectEntityForDetail(entity)
         }
     }
 
-    private func findRoomClimate(_ room: FloorplanRoom) -> Entity? {
-        if let climateId = room.climateEntityId, let climate = entities.first(where: { $0.id == climateId }) {
-            return climate
-        }
-        return entities.first { ent in
-            ent.domain == "climate" && (ent.areaId == room.id || ent.id.lowercased().contains(room.id) || ent.name.lowercased().contains(room.name.lowercased()))
+    private func loadFloorsAndMarkers() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            var fetched = try await DomusHttpClient.shared.fetchFloors()
+            if fetched.isEmpty {
+                // Crea il piano di default se il server non ne ha ancora registrati
+                let defaultFloor = try await DomusHttpClient.shared.createFloor(name: "Piano Terra", level: 0)
+                fetched = [defaultFloor]
+            }
+            self.floors = fetched
+            if selectedFloorId.isEmpty || !fetched.contains(where: { $0.id == selectedFloorId }) {
+                self.selectedFloorId = fetched.first?.id ?? ""
+            }
+            await loadMarkersForCurrentFloor()
+        } catch {
+            self.statusFeedback = "Errore di sincronizzazione con il server"
         }
     }
 
-    private func isRoomLightOn(_ room: FloorplanRoom) -> Bool {
-        return findRoomLight(room)?.isOn ?? false
+    private func loadMarkersForCurrentFloor() async {
+        guard !selectedFloorId.isEmpty else { return }
+        do {
+            let fetched = try await DomusHttpClient.shared.fetchFloorMarkers(floorId: selectedFloorId)
+            self.markers = fetched
+        } catch {
+            // Ignora o mostra feedback
+        }
+    }
+
+    private func saveUpdatedMarkerPosition(marker: FloorMarkerDTO, xPercent: Double, yPercent: Double) async {
+        guard !selectedFloorId.isEmpty else { return }
+        Haptics.selection()
+        do {
+            let saved = try await DomusHttpClient.shared.saveFloorMarker(
+                floorId: selectedFloorId,
+                markerId: marker.id,
+                entityKey: marker.entityKey,
+                xPercent: xPercent,
+                yPercent: yPercent,
+                iconOverride: marker.iconOverride,
+                showBadge: marker.showBadge
+            )
+            if let idx = markers.firstIndex(where: { $0.id == marker.id }) {
+                markers[idx] = saved
+            }
+            statusFeedback = "Posizione salvata ✓"
+        } catch {
+            statusFeedback = "Errore salvataggio posizione"
+        }
+    }
+
+    private func deleteMarker(_ marker: FloorMarkerDTO) async {
+        guard !selectedFloorId.isEmpty else { return }
+        Haptics.medium()
+        do {
+            try await DomusHttpClient.shared.deleteFloorMarker(floorId: selectedFloorId, markerId: marker.id)
+            markers.removeAll(where: { $0.id == marker.id })
+            statusFeedback = "Dispositivo rimosso ✓"
+        } catch {
+            statusFeedback = "Errore cancellazione"
+        }
+    }
+
+    private func markerIcon(marker: FloorMarkerDTO, entity: Entity?) -> String {
+        if let icon = marker.iconOverride, !icon.isEmpty {
+            return icon
+        }
+        guard let entity else { return "power" }
+        switch entity.domain {
+        case "light": return "lightbulb.fill"
+        case "climate": return "thermometer.medium"
+        case "switch": return "powerplug.fill"
+        case "cover": return "blinds.vertical.closed"
+        case "binary_sensor": return "sensor.fill"
+        case "camera": return "video.fill"
+        case "lock": return entity.isOn ? "lock.open.fill" : "lock.fill"
+        default: return "circle.fill"
+        }
+    }
+
+    private func markerActiveColor(domain: String) -> Color {
+        switch domain {
+        case "light": return .yellow
+        case "climate": return .orange
+        case "switch": return .cyan
+        case "lock": return .red
+        default: return .blue
+        }
+    }
+
+    private func markerBadgeText(_ entity: Entity?) -> String? {
+        guard let entity else { return nil }
+        if entity.domain == "climate" {
+            if let temp = entity.targetTemperature ?? entity.currentTemperature {
+                return String(format: "%.1f°", temp)
+            }
+        }
+        return entity.isOn ? "ON" : "OFF"
+    }
+
+    // MARK: - Subviews & Sheets
+
+    private var legendBar: some View {
+        HStack(spacing: 16) {
+            legendItem(title: "Luce", color: .yellow, icon: "lightbulb.fill")
+            legendItem(title: "Clima", color: .orange, icon: "thermometer.medium")
+            legendItem(title: "Presa", color: .cyan, icon: "powerplug.fill")
+        }
+        .font(.caption2)
+        .padding(.vertical, 4)
     }
 
     private func legendItem(title: String, color: Color, icon: String) -> some View {
@@ -281,6 +554,97 @@ public struct FloorplanView: View {
                 .foregroundColor(color)
             Text(title)
                 .foregroundColor(.secondary)
+        }
+    }
+
+    private var addFloorSheetView: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Dati Nuovo Piano")) {
+                    TextField("Nome Piano (es. Piano Primo)", text: $newFloorName)
+                    Stepper("Livello: \(newFloorLevel)", value: $newFloorLevel, in: -3...10)
+                }
+            }
+            .navigationTitle("Aggiungi Piano")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annulla") { showAddFloorSheet = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Crea") {
+                        Task {
+                            guard !newFloorName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                            if let created = try? await DomusHttpClient.shared.createFloor(name: newFloorName, level: newFloorLevel) {
+                                floors.append(created)
+                                selectedFloorId = created.id
+                                await loadMarkersForCurrentFloor()
+                            }
+                            showAddFloorSheet = false
+                        }
+                    }
+                    .disabled(newFloorName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+
+    private var addDeviceSheetView: some View {
+        NavigationStack {
+            List {
+                Section(header: Text("Tocca un dispositivo per posizionarlo al centro della pianta")) {
+                    ForEach(entities) { entity in
+                        let isAlreadyPlaced = markers.contains(where: { $0.entityKey == entity.id })
+                        Button(action: {
+                            Task {
+                                guard !selectedFloorId.isEmpty else { return }
+                                if let saved = try? await DomusHttpClient.shared.saveFloorMarker(
+                                    floorId: selectedFloorId,
+                                    entityKey: entity.id,
+                                    xPercent: 50.0,
+                                    yPercent: 50.0,
+                                    showBadge: true
+                                ) {
+                                    markers.append(saved)
+                                    statusFeedback = "Dispositivo posizionato al centro ✓"
+                                }
+                                showAddDeviceSheet = false
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: markerIcon(marker: FloorMarkerDTO(id: "", entityKey: entity.id, xPercent: 50, yPercent: 50), entity: entity))
+                                    .foregroundColor(.blue)
+                                    .frame(width: 24)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entity.name)
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.primary)
+                                    Text(entity.id)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if isAlreadyPlaced {
+                                    Text("Posizionato")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Posiziona Dispositivo")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Chiudi") { showAddDeviceSheet = false }
+                }
+            }
         }
     }
 }

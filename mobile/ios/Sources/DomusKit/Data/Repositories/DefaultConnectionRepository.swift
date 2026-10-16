@@ -20,6 +20,12 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
         self.mdnsEngine = mdnsEngine
         self.webSocketClient = webSocketClient
         self.tokenStorage = tokenStorage
+
+        let savedLocal = UserDefaults.standard.string(forKey: "domus_local_endpoint")
+            ?? UserDefaults.standard.string(forKey: "domus_server_url")
+        let savedRemote = UserDefaults.standard.string(forKey: "domus_remote_endpoint")
+        self.localAddress = savedLocal
+        self.remoteAddress = savedRemote
     }
 
     // MARK: - ConnectionRepositoryProtocol
@@ -32,57 +38,80 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
         let found = await mdnsEngine.discoverLocalHub(timeoutSeconds: timeoutSeconds)
         if let found {
             self.localAddress = found.httpBaseUrl
+            UserDefaults.standard.set(found.httpBaseUrl, forKey: "domus_local_endpoint")
+            UserDefaults.standard.set(found.httpBaseUrl, forKey: "domus_server_url")
         }
         return found?.httpBaseUrl
     }
 
     public func connect(mode: TransportMode?) async throws {
-        let targetMode = mode ?? .localLan
-
         connection.mode = .connecting
-        connection.targetMode = targetMode
+        connection.targetMode = mode ?? .localLan
 
         let token = await tokenStorage.getToken()
 
-        switch targetMode {
-        case .localLan:
-            guard let local = localAddress else {
-                // Prova prima la discovery
-                if let discovered = await discoverLocalHub(timeoutSeconds: 1.5) {
-                    let wsURL = discovered.replacingOccurrences(of: "http://", with: "ws://") + "/api/v1/ws"
-                    try await openWebSocket(url: wsURL, token: token)
-                    connection.mode = .localLan
-                    connection.localAddress = discovered
-                    connection.activeUrl = wsURL
-                    connection.isConnected = true
-                    await DomusHttpClient.shared.configure(baseURL: discovered, token: token)
-                    return
-                }
+        // 1. Se richiesto esplicitamente TLS/remoto
+        if mode == .remoteTls {
+            guard let remote = remoteAddress ?? UserDefaults.standard.string(forKey: "domus_remote_endpoint"), !remote.isEmpty else {
+                connection.mode = .disconnected
+                connection.isConnected = false
                 throw DomusNetworkError.notConnected
             }
-            let wsURL = local.replacingOccurrences(of: "http://", with: "ws://") + "/api/v1/ws"
-            try await openWebSocket(url: wsURL, token: token)
-            connection.mode = .localLan
-            connection.localAddress = local
-            connection.activeUrl = wsURL
-            connection.isConnected = true
-            await DomusHttpClient.shared.configure(baseURL: local, token: token)
-
-        case .remoteTls:
-            guard let remote = remoteAddress else {
-                throw DomusNetworkError.notConnected
-            }
-            let wsURL = remote + "/api/v1/ws"
-            try await openWebSocket(url: wsURL, token: token)
+            let wsUrl = toWebSocketUrl(httpUrl: remote)
+            try await openWebSocket(url: wsUrl, token: token)
             connection.mode = .remoteTls
             connection.remoteAddress = remote
-            connection.activeUrl = wsURL
+            connection.activeUrl = remote
             connection.isConnected = true
             await DomusHttpClient.shared.configure(baseURL: remote, token: token)
-
-        default:
-            throw DomusNetworkError.notConnected
+            return
         }
+
+        // 2. Se richiesto locale o automatico (preferLocal / fuori casa)
+        var localCandidate = localAddress ?? UserDefaults.standard.string(forKey: "domus_local_endpoint")
+        if localCandidate == nil {
+            if let discovered = await discoverLocalHub(timeoutSeconds: 1.5) {
+                localCandidate = discovered
+                self.localAddress = discovered
+                UserDefaults.standard.set(discovered, forKey: "domus_local_endpoint")
+                UserDefaults.standard.set(discovered, forKey: "domus_server_url")
+            }
+        }
+
+        if let local = localCandidate, !local.isEmpty {
+            do {
+                let wsUrl = toWebSocketUrl(httpUrl: local)
+                try await openWebSocket(url: wsUrl, token: token)
+                connection.mode = .localLan
+                connection.localAddress = local
+                connection.activeUrl = local
+                connection.isConnected = true
+                await DomusHttpClient.shared.configure(baseURL: local, token: token)
+                return
+            } catch {
+                if mode == .localLan {
+                    connection.mode = .disconnected
+                    connection.isConnected = false
+                    throw error
+                }
+            }
+        }
+
+        // 3. Fallback automatico su endpoint remoto se fuori casa
+        if let remote = remoteAddress ?? UserDefaults.standard.string(forKey: "domus_remote_endpoint"), !remote.isEmpty {
+            let wsUrl = toWebSocketUrl(httpUrl: remote)
+            try await openWebSocket(url: wsUrl, token: token)
+            connection.mode = .remoteTls
+            connection.remoteAddress = remote
+            connection.activeUrl = remote
+            connection.isConnected = true
+            await DomusHttpClient.shared.configure(baseURL: remote, token: token)
+            return
+        }
+
+        connection.mode = .disconnected
+        connection.isConnected = false
+        throw DomusNetworkError.notConnected
     }
 
     public func disconnect() async {
@@ -93,17 +122,38 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
     }
 
     public func setEndpoints(local: String?, remote: String?) async {
-        if let local { self.localAddress = local }
-        if let remote { self.remoteAddress = remote }
+        if let local {
+            self.localAddress = local
+            UserDefaults.standard.set(local, forKey: "domus_local_endpoint")
+            UserDefaults.standard.set(local, forKey: "domus_server_url")
+        }
+        if let remote {
+            self.remoteAddress = remote
+            UserDefaults.standard.set(remote, forKey: "domus_remote_endpoint")
+        }
     }
 
     // MARK: - Private
 
+    private func toWebSocketUrl(httpUrl: String) -> String {
+        var base = httpUrl.trimmingCharacters(in: .whitespaces)
+        if base.hasPrefix("https://") {
+            base = "wss://" + base.dropFirst("https://".count)
+        } else if base.hasPrefix("http://") {
+            base = "ws://" + base.dropFirst("http://".count)
+        } else if !base.hasPrefix("ws://") && !base.hasPrefix("wss://") {
+            base = "ws://" + base
+        }
+        if base.hasSuffix("/") {
+            base = String(base.dropLast())
+        }
+        return base + "/ws"
+    }
+
     private func openWebSocket(url: String, token: String?) async throws {
-        // Il token viene aggiunto come query parameter o header nel WebSocket handshake
         var urlString = url
         if let token {
-            urlString += "?token=\(token)"
+            urlString += (url.contains("?") ? "&" : "?") + "token=\(token)"
         }
         try await webSocketClient.connect(to: urlString)
     }

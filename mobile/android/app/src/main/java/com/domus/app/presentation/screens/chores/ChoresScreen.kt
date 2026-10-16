@@ -92,10 +92,24 @@ fun ChoresScreen(
     }
 
     var selectedFilter by remember { mutableStateOf("Tutti") }
-    val filters = listOf("Tutti", "Marco", "Giulia", "Cucina", "Salotto")
+    val dynamicFilters = remember(chores) {
+        val list = mutableListOf("Tutti", "Da Fare", "Completati")
+        val assignees = chores.map { it.assignee }.filter { it.isNotBlank() && it != "Tutti" }.distinct()
+        list.addAll(assignees)
+        val rooms = chores.map { it.room }.filter { it.isNotBlank() && it != "Casa" }.distinct()
+        list.addAll(rooms)
+        list
+    }
 
     val totalPoints = chores.filter { it.isDone }.sumOf { it.points }
     val pendingCount = chores.count { !it.isDone }
+
+    val userLeaderboard = remember(chores) {
+        val completed = chores.filter { it.isDone && it.assignee.isNotBlank() && it.assignee != "Tutti" }
+        completed.groupBy { it.assignee }
+            .map { (user, userChores) -> user to userChores.sumOf { it.points } }
+            .sortedByDescending { it.second }
+    }
 
     Column(
         modifier = modifier
@@ -159,21 +173,47 @@ fun ChoresScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("👦 Marco", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                    Text("75 Karma", color = CyanAccent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            if (userLeaderboard.isEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🏆 Nessun punto karma accumulato",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp
+                    )
                 }
-                Box(modifier = Modifier.height(28.dp).width(1.dp).background(Slate700))
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("👧 Giulia", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                    Text("90 Karma 🏆", color = AmberWarning, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    userLeaderboard.take(3).forEachIndexed { index, (user, points) ->
+                        if (index > 0) {
+                            Box(modifier = Modifier.height(28.dp).width(1.dp).background(Slate700))
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "👤 $user",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = if (index == 0) "$points Karma 🏆" else "$points Karma",
+                                color = if (index == 0) AmberWarning else CyanAccent,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -185,7 +225,7 @@ fun ChoresScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            filters.forEach { filter ->
+            dynamicFilters.forEach { filter ->
                 val isSelected = selectedFilter == filter
                 Surface(
                     shape = RoundedCornerShape(20.dp),
@@ -204,22 +244,42 @@ fun ChoresScreen(
             }
         }
 
-        // Chores LazyColumn
+        // Chores LazyColumn or Empty State
         val filteredChores = chores.filter {
             when (selectedFilter) {
                 "Tutti" -> true
-                "Marco", "Giulia" -> it.assignee == selectedFilter || it.assignee == "Tutti"
-                else -> it.room == selectedFilter
+                "Da Fare" -> !it.isDone
+                "Completati" -> it.isDone
+                else -> it.assignee == selectedFilter || it.room == selectedFilter
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(vertical = 10.dp)
-        ) {
+        if (filteredChores.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("✓", fontSize = 48.sp, color = Color.White.copy(alpha = 0.3f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Nessuna faccenda presente",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(vertical = 10.dp)
+            ) {
             items(filteredChores, key = { it.id }) { chore ->
                 val isDone = chore.isDone
                 val cardColor by animateColorAsState(
@@ -323,4 +383,5 @@ fun ChoresScreen(
             }
         }
     }
+}
 }

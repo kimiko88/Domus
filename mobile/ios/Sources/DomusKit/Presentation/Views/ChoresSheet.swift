@@ -48,8 +48,8 @@ public struct ChoresSheet: View {
     @State private var isSubmitting: Bool = false
 
     private let filters = ["Tutti", "Da Fare", "Completati"]
-    private let roomSuggestions = ["Casa", "Cucina", "Salotto", "Bagno", "Camera", "Giardino"]
-    private let familyMembers = ["Tutti", "Marco", "Giulia"]
+    @State private var roomSuggestions: [String] = ["Casa"]
+    @State private var familyMembers: [String] = ["Tutti"]
     private let priorities = [
         ("low", "Bassa", Color.gray),
         ("medium", "Media", Color.blue),
@@ -138,9 +138,11 @@ public struct ChoresSheet: View {
             }
             .task {
                 await loadChores()
+                await loadFamilyMembersAndAreas()
             }
             .refreshable {
                 await loadChores()
+                await loadFamilyMembersAndAreas()
             }
             .sheet(isPresented: $showingAddSheet) {
                 addChoreNavigationStack
@@ -165,7 +167,7 @@ public struct ChoresSheet: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                let pending = chores.count { !$0.completed }
+                let pending = chores.filter { !$0.completed }.count
                 Text("\(pending) in attesa")
                     .font(.caption)
                     .fontWeight(.bold)
@@ -180,35 +182,55 @@ public struct ChoresSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private var userLeaderboard: [(user: String, karma: Int)] {
+        let completed = chores.filter { $0.completed && !$0.assignedTo.isEmpty && $0.assignedTo != "Tutti" }
+        let grouped = Dictionary(grouping: completed, by: { $0.assignedTo })
+        let scores = grouped.map { (user: $0.key, karma: $0.value.reduce(0) { $0 + $1.karmaPoints }) }
+        return scores.sorted { $0.karma > $1.karma }
+    }
+
     private var leaderboardCard: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Text("👦 Marco")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                Text("75 Karma")
-                    .font(.caption)
-                    .foregroundColor(.cyan)
-                    .fontWeight(.semibold)
-            }
-            Spacer()
-            Divider()
-                .frame(height: 20)
-            Spacer()
-            HStack(spacing: 8) {
-                Text("👧 Giulia")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                Text("90 Karma 🏆")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .fontWeight(.semibold)
+        Group {
+            if userLeaderboard.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "rosette")
+                        .foregroundColor(.secondary)
+                    Text("Nessun punto karma accumulato")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(Color.domusSecondarySystemGroupedBackground.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                HStack {
+                    ForEach(Array(userLeaderboard.prefix(3).enumerated()), id: \.element.user) { index, entry in
+                        if index > 0 {
+                            Spacer()
+                            Divider()
+                                .frame(height: 20)
+                            Spacer()
+                        }
+                        HStack(spacing: 6) {
+                            Text(index == 0 ? "🏆" : "👤")
+                            Text(entry.user)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                            Text("\(entry.karma) pts")
+                                .font(.caption)
+                                .foregroundColor(index == 0 ? .orange : .cyan)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.domusSecondarySystemGroupedBackground.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.domusSecondarySystemGroupedBackground.opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var filteredChores: [ChoreItem] {
@@ -238,7 +260,38 @@ public struct ChoresSheet: View {
             }
             self.totalKarma = self.chores.filter { $0.completed }.reduce(0) { $0 + $1.karmaPoints }
         } catch {
-            // In caso di errore di rete
+            self.totalKarma = 0
+            self.chores = []
+        }
+    }
+
+    private func loadFamilyMembersAndAreas() async {
+        do {
+            let members = try await DomusHttpClient.shared.fetchFamilyMembers()
+            let memberNames = members.map { $0.username }.filter { !$0.isEmpty }
+            if !memberNames.isEmpty {
+                self.familyMembers = ["Tutti"] + memberNames
+            } else if let savedUser = UserDefaults.standard.string(forKey: "domus_username"), !savedUser.isEmpty {
+                self.familyMembers = ["Tutti", savedUser]
+            } else {
+                self.familyMembers = ["Tutti"]
+            }
+        } catch {
+            if let savedUser = UserDefaults.standard.string(forKey: "domus_username"), !savedUser.isEmpty {
+                self.familyMembers = ["Tutti", savedUser]
+            } else {
+                self.familyMembers = ["Tutti"]
+            }
+        }
+
+        do {
+            let areas = try await DomusHttpClient.shared.get(path: "/api/v1/areas", as: [Area].self)
+            let areaNames = areas.map { $0.name }.filter { !$0.isEmpty }
+            if !areaNames.isEmpty {
+                self.roomSuggestions = ["Casa"] + areaNames
+            }
+        } catch {
+            self.roomSuggestions = ["Casa"]
         }
     }
 

@@ -70,6 +70,33 @@ public actor DomusHttpClient: Sendable {
         try validateResponse(response)
     }
 
+    /// PUT generico
+    public func put<B: Encodable, R: Decodable>(path: String, body: B, as type: R.Type) async throws -> R {
+        let url = try makeURL(path: path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuth(to: &request)
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(R.self, from: data)
+    }
+
+    /// PUT senza corpo di risposta
+    public func putVoid<B: Encodable>(path: String, body: B) async throws {
+        let url = try makeURL(path: path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        addAuth(to: &request)
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
     /// DELETE generico
     public func delete(path: String) async throws {
         let url = try makeURL(path: path)
@@ -243,6 +270,85 @@ public actor DomusHttpClient: Sendable {
             }
         }
         try await postVoid(path: "/api/v1/services/\(domain)/\(service)", body: ServiceBody(entityId: entityId, data: data))
+    }
+
+    // MARK: - Floorplan & Markers API
+
+    public func fetchFloors() async throws -> [FloorDTO] {
+        try await get(path: "/api/v1/floors", as: [FloorDTO].self)
+    }
+
+    public func createFloor(name: String, level: Int, planSvg: String? = nil, planImage: String? = nil, sortOrder: Int = 0) async throws -> FloorDTO {
+        struct CreateFloorReq: Encodable {
+            let name: String
+            let level: Int
+            let planSvg: String?
+            let planImage: String?
+            let sortOrder: Int
+            enum CodingKeys: String, CodingKey {
+                case name, level
+                case planSvg = "plan_svg"
+                case planImage = "plan_image"
+                case sortOrder = "sort_order"
+            }
+        }
+        return try await post(path: "/api/v1/floors", body: CreateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
+    }
+
+    public func updateFloor(id: String, name: String, level: Int, planSvg: String? = nil, planImage: String? = nil, sortOrder: Int = 0) async throws -> FloorDTO {
+        struct UpdateFloorReq: Encodable {
+            let name: String
+            let level: Int
+            let planSvg: String?
+            let planImage: String?
+            let sortOrder: Int
+            enum CodingKeys: String, CodingKey {
+                case name, level
+                case planSvg = "plan_svg"
+                case planImage = "plan_image"
+                case sortOrder = "sort_order"
+            }
+        }
+        return try await put(path: "/api/v1/floors/\(id)", body: UpdateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
+    }
+
+    public func deleteFloor(id: String) async throws {
+        try await delete(path: "/api/v1/floors/\(id)")
+    }
+
+    public func fetchFloorMarkers(floorId: String) async throws -> [FloorMarkerDTO] {
+        try await get(path: "/api/v1/floors/\(floorId)/markers", as: [FloorMarkerDTO].self)
+    }
+
+    public func saveFloorMarker(floorId: String, markerId: String? = nil, entityKey: String, xPercent: Double, yPercent: Double, iconOverride: String? = nil, showBadge: Bool = true) async throws -> FloorMarkerDTO {
+        struct SaveMarkerReq: Encodable {
+            let id: String?
+            let entityKey: String
+            let xPercent: Double
+            let yPercent: Double
+            let iconOverride: String?
+            let showBadge: Bool
+            enum CodingKeys: String, CodingKey {
+                case id
+                case entityKey = "entity_key"
+                case xPercent = "x_percent"
+                case yPercent = "y_percent"
+                case iconOverride = "icon_override"
+                case showBadge = "show_badge"
+            }
+        }
+        return try await put(path: "/api/v1/floors/\(floorId)/markers", body: SaveMarkerReq(id: markerId, entityKey: entityKey, xPercent: xPercent, yPercent: yPercent, iconOverride: iconOverride, showBadge: showBadge), as: FloorMarkerDTO.self)
+    }
+
+    public func deleteFloorMarker(floorId: String, markerId: String) async throws {
+        try await delete(path: "/api/v1/floors/\(floorId)/markers/\(markerId)")
+    }
+
+    // MARK: - Family & Users API
+
+    public func fetchFamilyMembers() async throws -> [FamilyMemberDTO] {
+        let res = try await get(path: "/api/v1/family/members", as: FamilyMembersResponseDTO.self)
+        return res.members
     }
 
     // MARK: - Private helpers
@@ -639,6 +745,100 @@ public struct InAppNotificationDTO: Codable, Identifiable, Sendable {
         self.imageUrl = imageUrl
         self.actions = actions
         self.resolvedAt = resolvedAt
+    }
+}
+
+public struct FloorDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public var name: String
+    public var level: Int
+    public var planSvg: String?
+    public var planImage: String?
+    public var sortOrder: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case level
+        case planSvg = "plan_svg"
+        case planImage = "plan_image"
+        case sortOrder = "sort_order"
+    }
+
+    public init(id: String, name: String, level: Int = 0, planSvg: String? = nil, planImage: String? = nil, sortOrder: Int? = 0) {
+        self.id = id
+        self.name = name
+        self.level = level
+        self.planSvg = planSvg
+        self.planImage = planImage
+        self.sortOrder = sortOrder
+    }
+}
+
+public struct FloorMarkerDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let floorId: String?
+    public var entityKey: String
+    public var xPercent: Double
+    public var yPercent: Double
+    public var iconOverride: String?
+    public var showBadge: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case floorId = "floor_id"
+        case entityKey = "entity_key"
+        case xPercent = "x_percent"
+        case yPercent = "y_percent"
+        case iconOverride = "icon_override"
+        case showBadge = "show_badge"
+    }
+
+    public init(id: String, floorId: String? = nil, entityKey: String, xPercent: Double, yPercent: Double, iconOverride: String? = nil, showBadge: Bool = true) {
+        self.id = id
+        self.floorId = floorId
+        self.entityKey = entityKey
+        self.xPercent = xPercent
+        self.yPercent = yPercent
+        self.iconOverride = iconOverride
+        self.showBadge = showBadge
+    }
+}
+
+public struct FamilyMemberDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let username: String
+    public let email: String?
+    public let role: String?
+    public let enabled: Bool?
+    public let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case email
+        case role
+        case enabled
+        case createdAt = "created_at"
+    }
+
+    public init(id: String, username: String, email: String? = nil, role: String? = nil, enabled: Bool? = nil, createdAt: String? = nil) {
+        self.id = id
+        self.username = username
+        self.email = email
+        self.role = role
+        self.enabled = enabled
+        self.createdAt = createdAt
+    }
+}
+
+public struct FamilyMembersResponseDTO: Codable, Sendable {
+    public let members: [FamilyMemberDTO]
+    public let total: Int?
+
+    public init(members: [FamilyMemberDTO], total: Int? = nil) {
+        self.members = members
+        self.total = total
     }
 }
 
