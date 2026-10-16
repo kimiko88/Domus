@@ -63,6 +63,8 @@ class MobileBackendContractTest {
             }
         """.trimIndent()
 
+        var activeWs: WebSocket? = null
+
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path ?: ""
@@ -70,7 +72,7 @@ class MobileBackendContractTest {
                     path.startsWith("/api/v1/ws") -> {
                         MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
-                                webSocket.send(wsEvent)
+                                activeWs = webSocket
                             }
                             override fun onMessage(webSocket: WebSocket, text: String) {}
                             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -147,6 +149,14 @@ class MobileBackendContractTest {
         assertEquals("light.kitchen", initialEntities[0].id)
 
         // Step 4: Verify WebSocket real-time update arrived into cache
+        // Wait for active WebSocket connection, then send live event
+        val deadlineWs = System.currentTimeMillis() + 3000L
+        while (System.currentTimeMillis() < deadlineWs && activeWs == null) {
+            delay(50L)
+        }
+        assertNotNull("WebSocket should be connected", activeWs)
+        activeWs?.send(wsEvent)
+
         val deadline = System.currentTimeMillis() + 4000L
         while (System.currentTimeMillis() < deadline && cache.getEntity("light.kitchen")?.state != "on") {
             delay(50L)

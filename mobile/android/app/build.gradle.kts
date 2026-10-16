@@ -32,6 +32,19 @@ android {
       shaders = false
     }
 
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            all { testTask ->
+                testTask.testLogging {
+                    events("passed", "skipped", "failed", "standardOut", "standardError")
+                    showStandardStreams = true
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                }
+            }
+        }
+    }
+
     packaging {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"

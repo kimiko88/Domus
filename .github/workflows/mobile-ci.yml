@@ -31,7 +31,7 @@ jobs:
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew test --stacktrace
+          ./gradlew test --stacktrace --no-daemon
 
   test-ios:
     name: iOS (DomusKit Tests & Xcode Build)

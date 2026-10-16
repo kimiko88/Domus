@@ -95,6 +95,7 @@ class DomusAlarmTileService : TileService() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("action", "disarm_prompt")
             }
+            @Suppress("DEPRECATION")
             startActivityAndCollapse(intent)
         }
     }

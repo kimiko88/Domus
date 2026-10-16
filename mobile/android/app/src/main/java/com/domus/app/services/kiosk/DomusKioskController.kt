@@ -53,6 +53,7 @@ class DomusKioskController(
     /**
      * Wakes up the screen when proximity or motion is detected in front of the wall tablet.
      */
+    @Suppress("DEPRECATION")
     fun onProximityDetected() {
         val powerManager = activity.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
         if (!powerManager.isInteractive) {
