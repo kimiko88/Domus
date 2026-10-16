@@ -61,14 +61,14 @@ fun EnergyScreen(
     val batteryPercentage = serverFlow?.battery_soc?.toInt() ?: 0
     val gridWatts = serverFlow?.grid_watts?.toInt() ?: 0 // Negative = Exporting to grid
 
-    val contractLimitKw = 4.5f
+    var contractLimitKw by remember { mutableFloatStateOf(4.5f) }
     val punTariffEur = 0.128 // €/kWh PUN attuale
 
     val entities by viewModel?.filteredEntities?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     val consumers = remember(entities) {
         entities.filter { it.domain == "switch" || it.domain == "climate" || it.domain == "heater" }.take(6).mapIndexed { i, e ->
-            val power = (e.attributes["current_power_w"] as? Number)?.toInt()
-                ?: (e.attributes["power"] as? Number)?.toInt()
+            val power = e.attributes["current_power_w"]?.toString()?.replace("\"", "")?.toDoubleOrNull()?.toInt()
+                ?: e.attributes["power"]?.toString()?.replace("\"", "")?.toDoubleOrNull()?.toInt()
                 ?: (if (e.isOn) 1200 else 0)
             HeavyConsumer(
                 id = e.id,

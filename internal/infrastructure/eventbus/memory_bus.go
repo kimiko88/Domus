@@ -74,6 +74,12 @@ func (b *MemoryBus) Publish(ctx context.Context, event events.Event) error {
 		return ErrBusClosed
 	}
 
+	if event.TraceParent == "" {
+		if tc := events.TraceFromContext(ctx); tc != nil {
+			event.TraceParent = tc.String()
+		}
+	}
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -159,6 +165,12 @@ func (b *MemoryBus) dispatch(evt events.Event) {
 	b.mu.RUnlock()
 
 	ctx := context.Background()
+	if evt.TraceParent != "" {
+		if tc, err := events.ParseTraceParent(evt.TraceParent); err == nil {
+			ctx = events.ContextWithTrace(ctx, tc)
+		}
+	}
+
 	for _, handler := range handlers {
 		b.invokeHandler(ctx, handler, evt)
 	}

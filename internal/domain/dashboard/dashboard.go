@@ -3,14 +3,21 @@ package dashboard
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
 var (
 	ErrDashboardNotFound = errors.New("dashboard: not found")
 	ErrInvalidTitle      = errors.New("dashboard: title cannot be empty")
+	ErrInvalidShareToken = errors.New("dashboard: invalid or expired share token")
 )
 
 // KioskConfig configures wall-mounted tablet behavior.
@@ -82,3 +89,66 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 	SetDefault(ctx context.Context, id string) error
 }
+
+// ShareTokenPayload defines the claims carried by a temporary guest share token.
+type ShareTokenPayload struct {
+	DashboardID string    `json:"dashboard_id"`
+	Title       string    `json:"title"`
+	ReadOnly    bool      `json:"read_only"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// GenerateShareToken creates a signed, tamper-proof URL-safe share token.
+func GenerateShareToken(p ShareTokenPayload, secretKey []byte) (string, error) {
+	if len(secretKey) == 0 {
+		return "", errors.New("empty secret key")
+	}
+	payloadBytes, err := json.Marshal(p)
+	if err != nil {
+		return "", fmt.Errorf("marshal share payload: %w", err)
+	}
+
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadBytes)
+
+	mac := hmac.New(sha256.New, secretKey)
+	mac.Write([]byte(payloadB64))
+	sigHex := hex.EncodeToString(mac.Sum(nil))
+
+	return payloadB64 + "." + sigHex, nil
+}
+
+// ValidateShareToken verifies the HMAC signature and expiration of a share token.
+func ValidateShareToken(token string, secretKey []byte) (*ShareTokenPayload, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return nil, ErrInvalidShareToken
+	}
+
+	payloadB64, sigHex := parts[0], parts[1]
+
+	mac := hmac.New(sha256.New, secretKey)
+	mac.Write([]byte(payloadB64))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(sigHex), []byte(expectedSig)) {
+		return nil, ErrInvalidShareToken
+	}
+
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(payloadB64)
+	if err != nil {
+		return nil, ErrInvalidShareToken
+	}
+
+	var p ShareTokenPayload
+	if err := json.Unmarshal(payloadBytes, &p); err != nil {
+		return nil, ErrInvalidShareToken
+	}
+
+	if time.Now().UTC().After(p.ExpiresAt) {
+		return nil, ErrInvalidShareToken
+	}
+
+	return &p, nil
+}
+

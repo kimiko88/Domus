@@ -113,6 +113,9 @@ cd web && npm run test:run
 
 # 3. Frontend TypeScript Compilation
 cd web && npm run type-check
+
+# 4. Android Kotlin Compilation
+cd mobile/android && ./gradlew.bat :app:compileDebugKotlin
 ```
 
 ### Critical Rules for Antigravity Agents

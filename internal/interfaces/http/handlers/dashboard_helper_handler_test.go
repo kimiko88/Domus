@@ -111,7 +111,57 @@ func TestDashboardHandler_Endpoints(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	// 5. Delete
+	// 5. Share Dashboard (POST /api/v1/dashboards/{id}/share)
+	r.Post("/api/v1/dashboards/{id}/share", h.Share)
+	r.Get("/api/v1/dashboards/shared/{token}", h.GetShared)
+
+	shareReqBody, _ := json.Marshal(map[string]any{
+		"duration_minutes": 60,
+		"read_only":        true,
+	})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/dashboards/tablet_salotto/share", bytes.NewReader(shareReqBody))
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var shareRes struct {
+		Token    string `json:"token"`
+		ShareURL string `json:"share_url"`
+		ReadOnly bool   `json:"read_only"`
+	}
+	_ = json.NewDecoder(w.Body).Decode(&shareRes)
+	if shareRes.Token == "" {
+		t.Fatal("expected non-empty share token")
+	}
+
+	// 6. Access Shared Dashboard with Token (GET /api/v1/dashboards/shared/{token})
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/shared/"+shareRes.Token, nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var sharedData struct {
+		Dashboard *domainDash.Dashboard        `json:"dashboard"`
+		ShareInfo *domainDash.ShareTokenPayload `json:"share_info"`
+	}
+	_ = json.NewDecoder(w.Body).Decode(&sharedData)
+	if sharedData.Dashboard == nil || sharedData.Dashboard.Title != "Tablet Salotto" {
+		t.Fatalf("unexpected shared dashboard: %+v", sharedData.Dashboard)
+	}
+
+	// 7. Access with invalid token returns 401
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/shared/invalid.token", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for invalid token, got %d", w.Code)
+	}
+
+	// 8. Delete
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/dashboards/tablet_salotto", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)

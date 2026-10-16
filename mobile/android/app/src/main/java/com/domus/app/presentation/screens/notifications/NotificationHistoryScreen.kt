@@ -62,7 +62,9 @@ fun NotificationHistoryScreen(
 
     val serverNotifs by viewModel?.notifications?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
 
-    val notifications = remember(serverNotifs) {
+    var localReadIds by remember { mutableStateOf(setOf<String>()) }
+
+    val notifications = remember(serverNotifs, localReadIds) {
         serverNotifs.map { dto ->
             val cat = when {
                 dto.critical || dto.title.contains("allarme", true) || dto.title.contains("sicurezza", true) -> NotificationCategory.SECURITY
@@ -76,7 +78,7 @@ fun NotificationHistoryScreen(
                 message = dto.message,
                 category = cat,
                 timeAgo = "Recente",
-                isRead = dto.resolved_at != null,
+                isRead = dto.resolved_at != null || localReadIds.contains(dto.id),
                 actionLabel = dto.actions.firstOrNull()?.title
             )
         }
@@ -119,9 +121,7 @@ fun NotificationHistoryScreen(
             // Mark all read button
             IconButton(
                 onClick = {
-                    notifications.forEachIndexed { idx, notif ->
-                        notifications[idx] = notif.copy(isRead = true)
-                    }
+                    localReadIds = localReadIds + notifications.map { it.id }
                 },
                 enabled = unreadCount > 0
             ) {
@@ -191,10 +191,7 @@ fun NotificationHistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            val idx = notifications.indexOfFirst { it.id == notif.id }
-                            if (idx != -1) {
-                                notifications[idx] = notif.copy(isRead = true)
-                            }
+                            localReadIds = localReadIds + notif.id
                         }
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -240,10 +237,7 @@ fun NotificationHistoryScreen(
                             Spacer(modifier = Modifier.height(10.dp))
                             Button(
                                 onClick = {
-                                    val idx = notifications.indexOfFirst { it.id == notif.id }
-                                    if (idx != -1) {
-                                        notifications[idx] = notif.copy(isRead = true)
-                                    }
+                                    localReadIds = localReadIds + notif.id
                                 },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(

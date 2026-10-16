@@ -63,12 +63,22 @@ class ApiClient {
       externalSignal.addEventListener('abort', onExternalAbort)
     }
 
+    const requestHeaders: Record<string, string> = {
+      Accept: 'application/json',
+      ...((headers as Record<string, string>) || {})
+    }
+
+    // Auto-inject CSRF protection header from cookie if present
+    if (typeof document !== 'undefined' && !requestHeaders['X-CSRF-Token']) {
+      const match = document.cookie.match(/(?:^|;\s*)domus_csrf=([^;]+)/)
+      if (match) {
+        requestHeaders['X-CSRF-Token'] = decodeURIComponent(match[1])
+      }
+    }
+
     const config: RequestInit = {
       credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        ...headers
-      },
+      headers: requestHeaders,
       signal: controller.signal,
       ...customConfig
     }
@@ -77,6 +87,9 @@ class ApiClient {
       const response = await fetch(url, config)
 
       if (!response.ok) {
+        if (response.status === 401 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('domus:unauthorized'))
+        }
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         let errorData: any = null
         try {

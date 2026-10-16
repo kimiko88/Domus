@@ -84,10 +84,10 @@ fun FloorplanCanvas(
                 val y = 0.18f + (index / 3) * 0.26f
                 FloorplanMarker(
                     entityId = entity.id,
-                    label = entity.name,
+                    name = entity.name,
                     domain = entity.domain,
-                    normalizedX = x.coerceIn(0.08f, 0.92f),
-                    normalizedY = y.coerceIn(0.12f, 0.88f),
+                    posX = x.coerceIn(0.08f, 0.92f),
+                    posY = y.coerceIn(0.12f, 0.88f),
                     isOn = entity.isOn,
                     valueText = when {
                         entity.domain == "climate" -> "${entity.attributes["temperature"] ?: "21.0"}°C"

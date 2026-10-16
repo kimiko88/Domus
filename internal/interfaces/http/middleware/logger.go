@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -30,6 +31,10 @@ func RequestLogger() func(next http.Handler) http.Handler {
 					"duration_ms", latency.Milliseconds(),
 					"remote_ip", r.RemoteAddr,
 					"bytes_written", ww.BytesWritten(),
+				}
+
+				if tc := events.TraceFromContext(r.Context()); tc != nil {
+					attrs = append(attrs, "trace_id", tc.TraceID, "span_id", tc.SpanID)
 				}
 
 				if reqID := middleware.GetReqID(r.Context()); reqID != "" {

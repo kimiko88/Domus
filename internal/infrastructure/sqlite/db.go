@@ -7,9 +7,12 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	_ "modernc.org/sqlite"
 )
@@ -104,6 +107,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 9, file: "migrations/000009_advanced_security_and_integrations.up.sql"},
 		{version: 10, file: "migrations/000010_home_assistant_parity.up.sql"},
 		{version: 11, file: "migrations/000011_scripts_logbook_push.up.sql"},
+		{version: 12, file: "migrations/000012_outbound_webhooks_and_inapp_notifications.up.sql"},
 	}
 
 	for _, m := range migrations {
@@ -143,3 +147,24 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 
 	return nil
 }
+
+// LogWALTrace logs a SQLite WAL transaction or query execution correlating it with W3C distributed trace context.
+func LogWALTrace(ctx context.Context, op string, duration time.Duration, err error) {
+	attrs := []any{
+		"db", "sqlite_wal",
+		"operation", op,
+		"duration_ms", duration.Milliseconds(),
+	}
+	if tc := events.TraceFromContext(ctx); tc != nil {
+		attrs = append(attrs, "trace_id", tc.TraceID, "span_id", tc.SpanID, "traceparent", tc.String())
+	}
+	if err != nil {
+		attrs = append(attrs, "error", err.Error())
+		slog.Error("sqlite wal operation failed", attrs...)
+	} else if duration > 50*time.Millisecond {
+		slog.Warn("sqlite wal slow query", attrs...)
+	} else {
+		slog.Debug("sqlite wal operation", attrs...)
+	}
+}
+

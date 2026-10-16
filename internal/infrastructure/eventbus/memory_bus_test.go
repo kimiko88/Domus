@@ -204,3 +204,39 @@ func TestMemoryBus_BufferFullReturnsError(t *testing.T) {
 	})
 	assert.Error(t, err, "Publishing to full buffer must return an error")
 }
+
+func TestMemoryBus_TracePropagation(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{
+		BufferSize: 10,
+		Workers:    1,
+	})
+	defer bus.Close()
+
+	rootTrace := events.NewTraceContext()
+	ctx := events.ContextWithTrace(context.Background(), rootTrace)
+
+	receivedTraceChan := make(chan *events.TraceContext, 1)
+
+	bus.Subscribe(events.EntityStateChanged, func(c context.Context, e events.Event) error {
+		tc := events.TraceFromContext(c)
+		receivedTraceChan <- tc
+		return nil
+	})
+
+	err := bus.Publish(ctx, events.Event{
+		ID:         "evt-trace-1",
+		Type:       events.EntityStateChanged,
+		OccurredAt: time.Now(),
+	})
+	require.NoError(t, err)
+
+	select {
+	case tc := <-receivedTraceChan:
+		require.NotNil(t, tc)
+		assert.Equal(t, rootTrace.TraceID, tc.TraceID)
+		assert.Equal(t, rootTrace.SpanID, tc.SpanID)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for trace propagation in eventbus")
+	}
+}
+

@@ -89,3 +89,16 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// MaxBodySize restricts the request body to limitBytes to mitigate DoS attacks via payload inflation.
+func MaxBodySize(limitBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, limitBytes)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+

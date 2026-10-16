@@ -25,6 +25,7 @@ import (
 	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
+	appcloudassistant "github.com/domus-hub/domus/internal/application/cloud_assistant"
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
@@ -145,11 +146,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	// Global standard middlewares
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
+	r.Use(domusmw.TraceContext())
 	r.Use(domusmw.RequestLogger())
 	r.Use(chimw.Recoverer)
 
-	// Security headers (CSP, X-Frame-Options, etc.)
+	// Security headers (CSP, X-Frame-Options, etc.) and payload limits
 	r.Use(domusmw.SecurityHeaders())
+	r.Use(domusmw.MaxBodySize(4 * 1024 * 1024)) // 4 MB payload limit against inflation DoS
 
 	// CORS (optional, for development frontends)
 	if len(srv.allowedOrigins) > 0 {
@@ -225,15 +228,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Invite lookup & registration
 				authRouter.Get("/invite/{token}", familyH.ValidateInvite)
-				authRouter.Post("/register", familyH.RegisterWithInvite)
 
-				// Rate-limited login
+				// Rate-limited auth endpoints
 				if srv.rateLimiter != nil {
+					authRouter.With(domusmw.RateLimit(srv.rateLimiter)).Post("/register", familyH.RegisterWithInvite)
 					authRouter.With(domusmw.RateLimit(srv.rateLimiter)).Post("/login", authH.Login)
+					authRouter.With(domusmw.RateLimit(srv.rateLimiter)).Post("/kiosk-login", authH.KioskLogin)
 				} else {
+					authRouter.Post("/register", familyH.RegisterWithInvite)
 					authRouter.Post("/login", authH.Login)
+					authRouter.Post("/kiosk-login", authH.KioskLogin)
 				}
-				authRouter.Post("/kiosk-login", authH.KioskLogin)
 
 				// 2FA TOTP authentication
 				authRouter.With(domusmw.RequireAuth()).Post("/2fa/setup", authH.Setup2FA)
@@ -285,6 +290,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if srv.repos.DB != nil {
 				webhookSvc := appwebhook.NewService(srv.repos.DB, srv.bus)
 				webhookH = handlers.NewWebhookHandler(webhookSvc)
+				if srv.repos.OutboundWebhooks != nil {
+					outboundDispatcher := appwebhook.NewOutboundDispatcher(srv.repos.OutboundWebhooks, srv.bus, nil)
+					outboundDispatcher.Start(context.Background())
+					webhookH = webhookH.WithOutbound(outboundDispatcher)
+				}
 				api.HandleFunc("/webhooks/{webhook_id}", webhookH.HandleInbound)
 			}
 
@@ -514,7 +524,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						dRouter.Put("/{id}", dashH.Update)
 						dRouter.Delete("/{id}", dashH.Delete)
 						dRouter.Post("/{id}/default", dashH.SetDefault)
+						dRouter.Post("/{id}/share", dashH.Share)
 					})
+					api.Get("/dashboards/shared/{token}", dashH.GetShared)
 				}
 
 				// User Virtual Helpers
@@ -737,6 +749,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 							whRouter.Get("/", webhookH.ListWebhooks)
 							whRouter.Post("/", webhookH.CreateWebhook)
 							whRouter.Delete("/{id}", webhookH.DeleteWebhook)
+							whRouter.Get("/outbound", webhookH.ListOutbound)
+							whRouter.Post("/outbound", webhookH.CreateOutbound)
+							whRouter.Delete("/outbound/{id}", webhookH.DeleteOutbound)
+							whRouter.Post("/outbound/{id}/test", webhookH.TestOutbound)
+						})
+						domainRouter.Route("/webhooks/outbound", func(obRouter chi.Router) {
+							obRouter.Get("/", webhookH.ListOutbound)
+							obRouter.Post("/", webhookH.CreateOutbound)
+							obRouter.Delete("/{id}", webhookH.DeleteOutbound)
+							obRouter.Post("/{id}/test", webhookH.TestOutbound)
 						})
 					}
 				}
@@ -745,6 +767,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
 				assistantH := handlers.NewAssistantHandler(assistantSvc)
 				assistantH.RegisterRoutes(domainRouter)
+
+				// Cloud Voice Assistant Bridge (Amazon Alexa & Google Home Smart Home Actions)
+				cloudAssistantSvc := appcloudassistant.NewService(srv.repos.Entities, srv.bus, "", true)
+				cloudAssistantH := handlers.NewCloudAssistantHandler(cloudAssistantSvc)
+				cloudAssistantH.RegisterRoutes(api)
 
 				// Audit log endpoint (admin-only via RBAC)
 				auditH := handlers.NewAuditHandler(srv.repos.Audit)

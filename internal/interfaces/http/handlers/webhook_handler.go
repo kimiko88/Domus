@@ -12,11 +12,17 @@ import (
 )
 
 type WebhookHandler struct {
-	svc *webhook.Service
+	svc      *webhook.Service
+	outbound *webhook.OutboundDispatcher
 }
 
 func NewWebhookHandler(svc *webhook.Service) *WebhookHandler {
 	return &WebhookHandler{svc: svc}
+}
+
+func (h *WebhookHandler) WithOutbound(outbound *webhook.OutboundDispatcher) *WebhookHandler {
+	h.outbound = outbound
+	return h
 }
 
 func (h *WebhookHandler) RegisterRoutes(r chi.Router) {
@@ -28,7 +34,25 @@ func (h *WebhookHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.ListWebhooks)
 		r.Post("/", h.CreateWebhook)
 		r.Delete("/{id}", h.DeleteWebhook)
+
+		if h.outbound != nil {
+			r.Route("/outbound", func(ob chi.Router) {
+				ob.Get("/", h.ListOutbound)
+				ob.Post("/", h.CreateOutbound)
+				ob.Delete("/{id}", h.DeleteOutbound)
+				ob.Post("/{id}/test", h.TestOutbound)
+			})
+		}
 	})
+
+	if h.outbound != nil {
+		r.Route("/webhooks/outbound", func(ob chi.Router) {
+			ob.Get("/", h.ListOutbound)
+			ob.Post("/", h.CreateOutbound)
+			ob.Delete("/{id}", h.DeleteOutbound)
+			ob.Post("/{id}/test", h.TestOutbound)
+		})
+	}
 }
 
 func (h *WebhookHandler) HandleInbound(w http.ResponseWriter, r *http.Request) {
@@ -135,3 +159,103 @@ func (h *WebhookHandler) DeleteWebhook(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type createOutboundWebhookRequest struct {
+	Name        string   `json:"name"`
+	TargetURL   string   `json:"target_url"`
+	SecretToken string   `json:"secret_token"`
+	Events      []string `json:"events"`
+}
+
+func (h *WebhookHandler) ListOutbound(w http.ResponseWriter, r *http.Request) {
+	if h.outbound == nil {
+		http.Error(w, "outbound webhooks not configured", http.StatusNotImplemented)
+		return
+	}
+
+	list, err := h.outbound.ListOutbound(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(list)
+}
+
+func (h *WebhookHandler) CreateOutbound(w http.ResponseWriter, r *http.Request) {
+	if h.outbound == nil {
+		http.Error(w, "outbound webhooks not configured", http.StatusNotImplemented)
+		return
+	}
+
+	var req createOutboundWebhookRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	wh, err := h.outbound.CreateOutbound(r.Context(), req.Name, req.TargetURL, req.SecretToken, req.Events)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(wh)
+}
+
+func (h *WebhookHandler) DeleteOutbound(w http.ResponseWriter, r *http.Request) {
+	if h.outbound == nil {
+		http.Error(w, "outbound webhooks not configured", http.StatusNotImplemented)
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.outbound.DeleteOutbound(r.Context(), id); err != nil {
+		if err == domainWebhook.ErrOutboundNotFound {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WebhookHandler) TestOutbound(w http.ResponseWriter, r *http.Request) {
+	if h.outbound == nil {
+		http.Error(w, "outbound webhooks not configured", http.StatusNotImplemented)
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.outbound.TestOutbound(r.Context(), id); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":  "error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":  "ok",
+		"message": "outbound webhook test delivered successfully",
+	})
+}
+

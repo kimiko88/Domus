@@ -29,6 +29,7 @@ import GuideView from '../views/GuideView.vue'
 import LogbookView from '../views/LogbookView.vue'
 import ZonesView from '../views/ZonesView.vue'
 import TemplateEntitiesView from '../views/TemplateEntitiesView.vue'
+import SharedDashboardView from '../views/SharedDashboardView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -42,6 +43,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'custom-dashboards',
     component: CustomDashboardView,
     meta: { requiresAuth: true, title: 'Dashboard Tablet' }
+  },
+  {
+    path: '/share/:token',
+    name: 'shared-dashboard',
+    component: SharedDashboardView,
+    meta: { requiresAuth: false, title: 'Dashboard Condivisa' }
   },
   {
     path: '/energy',

@@ -593,21 +593,18 @@ La sezione **Faccende** (`/chores`) organizza i compiti domestici e le scadenze:
 
 ---
 
-## 20. App Mobile iOS e Android (Capacitor)
+## 20. App Companion Native iOS e Android (Swift 6 & Jetpack Compose)
 
-Domus include una configurazione pronta per Capacitor (`web/capacitor.config.ts`), permettendo di distribuire l'applicazione come app nativa per iOS e Android:
+Domus include companion app **100% native** per iOS e Android, progettate con architettura moderna per offrire massime prestazioni e zero dipendenze da framework ibridi o WebView:
 
-```bash
-cd web
-npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
-npx cap add ios
-npx cap add android
-npx cap sync
-```
+- **iOS Companion App (`mobile/ios`)**: Scritta in **Swift 6** e **SwiftUI**, supporta **WidgetKit** (widget per schermata home e blocco), **ActivityKit** (Live Activities per allarme e compiti in corso), **CarPlay** per il controllo rapido dell'apertura cancelli/garage dall'auto e integrazione **Face ID / Touch ID**.
+- **Android Companion App (`mobile/android`)**: Scritta in **Kotlin 2.x** e **Jetpack Compose**, include **Glance AppWidgets** per la home screen, **Quick Settings Tiles** (interruttori rapidi nella tendina di sistema), supporto **BiometricPrompt** e architettura MVI reattiva con StateFlow.
 
-- **Discovery mDNS**: l'app rileva automaticamente il server `domus.local` sulla rete Wi-Fi di casa.
-- **Fallback Remoto**: connessione sicura da remoto tramite HTTPS / Tailscale / WireGuard.
-- **Notifiche Push Native**: ricezione promemoria compiti e allarmi sensori anche con app chiusa.
+### Funzionalità di Rete e Sicurezza delle App Companion
+- **Discovery LAN Automatica via mDNS (`_domus._tcp.local`)**: All'apertura sulla stessa rete Wi-Fi domestica, l'app individua istantaneamente il server Domus Hub in pochi millisecondi.
+- **Doppio Trasporto & Fallback Remoto**: Connessione primaria a bassissima latenza via LAN con fallback automatico e trasparente su tunnel sicuro (HTTPS / WireGuard / Tailscale) quando ci si trova fuori casa.
+- **Zero Mock / Dati Real-Time**: Tutti i flussi dati (entità, telemetria, cronologia, consumi, faccende e lista della spesa) provengono direttamente dal Core via REST e WebSocket bidirezionale in tempo reale.
+- **Notifiche Push Native (APNs & FCM)**: Ricezione notifiche azionabili anche con app chiusa o in background, con canali prioritari e suoni critici per allarme e intrusioni.
 
 ---
 
@@ -824,6 +821,9 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Lista della Spesa** | `GET /api/v1/shopping` · `POST /api/v1/shopping` · `POST /api/v1/shopping/{id}/toggle` · `POST /api/v1/shopping/clear-completed` |
 | **Mappa Piani** | `GET /api/v1/floors` · `POST /api/v1/floors` · `GET/PUT /api/v1/floors/{id}/markers` |
 | **Faccende Domestiche** | `GET /api/v1/chores` · `POST /api/v1/chores` · `POST /api/v1/chores/{id}/complete` |
+| **Notifiche & Push** | `GET /api/v1/notifications` · `POST /api/v1/notifications/push/tokens` · `POST /api/v1/notifications/push/send` |
+| **Webhooks (Inbound & Outbound)** | `POST /webhooks/{id}` · `GET/POST /api/v1/webhook-configs` · `GET/POST /api/v1/webhooks/outbound` · `POST /api/v1/webhooks/outbound/{id}/test` |
+| **Chiamate Servizio Ecosistema** | `POST /api/v1/services/{domain}/{service}` |
 | **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` · `POST /api/v1/automations/{id}/dry-run` |
 | **Scene** | `POST /api/v1/scenes/{id}/activate` · `GET /api/v1/scenes` |
 | **Sistema & Metriche** | `GET /api/v1/system/health` · `GET /api/v1/system/metrics` · `GET /api/v1/system/sun` |

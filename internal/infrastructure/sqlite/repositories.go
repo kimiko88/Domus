@@ -24,6 +24,7 @@ import (
 	domscript "github.com/domus-hub/domus/internal/domain/script"
 	"github.com/domus-hub/domus/internal/domain/template_entity"
 	"github.com/domus-hub/domus/internal/domain/user"
+	"github.com/domus-hub/domus/internal/domain/webhook"
 	"github.com/domus-hub/domus/internal/domain/zone"
 )
 
@@ -63,6 +64,7 @@ type Repositories struct {
 	PushTokens           notification.PushTokenRepository
 	WeeklySchedules      schedule.Repository
 	ClimateCompensations climate.Repository
+	OutboundWebhooks     webhook.OutboundRepository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -105,5 +107,6 @@ func NewRepositories(db *sql.DB) *Repositories {
 		PushTokens:           NewPushTokenRepository(db),
 		WeeklySchedules:      NewWeeklyScheduleRepository(db),
 		ClimateCompensations: NewClimateCompensatorRepository(db),
+		OutboundWebhooks:     NewOutboundWebhookRepository(db),
 	}
 }

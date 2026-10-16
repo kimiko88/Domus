@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	appDash "github.com/domus-hub/domus/internal/application/dashboard"
 	domainDash "github.com/domus-hub/domus/internal/domain/dashboard"
@@ -115,3 +116,67 @@ func (h *DashboardHandler) SetDefault(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"default": true, "id": id})
 }
+
+type shareDashboardRequest struct {
+	DurationMinutes int  `json:"duration_minutes"` // default 1440 (24h)
+	ReadOnly        bool `json:"read_only"`
+}
+
+// Share handles POST /api/v1/dashboards/{id}/share.
+func (h *DashboardHandler) Share(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req shareDashboardRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	duration := 24 * time.Hour
+	if req.DurationMinutes > 0 {
+		duration = time.Duration(req.DurationMinutes) * time.Minute
+	}
+
+	token, payload, err := h.svc.CreateShareToken(r.Context(), id, duration, req.ReadOnly)
+	if err != nil {
+		if errors.Is(err, domainDash.ErrDashboardNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "dashboard not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"token":        token,
+		"share_url":    "/share/" + token,
+		"expires_at":   payload.ExpiresAt,
+		"read_only":    payload.ReadOnly,
+		"dashboard_id": id,
+	})
+}
+
+// GetShared handles GET /api/v1/dashboards/shared/{token} (public/guest endpoint).
+func (h *DashboardHandler) GetShared(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_TOKEN", "token cannot be empty")
+		return
+	}
+
+	d, payload, err := h.svc.GetShared(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, domainDash.ErrInvalidShareToken) {
+			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "share token is invalid or expired")
+			return
+		}
+		if errors.Is(err, domainDash.ErrDashboardNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "dashboard no longer exists")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"dashboard":  d,
+		"share_info": payload,
+	})
+}
+

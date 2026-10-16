@@ -17,6 +17,13 @@ Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high
 - **High Availability (HA) Failover Dual-Hub**: Keepalived Virtual IP (VIP) failover with real-time SQLite WAL delta replication, sub-second peer heartbeat monitoring, and 1-click manual node promotion.
 - **Multi-Room Always-On Voice Satellites**: On-device "Ehi Domus" wake-word detection, local WebSocket audio streaming, room-aware contextual command resolution ("spegni la luce" acts on the room where the speaker is located), and hardware privacy mute.
 - **Zero-Cloud Brand Discovery & 1-Click LAN Pairing**: Native LAN mDNS/SSDP discovery and instant pairing for Philips Hue, Shelly Gen1/Gen2, TP-Link Kasa/Tapo, Nanoleaf, Yeelight, Tuya Local, and Zigbee2MQTT.
+- **Cloud Voice Assistants (Optional & Privacy-First)**: Lambda OAuth2 bridge for Amazon Alexa Smart Home (v3) and Smart Home Actions for Google Home (`action.devices.SYNC`, `QUERY`, `EXECUTE`) while guaranteeing 100% local privacy by default through bearer token endpoints.
+- **Time-Limited Shared Dashboards**: Cryptographically signed HMAC-SHA256 temporary tokens for sharing specific dashboards with guests or kiosk screens (`/share/:token`) without exposing admin credentials.
+- **Industrial Automation Protocol Bridges**: Native Modbus TCP adapter for commercial solar inverters and heat pumps (coils, registers, float32, scaling factors), alongside a pure Go KNXnet/IP tunneling client for European wired installations (DPT 1.001, 5.001, 9.001, 14.056).
+- **Distributed Tracing (OpenTelemetry)**: Full W3C `traceparent` context propagation (`00-<trace_id>-<span_id>-01`) across incoming HTTP requests, asynchronous internal Event Bus dispatches, and SQLite WAL database operations.
+- **100% Native Mobile Companion Apps (iOS & Android)**: Full-featured native companion apps written in Swift 6 (SwiftUI, WidgetKit, CarPlay, ActivityKit) and Kotlin 2.x (Jetpack Compose, Glance widgets, Quick Settings Tiles, Biometrics) with zero mock/stub data, sub-millisecond mDNS discovery (`_domus._tcp.local`), and real-time bidirectional WebSocket live sync.
+- **Outbound Webhook Dispatcher**: Asynchronous event dispatching engine with HMAC-SHA256 request signing (`X-Domus-Signature`), wildcard event pattern matching (e.g. `alarm.*`, `entity.state_changed`, `*`), bounded worker pool, automatic fail count tracking, and immediate testing endpoints.
+- **Comprehensive API & Network Hardening**: Request body size limitation (`MaxBodySize` 4 MB limit) against DoS payload inflation, token bucket rate limiting on authentication and sensitive endpoints, strict CORS/CSP policies, and automatic CSRF header injection.
 - **Security Alarm Control Panel & Zigbee Direct Binding**: Built-in multi-state security alarm system (Away, Home, Night, Disarmed) with entry/exit delays and Zigbee direct binding bypass that operates even if the hub is rebooting.
 - **Shared Family Shopping List**: Collaborative real-time shopping list with department categorization and instant WebSocket synchronization across family members.
 - **Security Hardening**: Argon2id password hashing, session cookies with SameSite/HttpOnly, CSRF protection, rate limiting, and immutable audit logging.
@@ -24,7 +31,7 @@ Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high
 - **Progressive Web App (PWA)**: Vue 3 + TypeScript + Vite + Pinia single-page application with glassmorphic dark UI, real-time WebSocket live sync, and mobile installability.
 - **Multi-Language Frontend**: Full internationalization (i18n) with 100% key and subkey parity across **Italiano 🇮🇹, English 🇬🇧, Français 🇫🇷, Español 🇪🇸, and Deutsch 🇩🇪**.
 - **Interactive OpenAPI Documentation**: Embedded OpenAPI 3.1 specification and Swagger UI accessible directly at `/docs`.
-- **TDD (Test-Driven Development)**: Comprehensive unit tests, repository integration tests, and full-stack end-to-end (E2E) suites across backend and frontend.
+- **TDD (Test-Driven Development)**: Comprehensive unit tests, repository integration tests, and full-stack end-to-end (E2E) suites across backend, web, iOS, and Android.
 
 ---
 
@@ -44,11 +51,12 @@ domus/
 │   │   ├── automation/     # JSON DSL triggers, conditions, actions, and runs
 │   │   ├── camera/         # Cameras, motion zones, AI detection events
 │   │   ├── chore/          # Chores and recurrence schedules
-│   │   ├── dashboard/      # Custom widget dashboards
+│   │   ├── cloud_assistant/# Alexa Smart Home & Google Actions models
+│   │   ├── dashboard/      # Custom widget dashboards & share token models
 │   │   ├── device/         # Physical hardware abstractions
 │   │   ├── energy/         # Energy tariffs, load shedding, flexible loads
 │   │   ├── entity/         # Typed domain entities (lights, switches, sensors, climate)
-│   │   ├── events/         # Typed domain events and event bus interface
+│   │   ├── events/         # Typed domain events, bus interface & W3C trace context
 │   │   ├── floor/          # Multi-level floor plans and interactive markers
 │   │   ├── helper/         # Virtual helpers (input booleans, numbers, timers)
 │   │   ├── history/        # Telemetry historical state models
@@ -66,6 +74,8 @@ domus/
 │   │   ├── backup/         # AES-256-GCM backup and idempotent restore service
 │   │   ├── brand/          # Zero-cloud LAN discovery and 1-click pairing service
 │   │   ├── camera/         # Camera streams, zones, and local ONNX vision pipeline
+│   │   ├── cloud_assistant/# Alexa Directive & Google Smart Home fulfillment service
+│   │   ├── dashboard/      # Dashboard CRUD & temporary HMAC-SHA256 share service
 │   │   ├── energy/         # Tariffs evaluator & flexible load scheduler
 │   │   ├── history/        # Batched state recorder and retention cleanup worker
 │   │   ├── mesh/           # Zigbee direct binding manager
@@ -76,33 +86,46 @@ domus/
 │   ├── infrastructure/     # Implementation of technical ports
 │   │   ├── config/         # TOML + env variable loader, PBKDF2/AES-GCM secrets
 │   │   ├── crypto/         # Argon2id password hasher
-│   │   ├── eventbus/       # Bounded in-memory event bus
+│   │   ├── eventbus/       # Bounded in-memory event bus with trace context propagation
 │   │   ├── mqtt/           # Paho MQTT v3.1.1 client wrapper with auto-reconnect
-│   │   ├── sqlite/         # SQLite driver (pure Go), WAL pragma, embedded migrations
+│   │   ├── sqlite/         # SQLite driver (pure Go), WAL pragma, embedded migrations & query tracing
 │   │   └── websocket/      # Real-time WebSocket broadcast hub
 │   │
 │   ├── interfaces/         # Transport layer
 │   │   ├── http/           # Chi router, security headers, CORS, handlers
-│   │   │   ├── handlers/   # REST API endpoint handlers (alarm, assistant, energy, cameras, etc.)
-│   │   │   ├── middleware/ # Auth, RBAC, CSRF, rate limit, security headers, logger
+│   │   │   ├── handlers/   # REST API endpoint handlers (cloud, dashboard share, alarm, etc.)
+│   │   │   ├── middleware/ # W3C TraceContext, Auth, RBAC, CSRF, rate limit, security headers, logger
 │   │   │   └── swagger/    # Embedded OpenAPI 3.1 YAML and Swagger UI
 │   │   └── websocket/      # WebSocket client connection upgrade handler
 │   │
 │   └── plugins/            # Protocol integration adapters
+│       ├── ble_proxy/      # Bluetooth Low Energy proxy & beacon tracker
 │       ├── cloud/          # Circuit breaker and cloud provider stubs
 │       ├── esphome_mqtt/   # ESPHome telemetry and command mapper
+│       ├── homekit/        # Native Apple HomeKit accessory bridge
+│       ├── knx/            # European wired KNXnet/IP UDP tunneling client & DPT codec
+│       ├── matter/         # Matter/Thread cluster commissioner & node manager
+│       ├── modbus_tcp/     # Industrial Modbus TCP adapter (inverters, heat pumps, energy meters)
 │       ├── mqtt_generic/   # Topic-to-entity MQTT generic adapter
-│       └── zigbee2mqtt/    # Zigbee2MQTT device discovery and status mapper
+│       ├── tuya_local/     # Local LAN protocol for Tuya devices (zero cloud)
+│       ├── wasm/           # Sandboxed WebAssembly plugin runtime
+│       ├── wyoming/        # Wyoming protocol integration for voice satellites
+│       ├── zigbee2mqtt/    # Zigbee2MQTT device discovery and status mapper
+│       └── zwave_js/       # Z-Wave JS WebSocket driver (switches, sensors, meters)
 │
 ├── web/                    # Frontend Vue 3 + TypeScript Progressive Web App
 │   ├── src/
-│   │   ├── api/            # Typed REST client and models
+│   │   ├── api/            # Typed REST client and models (with CSRF auto-injection)
 │   │   ├── components/     # Modals (Flowchart, Flasher, Satellites), cards, charts
 │   │   ├── locales/        # 100% parity: it.json, en.json, fr.json, es.json, de.json
 │   │   ├── router/         # Vue router with navigation auth guards
 │   │   ├── stores/         # Pinia stores (auth, family, entities, devices, automations, etc.)
 │   │   └── views/          # Dashboard, Energy, Cameras, Shopping, Integrations, Automations, etc.
 │   └── package.json
+│
+├── mobile/                 # 100% Native Mobile Companion Apps (Zero WebViews/Mocks)
+│   ├── ios/                # DomusKit (Swift 6, SwiftUI, WidgetKit, CarPlay, ActivityKit)
+│   └── android/            # com.domus.app (Kotlin 2.x, Jetpack Compose, Glance, TileService)
 │
 ├── os/                     # Domus OS Buildroot BSP & Embedded Linux Appliance (RPi4 ARM64)
 │   ├── configs/            # Buildroot defconfigs (domus_rpi4_defconfig)

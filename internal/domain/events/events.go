@@ -97,4 +97,7 @@ type Event struct {
 	// Source is the adapter or component that produced the event.
 	// Examples: "mqtt_generic", "zigbee2mqtt", "user:550e8400-...", "system".
 	Source string `json:"source,omitempty"`
+
+	// TraceParent carries the W3C traceparent (version-trace_id-parent_id-trace_flags) for distributed tracing.
+	TraceParent string `json:"traceparent,omitempty"`
 }

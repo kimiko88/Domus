@@ -268,7 +268,7 @@ fun ShoppingListScreen(
 
                                 // Delete button
                                 IconButton(
-                                    onClick = { items.removeAll { it.id == item.id } },
+                                    onClick = { viewModel?.deleteShopping(item.id) },
                                     modifier = Modifier.size(28.dp)
                                 ) {
                                     Text("✕", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
