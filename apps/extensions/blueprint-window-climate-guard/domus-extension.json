@@ -1,0 +1,34 @@
+{
+  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "id": "domus.blueprint.window-climate-guard",
+  "name": "Guardia Clima & Infissi Intelligente",
+  "version": "1.0.4",
+  "type": "blueprint",
+  "author": "GreenHome Community",
+  "license": "MIT",
+  "homepage": "https://github.com/domus-hub/extensions/tree/main/blueprint-window-climate-guard",
+  "description": "Protezione termica automatica: spegne termostati e valvole TRV dopo un ritardo configurabile dall'apertura di finestre o porte balcone; ripristina la temperatura precedente alla chiusura.",
+  "entrypoint": "blueprint.yaml",
+  "capabilities": [
+    "climate:control",
+    "binary_sensor:read"
+  ],
+  "inputs": {
+    "window_sensor": {
+      "type": "target_selector",
+      "domain": "binary_sensor",
+      "device_class": "window",
+      "description": "Sensore magnetico contatto finestra/porta"
+    },
+    "climate_device": {
+      "type": "target_selector",
+      "domain": "climate",
+      "description": "Termostato o valvola TRV associata alla stanza"
+    },
+    "delay_seconds": {
+      "type": "number",
+      "default": 90,
+      "description": "Secondi di attesa prima di spegnere il riscaldamento/raffreddamento"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "id": "domus.widget.energy-flow-wheel",
+  "name": "Power Flow Wheel & BESS Monitor",
+  "version": "1.4.2",
+  "type": "widget",
+  "author": "Domus UI Studio",
+  "license": "MIT",
+  "homepage": "https://github.com/domus-hub/extensions/tree/main/widget-energy-flow-wheel",
+  "description": "Widget interattivo per la Dashboard e Tablet Wallmount: flussi energetici vettoriali animati (SVG) con calcolo in tempo reale di autoconsumo, potenza fotovoltaica, batteria BESS e scambio con la rete elettrica.",
+  "entrypoint": "EnergyFlowWheel.vue",
+  "target_views": [
+    "dashboard",
+    "custom-dashboards",
+    "energy"
+  ],
+  "card_size": {
+    "rows": 2,
+    "columns": 2
+  },
+  "default_bindings": {
+    "solar_sensor": "sensor.produzione_fotovoltaico",
+    "grid_sensor": "sensor.potenza_rete",
+    "battery_power_sensor": "sensor.potenza_batteria",
+    "battery_soc_sensor": "sensor.batteria_soc",
+    "home_load_sensor": "sensor.potenza_casa"
+  }
+}

@@ -401,7 +401,7 @@
   "store": {
     "title": "Domus Store & Marketplace Estensioni",
     "subtitle": "Estendi Domus con applicazioni containerizzate locali in 1 click",
-    "installed": "Installati",
+    "installed": "Installato",
     "available": "Disponibili nel Catalogo",
     "install": "Installa",
     "open": "Apri",
@@ -557,7 +557,7 @@
     "tabSecurity": "Sicurezza & NVR",
     "tabAutomations": "Automazioni & Logica",
     "tabHardware": "Hardware & Rete",
-    "featuresCount": "12 Sezioni Documentate",
+    "featuresCount": "13 Sezioni Documentate",
     "quickTipsTitle": "Suggerimenti Rapidi & Architettura",
     "quickTipsDesc": "Domus è concepito per essere completamente autonomo e resiliente a interruzioni di rete Internet.",
     "sec7RouteLabel": "Dashboard & Allarme",
@@ -620,6 +620,11 @@
     "sec12Desc": "Inviti con link sicuro, suddivisione dei ruoli (Admin, Operator, Viewer) e backup crittografati AES-256-GCM ripristinabili via CLI.",
     "sec12H1": "Ruoli granulari: Amministratore (completo), Operatore (comandi), Visualizzatore (sola lettura).",
     "sec12H2": "Link d'invito monouso o a scadenza per invitare coinquilini e familiari con un clic.",
-    "sec12H3": "Backup archiviati in formato cifrato AES-256-GCM protetti da password."
+    "sec12H3": "Backup archiviati in formato cifrato AES-256-GCM protetti da password.",
+    "sec13Title": "Audio Multi-Room & Registrazione Media Player",
+    "sec13Desc": "Gestione di altoparlanti Apple AirPlay, Google Cast, DLNA e locali. Sincronizzazione stanze, diffusione TTS e registrazione nel database SQLite.",
+    "sec13H1": "Registrazione rapida da Web GUI (+ Aggiungi Player), via REST API (POST /api/v1/media/players) o con query SQL diretta nella tabella media_players.",
+    "sec13H2": "Supporto completo multi-protocollo LAN per smart speaker Apple HomePod, Google Nest, ricevitori AVR UPnP/DLNA e altoparlanti locali Raspberry Pi.",
+    "sec13H3": "Diffusione vocale prioritaria istantanea su tutta la casa tramite sintesi neurale Piper TTS con abbassamento temporaneo della musica."
   }
 }

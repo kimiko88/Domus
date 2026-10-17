@@ -186,3 +186,22 @@ func (r *StoreRepository) DeletePackage(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// SeedDefaultPackages populates default curated store packages if the repository is empty.
+func (r *StoreRepository) SeedDefaultPackages(ctx context.Context) error {
+	var count int
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM store_packages").Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	for _, p := range store.DefaultPackages() {
+		if err := r.SavePackage(ctx, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}

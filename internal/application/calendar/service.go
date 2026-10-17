@@ -128,6 +128,35 @@ func (s *Service) ListSchedules(ctx context.Context) ([]*schedule.Schedule, erro
 	return s.repo.ListSchedules(ctx)
 }
 
+func (s *Service) UpdateSchedule(ctx context.Context, id, name, entityKey string, enabled bool, grid schedule.WeeklyGrid) (*schedule.Schedule, error) {
+	sched, err := s.repo.GetSchedule(ctx, id)
+	if err != nil {
+		sched = &schedule.Schedule{
+			ID:        id,
+			CreatedAt: time.Now().UTC(),
+		}
+	}
+	if name != "" {
+		sched.Name = name
+	}
+	if entityKey != "" {
+		sched.EntityKey = entityKey
+	}
+	sched.Enabled = enabled
+	if grid != nil {
+		sched.Grid = grid
+	}
+	sched.UpdatedAt = time.Now().UTC()
+	if err := s.repo.SaveSchedule(ctx, sched); err != nil {
+		return nil, err
+	}
+	return sched, nil
+}
+
+func (s *Service) DeleteSchedule(ctx context.Context, id string) error {
+	return s.repo.DeleteSchedule(ctx, id)
+}
+
 func (s *Service) EvaluateSchedule(ctx context.Context, scheduleID string, at time.Time) (*schedule.TimeSlot, bool, error) {
 	sched, err := s.repo.GetSchedule(ctx, scheduleID)
 	if err != nil {

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "id": "domus.energy.bess-arbitrage",
+  "name": "BESS Dynamic Tariff & Energy Arbitrage Optimizer",
+  "version": "1.2.0",
+  "type": "wasm_plugin",
+  "author": "Domus Energy Labs",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/domus-hub/extensions/tree/main/wasm-bess-optimizer",
+  "description": "Ottimizzatore predittivo dell'accumulo fotovoltaico in WebAssembly: forza la carica della batteria domestica durante le ore di prezzo PUN/Nord Pool negativo o minimo e blocca il prelievo nei picchi serali.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "energy:read",
+    "energy:control",
+    "tariffs:dynamic",
+    "event_bus:subscribe"
+  ],
+  "configuration": {
+    "battery_capacity_kwh": {
+      "type": "number",
+      "default": 10.0,
+      "description": "Capacità nominale totale del pacco batterie in kWh"
+    },
+    "max_charge_power_w": {
+      "type": "number",
+      "default": 3000.0,
+      "description": "Potenza massima di carica da rete in Watt"
+    },
+    "charge_price_threshold_eur": {
+      "type": "number",
+      "default": 0.08,
+      "description": "Soglia massima prezzo energia (€/kWh) sotto la quale forzare la carica"
+    },
+    "discharge_price_threshold_eur": {
+      "type": "number",
+      "default": 0.28,
+      "description": "Soglia minima prezzo energia (€/kWh) sopra la quale forzare l'autoconsumo da batteria"
+    }
+  }
+}

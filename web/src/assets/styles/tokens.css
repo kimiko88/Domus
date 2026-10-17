@@ -82,6 +82,21 @@
   --sidebar-width: 260px;
   --topbar-height: 64px;
   --bottombar-height: 68px;
+
+  /* Elevated Surface & Utility Aliases */
+  --bg-surface-elevated: #1e293b;
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --color-text: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --surface-card: var(--bg-card);
+  --card-bg: var(--bg-card);
+  --border-color: var(--border-card);
+
+  /* Modal Dialog High-Contrast Tokens */
+  --modal-bg: linear-gradient(155deg, #1e293b 0%, #0f172a 100%);
+  --modal-border: 1.5px solid rgba(255, 255, 255, 0.22);
+  --modal-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 35px rgba(14, 165, 233, 0.18);
 }
 
 /* ── Light Theme ─────────────────────────────────────────────────────────── */
@@ -89,8 +104,8 @@
   --bg-primary: #f8fafc;
   --bg-secondary: #f1f5f9;
   --bg-surface: #ffffff;
-  --bg-surface-hover: #f8fafc;
-  --bg-surface-elevated: #ffffff;
+  --bg-surface-hover: #f1f5f9;
+  --bg-surface-elevated: #e2e8f0;
   --bg-card: #ffffff;
   --bg-card-hover: #f8fafc;
   --bg-glass: rgba(255, 255, 255, 0.94);
@@ -102,15 +117,71 @@
   --text-dim: #64748b;
   --text-inverse: #ffffff;
 
-  --border-subtle: rgba(15, 23, 42, 0.09);
+  --border-subtle: rgba(15, 23, 42, 0.10);
   --border-card: rgba(15, 23, 42, 0.14);
   --border-focus: rgba(14, 165, 233, 0.6);
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 4px 8px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 12px 20px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 12px 20px -3px rgba(15, 23, 42, 0.12), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
   --shadow-glow: 0 0 20px rgba(14, 165, 233, 0.2);
 
   --blur-card: blur(4px);
   --blur-glass: blur(8px);
+
+  /* Elevated Surface & Utility Aliases in Light Theme */
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --color-text: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --surface-card: var(--bg-card);
+  --card-bg: var(--bg-card);
+  --border-color: var(--border-card);
+
+  /* Modal Dialog High-Contrast Tokens */
+  --modal-bg: #ffffff;
+  --modal-border: 1.5px solid rgba(15, 23, 42, 0.18);
+  --modal-shadow: 0 20px 45px -8px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.12), 0 0 30px rgba(14, 165, 233, 0.12);
+}
+
+/* ── Midnight OLED (True Black) Theme ────────────────────────────────────── */
+:root[data-theme="oled"] {
+  --bg-primary: #000000;
+  --bg-secondary: #050505;
+  --bg-surface: #0a0a0a;
+  --bg-surface-hover: #171717;
+  --bg-surface-elevated: #1a1a1a;
+  --bg-card: #080808;
+  --bg-card-hover: #121212;
+  --bg-glass: rgba(0, 0, 0, 0.95);
+  --bg-glass-card: rgba(10, 10, 10, 0.95);
+  --bg-overlay: rgba(0, 0, 0, 0.85);
+
+  --text-main: #ffffff;
+  --text-muted: #a1a1aa;
+  --text-dim: #71717a;
+  --text-inverse: #000000;
+
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-card: rgba(255, 255, 255, 0.18);
+  --border-focus: rgba(14, 165, 233, 0.8);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.8);
+  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.95);
+  --shadow-glow: 0 0 20px var(--primary-glow);
+
+  /* Elevated Surface & Utility Aliases in OLED Theme */
+  --text-primary: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --color-text: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --surface-card: var(--bg-card);
+  --card-bg: var(--bg-card);
+  --border-color: var(--border-card);
+
+  /* Modal Dialog High-Contrast Tokens */
+  --modal-bg: linear-gradient(155deg, #11141a 0%, #07090d 100%);
+  --modal-border: 1.5px solid rgba(255, 255, 255, 0.28);
+  --modal-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 40px rgba(14, 165, 233, 0.22);
 }

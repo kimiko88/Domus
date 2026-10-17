@@ -17,6 +17,7 @@ type ShoppingRepository struct {
 
 // NewShoppingRepository creates a new SQLite-backed ShoppingRepository.
 func NewShoppingRepository(db *sql.DB) *ShoppingRepository {
+	_, _ = db.Exec(`ALTER TABLE shopping_items ADD COLUMN supermarket TEXT DEFAULT ''`)
 	return &ShoppingRepository{db: db}
 }
 
@@ -42,12 +43,13 @@ func (r *ShoppingRepository) SaveItem(ctx context.Context, item *domainShop.Item
 	}
 
 	query := `
-		INSERT INTO shopping_items (id, name, quantity, category, completed, added_by, completed_by, created_at, completed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO shopping_items (id, name, quantity, category, supermarket, completed, added_by, completed_by, created_at, completed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			quantity = excluded.quantity,
 			category = excluded.category,
+			supermarket = excluded.supermarket,
 			completed = excluded.completed,
 			added_by = excluded.added_by,
 			completed_by = excluded.completed_by,
@@ -59,6 +61,7 @@ func (r *ShoppingRepository) SaveItem(ctx context.Context, item *domainShop.Item
 		item.Name,
 		item.Quantity,
 		string(item.Category),
+		item.Supermarket,
 		completedInt,
 		item.AddedBy,
 		item.CompletedBy,
@@ -74,7 +77,7 @@ func (r *ShoppingRepository) SaveItem(ctx context.Context, item *domainShop.Item
 // GetItem retrieves a shopping item by ID.
 func (r *ShoppingRepository) GetItem(ctx context.Context, id string) (*domainShop.Item, error) {
 	query := `
-		SELECT id, name, quantity, category, completed, added_by, completed_by, created_at, completed_at
+		SELECT id, name, quantity, category, COALESCE(supermarket, ''), completed, added_by, completed_by, created_at, completed_at
 		FROM shopping_items
 		WHERE id = ?
 	`
@@ -93,6 +96,7 @@ func (r *ShoppingRepository) GetItem(ctx context.Context, id string) (*domainSho
 		&item.Name,
 		&quantity,
 		&categoryStr,
+		&item.Supermarket,
 		&completedInt,
 		&item.AddedBy,
 		&completedBy,
@@ -127,7 +131,7 @@ func (r *ShoppingRepository) GetItem(ctx context.Context, id string) (*domainSho
 // ListItems returns all shopping list items.
 func (r *ShoppingRepository) ListItems(ctx context.Context) ([]*domainShop.Item, error) {
 	query := `
-		SELECT id, name, quantity, category, completed, added_by, completed_by, created_at, completed_at
+		SELECT id, name, quantity, category, COALESCE(supermarket, ''), completed, added_by, completed_by, created_at, completed_at
 		FROM shopping_items
 		ORDER BY completed ASC, created_at DESC
 	`
@@ -153,6 +157,7 @@ func (r *ShoppingRepository) ListItems(ctx context.Context) ([]*domainShop.Item,
 			&item.Name,
 			&quantity,
 			&categoryStr,
+			&item.Supermarket,
 			&completedInt,
 			&item.AddedBy,
 			&completedBy,

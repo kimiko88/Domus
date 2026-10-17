@@ -4,10 +4,14 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	appchore "github.com/domus-hub/domus/internal/application/chore"
+	"github.com/domus-hub/domus/internal/domain/calendar"
 	domainchore "github.com/domus-hub/domus/internal/domain/chore"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
@@ -210,3 +214,132 @@ func (h *ChoreHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// ExportICal outputs all pending and recurring chores as an RFC 5545 iCalendar stream.
+func (h *ChoreHandler) ExportICal(w http.ResponseWriter, r *http.Request) {
+	chores, err := h.repo.List(r.Context(), domainchore.Filter{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list chores")
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("BEGIN:VCALENDAR\r\n")
+	sb.WriteString("VERSION:2.0\r\n")
+	sb.WriteString("PRODID:-//Domus Hub//Domus Chores Calendar//IT\r\n")
+	sb.WriteString("CALSCALE:GREGORIAN\r\n")
+	sb.WriteString("METHOD:PUBLISH\r\n")
+	sb.WriteString("X-WR-CALNAME:Faccende Domus\r\n")
+	sb.WriteString("X-WR-TIMEZONE:Europe/Rome\r\n")
+
+	nowStr := time.Now().UTC().Format("20060102T150405Z")
+
+	for _, c := range chores {
+		startTime := c.CreatedAt
+		if c.DueDate != nil {
+			startTime = *c.DueDate
+		}
+		endTime := startTime.Add(1 * time.Hour)
+
+		sb.WriteString("BEGIN:VEVENT\r\n")
+		sb.WriteString(fmt.Sprintf("UID:%s@domus.local\r\n", c.ID))
+		sb.WriteString(fmt.Sprintf("DTSTAMP:%s\r\n", nowStr))
+		sb.WriteString(fmt.Sprintf("DTSTART:%s\r\n", startTime.UTC().Format("20060102T150405Z")))
+		sb.WriteString(fmt.Sprintf("DTEND:%s\r\n", endTime.UTC().Format("20060102T150405Z")))
+		sb.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", c.Title))
+		if c.Description != "" {
+			sb.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", c.Description))
+		}
+		if c.AssignedUserID != "" {
+			sb.WriteString(fmt.Sprintf("ATTENDEE;CN=%s:mailto:%s@domus.local\r\n", c.AssignedUserID, c.AssignedUserID))
+		}
+		if c.Status == domainchore.StatusCompleted {
+			sb.WriteString("STATUS:COMPLETED\r\n")
+		} else {
+			sb.WriteString("STATUS:CONFIRMED\r\n")
+		}
+		switch c.RecurrenceType {
+		case domainchore.RecurrenceDaily:
+			sb.WriteString("RRULE:FREQ=DAILY\r\n")
+		case domainchore.RecurrenceWeekly:
+			sb.WriteString("RRULE:FREQ=WEEKLY\r\n")
+		case domainchore.RecurrenceMonthly:
+			sb.WriteString("RRULE:FREQ=MONTHLY\r\n")
+		}
+		sb.WriteString("END:VEVENT\r\n")
+	}
+
+	sb.WriteString("END:VCALENDAR\r\n")
+
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", "inline; filename=\"domus-chores.ics\"")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(sb.String()))
+}
+
+// SyncGoogleCalendar imports events from a Google Calendar iCal link or raw payload into Domus chores.
+func (h *ChoreHandler) SyncGoogleCalendar(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL        string `json:"url"`
+		RawContent string `json:"raw_content,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid JSON payload")
+		return
+	}
+
+	content := req.RawContent
+	if req.URL != "" {
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(req.URL)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "fetch_failed", "unable to fetch Google Calendar iCal feed: "+err.Error())
+			return
+		}
+		defer resp.Body.Close()
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "read_failed", "unable to read iCal feed")
+			return
+		}
+		content = string(bodyBytes)
+	}
+
+	if content == "" {
+		writeError(w, http.StatusBadRequest, "bad_request", "empty calendar content")
+		return
+	}
+
+	eventsList, err := calendar.ParseICal(content)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "parse_error", "failed to parse calendar iCal format: "+err.Error())
+		return
+	}
+
+	imported := 0
+	for _, e := range eventsList {
+		if strings.TrimSpace(e.Summary) == "" {
+			continue
+		}
+		due := e.StartTime
+		choreObj := &domainchore.Chore{
+			ID:             "chore_gcal_" + uuid.NewString()[:8],
+			Title:          e.Summary,
+			Description:    e.Description,
+			Priority:       domainchore.PriorityMedium,
+			DueDate:        &due,
+			RecurrenceType: domainchore.RecurrenceNone,
+			Status:         domainchore.StatusPending,
+		}
+		if err := h.service.CreateTask(r.Context(), choreObj); err == nil {
+			imported++
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"synced":  imported,
+		"message": fmt.Sprintf("Sincronizzate con successo %d faccende da Google Calendar", imported),
+	})
+}
+

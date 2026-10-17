@@ -400,7 +400,7 @@
   },
   "store": {
     "title": "Domus Store & Extensions Marketplace",
-    "subtitle": "Extend Domus with local sandboxed container apps in 1-click",
+    "subtitle": "Extend Domus with local containerized apps in 1 click",
     "installed": "Installed",
     "available": "Available in Catalog",
     "install": "Install",
@@ -557,7 +557,7 @@
     "tabSecurity": "Security & NVR",
     "tabAutomations": "Automations & Logic",
     "tabHardware": "Hardware & Network",
-    "featuresCount": "12 Documented Sections",
+    "featuresCount": "13 Documented Sections",
     "quickTipsTitle": "Quick Tips & Architecture",
     "quickTipsDesc": "Domus is designed to be completely autonomous and resilient to Internet outages.",
     "sec7RouteLabel": "Dashboard & Alarm",
@@ -620,6 +620,11 @@
     "sec12Desc": "Secure invite links, granular roles (Admin, Operator, Viewer), and AES-256-GCM encrypted backup CLI.",
     "sec12H1": "Granular roles: Administrator (full), Operator (control), Viewer (read-only).",
     "sec12H2": "Secure time-limited invite links to onboard family members in seconds.",
-    "sec12H3": "AES-256-GCM encrypted backup archives with path-traversal-safe restore CLI."
+    "sec12H3": "AES-256-GCM encrypted backup archives with path-traversal-safe restore CLI.",
+    "sec13Title": "Multi-Room Audio & Media Player Registration",
+    "sec13Desc": "Unified management for Apple AirPlay, Google Cast, DLNA, and local speakers. Room sync, TTS broadcasts, and SQLite database registration.",
+    "sec13H1": "Register audio devices via Web GUI (+ Add Player), REST API (POST /api/v1/media/players), or direct SQLite query in the media_players table.",
+    "sec13H2": "Full local multi-protocol support for Apple HomePod, Google Nest, DLNA/UPnP Hi-Fi AVRs, and Raspberry Pi local DAC outputs.",
+    "sec13H3": "Whole-house priority voice announcements with Piper neural TTS, temporarily pausing ongoing music."
   }
 }

@@ -17,19 +17,32 @@ const tourStore = useTourStore()
 
 const isSidebarOpen = ref(false)
 
-// Hide sidebar and topbar on login and setup pages
+// Hide sidebar and topbar on login, setup, and register pages
 const isAuthPage = computed(() => {
-  return route?.path === '/login' || route?.path === '/setup'
+  return route?.path === '/login' || route?.path === '/setup' || route?.path === '/register'
 })
 
 const pageTitle = computed(() => {
   return (route?.meta?.title as string) || 'Dashboard'
 })
 
-// Initialize WebSocket when user is authenticated
-const { isConnected, isConnecting, subscribe } = useWebSocket({
-  autoConnect: true
+// Initialize WebSocket - autoConnect is false so unauthenticated users do not flood connection errors
+const { isConnected, isConnecting, subscribe, connect, disconnect } = useWebSocket({
+  autoConnect: false
 })
+
+// Connect WebSocket only when authenticated; disconnect on logout/unauthenticated
+watch(
+  () => authStore.isAuthenticated,
+  (isAuth) => {
+    if (isAuth) {
+      connect()
+    } else {
+      disconnect()
+    }
+  },
+  { immediate: true }
+)
 
 // Sync WS connection state with store
 watch(

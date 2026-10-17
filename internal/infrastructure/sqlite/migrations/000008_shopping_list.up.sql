@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS shopping_items (
     name TEXT NOT NULL,
     quantity TEXT,
     category TEXT NOT NULL DEFAULT 'alimentari',
+    supermarket TEXT DEFAULT '',
     completed INTEGER NOT NULL DEFAULT 0,
     added_by TEXT NOT NULL,
     completed_by TEXT,

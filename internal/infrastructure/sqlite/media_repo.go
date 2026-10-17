@@ -196,3 +196,58 @@ func (r *MediaRepository) DeletePlayer(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// SeedDefaultPlayers populates initial sample media players if none exist in the database.
+func (r *MediaRepository) SeedDefaultPlayers(ctx context.Context) error {
+	existing, err := r.ListPlayers(ctx)
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+
+	defaults := []*media.MediaPlayer{
+		{
+			ID:            "media_salotto",
+			Name:          "Google Nest Audio (Salotto)",
+			Platform:      media.PlatformCast,
+			State:         media.StateIdle,
+			Volume:        0.65,
+			Muted:         false,
+			CurrentTitle:  "Radio 24 - Il Sole 24 Ore",
+			CurrentArtist: "Diretta Streaming Web",
+			CreatedAt:     time.Now().UTC(),
+		},
+		{
+			ID:            "media_cucina",
+			Name:          "Apple HomePod Mini (Cucina)",
+			Platform:      media.PlatformAirPlay,
+			State:         media.StatePaused,
+			Volume:        0.45,
+			Muted:         false,
+			CurrentTitle:  "Acoustic Morning",
+			CurrentArtist: "Spotify Connect",
+			CreatedAt:     time.Now().UTC(),
+		},
+		{
+			ID:            "media_studio",
+			Name:          "Diffusore Hi-Fi DLNA (Studio)",
+			Platform:      media.PlatformDLNA,
+			State:         media.StatePlaying,
+			Volume:        0.55,
+			Muted:         false,
+			CurrentTitle:  "Domus Ambient Chill",
+			CurrentArtist: "Lossless Audio Hub (FLAC)",
+			CreatedAt:     time.Now().UTC(),
+		},
+	}
+
+	for _, p := range defaults {
+		if err := r.SavePlayer(ctx, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+

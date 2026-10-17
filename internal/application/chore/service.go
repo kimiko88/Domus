@@ -35,7 +35,39 @@ func (s *Service) CreateTask(ctx context.Context, c *domainchore.Chore) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	return s.repo.Create(ctx, c)
+	if err := s.repo.Create(ctx, c); err != nil {
+		return err
+	}
+
+	if s.bus != nil {
+		targetUser := c.AssignedUserID
+		broadcast := false
+		title := "Nuova Faccenda Assegnata: " + c.Title
+		msg := c.Description
+		if targetUser == "" {
+			broadcast = true
+			title = "Nuova Faccenda Familiare: " + c.Title
+			if msg == "" {
+				msg = "Faccenda aperta a tutta la famiglia"
+			}
+		}
+		_ = s.bus.Publish(ctx, events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.NotificationCreated,
+			OccurredAt: time.Now().UTC(),
+			Source:     "domus.chores",
+			Payload: map[string]any{
+				"title":            title,
+				"message":          msg,
+				"type":             "info",
+				"chore_id":         c.ID,
+				"user_id":          targetUser,
+				"broadcast_family": broadcast,
+			},
+		})
+	}
+
+	return nil
 }
 
 // CompleteTask marks a chore completed and provisions the next occurrence if recurring.
@@ -178,17 +210,30 @@ func (s *Scheduler) CheckDueChores(ctx context.Context) error {
 		}
 
 		if s.bus != nil {
+			title := "Promemoria Faccenda: " + c.Title
+			msg := c.Description
+			targetUser := c.AssignedUserID
+			broadcast := false
+			if targetUser == "" {
+				broadcast = true
+				title = "Faccenda Familiare in Scadenza: " + c.Title
+				if msg == "" {
+					msg = "Faccenda non assegnata: aperta a tutta la famiglia!"
+				}
+			}
+
 			_ = s.bus.Publish(ctx, events.Event{
 				ID:         uuid.NewString(),
 				Type:       events.NotificationCreated,
 				OccurredAt: now,
 				Source:     "domus.chores",
 				Payload: map[string]any{
-					"title":    "Promemoria Faccenda: " + c.Title,
-					"message":  c.Description,
-					"type":     "warning",
-					"chore_id": c.ID,
-					"user_id":  c.AssignedUserID,
+					"title":            title,
+					"message":          msg,
+					"type":             "warning",
+					"chore_id":         c.ID,
+					"user_id":          targetUser,
+					"broadcast_family": broadcast,
 				},
 			})
 		}

@@ -73,7 +73,7 @@ describe('AppTopbar.vue', () => {
     expect(wrapper.emitted('toggle-menu')).toHaveLength(1)
   })
 
-  it('toggles language when clicking the language quick switch button', async () => {
+  it('opens language dropdown and switches language when selecting an option', async () => {
     setLanguage('it')
     const wrapper = mount(AppTopbar, {
       global: {
@@ -85,6 +85,12 @@ describe('AppTopbar.vue', () => {
     expect(langBtn.text()).toContain('IT')
 
     await langBtn.trigger('click')
+    const langMenu = wrapper.find('.lang-menu')
+    expect(langMenu.exists()).toBe(true)
+
+    const enOption = wrapper.findAll('.lang-menu-item').find(btn => btn.text().includes('EN'))
+    expect(enOption).toBeDefined()
+    await enOption!.trigger('click')
     expect(langBtn.text()).toContain('EN')
   })
 })

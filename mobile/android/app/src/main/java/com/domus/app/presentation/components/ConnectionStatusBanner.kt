@@ -1,6 +1,7 @@
 package com.domus.app.presentation.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,60 +27,75 @@ import com.domus.app.presentation.theme.RoseError
 fun ConnectionStatusBanner(
     connection: ServerConnection,
     onReconnectClick: () -> Unit = {},
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val (statusText, badgeColor, dotColor) = when (connection.mode) {
         TransportMode.LOCAL_LAN -> Triple(
-            "LAN Diretta • ${connection.latencyMs}ms",
+            if (compact) "LAN" else "LAN Diretta • ${connection.latencyMs}ms",
             EmeraldSuccess.copy(alpha = 0.15f),
             EmeraldSuccess
         )
         TransportMode.REMOTE_TLS -> Triple(
-            "Remoto TLS • ${connection.latencyMs}ms",
+            if (compact) "TLS" else "Remoto TLS • ${connection.latencyMs}ms",
             IndigoPrimary.copy(alpha = 0.15f),
             IndigoPrimary
         )
         TransportMode.CONNECTING -> Triple(
-            "Ricerca Hub in corso...",
+            if (compact) "Ricerca..." else "Ricerca Hub in corso...",
             AmberWarning.copy(alpha = 0.15f),
             AmberWarning
         )
         TransportMode.DISCONNECTED -> Triple(
-            "Disconnesso",
+            if (compact) "Offline" else "Disconnesso",
             RoseError.copy(alpha = 0.15f),
             RoseError
         )
     }
 
+    val isClickable = !connection.isConnected && compact
+    val surfaceModifier = if (isClickable) {
+        modifier
+            .semantics { role = Role.Button }
+            .clickable(onClick = onReconnectClick)
+    } else {
+        modifier
+    }
+
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(if (compact) 12.dp else 20.dp),
         color = badgeColor,
-        modifier = modifier
+        modifier = surfaceModifier
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            modifier = Modifier.padding(
+                horizontal = if (compact) 8.dp else 12.dp,
+                vertical = if (compact) 4.dp else 6.dp
+            )
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(if (compact) 6.dp else 8.dp)
                     .background(dotColor, CircleShape)
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(if (compact) 5.dp else 8.dp))
             Text(
                 text = statusText,
-                fontSize = 12.sp,
+                fontSize = if (compact) 11.sp else 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false
             )
-            if (!connection.isConnected && connection.mode != TransportMode.CONNECTING) {
-                Spacer(modifier = Modifier.width(6.dp))
+            if (!compact && !connection.isConnected && connection.mode != TransportMode.CONNECTING) {
+                Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
                     onClick = onReconnectClick,
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.height(20.dp)
                 ) {
-                    Text("Riconnetti", fontSize = 11.sp, color = IndigoPrimary)
+                    Text("Riconnetti", fontSize = 11.sp, color = IndigoPrimary, fontWeight = FontWeight.Bold)
                 }
             }
         }

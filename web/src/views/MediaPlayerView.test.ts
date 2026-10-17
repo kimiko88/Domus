@@ -50,4 +50,18 @@ describe('MediaPlayerView.vue', () => {
     expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
     expect(wrapper.text()).toContain('Diffusione Vocale Sincronizzata')
   })
+
+  it('opens add player modal on add button click', async () => {
+    const wrapper = mount(MediaPlayerView)
+    await flushPromises()
+
+    const addBtn = wrapper.find('.add-player-btn')
+    expect(addBtn.exists()).toBe(true)
+
+    await addBtn.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Registra Media Player nel Database')
+  })
 })

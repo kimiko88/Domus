@@ -557,7 +557,7 @@
     "tabSecurity": "Sécurité & NVR",
     "tabAutomations": "Automatisations & Logique",
     "tabHardware": "Matériel & Réseau",
-    "featuresCount": "12 Sections Documentées",
+    "featuresCount": "13 Sections Documentées",
     "quickTipsTitle": "Conseils Rapides & Architecture",
     "quickTipsDesc": "Domus est conçu pour être entièrement autonome et résister aux coupures d'Internet.",
     "sec7RouteLabel": "Tableau de Bord & Alarme",
@@ -620,6 +620,11 @@
     "sec12Desc": "Liens d'invitation sécurisés, rôles granulaires et sauvegardes chiffrées AES-256-GCM.",
     "sec12H1": "Rôles stricts : Administrateur (total), Opérateur (actions), Lecteur (consultation).",
     "sec12H2": "Liens d'invitation avec expiration pour intégrer vos proches rapidement.",
-    "sec12H3": "Archives chiffrées AES-256-GCM avec restauration sécurisée par CLI."
+    "sec12H3": "Archives chiffrées AES-256-GCM avec restauration sécurisée par CLI.",
+    "sec13Title": "Audio Multi-Pièces & Enregistrement Lecteurs",
+    "sec13Desc": "Gestion d'enceintes Apple AirPlay, Google Cast, DLNA et locales. Synchronisation des pièces, diffusion TTS et base SQLite.",
+    "sec13H1": "Enregistrement rapide via interface Web (+ Ajouter Lecteur), API REST (POST /api/v1/media/players) ou requête SQL directe.",
+    "sec13H2": "Compatibilité protocoles locaux avec Apple HomePod, Google Nest, amplificateurs DLNA et sortie jack/USB Raspberry Pi.",
+    "sec13H3": "Diffusion vocale d'annonces prioritaires dans toute la maison avec Piper TTS et coupure temporaire de la musique."
   }
 }

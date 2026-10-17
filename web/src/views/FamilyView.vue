@@ -659,13 +659,13 @@ onMounted(() => {
 .section-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
   margin: 0;
 }
 
 .section-subtitle {
   font-size: 0.875rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
   margin-top: 0.25rem;
 }
 
@@ -679,8 +679,8 @@ onMounted(() => {
 .section-card {
   border-radius: 16px;
   padding: 1.5rem;
-  background: var(--card-bg, rgba(30, 41, 59, 0.7));
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-subtle);
   backdrop-filter: blur(12px);
 }
 
@@ -694,17 +694,17 @@ onMounted(() => {
 .card-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
   margin: 0;
 }
 
 .count-badge {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-surface-hover);
   padding: 0.25rem 0.625rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .members-grid {
@@ -764,7 +764,7 @@ onMounted(() => {
 
 .username {
   font-weight: 600;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -778,7 +778,7 @@ onMounted(() => {
 
 .email {
   font-size: 0.8rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -797,19 +797,19 @@ onMounted(() => {
 
 .role-admin {
   background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
+  color: #818cf8;
   border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 .role-operator {
   background: rgba(16, 185, 129, 0.15);
-  color: #6ee7b7;
+  color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .role-viewer {
   background: rgba(245, 158, 11, 0.15);
-  color: #fcd34d;
+  color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -818,7 +818,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-subtle);
   font-size: 0.75rem;
 }
 
@@ -826,7 +826,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .member-actions {
@@ -836,9 +836,9 @@ onMounted(() => {
 }
 
 .role-select {
-  background: rgba(30, 41, 59, 0.8);
-  color: var(--color-text, #f1f5f9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-card);
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -903,12 +903,12 @@ onMounted(() => {
 .invite-token {
   font-family: monospace;
   font-size: 0.85rem;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
 }
 
 .invite-expiry {
   font-size: 0.75rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
 }
 
 .invite-actions {
@@ -917,9 +917,9 @@ onMounted(() => {
 }
 
 .action-icon-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--color-text-muted, #cbd5e1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
   padding: 0.4rem;
   border-radius: 6px;
   cursor: pointer;
@@ -930,8 +930,8 @@ onMounted(() => {
 }
 
 .action-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--color-text, #fff);
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
 }
 
 .revoke-btn:hover {
@@ -942,7 +942,7 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 2.5rem 1rem;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -969,16 +969,16 @@ onMounted(() => {
 .modal-card {
   width: 100%;
   max-width: 520px;
-  background: var(--card-bg, #1e293b);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-header {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -994,14 +994,14 @@ onMounted(() => {
 .modal-title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--color-text, #f1f5f9);
+  color: var(--text-main);
   margin: 0;
 }
 
 .modal-close {
   background: none;
   border: none;
-  color: var(--color-text-muted, #94a3b8);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0.25rem;
 }
@@ -1022,7 +1022,7 @@ onMounted(() => {
 .form-label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-text, #e2e8f0);
+  color: var(--text-main);
 }
 
 .role-options {

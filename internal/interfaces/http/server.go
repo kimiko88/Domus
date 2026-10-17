@@ -444,6 +444,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/chores", func(chRouter chi.Router) {
 						chRouter.Get("/", choreH.List)
 						chRouter.Post("/", choreH.Create)
+						chRouter.Get("/calendar.ics", choreH.ExportICal)
+						chRouter.Post("/sync/google", choreH.SyncGoogleCalendar)
 						chRouter.Get("/{id}", choreH.GetByID)
 						chRouter.Put("/{id}", choreH.Update)
 						chRouter.Delete("/{id}", choreH.Delete)
@@ -480,9 +482,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				// Spatial Zones and Tracked Persons (Multi-Zone & Bayesian Presence)
+				var zoneH *handlers.ZoneHandler
 				if srv.repos.Zones != nil {
 					zoneSvc := appzone.NewService(srv.repos.Zones, srv.bus)
-					zoneH := handlers.NewZoneHandler(zoneSvc, srv.repos.Zones)
+					zoneH = handlers.NewZoneHandler(zoneSvc, srv.repos.Zones)
 					domainRouter.Route("/zones", func(zRouter chi.Router) {
 						zRouter.Get("/", zoneH.ListZones)
 						zRouter.Post("/", zoneH.CreateZone)
@@ -518,6 +521,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/presence", func(pRouter chi.Router) {
 					pRouter.Post("/gps", advH.UpdateGPS)
 					pRouter.Get("/status", advH.GetPresenceStatus)
+					if zoneH != nil {
+						pRouter.Get("/persons", zoneH.ListPersons)
+					}
 				})
 
 				// Hardware Modern Standards & Commissioning
@@ -579,6 +585,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				var mediaRepo appmedia.Repository = appmedia.NewMemoryRepository()
 				if srv.repos.Media != nil {
 					mediaRepo = srv.repos.Media
+					_ = srv.repos.Media.SeedDefaultPlayers(context.Background())
 				}
 				mediaSvc := appmedia.NewService(mediaRepo, srv.bus)
 
@@ -593,6 +600,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				var storeRepo appstore.Repository = appstore.NewMemoryRepository()
 				if srv.repos.Store != nil {
+					_ = srv.repos.Store.SeedDefaultPackages(context.Background())
 					storeRepo = srv.repos.Store
 				}
 				storeSvc := appstore.NewService(storeRepo)
@@ -638,6 +646,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/schedules", func(sRouter chi.Router) {
 					sRouter.Get("/", ecoH.ListSchedules)
 					sRouter.Post("/", ecoH.CreateSchedule)
+					sRouter.Put("/{id}", ecoH.UpdateSchedule)
+					sRouter.Delete("/{id}", ecoH.DeleteSchedule)
 				})
 
 				if srv.repos.WeeklySchedules != nil {
@@ -696,8 +706,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
+					mRouter.Post("/players", ecoH.CreateMediaPlayer)
 					mRouter.Post("/players/{id}/volume", ecoH.SetPlayerVolume)
 					mRouter.Post("/players/{id}/state", ecoH.SetPlayerState)
+					mRouter.Delete("/players/{id}", ecoH.DeleteMediaPlayer)
 					mRouter.Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 

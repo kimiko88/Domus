@@ -171,6 +171,7 @@ onMounted(() => {
               <User :size="18" class="input-icon" />
               <input
                 id="username"
+                name="username"
                 v-model="username"
                 type="text"
                 autocomplete="username"
@@ -186,6 +187,7 @@ onMounted(() => {
               <Mail :size="18" class="input-icon" />
               <input
                 id="email"
+                name="email"
                 v-model="email"
                 type="email"
                 autocomplete="email"
@@ -200,6 +202,7 @@ onMounted(() => {
               <Lock :size="18" class="input-icon" />
               <input
                 id="password"
+                name="password"
                 v-model="password"
                 type="password"
                 autocomplete="new-password"
@@ -216,6 +219,7 @@ onMounted(() => {
               <Lock :size="18" class="input-icon" />
               <input
                 id="confirmPassword"
+                name="confirm_password"
                 v-model="confirmPassword"
                 type="password"
                 autocomplete="new-password"

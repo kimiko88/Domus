@@ -23,7 +23,8 @@ import {
   Sliders,
   CheckCircle,
   HelpCircle,
-  Info
+  Info,
+  Volume2
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -44,7 +45,8 @@ const expandedSections = ref<Record<string, boolean>>({
   sec9: false,
   sec10: false,
   sec11: false,
-  sec12: false
+  sec12: false,
+  sec13: false
 })
 
 interface GuideTopic {
@@ -221,6 +223,20 @@ const topics: GuideTopic[] = [
       'guide.sec12H1',
       'guide.sec12H2',
       'guide.sec12H3'
+    ]
+  },
+  {
+    id: 'sec13',
+    category: 'hardware',
+    icon: Volume2,
+    titleKey: 'guide.sec13Title',
+    descKey: 'guide.sec13Desc',
+    routePath: '/media',
+    routeLabelKey: 'nav.media',
+    highlightsKeys: [
+      'guide.sec13H1',
+      'guide.sec13H2',
+      'guide.sec13H3'
     ]
   }
 ]
@@ -424,9 +440,9 @@ function navigateTo(path: string) {
   justify-content: space-between;
   padding: 28px 32px;
   border-radius: 20px;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(2, 132, 199, 0.04));
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3);
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-md);
 }
 
 .hero-badge {
@@ -436,9 +452,9 @@ function navigateTo(path: string) {
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
-  color: #38bdf8;
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--primary);
+  background: var(--primary-light);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   padding: 4px 12px;
   border-radius: 999px;
   margin-bottom: 10px;
@@ -447,14 +463,14 @@ function navigateTo(path: string) {
 .hero-title {
   font-size: 1.85rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-main);
   margin: 0 0 6px 0;
   letter-spacing: -0.02em;
 }
 
 .hero-subtitle {
   font-size: 0.98rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
   max-width: 600px;
 }
@@ -488,6 +504,8 @@ function navigateTo(path: string) {
   gap: 16px;
   padding: 18px 24px;
   border-radius: 16px;
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-subtle);
 }
 
 .search-box {
@@ -500,25 +518,25 @@ function navigateTo(path: string) {
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: var(--text-dim);
   pointer-events: none;
 }
 
 .search-input {
   width: 100%;
   padding: 12px 16px 12px 42px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
   border-radius: 10px;
-  color: #f1f5f9;
+  color: var(--text-main);
   font-size: 0.92rem;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .search-input:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .filter-tabs {
@@ -528,9 +546,9 @@ function navigateTo(path: string) {
 }
 
 .tab-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 0.84rem;
@@ -540,14 +558,14 @@ function navigateTo(path: string) {
 }
 
 .tab-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f1f5f9;
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
 }
 
 .tab-btn.active {
-  background: rgba(14, 165, 233, 0.18);
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .topics-container {
@@ -558,20 +576,20 @@ function navigateTo(path: string) {
 
 .topic-card {
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-glass-card);
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .topic-card:hover {
-  border-color: rgba(56, 189, 248, 0.25);
-  background: rgba(15, 23, 42, 0.75);
+  border-color: var(--border-card);
+  background: var(--bg-card-hover);
 }
 
 .topic-card.expanded {
-  border-color: rgba(56, 189, 248, 0.35);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+  border-color: var(--border-card);
+  box-shadow: var(--shadow-md);
 }
 
 .topic-header {
@@ -587,12 +605,12 @@ function navigateTo(path: string) {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(14, 165, 233, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: var(--primary-light);
+  border: 1px solid rgba(14, 165, 233, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #38bdf8;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -603,13 +621,13 @@ function navigateTo(path: string) {
 .topic-title {
   font-size: 1.08rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-main);
   margin: 0 0 4px 0;
 }
 
 .topic-summary {
   font-size: 0.88rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.45;
 }
@@ -617,7 +635,7 @@ function navigateTo(path: string) {
 .btn-expand {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -628,13 +646,13 @@ function navigateTo(path: string) {
 }
 
 .btn-expand:hover {
-  color: #f1f5f9;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  background: var(--bg-surface-hover);
 }
 
 .topic-details {
   padding: 0 22px 20px 82px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-subtle);
   padding-top: 16px;
   animation: fadeIn 0.15s ease-out;
 }
@@ -653,12 +671,12 @@ function navigateTo(path: string) {
   align-items: flex-start;
   gap: 10px;
   font-size: 0.88rem;
-  color: #cbd5e1;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .check-icon {
-  color: #38bdf8;
+  color: var(--primary);
   flex-shrink: 0;
   margin-top: 3px;
 }
@@ -672,9 +690,9 @@ function navigateTo(path: string) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(14, 165, 233, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #38bdf8;
+  background: var(--primary-light);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  color: var(--primary);
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 0.84rem;
@@ -684,21 +702,21 @@ function navigateTo(path: string) {
 }
 
 .btn-navigate:hover {
-  background: rgba(14, 165, 233, 0.2);
-  color: #f0f9ff;
-  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
 }
 
 .empty-state {
   text-align: center;
   padding: 48px 24px;
   border-radius: 16px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .empty-icon {
   margin-bottom: 12px;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 .quick-tips {
@@ -707,12 +725,12 @@ function navigateTo(path: string) {
   gap: 18px;
   padding: 20px 28px;
   border-radius: 16px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-subtle);
 }
 
 .tips-icon {
-  color: #38bdf8;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -723,13 +741,13 @@ function navigateTo(path: string) {
 .tips-body h4 {
   font-size: 0.98rem;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--text-main);
   margin: 0 0 4px 0;
 }
 
 .tips-body p {
   font-size: 0.86rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -737,22 +755,21 @@ function navigateTo(path: string) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f1f5f9;
-  padding: 8px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
+  padding: 10px 16px;
   border-radius: 10px;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
 .btn-restart-tour:hover {
-  background: rgba(14, 165, 233, 0.15);
-  border-color: rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
+  background: var(--bg-surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 @keyframes fadeIn {

@@ -14,7 +14,7 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = null
     try {
       const data = await apiClient.get<{ members: FamilyMember[], total: number }>('/api/v1/family/members')
-      members.value = data.members || []
+      members.value = data?.members || []
     } catch (err: any) {
       error.value = err?.message || 'Failed to load family members'
       throw err

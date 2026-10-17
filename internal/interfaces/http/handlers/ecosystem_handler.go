@@ -284,6 +284,35 @@ func (h *EcosystemHandler) CreateSchedule(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, sched)
 }
 
+func (h *EcosystemHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Name      string                    `json:"name"`
+		EntityKey string                    `json:"entity_key"`
+		Enabled   bool                      `json:"enabled"`
+		Grid      domainSchedule.WeeklyGrid `json:"grid"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	sched, err := h.calSvc.UpdateSchedule(r.Context(), id, req.Name, req.EntityKey, req.Enabled, req.Grid)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, sched)
+}
+
+func (h *EcosystemHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.calSvc.DeleteSchedule(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "id": id})
+}
+
 func (h *EcosystemHandler) ListCalendarEvents(w http.ResponseWriter, r *http.Request) {
 	events, err := h.calSvc.ListEvents(r.Context(), time.Time{}, time.Time{})
 	if err != nil {
@@ -315,6 +344,44 @@ func (h *EcosystemHandler) ListMediaPlayers(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, players)
+}
+
+func (h *EcosystemHandler) CreateMediaPlayer(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name     string  `json:"name"`
+		Platform string  `json:"platform"`
+		AreaID   *string `json:"area_id,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", "name is required")
+		return
+	}
+	platform := domainMedia.Platform(req.Platform)
+	switch platform {
+	case domainMedia.PlatformCast, domainMedia.PlatformAirPlay, domainMedia.PlatformDLNA, domainMedia.PlatformLocal:
+		// Valid
+	default:
+		platform = domainMedia.PlatformLocal
+	}
+	p, err := h.mediaSvc.RegisterPlayer(r.Context(), req.Name, platform, req.AreaID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (h *EcosystemHandler) DeleteMediaPlayer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.mediaSvc.DeletePlayer(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted", "id": id})
 }
 
 func (h *EcosystemHandler) SetPlayerVolume(w http.ResponseWriter, r *http.Request) {

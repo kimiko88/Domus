@@ -275,7 +275,8 @@ h1 {
   gap: 0.75rem;
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
@@ -298,8 +299,8 @@ h1 {
 }
 
 .template-card {
-  background: var(--surface-card, rgba(30, 41, 59, 0.6));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md, 10px);
   padding: 1rem;
   display: flex;
@@ -323,7 +324,7 @@ h1 {
 .entity-title h3 {
   margin: 0;
   font-size: 1rem;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .entity-id {
@@ -420,9 +421,9 @@ h1 {
 .input {
   padding: 0.5rem;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #0f172a;
-  color: #ffffff;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
 }
 
 .font-mono {
@@ -451,9 +452,9 @@ h1 {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
 }
 
 .btn-sm {

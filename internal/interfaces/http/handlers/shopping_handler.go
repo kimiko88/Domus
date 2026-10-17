@@ -31,10 +31,11 @@ func (h *ShoppingHandler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *ShoppingHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name     string              `json:"name"`
-		Quantity string              `json:"quantity"`
-		Category domainShop.Category `json:"category"`
-		AddedBy  string              `json:"added_by"`
+		Name        string              `json:"name"`
+		Quantity    string              `json:"quantity"`
+		Category    domainShop.Category `json:"category"`
+		Supermarket string              `json:"supermarket"`
+		AddedBy     string              `json:"added_by"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
@@ -45,7 +46,7 @@ func (h *ShoppingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	it, err := h.svc.AddItem(r.Context(), req.Name, req.Quantity, req.Category, req.AddedBy)
+	it, err := h.svc.AddItemWithStore(r.Context(), req.Name, req.Quantity, req.Category, req.Supermarket, req.AddedBy)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return

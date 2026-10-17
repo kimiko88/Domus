@@ -443,29 +443,37 @@ const statusClass = computed(() => {
 .key-btn {
   height: 52px;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 0.75rem;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.05));
-  color: var(--text-primary, #f8fafc);
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface-elevated);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
 }
 
 .key-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
+  background: var(--bg-surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .key-btn:active {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.97);
 }
 
 .key-action {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-muted);
+}
+
+.key-action:hover {
+  color: var(--primary);
 }
 
 .actions-grid {

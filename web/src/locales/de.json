@@ -557,7 +557,7 @@
     "tabSecurity": "Sicherheit & NVR",
     "tabAutomations": "Automatisierungen & Logik",
     "tabHardware": "Hardware & Netzwerk",
-    "featuresCount": "12 Dokumentierte Bereiche",
+    "featuresCount": "13 Dokumentierte Bereiche",
     "quickTipsTitle": "Schnelle Tipps & Architektur",
     "quickTipsDesc": "Domus ist so konzipiert, dass es auch bei Internetausfällen völlig autonom weiterläuft.",
     "sec7RouteLabel": "Dashboard & Alarm",
@@ -620,6 +620,11 @@
     "sec12Desc": "Sichere Einladungslinks, abgestufte Rollen und AES-256-GCM-verschlüsselte Backups per CLI.",
     "sec12H1": "Klare Rollen: Administrator (voll), Bediener (schalten), Betrachter (nur lesen).",
     "sec12H2": "Sichere zeitbegrenzte Einladungslinks zum schnellen Onboarding von Angehörigen.",
-    "sec12H3": "AES-256-GCM-verschlüsselte Sicherungen mit pfadsicherer CLI-Wiederherstellung."
+    "sec12H3": "AES-256-GCM-verschlüsselte Sicherungen mit pfadsicherer CLI-Wiederherstellung.",
+    "sec13Title": "Multi-Raum-Audio & Media-Player-Verwaltung",
+    "sec13Desc": "Verwaltung von Apple AirPlay, Google Cast, DLNA und lokalen Lautsprechern. Raumsynchronisation, TTS-Durchsagen und SQLite-Speicherung.",
+    "sec13H1": "Schnelle Registrierung über die Web-Oberfläche (+ Player hinzufügen), per REST-API (POST /api/v1/media/players) oder direkte SQL-Abfrage.",
+    "sec13H2": "Lokale Multi-Protokoll-Unterstützung für Apple HomePod, Google Nest, DLNA-Hi-Fi-Verstärker und lokale DACs.",
+    "sec13H3": "Prioritäre Sprachansagen im gesamten Haus via Piper-TTS mit automatischer Musikunterbrechung."
   }
 }

@@ -1,0 +1,69 @@
+blueprint:
+  name: "Guardia Clima & Infissi Intelligente"
+  description: "Disattiva il riscaldamento/raffrescamento se una finestra rimane aperta per oltre 90 secondi."
+  domain: "automation"
+  author: "GreenHome Community"
+  version: "1.0.4"
+  input:
+    window_entity:
+      name: Sensore Finestra
+      description: Il sensore porta/finestra (binary_sensor).
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: window
+
+    climate_entity:
+      name: Termostato o Valvola TRV
+      description: Il dispositivo di riscaldamento/climatizzazione da controllare.
+      selector:
+        entity:
+          domain: climate
+
+    wait_time:
+      name: Secondi di ritardo
+      default: 90
+      selector:
+        number:
+          min: 15
+          max: 600
+          step: 15
+          unit_of_measurement: "s"
+
+trigger:
+  - platform: state
+    entity_id: !input window_entity
+    to: "on"
+    for:
+      seconds: !input wait_time
+  - platform: state
+    entity_id: !input window_entity
+    to: "off"
+
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input window_entity
+            state: "on"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input climate_entity
+            data:
+              hvac_mode: "off"
+          - service: notification.notify
+            data:
+              title: "Risparmio Energetico Attivo"
+              message: "Finestra aperta da oltre 90s: climatizzatore spento per evitare sprechi."
+
+      - conditions:
+          - condition: state
+            entity_id: !input window_entity
+            state: "off"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input climate_entity
+            data:
+              hvac_mode: "heat"

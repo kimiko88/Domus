@@ -18,6 +18,7 @@ type Item struct {
 	Name        string     `json:"name"`
 	Quantity    string     `json:"quantity,omitempty"`
 	Category    Category   `json:"category"`
+	Supermarket string     `json:"supermarket,omitempty"`
 	Completed   bool       `json:"completed"`
 	AddedBy     string     `json:"added_by"`
 	CompletedBy *string    `json:"completed_by,omitempty"`

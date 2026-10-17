@@ -1,31 +1,101 @@
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 
-export type Theme = 'dark' | 'light'
+export type Theme = 'dark' | 'light' | 'oled' | 'system'
+
+export interface ThemeOption {
+  id: Theme
+  nameKey: string
+  label: string
+  description: string
+  icon: string
+  previewBg: string
+  previewBorder: string
+}
+
+export const themeOptions: ThemeOption[] = [
+  {
+    id: 'dark',
+    nameKey: 'settings.themes.dark',
+    label: 'Tema Scuro',
+    description: 'Tonalità blu notte e ardesia, ideale per la maggior parte delle stanze',
+    icon: 'Moon',
+    previewBg: '#0f172a',
+    previewBorder: '#0ea5e9'
+  },
+  {
+    id: 'light',
+    nameKey: 'settings.themes.light',
+    label: 'Tema Chiaro',
+    description: 'Interfaccia nitida ad alto contrasto per ambienti molto illuminati',
+    icon: 'Sun',
+    previewBg: '#ffffff',
+    previewBorder: '#38bdf8'
+  },
+  {
+    id: 'oled',
+    nameKey: 'settings.themes.oled',
+    label: 'Midnight OLED',
+    description: 'Nero assoluto #000000, perfetto per display a parete OLED e minor consumo',
+    icon: 'Smartphone',
+    previewBg: '#000000',
+    previewBorder: '#3b82f6'
+  },
+  {
+    id: 'system',
+    nameKey: 'settings.themes.system',
+    label: 'Automatico (Sistema)',
+    description: 'Segue automaticamente le preferenze di colore del dispositivo o del browser',
+    icon: 'Monitor',
+    previewBg: 'linear-gradient(135deg, #0f172a 50%, #f8fafc 50%)',
+    previewBorder: '#a855f7'
+  }
+]
 
 const STORAGE_KEY = 'domus-theme'
 
+const mql = typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : null
+
 function getInitialTheme(): Theme {
-  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
-  if (stored === 'light' || stored === 'dark') return stored
-  // Respect OS preference on first load
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
+    if (stored && ['dark', 'light', 'oled', 'system'].includes(stored)) {
+      return stored
+    }
+  } catch {
+    // fallback if localStorage not accessible
+  }
+  return 'dark'
 }
 
-// Shared reactive state across all composable instances
+// Shared reactive state
 const theme = ref<Theme>(getInitialTheme())
 
-// Apply theme attribute to the root element
+function resolveActualTheme(t: Theme): 'dark' | 'light' | 'oled' {
+  if (t === 'system') {
+    return mql && mql.matches ? 'dark' : 'light'
+  }
+  return t
+}
+
+const resolvedTheme = computed<'dark' | 'light' | 'oled'>(() => resolveActualTheme(theme.value))
+const isDark = computed(() => resolvedTheme.value !== 'light')
+
 function applyTheme(t: Theme) {
-  if (t === 'light') {
+  if (typeof document === 'undefined') return
+  const actual = resolveActualTheme(t)
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+
+  if (actual === 'light') {
     document.documentElement.setAttribute('data-theme', 'light')
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', '#f1f5f9')
+    metaThemeColor?.setAttribute('content', '#f8fafc')
+  } else if (actual === 'oled') {
+    document.documentElement.setAttribute('data-theme', 'oled')
+    metaThemeColor?.setAttribute('content', '#000000')
   } else {
     document.documentElement.removeAttribute('data-theme')
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', '#0b1120')
+    metaThemeColor?.setAttribute('content', '#0b1120')
   }
 }
 
@@ -34,19 +104,28 @@ applyTheme(theme.value)
 
 // Sync DOM whenever reactive value changes
 watch(theme, (t) => {
-  localStorage.setItem(STORAGE_KEY, t)
+  try {
+    localStorage.setItem(STORAGE_KEY, t)
+  } catch {}
   applyTheme(t)
 })
 
-export function useTheme() {
-  const isDark = ref(theme.value === 'dark')
-
-  watch(theme, (t) => {
-    isDark.value = t === 'dark'
+// Listen to system changes if in system mode
+if (mql) {
+  mql.addEventListener('change', () => {
+    if (theme.value === 'system') {
+      applyTheme('system')
+    }
   })
+}
 
+export function useTheme() {
   function toggleTheme() {
-    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    if (resolvedTheme.value === 'light') {
+      theme.value = 'dark'
+    } else {
+      theme.value = 'light'
+    }
   }
 
   function setTheme(t: Theme) {
@@ -55,7 +134,9 @@ export function useTheme() {
 
   return {
     theme,
+    resolvedTheme,
     isDark,
+    themeOptions,
     toggleTheme,
     setTheme
   }

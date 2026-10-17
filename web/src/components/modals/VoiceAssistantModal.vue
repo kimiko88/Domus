@@ -340,11 +340,14 @@ onMounted(() => {
           </button>
 
           <input
+            id="voice-assistant-prompt"
+            name="voice_assistant_prompt"
             v-model="inputPrompt"
             type="text"
             class="prompt-input"
             placeholder="Chiedi a Domus... (es. 'Spegni le luci ovunque tranne in cucina')"
             :disabled="isProcessing"
+            autocomplete="off"
             autofocus
           />
 
@@ -450,10 +453,13 @@ onMounted(() => {
             <!-- Quick contextual test -->
             <div class="sat-test-box">
               <input
+                :id="`sat-test-prompt-${sat.id}`"
+                :name="`sat_test_prompt_${sat.id}`"
                 v-model="testPrompt"
                 type="text"
                 class="test-prompt-input"
                 :placeholder="'Comando da testare in ' + sat.area_name + '...'"
+                autocomplete="off"
               />
               <button
                 type="button"

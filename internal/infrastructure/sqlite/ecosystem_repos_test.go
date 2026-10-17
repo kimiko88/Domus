@@ -382,3 +382,29 @@ func TestStoreRepository_SQLite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, all)
 }
+
+func TestStoreRepository_SeedDefaultPackages(t *testing.T) {
+	repos := setupTestDB(t)
+	ctx := context.Background()
+
+	// Initially empty
+	pkgs, err := repos.Store.ListPackages(ctx, "")
+	require.NoError(t, err)
+	assert.Empty(t, pkgs)
+
+	// Seed
+	err = repos.Store.SeedDefaultPackages(ctx)
+	require.NoError(t, err)
+
+	seeded, err := repos.Store.ListPackages(ctx, "")
+	require.NoError(t, err)
+	assert.Len(t, seeded, 5)
+
+	// Idempotency check: seeding again should not duplicate
+	err = repos.Store.SeedDefaultPackages(ctx)
+	require.NoError(t, err)
+
+	seededAgain, err := repos.Store.ListPackages(ctx, "")
+	require.NoError(t, err)
+	assert.Len(t, seededAgain, 5)
+}

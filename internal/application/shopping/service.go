@@ -90,6 +90,10 @@ func NewService(repo Repository, bus events.Bus) *Service {
 }
 
 func (s *Service) AddItem(ctx context.Context, name, quantity string, category domainShop.Category, addedBy string) (*domainShop.Item, error) {
+	return s.AddItemWithStore(ctx, name, quantity, category, "", addedBy)
+}
+
+func (s *Service) AddItemWithStore(ctx context.Context, name, quantity string, category domainShop.Category, supermarket, addedBy string) (*domainShop.Item, error) {
 	if category == "" {
 		category = domainShop.CategoryGrocery
 	}
@@ -98,13 +102,14 @@ func (s *Service) AddItem(ctx context.Context, name, quantity string, category d
 	}
 
 	it := &domainShop.Item{
-		ID:        "shop_" + uuid.NewString()[:8],
-		Name:      name,
-		Quantity:  quantity,
-		Category:  category,
-		Completed: false,
-		AddedBy:   addedBy,
-		CreatedAt: time.Now().UTC(),
+		ID:          "shop_" + uuid.NewString()[:8],
+		Name:        name,
+		Quantity:    quantity,
+		Category:    category,
+		Supermarket: supermarket,
+		Completed:   false,
+		AddedBy:     addedBy,
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	if err := s.repo.SaveItem(ctx, it); err != nil {

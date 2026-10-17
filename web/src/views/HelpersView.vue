@@ -334,9 +334,9 @@ onMounted(() => {
   padding: 1.25rem 1.75rem;
   border-radius: 1rem;
   margin-bottom: 2rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .header-title-box {
@@ -358,13 +358,13 @@ onMounted(() => {
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #f9fafb;
+  color: var(--text-main);
   margin: 0;
 }
 
 .page-subtitle {
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin: 0.25rem 0 0;
 }
 
@@ -396,8 +396,8 @@ onMounted(() => {
 .helper-card {
   padding: 1.5rem;
   border-radius: 1.25rem;
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -419,20 +419,20 @@ onMounted(() => {
 .helper-name {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #f3f4f6;
+  color: var(--text-main);
   margin: 0;
 }
 
 .helper-key {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted);
   font-family: monospace;
 }
 
 .delete-btn {
   background: transparent;
   border: none;
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   transition: color 0.15s;
 }
@@ -443,10 +443,10 @@ onMounted(() => {
 
 /* Card Actions */
 .card-action {
-  background: rgba(31, 41, 55, 0.4);
+  background: var(--bg-surface-hover);
   padding: 1rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
 }
 
 .boolean-action {
@@ -458,7 +458,7 @@ onMounted(() => {
 .status-text {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .toggle-pill {
@@ -556,9 +556,9 @@ onMounted(() => {
   flex: 1;
   padding: 0.4rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(31, 41, 55, 0.8);
-  color: #f3f4f6;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,14 +567,14 @@ onMounted(() => {
 }
 
 .t-btn:hover {
-  background: rgba(55, 65, 81, 0.9);
+  background: var(--bg-surface);
 }
 
 /* Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.6));
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -583,8 +583,9 @@ onMounted(() => {
 }
 
 .modal-dialog {
-  background: #111827;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--modal-bg);
+  border: var(--modal-border);
+  box-shadow: var(--modal-shadow);
   border-radius: 1.25rem;
   padding: 2rem;
   width: 100%;
@@ -594,7 +595,7 @@ onMounted(() => {
 .modal-title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #f9fafb;
+  color: var(--text-main);
   margin-top: 0;
   margin-bottom: 1.5rem;
 }
@@ -606,7 +607,7 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin-bottom: 0.35rem;
 }
 
@@ -614,9 +615,9 @@ onMounted(() => {
   width: 100%;
   padding: 0.6rem 0.8rem;
   border-radius: 0.5rem;
-  background: rgba(31, 41, 55, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
   font-size: 0.9rem;
   box-sizing: border-box;
 }
@@ -637,16 +638,16 @@ onMounted(() => {
 .cancel-btn {
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #9ca3af;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   cursor: pointer;
 }
 
 .submit-btn {
   padding: 0.6rem 1.25rem;
   border-radius: 0.5rem;
-  background: #3b82f6;
+  background: var(--primary, #3b82f6);
   border: none;
   color: white;
   font-weight: 600;

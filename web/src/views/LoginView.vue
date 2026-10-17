@@ -108,6 +108,7 @@ async function handleKioskLogin() {
             <User :size="18" class="input-icon" />
             <input
               id="username"
+              name="username"
               v-model="username"
               type="text"
               placeholder="admin"
@@ -123,6 +124,7 @@ async function handleKioskLogin() {
             <Lock :size="18" class="input-icon" />
             <input
               id="password"
+              name="password"
               v-model="password"
               type="password"
               placeholder="••••••••"
@@ -151,6 +153,7 @@ async function handleKioskLogin() {
             <KeyRound :size="18" class="input-icon" />
             <input
               id="kiosk-pin"
+              name="kiosk_pin"
               v-model="kioskPin"
               type="password"
               maxlength="8"

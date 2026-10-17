@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
 import { useTheme } from '../../composables/useTheme'
-import { getCurrentLanguage, setLanguage } from '../../locales'
-import { Menu, LogOut, User as UserIcon, Sun, Moon, Sparkles, BookOpen } from '@lucide/vue'
+import { getCurrentLanguage, setLanguage, supportedLanguages, type SupportedLanguage } from '../../locales'
+import { Menu, LogOut, User as UserIcon, Sun, Moon, Sparkles, BookOpen, ChevronDown, Check } from '@lucide/vue'
 import VoiceAssistantModal from '../modals/VoiceAssistantModal.vue'
 
 interface Props {
@@ -27,19 +27,44 @@ const authStore = useAuthStore()
 const wsStore = useWsStore()
 const { isDark, toggleTheme } = useTheme()
 const isAssistantOpen = ref(false)
+const isLangMenuOpen = ref(false)
+const langDropdownRef = ref<HTMLElement | null>(null)
 
 const currentUser = computed(() => authStore.user)
 const isWsConnected = computed(() => wsStore.isConnected)
 const currentLang = computed(() => getCurrentLanguage())
+const currentLangMeta = computed(() => supportedLanguages.find(l => l.code === currentLang.value) || supportedLanguages[0])
 
 function goToGuide() {
   router.push('/guide')
 }
 
-function toggleLanguage() {
-  const next = currentLang.value === 'it' ? 'en' : 'it'
-  setLanguage(next)
+function chooseLanguage(lang: SupportedLanguage) {
+  setLanguage(lang)
+  isLangMenuOpen.value = false
 }
+
+function handleDocumentClick(e: MouseEvent) {
+  if (langDropdownRef.value && !langDropdownRef.value.contains(e.target as Node)) {
+    isLangMenuOpen.value = false
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    isLangMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('keydown', handleKeydown)
+})
 
 async function handleLogout() {
   await authStore.logout()
@@ -82,14 +107,50 @@ async function handleLogout() {
         <span class="assistant-label">Assistant</span>
       </button>
 
-      <!-- Language Quick Switcher -->
-      <button
-        class="lang-quick-toggle"
-        :title="currentLang === 'it' ? 'Passa a Inglese' : 'Switch to Italian'"
-        @click="toggleLanguage"
-      >
-        <span class="lang-flag-pill">{{ currentLang === 'it' ? '🇮🇹 IT' : '🇬🇧 EN' }}</span>
-      </button>
+      <!-- Language Selector Dropdown -->
+      <div ref="langDropdownRef" class="lang-dropdown-container">
+        <button
+          class="lang-dropdown-btn lang-quick-toggle"
+          type="button"
+          :title="t('settings.language')"
+          :aria-label="t('settings.language')"
+          aria-haspopup="menu"
+          :aria-expanded="isLangMenuOpen"
+          @click="isLangMenuOpen = !isLangMenuOpen"
+        >
+          <span class="lang-flag">{{ currentLangMeta.flag }}</span>
+          <span class="lang-code">{{ currentLangMeta.code.toUpperCase() }}</span>
+          <ChevronDown :size="13" class="lang-chevron" :class="{ 'rotate-180': isLangMenuOpen }" />
+        </button>
+
+        <!-- Dropdown Menu with all 5 languages -->
+        <Transition name="fade-slide">
+          <div
+            v-if="isLangMenuOpen"
+            class="lang-menu glass-panel"
+            role="menu"
+            aria-label="Seleziona Lingua"
+          >
+            <div class="lang-menu-header">
+              <span>{{ t('settings.chooseLanguage') }}</span>
+            </div>
+            <button
+              v-for="lang in supportedLanguages"
+              :key="lang.code"
+              class="lang-menu-item"
+              :class="{ active: currentLang === lang.code }"
+              role="menuitem"
+              type="button"
+              @click="chooseLanguage(lang.code)"
+            >
+              <span class="item-flag">{{ lang.flag }}</span>
+              <span class="item-name">{{ lang.name }}</span>
+              <span class="item-code">({{ lang.code.toUpperCase() }})</span>
+              <Check v-if="currentLang === lang.code" :size="14" class="item-check" />
+            </button>
+          </div>
+        </Transition>
+      </div>
 
       <!-- Theme Toggle -->
       <button
@@ -237,11 +298,15 @@ async function handleLogout() {
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
 }
 
-.lang-quick-toggle {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
-  padding: 4px 10px;
+.lang-dropdown-container {
+  position: relative;
+}
+
+.lang-dropdown-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
+  padding: 5px 10px;
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
@@ -249,24 +314,100 @@ async function handleLogout() {
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  gap: 5px;
 }
 
-.lang-quick-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
-  border-color: rgba(255, 255, 255, 0.2);
+.lang-dropdown-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
-.lang-flag-pill {
+.lang-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+}
+
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 175px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lang-menu-header {
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+
+.lang-menu-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.lang-menu-item:hover {
+  background: var(--bg-surface-hover);
+  color: var(--primary);
+}
+
+.lang-menu-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.item-flag {
+  font-size: 16px;
+}
+
+.item-name {
+  flex: 1;
+}
+
+.item-code {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.item-check {
+  color: var(--primary);
+  margin-left: auto;
 }
 
 .theme-toggle {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
   width: 32px;
   height: 32px;
   border-radius: var(--radius-full);
@@ -279,27 +420,10 @@ async function handleLogout() {
 }
 
 .theme-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f8fafc;
-  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--bg-surface-hover);
+  border-color: var(--primary);
+  color: var(--primary);
   transform: rotate(12deg);
-}
-
-:root[data-theme="light"] .theme-toggle {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(15, 23, 42, 0.12);
-  color: #475569;
-}
-
-:root[data-theme="light"] .theme-toggle:hover {
-  background: rgba(15, 23, 42, 0.1);
-  color: #0f172a;
-}
-
-:root[data-theme="light"] .lang-quick-toggle {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(15, 23, 42, 0.12);
-  color: #475569;
 }
 
 :root[data-theme="light"] .lang-quick-toggle:hover {

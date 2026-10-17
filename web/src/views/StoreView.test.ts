@@ -63,4 +63,40 @@ describe('StoreView.vue', () => {
       {}
     )
   })
+
+  it('filters packages by search query', async () => {
+    const wrapper = mount(StoreView)
+    await flushPromises()
+
+    const searchInput = wrapper.find('input#store-search')
+    expect(searchInput.exists()).toBe(true)
+
+    await searchInput.setValue('Aqara')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Aqara Magic Cube Controller')
+    expect(wrapper.text()).not.toContain('Illuminazione Circadiana Dinamica')
+  })
+
+  it('opens and closes details modal on card click', async () => {
+    const wrapper = mount(StoreView)
+    await flushPromises()
+
+    const cards = wrapper.findAll('.package-card')
+    expect(cards.length).toBe(2)
+
+    await cards[0].trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.find('.modal-card')
+    expect(modal.exists()).toBe(true)
+    expect(modal.text()).toContain('Aqara Magic Cube Controller')
+    expect(modal.text()).toContain('community.aqara.cube')
+
+    const closeBtn = wrapper.find('.btn-close')
+    await closeBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.modal-card').exists()).toBe(false)
+  })
 })

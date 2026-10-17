@@ -24,7 +24,9 @@ import {
   Rewind,
   Pause,
   Filter,
-  Volume2
+  Volume2,
+  Film,
+  CheckCircle
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
 import { soundEffects } from '../utils/audioSynthesizer'
@@ -872,6 +874,7 @@ onMounted(async () => {
 .page-title {
   font-size: 1.4rem;
   font-weight: 700;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -990,6 +993,7 @@ onMounted(async () => {
 .section-title {
   font-size: 1.1rem;
   font-weight: 600;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -1091,9 +1095,9 @@ onMounted(async () => {
 .nvr-banner {
   padding: 1.5rem;
   border-radius: 1rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .nvr-banner-top {
@@ -1118,7 +1122,7 @@ onMounted(async () => {
   gap: 0.5rem;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .nvr-hw-badge {
@@ -1139,11 +1143,11 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8rem;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  background: var(--bg-surface-hover);
   padding: 0.35rem 0.75rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
 }
 
 .nvr-stats-grid {
@@ -1153,10 +1157,10 @@ onMounted(async () => {
 }
 
 .nvr-stat-card {
-  background: rgba(31, 41, 55, 0.4);
+  background: var(--bg-surface-hover);
   padding: 1rem 1.25rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -1164,7 +1168,7 @@ onMounted(async () => {
 
 .stat-lbl {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1172,12 +1176,12 @@ onMounted(async () => {
 .stat-val {
   font-size: 1.35rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .stat-desc {
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--text-dim, #64748b);
 }
 
 .text-emerald {
@@ -1219,9 +1223,9 @@ onMounted(async () => {
 .zones-overview-section {
   padding: 1.5rem;
   border-radius: 1rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .section-title-box {
@@ -1238,8 +1242,8 @@ onMounted(async () => {
 }
 
 .zone-card {
-  background: rgba(31, 41, 55, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   padding: 1rem;
   display: flex;
@@ -1256,7 +1260,7 @@ onMounted(async () => {
 .zone-name {
   font-weight: 600;
   font-size: 0.9rem;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .zone-cam {

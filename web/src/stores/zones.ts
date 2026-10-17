@@ -71,11 +71,17 @@ export const useZonesStore = defineStore('zones', () => {
 
   async function fetchPersons(): Promise<TrackedPerson[]> {
     try {
-      const data = await apiClient.get<{ persons: TrackedPerson[]; total: number }>('/api/v1/presence/persons')
+      const data = await apiClient.get<{ persons: TrackedPerson[]; total: number }>('/api/v1/persons')
       persons.value = data.persons || []
       return persons.value
     } catch {
-      return []
+      try {
+        const data = await apiClient.get<{ persons: TrackedPerson[]; total: number }>('/api/v1/presence/persons')
+        persons.value = data.persons || []
+        return persons.value
+      } catch {
+        return []
+      }
     }
   }
 

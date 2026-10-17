@@ -1,0 +1,39 @@
+{
+  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "id": "domus.blueprint.circadian-lighting",
+  "name": "Illuminazione Circadiana Adattiva (Sun-Sync)",
+  "version": "2.1.0",
+  "type": "blueprint",
+  "author": "Domus Automation Team",
+  "license": "MIT",
+  "homepage": "https://github.com/domus-hub/extensions/tree/main/blueprint-circadian-lighting",
+  "description": "Blueprint riutilizzabile che regola in modo continuo la temperatura colore (Kelvin) e l'intensità luminosa delle lampade RGBW/CCT basandosi sulle coordinate geografiche e l'elevazione astronomica del sole.",
+  "entrypoint": "blueprint.yaml",
+  "capabilities": [
+    "light:control",
+    "sun:read",
+    "scheduler:periodic"
+  ],
+  "inputs": {
+    "target_lights": {
+      "type": "target_selector",
+      "domain": "light",
+      "description": "Gruppo di lampade o stanze da sincronizzare"
+    },
+    "min_kelvin": {
+      "type": "number",
+      "default": 2700,
+      "description": "Temperatura colore minima al crepuscolo e di notte (Calda, 2700K)"
+    },
+    "max_kelvin": {
+      "type": "number",
+      "default": 5500,
+      "description": "Temperatura colore massima a mezzogiorno (Fredda / Concentrazione, 5500K)"
+    },
+    "transition_seconds": {
+      "type": "number",
+      "default": 5,
+      "description": "Tempo di dissolvenza morbida tra i passaggi di temperatura"
+    }
+  }
+}

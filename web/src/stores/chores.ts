@@ -108,6 +108,27 @@ export const useChoresStore = defineStore('chores', () => {
     }
   }
 
+  async function syncGoogleCalendar(calendarUrl: string): Promise<{ synced_count: number; message: string }> {
+    try {
+      loading.value = true
+      error.value = null
+      const res = await apiClient.post<{ synced_count: number; message: string }>('/api/v1/chores/sync/google', {
+        calendar_url: calendarUrl
+      })
+      await fetchChores()
+      return res
+    } catch (err: any) {
+      error.value = err?.message || 'Failed to sync Google Calendar'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function getICalSubscriptionUrl(): string {
+    return `${window.location.origin}/api/v1/chores/calendar.ics`
+  }
+
   return {
     chores,
     loading,
@@ -119,6 +140,9 @@ export const useChoresStore = defineStore('chores', () => {
     createChore,
     updateChore,
     completeChore,
-    deleteChore
+    deleteChore,
+    syncGoogleCalendar,
+    getICalSubscriptionUrl
   }
 })
+

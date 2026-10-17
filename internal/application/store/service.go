@@ -132,3 +132,69 @@ func (s *Service) UninstallPackage(ctx context.Context, packageID string) (*Pack
 	}
 	return p, nil
 }
+
+// DefaultPackages returns curated, production-ready Domus Store extensions.
+func DefaultPackages() []*Package {
+	return []*Package{
+		{
+			ID:          "pkg_bess_arbitrage",
+			PackageID:   "domus.energy.bess-arbitrage",
+			Name:        "BESS Dynamic Tariff & Energy Arbitrage Optimizer",
+			Type:        TypeWasmPlugin,
+			Version:     "1.2.0",
+			Author:      "Domus Energy Labs",
+			Description: "Modulo WebAssembly per l'ottimizzazione automatica dell'accumulo fotovoltaico con tariffe dinamiche (PUN/Nord Pool): forzatura carica nelle ore a prezzo negativo o ultra-basso e scarica intelligente nei picchi serali.",
+			Installed:   false,
+			DownloadURL: "https://store.domus-hub.org/plugins/bess-arbitrage-1.2.0.wasm",
+			Icon:        "zap",
+		},
+		{
+			ID:          "pkg_circadian_lighting",
+			PackageID:   "domus.blueprint.circadian-lighting",
+			Name:        "Illuminazione Circadiana Adattiva (Sun-Sync)",
+			Type:        TypeBlueprint,
+			Version:     "2.1.0",
+			Author:      "Domus Automation Team",
+			Description: "Blueprint per sincronizzare temperatura colore (2700K al crepuscolo, 5500K a mezzogiorno) e livello di dimmer delle luci in base alla posizione astronomica del sole e all'orario biologico.",
+			Installed:   false,
+			DownloadURL: "https://store.domus-hub.org/blueprints/circadian-lighting-2.1.0.yaml",
+			Icon:        "sun",
+		},
+		{
+			ID:          "pkg_window_climate_guard",
+			PackageID:   "domus.blueprint.window-climate-guard",
+			Name:        "Guardia Clima & Infissi Intelligente",
+			Type:        TypeBlueprint,
+			Version:     "1.0.4",
+			Author:      "GreenHome Community",
+			Description: "Automazione salvavita termico: spegne valvole termostatiche TRV e split pompa di calore dopo 90s di apertura finestre, ripristinando il setpoint di comfort alla chiusura.",
+			Installed:   false,
+			DownloadURL: "https://store.domus-hub.org/blueprints/window-climate-guard-1.0.4.yaml",
+			Icon:        "sun",
+		},
+		{
+			ID:          "pkg_energy_flow_wheel",
+			PackageID:   "domus.widget.energy-flow-wheel",
+			Name:        "Power Flow Wheel & BESS Monitor",
+			Type:        TypeWidget,
+			Version:     "1.4.2",
+			Author:      "Domus UI Studio",
+			Description: "Widget SVG vettoriale animato per Dashboard: visualizzazione dinamica ad anelli delle correnti istantanee tra Solare, Batteria domestica, Rete elettrica e Consumi prioritari.",
+			Installed:   false,
+			DownloadURL: "https://store.domus-hub.org/widgets/energy-flow-wheel-1.4.2.js",
+			Icon:        "gauge",
+		},
+		{
+			ID:          "pkg_coral_edgetpu_ai",
+			PackageID:   "domus.ai.coral-edgetpu-vision",
+			Name:        "Coral EdgeTPU Local Neural Bridge",
+			Type:        TypeWasmPlugin,
+			Version:     "1.1.0",
+			Author:      "VisionEdge AI Labs",
+			Description: "Accelerazione neurale WASM sandboxed per telecamere RTSP/Frigate: inferenza locale a 100 FPS con filtraggio falsi allarmi e classificazione tempestiva di persone e veicoli.",
+			Installed:   false,
+			DownloadURL: "https://store.domus-hub.org/plugins/coral-edgetpu-vision-1.1.0.wasm",
+			Icon:        "box",
+		},
+	}
+}

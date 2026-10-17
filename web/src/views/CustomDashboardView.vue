@@ -42,11 +42,39 @@ interface DashboardProfile {
   icon: string
   is_default: boolean
   kiosk_config_json: string
-  layout_json: string
+  layout_json?: string
 }
+
+const defaultDashboards: DashboardProfile[] = [
+  {
+    id: 'tablet_living_room',
+    title: 'Tablet Salotto (Principale)',
+    icon: 'layout',
+    is_default: true,
+    kiosk_config_json: '{}',
+    layout_json: '{"target_temp": 20.0, "room": "Salotto"}'
+  },
+  {
+    id: 'tablet_kitchen',
+    title: 'Tablet Cucina & Ingresso',
+    icon: 'utensils',
+    is_default: false,
+    kiosk_config_json: '{}',
+    layout_json: '{"target_temp": 19.5, "room": "Cucina"}'
+  },
+  {
+    id: 'tablet_night',
+    title: 'Tablet Camera & Notte',
+    icon: 'moon',
+    is_default: false,
+    kiosk_config_json: '{}',
+    layout_json: '{"target_temp": 18.0, "room": "Camera da Letto"}'
+  }
+]
 
 const dashboards = ref<DashboardProfile[]>([])
 const currentDashboardId = ref('')
+const activeRoomName = ref('Salotto')
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
@@ -60,6 +88,20 @@ const isHeating = ref(false)
 
 function adjustTargetTemp(delta: number) {
   targetTemp.value = Math.round((targetTemp.value + delta) * 10) / 10
+}
+
+function switchDashboardProfile() {
+  const profile = dashboards.value.find(d => d.id === currentDashboardId.value)
+  if (profile) {
+    try {
+      const cfg = JSON.parse(profile.layout_json || '{}')
+      if (cfg.target_temp) {
+        targetTemp.value = cfg.target_temp
+      }
+      activeRoomName.value = cfg.room || 'Salotto'
+    } catch {}
+    localStorage.setItem('domus_active_tablet_dashboard', profile.id)
+  }
 }
 
 // Sparkline Telemetry History Data
@@ -127,9 +169,20 @@ onMounted(async () => {
     const list = await apiClient.get<DashboardProfile[]>('/api/v1/dashboards')
     if (list && list.length > 0) {
       dashboards.value = list
-      currentDashboardId.value = list[0].id
+    } else {
+      dashboards.value = defaultDashboards
     }
-  } catch {}
+  } catch {
+    dashboards.value = defaultDashboards
+  }
+
+  const saved = localStorage.getItem('domus_active_tablet_dashboard')
+  if (saved && dashboards.value.some(d => d.id === saved)) {
+    currentDashboardId.value = saved
+  } else if (dashboards.value.length > 0) {
+    currentDashboardId.value = dashboards.value[0].id
+  }
+  switchDashboardProfile()
 
   try {
     const f = await apiClient.get<any>('/api/v1/energy/flow')
@@ -180,7 +233,14 @@ onUnmounted(() => {
 
       <div class="dash-actions">
         <!-- Profile Selector -->
-        <select v-model="currentDashboardId" class="profile-select">
+        <select
+          id="profile-select"
+          name="profile_select"
+          v-model="currentDashboardId"
+          class="profile-select"
+          aria-label="Seleziona Profilo Tablet"
+          @change="switchDashboardProfile"
+        >
           <option v-for="d in dashboards" :key="d.id" :value="d.id">
             {{ d.title }}
           </option>
@@ -205,7 +265,7 @@ onUnmounted(() => {
         <div class="card-header">
           <div class="header-left">
             <Flame :size="20" class="text-warning animate-pulse" />
-            <span class="card-title">Clima & Termostato Salotto</span>
+            <span class="card-title">Clima & Termostato {{ activeRoomName }}</span>
           </div>
           <span class="badge heating-badge">Riscaldamento Attivo</span>
         </div>
@@ -386,9 +446,9 @@ onUnmounted(() => {
   padding: 1.25rem 1.75rem;
   border-radius: 1rem;
   margin-bottom: 2rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card, rgba(17, 24, 39, 0.7));
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
 }
 
 .dash-title-group {
@@ -400,13 +460,13 @@ onUnmounted(() => {
 .dash-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #f9fafb;
+  color: var(--text-main);
   margin: 0;
 }
 
 .dash-subtitle {
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin: 0.25rem 0 0;
 }
 
@@ -417,13 +477,19 @@ onUnmounted(() => {
 }
 
 .profile-select {
-  background: rgba(31, 41, 55, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f3f4f6;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
   padding: 0.6rem 1rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.profile-select:focus {
+  border-color: var(--primary);
+  outline: none;
 }
 
 .kiosk-toggle-btn {
@@ -450,9 +516,9 @@ onUnmounted(() => {
   position: fixed;
   top: 1.5rem;
   right: 1.5rem;
-  background: rgba(31, 41, 55, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #9ca3af;
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
   border-radius: 50%;
   width: 44px;
   height: 44px;
@@ -465,8 +531,8 @@ onUnmounted(() => {
 }
 
 .exit-kiosk-fab:hover {
-  color: white;
-  background: rgba(55, 65, 81, 0.9);
+  color: var(--text-main);
+  background: var(--bg-surface-hover);
 }
 
 /* Widget Grid */
@@ -478,8 +544,8 @@ onUnmounted(() => {
 
 .widget-card {
   border-radius: 1.25rem;
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
@@ -501,7 +567,7 @@ onUnmounted(() => {
 .card-title {
   font-size: 1rem;
   font-weight: 600;
-  color: #f3f4f6;
+  color: var(--text-main);
 }
 
 .badge {
@@ -546,14 +612,14 @@ onUnmounted(() => {
 
 .dial-current-label {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
 .dial-current-val {
   font-size: 2.25rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text-main);
   letter-spacing: -0.05em;
 }
 
@@ -575,9 +641,9 @@ onUnmounted(() => {
   flex: 1;
   padding: 0.75rem;
   border-radius: 0.75rem;
-  background: rgba(31, 41, 55, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
   font-weight: 700;
   font-size: 1.1rem;
   cursor: pointer;
@@ -585,7 +651,7 @@ onUnmounted(() => {
 }
 
 .temp-btn:hover {
-  background: rgba(55, 65, 81, 0.9);
+  background: var(--bg-surface);
 }
 
 .temp-btn.primary {
@@ -625,10 +691,10 @@ onUnmounted(() => {
 }
 
 .vector-node {
-  background: rgba(31, 41, 55, 0.4);
+  background: var(--bg-surface-hover);
   padding: 1rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -638,12 +704,12 @@ onUnmounted(() => {
 .v-val {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .v-label {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* Screensaver Overlay */

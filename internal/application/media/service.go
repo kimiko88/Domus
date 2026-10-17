@@ -96,6 +96,10 @@ func (s *Service) ListPlayers(ctx context.Context) ([]*media.MediaPlayer, error)
 	return s.repo.ListPlayers(ctx)
 }
 
+func (s *Service) DeletePlayer(ctx context.Context, id string) error {
+	return s.repo.DeletePlayer(ctx, id)
+}
+
 func (s *Service) SetState(ctx context.Context, id string, state media.PlayerState) (*media.MediaPlayer, error) {
 	p, err := s.repo.GetPlayer(ctx, id)
 	if err != nil {

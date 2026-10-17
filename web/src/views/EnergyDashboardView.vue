@@ -687,9 +687,9 @@ async function handleOptimizeBESS() {
   padding: 1.25rem 1.75rem;
   border-radius: 1rem;
   margin-bottom: 1.5rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .header-title-box {
@@ -711,13 +711,13 @@ async function handleOptimizeBESS() {
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #f9fafb;
+  color: var(--text-main);
   margin: 0;
 }
 
 .page-subtitle {
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin: 0.25rem 0 0;
 }
 
@@ -732,8 +732,8 @@ async function handleOptimizeBESS() {
 .summary-card {
   padding: 1.25rem;
   border-radius: 1rem;
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -746,28 +746,28 @@ async function handleOptimizeBESS() {
 
 .meta-label {
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .meta-val {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 /* Sankey Section */
 .sankey-section {
   padding: 1.75rem;
   border-radius: 1.25rem;
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   margin-bottom: 1.5rem;
 }
 
 .section-title {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #f3f4f6;
+  color: var(--text-main);
   margin-bottom: 1rem;
 }
 
@@ -809,8 +809,8 @@ async function handleOptimizeBESS() {
   margin-top: 1.5rem;
   padding: 1.25rem;
   border-radius: 1rem;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -830,7 +830,7 @@ async function handleOptimizeBESS() {
 
 .bess-stat .label {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -839,7 +839,7 @@ async function handleOptimizeBESS() {
 .bess-stat .value {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-main);
 }
 
 .bess-action-btn {
@@ -892,8 +892,8 @@ async function handleOptimizeBESS() {
 .utilities-card {
   padding: 1.5rem;
   border-radius: 1rem;
-  background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
 }
 
 .card-header {
@@ -906,7 +906,7 @@ async function handleOptimizeBESS() {
 .card-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #f3f4f6;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -1011,9 +1011,9 @@ async function handleOptimizeBESS() {
   padding: 1.5rem;
   border-radius: 1rem;
   margin-bottom: 1.5rem;
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--surface-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .dynamic-header {
@@ -1043,7 +1043,7 @@ async function handleOptimizeBESS() {
 
 .section-sub {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin: 0.25rem 0 0;
   max-width: 680px;
 }
@@ -1091,10 +1091,10 @@ async function handleOptimizeBESS() {
 }
 
 .pun-stat-box {
-  background: rgba(31, 41, 55, 0.4);
+  background: var(--bg-surface-hover);
   padding: 1rem 1.25rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -1102,7 +1102,7 @@ async function handleOptimizeBESS() {
 
 .pun-stat-lbl {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1110,7 +1110,7 @@ async function handleOptimizeBESS() {
 .pun-stat-val {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .text-emerald {
@@ -1123,8 +1123,8 @@ async function handleOptimizeBESS() {
 
 /* 24-Hour Price Bar Chart */
 .hourly-chart-container {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
   border-radius: 0.85rem;
   padding: 1.25rem;
   margin-bottom: 1.75rem;
@@ -1145,7 +1145,7 @@ async function handleOptimizeBESS() {
   gap: 0.5rem;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-main);
 }
 
 .chart-legend {
@@ -1305,8 +1305,8 @@ async function handleOptimizeBESS() {
 }
 
 .flexible-load-card {
-  background: rgba(31, 41, 55, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
   border-radius: 0.85rem;
   padding: 1.1rem;
   display: flex;
@@ -1328,13 +1328,13 @@ async function handleOptimizeBESS() {
 .load-name {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
   margin: 0;
 }
 
 .load-key {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .toggle-switch {
@@ -1371,7 +1371,7 @@ async function handleOptimizeBESS() {
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.8rem;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--bg-surface-hover);
   padding: 0.65rem 0.8rem;
   border-radius: 0.5rem;
 }

@@ -61,6 +61,7 @@
           <div class="verify-input-group">
             <input
               id="totp-code"
+              name="totp_code"
               v-model="totpCode"
               type="text"
               maxlength="6"

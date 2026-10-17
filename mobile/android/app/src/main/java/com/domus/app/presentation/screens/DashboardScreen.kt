@@ -104,84 +104,118 @@ fun DashboardScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
                             Text(
-                                "Domus",
+                                text = "Domus",
                                 fontWeight = FontWeight.Black,
-                                fontSize = 22.sp,
-                                color = MaterialTheme.colorScheme.onBackground
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                "Native",
-                                fontSize = 12.sp,
+                                text = "Native",
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = CyanAccent,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier
                                     .background(CyanAccent.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
                     },
                     actions = {
+                        // Compact Connection Status Chip (tap to reconnect if disconnected)
+                        ConnectionStatusBanner(
+                            connection = connection,
+                            compact = true,
+                            onReconnectClick = { viewModel.reconnect() }
+                        )
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
                         // Floorplan toggle
                         IconButton(
                             onClick = { isFloorplanMode = !isFloorplanMode },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .background(IndigoPrimary.copy(alpha = 0.15f), CircleShape)
                         ) {
-                            Text(if (isFloorplanMode) "▦" else "🗺️", fontSize = 16.sp)
+                            Text(if (isFloorplanMode) "▦" else "🗺️", fontSize = 15.sp)
                         }
 
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // Connection status banner
-                        ConnectionStatusBanner(
-                            connection = connection,
-                            onReconnectClick = { viewModel.reconnect() }
-                        )
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // Presence & NFC button
-                        IconButton(
-                            onClick = { showPresenceAndNfcSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(CyanAccent.copy(alpha = 0.15f), CircleShape)
-                        ) {
-                            Text("📍", fontSize = 16.sp)
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // Kiosk settings button
-                        IconButton(
-                            onClick = { showKioskSettingsSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(Slate700.copy(alpha = 0.4f), CircleShape)
-                        ) {
-                            Text("📟", fontSize = 16.sp)
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
 
                         // Profile / Login button
                         IconButton(
                             onClick = { showLoginSheet = true },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .background(
                                     (if (authSession.isAuthenticated) EmeraldSuccess else Color(0xFFF97316)).copy(alpha = 0.15f),
                                     CircleShape
                                 )
                         ) {
-                            Text(if (authSession.isAuthenticated) "👤" else "🔑", fontSize = 16.sp)
+                            Text(if (authSession.isAuthenticated) "👤" else "🔑", fontSize = 15.sp)
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+
+                        // Overflow / More options menu
+                        var showOverflowMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(
+                                onClick = { showOverflowMenu = true },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Slate700.copy(alpha = 0.3f), CircleShape)
+                            ) {
+                                Text(
+                                    "⋮",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Presenza & Tag NFC") },
+                                    leadingIcon = { Text("📍", fontSize = 16.sp) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showPresenceAndNfcSheet = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Modalità Kiosk") },
+                                    leadingIcon = { Text("📟", fontSize = 16.sp) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showKioskSettingsSheet = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Riconnetti Hub") },
+                                    leadingIcon = { Text("🔄", fontSize = 16.sp) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.reconnect()
+                                    }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
@@ -196,6 +230,22 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
+                // Disconnected Alert Banner (if offline, shows full actionable banner)
+                AnimatedVisibility(
+                    visible = !connection.isConnected,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    ConnectionStatusBanner(
+                        connection = connection,
+                        compact = false,
+                        onReconnectClick = { viewModel.reconnect() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                    )
+                }
+
                 // Room Presence Beacon Banner (Active indoor micro-location)
                 activeRoomName?.let { roomName ->
                     Surface(
@@ -237,7 +287,7 @@ fun DashboardScreen(
                     }
                 }
 
-                // Quick Feature Horizontal Scroll (Assistant, Automations, Timeline, Energy, Mesh, Guests, Shopping, Chores, Notifications)
+                // Quick Feature Horizontal Scroll (Assistant, Automations, Timeline, Energy, Mesh, Guests, Shopping, Chores, Notifications, Presence, Kiosk)
                 Row(
                     modifier = Modifier
                         .horizontalScroll(rememberScrollState())
@@ -246,6 +296,8 @@ fun DashboardScreen(
                 ) {
                     QuickActionChip(icon = "🎙️", label = "Assistente", onClick = { showAssistantSheet = true })
                     QuickActionChip(icon = "🪄", label = "Automazioni", onClick = { showAutomationBuilderSheet = true })
+                    QuickActionChip(icon = "📍", label = "Presenza", onClick = { showPresenceAndNfcSheet = true })
+                    QuickActionChip(icon = "📟", label = "Kiosk", onClick = { showKioskSettingsSheet = true })
                     QuickActionChip(icon = "🕰️", label = "Timeline", onClick = { showActivityTimelineSheet = true })
                     QuickActionChip(icon = "⚡", label = "Energia", onClick = { showEnergySheet = true })
                     QuickActionChip(icon = "📡", label = "Rete & Mesh", onClick = { showMeshDiagnosticsSheet = true })

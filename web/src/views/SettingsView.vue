@@ -5,12 +5,13 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useSystemStore } from '../stores/system'
 import { useTourStore } from '../stores/tour'
+import { useTheme } from '../composables/useTheme'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
 import TwoFactorModal from '../components/TwoFactorModal.vue'
 import { apiClient } from '../api/client'
 import {
-  User, HardDrive, Moon, LogOut, Globe, Activity, RefreshCw,
+  User, HardDrive, Moon, Sun, Monitor, Smartphone, Palette, Check, LogOut, Globe, Activity, RefreshCw,
   Cpu, Thermometer, Terminal, Download, Key, ShieldCheck, ShieldAlert,
   Radio, Zap, CheckCircle, BookOpen, Sparkles
 } from '@lucide/vue'
@@ -20,6 +21,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const systemStore = useSystemStore()
 const tourStore = useTourStore()
+const { theme: currentTheme, themeOptions, setTheme } = useTheme()
 
 const currentUser = computed(() => authStore.user)
 const languages = computed(() => getAvailableLanguages())
@@ -291,6 +293,43 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- Theme & Appearance Card -->
+      <div class="settings-card glass-card">
+        <div class="card-header">
+          <div class="icon-box text-cyan">
+            <Palette :size="20" />
+          </div>
+          <h3 class="card-title">Aspetto & Tema</h3>
+        </div>
+
+        <div class="profile-details">
+          <p class="theme-desc">Personalizza lo stile visivo e il contrasto dell'interfaccia Domus</p>
+
+          <div class="theme-selector-grid">
+            <button
+              v-for="opt in themeOptions"
+              :key="opt.id"
+              class="theme-card-btn"
+              :class="{ active: currentTheme === opt.id }"
+              type="button"
+              @click="setTheme(opt.id)"
+            >
+              <div class="theme-swatch-box" :style="{ background: opt.previewBg, borderColor: opt.previewBorder }">
+                <Moon v-if="opt.id === 'dark'" :size="15" />
+                <Sun v-else-if="opt.id === 'light'" :size="15" style="color: #f59e0b;" />
+                <Smartphone v-else-if="opt.id === 'oled'" :size="15" style="color: #3b82f6;" />
+                <Monitor v-else :size="15" style="color: #a855f7;" />
+              </div>
+              <div class="theme-btn-info">
+                <span class="theme-btn-title">{{ opt.label }}</span>
+                <span class="theme-btn-desc">{{ opt.description }}</span>
+              </div>
+              <Check v-if="currentTheme === opt.id" :size="16" class="theme-check-icon" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Language Selector Card -->
       <div class="settings-card glass-card">
         <div class="card-header">
@@ -309,10 +348,12 @@ onMounted(() => {
               :key="lang.code"
               class="lang-btn"
               :class="{ active: activeLang === lang.code }"
+              type="button"
               @click="selectLanguage(lang.code)"
             >
               <span class="lang-flag">{{ lang.flag }}</span>
               <span class="lang-name">{{ lang.name }}</span>
+              <span class="lang-subcode">({{ lang.code.toUpperCase() }})</span>
             </button>
           </div>
         </div>
@@ -734,26 +775,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-
-      <!-- Appearance Card -->
-      <div class="settings-card glass-card">
-        <div class="card-header">
-          <div class="icon-box">
-            <Moon :size="20" />
-          </div>
-          <h3 class="card-title">Aspetto & Tema</h3>
-        </div>
-
-        <div class="profile-details">
-          <div class="detail-row">
-            <span class="detail-label">Tema attivo</span>
-            <span class="detail-value">Dark Slate (Glassmorphism)</span>
-          </div>
-          <p class="theme-desc">
-            Interfaccia ottimizzata per consumi ridotti su schermi OLED e contrasto visivo elevato in ambienti domestici.
-          </p>
-        </div>
-      </div>
     </div>
 
     <!-- 2FA Setup Modal -->
@@ -937,24 +958,95 @@ onMounted(() => {
   margin: 0;
 }
 
-.language-selector {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
+/* Theme Selector Grid */
+.theme-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.lang-btn {
-  flex: 1;
+.theme-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.theme-card-btn:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.theme-card-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  box-shadow: 0 0 12px var(--primary-light);
+}
+
+.theme-swatch-box {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 2px solid;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
+  flex-shrink: 0;
+}
+
+.theme-btn-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.theme-btn-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.theme-btn-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.theme-check-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* Language Selector */
+.language-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
   background: var(--bg-surface);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -962,18 +1054,28 @@ onMounted(() => {
 
 .lang-btn:hover {
   background: var(--bg-surface-hover);
+  border-color: var(--primary);
   color: var(--text-main);
 }
 
 .lang-btn.active {
-  background: rgba(6, 182, 212, 0.15);
-  border-color: #06b6d4;
-  color: #0284c7;
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
   font-weight: 600;
 }
 
 .lang-flag {
-  font-size: 18px;
+  font-size: 16px;
+}
+
+.lang-name {
+  font-weight: 500;
+}
+
+.lang-subcode {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .metrics-loading {

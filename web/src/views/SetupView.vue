@@ -69,6 +69,7 @@ async function handleSubmit() {
             <User :size="18" class="input-icon" />
             <input
               id="admin-username"
+              name="username"
               v-model="username"
               type="text"
               placeholder="admin"
@@ -84,6 +85,7 @@ async function handleSubmit() {
             <Lock :size="18" class="input-icon" />
             <input
               id="admin-password"
+              name="password"
               v-model="password"
               type="password"
               placeholder="Minimo 8 caratteri"
@@ -99,6 +101,7 @@ async function handleSubmit() {
             <Lock :size="18" class="input-icon" />
             <input
               id="admin-password-confirm"
+              name="confirm_password"
               v-model="confirmPassword"
               type="password"
               placeholder="Ripeti la password"
