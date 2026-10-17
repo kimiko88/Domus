@@ -103,6 +103,15 @@ public final class NfcTagManager: NSObject, ObservableObject {
         self.onTagScanned?(tag)
     }
 
+    /// Simula la scrittura di un tag NDEF (per test unitari e simulatore).
+    @discardableResult
+    public func simulateTagWrite(uri: String = "domus://action/cover.gate") -> String {
+        self.lastStatusMessage = "Tag programmato con successo (simulato): \(uri)"
+        self.isSessionActive = false
+        Haptics.success()
+        return uri
+    }
+
     private func parseDomusUri(_ uri: String) -> DomusNfcTag {
         // Formato tipico: domus://{type}/{targetId} es: domus://scene/night o domus://toggle/light.kitchen
         var action = "custom"

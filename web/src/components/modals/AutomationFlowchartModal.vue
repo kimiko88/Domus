@@ -78,6 +78,73 @@ const connections = ref<FlowConnection[]>([
 const isSimulating = ref(false)
 const activeSimIndex = ref(-1)
 
+import { audioSynthesizer } from '../../utils/audioSynthesizer'
+
+// Dry-Run Simulator State
+const isDryRunOpen = ref(false)
+const dryRunInputs = ref({
+  motion: true,
+  lux: 15,
+  time: '22:30',
+  presence: true
+})
+
+interface StepEval {
+  status: 'passed' | 'failed' | 'pending'
+  detail: string
+}
+const nodeEvals = ref<Record<string, StepEval>>({})
+const dryRunLogs = ref<string[]>([])
+
+function toggleDryRun() {
+  audioSynthesizer.playClick()
+  isDryRunOpen.value = !isDryRunOpen.value
+  if (isDryRunOpen.value) {
+    executeDryRun()
+  }
+}
+
+function executeDryRun() {
+  audioSynthesizer.playClick()
+  nodeEvals.value = {}
+  dryRunLogs.value = []
+
+  // 1. Evaluate Trigger
+  const trigNode = nodes.value.find((n) => n.type === 'trigger')
+  if (trigNode) {
+    if (dryRunInputs.value.motion) {
+      nodeEvals.value[trigNode.id] = { status: 'passed', detail: 'Trigger scatenato: Movimento rilevato (true)' }
+      dryRunLogs.value.push(`[1/3] Trigger [${trigNode.title}]: VERIFICATO (movimento = true)`)
+    } else {
+      nodeEvals.value[trigNode.id] = { status: 'failed', detail: 'Nessun movimento (false)' }
+      dryRunLogs.value.push(`[1/3] Trigger [${trigNode.title}]: NON ATTIVATO`)
+      return
+    }
+  }
+
+  // 2. Evaluate Condition
+  const condNode = nodes.value.find((n) => n.type === 'condition')
+  if (condNode) {
+    if (dryRunInputs.value.lux < 30) {
+      nodeEvals.value[condNode.id] = { status: 'passed', detail: `Condizione soddisfatta: ${dryRunInputs.value.lux} lx < 30 lx` }
+      dryRunLogs.value.push(`[2/3] Condizione [${condNode.title}]: PASSATA (${dryRunInputs.value.lux} lx < 30 lx)`)
+    } else {
+      nodeEvals.value[condNode.id] = { status: 'failed', detail: `Condizione fallita: ${dryRunInputs.value.lux} lx >= 30 lx` }
+      dryRunLogs.value.push(`[2/3] Condizione [${condNode.title}]: BLOCCATA (${dryRunInputs.value.lux} lx >= 30 lx)`)
+      return
+    }
+  }
+
+  // 3. Actions
+  const actNodes = nodes.value.filter((n) => n.type === 'action' || n.type === 'delay')
+  for (const act of actNodes) {
+    nodeEvals.value[act.id] = { status: 'passed', detail: 'Azione pianificata ed eseguita' }
+    dryRunLogs.value.push(`[3/3] Esecuzione: ${act.title} -> SUCCESSO`)
+  }
+
+  audioSynthesizer.playSuccessChime()
+}
+
 function getNodeById(id: string) {
   return nodes.value.find((n) => n.id === id)
 }
@@ -157,6 +224,9 @@ function handleSave() {
         </div>
 
         <div class="header-actions">
+          <button class="btn-dryrun" :class="{ active: isDryRunOpen }" @click="toggleDryRun">
+            <span>🧪 Collaudo Dry-Run</span>
+          </button>
           <button class="btn-simulate" :disabled="isSimulating" @click="simulateFlow">
             <Play :size="15" :class="{ 'animate-spin': isSimulating }" />
             <span>{{ isSimulating ? t('flowchart.btnPause') : t('flowchart.btnSimulate') }}</span>
@@ -209,18 +279,60 @@ function handleSave() {
             :class="[
               'flow-node',
               `node-${n.type}`,
-              { 'sim-active': isSimulating && activeSimIndex === ni }
+              {
+                'sim-active': isSimulating && activeSimIndex === ni,
+                'eval-passed': nodeEvals[n.id]?.status === 'passed',
+                'eval-failed': nodeEvals[n.id]?.status === 'failed'
+              }
             ]"
             :style="{ left: `${n.x}px`, top: `${n.y}px` }"
           >
             <div class="node-header">
               <span class="node-badge">{{ n.type.toUpperCase() }}</span>
+              <span v-if="nodeEvals[n.id]" class="eval-pill" :class="nodeEvals[n.id].status">
+                {{ nodeEvals[n.id].status === 'passed' ? 'PASSATO' : 'BLOCCATO' }}
+              </span>
               <button v-if="nodes.length > 1" class="btn-node-del" @click="removeNode(n.id)">
                 <Trash2 :size="12" />
               </button>
             </div>
             <h4 class="node-title">{{ n.title }}</h4>
             <p class="node-sub">{{ n.subtitle }}</p>
+            <p v-if="nodeEvals[n.id]" class="node-eval-msg" :class="nodeEvals[n.id].status">
+              {{ nodeEvals[n.id].detail }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Dry-Run Inspector Panel -->
+        <div v-if="isDryRunOpen" class="dryrun-panel">
+          <div class="dryrun-header">
+            <h4>🧪 Simulatore di Collaudo</h4>
+            <span class="dryrun-sub">Inietta valori fittizi per testare le condizioni prima del salvataggio</span>
+          </div>
+
+          <div class="dryrun-form">
+            <label class="dryrun-field">
+              <span>Movimento (Trigger)</span>
+              <input type="checkbox" v-model="dryRunInputs.motion" @change="executeDryRun" />
+            </label>
+
+            <label class="dryrun-field">
+              <span>Luminosità Sensore: {{ dryRunInputs.lux }} lx</span>
+              <input type="range" min="0" max="100" v-model.number="dryRunInputs.lux" @input="executeDryRun" />
+            </label>
+
+            <label class="dryrun-field">
+              <span>Orario Simulato</span>
+              <input type="time" v-model="dryRunInputs.time" @change="executeDryRun" />
+            </label>
+          </div>
+
+          <div class="dryrun-trace">
+            <h5>Trace Esecuzione:</h5>
+            <div v-for="(log, li) in dryRunLogs" :key="li" class="trace-log-line">
+              {{ log }}
+            </div>
           </div>
         </div>
       </div>
@@ -524,5 +636,279 @@ function handleSave() {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btn-dryrun {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-dryrun:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-dryrun.active {
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.35);
+}
+
+.flow-node.eval-passed {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.45) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, var(--bg-glass-card) 100%) !important;
+}
+
+.flow-node.eval-failed {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.45) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, var(--bg-glass-card) 100%) !important;
+}
+
+.node-sim-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: var(--radius-xs, 4px);
+  margin-top: 4px;
+  width: fit-content;
+}
+
+.node-sim-status.passed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.node-sim-status.failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* Dryrun Side Panel */
+.dryrun-panel {
+  width: 320px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.25);
+}
+
+.dryrun-panel-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.dryrun-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.btn-close-dryrun {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-close-dryrun:hover {
+  color: var(--text-main);
+}
+
+.dryrun-body {
+  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dryrun-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.mock-inputs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mock-input-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mock-input-item label {
+  font-size: 12px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.mock-input-item input[type="text"],
+.mock-input-item input[type="number"],
+.mock-input-item input[type="time"] {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.mock-input-item input:focus {
+  border-color: var(--primary);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+}
+
+.eval-summary-card {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+}
+
+.eval-summary-card.passed {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.eval-summary-card.failed {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.eval-badge {
+  padding: 4px 8px;
+  border-radius: var(--radius-xs, 4px);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.eval-summary-card.passed .eval-badge {
+  background: #10b981;
+  color: #fff;
+}
+
+.eval-summary-card.failed .eval-badge {
+  background: #ef4444;
+  color: #fff;
+}
+
+.eval-summary-text {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.dryrun-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-eval-now {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-reset-mock {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-reset-mock:hover {
+  color: var(--text-main);
+}
+
+.dryrun-log-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-entry {
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.log-entry.log-success {
+  color: #10b981;
+}
+
+.log-entry.log-error {
+  color: #ef4444;
 }
 </style>

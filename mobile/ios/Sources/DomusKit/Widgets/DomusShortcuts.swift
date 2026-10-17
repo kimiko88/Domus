@@ -30,5 +30,29 @@ public struct DomusShortcuts: AppShortcutsProvider {
             shortTitle: "Esegui Scenario Domus",
             systemImageName: "sparkles"
         )
+
+        AppShortcut(
+            intent: ControlCoverIntent(),
+            phrases: [
+                "Apri il garage con \(.applicationName)",
+                "Chiudi il garage con \(.applicationName)",
+                "Apri il cancello con \(.applicationName)",
+                "Chiudi il cancello con \(.applicationName)"
+            ],
+            shortTitle: "Apri o Chiudi Ingresso",
+            systemImageName: "door.garage.open"
+        )
+
+        AppShortcut(
+            intent: SetClimateTemperatureIntent(),
+            phrases: [
+                "Imposta 21 gradi in soggiorno con \(.applicationName)",
+                "Imposta temperatura con \(.applicationName)",
+                "Regola il termostato con \(.applicationName)"
+            ],
+            shortTitle: "Imposta Temperatura",
+            systemImageName: "thermometer.medium"
+        )
     }
 }
+

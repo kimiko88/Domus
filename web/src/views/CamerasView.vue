@@ -17,11 +17,17 @@ import {
   Cpu,
   HardDrive,
   Layers,
-  Film,
-  CheckCircle,
-  Sliders
+  Sliders,
+  LayoutGrid,
+  Clock,
+  FastForward,
+  Rewind,
+  Pause,
+  Filter,
+  Volume2
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+import { soundEffects } from '../utils/audioSynthesizer'
 
 const { t } = useI18n()
 
@@ -137,6 +143,102 @@ function addMockZone() {
   })
 }
 
+// Surveillance Wall & AI Timeline Scrubbing
+const currentViewMode = ref<'grid' | 'wall'>('grid')
+const wallMatrix = ref<'2x2' | '3x3'>('2x2')
+const isWallPlaying = ref(true)
+const wallPlaybackSpeed = ref(1)
+const timelineCurrentMinute = ref(12 * 60 + 30) // default 12:30
+const selectedLabelFilter = ref<'all' | 'person' | 'vehicle' | 'package' | 'animal'>('all')
+const activeScrubbedEvent = ref<DetectionEvent | null>(null)
+
+const maxWallCams = computed(() => (wallMatrix.value === '2x2' ? 4 : 9))
+
+const wallCameras = computed(() => {
+  return cameras.value.slice(0, maxWallCams.value)
+})
+
+const timelineFormattedTime = computed(() => {
+  const totalMins = Math.max(0, Math.min(1439, timelineCurrentMinute.value))
+  const hrs = Math.floor(totalMins / 60).toString().padStart(2, '0')
+  const mins = (totalMins % 60).toString().padStart(2, '0')
+  return `${hrs}:${mins}:00`
+})
+
+// Calculate percentage for timeline events across 24h
+function getEventMinute(timeStr: string): number {
+  if (!timeStr) return 0
+  const parts = timeStr.split(':')
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10) || 0
+    const m = parseInt(parts[1], 10) || 0
+    return h * 60 + m
+  }
+  return 0
+}
+
+const timelineEvents = computed(() => {
+  return events.value.map((e, idx) => {
+    // If detected_at is e.g. "14:22" or ISO string
+    let minute = 0
+    if (e.detected_at.includes(':')) {
+      minute = getEventMinute(e.detected_at)
+    } else {
+      minute = 600 + (idx * 55) % 800
+    }
+    const percent = Math.min(100, Math.max(0, (minute / 1440) * 100))
+    return {
+      ...e,
+      minute,
+      percent
+    }
+  }).filter(e => {
+    if (selectedLabelFilter.value === 'all') return true
+    return e.label === selectedLabelFilter.value
+  })
+})
+
+function onScrubberChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const minute = parseInt(target.value, 10)
+  timelineCurrentMinute.value = minute
+  soundEffects.playClick()
+
+  // Find closest event within 15 minutes of scrubber
+  const closest = timelineEvents.value.find(e => Math.abs(e.minute - minute) <= 15)
+  if (closest) {
+    activeScrubbedEvent.value = closest
+  } else {
+    activeScrubbedEvent.value = null
+  }
+}
+
+function jumpToTimelineEvent(event: DetectionEvent & { minute?: number }) {
+  soundEffects.playClick()
+  if (event.minute !== undefined) {
+    timelineCurrentMinute.value = event.minute
+  }
+  activeScrubbedEvent.value = event
+}
+
+function toggleWallPlayback() {
+  soundEffects.playClick()
+  isWallPlaying.value = !isWallPlaying.value
+}
+
+function stepWallTimeline(deltaMinutes: number) {
+  soundEffects.playClick()
+  timelineCurrentMinute.value = Math.max(0, Math.min(1439, timelineCurrentMinute.value + deltaMinutes))
+}
+
+function cyclePlaybackSpeed() {
+  soundEffects.playClick()
+  const speeds = [1, 2, 4, 8]
+  const curIdx = speeds.indexOf(wallPlaybackSpeed.value)
+  wallPlaybackSpeed.value = speeds[(curIdx + 1) % speeds.length]
+}
+
+
 onMounted(async () => {
   try {
     const list = await apiClient.get<Camera[]>('/api/v1/cameras')
@@ -171,10 +273,274 @@ onMounted(async () => {
           <p class="page-subtitle">{{ t('cameras.subtitle') }}</p>
         </div>
       </div>
+
+      <div class="header-view-controls">
+        <div class="view-switch-group">
+          <button
+            type="button"
+            class="btn-view-toggle"
+            :class="{ active: currentViewMode === 'grid' }"
+            @click="currentViewMode = 'grid'; soundEffects.playClick()"
+          >
+            <Video :size="15" />
+            <span>Griglia</span>
+          </button>
+          <button
+            type="button"
+            class="btn-view-toggle"
+            :class="{ active: currentViewMode === 'wall' }"
+            @click="currentViewMode = 'wall'; soundEffects.playClick()"
+          >
+            <LayoutGrid :size="15" />
+            <span>Surveillance Wall</span>
+          </button>
+        </div>
+
+        <div v-if="currentViewMode === 'wall'" class="matrix-switch-group">
+          <button
+            type="button"
+            class="btn-matrix-toggle"
+            :class="{ active: wallMatrix === '2x2' }"
+            @click="wallMatrix = '2x2'; soundEffects.playClick()"
+          >
+            2×2
+          </button>
+          <button
+            type="button"
+            class="btn-matrix-toggle"
+            :class="{ active: wallMatrix === '3x3' }"
+            @click="wallMatrix = '3x3'; soundEffects.playClick()"
+          >
+            3×3
+          </button>
+        </div>
+      </div>
     </header>
 
+    <!-- Surveillance Wall Mode -->
+    <section v-if="currentViewMode === 'wall'" class="surveillance-wall-section glass-panel">
+      <div class="wall-top-bar">
+        <div class="wall-title-area">
+          <div class="wall-live-indicator">
+            <span class="pulsing-dot" />
+            <span class="wall-live-text">SINCRONIZZAZIONE MULTI-SCHERMO ({{ wallMatrix }})</span>
+          </div>
+          <span class="wall-clock font-mono">{{ timelineFormattedTime }}</span>
+        </div>
+
+        <div class="wall-quick-actions">
+          <div class="filter-pills">
+            <button
+              type="button"
+              class="btn-filter-pill"
+              :class="{ active: selectedLabelFilter === 'all' }"
+              @click="selectedLabelFilter = 'all'; soundEffects.playClick()"
+            >
+              Tutti ({{ events.length }})
+            </button>
+            <button
+              type="button"
+              class="btn-filter-pill person"
+              :class="{ active: selectedLabelFilter === 'person' }"
+              @click="selectedLabelFilter = 'person'; soundEffects.playClick()"
+            >
+              <User :size="12" /> Persona
+            </button>
+            <button
+              type="button"
+              class="btn-filter-pill vehicle"
+              :class="{ active: selectedLabelFilter === 'vehicle' }"
+              @click="selectedLabelFilter = 'vehicle'; soundEffects.playClick()"
+            >
+              <Car :size="12" /> Veicolo
+            </button>
+            <button
+              type="button"
+              class="btn-filter-pill package"
+              :class="{ active: selectedLabelFilter === 'package' }"
+              @click="selectedLabelFilter = 'package'; soundEffects.playClick()"
+            >
+              <Package :size="12" /> Pacco
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Synchronized Video Feeds Matrix -->
+      <div
+        class="surveillance-matrix-grid"
+        :class="wallMatrix === '2x2' ? 'matrix-2x2' : 'matrix-3x3'"
+      >
+        <div
+          v-for="(cam, index) in wallCameras"
+          :key="cam.id"
+          class="wall-feed-cell"
+          :class="{ 'cell-highlighted': activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id }"
+          @click="openLiveStream(cam)"
+        >
+          <img :src="cam.snapshot_url" :alt="cam.name" class="wall-feed-img" />
+
+          <!-- Overlay UI -->
+          <div class="feed-overlay feed-overlay-top">
+            <span class="cell-cam-name">CAM {{ index + 1 }}: {{ cam.name }}</span>
+            <span class="cell-time font-mono">{{ timelineFormattedTime }}</span>
+          </div>
+
+          <div class="feed-overlay feed-overlay-bottom">
+            <span class="feed-status-badge">
+              <span class="status-indicator-dot" />
+              {{ cam.stream_type.toUpperCase() }} REC
+            </span>
+
+            <div v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id" class="feed-event-alert">
+              <span class="alert-label">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+              <span class="alert-score">{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</span>
+            </div>
+          </div>
+
+          <!-- Highlight AI Box Simulation -->
+          <div
+            v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id"
+            class="ai-tracking-box"
+          >
+            <span class="box-tag">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+          </div>
+        </div>
+
+        <!-- Fill empty slots if fewer cameras than matrix size -->
+        <div
+          v-for="emptyIdx in Math.max(0, maxWallCams - wallCameras.length)"
+          :key="'empty_' + emptyIdx"
+          class="wall-feed-cell empty-cell"
+        >
+          <div class="empty-feed-placeholder">
+            <Video :size="32" style="opacity: 0.3;" />
+            <span>Canale {{ wallCameras.length + emptyIdx }} in attesa</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unified Scrubbing Timeline & Playback Bar -->
+      <div class="unified-timeline-bar">
+        <div class="timeline-controls-row">
+          <div class="playback-buttons">
+            <button
+              type="button"
+              class="btn-playback-step"
+              title="Indietro 15 minuti"
+              @click="stepWallTimeline(-15)"
+            >
+              <Rewind :size="16" />
+              <span>-15m</span>
+            </button>
+
+            <button
+              type="button"
+              class="btn-playback-play"
+              :title="isWallPlaying ? 'Pausa' : 'Riproduci'"
+              @click="toggleWallPlayback"
+            >
+              <Pause v-if="isWallPlaying" :size="18" />
+              <Play v-else :size="18" />
+            </button>
+
+            <button
+              type="button"
+              class="btn-playback-step"
+              title="Avanti 15 minuti"
+              @click="stepWallTimeline(15)"
+            >
+              <span>+15m</span>
+              <FastForward :size="16" />
+            </button>
+
+            <button
+              type="button"
+              class="btn-playback-speed"
+              title="Velocità riproduzione"
+              @click="cyclePlaybackSpeed"
+            >
+              {{ wallPlaybackSpeed }}x
+            </button>
+          </div>
+
+          <div class="timeline-time-display">
+            <Clock :size="16" class="text-primary" />
+            <span class="time-readout font-mono">{{ timelineFormattedTime }}</span>
+            <span class="time-scope">Oggi, 24 Ore Registrate</span>
+          </div>
+        </div>
+
+        <!-- Timeline Track & AI Markers -->
+        <div class="timeline-track-container">
+          <div class="timeline-hour-markers">
+            <span>00:00</span>
+            <span>04:00</span>
+            <span>08:00</span>
+            <span>12:00</span>
+            <span>16:00</span>
+            <span>20:00</span>
+            <span>24:00</span>
+          </div>
+
+          <div class="timeline-track-wrapper">
+            <!-- Scrubber Slider -->
+            <input
+              type="range"
+              min="0"
+              max="1439"
+              :value="timelineCurrentMinute"
+              class="timeline-scrubber-slider"
+              @input="onScrubberChange"
+            />
+
+            <!-- Event markers on track -->
+            <div
+              v-for="e in timelineEvents"
+              :key="e.id"
+              class="timeline-marker"
+              :class="[e.label, { active: activeScrubbedEvent && activeScrubbedEvent.id === e.id }]"
+              :style="{ left: e.percent + '%' }"
+              :title="`${e.label.toUpperCase()} @ ${e.detected_at} (${e.camera_id})`"
+              @click="jumpToTimelineEvent(e)"
+            >
+              <span class="marker-dot" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrubbed Event Detail Card -->
+        <div v-if="activeScrubbedEvent" class="scrubbed-event-card">
+          <div class="scrubbed-event-thumb">
+            <img :src="activeScrubbedEvent.thumbnail_url" class="scrub-img" />
+            <div class="scrub-badge" :class="activeScrubbedEvent.label">
+              {{ activeScrubbedEvent.label.toUpperCase() }}
+            </div>
+          </div>
+          <div class="scrubbed-event-info">
+            <div class="scrub-title-row">
+              <strong>Evento AI Rilevato</strong>
+              <span class="scrub-time font-mono">{{ activeScrubbedEvent.detected_at }}</span>
+            </div>
+            <div class="scrub-details">
+              <span>Camera: <strong>{{ activeScrubbedEvent.camera_id }}</strong></span>
+              <span>Confidenza: <strong>{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</strong></span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn-play-scrubbed-clip"
+            @click="openClipPlayer(activeScrubbedEvent)"
+          >
+            <Film :size="15" />
+            <span>Riproduci Filmato ({{ activeScrubbedEvent.clip_duration_sec || 5 }}s)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- NVR System Status Banner -->
-    <section class="nvr-banner glass-panel">
+    <section v-if="currentViewMode === 'grid'" class="nvr-banner glass-panel">
       <div class="nvr-banner-top">
         <div class="nvr-title-group">
           <div class="nvr-badge">
@@ -217,14 +583,14 @@ onMounted(async () => {
     </section>
 
     <!-- Empty State for Cameras -->
-    <div v-if="cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
+    <div v-if="currentViewMode === 'grid' && cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
       <Video :size="48" style="opacity: 0.4; margin: 0 auto 12px; color: var(--text-muted);" />
       <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;">{{ t('cameras.noCameras', 'Nessuna telecamera configurata') }}</p>
       <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Collega telecamere WebRTC, RTSP o HLS per visualizzare streaming live e rilevamento AI.</p>
     </div>
 
     <!-- Camera Feeds Grid -->
-    <div v-else class="cameras-grid">
+    <div v-else-if="currentViewMode === 'grid'" class="cameras-grid">
       <div v-for="cam in cameras" :key="cam.id" class="camera-card glass-panel">
         <div class="cam-preview-wrapper" @click="openLiveStream(cam)">
           <img :src="cam.snapshot_url" :alt="cam.name" class="cam-img" />
@@ -1225,5 +1591,574 @@ onMounted(async () => {
   border-radius: 0.3rem;
   text-transform: uppercase;
   font-weight: 700;
+}
+
+/* Header View Controls */
+.header-view-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-switch-group,
+.matrix-switch-group {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  gap: 4px;
+}
+
+.btn-view-toggle,
+.btn-matrix-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-view-toggle.active,
+.btn-matrix-toggle.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.35);
+}
+
+/* Surveillance Wall Layout */
+.surveillance-wall-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #0b1120;
+  border: 1px solid var(--border-subtle);
+}
+
+.wall-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wall-title-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.wall-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wall-live-text {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ef4444;
+}
+
+.wall-clock {
+  font-size: 15px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.filter-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-filter-pill.active {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: var(--primary);
+  color: var(--text-main);
+}
+
+.btn-filter-pill.person.active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #818cf8;
+  color: #a5b4fc;
+}
+
+.btn-filter-pill.vehicle.active {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: #38bdf8;
+  color: #7dd3fc;
+}
+
+.btn-filter-pill.package.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #6ee7b7;
+}
+
+/* Video Matrix Grids */
+.surveillance-matrix-grid {
+  display: grid;
+  gap: 12px;
+  background: #020617;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.surveillance-matrix-grid.matrix-2x2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.surveillance-matrix-grid.matrix-3x3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.wall-feed-cell {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.wall-feed-cell:hover {
+  border-color: var(--primary);
+  transform: scale(1.01);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.wall-feed-cell.cell-highlighted {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.45) !important;
+}
+
+.wall-feed-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.empty-feed-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.feed-overlay {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.feed-overlay-top {
+  top: 8px;
+}
+
+.feed-overlay-bottom {
+  bottom: 8px;
+}
+
+.cell-cam-name {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.cell-time {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #38bdf8;
+}
+
+.feed-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.status-indicator-dot {
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #ef4444;
+}
+
+.feed-event-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+
+.ai-tracking-box {
+  position: absolute;
+  top: 25%;
+  left: 30%;
+  width: 35%;
+  height: 50%;
+  border: 2px solid #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.35);
+  pointer-events: none;
+  animation: pulse-tracking 2s infinite ease-in-out;
+}
+
+@keyframes pulse-tracking {
+  0%, 100% { border-color: #10b981; }
+  50% { border-color: #34d399; }
+}
+
+.box-tag {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  background: #10b981;
+  color: #000;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* Unified Timeline Bar */
+.unified-timeline-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timeline-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.playback-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-playback-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-playback-step:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btn-playback-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.btn-playback-play:hover {
+  transform: scale(1.05);
+}
+
+.btn-playback-speed {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-playback-speed:hover {
+  color: var(--text-main);
+}
+
+.timeline-time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-readout {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.time-scope {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Timeline Track */
+.timeline-track-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline-hour-markers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.timeline-track-wrapper {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.timeline-scrubber-slider {
+  width: 100%;
+  appearance: none;
+  background: linear-gradient(90deg, #1e293b 0%, #334155 50%, #1e293b 100%);
+  height: 10px;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-scrubber-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--primary);
+  cursor: pointer;
+  border: 2px solid #fff;
+  transition: transform 0.1s ease;
+}
+
+.timeline-scrubber-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.timeline-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 3;
+}
+
+.marker-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #000;
+  transition: transform 0.15s ease;
+}
+
+.timeline-marker:hover .marker-dot,
+.timeline-marker.active .marker-dot {
+  transform: scale(1.5);
+  box-shadow: 0 0 12px currentColor;
+}
+
+.timeline-marker.person .marker-dot {
+  background: #818cf8;
+  color: #818cf8;
+}
+
+.timeline-marker.vehicle .marker-dot {
+  background: #38bdf8;
+  color: #38bdf8;
+}
+
+.timeline-marker.package .marker-dot {
+  background: #34d399;
+  color: #34d399;
+}
+
+.timeline-marker.animal .marker-dot {
+  background: #fbbf24;
+  color: #fbbf24;
+}
+
+/* Scrubbed Event Detail Card */
+.scrubbed-event-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.scrubbed-event-thumb {
+  position: relative;
+  width: 80px;
+  height: 50px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+
+.scrub-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scrub-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+.scrub-badge.person { color: #818cf8; }
+.scrub-badge.vehicle { color: #38bdf8; }
+.scrub-badge.package { color: #34d399; }
+.scrub-badge.animal { color: #fbbf24; }
+
+.scrubbed-event-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scrub-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.scrub-time {
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.scrub-details {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-play-scrubbed-clip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 </style>

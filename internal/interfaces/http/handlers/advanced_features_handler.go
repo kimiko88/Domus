@@ -24,6 +24,7 @@ type AdvancedFeaturesHandler struct {
 	presence   *presence.Service
 	sun        *automation.SunEngine
 	entityRepo entity.Repository
+	bessOpt    *energy.BESSArbitrageOptimizer
 }
 
 // NewAdvancedFeaturesHandler constructs a new AdvancedFeaturesHandler.
@@ -33,6 +34,12 @@ func NewAdvancedFeaturesHandler(energyCtrl *energy.Controller, presenceSvc *pres
 		presence:   presenceSvc,
 		sun:        sunEngine,
 	}
+}
+
+// WithBESSOptimizer attaches the battery energy storage optimizer.
+func (h *AdvancedFeaturesHandler) WithBESSOptimizer(opt *energy.BESSArbitrageOptimizer) *AdvancedFeaturesHandler {
+	h.bessOpt = opt
+	return h
 }
 
 // WithTariffOptimizer attaches the dynamic energy tariff optimizer.
@@ -284,6 +291,53 @@ func (h *AdvancedFeaturesHandler) EvaluateTariffs(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "evaluated",
 		"decisions": decisions,
+	})
+}
+
+// GetBESSSchedule handles GET /api/v1/energy/bess/schedule.
+func (h *AdvancedFeaturesHandler) GetBESSSchedule(w http.ResponseWriter, r *http.Request) {
+	if h.bessOpt == nil {
+		h.bessOpt = energy.NewBESSArbitrageOptimizer(energy.BESSConfig{}, h.tariffOpt, nil)
+	}
+	writeJSON(w, http.StatusOK, h.bessOpt.GetSchedule())
+}
+
+// OptimizeBESS handles POST /api/v1/energy/bess/optimize.
+func (h *AdvancedFeaturesHandler) OptimizeBESS(w http.ResponseWriter, r *http.Request) {
+	if h.bessOpt == nil {
+		h.bessOpt = energy.NewBESSArbitrageOptimizer(energy.BESSConfig{}, h.tariffOpt, nil)
+	}
+
+	var req struct {
+		CurrentSoC float64 `json:"current_soc"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	soc := req.CurrentSoC
+	if soc <= 0 {
+		soc = 50.0
+	}
+
+	sched := h.bessOpt.ComputeSchedule(time.Now().UTC(), soc)
+	writeJSON(w, http.StatusOK, sched)
+}
+
+// UpdateBESSConfig handles PUT /api/v1/energy/bess/config.
+func (h *AdvancedFeaturesHandler) UpdateBESSConfig(w http.ResponseWriter, r *http.Request) {
+	if h.bessOpt == nil {
+		h.bessOpt = energy.NewBESSArbitrageOptimizer(energy.BESSConfig{}, h.tariffOpt, nil)
+	}
+
+	var cfg energy.BESSConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	sched := h.bessOpt.UpdateConfig(cfg)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "updated",
+		"config":   h.bessOpt.GetConfig(),
+		"schedule": sched,
 	})
 }
 

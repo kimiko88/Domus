@@ -312,3 +312,54 @@ func TestAdvancedFeaturesHandler_HomeKitAndMatter(t *testing.T) {
 	assert.Equal(t, "commissioning_started", matterResp["status"])
 }
 
+func TestAdvancedFeaturesHandler_BESSArbitrage(t *testing.T) {
+	tariffOpt := energy.NewTariffOptimizer(energy.MarketPUN, nil)
+	bessOpt := energy.NewBESSArbitrageOptimizer(energy.BESSConfig{
+		CapacityKWh:            12.0,
+		MaxChargePowerKW:       3.5,
+		MaxDischargePowerKW:    3.5,
+		NegativePriceArbitrage: true,
+		PeakShavingEnabled:     true,
+	}, tariffOpt, nil)
+
+	h := NewAdvancedFeaturesHandler(nil, nil, nil).WithBESSOptimizer(bessOpt).WithTariffOptimizer(tariffOpt)
+
+	// 1. Get Schedule
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/energy/bess/schedule", nil)
+	rr := httptest.NewRecorder()
+	h.GetBESSSchedule(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var sched energy.BESSSchedule
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &sched))
+	assert.Equal(t, 24, len(sched.HourlyPlan))
+
+	// 2. Optimize BESS
+	body, _ := json.Marshal(map[string]float64{"current_soc": 72.5})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/energy/bess/optimize", bytes.NewReader(body))
+	rr = httptest.NewRecorder()
+	h.OptimizeBESS(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var optSched energy.BESSSchedule
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &optSched))
+	assert.Equal(t, 72.5, optSched.CurrentSoC)
+
+	// 3. Update BESS Config
+	cfgBody, _ := json.Marshal(energy.BESSConfig{
+		CapacityKWh:         15.0,
+		MaxChargePowerKW:    4.0,
+		MaxDischargePowerKW: 4.0,
+		MinReserveSoC:       20.0,
+		MaxTargetSoC:        90.0,
+	})
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/energy/bess/config", bytes.NewReader(cfgBody))
+	rr = httptest.NewRecorder()
+	h.UpdateBESSConfig(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var updateResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &updateResp))
+	assert.Equal(t, "updated", updateResp["status"])
+}
+

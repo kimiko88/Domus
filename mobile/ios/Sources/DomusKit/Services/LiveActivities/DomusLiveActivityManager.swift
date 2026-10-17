@@ -71,6 +71,25 @@ public final class DomusLiveActivityManager: ObservableObject {
         startActivity(attributes: DomusLiveActivityAttributes(activityId: "alert-\(UUID().uuidString)"), initialState: state)
     }
 
+    /// Avvia la sessione Live Activity per la ricarica dell'auto elettrica (Wallbox / EV).
+    public func startEVCharging(carName: String = "Tesla Model Y", currentKw: Double = 7.4, batteryPercent: Int = 68, estimatedEnd: String = "15:45") {
+        let state = DomusLiveActivityAttributes.ContentState(
+            title: "Ricarica \(carName)",
+            subtitle: "\(String(format: "%.1f", currentKw)) kW • Fine stimata: \(estimatedEnd)",
+            progress: Double(batteryPercent) / 100.0,
+            remainingSeconds: 0,
+            iconName: "bolt.car.fill",
+            activityType: .evCharging,
+            isCritical: false,
+            targetEntityId: "sensor.wallbox_power",
+            evKw: currentKw,
+            evBatteryPercent: batteryPercent,
+            evEstimatedEndTime: estimatedEnd
+        )
+
+        startActivity(attributes: DomusLiveActivityAttributes(activityId: "ev-\(UUID().uuidString)"), initialState: state)
+    }
+
     /// Aggiorna lo stato della Live Activity in esecuzione.
     public func updateState(remainingSeconds: Int, progress: Double, subtitle: String? = nil) {
         guard isActivityActive else { return }

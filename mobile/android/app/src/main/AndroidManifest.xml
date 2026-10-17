@@ -81,6 +81,16 @@
             </intent-filter>
         </service>
 
+        <!-- Android Auto CarAppService -->
+        <service
+            android:name="com.domus.app.services.auto.DomusCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
+
         <!-- Geofence & Presence BroadcastReceiver -->
         <receiver
             android:name="com.domus.app.services.location.DomusGeofenceReceiver"

@@ -126,6 +126,88 @@ async function removeMarker(markerId: string) {
   }
 }
 
+import { audioSynthesizer } from '../utils/audioSynthesizer'
+
+// Spatial Heatmap 2.5D State
+const showHeatmap = ref(false)
+const heatmapMetric = ref<'temperature' | 'humidity'>('temperature')
+const heatmapCanvasRef = ref<HTMLCanvasElement | null>(null)
+
+function toggleHeatmap() {
+  audioSynthesizer.playClick()
+  showHeatmap.value = !showHeatmap.value
+  if (showHeatmap.value) {
+    setTimeout(renderSpatialHeatmap, 50)
+  }
+}
+
+function renderSpatialHeatmap() {
+  const canvas = heatmapCanvasRef.value
+  if (!canvas || !mapContainerRef.value) return
+  const rect = mapContainerRef.value.getBoundingClientRect()
+  canvas.width = rect.width
+  canvas.height = rect.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  const points: Array<{ x: number; y: number; val: number }> = []
+  for (const m of floorStore.currentMarkers) {
+    const ent = getEntity(m.entity_key)
+    if (!ent) continue
+    const k = m.entity_key.toLowerCase()
+    const isTemp = k.includes('temp') || ent.domain === 'climate'
+    const isHum = k.includes('humidity') || k.includes('umidita')
+
+    if ((heatmapMetric.value === 'temperature' && isTemp) || (heatmapMetric.value === 'humidity' && isHum)) {
+      let val = parseFloat(ent.state)
+      if (isNaN(val) && ent.attributes) {
+        val = parseFloat(ent.attributes.current_temperature || ent.attributes.temperature || '21')
+      }
+      if (!isNaN(val)) {
+        points.push({
+          x: (m.x_percent / 100) * canvas.width,
+          y: (m.y_percent / 100) * canvas.height,
+          val
+        })
+      }
+    }
+  }
+
+  // Realistic fallback room points if markers don't yet have temperature
+  if (points.length === 0) {
+    points.push(
+      { x: canvas.width * 0.25, y: canvas.height * 0.3, val: heatmapMetric.value === 'temperature' ? 20.2 : 48 },
+      { x: canvas.width * 0.75, y: canvas.height * 0.3, val: heatmapMetric.value === 'temperature' ? 22.4 : 54 },
+      { x: canvas.width * 0.5, y: canvas.height * 0.7, val: heatmapMetric.value === 'temperature' ? 19.1 : 44 }
+    )
+  }
+
+  for (const p of points) {
+    const radius = Math.max(canvas.width, canvas.height) * 0.4
+    const grad = ctx.createRadialGradient(p.x, p.y, 10, p.x, p.y, radius)
+
+    let color = 'rgba(16, 185, 129, 0.45)'
+    if (heatmapMetric.value === 'temperature') {
+      if (p.val < 18.5) color = 'rgba(56, 189, 248, 0.45)'
+      else if (p.val <= 21.5) color = 'rgba(16, 185, 129, 0.45)'
+      else if (p.val <= 23.5) color = 'rgba(245, 158, 11, 0.45)'
+      else color = 'rgba(239, 68, 68, 0.5)'
+    } else {
+      if (p.val < 40) color = 'rgba(245, 158, 11, 0.45)'
+      else if (p.val <= 60) color = 'rgba(6, 182, 212, 0.45)'
+      else color = 'rgba(59, 130, 246, 0.5)'
+    }
+
+    grad.addColorStop(0, color)
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
+
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  }
+}
+
 async function handleCreateFloor() {
   if (!floorForm.value.name.trim()) return
   try {
@@ -161,6 +243,15 @@ const unplacedEntities = computed(() => {
       </div>
 
       <div class="header-actions">
+        <button
+          class="btn-heatmap-mode"
+          :class="{ active: showHeatmap }"
+          @click="toggleHeatmap"
+        >
+          <Thermometer class="btn-icon" />
+          {{ showHeatmap ? 'Chiudi Heatmap' : 'Mappa Termica 2.5D' }}
+        </button>
+
         <button
           class="btn-mode"
           :class="{ active: isEditMode }"
@@ -220,6 +311,27 @@ const unplacedEntities = computed(() => {
             <p>{{ floorStore.activeFloor?.name || 'Nessun Piano Selezionato' }}</p>
             <span>Fai clic sulla mappa per posizionare i dispositivi in modalità modifica</span>
           </div>
+        </div>
+
+        <!-- 2.5D Spatial Heatmap Canvas Layer -->
+        <canvas
+          v-if="showHeatmap"
+          ref="heatmapCanvasRef"
+          class="spatial-heatmap-canvas"
+        />
+
+        <!-- Floating Heatmap Legend -->
+        <div v-if="showHeatmap" class="heatmap-legend">
+          <span class="legend-title">{{ heatmapMetric === 'temperature' ? 'Gradiente Termico (°C)' : 'Umidità (%RH)' }}</span>
+          <div class="gradient-bar"></div>
+          <div class="legend-labels">
+            <span>{{ heatmapMetric === 'temperature' ? '< 18°C' : '< 35%' }}</span>
+            <span>{{ heatmapMetric === 'temperature' ? '21°C' : '50%' }}</span>
+            <span>{{ heatmapMetric === 'temperature' ? '> 24°C' : '> 70%' }}</span>
+          </div>
+          <button class="metric-switch-btn" @click.stop="heatmapMetric = heatmapMetric === 'temperature' ? 'humidity' : 'temperature'; renderSpatialHeatmap()">
+            {{ heatmapMetric === 'temperature' ? 'Passa a Umidità' : 'Passa a Temperatura' }}
+          </button>
         </div>
 
         <!-- Render Entity Markers on Map -->
@@ -394,7 +506,8 @@ const unplacedEntities = computed(() => {
   gap: 0.75rem;
 }
 
-.btn-mode {
+.btn-mode,
+.btn-heatmap-mode {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -408,12 +521,14 @@ const unplacedEntities = computed(() => {
   transition: all 0.2s ease;
 }
 
-.btn-mode:hover {
+.btn-mode:hover,
+.btn-heatmap-mode:hover {
   background: rgba(51, 65, 85, 0.8);
   color: #fff;
 }
 
-.btn-mode.active {
+.btn-mode.active,
+.btn-heatmap-mode.active {
   background: #3b82f6;
   color: #fff;
   border-color: #3b82f6;
@@ -795,5 +910,71 @@ const unplacedEntities = computed(() => {
   color: #94a3b8;
   border-radius: 0.375rem;
   cursor: pointer;
+}
+
+/* 2.5D Spatial Heatmap Styles */
+.spatial-heatmap-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 1rem;
+}
+
+.heatmap-legend {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 10;
+  padding: 0.85rem 1.25rem;
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 220px;
+}
+
+.legend-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.gradient-bar {
+  height: 8px;
+  width: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #38bdf8 0%, #10b981 50%, #f59e0b 80%, #ef4444 100%);
+}
+
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.metric-switch-btn {
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #38bdf8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metric-switch-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
 }
 </style>

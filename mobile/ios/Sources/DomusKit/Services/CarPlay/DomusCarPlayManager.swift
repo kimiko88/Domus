@@ -16,6 +16,13 @@ public final class DomusCarPlayManager: NSObject, ObservableObject {
 
     @Published public private(set) var isConnectedToCar: Bool = false
 
+    // Live entity states for real-time CarPlay dashboard badges
+    @Published public var isGateOpen: Bool = false
+    @Published public var isGarageOpen: Bool = false
+    @Published public var isOutdoorLightsOn: Bool = false
+    @Published public var isAlarmArmed: Bool = true
+    @Published public var alarmMode: String = "Armato Perimetrale"
+
     public func connect(interfaceController: CPInterfaceController) {
         self.interfaceController = interfaceController
         self.isConnectedToCar = true
@@ -27,40 +34,63 @@ public final class DomusCarPlayManager: NSObject, ObservableObject {
         self.isConnectedToCar = false
     }
 
-    /// Configura il template a griglia rapida per l'infotainment auto.
+    /// Aggiorna lo stato in tempo reale e riflette i badge su CarPlay.
+    public func updateLiveState(
+        gateOpen: Bool? = nil,
+        garageOpen: Bool? = nil,
+        lightsOn: Bool? = nil,
+        alarmArmed: Bool? = nil,
+        alarmMode: String? = nil
+    ) {
+        if let g = gateOpen { self.isGateOpen = g }
+        if let gr = garageOpen { self.isGarageOpen = gr }
+        if let l = lightsOn { self.isOutdoorLightsOn = l }
+        if let a = alarmArmed { self.isAlarmArmed = a }
+        if let m = alarmMode { self.alarmMode = m }
+
+        if isConnectedToCar {
+            setupCarPlayRootTemplate()
+        }
+    }
+
+    /// Configura il template a griglia rapida con stato dinamico in tempo reale per l'infotainment auto.
     public func setupCarPlayRootTemplate() {
         guard let interfaceController = interfaceController else { return }
 
+        let gateBadge = isGateOpen ? "Aperto" : "Chiuso"
         let gateButton = CPGridButton(
-            titleVariants: ["Cancello", "Apri Cancello"],
-            image: UIImage(systemName: "door.garage.open") ?? UIImage()
+            titleVariants: ["Cancello [\(gateBadge)]", "Cancello", isGateOpen ? "Chiudi Cancello" : "Apri Cancello"],
+            image: UIImage(systemName: isGateOpen ? "door.garage.open" : "door.garage.closed") ?? UIImage()
         ) { [weak self] _ in
             self?.triggerAction(domain: "cover", entityId: "cover.gate")
         }
 
+        let garageBadge = isGarageOpen ? "Aperto" : "Chiuso"
         let garageButton = CPGridButton(
-            titleVariants: ["Garage", "Basculante"],
-            image: UIImage(systemName: "car.side.fill") ?? UIImage()
+            titleVariants: ["Garage [\(garageBadge)]", "Garage", isGarageOpen ? "Chiudi Garage" : "Apri Garage"],
+            image: UIImage(systemName: isGarageOpen ? "car.side.arrowtriangle.up" : "car.side.fill") ?? UIImage()
         ) { [weak self] _ in
             self?.triggerAction(domain: "cover", entityId: "cover.garage")
         }
 
+        let lightsBadge = isOutdoorLightsOn ? "Accese" : "Spente"
         let outdoorLightsButton = CPGridButton(
-            titleVariants: ["Luci Viale", "Luci Esterne"],
-            image: UIImage(systemName: "lightbulb.fill") ?? UIImage()
+            titleVariants: ["Luci [\(lightsBadge)]", "Luci Viale", isOutdoorLightsOn ? "Spegni Luci" : "Accendi Luci"],
+            image: UIImage(systemName: isOutdoorLightsOn ? "lightbulb.fill" : "lightbulb") ?? UIImage()
         ) { [weak self] _ in
             self?.triggerAction(domain: "light", entityId: "light.outdoor_lights")
         }
 
+        let alarmBadge = isAlarmArmed ? alarmMode : "Disarmato"
         let disarmAlarmButton = CPGridButton(
-            titleVariants: ["Disarma", "Disarma Allarme"],
-            image: UIImage(systemName: "lock.open.shield.fill") ?? UIImage()
+            titleVariants: ["Allarme [\(alarmBadge)]", isAlarmArmed ? "Disarma" : "Arma Allarme"],
+            image: UIImage(systemName: isAlarmArmed ? "shield.lefthalf.filled" : "lock.open.shield.fill") ?? UIImage()
         ) { [weak self] _ in
             self?.triggerAction(domain: "alarm_control_panel", entityId: "alarm_control_panel.home")
         }
 
         let gridTemplate = CPGridTemplate(
-            title: "Domus Auto",
+            title: "Domus Auto • \(isAlarmArmed ? "🛡️ Protetta" : "Disarmata")",
             gridButtons: [gateButton, garageButton, outdoorLightsButton, disarmAlarmButton]
         )
 
@@ -80,9 +110,31 @@ public final class DomusCarPlayManager: ObservableObject {
     public static let shared = DomusCarPlayManager()
 
     @Published public private(set) var isConnectedToCar: Bool = false
+
+    // Live entity states for real-time CarPlay dashboard badges
+    @Published public var isGateOpen: Bool = false
+    @Published public var isGarageOpen: Bool = false
+    @Published public var isOutdoorLightsOn: Bool = false
+    @Published public var isAlarmArmed: Bool = true
+    @Published public var alarmMode: String = "Armato Perimetrale"
+
     public var onCarPlayAction: ((String, String) -> Void)?
 
     public init() {}
+
+    public func updateLiveState(
+        gateOpen: Bool? = nil,
+        garageOpen: Bool? = nil,
+        lightsOn: Bool? = nil,
+        alarmArmed: Bool? = nil,
+        alarmMode: String? = nil
+    ) {
+        if let g = gateOpen { self.isGateOpen = g }
+        if let gr = garageOpen { self.isGarageOpen = gr }
+        if let l = lightsOn { self.isOutdoorLightsOn = l }
+        if let a = alarmArmed { self.isAlarmArmed = a }
+        if let m = alarmMode { self.alarmMode = m }
+    }
 
     public func simulateCarAction(domain: String, entityId: String) {
         onCarPlayAction?(domain, entityId)
@@ -90,3 +142,4 @@ public final class DomusCarPlayManager: ObservableObject {
 }
 
 #endif
+

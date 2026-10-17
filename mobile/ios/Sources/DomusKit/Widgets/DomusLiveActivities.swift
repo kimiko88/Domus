@@ -9,6 +9,7 @@ public enum DomusActivityType: String, Codable, Sendable {
     case alarmCountdown = "alarm_countdown"
     case applianceCycle = "appliance_cycle"
     case criticalAlert = "critical_alert"
+    case evCharging = "ev_charging"
 }
 
 /// Modello ActivityAttributes per Live Activities e Dynamic Island.
@@ -22,6 +23,9 @@ public struct DomusLiveActivityAttributes: ActivityAttributes {
         public var activityType: DomusActivityType
         public var isCritical: Bool
         public var targetEntityId: String?
+        public var evKw: Double?
+        public var evBatteryPercent: Int?
+        public var evEstimatedEndTime: String?
 
         public init(
             title: String,
@@ -31,7 +35,10 @@ public struct DomusLiveActivityAttributes: ActivityAttributes {
             iconName: String = "shield.fill",
             activityType: DomusActivityType = .alarmCountdown,
             isCritical: Bool = false,
-            targetEntityId: String? = nil
+            targetEntityId: String? = nil,
+            evKw: Double? = nil,
+            evBatteryPercent: Int? = nil,
+            evEstimatedEndTime: String? = nil
         ) {
             self.title = title
             self.subtitle = subtitle
@@ -41,6 +48,9 @@ public struct DomusLiveActivityAttributes: ActivityAttributes {
             self.activityType = activityType
             self.isCritical = isCritical
             self.targetEntityId = targetEntityId
+            self.evKw = evKw
+            self.evBatteryPercent = evBatteryPercent
+            self.evEstimatedEndTime = evEstimatedEndTime
         }
     }
 
@@ -117,7 +127,11 @@ public struct DomusDynamicIslandCompactViews {
 
     public static func compactTrailing(state: DomusLiveActivityAttributes.ContentState) -> some View {
         Group {
-            if state.remainingSeconds > 0 {
+            if state.activityType == .evCharging {
+                Text("\(state.evBatteryPercent ?? 0)%")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.green)
+            } else if state.remainingSeconds > 0 {
                 Text("\(state.remainingSeconds)s")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundColor(state.isCritical ? .red : .white)
@@ -131,7 +145,7 @@ public struct DomusDynamicIslandCompactViews {
 
     public static func minimal(state: DomusLiveActivityAttributes.ContentState) -> some View {
         Image(systemName: state.iconName)
-            .foregroundColor(state.isCritical ? .red : .cyan)
+            .foregroundColor(state.isCritical ? .red : (state.activityType == .evCharging ? .green : .cyan))
             .font(.system(size: 12, weight: .bold))
     }
 }
@@ -149,13 +163,17 @@ public struct DomusDynamicIslandExpandedView: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: state.iconName)
-                        .foregroundColor(state.isCritical ? .red : .cyan)
+                        .foregroundColor(state.isCritical ? .red : (state.activityType == .evCharging ? .green : .cyan))
                     Text(state.title)
                         .font(.headline)
                         .foregroundColor(.white)
                 }
                 Spacer()
-                if state.remainingSeconds > 0 {
+                if let evKw = state.evKw {
+                    Text(String(format: "%.1f kW", evKw))
+                        .font(.headline.monospacedDigit())
+                        .foregroundColor(.green)
+                } else if state.remainingSeconds > 0 {
                     Text("\(state.remainingSeconds)s")
                         .font(.headline.monospacedDigit())
                         .foregroundColor(state.isCritical ? .red : .cyan)
@@ -167,9 +185,42 @@ public struct DomusDynamicIslandExpandedView: View {
                 .foregroundColor(.white.opacity(0.8))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            if state.activityType == .evCharging {
+                HStack {
+                    if let soc = state.evBatteryPercent {
+                        Text("\(soc)% Batteria")
+                            .font(.caption.bold())
+                            .foregroundColor(.green)
+                    }
+                    Spacer()
+                    if let end = state.evEstimatedEndTime {
+                        Text("Fine stimata: \(end)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+            }
+
             if state.progress > 0 {
                 ProgressView(value: state.progress)
-                    .tint(state.isCritical ? .red : .cyan)
+                    .tint(state.isCritical ? .red : (state.activityType == .evCharging ? .green : .cyan))
+            }
+
+            // Interactive quick disarm button on Alarm Countdown
+            if state.activityType == .alarmCountdown {
+                Button(intent: ControlCoverIntent(entityId: state.targetEntityId ?? "alarm_control_panel.home", action: "disarm")) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.open.fill")
+                        Text("Disarma al Volo")
+                    }
+                    .font(.caption.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.8))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(12)
@@ -183,6 +234,7 @@ public enum DomusActivityType: String, Codable, Sendable {
     case alarmCountdown = "alarm_countdown"
     case applianceCycle = "appliance_cycle"
     case criticalAlert = "critical_alert"
+    case evCharging = "ev_charging"
 }
 
 public struct DomusLiveActivityAttributes: Sendable {
@@ -195,6 +247,9 @@ public struct DomusLiveActivityAttributes: Sendable {
         public var activityType: DomusActivityType
         public var isCritical: Bool
         public var targetEntityId: String?
+        public var evKw: Double?
+        public var evBatteryPercent: Int?
+        public var evEstimatedEndTime: String?
 
         public init(
             title: String,
@@ -204,7 +259,10 @@ public struct DomusLiveActivityAttributes: Sendable {
             iconName: String = "shield.fill",
             activityType: DomusActivityType = .alarmCountdown,
             isCritical: Bool = false,
-            targetEntityId: String? = nil
+            targetEntityId: String? = nil,
+            evKw: Double? = nil,
+            evBatteryPercent: Int? = nil,
+            evEstimatedEndTime: String? = nil
         ) {
             self.title = title
             self.subtitle = subtitle
@@ -214,6 +272,9 @@ public struct DomusLiveActivityAttributes: Sendable {
             self.activityType = activityType
             self.isCritical = isCritical
             self.targetEntityId = targetEntityId
+            self.evKw = evKw
+            self.evBatteryPercent = evBatteryPercent
+            self.evEstimatedEndTime = evEstimatedEndTime
         }
     }
 

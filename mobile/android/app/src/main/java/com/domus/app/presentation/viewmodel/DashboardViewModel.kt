@@ -147,9 +147,32 @@ class DashboardViewModel(
         _searchQuery.value = query
     }
 
+    val isBiometricSecurityGateEnabled = MutableStateFlow(true)
+
+    fun isEntitySensitive(domain: String, entityId: String): Boolean {
+        return com.domus.app.services.biometrics.BiometricAuthHelper.isSensitiveEntity(domain, entityId)
+    }
+
     fun toggleEntity(entityId: String) {
         viewModelScope.launch {
             toggleEntityUseCase(entityId)
+        }
+    }
+
+    fun toggleEntityWithBiometricCheck(
+        domain: String,
+        entityId: String,
+        onRequireBiometric: (title: String, subtitle: String, onConfirmed: () -> Unit) -> Unit
+    ) {
+        if (isBiometricSecurityGateEnabled.value && isEntitySensitive(domain, entityId)) {
+            val (title, subtitle) = com.domus.app.services.biometrics.BiometricAuthHelper.createPromptTitle(
+                if (domain == "alarm_control_panel") "disarm" else "lock"
+            )
+            onRequireBiometric(title, subtitle) {
+                toggleEntity(entityId)
+            }
+        } else {
+            toggleEntity(entityId)
         }
     }
 

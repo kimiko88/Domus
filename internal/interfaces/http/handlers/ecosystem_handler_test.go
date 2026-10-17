@@ -69,6 +69,16 @@ func setupEcosystemRouter() (*chi.Mux, *handlers.EcosystemHandler) {
 	r.Get("/weather/forecast", h.GetWeatherForecast)
 	r.Get("/weather/solar-forecast", h.GetSolarForecast)
 	r.Get("/mesh/topology", h.GetMeshTopology)
+	r.Get("/mesh/thread/topology", h.GetThreadTopology)
+	r.Get("/system/remote-access/wireguard/server", h.GetWireGuardServer)
+	r.Get("/system/remote-access/wireguard/peers", h.ListWireGuardPeers)
+	r.Post("/system/remote-access/wireguard/peers", h.EnrollWireGuardPeer)
+	r.Delete("/system/remote-access/wireguard/peers/{id}", h.RemoveWireGuardPeer)
+	r.Get("/system/remote-access/tailscale", h.GetTailscaleStatus)
+	r.Post("/system/remote-access/tailscale/connect", h.ConnectTailscale)
+	r.Get("/system/backup/remote/config", h.GetRemoteBackupConfig)
+	r.Post("/system/backup/remote/sync", h.TriggerRemoteBackupSync)
+	r.Post("/voice/process", h.ProcessVoiceSpeech)
 	r.Get("/ota/devices", h.ListOTADevices)
 	r.Post("/ota/devices/{id}/upgrade", h.TriggerOTAUpgrade)
 	r.Get("/store/packages", h.ListStorePackages)
@@ -174,4 +184,87 @@ func TestEcosystemHandler_OTAAndStore(t *testing.T) {
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestEcosystemHandler_ThreadAndRemoteAccessAndVoice(t *testing.T) {
+	r, _ := setupEcosystemRouter()
+
+	// 1. Thread Topology
+	req := httptest.NewRequest(http.MethodGet, "/mesh/thread/topology", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var threadTopo map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &threadTopo))
+	assert.NotEmpty(t, threadTopo["network_name"])
+	assert.Equal(t, "leader", threadTopo["local_role"])
+
+	// 2. WireGuard Server Config
+	req = httptest.NewRequest(http.MethodGet, "/system/remote-access/wireguard/server", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 3. WireGuard Peer Enrollment
+	peerBody, _ := json.Marshal(map[string]string{"name": "iPad Pro M4"})
+	req = httptest.NewRequest(http.MethodPost, "/system/remote-access/wireguard/peers", bytes.NewReader(peerBody))
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	var peerResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &peerResp))
+	peerID := peerResp["peer_id"].(string)
+	assert.NotEmpty(t, peerResp["config_text"])
+	assert.NotEmpty(t, peerResp["qr_code_data_uri"])
+
+	// 4. WireGuard Peer List & Remove
+	req = httptest.NewRequest(http.MethodGet, "/system/remote-access/wireguard/peers", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	req = httptest.NewRequest(http.MethodDelete, "/system/remote-access/wireguard/peers/"+peerID, nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 5. Tailscale Status & Connect
+	req = httptest.NewRequest(http.MethodGet, "/system/remote-access/tailscale", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	tsBody, _ := json.Marshal(map[string]string{"auth_key": "tskey-test-abc"})
+	req = httptest.NewRequest(http.MethodPost, "/system/remote-access/tailscale/connect", bytes.NewReader(tsBody))
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 6. Remote Backup Config & Sync
+	req = httptest.NewRequest(http.MethodGet, "/system/backup/remote/config", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/system/backup/remote/sync", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 7. Voice Pipeline Process
+	voiceBody, _ := json.Marshal(map[string]string{
+		"satellite_id": "sat_kitchen",
+		"text_prompt":  "spegni tutte le luci",
+	})
+	req = httptest.NewRequest(http.MethodPost, "/voice/process", bytes.NewReader(voiceBody))
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var voiceResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &voiceResp))
+	assert.Equal(t, "spegni tutte le luci", voiceResp["transcribed_text"])
+	assert.NotEmpty(t, voiceResp["response_text"])
 }

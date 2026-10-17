@@ -460,6 +460,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					eRouter.Get("/dynamic-tariffs", advH.GetDynamicTariffs)
 					eRouter.Put("/flexible-loads", advH.UpdateFlexibleLoad)
 					eRouter.Post("/evaluate-tariffs", advH.EvaluateTariffs)
+					eRouter.Get("/bess/schedule", advH.GetBESSSchedule)
+					eRouter.Post("/bess/optimize", advH.OptimizeBESS)
+					eRouter.Put("/bess/config", advH.UpdateBESSConfig)
 					if srv.authService != nil {
 						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
 					} else {
@@ -707,6 +710,25 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/mesh", func(meshRouter chi.Router) {
 					meshRouter.Get("/topology", ecoH.GetMeshTopology)
+					meshRouter.Get("/thread/topology", ecoH.GetThreadTopology)
+				})
+
+				domainRouter.Route("/system/remote-access", func(raRouter chi.Router) {
+					raRouter.Get("/wireguard/server", ecoH.GetWireGuardServer)
+					raRouter.Get("/wireguard/peers", ecoH.ListWireGuardPeers)
+					raRouter.Post("/wireguard/peers", ecoH.EnrollWireGuardPeer)
+					raRouter.Delete("/wireguard/peers/{id}", ecoH.RemoveWireGuardPeer)
+					raRouter.Get("/tailscale", ecoH.GetTailscaleStatus)
+					raRouter.Post("/tailscale/connect", ecoH.ConnectTailscale)
+				})
+
+				domainRouter.Route("/system/backup/remote", func(bkRouter chi.Router) {
+					bkRouter.Get("/config", ecoH.GetRemoteBackupConfig)
+					bkRouter.Post("/sync", ecoH.TriggerRemoteBackupSync)
+				})
+
+				domainRouter.Route("/voice", func(vRouter chi.Router) {
+					vRouter.Post("/process", ecoH.ProcessVoiceSpeech)
 				})
 
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {

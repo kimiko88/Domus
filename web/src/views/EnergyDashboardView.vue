@@ -188,7 +188,54 @@ onMounted(async () => {
 
   await fetchDynamicTariffs()
   await fetchMultiUtility()
+  await fetchBESSSchedule()
 })
+
+import { audioSynthesizer } from '../utils/audioSynthesizer'
+
+interface BESSSchedule {
+  date: string
+  current_soc: number
+  current_mode: string
+  current_power_kw: number
+  hourly_plan: Array<{
+    hour: number
+    price_per_kwh: number
+    mode: string
+    target_power_kw: number
+    estimated_soc_end: number
+    estimated_savings_eur: number
+  }>
+  total_arbitrage_eur: number
+  grid_charged_kwh: number
+  peak_discharged_kwh: number
+}
+
+const bessSchedule = ref<BESSSchedule | null>(null)
+const isOptimizingBESS = ref(false)
+
+async function fetchBESSSchedule() {
+  try {
+    const s = await apiClient.get<BESSSchedule>('/api/v1/energy/bess/schedule')
+    if (s) bessSchedule.value = s
+  } catch {}
+}
+
+async function handleOptimizeBESS() {
+  audioSynthesizer.playClick()
+  isOptimizingBESS.value = true
+  try {
+    const s = await apiClient.post<BESSSchedule>('/api/v1/energy/bess/optimize', {
+      current_soc: flow.value.battery_soc || 50
+    })
+    if (s) {
+      bessSchedule.value = s
+      audioSynthesizer.playSuccessChime()
+    }
+  } catch {} finally {
+    isOptimizingBESS.value = false
+  }
+}
 </script>
 
 <template>
@@ -240,90 +287,160 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- Sankey Flow Diagram SVG -->
+    <!-- Dynamic Animated Power Wheel & Sankey Flow -->
     <section class="sankey-section glass-panel">
-      <h2 class="section-title">{{ t('energy.sankeyTitle') }}</h2>
+      <div class="sankey-header">
+        <div>
+          <h2 class="section-title">⚡ Power Wheel & Flussi Energetici Real-Time</h2>
+          <p class="section-subtitle">Visualizzazione dinamica vettori energetici con particelle animate in tempo reale</p>
+        </div>
+        <div v-if="bessSchedule" class="bess-mode-pill" :class="bessSchedule.current_mode.toLowerCase()">
+          <Battery :size="16" />
+          <span>BESS: {{ bessSchedule.current_mode }}</span>
+        </div>
+      </div>
+
       <div class="sankey-svg-wrapper">
-        <svg viewBox="0 0 800 360" class="sankey-svg">
+        <svg viewBox="0 0 800 400" class="sankey-svg">
           <defs>
-            <!-- Solar to House Gradient -->
-            <linearGradient id="solarToHouse" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="solarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stop-color="#f59e0b" />
-              <stop offset="100%" stop-color="#10b981" />
+              <stop offset="100%" stop-color="#fbbf24" />
+            </linearGradient>
+            <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3b82f6" />
+              <stop offset="100%" stop-color="#60a5fa" />
+            </linearGradient>
+            <linearGradient id="houseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#10b981" />
+              <stop offset="100%" stop-color="#34d399" />
+            </linearGradient>
+            <linearGradient id="batteryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#06b6d4" />
+              <stop offset="100%" stop-color="#22d3ee" />
+            </linearGradient>
+            <linearGradient id="evGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a855f7" />
+              <stop offset="100%" stop-color="#c084fc" />
             </linearGradient>
 
-            <!-- Solar to Battery Gradient -->
-            <linearGradient id="solarToBat" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#f59e0b" />
-              <stop offset="100%" stop-color="#06b6d4" />
-            </linearGradient>
-
-            <!-- Solar to Grid Gradient -->
-            <linearGradient id="solarToGrid" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#f59e0b" />
-              <stop offset="100%" stop-color="#3b82f6" />
-            </linearGradient>
+            <!-- Paths for particle motion -->
+            <path id="pathSolarToCenter" d="M 170 95 L 400 200" />
+            <path id="pathGridToCenter" d="M 170 305 L 400 200" />
+            <path id="pathCenterToHouse" d="M 400 200 L 630 95" />
+            <path id="pathCenterToBattery" d="M 400 200 L 630 305" />
+            <path id="pathCenterToEV" d="M 400 200 L 400 340" />
           </defs>
 
-          <!-- Source: Solar -->
-          <g transform="translate(60, 60)">
-            <rect width="140" height="70" rx="10" fill="rgba(245, 158, 11, 0.15)" stroke="#f59e0b" stroke-width="2" />
-            <text x="70" y="32" fill="#f59e0b" font-weight="700" text-anchor="middle" font-size="14">FOTOVOLTAICO</text>
+          <!-- Interconnection Lines -->
+          <line x1="170" y1="95" x2="400" y2="200" stroke="#f59e0b" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line x1="170" y1="305" x2="400" y2="200" stroke="#3b82f6" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line x1="400" y1="200" x2="630" y2="95" stroke="#10b981" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line x1="400" y1="200" x2="630" y2="305" stroke="#06b6d4" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line x1="400" y1="200" x2="400" y2="340" stroke="#a855f7" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+
+          <!-- Flowing Animated Particles (speed inversely proportional to power) -->
+          <!-- Solar Flow Particle -->
+          <circle v-if="flow.solar_watts > 20" r="5" fill="#f59e0b" filter="drop-shadow(0 0 6px #f59e0b)">
+            <animateMotion dur="1.8s" repeatCount="indefinite">
+              <mpath href="#pathSolarToCenter" />
+            </animateMotion>
+          </circle>
+
+          <!-- Grid Flow Particle (Grid to Inverter or Inverter to Grid) -->
+          <circle v-if="Math.abs(flow.grid_watts) > 20" r="5" fill="#3b82f6" filter="drop-shadow(0 0 6px #3b82f6)">
+            <animateMotion dur="2.2s" repeatCount="indefinite">
+              <mpath href="#pathGridToCenter" />
+            </animateMotion>
+          </circle>
+
+          <!-- Inverter to House Particle -->
+          <circle v-if="flow.house_consumption_watts > 50" r="5" fill="#10b981" filter="drop-shadow(0 0 6px #10b981)">
+            <animateMotion dur="1.5s" repeatCount="indefinite">
+              <mpath href="#pathCenterToHouse" />
+            </animateMotion>
+          </circle>
+
+          <!-- Inverter to Battery Particle -->
+          <circle v-if="Math.abs(flow.battery_watts) > 20" r="5" fill="#06b6d4" filter="drop-shadow(0 0 6px #06b6d4)">
+            <animateMotion dur="2.0s" repeatCount="indefinite">
+              <mpath href="#pathCenterToBattery" />
+            </animateMotion>
+          </circle>
+
+          <!-- Central Hub: Inverter Ibrido -->
+          <g transform="translate(400, 200)">
+            <circle r="46" fill="#1e293b" stroke="#64748b" stroke-width="3" />
+            <circle r="38" fill="rgba(30, 41, 59, 0.8)" />
+            <text y="-8" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">INVERTER</text>
+            <text y="14" fill="#38bdf8" font-size="14" font-weight="800" text-anchor="middle">
+              {{ flow.solar_watts + Math.abs(flow.battery_watts) }} W
+            </text>
+          </g>
+
+          <!-- Node: Solar Fotovoltaico (Top-Left) -->
+          <g transform="translate(100, 60)">
+            <rect width="140" height="70" rx="12" fill="rgba(245, 158, 11, 0.15)" stroke="url(#solarGrad)" stroke-width="2" />
+            <text x="70" y="28" fill="#f59e0b" font-weight="700" text-anchor="middle" font-size="13">☀️ SOLARE</text>
             <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ flow.solar_watts }} W</text>
           </g>
 
-          <!-- Source/Sink: Grid -->
-          <g transform="translate(60, 220)">
-            <rect width="140" height="70" rx="10" fill="rgba(59, 130, 246, 0.15)" stroke="#3b82f6" stroke-width="2" />
-            <text x="70" y="32" fill="#3b82f6" font-weight="700" text-anchor="middle" font-size="14">RETE ELETTRICA</text>
+          <!-- Node: Grid Rete Elettrica (Bottom-Left) -->
+          <g transform="translate(100, 270)">
+            <rect width="140" height="70" rx="12" fill="rgba(59, 130, 246, 0.15)" stroke="url(#gridGrad)" stroke-width="2" />
+            <text x="70" y="28" fill="#3b82f6" font-weight="700" text-anchor="middle" font-size="13">🌐 RETE</text>
             <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ Math.abs(flow.grid_watts) }} W</text>
           </g>
 
-          <!-- Destination: House -->
-          <g transform="translate(600, 60)">
-            <rect width="140" height="70" rx="10" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" stroke-width="2" />
-            <text x="70" y="32" fill="#10b981" font-weight="700" text-anchor="middle" font-size="14">CASA</text>
+          <!-- Node: House Casa (Top-Right) -->
+          <g transform="translate(560, 60)">
+            <rect width="140" height="70" rx="12" fill="rgba(16, 185, 129, 0.15)" stroke="url(#houseGrad)" stroke-width="2" />
+            <text x="70" y="28" fill="#10b981" font-weight="700" text-anchor="middle" font-size="13">🏠 CARICHI CASA</text>
             <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ flow.house_consumption_watts }} W</text>
           </g>
 
-          <!-- Storage: Battery -->
-          <g transform="translate(600, 220)">
-            <rect width="140" height="70" rx="10" fill="rgba(6, 182, 212, 0.15)" stroke="#06b6d4" stroke-width="2" />
-            <text x="70" y="32" fill="#06b6d4" font-weight="700" text-anchor="middle" font-size="14">BATTERIA ({{ flow.battery_soc }}%)</text>
+          <!-- Node: Battery Accumulo BESS (Bottom-Right) -->
+          <g transform="translate(560, 270)">
+            <rect width="140" height="70" rx="12" fill="rgba(6, 182, 212, 0.15)" stroke="url(#batteryGrad)" stroke-width="2" />
+            <text x="70" y="28" fill="#06b6d4" font-weight="700" text-anchor="middle" font-size="13">🔋 BATTERIA ({{ flow.battery_soc }}%)</text>
             <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ Math.abs(flow.battery_watts) }} W</text>
           </g>
 
-          <!-- Flows / Paths -->
-          <!-- Solar -> House -->
-          <path
-            d="M 200 95 C 400 95, 400 95, 600 95"
-            fill="none"
-            stroke="url(#solarToHouse)"
-            stroke-width="16"
-            stroke-linecap="round"
-            opacity="0.85"
-          />
-
-          <!-- Solar -> Battery -->
-          <path
-            d="M 200 95 C 380 95, 420 255, 600 255"
-            fill="none"
-            stroke="url(#solarToBat)"
-            stroke-width="14"
-            stroke-linecap="round"
-            opacity="0.8"
-          />
-
-          <!-- Solar -> Grid -->
-          <path
-            d="M 200 95 C 260 120, 260 230, 200 255"
-            fill="none"
-            stroke="url(#solarToGrid)"
-            stroke-width="10"
-            stroke-linecap="round"
-            opacity="0.75"
-          />
+          <!-- Node: Wallbox EV (Bottom-Center) -->
+          <g transform="translate(330, 310)">
+            <rect width="140" height="58" rx="10" fill="rgba(168, 85, 247, 0.15)" stroke="url(#evGrad)" stroke-width="2" />
+            <text x="70" y="24" fill="#c084fc" font-weight="700" text-anchor="middle" font-size="12">🚗 WALLBOX EV</text>
+            <text x="70" y="44" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="14">
+              {{ flow.house_consumption_watts > 1500 ? '1800 W' : '0 W (Standby)' }}
+            </text>
+          </g>
         </svg>
+      </div>
+
+      <!-- BESS Arbitrage Live Card -->
+      <div v-if="bessSchedule" class="bess-arbitrage-card">
+        <div class="bess-summary">
+          <div class="bess-stat">
+            <span class="label">Stato Inverter</span>
+            <span class="value text-primary">{{ bessSchedule.current_mode }}</span>
+          </div>
+          <div class="bess-stat">
+            <span class="label">Risparmio Arbitraggio Oggi</span>
+            <span class="value text-success">+{{ bessSchedule.total_arbitrage_eur }} €</span>
+          </div>
+          <div class="bess-stat">
+            <span class="label">Carica da Rete Economica</span>
+            <span class="value">{{ bessSchedule.grid_charged_kwh }} kWh</span>
+          </div>
+          <div class="bess-stat">
+            <span class="label">Picco Rasato da Batteria</span>
+            <span class="value">{{ bessSchedule.peak_discharged_kwh }} kWh</span>
+          </div>
+        </div>
+        <button class="bess-action-btn" :disabled="isOptimizingBESS" @click="handleOptimizeBESS">
+          <Sparkles :size="16" />
+          <span>{{ isOptimizingBESS ? 'Ottimizzazione in corso...' : 'Ricalcola Arbitraggio Ottimale' }}</span>
+        </button>
       </div>
     </section>
 
@@ -652,6 +769,104 @@ onMounted(async () => {
   font-weight: 700;
   color: #f3f4f6;
   margin-bottom: 1rem;
+}
+
+.sankey-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.bess-mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  color: #22d3ee;
+}
+
+.bess-mode-pill.force_charge_grid {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.bess-mode-pill.force_discharge {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.bess-arbitrage-card {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.bess-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.bess-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bess-stat .label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.bess-stat .value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.bess-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.bess-action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+}
+
+.bess-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .sankey-svg-wrapper {

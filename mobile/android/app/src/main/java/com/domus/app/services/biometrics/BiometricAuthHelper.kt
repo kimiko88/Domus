@@ -63,6 +63,20 @@ object BiometricAuthHelper {
     }
 
     /**
+     * Checks if an entity is sensitive and requires zero-trust biometric authorization
+     * before executing open/unlock/disarm operations.
+     */
+    fun isSensitiveEntity(domain: String, entityId: String): Boolean {
+        val id = entityId.lowercase()
+        if (domain == "alarm_control_panel" || domain == "lock") return true
+        if (domain == "cover" && (id.contains("gate") || id.contains("cancello") || 
+            id.contains("garage") || id.contains("portone") || id.contains("basculante") || id.contains("door"))) {
+            return true
+        }
+        return false
+    }
+
+    /**
      * Generates standard localized prompt metadata for high-security actions.
      */
     fun createPromptTitle(actionType: String = "disarm"): Pair<String, String> {
@@ -71,14 +85,56 @@ object BiometricAuthHelper {
                 "Conferma Sicurezza Domus",
                 "Autenticati con impronta o volto per disarmare l'allarme"
             )
-            "lock" -> Pair(
-                "Sblocco Serratura Smart",
-                "Autenticazione richiesta per aprire la porta d'ingresso"
+            "lock", "gate", "garage" -> Pair(
+                "Sblocco Accesso Sensibile",
+                "Autenticazione richiesta per aprire portone, cancello o garage"
             )
             else -> Pair(
-                "Autenticazione Biometrica",
-                "Conferma l'operazione di sicurezza"
+                "Autenticazione Biometrica Zero-Trust",
+                "Conferma l'operazione di sicurezza per l'entità protetta"
             )
         }
     }
+
+    /**
+     * Shows native BiometricPrompt to authorize critical operations.
+     */
+    fun authenticateCriticalAction(
+        activity: androidx.fragment.app.FragmentActivity,
+        title: String = "Conferma Sicurezza Domus",
+        subtitle: String = "Autenticazione richiesta per completare l'operazione",
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit = {}
+    ) {
+        val executor = androidx.core.content.ContextCompat.getMainExecutor(activity)
+        val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setNegativeButtonText("Annulla")
+            .setAllowedAuthenticators(
+                androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            .build()
+
+        val biometricPrompt = androidx.biometric.BiometricPrompt(
+            activity,
+            executor,
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    onSuccess()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    onError(errString.toString())
+                }
+            }
+        )
+
+        biometricPrompt.authenticate(promptInfo)
+    }
 }
+
