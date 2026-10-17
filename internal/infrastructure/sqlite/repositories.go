@@ -65,6 +65,7 @@ type Repositories struct {
 	WeeklySchedules      schedule.Repository
 	ClimateCompensations climate.Repository
 	OutboundWebhooks     webhook.OutboundRepository
+	Finance              *FinanceRepository
 }
 
 // NewRepositories initializes and returns all SQLite repositories.
@@ -108,5 +109,6 @@ func NewRepositories(db *sql.DB) *Repositories {
 		WeeklySchedules:      NewWeeklyScheduleRepository(db),
 		ClimateCompensations: NewClimateCompensatorRepository(db),
 		OutboundWebhooks:     NewOutboundWebhookRepository(db),
+		Finance:              NewFinanceRepository(db),
 	}
 }

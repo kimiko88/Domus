@@ -76,6 +76,21 @@ const (
 
 	// ScheduleTriggered fires when a weekly matrix or time schedule transitions.
 	ScheduleTriggered EventType = "schedule.triggered"
+
+	// FinanceExpenseCreated fires when a household expense is recorded.
+	FinanceExpenseCreated EventType = "finance.expense_created"
+
+	// FinanceExpenseUpdated fires when an expense record is modified.
+	FinanceExpenseUpdated EventType = "finance.expense_updated"
+
+	// FinanceExpenseDeleted fires when an expense record is removed.
+	FinanceExpenseDeleted EventType = "finance.expense_deleted"
+
+	// FinanceBudgetUpdated fires when a monthly budget target is set or modified.
+	FinanceBudgetUpdated EventType = "finance.budget_updated"
+
+	// FinanceBudgetAlert fires when spending approaches or exceeds a category budget limit.
+	FinanceBudgetAlert EventType = "finance.budget_alert"
 )
 
 // Event is the common envelope for all domain events.

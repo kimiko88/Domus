@@ -96,6 +96,16 @@ class MobileBackendContractTest {
                     path.startsWith("/api/v1/services") -> {
                         MockResponse().setResponseCode(200).setBody("""{"status":"ok"}""")
                     }
+                    path.startsWith("/api/v1/finance/summary") -> {
+                        MockResponse().setResponseCode(200).setBody("""
+                            {"period":"month","total_spent":450.0,"previous_total":500.0,"percentage_change":-10.0,"monthly_budget":1000.0,"remaining_budget":550.0,"daily_average":15.0,"categories":[],"fixed_vs_variable":{"fixed_total":200.0,"variable_total":250.0,"fixed_percentage":44.4,"variable_percentage":55.6},"monthly_trend":[],"insights":[]}
+                        """.trimIndent())
+                    }
+                    path.startsWith("/api/v1/finance/expenses") -> {
+                        MockResponse().setResponseCode(200).setBody("""
+                            [{"id":"exp-1","title":"Spesa Supermercato","amount":75.5,"category":"food","subcategory":"groceries","expense_date":"2026-10-17T10:00:00Z","is_fixed":false}]
+                        """.trimIndent())
+                    }
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -169,6 +179,17 @@ class MobileBackendContractTest {
         val toggleResult = toggleUseCase("light.kitchen")
         assertTrue(toggleResult.isSuccess)
         assertEquals("off", toggleResult.getOrNull()?.state)
+
+        // Step 6: E2E Home Finance summary & expenses integration
+        val financeSummary = apiClient.fetchFinancialSummary(baseUrl, tokenStorage.getToken() ?: "", "month")
+        assertTrue(financeSummary.isSuccess)
+        assertEquals(450.0, financeSummary.getOrNull()?.total_spent ?: 0.0, 0.001)
+        assertEquals(550.0, financeSummary.getOrNull()?.remaining_budget ?: 0.0, 0.001)
+
+        val expenses = apiClient.fetchExpenses(baseUrl, tokenStorage.getToken() ?: "")
+        assertTrue(expenses.isSuccess)
+        assertEquals(1, expenses.getOrNull()?.size)
+        assertEquals("Spesa Supermercato", expenses.getOrNull()?.get(0)?.title)
 
         transport.disconnect()
     }

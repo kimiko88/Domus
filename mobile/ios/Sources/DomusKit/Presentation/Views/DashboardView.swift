@@ -20,6 +20,7 @@ public struct DashboardView: View {
     @State private var showActivityTimeline: Bool = false
     @State private var showMeshDiagnostics: Bool = false
     @State private var showGuestAccess: Bool = false
+    @State private var showFinance: Bool = false
 
     private var columns: [GridItem] {
         if dynamicTypeSize.isAccessibilitySize {
@@ -113,6 +114,9 @@ public struct DashboardView: View {
                         quickFeaturePill(icon: "cart.fill", label: "Spesa", color: .mint) {
                             showShoppingList = true
                         }
+                        quickFeaturePill(icon: "dollarsign.circle.fill", label: "Spese", color: .green) {
+                            showFinance = true
+                        }
                         quickFeaturePill(icon: "checklist", label: "Faccende", color: .orange) {
                             showChores = true
                         }
@@ -121,6 +125,52 @@ public struct DashboardView: View {
                         }
                     }
                     .padding(.horizontal)
+                }
+
+                // Mini Finance Summary Card (Spese del Mese)
+                if let summary = viewModel.financeSummary, summary.totalSpent > 0 {
+                    Button(action: {
+                        Haptics.light()
+                        showFinance = true
+                    }) {
+                        HStack {
+                            Image(systemName: "dollarsign.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.green)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Spese del Mese")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(String(format: "€%.2f", summary.totalSpent))
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.primary)
+                            }
+
+                            Spacer()
+
+                            if summary.monthlyBudget > 0 {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(summary.remainingBudget >= 0 ? "Budget Residuo" : "Sforamento")
+                                        .font(.caption)
+                                        .foregroundColor(summary.remainingBudget >= 0 ? .green : .red)
+                                    Text(String(format: "€%.2f", abs(summary.remainingBudget)))
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(summary.remainingBudget >= 0 ? .green : .red)
+                                }
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(reduceTransparency ? Color.domusSecondarySystemGroupedBackground : Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                    }
+                    .accessibilityLabel("Bilancio Casa e Spese del Mese, totale speso: \(String(format: "€%.2f", summary.totalSpent))")
                 }
 
                 if isFloorplanMode {
@@ -300,6 +350,9 @@ public struct DashboardView: View {
             }
             .sheet(isPresented: $showGuestAccess) {
                 GuestAccessAndFamilySheet()
+            }
+            .sheet(isPresented: $showFinance) {
+                FinanceSheet()
             }
             .sheet(isPresented: $viewModel.showKioskSettings) {
                 KioskSettingsSheet(kioskManager: viewModel.kioskManager)

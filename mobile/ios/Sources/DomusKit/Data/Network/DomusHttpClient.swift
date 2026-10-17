@@ -219,6 +219,24 @@ public actor DomusHttpClient: Sendable {
         try await postVoid(path: "/api/v1/scenes/\(id)/apply", body: EmptyBodyDTO())
     }
 
+    // MARK: - Home Finance API
+
+    public func fetchFinancialSummary(period: String = "month") async throws -> FinancialSummaryDTO {
+        try await get(path: "/api/v1/finance/summary?period=\(period)", as: FinancialSummaryDTO.self)
+    }
+
+    public func fetchExpenses(limit: Int = 100) async throws -> [ExpenseDTO] {
+        try await get(path: "/api/v1/finance/expenses?limit=\(limit)", as: [ExpenseDTO].self)
+    }
+
+    public func createExpense(req: CreateExpenseRequestDTO) async throws -> ExpenseDTO {
+        try await post(path: "/api/v1/finance/expenses", body: req, as: ExpenseDTO.self)
+    }
+
+    public func setBudget(req: SetBudgetRequestDTO) async throws -> BudgetTargetDTO {
+        try await post(path: "/api/v1/finance/budgets", body: req, as: BudgetTargetDTO.self)
+    }
+
     public func scanTag(id: String, scannedBy: String = "iOS_Companion") async throws {
         struct TagScanBody: Encodable {
             let scannedBy: String

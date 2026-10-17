@@ -31,6 +31,7 @@ import com.domus.app.presentation.screens.chores.ChoresScreen
 import com.domus.app.presentation.screens.climate.ThermostatDial
 import com.domus.app.presentation.screens.diagnostics.MeshDiagnosticsScreen
 import com.domus.app.presentation.screens.energy.EnergyScreen
+import com.domus.app.presentation.screens.finance.FinanceScreen
 import com.domus.app.presentation.screens.floorplan.FloorplanCanvas
 import com.domus.app.presentation.screens.guests.GuestAccessScreen
 import com.domus.app.presentation.screens.kiosk.KioskScreensaverView
@@ -96,6 +97,7 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
     var showNotifications by remember { mutableStateOf(false) }
     var showPresenceNfc by remember { mutableStateOf(false) }
     var showKioskSettings by remember { mutableStateOf(false) }
+    var showFinance by remember { mutableStateOf(false) }
 
     Row(modifier = Modifier.fillMaxSize()) {
         // COLONNA 1: SIDEBAR (Stanze, Moduli, Riepilogo)
@@ -152,6 +154,7 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
                     SidebarButton(icon = "📡", title = "Diagnostica Mesh & Hub", onClick = { showDiagnostics = true }, accentColor = EmeraldSuccess)
                     SidebarButton(icon = "👥", title = "Accesso Ospiti & Membri", onClick = { showGuests = true }, accentColor = Color(0xFF6366F1))
                     SidebarButton(icon = "🛒", title = "Lista della Spesa", onClick = { showShopping = true }, accentColor = Color(0xFF10B981))
+                    SidebarButton(icon = "💰", title = "Bilancio & Spese", onClick = { showFinance = true }, accentColor = Color(0xFF10B981))
                     SidebarButton(icon = "🧹", title = "Faccende Domestiche", onClick = { showChores = true }, accentColor = Color(0xFFF97316))
                     SidebarButton(icon = "🔔", title = "Centro Notifiche", onClick = { showNotifications = true }, accentColor = Color(0xFFEF4444))
                     SidebarButton(icon = "📍", title = "Presenza & NFC", onClick = { showPresenceNfc = true }, accentColor = CyanAccent)
@@ -311,6 +314,12 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
     if (showKioskSettings) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showKioskSettings = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
             KioskSettingsScreen(viewModel = viewModel, onDismiss = { showKioskSettings = false })
+        }
+    }
+
+    if (showFinance) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showFinance = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            FinanceScreen(viewModel = viewModel, onDismiss = { showFinance = false })
         }
     }
 }

@@ -25,9 +25,10 @@ import (
 	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
-	appcloudassistant "github.com/domus-hub/domus/internal/application/cloud_assistant"
-	apphist "github.com/domus-hub/domus/internal/application/history"
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
+	appcloudassistant "github.com/domus-hub/domus/internal/application/cloud_assistant"
+	appfinance "github.com/domus-hub/domus/internal/application/finance"
+	apphist "github.com/domus-hub/domus/internal/application/history"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
@@ -777,6 +778,23 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					shRouter.Delete("/{id}", shopH.Delete)
 					shRouter.Post("/clear-completed", shopH.ClearCompleted)
 				})
+
+				// Household Finance, Expenses & Budgets
+				if srv.repos.Finance != nil {
+					financeSvc := appfinance.NewService(srv.repos.Finance, srv.bus)
+					financeH := handlers.NewFinanceHandler(financeSvc)
+					domainRouter.Route("/finance", func(finRouter chi.Router) {
+						finRouter.Get("/expenses", financeH.List)
+						finRouter.Post("/expenses", financeH.Create)
+						finRouter.Get("/expenses/{id}", financeH.GetByID)
+						finRouter.Put("/expenses/{id}", financeH.Update)
+						finRouter.Delete("/expenses/{id}", financeH.Delete)
+						finRouter.Get("/summary", financeH.GetSummary)
+						finRouter.Get("/budgets", financeH.ListBudgets)
+						finRouter.Post("/budgets", financeH.SetBudget)
+						finRouter.Get("/insights", financeH.GetInsights)
+					})
+				}
 
 				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks
 				if srv.repos.DB != nil {

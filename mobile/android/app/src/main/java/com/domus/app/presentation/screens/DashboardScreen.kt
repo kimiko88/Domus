@@ -39,6 +39,7 @@ import com.domus.app.presentation.screens.chores.ChoresScreen
 import com.domus.app.presentation.screens.climate.ThermostatDial
 import com.domus.app.presentation.screens.diagnostics.MeshDiagnosticsScreen
 import com.domus.app.presentation.screens.energy.EnergyScreen
+import com.domus.app.presentation.screens.finance.FinanceScreen
 import com.domus.app.presentation.screens.floorplan.FloorplanCanvas
 import com.domus.app.presentation.screens.guests.GuestAccessScreen
 import com.domus.app.presentation.screens.kiosk.KioskScreensaverView
@@ -74,6 +75,7 @@ fun DashboardScreen(
     // Beacon detection
     val activeRoomName by viewModel.beaconManager.activeRoomName.collectAsState()
     val currentDistanceMeters by viewModel.beaconManager.currentDistanceMeters.collectAsState()
+    val financeSummary by viewModel.financeSummary.collectAsState()
 
     // Floorplan toggle
     var isFloorplanMode by remember { mutableStateOf(false) }
@@ -90,6 +92,7 @@ fun DashboardScreen(
     var showGuestAccessSheet by remember { mutableStateOf(false) }
     var showPresenceAndNfcSheet by remember { mutableStateOf(false) }
     var showKioskSettingsSheet by remember { mutableStateOf(false) }
+    var showFinanceSheet by remember { mutableStateOf(false) }
     var showLoginSheet by remember { mutableStateOf(false) }
 
     // Selected Entity Detailed Inspectors
@@ -303,8 +306,66 @@ fun DashboardScreen(
                     QuickActionChip(icon = "📡", label = "Rete & Mesh", onClick = { showMeshDiagnosticsSheet = true })
                     QuickActionChip(icon = "👥", label = "Ospiti", onClick = { showGuestAccessSheet = true })
                     QuickActionChip(icon = "🛒", label = "Spesa", onClick = { showShoppingSheet = true })
+                    QuickActionChip(icon = "💰", label = "Spese", onClick = { showFinanceSheet = true })
                     QuickActionChip(icon = "🧹", label = "Faccende", onClick = { showChoresSheet = true })
                     QuickActionChip(icon = "🔔", label = "Notifiche", onClick = { showNotificationsSheet = true })
+                }
+
+                financeSummary?.let { summary ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, Slate700.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { showFinanceSheet = true }
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = "Bilancio e Spese Casa: spesi %.2f euro".format(summary.total_spent)
+                                role = Role.Button
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("💰", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Spese del Mese",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = "€%.2f".format(summary.total_spent),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            if (summary.monthly_budget > 0) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = if (summary.remaining_budget >= 0) "Budget Residuo" else "Sforamento Budget",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (summary.remaining_budget >= 0) EmeraldSuccess else Color(0xFFEF4444)
+                                    )
+                                    Text(
+                                        text = "€%.2f".format(summary.remaining_budget),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (summary.remaining_budget >= 0) EmeraldSuccess else Color(0xFFEF4444)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (isFloorplanMode) {
@@ -499,6 +560,12 @@ fun DashboardScreen(
     if (showKioskSettingsSheet) {
         Dialog(onDismissRequest = { showKioskSettingsSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             KioskSettingsScreen(viewModel = viewModel, onDismiss = { showKioskSettingsSheet = false })
+        }
+    }
+
+    if (showFinanceSheet) {
+        Dialog(onDismissRequest = { showFinanceSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            FinanceScreen(viewModel = viewModel, onDismiss = { showFinanceSheet = false })
         }
     }
 

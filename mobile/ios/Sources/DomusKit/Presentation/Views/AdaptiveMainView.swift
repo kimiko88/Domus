@@ -19,6 +19,7 @@ public struct AdaptiveMainView: View {
     @State private var showActivityTimeline: Bool = false
     @State private var showMeshDiagnostics: Bool = false
     @State private var showGuestAccess: Bool = false
+    @State private var showFinance: Bool = false
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -78,6 +79,9 @@ public struct AdaptiveMainView: View {
         }
         .sheet(isPresented: $showGuestAccess) {
             GuestAccessAndFamilySheet()
+        }
+        .sheet(isPresented: $showFinance) {
+            FinanceSheet()
         }
         .sheet(isPresented: $viewModel.showLoginSheet) {
             LoginView(viewModel: viewModel)
@@ -147,6 +151,14 @@ public struct AdaptiveMainView: View {
                     showShoppingList = true
                 }) {
                     Label("Lista della Spesa", systemImage: "cart.fill")
+                        .foregroundColor(.green)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showFinance = true
+                }) {
+                    Label("Bilancio & Spese", systemImage: "dollarsign.circle.fill")
                         .foregroundColor(.green)
                 }
 

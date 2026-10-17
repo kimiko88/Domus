@@ -773,5 +773,69 @@ class DomusApiClient(
             Result.failure(e)
         }
     }
+
+    suspend fun fetchFinancialSummary(baseUrl: String, token: String?, period: String = "month"): Result<com.domus.app.domain.model.FinancialSummaryDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/finance/summary?period=$period").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore riepilogo spese: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val sum = json.decodeFromString<com.domus.app.domain.model.FinancialSummaryDto>(bodyStr)
+                Result.success(sum)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchExpenses(baseUrl: String, token: String?): Result<List<com.domus.app.domain.model.ExpenseDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/finance/expenses").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore lista spese: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<com.domus.app.domain.model.ExpenseDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createExpense(baseUrl: String, token: String?, req: com.domus.app.domain.model.CreateExpenseRequestDto): Result<com.domus.app.domain.model.ExpenseDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(com.domus.app.domain.model.CreateExpenseRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/finance/expenses")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione spesa: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val created = json.decodeFromString<com.domus.app.domain.model.ExpenseDto>(bodyStr)
+                Result.success(created)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun setBudget(baseUrl: String, token: String?, req: com.domus.app.domain.model.SetBudgetRequestDto): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(com.domus.app.domain.model.SetBudgetRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/finance/budgets")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore impostazione budget: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 

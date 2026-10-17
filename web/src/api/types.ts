@@ -669,4 +669,123 @@ export interface LongTermStatistic {
   state?: number
 }
 
+// 17. Home Finance & Expense Management
+export type ExpenseCategory =
+  | 'food'
+  | 'utilities'
+  | 'transport'
+  | 'home_maintenance'
+  | 'insurance'
+  | 'other'
+
+export type ExpenseSubcategory =
+  | 'groceries'
+  | 'bakery'
+  | 'butcher'
+  | 'restaurant_takeaway'
+  | 'electricity'
+  | 'gas_heating'
+  | 'water'
+  | 'waste_tari'
+  | 'telecom_fiber'
+  | 'fuel_petrol'
+  | 'fuel_diesel'
+  | 'ev_charging'
+  | 'toll_telepass'
+  | 'vehicle_maintenance'
+  | 'vehicle_tax_bollo'
+  | 'diy_hardware'
+  | 'appliances'
+  | 'furniture_decor'
+  | 'repairs'
+  | 'auto_insurance'
+  | 'home_insurance'
+  | 'health_insurance'
+  | 'life_insurance'
+  | 'health_pharmacy'
+  | 'education'
+  | 'leisure_dining'
+  | 'clothing'
+  | 'miscellaneous'
+
+export interface Expense {
+  id: string
+  title: string
+  amount: number
+  currency: string
+  category: ExpenseCategory
+  subcategory?: ExpenseSubcategory
+  expense_date: string
+  is_fixed: boolean
+  payment_method?: string
+  payer_user_id?: string
+  notes?: string
+  recurring_frequency?: string
+  contract_expiry_date?: string
+  energy_kwh?: number
+  gas_smc?: number
+  food_waste_value?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface BudgetTarget {
+  id: string
+  category: string
+  monthly_limit: number
+  month_year: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CategoryBreakdown {
+  category: ExpenseCategory
+  name: string
+  total_amount: number
+  percentage: number
+  count: number
+}
+
+export interface MonthlyTrend {
+  year_month: string
+  month_name: string
+  total_amount: number
+  utilities_amount: number
+  food_amount: number
+  transport_amount: number
+}
+
+export interface FixedVsVariable {
+  fixed_amount: number
+  variable_amount: number
+  fixed_percentage: number
+  variable_percentage: number
+}
+
+export interface SavingsInsight {
+  id: string
+  type: 'energy_tariff' | 'food_waste' | 'contract_expiry' | 'category_spike'
+  title: string
+  message: string
+  potential_saving?: number
+  severity: 'info' | 'warning' | 'alert'
+  action_url?: string
+}
+
+export interface FinancialSummary {
+  period: 'day' | 'week' | 'month' | 'year'
+  start_date: string
+  end_date: string
+  total_spent: number
+  previous_period_total: number
+  percentage_change: number
+  daily_average: number
+  monthly_budget: number
+  remaining_budget: number
+  categories: CategoryBreakdown[]
+  monthly_trends: MonthlyTrend[]
+  fixed_vs_variable: FixedVsVariable
+  insights: SavingsInsight[]
+}
+
 

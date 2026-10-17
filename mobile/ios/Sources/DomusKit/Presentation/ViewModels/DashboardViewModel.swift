@@ -21,6 +21,9 @@ public final class DashboardViewModel: ObservableObject {
     @Published public var showLoginSheet: Bool = false
     @Published public var isLoggingIn: Bool = false
     @Published public var loginError: String? = nil
+    @Published public var financeSummary: FinancialSummaryDTO? = nil
+    @Published public var financeExpenses: [ExpenseDTO] = []
+    @Published public var showFinanceSheet: Bool = false
 
     public let presenceManager: GeofencingPresenceManager
     public let notificationManager: NotificationManager
@@ -121,6 +124,7 @@ public final class DashboardViewModel: ObservableObject {
             self.connection = await connectionRepository.getCurrentConnection()
             self.entities = (try? await syncEntitiesUseCase.execute()) ?? []
             self.areas = await entityRepository.getAreas()
+            await self.loadFinance()
             isRefreshing = false
         }
     }
@@ -445,6 +449,56 @@ public final class DashboardViewModel: ObservableObject {
             disarmAlarm(id: "alarm_control_panel.home", code: "")
         default:
             break
+        }
+    }
+
+    // MARK: - Home Finance
+
+    public func loadFinance(period: String = "month") async {
+        let client = DomusHttpClient.shared
+        if let summary = try? await client.fetchFinancialSummary(period: period) {
+            self.financeSummary = summary
+        }
+        if let expenses = try? await client.fetchExpenses() {
+            self.financeExpenses = expenses
+        }
+    }
+
+    public func addExpense(
+        title: String,
+        amount: Double,
+        category: String = "food",
+        subcategory: String = "groceries",
+        isFixed: Bool = false,
+        energyKwh: Double? = nil,
+        contractExpiryDate: String? = nil
+    ) async -> Bool {
+        let req = CreateExpenseRequestDTO(
+            title: title,
+            amount: amount,
+            category: category,
+            subcategory: subcategory,
+            isFixed: isFixed,
+            contractExpiryDate: contractExpiryDate,
+            energyKwh: energyKwh
+        )
+        do {
+            _ = try await DomusHttpClient.shared.createExpense(req: req)
+            await loadFinance()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func setMonthlyBudget(limit: Double) async -> Bool {
+        let req = SetBudgetRequestDTO(monthlyLimit: limit)
+        do {
+            _ = try await DomusHttpClient.shared.setBudget(req: req)
+            await loadFinance()
+            return true
+        } catch {
+            return false
         }
     }
 }

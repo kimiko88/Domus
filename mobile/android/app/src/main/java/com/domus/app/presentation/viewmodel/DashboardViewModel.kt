@@ -135,6 +135,7 @@ class DashboardViewModel(
             _isRefreshing.value = true
             discoverAndConnectUseCase(preferLocal = true)
             syncEntitiesUseCase()
+            loadFinance()
             _isRefreshing.value = false
         }
     }
@@ -480,6 +481,63 @@ class DashboardViewModel(
     suspend fun sendAssistantPrompt(prompt: String): AssistantChatResponseDto? {
         val res = apiClient.sendAssistantPrompt(getBaseUrl(), getToken(), prompt)
         return res.getOrNull()
+    }
+
+    // --- HOME FINANCE ---
+    private val _financeSummary = MutableStateFlow<com.domus.app.domain.model.FinancialSummaryDto?>(null)
+    val financeSummary: StateFlow<com.domus.app.domain.model.FinancialSummaryDto?> = _financeSummary.asStateFlow()
+
+    private val _financeExpenses = MutableStateFlow<List<com.domus.app.domain.model.ExpenseDto>>(emptyList())
+    val financeExpenses: StateFlow<List<com.domus.app.domain.model.ExpenseDto>> = _financeExpenses.asStateFlow()
+
+    fun loadFinance(period: String = "month") {
+        viewModelScope.launch {
+            val resSum = apiClient.fetchFinancialSummary(getBaseUrl(), getToken(), period)
+            if (resSum.isSuccess) {
+                _financeSummary.value = resSum.getOrNull()
+            }
+            val resExp = apiClient.fetchExpenses(getBaseUrl(), getToken())
+            if (resExp.isSuccess) {
+                _financeExpenses.value = resExp.getOrDefault(emptyList())
+            }
+        }
+    }
+
+    fun addExpense(
+        title: String,
+        amount: Double,
+        category: String = "food",
+        subcategory: String = "groceries",
+        isFixed: Boolean = false,
+        kwh: Double? = null,
+        expiry: String? = null
+    ) {
+        viewModelScope.launch {
+            val req = com.domus.app.domain.model.CreateExpenseRequestDto(
+                title = title,
+                amount = amount,
+                category = category,
+                subcategory = subcategory,
+                expense_date = java.time.Instant.now().toString(),
+                is_fixed = isFixed,
+                energy_kwh = kwh,
+                contract_expiry_date = expiry
+            )
+            val res = apiClient.createExpense(getBaseUrl(), getToken(), req)
+            if (res.isSuccess) {
+                loadFinance()
+            }
+        }
+    }
+
+    fun setMonthlyBudget(limit: Double) {
+        viewModelScope.launch {
+            val req = com.domus.app.domain.model.SetBudgetRequestDto(monthly_limit = limit)
+            val res = apiClient.setBudget(getBaseUrl(), getToken(), req)
+            if (res.isSuccess) {
+                loadFinance()
+            }
+        }
     }
 
     fun reconnect() {
