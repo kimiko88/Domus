@@ -14,7 +14,7 @@ var (
 	ErrScriptNotFound       = errors.New("script: not found")
 	ErrInvalidScriptName    = errors.New("script: name cannot be empty")
 	ErrMissingSequence      = errors.New("script: at least one action is required in sequence")
-	ErrScriptAlreadyRunning  = errors.New("script: script is already running (single mode)")
+	ErrScriptAlreadyRunning = errors.New("script: script is already running (single mode)")
 	ErrMaxRunsExceeded      = errors.New("script: maximum concurrent runs exceeded")
 )
 
@@ -36,16 +36,16 @@ type FieldDef struct {
 
 // Script represents a reusable macro sequence of actions.
 type Script struct {
-	ID          string                       `json:"id"`
-	Name        string                       `json:"name"`
-	Description string                       `json:"description,omitempty"`
-	Icon        string                       `json:"icon,omitempty"`
-	Mode        string                       `json:"mode"`     // "single", "restart", "queued", "parallel"
-	MaxRuns     int                          `json:"max_runs"` // max concurrent executions (for queued/parallel)
-	Fields      map[string]FieldDef          `json:"fields,omitempty"`
-	Sequence    []automation.Action          `json:"sequence"`
-	CreatedAt   time.Time                    `json:"created_at"`
-	UpdatedAt   time.Time                    `json:"updated_at"`
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Description string              `json:"description,omitempty"`
+	Icon        string              `json:"icon,omitempty"`
+	Mode        string              `json:"mode"`     // "single", "restart", "queued", "parallel"
+	MaxRuns     int                 `json:"max_runs"` // max concurrent executions (for queued/parallel)
+	Fields      map[string]FieldDef `json:"fields,omitempty"`
+	Sequence    []automation.Action `json:"sequence"`
+	CreatedAt   time.Time           `json:"created_at"`
+	UpdatedAt   time.Time           `json:"updated_at"`
 }
 
 // Validate checks script invariants.

@@ -298,11 +298,16 @@ function navigateTo(path: string) {
     <section class="controls-bar glass-panel">
       <div class="search-box">
         <Search :size="18" class="search-icon" />
+        <label for="guide-search-input" class="sr-only">{{ t('guide.searchPlaceholder') }}</label>
         <input
+          id="guide-search-input"
+          name="guide_search"
           v-model="searchQuery"
           type="search"
           :placeholder="t('guide.searchPlaceholder')"
           class="search-input"
+          aria-label="Cerca nella guida"
+          autocomplete="off"
         />
       </div>
 

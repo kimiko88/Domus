@@ -354,4 +354,3 @@ func TestEngine_RestartMode(t *testing.T) {
 	// Only 1 event should have been emitted because the first was canceled
 	assert.Equal(t, 1, offEvents)
 }
-

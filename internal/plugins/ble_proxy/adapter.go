@@ -16,11 +16,11 @@ import (
 
 // BLEAdvertisement represents a raw advertisement packet forwarded by an ESPHome BLE proxy gateway.
 type BLEAdvertisement struct {
-	GatewayMAC string `json:"gateway_mac"` // ESP32 node MAC
+	GatewayMAC  string `json:"gateway_mac"` // ESP32 node MAC
 	GatewayName string `json:"gateway_name"`
-	DeviceMAC  string `json:"device_mac"`  // Target beacon/sensor MAC
-	RSSI       int    `json:"rssi"`
-	RawPayload string `json:"raw_payload"` // Hex string
+	DeviceMAC   string `json:"device_mac"` // Target beacon/sensor MAC
+	RSSI        int    `json:"rssi"`
+	RawPayload  string `json:"raw_payload"` // Hex string
 }
 
 // Adapter processes forwarded BLE packets and publishes Domus sensor telemetry and presence updates.

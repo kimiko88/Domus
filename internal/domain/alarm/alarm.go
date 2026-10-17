@@ -18,12 +18,12 @@ var (
 type State string
 
 const (
-	StateDisarmed  State = "disarmed"
-	StateArmedHome State = "armed_home"
-	StateArmedAway State = "armed_away"
+	StateDisarmed   State = "disarmed"
+	StateArmedHome  State = "armed_home"
+	StateArmedAway  State = "armed_away"
 	StateArmedNight State = "armed_night"
-	StatePending   State = "pending"
-	StateTriggered State = "triggered"
+	StatePending    State = "pending"
+	StateTriggered  State = "triggered"
 )
 
 // ControlPanel represents an alarm system instance in Domus.

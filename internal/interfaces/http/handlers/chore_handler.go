@@ -56,15 +56,15 @@ func (h *ChoreHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type choreRequest struct {
-	ID             string                    `json:"id,omitempty"`
-	Title          string                    `json:"title"`
-	Description    string                    `json:"description,omitempty"`
-	AreaID         string                    `json:"area_id,omitempty"`
-	AssignedUserID string                    `json:"assigned_user_id,omitempty"`
-	Priority       domainchore.Priority      `json:"priority,omitempty"`
-	DueDate        *string                   `json:"due_date,omitempty"`
+	ID             string                     `json:"id,omitempty"`
+	Title          string                     `json:"title"`
+	Description    string                     `json:"description,omitempty"`
+	AreaID         string                     `json:"area_id,omitempty"`
+	AssignedUserID string                     `json:"assigned_user_id,omitempty"`
+	Priority       domainchore.Priority       `json:"priority,omitempty"`
+	DueDate        *string                    `json:"due_date,omitempty"`
 	RecurrenceType domainchore.RecurrenceType `json:"recurrence_type,omitempty"`
-	RecurrenceRule string                    `json:"recurrence_rule,omitempty"`
+	RecurrenceRule string                     `json:"recurrence_rule,omitempty"`
 }
 
 // Create registers a new domestic chore.
@@ -342,4 +342,3 @@ func (h *ChoreHandler) SyncGoogleCalendar(w http.ResponseWriter, r *http.Request
 		"message": fmt.Sprintf("Sincronizzate con successo %d faccende da Google Calendar", imported),
 	})
 }
-

@@ -42,10 +42,10 @@ type openMeteoResponse struct {
 		Weathercode int     `json:"weathercode"`
 	} `json:"current_weather"`
 	Hourly struct {
-		Time               []string  `json:"time"`
-		Temperature2m      []float64 `json:"temperature_2m"`
-		PrecipitationProb  []int     `json:"precipitation_probability"`
-		DirectRadiation    []float64 `json:"direct_normal_irradiance"`
+		Time              []string  `json:"time"`
+		Temperature2m     []float64 `json:"temperature_2m"`
+		PrecipitationProb []int     `json:"precipitation_probability"`
+		DirectRadiation   []float64 `json:"direct_normal_irradiance"`
 	} `json:"hourly"`
 }
 

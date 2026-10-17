@@ -181,10 +181,10 @@ func (h *EcosystemHandler) ListTags(w http.ResponseWriter, r *http.Request) {
 
 func (h *EcosystemHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name           string           `json:"name"`
-		TagID          string           `json:"tag_id"`
+		Name           string               `json:"name"`
+		TagID          string               `json:"tag_id"`
 		ActionType     domainTag.ActionType `json:"action_type"`
-		ActionTargetID string           `json:"action_target_id"`
+		ActionTargetID string               `json:"action_target_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
@@ -268,8 +268,8 @@ func (h *EcosystemHandler) ListSchedules(w http.ResponseWriter, r *http.Request)
 
 func (h *EcosystemHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string                 `json:"name"`
-		EntityKey string                 `json:"entity_key"`
+		Name      string                    `json:"name"`
+		EntityKey string                    `json:"entity_key"`
 		Grid      domainSchedule.WeeklyGrid `json:"grid"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -809,4 +809,3 @@ func (h *EcosystemHandler) TriggerRemoteBackupSync(w http.ResponseWriter, r *htt
 		"message":   "Backup remoto sincronizzato su destinazione esterna.",
 	})
 }
-

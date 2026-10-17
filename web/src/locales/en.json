@@ -19,6 +19,11 @@
     "no_data": "No data available"
   },
   "nav": {
+    "sectionOverview": "Overview",
+    "sectionHome": "Home & Family",
+    "sectionDevices": "Devices & Spaces",
+    "sectionAutomations": "Automations & Media",
+    "sectionSystem": "System & Security",
     "dashboard": "Dashboard",
     "customDashboards": "Tablet Dashboards",
     "energy": "Energy & Solar",
@@ -43,6 +48,7 @@
     "templates": "Template Entities",
     "family": "Family",
     "finance": "Home Finance",
+    "pantry": "Pantry & Recipes",
     "settings": "Settings",
     "logout": "Log Out",
     "guide": "Guide & Manual"

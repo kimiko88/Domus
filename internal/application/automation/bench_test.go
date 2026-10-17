@@ -41,7 +41,7 @@ func BenchmarkConditionEvaluation_Composite(b *testing.B) {
 	eval := NewEvaluator()
 	repo := &mockEntityRepoForFuzz{
 		entities: map[string]*entity.Entity{
-			"sensor.temp": {EntityKey: "sensor.temp", State: "22.5"},
+			"sensor.temp":  {EntityKey: "sensor.temp", State: "22.5"},
 			"switch.light": {EntityKey: "switch.light", State: "ON"},
 		},
 	}

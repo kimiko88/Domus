@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	domzone "github.com/domus-hub/domus/internal/domain/zone"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domzone "github.com/domus-hub/domus/internal/domain/zone"
 )
 
 // Service coordinates spatial multi-zone geofencing and multi-tracker presence resolution.

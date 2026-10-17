@@ -20,6 +20,7 @@ public struct AdaptiveMainView: View {
     @State private var showMeshDiagnostics: Bool = false
     @State private var showGuestAccess: Bool = false
     @State private var showFinance: Bool = false
+    @State private var showPantry: Bool = false
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -82,6 +83,9 @@ public struct AdaptiveMainView: View {
         }
         .sheet(isPresented: $showFinance) {
             FinanceSheet()
+        }
+        .sheet(isPresented: $showPantry) {
+            PantryMealCalendarView()
         }
         .sheet(isPresented: $viewModel.showLoginSheet) {
             LoginView(viewModel: viewModel)
@@ -152,6 +156,14 @@ public struct AdaptiveMainView: View {
                 }) {
                     Label("Lista della Spesa", systemImage: "cart.fill")
                         .foregroundColor(.green)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showPantry = true
+                }) {
+                    Label("Dispensa & Pasti", systemImage: "fork.knife")
+                        .foregroundColor(.orange)
                 }
 
                 Button(action: {

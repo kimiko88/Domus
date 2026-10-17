@@ -14,18 +14,18 @@ import (
 
 // DeviceClient handles a persistent TCP connection to a single Tuya device on port 6668.
 type DeviceClient struct {
-	DeviceID   string
-	IP         string
-	LocalKey   []byte
-	Version    string
-	Category   DeviceCategory
+	DeviceID string
+	IP       string
+	LocalKey []byte
+	Version  string
+	Category DeviceCategory
 
-	conn       net.Conn
-	mu         sync.Mutex
-	seq        atomic.Uint32
-	closed     atomic.Bool
-	stopCh     chan struct{}
-	onStatus   func(dps map[string]any)
+	conn     net.Conn
+	mu       sync.Mutex
+	seq      atomic.Uint32
+	closed   atomic.Bool
+	stopCh   chan struct{}
+	onStatus func(dps map[string]any)
 }
 
 // NewDeviceClient creates a new client for a Tuya device.

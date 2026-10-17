@@ -85,20 +85,20 @@ type HealthChecker interface {
 
 // Config specifies runtime options for the Domus Supervisor.
 type Config struct {
-	Version             string        `json:"version"`
-	SupervisorSocket    string        `json:"supervisor_socket"`
-	ContainerdSocket    string        `json:"containerd_socket"`
-	CoreImage           string        `json:"core_image"`
-	CoreHealthURL       string        `json:"core_health_url"`
-	DataDir             string        `json:"data_dir"`
-	HealthCheckInterval time.Duration `json:"health_check_interval"`
-	HealthCheckTimeout  time.Duration `json:"health_check_timeout"`
-	MaxHealthRetries    int           `json:"max_health_retries"`
-	AutoConfirmSlot     bool          `json:"auto_confirm_slot"`
-	RaucAgentPath       string        `json:"rauc_agent_path"`
-	WatchdogDevicePath  string        `json:"watchdog_device_path"`
+	Version              string        `json:"version"`
+	SupervisorSocket     string        `json:"supervisor_socket"`
+	ContainerdSocket     string        `json:"containerd_socket"`
+	CoreImage            string        `json:"core_image"`
+	CoreHealthURL        string        `json:"core_health_url"`
+	DataDir              string        `json:"data_dir"`
+	HealthCheckInterval  time.Duration `json:"health_check_interval"`
+	HealthCheckTimeout   time.Duration `json:"health_check_timeout"`
+	MaxHealthRetries     int           `json:"max_health_retries"`
+	AutoConfirmSlot      bool          `json:"auto_confirm_slot"`
+	RaucAgentPath        string        `json:"rauc_agent_path"`
+	WatchdogDevicePath   string        `json:"watchdog_device_path"`
 	WatchdogPingInterval time.Duration `json:"watchdog_ping_interval"`
-	AutoRollbackOnFail  bool          `json:"auto_rollback_on_fail"`
+	AutoRollbackOnFail   bool          `json:"auto_rollback_on_fail"`
 }
 
 // DefaultConfig returns reasonable default configuration values.

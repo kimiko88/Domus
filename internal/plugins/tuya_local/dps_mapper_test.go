@@ -8,9 +8,9 @@ func TestDPSMapper_MapDPSToEntity_Switch(t *testing.T) {
 	mapper := NewDPSMapper()
 	dps := map[string]any{
 		"1":  true,
-		"18": 450,   // 450 mA
-		"19": 1035,  // 103.5 W
-		"20": 2300,  // 230.0 V
+		"18": 450,  // 450 mA
+		"19": 1035, // 103.5 W
+		"20": 2300, // 230.0 V
 	}
 
 	res := mapper.MapDPSToEntity(CategoryPlug, dps)

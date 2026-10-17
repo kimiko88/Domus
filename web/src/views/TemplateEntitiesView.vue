@@ -23,12 +23,16 @@
           </button>
         </div>
         <div class="playground-body">
+          <label for="template-playground-code" class="sr-only">Editor codice template di prova</label>
           <textarea
+            id="template-playground-code"
+            name="template_playground_code"
             v-model="playgroundCode"
             class="template-editor"
             rows="3"
             placeholder="Es. {{ states('sensor.salotto_temp') | float * 1.8 + 32 }} °F"
             aria-label="Editor codice template di prova"
+            autocomplete="off"
           ></textarea>
           <div class="preview-output">
             <span class="preview-label">Risultato:</span>
@@ -85,17 +89,31 @@
         <form @submit.prevent="saveTemplate" class="modal-form">
           <div class="form-group">
             <label for="template-name">Nome Sensore</label>
-            <input id="template-name" v-model="form.name" required placeholder="Es. Potenza Totale Casa" class="input" />
+            <input
+              id="template-name"
+              name="template_name"
+              v-model="form.name"
+              required
+              placeholder="Es. Potenza Totale Casa"
+              class="input"
+            />
           </div>
 
           <div class="form-row">
             <div class="form-group">
               <label for="template-id">Entity ID</label>
-              <input id="template-id" v-model="form.entity_id" required placeholder="sensor.potenza_totale" class="input" />
+              <input
+                id="template-id"
+                name="template_entity_id"
+                v-model="form.entity_id"
+                required
+                placeholder="sensor.potenza_totale"
+                class="input"
+              />
             </div>
             <div class="form-group">
               <label for="template-domain">Dominio</label>
-              <select id="template-domain" v-model="form.domain" class="input">
+              <select id="template-domain" name="template_domain" v-model="form.domain" class="input">
                 <option value="sensor">sensor (Numerico / Stringa)</option>
                 <option value="binary_sensor">binary_sensor (Booleano on/off)</option>
               </select>
@@ -106,6 +124,7 @@
             <label for="state-template">Formula Template (State)</label>
             <textarea
               id="state-template"
+              name="state_template"
               v-model="form.state_template"
               required
               rows="3"
@@ -117,11 +136,11 @@
           <div class="form-row">
             <div class="form-group">
               <label for="unit">Unità di Misura</label>
-              <input id="unit" v-model="form.unit_of_measurement" placeholder="Es. W, kW, °C, %" class="input" />
+              <input id="unit" name="unit_of_measurement" v-model="form.unit_of_measurement" placeholder="Es. W, kW, °C, %" class="input" />
             </div>
             <div class="form-group">
               <label for="class">Device Class</label>
-              <input id="class" v-model="form.device_class" placeholder="power, energy, temperature" class="input" />
+              <input id="class" name="device_class" v-model="form.device_class" placeholder="power, energy, temperature" class="input" />
             </div>
           </div>
 

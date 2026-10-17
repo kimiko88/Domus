@@ -19,6 +19,11 @@
     "no_data": "Nessun dato disponibile"
   },
   "nav": {
+    "sectionOverview": "Panoramica",
+    "sectionHome": "Casa & Famiglia",
+    "sectionDevices": "Dispositivi & Spazi",
+    "sectionAutomations": "Automazioni & Media",
+    "sectionSystem": "Sistema & Sicurezza",
     "dashboard": "Dashboard",
     "customDashboards": "Dashboard Tablet",
     "energy": "Energia & Solare",
@@ -43,6 +48,7 @@
     "templates": "Entità Template",
     "family": "Famiglia",
     "finance": "Bilancio Casa",
+    "pantry": "Dispensa & Ricette",
     "settings": "Impostazioni",
     "logout": "Disconnetti",
     "guide": "Guida & Manuale"

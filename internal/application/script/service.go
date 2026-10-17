@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/automation"
-	domscript "github.com/domus-hub/domus/internal/domain/script"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domscript "github.com/domus-hub/domus/internal/domain/script"
 	"github.com/google/uuid"
 )
 

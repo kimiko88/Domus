@@ -44,7 +44,12 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-backdrop" @click="emit('close')" aria-hidden="true">
+  <div
+    v-if="isOpen"
+    class="modal-backdrop"
+    @click.self="emit('close')"
+    @keydown.esc="emit('close')"
+  >
     <div
       class="modal-dialog glass-panel"
       role="dialog"

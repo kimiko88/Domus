@@ -19,6 +19,11 @@
     "no_data": "Aucune donnée disponible"
   },
   "nav": {
+    "sectionOverview": "Vue d'ensemble",
+    "sectionHome": "Maison & Famille",
+    "sectionDevices": "Appareils & Espaces",
+    "sectionAutomations": "Automatisations & Médias",
+    "sectionSystem": "Système & Sécurité",
     "dashboard": "Tableau de bord",
     "customDashboards": "Tableau Tablette",
     "energy": "Énergie & Solaire",
@@ -43,6 +48,7 @@
     "templates": "Entités Modèles",
     "family": "Famille",
     "finance": "Finances du Foyer",
+    "pantry": "Garde-manger & Recettes",
     "settings": "Paramètres",
     "logout": "Déconnexion",
     "guide": "Guide & Manuel"

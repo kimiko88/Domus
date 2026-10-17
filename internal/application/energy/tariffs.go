@@ -16,9 +16,9 @@ type TariffConfig struct {
 	ID           string  `json:"id"`
 	Name         string  `json:"name"`
 	Currency     string  `json:"currency"`
-	F1Price      float64 `json:"f1_price"`      // EUR/kWh
-	F2Price      float64 `json:"f2_price"`      // EUR/kWh
-	F3Price      float64 `json:"f3_price"`      // EUR/kWh
+	F1Price      float64 `json:"f1_price"`       // EUR/kWh
+	F2Price      float64 `json:"f2_price"`       // EUR/kWh
+	F3Price      float64 `json:"f3_price"`       // EUR/kWh
 	GasSmcPrice  float64 `json:"gas_smc_price"`  // EUR/Smc
 	WaterM3Price float64 `json:"water_m3_price"` // EUR/m3
 }

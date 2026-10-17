@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	ErrNotFound       = errors.New("template_entity: not found")
-	ErrInvalidID      = errors.New("template_entity: id cannot be empty")
+	ErrNotFound        = errors.New("template_entity: not found")
+	ErrInvalidID       = errors.New("template_entity: id cannot be empty")
 	ErrInvalidEntityID = errors.New("template_entity: entity_id must follow domain.name format")
 	ErrInvalidTemplate = errors.New("template_entity: state_template cannot be empty")
 )

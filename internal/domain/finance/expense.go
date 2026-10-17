@@ -41,12 +41,12 @@ const (
 	SubcategoryInternetPhone Subcategory = "internet_phone"
 
 	// Transport
-	SubcategoryFuelPetrol       Subcategory = "fuel_petrol"
-	SubcategoryFuelDiesel       Subcategory = "fuel_diesel"
-	SubcategoryEVCharge         Subcategory = "ev_charge"
-	SubcategoryToll             Subcategory = "toll"
-	SubcategoryVehicleRepair    Subcategory = "vehicle_repair"
-	SubcategoryVehicleTax       Subcategory = "vehicle_tax"
+	SubcategoryFuelPetrol    Subcategory = "fuel_petrol"
+	SubcategoryFuelDiesel    Subcategory = "fuel_diesel"
+	SubcategoryEVCharge      Subcategory = "ev_charge"
+	SubcategoryToll          Subcategory = "toll"
+	SubcategoryVehicleRepair Subcategory = "vehicle_repair"
+	SubcategoryVehicleTax    Subcategory = "vehicle_tax"
 
 	// Insurance
 	SubcategoryCarInsurance    Subcategory = "car_insurance"
@@ -75,24 +75,24 @@ const (
 
 // Expense represents an individual financial transaction or invoice.
 type Expense struct {
-	ID                  string             `json:"id"`
-	Title               string             `json:"title"`
-	Amount              float64            `json:"amount"`
-	Currency            string             `json:"currency"`
-	Category            Category           `json:"category"`
-	Subcategory         Subcategory        `json:"subcategory,omitempty"`
-	ExpenseDate         time.Time          `json:"expense_date"`
-	IsFixed             bool               `json:"is_fixed"`
-	PaymentMethod       string             `json:"payment_method,omitempty"` // card, cash, bank_transfer, direct_debit
-	PayerUserID         string             `json:"payer_user_id,omitempty"`
-	Notes               string             `json:"notes,omitempty"`
-	RecurringFrequency  RecurringFrequency `json:"recurring_frequency"`
-	ContractExpiryDate  *time.Time         `json:"contract_expiry_date,omitempty"`
-	EnergyKWh           float64            `json:"energy_kwh,omitempty"`        // kWh in bolletta elettrica
-	GasSmc              float64            `json:"gas_smc,omitempty"`           // Smc in bolletta gas
-	FoodWasteValue      float64            `json:"food_waste_value,omitempty"`  // Valore economico del cibo scaduto/sprecato
-	CreatedAt           time.Time          `json:"created_at"`
-	UpdatedAt           time.Time          `json:"updated_at"`
+	ID                 string             `json:"id"`
+	Title              string             `json:"title"`
+	Amount             float64            `json:"amount"`
+	Currency           string             `json:"currency"`
+	Category           Category           `json:"category"`
+	Subcategory        Subcategory        `json:"subcategory,omitempty"`
+	ExpenseDate        time.Time          `json:"expense_date"`
+	IsFixed            bool               `json:"is_fixed"`
+	PaymentMethod      string             `json:"payment_method,omitempty"` // card, cash, bank_transfer, direct_debit
+	PayerUserID        string             `json:"payer_user_id,omitempty"`
+	Notes              string             `json:"notes,omitempty"`
+	RecurringFrequency RecurringFrequency `json:"recurring_frequency"`
+	ContractExpiryDate *time.Time         `json:"contract_expiry_date,omitempty"`
+	EnergyKWh          float64            `json:"energy_kwh,omitempty"`       // kWh in bolletta elettrica
+	GasSmc             float64            `json:"gas_smc,omitempty"`          // Smc in bolletta gas
+	FoodWasteValue     float64            `json:"food_waste_value,omitempty"` // Valore economico del cibo scaduto/sprecato
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
 }
 
 // Validate checks business rules for an expense.

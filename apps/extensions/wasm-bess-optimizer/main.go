@@ -10,9 +10,9 @@ import (
 // EnergyState represents incoming real-time telemetry from Domus Core.
 type EnergyState struct {
 	BatterySoC        float64 `json:"battery_soc"`        // In percentage 0-100%
-	SolarPowerWatts   float64 `json:"solar_power_watts"`   // Current solar PV production
-	CurrentTariffEuro float64 `json:"current_tariff_eur"`  // Real-time PUN / spot price
-	HomeLoadWatts     float64 `json:"home_load_watts"`     // Domestic load absorption
+	SolarPowerWatts   float64 `json:"solar_power_watts"`  // Current solar PV production
+	CurrentTariffEuro float64 `json:"current_tariff_eur"` // Real-time PUN / spot price
+	HomeLoadWatts     float64 `json:"home_load_watts"`    // Domestic load absorption
 }
 
 // ArbitrageDecision represents the scheduled command dispatched to the inverter.

@@ -365,4 +365,3 @@ func (a *Adapter) UnbindDevices(ctx context.Context, sourceIEEE, targetIEEE stri
 	}
 	return a.client.Publish(ctx, topic, 1, false, payload)
 }
-

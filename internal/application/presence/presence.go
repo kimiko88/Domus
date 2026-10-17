@@ -22,15 +22,15 @@ const (
 
 // PersonLocation holds raw multi-sensor telemetry for a person.
 type PersonLocation struct {
-	UserID         string        `json:"user_id"`
-	State          PresenceState `json:"state"`
-	GPSLat         float64       `json:"gps_lat,omitempty"`
-	GPSLon         float64       `json:"gps_lon,omitempty"`
-	WiFiConnected  bool          `json:"wifi_connected"`
-	WiFiMAC        string        `json:"wifi_mac,omitempty"`
-	RoomZone       string        `json:"room_zone,omitempty"` // e.g. "bedroom", "living_room"
-	SubState       string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
-	LastSeenAt     time.Time     `json:"last_seen_at"`
+	UserID        string        `json:"user_id"`
+	State         PresenceState `json:"state"`
+	GPSLat        float64       `json:"gps_lat,omitempty"`
+	GPSLon        float64       `json:"gps_lon,omitempty"`
+	WiFiConnected bool          `json:"wifi_connected"`
+	WiFiMAC       string        `json:"wifi_mac,omitempty"`
+	RoomZone      string        `json:"room_zone,omitempty"` // e.g. "bedroom", "living_room"
+	SubState      string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
+	LastSeenAt    time.Time     `json:"last_seen_at"`
 }
 
 // HomeGeofence defines home coordinates and radius.
@@ -45,8 +45,8 @@ type Service struct {
 	bus      events.Bus
 	geofence HomeGeofence
 
-	mu       sync.RWMutex
-	people   map[string]*PersonLocation
+	mu     sync.RWMutex
+	people map[string]*PersonLocation
 }
 
 // NewService creates a new presence tracking service.

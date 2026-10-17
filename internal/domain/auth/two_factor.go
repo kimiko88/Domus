@@ -8,10 +8,10 @@ import (
 )
 
 var (
-	ErrTwoFactorNotFound   = errors.New("two_factor: not configured")
-	ErrInvalidTOTPCode     = errors.New("two_factor: invalid totp code")
-	ErrTwoFactorRequired   = errors.New("two_factor: 2fa verification required")
-	ErrIPAddressBanned     = errors.New("security: ip address temporarily banned")
+	ErrTwoFactorNotFound = errors.New("two_factor: not configured")
+	ErrInvalidTOTPCode   = errors.New("two_factor: invalid totp code")
+	ErrTwoFactorRequired = errors.New("two_factor: 2fa verification required")
+	ErrIPAddressBanned   = errors.New("security: ip address temporarily banned")
 )
 
 // TwoFactorConfig stores TOTP secret, activation state, and backup recovery codes.

@@ -239,4 +239,3 @@ func TestMemoryBus_TracePropagation(t *testing.T) {
 		t.Fatal("timed out waiting for trace propagation in eventbus")
 	}
 }
-

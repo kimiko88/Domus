@@ -402,4 +402,3 @@ func (s *Service) ProcessSatelliteVoice(ctx context.Context, satID, prompt strin
 	}
 	return resp, err
 }
-

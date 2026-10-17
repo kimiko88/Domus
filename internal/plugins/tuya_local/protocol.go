@@ -47,9 +47,9 @@ const (
 
 // Packet represents a decoded Tuya protocol frame.
 type Packet struct {
-	Sequence uint32
-	Command  uint32
-	Payload  []byte
+	Sequence   uint32
+	Command    uint32
+	Payload    []byte
 	ReturnCode uint32
 }
 
@@ -235,4 +235,3 @@ func ComputeHMAC_SHA256(data, key []byte) string {
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
-

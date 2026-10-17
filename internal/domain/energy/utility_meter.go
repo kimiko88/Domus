@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrMeterNotFound = errors.New("utility_meter: not found")
-	ErrInvalidMeter = errors.New("utility_meter: name, utility_type, and source_entity_id are required")
+	ErrInvalidMeter  = errors.New("utility_meter: name, utility_type, and source_entity_id are required")
 )
 
 // UtilityMeter represents a physical or pulse meter tracking electricity, natural gas, or water.

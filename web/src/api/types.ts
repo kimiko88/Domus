@@ -788,4 +788,126 @@ export interface FinancialSummary {
   insights: SavingsInsight[]
 }
 
+// ==========================================
+// Pantry, Recipes, Meal Planning & Receipt OCR
+// ==========================================
+
+export type PantryCategory =
+  | 'produce'
+  | 'dairy'
+  | 'meat_fish'
+  | 'bakery'
+  | 'pantry'
+  | 'frozen'
+  | 'drinks'
+  | 'condiments'
+  | 'snacks'
+  | 'household'
+  | 'other'
+
+export type PantryUnit = 'pz' | 'g' | 'kg' | 'ml' | 'l' | 'pack'
+
+export type PantryLocation = 'fridge' | 'freezer' | 'pantry' | 'cellar' | 'other'
+
+export interface PantryItem {
+  id: string
+  name: string
+  category: PantryCategory
+  quantity: number
+  unit: PantryUnit
+  min_threshold: number
+  expiration_date?: string
+  location: PantryLocation
+  barcode?: string
+  cost?: number
+  created_at: string
+  updated_at: string
+}
+
+export type RecipeCategory =
+  | 'first_course'
+  | 'main_course'
+  | 'side_dish'
+  | 'single_dish'
+  | 'breakfast'
+  | 'dessert'
+  | 'snack'
+
+export interface RecipeIngredient {
+  id?: string
+  recipe_id?: string
+  pantry_item_id?: string
+  name: string
+  quantity: number
+  unit: PantryUnit
+  is_optional?: boolean
+}
+
+export interface Recipe {
+  id: string
+  title: string
+  description?: string
+  category: RecipeCategory
+  portions_base: number
+  prep_time_minutes: number
+  cook_time_minutes: number
+  instructions: string
+  image_url?: string
+  ingredients: RecipeIngredient[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CookableRecipeResult {
+  recipe: Recipe
+  is_cookable: boolean
+  available_percent: number
+  missing_ingredients?: string[]
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+export type MealStatus = 'planned' | 'consumed' | 'skipped'
+
+export interface MealPlan {
+  id: string
+  plan_date: string // YYYY-MM-DD
+  meal_type: MealType
+  recipe_id?: string
+  recipe?: Recipe
+  custom_title?: string
+  persons_count: number
+  notes?: string
+  status: MealStatus
+  consumed_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ReceiptItem {
+  raw_line?: string
+  name: string
+  quantity: number
+  unit: PantryUnit
+  unit_price: number
+  total_price: number
+  category: PantryCategory
+  matched_pantry_id?: string
+}
+
+export interface Receipt {
+  store_name: string
+  date: string // YYYY-MM-DD
+  items: ReceiptItem[]
+  total_amount: number
+  raw_text?: string
+  confidence: number
+}
+
+export interface ReceiptImportResult {
+  items_added: number
+  items_updated: number
+  expense_id?: string
+  expense_amount: number
+}
+
 

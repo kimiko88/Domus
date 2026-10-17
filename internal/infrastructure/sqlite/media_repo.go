@@ -250,4 +250,3 @@ func (r *MediaRepository) SeedDefaultPlayers(ctx context.Context) error {
 	}
 	return nil
 }
-

@@ -30,8 +30,8 @@ import (
 	serverpkg "github.com/domus-hub/domus/internal/interfaces/http"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/mqtt_generic"
-	gorilla "github.com/gorilla/websocket"
 	"github.com/google/uuid"
+	gorilla "github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

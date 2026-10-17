@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   ShoppingCart,
   Plus,
@@ -17,11 +18,16 @@ import {
   Store,
   Building2,
   Filter,
-  Check
+  Check,
+  PackageCheck
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+import { usePantryStore } from '../stores/pantry'
+import TransferShoppingModal, { type ShoppingItemForTransfer } from '../components/pantry/TransferShoppingModal.vue'
 
 const { t } = useI18n()
+const router = useRouter()
+const pantryStore = usePantryStore()
 
 interface ShoppingItem {
   id: string
@@ -159,6 +165,108 @@ async function clearCompleted() {
   } catch {}
 }
 
+const showTransferModal = ref(false)
+const itemsToTransfer = ref<ShoppingItemForTransfer[]>([])
+const transferFeedback = ref<{ message: string; type: 'success' | 'error' } | null>(null)
+
+async function openTransferModal() {
+  await pantryStore.fetchPantryItems().catch(() => {})
+  const sourceItems = completedCount.value > 0
+    ? items.value.filter(i => i.completed)
+    : items.value
+
+  if (sourceItems.length === 0) return
+
+  itemsToTransfer.value = sourceItems.map(i => ({
+    id: i.id,
+    name: i.name,
+    quantity: i.quantity,
+    category: i.category,
+    supermarket: i.supermarket
+  }))
+  showTransferModal.value = true
+}
+
+async function openTransferSingle(item: ShoppingItem) {
+  await pantryStore.fetchPantryItems().catch(() => {})
+  itemsToTransfer.value = [{
+    id: item.id,
+    name: item.name,
+    quantity: item.quantity,
+    category: item.category,
+    supermarket: item.supermarket
+  }]
+  showTransferModal.value = true
+}
+
+async function handleTransferConfirm(payload: {
+  transfers: Array<{
+    shoppingId: string
+    name: string
+    quantity: number
+    unit: any
+    category: any
+    location: any
+    expirationDate?: string
+    matchedItemId?: string
+  }>
+  removeTransferredFromShopping: boolean
+}) {
+  let added = 0
+  let updated = 0
+
+  for (const tr of payload.transfers) {
+    try {
+      if (tr.matchedItemId) {
+        // Sums to existing item in pantry
+        await pantryStore.adjustQuantity(tr.matchedItemId, tr.quantity)
+        if (tr.expirationDate) {
+          await pantryStore.updatePantryItem(tr.matchedItemId, {
+            expiration_date: tr.expirationDate
+          })
+        }
+        updated++
+      } else {
+        // Creates a new item in pantry
+        await pantryStore.createPantryItem({
+          name: tr.name,
+          quantity: tr.quantity,
+          unit: tr.unit,
+          category: tr.category,
+          location: tr.location,
+          expiration_date: tr.expirationDate,
+          min_threshold: tr.unit === 'g' || tr.unit === 'ml' ? 100 : 1
+        })
+        added++
+      }
+
+      if (payload.removeTransferredFromShopping) {
+        await deleteItem(tr.shoppingId)
+      }
+    } catch (err) {
+      console.error('Errore durante trasferimento in dispensa:', err)
+    }
+  }
+
+  showTransferModal.value = false
+
+  const parts: string[] = []
+  if (added > 0) parts.push(`${added} nuov${added > 1 ? 'i' : 'o'}`)
+  if (updated > 0) parts.push(`${updated} sommat${updated > 1 ? 'i' : 'o'}`)
+  const summary = parts.length > 0 ? parts.join(', ') : 'Prodotti trasferiti'
+
+  const msg = `Spesa registrata in Dispensa (${summary})!`
+  transferFeedback.value = {
+    message: msg,
+    type: 'success'
+  }
+  setTimeout(() => {
+    if (transferFeedback.value?.message === msg) {
+      transferFeedback.value = null
+    }
+  }, 6000)
+}
+
 onMounted(async () => {
   try {
     const list = await apiClient.get<ShoppingItem[]>('/api/v1/shopping')
@@ -166,6 +274,8 @@ onMounted(async () => {
   } catch {
     items.value = []
   }
+  // Preload pantry items for instant matching
+  pantryStore.fetchPantryItems().catch(() => {})
 })
 </script>
 
@@ -183,6 +293,16 @@ onMounted(async () => {
       </div>
 
       <div class="header-actions">
+        <button
+          v-if="items.length > 0"
+          class="btn-transfer-pantry"
+          @click="openTransferModal"
+          :title="completedCount > 0 ? 'Sposta gli articoli acquistati nella dispensa' : 'Sposta articoli della spesa nella dispensa'"
+        >
+          <PackageCheck :size="16" />
+          <span>{{ completedCount > 0 ? `Sposta Spesa in Dispensa (${completedCount})` : 'Sposta Spesa in Dispensa' }}</span>
+        </button>
+
         <button
           v-if="completedCount > 0"
           class="btn-clear-completed"
@@ -315,6 +435,23 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Prompt Banner for Completed Items -->
+    <div v-if="completedCount > 0" class="completed-prompt-banner glass-panel">
+      <div class="prompt-left">
+        <div class="prompt-icon-wrap">
+          <PackageCheck :size="22" class="text-success" />
+        </div>
+        <div class="prompt-text">
+          <h4 class="prompt-title">Hai completato {{ completedCount }} articol{{ completedCount > 1 ? 'i' : 'o' }} della spesa!</h4>
+          <p class="prompt-sub">Spostali direttamente nella Dispensa: puoi sommare le quantità a quelle già presenti e impostare le scadenze dei cibi deperibili.</p>
+        </div>
+      </div>
+      <button class="btn-prompt-transfer" @click="openTransferModal">
+        <PackageCheck :size="16" />
+        <span>Carica in Dispensa</span>
+      </button>
+    </div>
+
     <!-- Shopping Items List -->
     <div class="items-list">
       <div
@@ -358,9 +495,21 @@ onMounted(async () => {
           </div>
         </div>
 
-        <button class="btn-delete" @click="deleteItem(it.id)" title="Rimuovi" aria-label="Rimuovi prodotto">
-          <Trash2 :size="16" />
-        </button>
+        <div class="item-card-actions">
+          <button
+            class="btn-transfer-single"
+            @click.stop="openTransferSingle(it)"
+            title="Sposta questo articolo in Dispensa e imposta scadenza"
+            aria-label="Sposta articolo in dispensa"
+          >
+            <PackageCheck :size="15" />
+            <span class="btn-transfer-label">In Dispensa</span>
+          </button>
+
+          <button class="btn-delete" @click="deleteItem(it.id)" title="Rimuovi" aria-label="Rimuovi prodotto">
+            <Trash2 :size="16" />
+          </button>
+        </div>
       </div>
 
       <!-- Empty State -->
@@ -376,6 +525,33 @@ onMounted(async () => {
         </p>
       </div>
     </div>
+
+    <!-- Transfer to Pantry Modal -->
+    <TransferShoppingModal
+      :is-open="showTransferModal"
+      :shopping-items="itemsToTransfer"
+      :existing-pantry-items="pantryStore.items"
+      @close="showTransferModal = false"
+      @confirm="handleTransferConfirm"
+    />
+
+    <!-- Toast Notification -->
+    <Transition name="toast-slide">
+      <div v-if="transferFeedback" class="transfer-feedback-toast glass-panel">
+        <div class="toast-left">
+          <PackageCheck :size="20" class="text-success" />
+          <span>{{ transferFeedback.message }}</span>
+        </div>
+        <div class="toast-right">
+          <button class="btn-goto-pantry" @click="router.push('/pantry')">
+            Vai alla Dispensa &rarr;
+          </button>
+          <button class="btn-toast-close" @click="transferFeedback = null" aria-label="Chiudi notifica">
+            &times;
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -429,6 +605,34 @@ onMounted(async () => {
   font-size: 0.85rem;
   color: var(--text-muted, #94a3b8);
   margin: 4px 0 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-transfer-pantry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-transfer-pantry:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
 }
 
 .btn-clear-completed {
@@ -843,5 +1047,181 @@ onMounted(async () => {
 
 .mb-2 {
   margin-bottom: 8px;
+}
+
+/* Prompt Banner for Completed Items */
+.completed-prompt-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.prompt-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.prompt-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.prompt-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.prompt-sub {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.btn-prompt-transfer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #10b981;
+  border: none;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  min-height: 40px;
+}
+
+.btn-prompt-transfer:hover {
+  background: #059669;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+}
+
+/* Item Card Actions */
+.item-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-transfer-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 32px;
+}
+
+.btn-transfer-single:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+@media (max-width: 600px) {
+  .btn-transfer-label {
+    display: none;
+  }
+}
+
+/* Toast Notification */
+.transfer-feedback-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(16, 185, 129, 0.2);
+  color: #f8fafc;
+  max-width: 90vw;
+}
+
+.toast-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.toast-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-goto-pantry {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-goto-pantry:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+.btn-toast-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.btn-toast-close:hover {
+  color: #fff;
+}
+
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-slide-enter-from,
+.toast-slide-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
 }
 </style>

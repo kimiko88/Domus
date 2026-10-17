@@ -100,9 +100,9 @@ func (b *Bridge) RegisterEntity(entityKey string, domain string, name string) *A
 		IID:  1,
 		Type: ServiceAccessoryInformation,
 		Characteristics: []*Characteristic{
-			{IID: 2, Type: "00000023-0000-1000-8000-0026BB765291", Format: "string", Value: name, Permissions: []string{"pr"}}, // Name
+			{IID: 2, Type: "00000023-0000-1000-8000-0026BB765291", Format: "string", Value: name, Permissions: []string{"pr"}},    // Name
 			{IID: 3, Type: "00000020-0000-1000-8000-0026BB765291", Format: "string", Value: "Domus", Permissions: []string{"pr"}}, // Manufacturer
-			{IID: 4, Type: "00000021-0000-1000-8000-0026BB765291", Format: "string", Value: domain, Permissions: []string{"pr"}}, // Model
+			{IID: 4, Type: "00000021-0000-1000-8000-0026BB765291", Format: "string", Value: domain, Permissions: []string{"pr"}},  // Model
 		},
 	}
 

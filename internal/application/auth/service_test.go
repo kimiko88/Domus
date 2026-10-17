@@ -156,4 +156,3 @@ func TestAuthService_GuestAndPinLogin(t *testing.T) {
 	guest.GuestExpiresAt = &past
 	assert.True(t, guest.IsGuestExpired())
 }
-

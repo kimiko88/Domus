@@ -10,7 +10,7 @@ import (
 
 // DownsampleSummary reports how many hourly buckets were aggregated and raw records purged.
 type DownsampleSummary struct {
-	BucketsCreated int64 `json:"buckets_created"`
+	BucketsCreated  int64 `json:"buckets_created"`
 	RawPointsPurged int64 `json:"raw_points_purged"`
 }
 

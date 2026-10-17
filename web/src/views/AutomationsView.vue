@@ -307,45 +307,61 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     />
 
     <!-- New Webhook Modal -->
-    <div v-if="isWebhookModalOpen" class="modal-backdrop" @click.self="isWebhookModalOpen = false">
-      <div class="modal-card glass-card">
-        <div class="modal-header">
-          <div class="modal-title-box">
-            <Globe :size="20" />
-            <h3 class="modal-title">Nuovo Webhook Inbound</h3>
-          </div>
-          <button class="modal-close" @click="isWebhookModalOpen = false">
-            <X :size="18" />
-          </button>
-        </div>
-
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Nome Webhook</label>
-            <input v-model="newWhName" type="text" class="text-input" placeholder="es. IFTTT Arrivo a Casa, OwnTracks GPS" />
+    <Teleport to="body">
+      <div v-if="isWebhookModalOpen" class="modal-backdrop" @click.self="isWebhookModalOpen = false">
+        <div class="modal-card glass-card">
+          <div class="modal-header">
+            <div class="modal-title-box">
+              <Globe :size="20" class="modal-icon" />
+              <h3 class="modal-title">Nuovo Webhook Inbound</h3>
+            </div>
+            <button class="modal-close" aria-label="Chiudi" @click="isWebhookModalOpen = false">
+              <X :size="18" />
+            </button>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Secret HMAC Token (opzionale per firma X-Domus-Signature)</label>
-            <input v-model="newWhSecret" type="text" class="text-input" placeholder="es. secret_my_token_123" />
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="webhook-name" class="form-label">Nome Webhook</label>
+              <input
+                id="webhook-name"
+                name="webhook_name"
+                v-model="newWhName"
+                type="text"
+                class="text-input"
+                placeholder="es. IFTTT Arrivo a Casa, OwnTracks GPS"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="webhook-secret" class="form-label">Secret HMAC Token (opzionale per firma X-Domus-Signature)</label>
+              <input
+                id="webhook-secret"
+                name="webhook_secret"
+                v-model="newWhSecret"
+                type="text"
+                class="text-input"
+                placeholder="es. secret_my_token_123"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="webhook-method" class="form-label">Metodo HTTP Consentito</label>
+              <select id="webhook-method" name="webhook_method" v-model="newWhMethods" class="select-input">
+                <option value="POST">POST (Standard JSON payload)</option>
+                <option value="GET">GET (Query string parameters)</option>
+                <option value="PUT">PUT</option>
+              </select>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Metodo HTTP Consentito</label>
-            <select v-model="newWhMethods" class="select-input">
-              <option value="POST">POST (Standard JSON payload)</option>
-              <option value="GET">GET (Query string parameters)</option>
-              <option value="PUT">PUT</option>
-            </select>
+          <div class="modal-footer">
+            <BaseButton variant="ghost" size="md" @click="isWebhookModalOpen = false">Annulla</BaseButton>
+            <BaseButton variant="primary" size="md" @click="handleCreateWebhook">Crea Webhook</BaseButton>
           </div>
-        </div>
-
-        <div class="modal-footer">
-          <BaseButton variant="ghost" size="md" @click="isWebhookModalOpen = false">Annulla</BaseButton>
-          <BaseButton variant="primary" size="md" @click="handleCreateWebhook">Crea Webhook</BaseButton>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -667,5 +683,121 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   justify-content: space-between;
   font-size: 0.75rem;
   color: var(--text-dim);
+}
+
+/* Webhook Inbound Modal Styles */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.75));
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-card, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-xl, 16px);
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--primary, #0ea5e9);
+}
+
+.modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+  margin: 0;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  padding: 6px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast, 0.2s);
+}
+
+.modal-close:hover {
+  color: var(--text-main, #fff);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+}
+
+.text-input,
+.select-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--border-card, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-main, #f8fafc);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.text-input:focus,
+.select-input:focus {
+  border-color: var(--primary, #0ea5e9);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.25);
+}
+
+.select-input option {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
 }
 </style>

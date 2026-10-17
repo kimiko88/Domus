@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/domus-hub/domus/internal/application/webhook"
-	domainWebhook "github.com/domus-hub/domus/internal/domain/webhook"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domainWebhook "github.com/domus-hub/domus/internal/domain/webhook"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

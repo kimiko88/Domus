@@ -16,14 +16,14 @@ import (
 
 // LoadSheddingConfig defines the operational rules for load shedding.
 type LoadSheddingConfig struct {
-	ID                string   `json:"id"`
-	MeterEntityKey    string   `json:"meter_entity_key"`    // e.g. "sensor.main_power"
-	MaxPowerWatts     float64  `json:"max_power_watts"`     // e.g. 3300.0 or 4500.0
-	OverloadDuration  int      `json:"overload_duration"`   // seconds of overload before shedding (e.g. 60)
-	RecoveryWatts     float64  `json:"recovery_watts"`      // threshold to allow reconnecting (e.g. 2500.0)
-	RecoveryDelaySec  int      `json:"recovery_delay_sec"`  // seconds under recovery before reconnecting (e.g. 180)
-	PriorityLoads     []string `json:"priority_loads"`      // shedding order (least important first)
-	Enabled           bool     `json:"enabled"`
+	ID               string   `json:"id"`
+	MeterEntityKey   string   `json:"meter_entity_key"`   // e.g. "sensor.main_power"
+	MaxPowerWatts    float64  `json:"max_power_watts"`    // e.g. 3300.0 or 4500.0
+	OverloadDuration int      `json:"overload_duration"`  // seconds of overload before shedding (e.g. 60)
+	RecoveryWatts    float64  `json:"recovery_watts"`     // threshold to allow reconnecting (e.g. 2500.0)
+	RecoveryDelaySec int      `json:"recovery_delay_sec"` // seconds under recovery before reconnecting (e.g. 180)
+	PriorityLoads    []string `json:"priority_loads"`     // shedding order (least important first)
+	Enabled          bool     `json:"enabled"`
 }
 
 // Controller manages real-time power monitoring and load shedding actions.
@@ -31,12 +31,12 @@ type Controller struct {
 	bus    events.Bus
 	config LoadSheddingConfig
 
-	mu               sync.Mutex
-	overloadStart    *time.Time
-	recoveryStart    *time.Time
-	currentPower     float64
-	sheddedLoads     []string // loads currently turned off by the controller
-	lastActionAt     time.Time
+	mu            sync.Mutex
+	overloadStart *time.Time
+	recoveryStart *time.Time
+	currentPower  float64
+	sheddedLoads  []string // loads currently turned off by the controller
+	lastActionAt  time.Time
 }
 
 // NewController creates a new load shedding controller.

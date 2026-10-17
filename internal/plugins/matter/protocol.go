@@ -10,15 +10,15 @@ import (
 
 // Standard Matter Cluster IDs (Application Clusters Specification)
 const (
-	ClusterOnOff                   uint32 = 0x0006
-	ClusterLevelControl            uint32 = 0x0008
-	ClusterColorControl            uint32 = 0x0300
-	ClusterThermostat              uint32 = 0x0201
-	ClusterTemperatureMeasurement  uint32 = 0x0402
-	ClusterRelativeHumidity        uint32 = 0x0405
-	ClusterOccupancySensing        uint32 = 0x0406
-	ClusterIlluminanceMeasurement  uint32 = 0x0400
-	ClusterElectricalMeasurement   uint32 = 0x0B04
+	ClusterOnOff                  uint32 = 0x0006
+	ClusterLevelControl           uint32 = 0x0008
+	ClusterColorControl           uint32 = 0x0300
+	ClusterThermostat             uint32 = 0x0201
+	ClusterTemperatureMeasurement uint32 = 0x0402
+	ClusterRelativeHumidity       uint32 = 0x0405
+	ClusterOccupancySensing       uint32 = 0x0406
+	ClusterIlluminanceMeasurement uint32 = 0x0400
+	ClusterElectricalMeasurement  uint32 = 0x0B04
 )
 
 // Standard Matter Attribute IDs
@@ -43,15 +43,15 @@ const (
 
 // DeviceType IDs
 const (
-	DeviceTypeOnOffLight       uint32 = 0x0100
-	DeviceTypeDimmableLight    uint32 = 0x0101
-	DeviceTypeColorLight       uint32 = 0x0102
-	DeviceTypeOnOffPlug        uint32 = 0x010A
-	DeviceTypeDimmablePlug     uint32 = 0x010B
-	DeviceTypeThermostat       uint32 = 0x0301
-	DeviceTypeTempSensor       uint32 = 0x0302
-	DeviceTypeContactSensor    uint32 = 0x0015
-	DeviceTypeOccupancySensor  uint32 = 0x0107
+	DeviceTypeOnOffLight      uint32 = 0x0100
+	DeviceTypeDimmableLight   uint32 = 0x0101
+	DeviceTypeColorLight      uint32 = 0x0102
+	DeviceTypeOnOffPlug       uint32 = 0x010A
+	DeviceTypeDimmablePlug    uint32 = 0x010B
+	DeviceTypeThermostat      uint32 = 0x0301
+	DeviceTypeTempSensor      uint32 = 0x0302
+	DeviceTypeContactSensor   uint32 = 0x0015
+	DeviceTypeOccupancySensor uint32 = 0x0107
 )
 
 // CommissioningPayload contains parsed info from a Matter QR code or manual pairing code.
@@ -59,7 +59,7 @@ type CommissioningPayload struct {
 	Version       uint8  `json:"version"`
 	VendorID      uint16 `json:"vendor_id"`
 	ProductID     uint16 `json:"product_id"`
-	Discriminator uint16 `json:"discriminator"` // 12-bit discriminator
+	Discriminator uint16 `json:"discriminator"`  // 12-bit discriminator
 	SetupPasscode uint32 `json:"setup_passcode"` // 27-bit numeric passcode (1 to 99999998)
 	RawCode       string `json:"raw_code"`
 }
@@ -126,18 +126,18 @@ func ParseQRCode(qr string) (*CommissioningPayload, error) {
 type TLVElementType byte
 
 const (
-	TLVTypeSignedInt1   TLVElementType = 0x00
-	TLVTypeSignedInt2   TLVElementType = 0x01
-	TLVTypeSignedInt4   TLVElementType = 0x02
-	TLVTypeUnsignedInt1 TLVElementType = 0x04
-	TLVTypeUnsignedInt2 TLVElementType = 0x05
-	TLVTypeUnsignedInt4 TLVElementType = 0x06
-	TLVTypeBooleanFalse TLVElementType = 0x08
-	TLVTypeBooleanTrue  TLVElementType = 0x09
-	TLVTypeFloat4       TLVElementType = 0x0A
-	TLVTypeUTF8String1  TLVElementType = 0x0C
-	TLVTypeStructure    TLVElementType = 0x15
-	TLVTypeArray        TLVElementType = 0x16
+	TLVTypeSignedInt1     TLVElementType = 0x00
+	TLVTypeSignedInt2     TLVElementType = 0x01
+	TLVTypeSignedInt4     TLVElementType = 0x02
+	TLVTypeUnsignedInt1   TLVElementType = 0x04
+	TLVTypeUnsignedInt2   TLVElementType = 0x05
+	TLVTypeUnsignedInt4   TLVElementType = 0x06
+	TLVTypeBooleanFalse   TLVElementType = 0x08
+	TLVTypeBooleanTrue    TLVElementType = 0x09
+	TLVTypeFloat4         TLVElementType = 0x0A
+	TLVTypeUTF8String1    TLVElementType = 0x0C
+	TLVTypeStructure      TLVElementType = 0x15
+	TLVTypeArray          TLVElementType = 0x16
 	TLVTypeEndOfContainer TLVElementType = 0x18
 )
 

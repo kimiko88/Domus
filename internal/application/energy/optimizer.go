@@ -16,20 +16,20 @@ import (
 type MarketType string
 
 const (
-	MarketPUN          MarketType = "PUN_ITALY"    // Prezzo Unico Nazionale (GME Italia)
-	MarketNordPool     MarketType = "NORD_POOL"    // Nord Pool Day-Ahead (Europa)
+	MarketPUN          MarketType = "PUN_ITALY"     // Prezzo Unico Nazionale (GME Italia)
+	MarketNordPool     MarketType = "NORD_POOL"     // Nord Pool Day-Ahead (Europa)
 	MarketOctopusAgile MarketType = "OCTOPUS_AGILE" // Tariffe dinamiche Octopus Energy
 	MarketCustomSlots  MarketType = "CUSTOM_SLOTS"  // Fasce orarie configurate manualmente
 )
 
 // HourlyTariff represents the electricity price for a specific hour of the day.
 type HourlyTariff struct {
-	Hour        int     `json:"hour"`           // 0 - 23
-	PricePerKWh float64 `json:"price_per_kwh"`  // EUR/kWh
-	Slot        TariffSlot `json:"slot"`        // F1, F2, F3
-	IsCheapest  bool    `json:"is_cheapest"`    // True if in the cheapest quartile
-	IsExpensive bool    `json:"is_expensive"`   // True if in the peak quartile
-	IsNegative  bool    `json:"is_negative"`    // True if price <= 0 (e.g. overproduzione solare/eolica)
+	Hour        int        `json:"hour"`          // 0 - 23
+	PricePerKWh float64    `json:"price_per_kwh"` // EUR/kWh
+	Slot        TariffSlot `json:"slot"`          // F1, F2, F3
+	IsCheapest  bool       `json:"is_cheapest"`   // True if in the cheapest quartile
+	IsExpensive bool       `json:"is_expensive"`  // True if in the peak quartile
+	IsNegative  bool       `json:"is_negative"`   // True if price <= 0 (e.g. overproduzione solare/eolica)
 }
 
 // DailyTariffSchedule holds the 24-hour price curve for a specific day.
@@ -47,25 +47,25 @@ type DailyTariffSchedule struct {
 
 // FlexibleLoadRule defines an appliance that can be automatically scheduled in cheap hours.
 type FlexibleLoadRule struct {
-	EntityKey        string  `json:"entity_key"`        // e.g. "switch.ev_charger", "switch.water_heater"
-	Name             string  `json:"name"`              // Friendly name
-	RequiredHours    int     `json:"required_hours"`    // Number of hours needed per day (e.g. 3)
-	MaxPriceKWh      float64 `json:"max_price_kwh"`     // Hard limit above which load is not turned on
-	ActiveNow        bool    `json:"active_now"`        // Whether load is currently turned on by optimizer
-	AutoSchedule     bool    `json:"auto_schedule"`     // True if Domus should toggle automatically
-	ScheduledHours   []int   `json:"scheduled_hours"`   // Best hours chosen for today
+	EntityKey        string  `json:"entity_key"`      // e.g. "switch.ev_charger", "switch.water_heater"
+	Name             string  `json:"name"`            // Friendly name
+	RequiredHours    int     `json:"required_hours"`  // Number of hours needed per day (e.g. 3)
+	MaxPriceKWh      float64 `json:"max_price_kwh"`   // Hard limit above which load is not turned on
+	ActiveNow        bool    `json:"active_now"`      // Whether load is currently turned on by optimizer
+	AutoSchedule     bool    `json:"auto_schedule"`   // True if Domus should toggle automatically
+	ScheduledHours   []int   `json:"scheduled_hours"` // Best hours chosen for today
 	EstimatedCostEUR float64 `json:"estimated_cost_eur"`
 	SavingsPercent   float64 `json:"savings_percent"`
 }
 
 // TariffOptimizer manages dynamic hourly price curves and optimizes heavy load execution.
 type TariffOptimizer struct {
-	mu           sync.RWMutex
-	market       MarketType
-	schedule     *DailyTariffSchedule
-	loads        map[string]*FlexibleLoadRule
-	bus          events.Bus
-	stopCh       chan struct{}
+	mu       sync.RWMutex
+	market   MarketType
+	schedule *DailyTariffSchedule
+	loads    map[string]*FlexibleLoadRule
+	bus      events.Bus
+	stopCh   chan struct{}
 }
 
 // NewTariffOptimizer creates a new dynamic tariff and load optimizer.

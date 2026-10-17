@@ -33,11 +33,11 @@ type MotionZone struct {
 
 // AIDetection represents an object detected by the local computer vision model.
 type AIDetection struct {
-	Label       string      `json:"label"`       // "person", "vehicle", "animal", "package", "face"
-	Confidence  float64     `json:"confidence"`  // 0.0 - 1.0
-	Box         BoundingBox `json:"box"`
-	Zone        string      `json:"zone,omitempty"`
-	TrackID     int         `json:"track_id,omitempty"`
+	Label      string      `json:"label"`      // "person", "vehicle", "animal", "package", "face"
+	Confidence float64     `json:"confidence"` // 0.0 - 1.0
+	Box        BoundingBox `json:"box"`
+	Zone       string      `json:"zone,omitempty"`
+	TrackID    int         `json:"track_id,omitempty"`
 }
 
 // NVRCameraStats holds live runtime metrics for an active camera feed.
@@ -77,12 +77,12 @@ type EventClip struct {
 
 // LocalNVR is the embedded computer vision engine that monitors RTSP/WebRTC streams and runs local AI inference.
 type LocalNVR struct {
-	mu       sync.RWMutex
-	service  *Service
-	bus      events.Bus
-	zones    map[string][]MotionZone // Keyed by cameraID
-	clips    map[string]*EventClip   // Keyed by eventID
-	stats    map[string]*NVRCameraStats
+	mu      sync.RWMutex
+	service *Service
+	bus     events.Bus
+	zones   map[string][]MotionZone // Keyed by cameraID
+	clips   map[string]*EventClip   // Keyed by eventID
+	stats   map[string]*NVRCameraStats
 }
 
 // NewLocalNVR initializes the embedded local computer vision NVR.

@@ -131,15 +131,15 @@ func (r *StatisticsRepository) GetStatistics(ctx context.Context, filter history
 	var results []*history.StatisticsRecord
 	for rows.Next() {
 		var (
-			s            history.StatisticsRecord
-			startStr     string
-			endStr       string
-			createdStr   string
-			meanNull     sql.NullFloat64
-			minNull      sql.NullFloat64
-			maxNull      sql.NullFloat64
-			sumNull      sql.NullFloat64
-			unitNull     sql.NullString
+			s          history.StatisticsRecord
+			startStr   string
+			endStr     string
+			createdStr string
+			meanNull   sql.NullFloat64
+			minNull    sql.NullFloat64
+			maxNull    sql.NullFloat64
+			sumNull    sql.NullFloat64
+			unitNull   sql.NullString
 		)
 
 		err := rows.Scan(

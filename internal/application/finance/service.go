@@ -179,6 +179,26 @@ func (s *Service) RecordShoppingTrip(ctx context.Context, title string, amount f
 	return exp, nil
 }
 
+// RecordExpense records a categorized expense (used by Pantry receipt import, etc.).
+func (s *Service) RecordExpense(ctx context.Context, title string, amount float64, cat domainFinance.Category, subcat domainFinance.Subcategory, date time.Time, isFixed bool, notes string) (*domainFinance.Expense, error) {
+	exp := &domainFinance.Expense{
+		Title:         title,
+		Amount:        amount,
+		Currency:      "EUR",
+		Category:      cat,
+		Subcategory:   subcat,
+		ExpenseDate:   date,
+		IsFixed:       isFixed,
+		PaymentMethod: "card",
+		Notes:         notes,
+	}
+
+	if err := s.CreateExpense(ctx, exp); err != nil {
+		return nil, err
+	}
+	return exp, nil
+}
+
 // GenerateSavingsInsights executes Domus Smart AI Insights logic:
 // 1. Correlazione Bolletta-Energia Reale
 // 2. Contatore Spreco Alimentare Monetizzato

@@ -36,6 +36,6 @@ type MediaPlayer struct {
 type BroadcastAnnouncement struct {
 	AudioURL        string   `json:"audio_url"`
 	Message         string   `json:"message"`
-	Volume          float64  `json:"volume"` // e.g. 0.8
+	Volume          float64  `json:"volume"`                      // e.g. 0.8
 	TargetPlayerIDs []string `json:"target_player_ids,omitempty"` // empty for all
 }

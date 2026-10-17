@@ -340,5 +340,3 @@ func (h *AdvancedFeaturesHandler) UpdateBESSConfig(w http.ResponseWriter, r *htt
 		"schedule": sched,
 	})
 }
-
-

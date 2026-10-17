@@ -26,21 +26,21 @@ type AudioProcessResult struct {
 
 // VoicePipelineConfig defines endpoints and parameters for local Whisper and Piper.
 type VoicePipelineConfig struct {
-	WhisperEndpoint string  `json:"whisper_endpoint"` // e.g. "http://localhost:10300" (Faster-Whisper/Wyoming)
-	PiperEndpoint   string  `json:"piper_endpoint"`   // e.g. "http://localhost:10200" (Piper TTS/Wyoming)
-	Language        string  `json:"language"`         // "it", "en", etc.
-	VoiceModel      string  `json:"voice_model"`      // e.g. "it_IT-paola-medium"
-	VADThresholdRMS float64 `json:"vad_threshold_rms"`// RMS energy threshold to consider speech (e.g. 0.015)
-	SampleRate      int     `json:"sample_rate"`      // 16000 Hz standard
+	WhisperEndpoint string  `json:"whisper_endpoint"`  // e.g. "http://localhost:10300" (Faster-Whisper/Wyoming)
+	PiperEndpoint   string  `json:"piper_endpoint"`    // e.g. "http://localhost:10200" (Piper TTS/Wyoming)
+	Language        string  `json:"language"`          // "it", "en", etc.
+	VoiceModel      string  `json:"voice_model"`       // e.g. "it_IT-paola-medium"
+	VADThresholdRMS float64 `json:"vad_threshold_rms"` // RMS energy threshold to consider speech (e.g. 0.015)
+	SampleRate      int     `json:"sample_rate"`       // 16000 Hz standard
 }
 
 // VoicePipeline manages streaming audio buffering, VAD, transcription, and speech synthesis.
 type VoicePipeline struct {
-	mu            sync.Mutex
-	cfg           VoicePipelineConfig
-	assistantSvc  *Service
-	httpClient    *http.Client
-	audioBuffers  map[string]*bytes.Buffer // satelliteID -> accumulated PCM
+	mu           sync.Mutex
+	cfg          VoicePipelineConfig
+	assistantSvc *Service
+	httpClient   *http.Client
+	audioBuffers map[string]*bytes.Buffer // satelliteID -> accumulated PCM
 }
 
 // NewVoicePipeline constructs an offline local voice pipeline.

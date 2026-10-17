@@ -230,4 +230,3 @@ func TestAutomationHandler_BlueprintsAndDryRun(t *testing.T) {
 	assert.Contains(t, dryRunRes, "passed")
 	assert.Contains(t, dryRunRes, "traces")
 }
-

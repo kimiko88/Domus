@@ -22,25 +22,25 @@ const (
 type ClusterHealth string
 
 const (
-	HealthSynced    ClusterHealth = "synced"     // Both primary and standby communicating cleanly
-	HealthDegraded  ClusterHealth = "degraded"   // Peer unreachable, running in single-node mode
+	HealthSynced     ClusterHealth = "synced"      // Both primary and standby communicating cleanly
+	HealthDegraded   ClusterHealth = "degraded"    // Peer unreachable, running in single-node mode
 	HealthFailedOver ClusterHealth = "failed_over" // Secondary took over after primary failure
 )
 
 // ClusterStatus represents the runtime status of the HA failover manager.
 type ClusterStatus struct {
-	NodeID             string        `json:"node_id"`
-	Role               NodeRole      `json:"role"`
-	Health             ClusterHealth `json:"health"`
-	PeerAddress        string        `json:"peer_address"`
-	VirtualIP          string        `json:"virtual_ip,omitempty"`
-	LastHeartbeat      time.Time     `json:"last_heartbeat"`
-	HeartbeatIntervalMs int          `json:"heartbeat_interval_ms"`
-	FailoverTimeoutMs  int           `json:"failover_timeout_ms"`
-	MissedHeartbeats   int           `json:"missed_heartbeats"`
-	ReplicationLagMs   int           `json:"replication_lag_ms"`
-	WALSequenceNumber  int64         `json:"wal_sequence_number"`
-	UptimeSec          int64         `json:"uptime_sec"`
+	NodeID              string        `json:"node_id"`
+	Role                NodeRole      `json:"role"`
+	Health              ClusterHealth `json:"health"`
+	PeerAddress         string        `json:"peer_address"`
+	VirtualIP           string        `json:"virtual_ip,omitempty"`
+	LastHeartbeat       time.Time     `json:"last_heartbeat"`
+	HeartbeatIntervalMs int           `json:"heartbeat_interval_ms"`
+	FailoverTimeoutMs   int           `json:"failover_timeout_ms"`
+	MissedHeartbeats    int           `json:"missed_heartbeats"`
+	ReplicationLagMs    int           `json:"replication_lag_ms"`
+	WALSequenceNumber   int64         `json:"wal_sequence_number"`
+	UptimeSec           int64         `json:"uptime_sec"`
 }
 
 // HeartbeatPacket is exchanged between primary and standby hubs.
@@ -53,19 +53,19 @@ type HeartbeatPacket struct {
 
 // Service manages High Availability failover and cluster health.
 type Service struct {
-	mu                  sync.RWMutex
-	nodeID              string
-	role                NodeRole
-	peerAddress         string
-	virtualIP           string
-	lastHeartbeat       time.Time
-	missedHeartbeats    int
-	heartbeatInterval   time.Duration
-	failoverThreshold   int // Max missed heartbeats before failover
-	walSeq              int64
-	startedAt           time.Time
-	bus                 events.Bus
-	stopCh              chan struct{}
+	mu                sync.RWMutex
+	nodeID            string
+	role              NodeRole
+	peerAddress       string
+	virtualIP         string
+	lastHeartbeat     time.Time
+	missedHeartbeats  int
+	heartbeatInterval time.Duration
+	failoverThreshold int // Max missed heartbeats before failover
+	walSeq            int64
+	startedAt         time.Time
+	bus               events.Bus
+	stopCh            chan struct{}
 }
 
 // NewService constructs a dual-hub High Availability failover service.

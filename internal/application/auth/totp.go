@@ -123,4 +123,3 @@ func GenerateTOTPPasscode(secret string, t time.Time) string {
 	step := t.Unix() / TOTPPeriod
 	return generateHOTP(key, step)
 }
-

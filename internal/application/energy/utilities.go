@@ -15,14 +15,14 @@ const (
 
 // PulseMeter tracks reed switch or optical sensor impulse counts and converts to physical units.
 type PulseMeter struct {
-	mu           sync.RWMutex
-	ID           string      `json:"id"`
-	Type         UtilityType `json:"type"`
-	Unit         string      `json:"unit"`          // "m3", "L", "Smc"
-	PulsesPerUnit float64    `json:"pulses_per_unit"` // e.g. 1 pulse = 1 liter -> 1000 pulses/m3, or 100 pulses/Smc
-	TotalPulses  int64       `json:"total_pulses"`
-	TotalVolume  float64     `json:"total_volume"`
-	LastPulseAt  time.Time   `json:"last_pulse_at"`
+	mu            sync.RWMutex
+	ID            string      `json:"id"`
+	Type          UtilityType `json:"type"`
+	Unit          string      `json:"unit"`            // "m3", "L", "Smc"
+	PulsesPerUnit float64     `json:"pulses_per_unit"` // e.g. 1 pulse = 1 liter -> 1000 pulses/m3, or 100 pulses/Smc
+	TotalPulses   int64       `json:"total_pulses"`
+	TotalVolume   float64     `json:"total_volume"`
+	LastPulseAt   time.Time   `json:"last_pulse_at"`
 }
 
 // NewPulseMeter constructs a new utility impulse meter.

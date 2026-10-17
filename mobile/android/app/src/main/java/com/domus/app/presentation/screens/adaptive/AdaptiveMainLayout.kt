@@ -39,6 +39,7 @@ import com.domus.app.presentation.screens.kiosk.KioskSettingsScreen
 import com.domus.app.presentation.screens.light.LightControlSheet
 import com.domus.app.presentation.screens.notifications.NotificationHistoryScreen
 import com.domus.app.presentation.screens.presence.PresenceAndNfcScreen
+import com.domus.app.presentation.screens.pantry.PantryScreen
 import com.domus.app.presentation.screens.shopping.ShoppingListScreen
 import com.domus.app.presentation.screens.socket.SocketControlSheet
 import com.domus.app.presentation.theme.CyanAccent
@@ -93,6 +94,7 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
     var showDiagnostics by remember { mutableStateOf(false) }
     var showGuests by remember { mutableStateOf(false) }
     var showShopping by remember { mutableStateOf(false) }
+    var showPantry by remember { mutableStateOf(false) }
     var showChores by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
     var showPresenceNfc by remember { mutableStateOf(false) }
@@ -154,6 +156,7 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
                     SidebarButton(icon = "📡", title = "Diagnostica Mesh & Hub", onClick = { showDiagnostics = true }, accentColor = EmeraldSuccess)
                     SidebarButton(icon = "👥", title = "Accesso Ospiti & Membri", onClick = { showGuests = true }, accentColor = Color(0xFF6366F1))
                     SidebarButton(icon = "🛒", title = "Lista della Spesa", onClick = { showShopping = true }, accentColor = Color(0xFF10B981))
+                    SidebarButton(icon = "🍲", title = "Dispensa & Pasti", onClick = { showPantry = true }, accentColor = Color(0xFFF59E0B))
                     SidebarButton(icon = "💰", title = "Bilancio & Spese", onClick = { showFinance = true }, accentColor = Color(0xFF10B981))
                     SidebarButton(icon = "🧹", title = "Faccende Domestiche", onClick = { showChores = true }, accentColor = Color(0xFFF97316))
                     SidebarButton(icon = "🔔", title = "Centro Notifiche", onClick = { showNotifications = true }, accentColor = Color(0xFFEF4444))
@@ -320,6 +323,12 @@ fun TabletSplitView(viewModel: DashboardViewModel) {
     if (showFinance) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { showFinance = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
             FinanceScreen(viewModel = viewModel, onDismiss = { showFinance = false })
+        }
+    }
+
+    if (showPantry) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showPantry = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            PantryScreen(viewModel = viewModel, onDismiss = { showPantry = false })
         }
     }
 }

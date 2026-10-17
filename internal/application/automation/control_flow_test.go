@@ -154,6 +154,13 @@ func TestControlFlowActions(t *testing.T) {
 		t.Fatal("timed out waiting for parallel run completion")
 	}
 
+	for i := 0; i < 50; i++ {
+		if atomic.LoadInt32(&commandCount) == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	if atomic.LoadInt32(&commandCount) != 2 {
 		t.Fatalf("expected 2 commands from parallel, got %d", atomic.LoadInt32(&commandCount))
 	}

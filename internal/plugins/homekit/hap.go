@@ -14,28 +14,28 @@ const (
 	ServiceLightbulb            = "00000043-0000-1000-8000-0026BB765291"
 	ServiceSwitch               = "00000049-0000-1000-8000-0026BB765291"
 	ServiceThermostat           = "0000004A-0000-1000-8000-0026BB765291"
-	ServiceTemperatureSensor   = "0000008A-0000-1000-8000-0026BB765291"
-	ServiceHumiditySensor      = "00000082-0000-1000-8000-0026BB765291"
-	ServiceMotionSensor        = "00000085-0000-1000-8000-0026BB765291"
-	ServiceContactSensor       = "00000080-0000-1000-8000-0026BB765291"
+	ServiceTemperatureSensor    = "0000008A-0000-1000-8000-0026BB765291"
+	ServiceHumiditySensor       = "00000082-0000-1000-8000-0026BB765291"
+	ServiceMotionSensor         = "00000085-0000-1000-8000-0026BB765291"
+	ServiceContactSensor        = "00000080-0000-1000-8000-0026BB765291"
 
-	CharOn                     = "00000025-0000-1000-8000-0026BB765291"
-	CharBrightness             = "00000008-0000-1000-8000-0026BB765291"
-	CharCurrentTemperature     = "00000011-0000-1000-8000-0026BB765291"
-	CharTargetTemperature      = "00000035-0000-1000-8000-0026BB765291"
-	CharCurrentHeatingCooling  = "0000000F-0000-1000-8000-0026BB765291"
-	CharTargetHeatingCooling   = "00000033-0000-1000-8000-0026BB765291"
-	CharCurrentRelativeHumidity= "00000010-0000-1000-8000-0026BB765291"
-	CharMotionDetected         = "00000022-0000-1000-8000-0026BB765291"
-	CharContactSensorState     = "0000006A-0000-1000-8000-0026BB765291"
+	CharOn                      = "00000025-0000-1000-8000-0026BB765291"
+	CharBrightness              = "00000008-0000-1000-8000-0026BB765291"
+	CharCurrentTemperature      = "00000011-0000-1000-8000-0026BB765291"
+	CharTargetTemperature       = "00000035-0000-1000-8000-0026BB765291"
+	CharCurrentHeatingCooling   = "0000000F-0000-1000-8000-0026BB765291"
+	CharTargetHeatingCooling    = "00000033-0000-1000-8000-0026BB765291"
+	CharCurrentRelativeHumidity = "00000010-0000-1000-8000-0026BB765291"
+	CharMotionDetected          = "00000022-0000-1000-8000-0026BB765291"
+	CharContactSensorState      = "0000006A-0000-1000-8000-0026BB765291"
 )
 
 // Characteristic represents a HAP characteristic.
 type Characteristic struct {
-	IID         uint64 `json:"iid"`
-	Type        string `json:"type"`
-	Format      string `json:"format"` // bool, int, float, string
-	Value       any    `json:"value"`
+	IID         uint64   `json:"iid"`
+	Type        string   `json:"type"`
+	Format      string   `json:"format"` // bool, int, float, string
+	Value       any      `json:"value"`
 	Permissions []string `json:"perms"` // pr (read), pw (write), ev (notify)
 }
 
@@ -54,13 +54,13 @@ type Accessory struct {
 
 // BridgeConfig holds pairing credentials for Apple Home.
 type BridgeConfig struct {
-	Name        string `json:"name"`
-	SetupCode   string `json:"setup_code"` // 8-digit PIN e.g. "031-45-154"
-	SetupID     string `json:"setup_id"`   // 4-char e.g. "DOMU"
-	DeviceID    string `json:"device_id"`  // e.g. "52:54:00:12:34:56"
-	Port        int    `json:"port"`
-	SetupURI    string `json:"setup_uri"`  // X-HM://...
-	Paired      bool   `json:"paired"`
+	Name      string `json:"name"`
+	SetupCode string `json:"setup_code"` // 8-digit PIN e.g. "031-45-154"
+	SetupID   string `json:"setup_id"`   // 4-char e.g. "DOMU"
+	DeviceID  string `json:"device_id"`  // e.g. "52:54:00:12:34:56"
+	Port      int    `json:"port"`
+	SetupURI  string `json:"setup_uri"` // X-HM://...
+	Paired    bool   `json:"paired"`
 }
 
 // DefaultBridgeConfig constructs a standard HomeKit Bridge configuration.

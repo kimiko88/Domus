@@ -75,4 +75,73 @@ describe('AppSidebar.vue', () => {
 
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
+
+  it('renders all 5 macro-sections with counts', () => {
+    const wrapper = mount(AppSidebar, {
+      props: {
+        currentPath: '/'
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          RouterLink: {
+            template: '<a :href="to"><slot /></a>',
+            props: ['to']
+          }
+        }
+      }
+    })
+
+    const macroSections = wrapper.findAll('.macro-section')
+    expect(macroSections).toHaveLength(5)
+
+    const headers = wrapper.findAll('.macro-section-header')
+    expect(headers).toHaveLength(5)
+  })
+
+  it('toggles section accordion on header click', async () => {
+    const wrapper = mount(AppSidebar, {
+      props: {
+        currentPath: '/'
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          RouterLink: {
+            template: '<a :href="to"><slot /></a>',
+            props: ['to']
+          }
+        }
+      }
+    })
+
+    // Find the first macro section button
+    const firstHeader = wrapper.find('.macro-section-header')
+    const initialAria = firstHeader.attributes('aria-expanded')
+
+    await firstHeader.trigger('click')
+    expect(firstHeader.attributes('aria-expanded')).not.toBe(initialAria)
+  })
+
+  it('auto-expands the macro-section containing the active path', () => {
+    const wrapper = mount(AppSidebar, {
+      props: {
+        currentPath: '/automations'
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          RouterLink: {
+            template: '<a :href="to"><slot /></a>',
+            props: ['to']
+          }
+        }
+      }
+    })
+
+    // The automations macro-section should have 'has-active' and 'is-expanded' class
+    const activeMacro = wrapper.find('.macro-section.has-active')
+    expect(activeMacro.exists()).toBe(true)
+    expect(activeMacro.classes()).toContain('is-expanded')
+  })
 })

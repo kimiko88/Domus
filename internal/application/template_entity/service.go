@@ -16,8 +16,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/domus-hub/domus/internal/domain/entity"
-	domte "github.com/domus-hub/domus/internal/domain/template_entity"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domte "github.com/domus-hub/domus/internal/domain/template_entity"
 )
 
 var statesRegex = regexp.MustCompile(`states\(['"]([^'"]+)['"]\)`)

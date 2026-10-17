@@ -25,15 +25,15 @@ type Client interface {
 
 // UDPClient implements KNXnet/IP tunneling over UDP.
 type UDPClient struct {
-	addr        string
-	channelID   byte
-	seqCounter  uint32
-	conn        *net.UDPConn
-	connected   bool
-	mu          sync.Mutex
-	logger      *slog.Logger
-	inboundFn   InboundHandler
-	stopChan    chan struct{}
+	addr       string
+	channelID  byte
+	seqCounter uint32
+	conn       *net.UDPConn
+	connected  bool
+	mu         sync.Mutex
+	logger     *slog.Logger
+	inboundFn  InboundHandler
+	stopChan   chan struct{}
 }
 
 // NewUDPClient creates a new KNXnet/IP UDP client.

@@ -126,4 +126,3 @@ func TestIntegrationHandler_BrandCatalogAndDiscovery(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &discovered))
 	assert.Empty(t, discovered)
 }
-

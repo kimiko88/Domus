@@ -24,7 +24,7 @@ var (
 type KioskConfig struct {
 	Enabled               bool `json:"enabled"`
 	ScreensaverTimeoutSec int  `json:"screensaver_timeout_sec"` // e.g. 120s
-	WakeOnPresence        bool `json:"wake_on_presence"`         // wake display when radar/BLE detects presence
+	WakeOnPresence        bool `json:"wake_on_presence"`        // wake display when radar/BLE detects presence
 	ShowClock             bool `json:"show_clock"`
 	ShowWeather           bool `json:"show_weather"`
 }
@@ -42,15 +42,15 @@ type Widget struct {
 
 // Dashboard represents a customizable UI layout.
 type Dashboard struct {
-	ID              string      `json:"id"`
-	Title           string      `json:"title"`
-	Icon            string      `json:"icon"`
-	IsDefault       bool        `json:"is_default"`
-	SortOrder       int         `json:"sort_order"`
-	LayoutJSON      string      `json:"layout_json"`
-	KioskConfigJSON string      `json:"kiosk_config_json"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
+	ID              string    `json:"id"`
+	Title           string    `json:"title"`
+	Icon            string    `json:"icon"`
+	IsDefault       bool      `json:"is_default"`
+	SortOrder       int       `json:"sort_order"`
+	LayoutJSON      string    `json:"layout_json"`
+	KioskConfigJSON string    `json:"kiosk_config_json"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // DefaultKioskConfig returns default wall tablet parameters.
@@ -151,4 +151,3 @@ func ValidateShareToken(token string, secretKey []byte) (*ShareTokenPayload, err
 
 	return &p, nil
 }
-

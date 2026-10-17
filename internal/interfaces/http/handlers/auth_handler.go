@@ -299,12 +299,12 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
-		"id":          u.ID,
-		"username":    u.Username,
-		"role":        u.Role,
-		"email":       u.Email,
-		"two_factor":  twoFactorActive,
-		"created_at":  u.CreatedAt,
+		"id":         u.ID,
+		"username":   u.Username,
+		"role":       u.Role,
+		"email":      u.Email,
+		"two_factor": twoFactorActive,
+		"created_at": u.CreatedAt,
 	})
 }
 

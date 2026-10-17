@@ -38,10 +38,10 @@ type AlexaRequest struct {
 
 // AlexaCapability describes a capability supported by an endpoint.
 type AlexaCapability struct {
-	Type                  string   `json:"type"` // e.g. "AlexaInterface"
-	Interface             string   `json:"interface"` // e.g. "Alexa.PowerController"
-	Version               string   `json:"version"`   // e.g. "3"
-	Properties            *AlexaProperties `json:"properties,omitempty"`
+	Type       string           `json:"type"`      // e.g. "AlexaInterface"
+	Interface  string           `json:"interface"` // e.g. "Alexa.PowerController"
+	Version    string           `json:"version"`   // e.g. "3"
+	Properties *AlexaProperties `json:"properties,omitempty"`
 }
 
 // AlexaProperties describes whether states can be proactively reported or retrieved.

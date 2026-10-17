@@ -20,8 +20,10 @@ func (m *mockEntityRepo) GetByKey(ctx context.Context, key string) (*entity.Enti
 	return nil, entity.ErrEntityNotFound
 }
 
-func (m *mockEntityRepo) Create(ctx context.Context, e *entity.Entity) error          { return nil }
-func (m *mockEntityRepo) GetByID(ctx context.Context, id string) (*entity.Entity, error) { return nil, nil }
+func (m *mockEntityRepo) Create(ctx context.Context, e *entity.Entity) error { return nil }
+func (m *mockEntityRepo) GetByID(ctx context.Context, id string) (*entity.Entity, error) {
+	return nil, nil
+}
 func (m *mockEntityRepo) List(ctx context.Context, f entity.ListFilter) ([]*entity.Entity, error) {
 	return nil, nil
 }

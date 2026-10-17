@@ -22,12 +22,12 @@ type Client interface {
 
 // TCPClient is a thread-safe TCP socket client for Modbus.
 type TCPClient struct {
-	addr        string
-	timeout     time.Duration
-	mu          sync.Mutex
-	conn        net.Conn
-	connected   bool
-	txCounter   uint32
+	addr      string
+	timeout   time.Duration
+	mu        sync.Mutex
+	conn      net.Conn
+	connected bool
+	txCounter uint32
 }
 
 // NewTCPClient creates a new Modbus TCPClient.

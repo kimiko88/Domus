@@ -159,4 +159,3 @@ func TestWebhookHandler_OutboundRoutes(t *testing.T) {
 	r.ServeHTTP(delRr, delReq)
 	assert.Equal(t, http.StatusNoContent, delRr.Code)
 }
-

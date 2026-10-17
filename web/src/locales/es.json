@@ -19,6 +19,11 @@
     "no_data": "No hay datos disponibles"
   },
   "nav": {
+    "sectionOverview": "Resumen",
+    "sectionHome": "Hogar y Familia",
+    "sectionDevices": "Dispositivos y Espacios",
+    "sectionAutomations": "Automatizaciones y Medios",
+    "sectionSystem": "Sistema y Seguridad",
     "dashboard": "Panel de Control",
     "customDashboards": "Panel Tableta",
     "energy": "Energía y Solar",
@@ -43,6 +48,7 @@
     "templates": "Entidades Plantilla",
     "family": "Familia",
     "finance": "Finanzas del Hogar",
+    "pantry": "Despensa y Recetas",
     "settings": "Ajustes",
     "logout": "Cerrar Sesión",
     "guide": "Guía y Manual"

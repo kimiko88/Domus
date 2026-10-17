@@ -8,8 +8,8 @@ import (
 	"time"
 
 	appschedule "github.com/domus-hub/domus/internal/application/schedule"
-	domainschedule "github.com/domus-hub/domus/internal/domain/schedule"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domainschedule "github.com/domus-hub/domus/internal/domain/schedule"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"

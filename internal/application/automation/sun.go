@@ -8,9 +8,9 @@ import (
 
 // SunPosition contains the astronomical position of the sun.
 type SunPosition struct {
-	Elevation float64   `json:"elevation"`  // degrees above horizon (-90 to +90)
-	Azimuth   float64   `json:"azimuth"`    // degrees from true north (0 to 360)
-	IsDay     bool      `json:"is_day"`     // true if elevation > -0.833 degrees
+	Elevation float64   `json:"elevation"` // degrees above horizon (-90 to +90)
+	Azimuth   float64   `json:"azimuth"`   // degrees from true north (0 to 360)
+	IsDay     bool      `json:"is_day"`    // true if elevation > -0.833 degrees
 	Sunrise   time.Time `json:"sunrise"`
 	Sunset    time.Time `json:"sunset"`
 	SolarNoon time.Time `json:"solar_noon"`

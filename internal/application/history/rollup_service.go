@@ -156,4 +156,3 @@ func (s *RollupService) Start(ctx context.Context, interval time.Duration) {
 		}
 	}
 }
-

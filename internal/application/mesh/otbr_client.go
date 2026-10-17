@@ -22,14 +22,14 @@ const (
 
 // ThreadNeighbor represents a direct RF neighbor in the OpenThread mesh.
 type ThreadNeighbor struct {
-	ExtAddress     string     `json:"ext_address"`
-	Rloc16         string     `json:"rloc16"`
-	LinkQualityIn  int        `json:"link_quality_in"` // 0 - 3 (Thread LQI)
-	AverageRssi    int        `json:"average_rssi"`    // dBm, e.g. -65
-	Age            int        `json:"age_seconds"`
-	RxOnWhenIdle   bool       `json:"rx_on_when_idle"` // true for mains powered router
-	IsChild        bool       `json:"is_child"`
-	Role           ThreadRole `json:"role"`
+	ExtAddress    string     `json:"ext_address"`
+	Rloc16        string     `json:"rloc16"`
+	LinkQualityIn int        `json:"link_quality_in"` // 0 - 3 (Thread LQI)
+	AverageRssi   int        `json:"average_rssi"`    // dBm, e.g. -65
+	Age           int        `json:"age_seconds"`
+	RxOnWhenIdle  bool       `json:"rx_on_when_idle"` // true for mains powered router
+	IsChild       bool       `json:"is_child"`
+	Role          ThreadRole `json:"role"`
 }
 
 // ThreadLeaderData holds partition and leader metadata.

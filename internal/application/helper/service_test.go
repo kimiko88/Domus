@@ -7,8 +7,8 @@ import (
 	"time"
 
 	appHelper "github.com/domus-hub/domus/internal/application/helper"
-	domainHelper "github.com/domus-hub/domus/internal/domain/helper"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domainHelper "github.com/domus-hub/domus/internal/domain/helper"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	_ "modernc.org/sqlite"
@@ -161,4 +161,3 @@ func TestHelperService_Operations(t *testing.T) {
 		t.Errorf("expected 5.0 when window open, got %s", h.State)
 	}
 }
-

@@ -111,12 +111,12 @@ func ParseBTHomeV2(data []byte) (*BTHomeSensorData, error) {
 
 // IBeaconData holds parsed Apple iBeacon advertisement payload.
 type IBeaconData struct {
-	UUID            string  `json:"uuid"`
-	Major           uint16  `json:"major"`
-	Minor           uint16  `json:"minor"`
-	MeasuredPower   int8    `json:"measured_power"` // RSSI at 1 meter
-	RSSI            int     `json:"rssi"`
-	EstimatedDistM  float64 `json:"estimated_dist_m"`
+	UUID           string  `json:"uuid"`
+	Major          uint16  `json:"major"`
+	Minor          uint16  `json:"minor"`
+	MeasuredPower  int8    `json:"measured_power"` // RSSI at 1 meter
+	RSSI           int     `json:"rssi"`
+	EstimatedDistM float64 `json:"estimated_dist_m"`
 }
 
 // ParseIBeacon decodes an Apple iBeacon payload (25 bytes standard format).

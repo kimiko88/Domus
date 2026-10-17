@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	ErrCloudDisabled    = errors.New("cloud voice assistant integration is disabled")
-	ErrUnauthorized     = errors.New("invalid or missing authorization token")
+	ErrCloudDisabled     = errors.New("cloud voice assistant integration is disabled")
+	ErrUnauthorized      = errors.New("invalid or missing authorization token")
 	ErrUnsupportedIntent = errors.New("unsupported directive or intent")
 )
 

@@ -6,19 +6,19 @@ import (
 )
 
 type HourlySolarProduction struct {
-	Time            time.Time `json:"time"`
-	RadiationWm2    float64   `json:"radiation_wm2"`
-	EstimatedKwh    float64   `json:"estimated_kwh"`
-	EstimatedWatts  float64   `json:"estimated_watts"`
+	Time           time.Time `json:"time"`
+	RadiationWm2   float64   `json:"radiation_wm2"`
+	EstimatedKwh   float64   `json:"estimated_kwh"`
+	EstimatedWatts float64   `json:"estimated_watts"`
 }
 
 type SolarForecast struct {
-	InstalledKwPeak float64                 `json:"installed_kw_peak"`
-	TiltDegrees     float64                 `json:"tilt_degrees"`
-	EfficiencyRatio float64                 `json:"efficiency_ratio"`
-	TodayTotalKwh   float64                 `json:"today_total_kwh"`
-	TomorrowTotalKwh float64                `json:"tomorrow_total_kwh"`
-	Hourly          []HourlySolarProduction `json:"hourly"`
+	InstalledKwPeak  float64                 `json:"installed_kw_peak"`
+	TiltDegrees      float64                 `json:"tilt_degrees"`
+	EfficiencyRatio  float64                 `json:"efficiency_ratio"`
+	TodayTotalKwh    float64                 `json:"today_total_kwh"`
+	TomorrowTotalKwh float64                 `json:"tomorrow_total_kwh"`
+	Hourly           []HourlySolarProduction `json:"hourly"`
 }
 
 // ComputeSolarForecast calculates photovoltaic output from radiation data, panel capacity (kWp), tilt angle, and PR.

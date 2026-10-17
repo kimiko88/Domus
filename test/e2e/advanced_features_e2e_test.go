@@ -209,11 +209,14 @@ func TestAdvancedFeatures_EndToEnd(t *testing.T) {
 	t.Run("Flow B: Chores Lifecycle and Automated Rescheduling", func(t *testing.T) {
 		var notificationReceived bool
 		var nWg sync.WaitGroup
+		var once sync.Once
 		nWg.Add(1)
 
 		unsub := bus.Subscribe(events.NotificationCreated, func(ctx context.Context, evt events.Event) error {
-			notificationReceived = true
-			nWg.Done()
+			once.Do(func() {
+				notificationReceived = true
+				nWg.Done()
+			})
 			return nil
 		})
 		defer unsub()
@@ -362,5 +365,3 @@ func TestAdvancedFeatures_EndToEnd(t *testing.T) {
 		assert.NotZero(t, pos.Sunset)
 	})
 }
-
-

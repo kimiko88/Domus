@@ -22,13 +22,13 @@ type ZWaveValueID struct {
 
 // ZWaveNode represents a discovered Z-Wave device.
 type ZWaveNode struct {
-	NodeID       int                    `json:"nodeId"`
-	Name         string                 `json:"name"`
-	Location     string                 `json:"location"`
-	Ready        bool                   `json:"ready"`
-	Status       string                 `json:"status"` // alive, asleep, dead
-	DeviceClass  string                 `json:"deviceClass,omitempty"`
-	Values       map[string]any         `json:"values"`
+	NodeID      int            `json:"nodeId"`
+	Name        string         `json:"name"`
+	Location    string         `json:"location"`
+	Ready       bool           `json:"ready"`
+	Status      string         `json:"status"` // alive, asleep, dead
+	DeviceClass string         `json:"deviceClass,omitempty"`
+	Values      map[string]any `json:"values"`
 }
 
 // WSMessage represents a JSON-RPC message exchanged with the Z-Wave JS UI server.
@@ -49,10 +49,10 @@ type Client struct {
 	wsURL   string
 	handler ValueUpdatedHandler
 
-	mu        sync.Mutex
-	conn      *websocket.Conn
-	active    bool
-	stopCh    chan struct{}
+	mu     sync.Mutex
+	conn   *websocket.Conn
+	active bool
+	stopCh chan struct{}
 }
 
 // NewClient constructs a new Z-Wave JS WebSocket client.

@@ -153,13 +153,13 @@ func (r *TemplateEntityRepository) Delete(ctx context.Context, id string) error 
 
 func (r *TemplateEntityRepository) scanTemplateEntity(row *sql.Row) (*template_entity.TemplateEntity, error) {
 	var (
-		e           template_entity.TemplateEntity
-		sourcesStr  string
+		e            template_entity.TemplateEntity
+		sourcesStr   string
 		createdAtStr string
 		updatedAtStr string
-		unitNull    sql.NullString
-		classNull   sql.NullString
-		iconNull    sql.NullString
+		unitNull     sql.NullString
+		classNull    sql.NullString
+		iconNull     sql.NullString
 	)
 
 	err := row.Scan(
@@ -184,13 +184,13 @@ func (r *TemplateEntityRepository) scanTemplateEntity(row *sql.Row) (*template_e
 
 func (r *TemplateEntityRepository) scanRow(rows *sql.Rows) (*template_entity.TemplateEntity, error) {
 	var (
-		e           template_entity.TemplateEntity
-		sourcesStr  string
+		e            template_entity.TemplateEntity
+		sourcesStr   string
 		createdAtStr string
 		updatedAtStr string
-		unitNull    sql.NullString
-		classNull   sql.NullString
-		iconNull    sql.NullString
+		unitNull     sql.NullString
+		classNull    sql.NullString
+		iconNull     sql.NullString
 	)
 
 	err := rows.Scan(

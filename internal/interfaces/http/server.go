@@ -8,32 +8,29 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/domus-hub/domus/internal/application/auth"
-	appauto "github.com/domus-hub/domus/internal/application/automation"
-	appchore "github.com/domus-hub/domus/internal/application/chore"
-	appdash "github.com/domus-hub/domus/internal/application/dashboard"
-	"github.com/domus-hub/domus/internal/application/energy"
-	apphelper "github.com/domus-hub/domus/internal/application/helper"
-	"github.com/domus-hub/domus/internal/application/presence"
-	appscene "github.com/domus-hub/domus/internal/application/scene"
-	"github.com/domus-hub/domus/internal/domain/events"
-	"github.com/domus-hub/domus/internal/domain/user"
-	"github.com/domus-hub/domus/internal/infrastructure/config"
-	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	appalarm "github.com/domus-hub/domus/internal/application/alarm"
 	appassistant "github.com/domus-hub/domus/internal/application/assistant"
+	"github.com/domus-hub/domus/internal/application/auth"
+	appauto "github.com/domus-hub/domus/internal/application/automation"
 	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
+	appchore "github.com/domus-hub/domus/internal/application/chore"
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	appcloudassistant "github.com/domus-hub/domus/internal/application/cloud_assistant"
+	appdash "github.com/domus-hub/domus/internal/application/dashboard"
+	"github.com/domus-hub/domus/internal/application/energy"
 	appfinance "github.com/domus-hub/domus/internal/application/finance"
+	apphelper "github.com/domus-hub/domus/internal/application/helper"
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
 	appota "github.com/domus-hub/domus/internal/application/ota"
+	apppantry "github.com/domus-hub/domus/internal/application/pantry"
+	"github.com/domus-hub/domus/internal/application/presence"
+	appscene "github.com/domus-hub/domus/internal/application/scene"
 	appschedule "github.com/domus-hub/domus/internal/application/schedule"
 	appscript "github.com/domus-hub/domus/internal/application/script"
 	appshop "github.com/domus-hub/domus/internal/application/shopping"
@@ -43,6 +40,11 @@ import (
 	appweather "github.com/domus-hub/domus/internal/application/weather"
 	appwebhook "github.com/domus-hub/domus/internal/application/webhook"
 	appzone "github.com/domus-hub/domus/internal/application/zone"
+	"github.com/domus-hub/domus/internal/domain/events"
+	domainShop "github.com/domus-hub/domus/internal/domain/shopping"
+	"github.com/domus-hub/domus/internal/domain/user"
+	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
@@ -796,6 +798,22 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					})
 				}
 
+				// Household Food Inventory, Recipes, Meal Planning & Receipt OCR
+				if srv.repos.Pantry != nil {
+					var finRecorder apppantry.FinanceRecorder
+					if srv.repos.Finance != nil {
+						finRecorder = appfinance.NewService(srv.repos.Finance, srv.bus)
+					}
+					var shopAdder apppantry.ShoppingListAdder
+					if srv.repos.Shopping != nil {
+						shopSvc := appshop.NewService(srv.repos.Shopping, srv.bus)
+						shopAdder = &shoppingPantryAdapter{svc: shopSvc}
+					}
+					pantrySvc := apppantry.NewService(srv.repos.Pantry, srv.bus, finRecorder, shopAdder, nil)
+					pantryH := handlers.NewPantryHandler(pantrySvc)
+					pantryH.RegisterRoutes(domainRouter)
+				}
+
 				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks
 				if srv.repos.DB != nil {
 					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil)
@@ -883,4 +901,13 @@ func (s *Server) Start() error {
 // Shutdown gracefully stops the HTTP server without interrupting active connections.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+type shoppingPantryAdapter struct {
+	svc *appshop.Service
+}
+
+func (a *shoppingPantryAdapter) AddItem(ctx context.Context, title string, quantity string, category string, addedBy string) error {
+	_, err := a.svc.AddItem(ctx, title, quantity, domainShop.Category(category), addedBy)
+	return err
 }

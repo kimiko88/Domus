@@ -25,10 +25,10 @@ type PushSender interface {
 
 // PushDispatchReport summarizes the result of a push broadcast or user dispatch.
 type PushDispatchReport struct {
-	MessageID   string   `json:"message_id"`
-	TotalTokens int      `json:"total_tokens"`
-	Successes   int      `json:"successes"`
-	Failures    int      `json:"failures"`
+	MessageID    string   `json:"message_id"`
+	TotalTokens  int      `json:"total_tokens"`
+	Successes    int      `json:"successes"`
+	Failures     int      `json:"failures"`
 	FailedTokens []string `json:"failed_tokens,omitempty"`
 }
 

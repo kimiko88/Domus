@@ -25,6 +25,7 @@ import MediaPlayerView from '../views/MediaPlayerView.vue'
 import MeshMapView from '../views/MeshMapView.vue'
 import StoreView from '../views/StoreView.vue'
 import ShoppingListView from '../views/ShoppingListView.vue'
+import PantryView from '../views/PantryView.vue'
 import FinanceView from '../views/FinanceView.vue'
 import GuideView from '../views/GuideView.vue'
 import LogbookView from '../views/LogbookView.vue'
@@ -110,6 +111,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'shopping',
     component: ShoppingListView,
     meta: { requiresAuth: true, title: 'Lista Spesa' }
+  },
+  {
+    path: '/pantry',
+    name: 'pantry',
+    component: PantryView,
+    meta: { requiresAuth: true, title: 'Dispensa & Ricettario' }
   },
   {
     path: '/finance',

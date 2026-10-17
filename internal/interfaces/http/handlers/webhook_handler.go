@@ -258,4 +258,3 @@ func (h *WebhookHandler) TestOutbound(w http.ResponseWriter, r *http.Request) {
 		"message": "outbound webhook test delivered successfully",
 	})
 }
-

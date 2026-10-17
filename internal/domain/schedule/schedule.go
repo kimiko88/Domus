@@ -14,9 +14,9 @@ var (
 )
 
 type TimeSlot struct {
-	Start string  `json:"start"` // "06:30"
-	End   string  `json:"end"`   // "08:00"
-	Value float64 `json:"value"` // e.g. 21.0 (temperature in °C, or 1.0 for on)
+	Start string  `json:"start"`           // "06:30"
+	End   string  `json:"end"`             // "08:00"
+	Value float64 `json:"value"`           // e.g. 21.0 (temperature in °C, or 1.0 for on)
 	State string  `json:"state,omitempty"` // optional semantic label: "comfort", "eco", "on"
 }
 

@@ -14,7 +14,7 @@ import (
 type InverterMode string
 
 const (
-	InverterModeSelfConsumption InverterMode = "SELF_CONSUMPTION" // Normal solar self-consumption
+	InverterModeSelfConsumption InverterMode = "SELF_CONSUMPTION"  // Normal solar self-consumption
 	InverterModeForceChargeGrid InverterMode = "FORCE_CHARGE_GRID" // Force charging battery from grid (cheap/negative price)
 	InverterModeForceDischarge  InverterMode = "FORCE_DISCHARGE"   // Force battery discharge (peak shaving during expensive hours)
 	InverterModeHoldDischarge   InverterMode = "HOLD_DISCHARGE"    // Hold battery state of charge, do not discharge
@@ -22,41 +22,41 @@ const (
 
 // BESSConfig defines battery system parameters and operational constraints.
 type BESSConfig struct {
-	CapacityKWh           float64 `json:"capacity_kwh"`            // e.g. 10.0 kWh
-	MaxChargePowerKW      float64 `json:"max_charge_power_kw"`     // e.g. 3.0 kW
-	MaxDischargePowerKW   float64 `json:"max_discharge_power_kw"`  // e.g. 3.0 kW
-	MinReserveSoC         float64 `json:"min_reserve_soc"`         // e.g. 10.0% minimum backup buffer
-	MaxTargetSoC          float64 `json:"max_target_soc"`          // e.g. 100.0%
-	RoundTripEfficiency   float64 `json:"round_trip_efficiency"`   // e.g. 0.92 (92%)
-	NegativePriceArbitrage bool   `json:"negative_price_arbitrage"`// Automatically charge when price <= 0
-	PeakShavingEnabled    bool    `json:"peak_shaving_enabled"`    // Discharge to shave expensive peaks
-	TargetBatteryEntity   string  `json:"target_battery_entity"`   // e.g. "sensor.home_battery_soc"
-	InverterControlEntity string  `json:"inverter_control_entity"` // e.g. "select.inverter_work_mode"
+	CapacityKWh            float64 `json:"capacity_kwh"`             // e.g. 10.0 kWh
+	MaxChargePowerKW       float64 `json:"max_charge_power_kw"`      // e.g. 3.0 kW
+	MaxDischargePowerKW    float64 `json:"max_discharge_power_kw"`   // e.g. 3.0 kW
+	MinReserveSoC          float64 `json:"min_reserve_soc"`          // e.g. 10.0% minimum backup buffer
+	MaxTargetSoC           float64 `json:"max_target_soc"`           // e.g. 100.0%
+	RoundTripEfficiency    float64 `json:"round_trip_efficiency"`    // e.g. 0.92 (92%)
+	NegativePriceArbitrage bool    `json:"negative_price_arbitrage"` // Automatically charge when price <= 0
+	PeakShavingEnabled     bool    `json:"peak_shaving_enabled"`     // Discharge to shave expensive peaks
+	TargetBatteryEntity    string  `json:"target_battery_entity"`    // e.g. "sensor.home_battery_soc"
+	InverterControlEntity  string  `json:"inverter_control_entity"`  // e.g. "select.inverter_work_mode"
 }
 
 // BESSHourlySlot represents the optimized arbitrage decision for an hour.
 type BESSHourlySlot struct {
-	Hour               int          `json:"hour"`                 // 0 - 23
-	PricePerKWh        float64      `json:"price_per_kwh"`        // Grid tariff EUR/kWh
-	ForecastSolarKWh   float64      `json:"forecast_solar_kwh"`   // Expected solar yield
-	ExpectedHomeLoadKW float64      `json:"expected_home_load_kw"`// Expected house consumption
-	Mode               InverterMode `json:"mode"`                 // Planned inverter mode
-	TargetPowerKW      float64      `json:"target_power_kw"`      // +Charge, -Discharge
-	EstimatedSoCEnd    float64      `json:"estimated_soc_end"`    // Estimated SoC % at end of hour
-	EstimatedSavingsEUR float64     `json:"estimated_savings_eur"`// Financial gain from arbitrage
+	Hour                int          `json:"hour"`                  // 0 - 23
+	PricePerKWh         float64      `json:"price_per_kwh"`         // Grid tariff EUR/kWh
+	ForecastSolarKWh    float64      `json:"forecast_solar_kwh"`    // Expected solar yield
+	ExpectedHomeLoadKW  float64      `json:"expected_home_load_kw"` // Expected house consumption
+	Mode                InverterMode `json:"mode"`                  // Planned inverter mode
+	TargetPowerKW       float64      `json:"target_power_kw"`       // +Charge, -Discharge
+	EstimatedSoCEnd     float64      `json:"estimated_soc_end"`     // Estimated SoC % at end of hour
+	EstimatedSavingsEUR float64      `json:"estimated_savings_eur"` // Financial gain from arbitrage
 }
 
 // BESSSchedule contains the 24-hour predictive plan for the battery.
 type BESSSchedule struct {
-	Date                string           `json:"date"`
-	CurrentSoC          float64          `json:"current_soc"`
-	CurrentMode         InverterMode     `json:"current_mode"`
-	CurrentPowerKW      float64          `json:"current_power_kw"`
-	HourlyPlan          []BESSHourlySlot `json:"hourly_plan"`
-	TotalArbitrageEUR   float64          `json:"total_arbitrage_eur"`
-	GridChargedKWh      float64          `json:"grid_charged_kwh"`
-	PeakDischargedKWh   float64          `json:"peak_discharged_kwh"`
-	GeneratedAt         time.Time        `json:"generated_at"`
+	Date              string           `json:"date"`
+	CurrentSoC        float64          `json:"current_soc"`
+	CurrentMode       InverterMode     `json:"current_mode"`
+	CurrentPowerKW    float64          `json:"current_power_kw"`
+	HourlyPlan        []BESSHourlySlot `json:"hourly_plan"`
+	TotalArbitrageEUR float64          `json:"total_arbitrage_eur"`
+	GridChargedKWh    float64          `json:"grid_charged_kwh"`
+	PeakDischargedKWh float64          `json:"peak_discharged_kwh"`
+	GeneratedAt       time.Time        `json:"generated_at"`
 }
 
 // BESSArbitrageOptimizer orchestrates predictive battery charging and peak shaving.
@@ -251,13 +251,13 @@ func (b *BESSArbitrageOptimizer) computeScheduleLocked(now time.Time, currentSoC
 		}
 
 		hourlyPlan[h] = BESSHourlySlot{
-			Hour:               h,
-			PricePerKWh:        t.PricePerKWh,
-			ForecastSolarKWh:   solar,
-			ExpectedHomeLoadKW: load,
-			Mode:               mode,
-			TargetPowerKW:      targetPower,
-			EstimatedSoCEnd:    math.Round(simSoC*10) / 10,
+			Hour:                h,
+			PricePerKWh:         t.PricePerKWh,
+			ForecastSolarKWh:    solar,
+			ExpectedHomeLoadKW:  load,
+			Mode:                mode,
+			TargetPowerKW:       targetPower,
+			EstimatedSoCEnd:     math.Round(simSoC*10) / 10,
 			EstimatedSavingsEUR: math.Round(savings*100) / 100,
 		}
 	}

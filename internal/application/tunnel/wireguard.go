@@ -12,41 +12,41 @@ import (
 
 // WireGuardPeer represents a connected client peer (e.g. iPhone, Android, Laptop).
 type WireGuardPeer struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	PublicKey    string    `json:"public_key"`
-	AllowedIPs   string    `json:"allowed_ips"`   // e.g. "10.14.0.2/32"
-	ClientIP     string    `json:"client_ip"`     // e.g. "10.14.0.2"
-	Endpoint     string    `json:"endpoint"`      // Optional endpoint for hub to connect to peer
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	PublicKey     string    `json:"public_key"`
+	AllowedIPs    string    `json:"allowed_ips"` // e.g. "10.14.0.2/32"
+	ClientIP      string    `json:"client_ip"`   // e.g. "10.14.0.2"
+	Endpoint      string    `json:"endpoint"`    // Optional endpoint for hub to connect to peer
 	LastHandshake time.Time `json:"last_handshake"`
-	RxBytes      int64     `json:"rx_bytes"`
-	TxBytes      int64     `json:"tx_bytes"`
-	Enabled      bool      `json:"enabled"`
-	CreatedAt    time.Time `json:"created_at"`
+	RxBytes       int64     `json:"rx_bytes"`
+	TxBytes       int64     `json:"tx_bytes"`
+	Enabled       bool      `json:"enabled"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // WireGuardServerConfig holds the hub's local WireGuard interface parameters.
 type WireGuardServerConfig struct {
-	ListenPort     int      `json:"listen_port"`      // Default 51820
-	InterfaceIP    string   `json:"interface_ip"`     // e.g. "10.14.0.1/24"
-	PublicKey      string   `json:"public_key"`
-	EndpointHost   string   `json:"endpoint_host"`    // Public IP or DDNS (e.g. "domus.mydomain.org")
-	DNS            string   `json:"dns"`              // e.g. "10.14.0.1, 1.1.1.1"
-	AllowedIPs     string   `json:"allowed_ips"`      // e.g. "10.14.0.0/24, 192.168.1.0/24"
-	PeersCount     int      `json:"peers_count"`
-	ActivePeers    int      `json:"active_peers"`
-	Status         string   `json:"status"`           // "active", "standby"
+	ListenPort   int    `json:"listen_port"`  // Default 51820
+	InterfaceIP  string `json:"interface_ip"` // e.g. "10.14.0.1/24"
+	PublicKey    string `json:"public_key"`
+	EndpointHost string `json:"endpoint_host"` // Public IP or DDNS (e.g. "domus.mydomain.org")
+	DNS          string `json:"dns"`           // e.g. "10.14.0.1, 1.1.1.1"
+	AllowedIPs   string `json:"allowed_ips"`   // e.g. "10.14.0.0/24, 192.168.1.0/24"
+	PeersCount   int    `json:"peers_count"`
+	ActivePeers  int    `json:"active_peers"`
+	Status       string `json:"status"` // "active", "standby"
 }
 
 // ClientPeerConfig holds the generated config and QR for a newly enrolled client.
 type ClientPeerConfig struct {
-	PeerID          string `json:"peer_id"`
-	PeerName        string `json:"peer_name"`
-	PrivateKey      string `json:"private_key"`
-	PublicKey       string `json:"public_key"`
-	ClientIP        string `json:"client_ip"`
-	ConfigText      string `json:"config_text"`
-	QRCodeDataURI   string `json:"qr_code_data_uri"` // SVG or Data-URI string for mobile scan
+	PeerID        string `json:"peer_id"`
+	PeerName      string `json:"peer_name"`
+	PrivateKey    string `json:"private_key"`
+	PublicKey     string `json:"public_key"`
+	ClientIP      string `json:"client_ip"`
+	ConfigText    string `json:"config_text"`
+	QRCodeDataURI string `json:"qr_code_data_uri"` // SVG or Data-URI string for mobile scan
 }
 
 // GenerateKeyPair generates a cryptographically secure WireGuard Curve25519 keypair.

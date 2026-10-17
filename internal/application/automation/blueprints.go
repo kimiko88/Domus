@@ -19,11 +19,11 @@ type BlueprintParameter struct {
 
 // Blueprint represents a pre-packaged automation template.
 type Blueprint struct {
-	ID          string               `json:"id"`
-	Title       string               `json:"title"`
-	Description string               `json:"description"`
-	Category    string               `json:"category"` // "comfort", "energy", "security", "lighting"
-	Parameters  []BlueprintParameter `json:"parameters"`
+	ID          string                                                      `json:"id"`
+	Title       string                                                      `json:"title"`
+	Description string                                                      `json:"description"`
+	Category    string                                                      `json:"category"` // "comfort", "energy", "security", "lighting"
+	Parameters  []BlueprintParameter                                        `json:"parameters"`
 	Factory     func(params map[string]string) (*domauto.Automation, error) `json:"-"`
 }
 

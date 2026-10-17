@@ -91,6 +91,18 @@ const (
 
 	// FinanceBudgetAlert fires when spending approaches or exceeds a category budget limit.
 	FinanceBudgetAlert EventType = "finance.budget_alert"
+
+	// PantryLowStock fires when a pantry item quantity drops to or below its minimum threshold.
+	PantryLowStock EventType = "pantry.low_stock"
+
+	// PantryExpiringAlert fires when pantry items are nearing or past their expiration date.
+	PantryExpiringAlert EventType = "pantry.expiring_alert"
+
+	// MealPlanConsumed fires when a planned meal is prepared and pantry stocks are scaled and deducted.
+	MealPlanConsumed EventType = "meal_plan.consumed"
+
+	// ReceiptProcessed fires when a scanned receipt is parsed and imported into pantry and finance.
+	ReceiptProcessed EventType = "receipt.processed"
 )
 
 // Event is the common envelope for all domain events.

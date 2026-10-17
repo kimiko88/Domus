@@ -540,6 +540,178 @@ class DashboardViewModel(
         }
     }
 
+    // --- PANTRY, RECIPES, MEAL PLANS & RECEIPT OCR ---
+    private val _pantryItems = MutableStateFlow<List<PantryItemDto>>(emptyList())
+    val pantryItems: StateFlow<List<PantryItemDto>> = _pantryItems.asStateFlow()
+
+    private val _recipes = MutableStateFlow<List<RecipeDto>>(emptyList())
+    val recipes: StateFlow<List<RecipeDto>> = _recipes.asStateFlow()
+
+    private val _mealPlans = MutableStateFlow<List<MealPlanDto>>(emptyList())
+    val mealPlans: StateFlow<List<MealPlanDto>> = _mealPlans.asStateFlow()
+
+    private val _isPantryLoading = MutableStateFlow(false)
+    val isPantryLoading: StateFlow<Boolean> = _isPantryLoading.asStateFlow()
+
+    private val _lastConsumedResult = MutableStateFlow<ConsumeMealPlanResponseDto?>(null)
+    val lastConsumedResult: StateFlow<ConsumeMealPlanResponseDto?> = _lastConsumedResult.asStateFlow()
+
+    private val _parsedReceipt = MutableStateFlow<ReceiptDto?>(null)
+    val parsedReceipt: StateFlow<ReceiptDto?> = _parsedReceipt.asStateFlow()
+
+    private val _receiptImportResult = MutableStateFlow<ReceiptImportResultDto?>(null)
+    val receiptImportResult: StateFlow<ReceiptImportResultDto?> = _receiptImportResult.asStateFlow()
+
+    fun loadPantry() {
+        viewModelScope.launch {
+            _isPantryLoading.value = true
+            val res = apiClient.fetchPantryItems(getBaseUrl(), getToken())
+            if (res.isSuccess) {
+                _pantryItems.value = res.getOrDefault(emptyList())
+            }
+            _isPantryLoading.value = false
+        }
+    }
+
+    fun updatePantryStock(id: String, delta: Double) {
+        viewModelScope.launch {
+            val res = apiClient.updatePantryStock(getBaseUrl(), getToken(), id, delta = delta)
+            if (res.isSuccess) {
+                loadPantry()
+            }
+        }
+    }
+
+    fun createPantryItem(req: CreatePantryItemRequestDto, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.createPantryItem(getBaseUrl(), getToken(), req)
+            val success = res.isSuccess
+            if (success) {
+                loadPantry()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun deletePantryItem(id: String) {
+        viewModelScope.launch {
+            val res = apiClient.deletePantryItem(getBaseUrl(), getToken(), id)
+            if (res.isSuccess) {
+                loadPantry()
+            }
+        }
+    }
+
+    fun loadRecipes() {
+        viewModelScope.launch {
+            val res = apiClient.fetchRecipes(getBaseUrl(), getToken())
+            if (res.isSuccess) {
+                _recipes.value = res.getOrDefault(emptyList())
+            }
+        }
+    }
+
+    fun createRecipe(req: CreateRecipeRequestDto, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.createRecipe(getBaseUrl(), getToken(), req)
+            val success = res.isSuccess
+            if (success) {
+                loadRecipes()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun deleteRecipe(id: String) {
+        viewModelScope.launch {
+            val res = apiClient.deleteRecipe(getBaseUrl(), getToken(), id)
+            if (res.isSuccess) {
+                loadRecipes()
+            }
+        }
+    }
+
+    fun loadMealPlans(startDate: String? = null, endDate: String? = null) {
+        viewModelScope.launch {
+            val res = apiClient.fetchMealPlans(getBaseUrl(), getToken(), startDate, endDate)
+            if (res.isSuccess) {
+                _mealPlans.value = res.getOrDefault(emptyList())
+            }
+        }
+    }
+
+    fun createMealPlan(req: CreateMealPlanRequestDto, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.createMealPlan(getBaseUrl(), getToken(), req)
+            val success = res.isSuccess
+            if (success) {
+                loadMealPlans()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun consumeMealPlan(planId: String, personsCount: Int? = null, onComplete: ((ConsumeMealPlanResponseDto?) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.consumeMealPlan(getBaseUrl(), getToken(), planId, personsCount)
+            if (res.isSuccess) {
+                val data = res.getOrNull()
+                _lastConsumedResult.value = data
+                loadMealPlans()
+                loadPantry()
+                onComplete?.invoke(data)
+            } else {
+                onComplete?.invoke(null)
+            }
+        }
+    }
+
+    fun deleteMealPlan(id: String) {
+        viewModelScope.launch {
+            val res = apiClient.deleteMealPlan(getBaseUrl(), getToken(), id)
+            if (res.isSuccess) {
+                loadMealPlans()
+            }
+        }
+    }
+
+    fun parseReceipt(rawText: String, onComplete: ((ReceiptDto?) -> Unit)? = null) {
+        viewModelScope.launch {
+            _isPantryLoading.value = true
+            val res = apiClient.parseReceipt(getBaseUrl(), getToken(), rawText)
+            _isPantryLoading.value = false
+            if (res.isSuccess) {
+                val parsed = res.getOrNull()
+                _parsedReceipt.value = parsed
+                onComplete?.invoke(parsed)
+            } else {
+                onComplete?.invoke(null)
+            }
+        }
+    }
+
+    fun importReceipt(receipt: ReceiptDto, autoFinance: Boolean = true, autoPantry: Boolean = true, onComplete: ((ReceiptImportResultDto?) -> Unit)? = null) {
+        viewModelScope.launch {
+            _isPantryLoading.value = true
+            val req = ReceiptImportRequestDto(
+                receipt = receipt,
+                auto_add_to_finance = autoFinance,
+                auto_update_pantry = autoPantry
+            )
+            val res = apiClient.importReceipt(getBaseUrl(), getToken(), req)
+            _isPantryLoading.value = false
+            if (res.isSuccess) {
+                val result = res.getOrNull()
+                _receiptImportResult.value = result
+                loadPantry()
+                loadFinance()
+                onComplete?.invoke(result)
+            } else {
+                onComplete?.invoke(null)
+            }
+        }
+    }
+
     fun reconnect() {
         viewModelScope.launch {
             _isRefreshing.value = true

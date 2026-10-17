@@ -21,12 +21,12 @@ type Config struct {
 
 // DeviceConfig holds settings for a specific configured Tuya device.
 type DeviceConfig struct {
-	DeviceID   string         `json:"device_id"`
-	IP         string         `json:"ip"`
-	LocalKey   string         `json:"local_key"`
-	Version    string         `json:"version"`
-	Category   DeviceCategory `json:"category"`
-	EntityKey  string         `json:"entity_key"`
+	DeviceID  string         `json:"device_id"`
+	IP        string         `json:"ip"`
+	LocalKey  string         `json:"local_key"`
+	Version   string         `json:"version"`
+	Category  DeviceCategory `json:"category"`
+	EntityKey string         `json:"entity_key"`
 }
 
 // Adapter manages local Tuya integrations and bridges them to Domus domain events.
@@ -36,10 +36,10 @@ type Adapter struct {
 	mapper    *DPSMapper
 	discovery *DiscoveryListener
 
-	mu        sync.RWMutex
-	devices   map[string]*DeviceClient
-	configs   map[string]DeviceConfig
-	active    bool
+	mu      sync.RWMutex
+	devices map[string]*DeviceClient
+	configs map[string]DeviceConfig
+	active  bool
 }
 
 // NewAdapter creates a new Tuya Local adapter instance.

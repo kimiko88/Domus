@@ -12,6 +12,7 @@ import com.domus.app.domain.model.FamilyMembersResponseDto
 import com.domus.app.domain.model.FamilyInviteDto
 import com.domus.app.domain.model.FamilyInvitesResponseDto
 import com.domus.app.domain.model.CreateInviteRequestDto
+import com.domus.app.domain.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -832,6 +833,226 @@ class DomusApiClient(
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore impostazione budget: HTTP ${response.code}"))
                 Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==========================================
+    // PANTRY, RECIPES, MEAL PLAN & RECEIPT OCR
+    // ==========================================
+
+    suspend fun fetchPantryItems(baseUrl: String, token: String?): Result<List<PantryItemDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/items").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch dispensa: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<PantryItemDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createPantryItem(baseUrl: String, token: String?, req: CreatePantryItemRequestDto): Result<PantryItemDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreatePantryItemRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/items")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione alimento: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val created = json.decodeFromString<PantryItemDto>(bodyStr)
+                Result.success(created)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updatePantryStock(baseUrl: String, token: String?, id: String, delta: Double? = null, quantity: Double? = null): Result<PantryItemDto> = withContext(Dispatchers.IO) {
+        try {
+            val req = UpdatePantryStockRequestDto(delta = delta, quantity = quantity)
+            val reqBody = json.encodeToString(UpdatePantryStockRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/items/$id/stock")
+                .patch(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore aggiornamento scorte: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val updated = json.decodeFromString<PantryItemDto>(bodyStr)
+                Result.success(updated)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deletePantryItem(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/items/$id").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                Result.success(response.isSuccessful)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchRecipes(baseUrl: String, token: String?): Result<List<RecipeDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/recipes").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch ricette: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<RecipeDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createRecipe(baseUrl: String, token: String?, req: CreateRecipeRequestDto): Result<RecipeDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreateRecipeRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/recipes")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione ricetta: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val created = json.decodeFromString<RecipeDto>(bodyStr)
+                Result.success(created)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteRecipe(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/recipes/$id").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                Result.success(response.isSuccessful)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchMealPlans(baseUrl: String, token: String?, startDate: String? = null, endDate: String? = null): Result<List<MealPlanDto>> = withContext(Dispatchers.IO) {
+        try {
+            var url = "$baseUrl/api/v1/pantry/meals"
+            val params = mutableListOf<String>()
+            if (!startDate.isNullOrBlank()) params.add("start_date=$startDate")
+            if (!endDate.isNullOrBlank()) params.add("end_date=$endDate")
+            if (params.isNotEmpty()) url += "?" + params.joinToString("&")
+
+            val reqBuilder = Request.Builder().url(url).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch pasti: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<MealPlanDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createMealPlan(baseUrl: String, token: String?, req: CreateMealPlanRequestDto): Result<MealPlanDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreateMealPlanRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/meals")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione piano pasto: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val created = json.decodeFromString<MealPlanDto>(bodyStr)
+                Result.success(created)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun consumeMealPlan(baseUrl: String, token: String?, planId: String, personsCount: Int? = null): Result<ConsumeMealPlanResponseDto> = withContext(Dispatchers.IO) {
+        try {
+            val req = ConsumeMealPlanRequestDto(persons_count = personsCount)
+            val reqBody = json.encodeToString(ConsumeMealPlanRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/meals/$planId/consume")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore consumo pasto: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val res = json.decodeFromString<ConsumeMealPlanResponseDto>(bodyStr)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteMealPlan(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/meals/$id").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                Result.success(response.isSuccessful)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun parseReceipt(baseUrl: String, token: String?, rawText: String): Result<ReceiptDto> = withContext(Dispatchers.IO) {
+        try {
+            val req = ReceiptParseRequestDto(raw_text = rawText)
+            val reqBody = json.encodeToString(ReceiptParseRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/receipts/parse")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore analisi scontrino: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val parsed = json.decodeFromString<ReceiptDto>(bodyStr)
+                Result.success(parsed)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun importReceipt(baseUrl: String, token: String?, req: ReceiptImportRequestDto): Result<ReceiptImportResultDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(ReceiptImportRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/pantry/receipts/import")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore importazione scontrino: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val result = json.decodeFromString<ReceiptImportResultDto>(bodyStr)
+                Result.success(result)
             }
         } catch (e: Exception) {
             Result.failure(e)

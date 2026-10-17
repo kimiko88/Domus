@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	ErrWebhookNotFound      = errors.New("webhook: endpoint not found")
-	ErrWebhookDisabled      = errors.New("webhook: endpoint is disabled")
-	ErrMethodNotAllowed     = errors.New("webhook: HTTP method not allowed")
-	ErrInvalidSignature     = errors.New("webhook: HMAC signature mismatch")
+	ErrWebhookNotFound  = errors.New("webhook: endpoint not found")
+	ErrWebhookDisabled  = errors.New("webhook: endpoint is disabled")
+	ErrMethodNotAllowed = errors.New("webhook: HTTP method not allowed")
+	ErrInvalidSignature = errors.New("webhook: HMAC signature mismatch")
 )
 
 type Webhook struct {

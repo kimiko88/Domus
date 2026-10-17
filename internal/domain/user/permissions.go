@@ -3,8 +3,8 @@ package user
 type UserPermissions struct {
 	UserID               string   `json:"user_id"`
 	Role                 Role     `json:"role"`
-	AllowedAreaIDs       []string `json:"allowed_area_ids"`       // Empty slice means access to all areas
-	AllowedDashboardIDs  []string `json:"allowed_dashboard_ids"`  // Empty slice means access to all dashboards
+	AllowedAreaIDs       []string `json:"allowed_area_ids"`      // Empty slice means access to all areas
+	AllowedDashboardIDs  []string `json:"allowed_dashboard_ids"` // Empty slice means access to all dashboards
 	CanManageAutomations bool     `json:"can_manage_automations"`
 	CanManageSettings    bool     `json:"can_manage_settings"`
 }

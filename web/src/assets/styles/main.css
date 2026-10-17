@@ -94,6 +94,24 @@ button, input, select, textarea {
   outline: none;
 }
 
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--bg-surface, #1e293b);
+  color: var(--text-main, #f8fafc);
+}
+
+:root[data-theme="light"] select {
+  color-scheme: light;
+}
+
+:root[data-theme="light"] select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 button {
   cursor: pointer;
   user-select: none;

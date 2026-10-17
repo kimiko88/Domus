@@ -47,6 +47,7 @@ import com.domus.app.presentation.screens.kiosk.KioskSettingsScreen
 import com.domus.app.presentation.screens.light.LightControlSheet
 import com.domus.app.presentation.screens.notifications.NotificationHistoryScreen
 import com.domus.app.presentation.screens.presence.PresenceAndNfcScreen
+import com.domus.app.presentation.screens.pantry.PantryScreen
 import com.domus.app.presentation.screens.shopping.ShoppingListScreen
 import com.domus.app.presentation.screens.socket.SocketControlSheet
 import com.domus.app.presentation.screens.timeline.ActivityTimelineScreen
@@ -82,6 +83,7 @@ fun DashboardScreen(
 
     // Dialog sheets
     var showShoppingSheet by remember { mutableStateOf(false) }
+    var showPantrySheet by remember { mutableStateOf(false) }
     var showAssistantSheet by remember { mutableStateOf(false) }
     var showChoresSheet by remember { mutableStateOf(false) }
     var showEnergySheet by remember { mutableStateOf(false) }
@@ -306,6 +308,7 @@ fun DashboardScreen(
                     QuickActionChip(icon = "📡", label = "Rete & Mesh", onClick = { showMeshDiagnosticsSheet = true })
                     QuickActionChip(icon = "👥", label = "Ospiti", onClick = { showGuestAccessSheet = true })
                     QuickActionChip(icon = "🛒", label = "Spesa", onClick = { showShoppingSheet = true })
+                    QuickActionChip(icon = "🍲", label = "Dispensa & Pasti", onClick = { showPantrySheet = true })
                     QuickActionChip(icon = "💰", label = "Spese", onClick = { showFinanceSheet = true })
                     QuickActionChip(icon = "🧹", label = "Faccende", onClick = { showChoresSheet = true })
                     QuickActionChip(icon = "🔔", label = "Notifiche", onClick = { showNotificationsSheet = true })
@@ -566,6 +569,12 @@ fun DashboardScreen(
     if (showFinanceSheet) {
         Dialog(onDismissRequest = { showFinanceSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             FinanceScreen(viewModel = viewModel, onDismiss = { showFinanceSheet = false })
+        }
+    }
+
+    if (showPantrySheet) {
+        Dialog(onDismissRequest = { showPantrySheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            PantryScreen(viewModel = viewModel, onDismiss = { showPantrySheet = false })
         }
     }
 

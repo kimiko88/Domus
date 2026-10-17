@@ -132,7 +132,10 @@ onMounted(async () => {
 
       <!-- Controls: Entity select & Range pills -->
       <div class="header-controls">
+        <label for="history-entity-picker" class="sr-only">{{ t('history.selectEntity') || 'Seleziona entità' }}</label>
         <select
+          id="history-entity-picker"
+          name="history_entity"
           v-model="selectedEntityId"
           class="entity-picker"
           aria-label="Seleziona entità"

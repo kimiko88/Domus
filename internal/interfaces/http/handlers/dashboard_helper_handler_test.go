@@ -145,7 +145,7 @@ func TestDashboardHandler_Endpoints(t *testing.T) {
 	}
 
 	var sharedData struct {
-		Dashboard *domainDash.Dashboard        `json:"dashboard"`
+		Dashboard *domainDash.Dashboard         `json:"dashboard"`
 		ShareInfo *domainDash.ShareTokenPayload `json:"share_info"`
 	}
 	_ = json.NewDecoder(w.Body).Decode(&sharedData)

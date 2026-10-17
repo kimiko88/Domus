@@ -179,4 +179,3 @@ func (h *DashboardHandler) GetShared(w http.ResponseWriter, r *http.Request) {
 		"share_info": payload,
 	})
 }
-

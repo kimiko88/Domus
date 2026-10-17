@@ -362,4 +362,3 @@ func TestAdvancedFeaturesHandler_BESSArbitrage(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &updateResp))
 	assert.Equal(t, "updated", updateResp["status"])
 }
-

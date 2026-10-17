@@ -613,8 +613,13 @@ onMounted(() => {
 
           <div v-else class="maint-enable-form">
             <div class="form-group mb-2">
-              <label class="form-label text-xs">{{ t('settings.durationMinutes') }}</label>
-              <select v-model="maintDuration" class="maint-select font-mono">
+              <label for="maint-duration-select" class="form-label text-xs">{{ t('settings.durationMinutes') }}</label>
+              <select
+                id="maint-duration-select"
+                name="maint_duration"
+                v-model="maintDuration"
+                class="maint-select font-mono"
+              >
                 <option :value="15">15 minuti</option>
                 <option :value="30">30 minuti (Default)</option>
                 <option :value="60">60 minuti (1 ora)</option>
@@ -623,12 +628,15 @@ onMounted(() => {
             </div>
 
             <div class="form-group mb-3">
-              <label class="form-label text-xs">{{ t('settings.authorizedKey') }}</label>
+              <label for="maint-ssh-key-input" class="form-label text-xs">{{ t('settings.authorizedKey') }}</label>
               <textarea
+                id="maint-ssh-key-input"
+                name="ssh_authorized_key"
                 v-model="sshPubKey"
                 rows="2"
                 placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
                 class="maint-textarea font-mono"
+                autocomplete="off"
               ></textarea>
             </div>
 

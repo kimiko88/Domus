@@ -12,8 +12,8 @@ import (
 // TailscaleStatus represents the state of the embedded Tailscale node.
 type TailscaleStatus struct {
 	Connected   bool      `json:"connected"`
-	IP          string    `json:"ip"`          // 100.x.y.z Tailscale IP
-	MagicDNS    string    `json:"magic_dns"`   // e.g. "domus-hub.tailnet-xyz.ts.net"
+	IP          string    `json:"ip"`        // 100.x.y.z Tailscale IP
+	MagicDNS    string    `json:"magic_dns"` // e.g. "domus-hub.tailnet-xyz.ts.net"
 	NodeKey     string    `json:"node_key"`
 	AuthKeyUsed bool      `json:"auth_key_used"`
 	LastSeen    time.Time `json:"last_seen"`
@@ -21,13 +21,13 @@ type TailscaleStatus struct {
 
 // TunnelService coordinates local WireGuard server, client peer enrollment, and Tailscale.
 type TunnelService struct {
-	mu            sync.RWMutex
-	wgServerPriv  string
-	wgServerPub   string
-	wgConfig      WireGuardServerConfig
-	peers         map[string]*WireGuardPeer
-	tailscale     TailscaleStatus
-	nextIPSubnet  int
+	mu           sync.RWMutex
+	wgServerPriv string
+	wgServerPub  string
+	wgConfig     WireGuardServerConfig
+	peers        map[string]*WireGuardPeer
+	tailscale    TailscaleStatus
+	nextIPSubnet int
 }
 
 // NewTunnelService initializes the zero-config tunneling service.

@@ -76,9 +76,9 @@ func (r *ScriptRepository) Get(ctx context.Context, id string) (*script.Script, 
 	row := r.db.QueryRowContext(ctx, query, id)
 
 	var (
-		s           script.Script
-		fieldsJSON  string
-		seqJSON     string
+		s            script.Script
+		fieldsJSON   string
+		seqJSON      string
 		createdAtStr string
 		updatedAtStr string
 	)
@@ -134,9 +134,9 @@ func (r *ScriptRepository) List(ctx context.Context) ([]*script.Script, error) {
 	var results []*script.Script
 	for rows.Next() {
 		var (
-			s           script.Script
-			fieldsJSON  string
-			seqJSON     string
+			s            script.Script
+			fieldsJSON   string
+			seqJSON      string
 			createdAtStr string
 			updatedAtStr string
 		)
