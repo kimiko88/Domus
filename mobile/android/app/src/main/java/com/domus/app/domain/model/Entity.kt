@@ -35,4 +35,12 @@ data class Entity(
 
     val isArmed: Boolean
         get() = state.lowercase().startsWith("armed")
+
+    val powerWatts: Double?
+        get() = attributes["power"]?.toString()?.replace("\"", "")?.toDoubleOrNull()
+            ?: attributes["current_power_w"]?.toString()?.replace("\"", "")?.toDoubleOrNull()
+
+    val energyKWh: Double?
+        get() = attributes["energy"]?.toString()?.replace("\"", "")?.toDoubleOrNull()
+            ?: attributes["total_energy_kwh"]?.toString()?.replace("\"", "")?.toDoubleOrNull()
 }

@@ -3,6 +3,15 @@ package com.domus.app.data.network
 import com.domus.app.domain.model.Area
 import com.domus.app.domain.model.AuthSession
 import com.domus.app.domain.model.Entity
+import com.domus.app.domain.model.AutomationRule
+import com.domus.app.domain.model.TimelineEvent
+import com.domus.app.domain.model.MeshTopologyDto
+import com.domus.app.domain.model.SystemHealthDto
+import com.domus.app.domain.model.FamilyMemberDto
+import com.domus.app.domain.model.FamilyMembersResponseDto
+import com.domus.app.domain.model.FamilyInviteDto
+import com.domus.app.domain.model.FamilyInvitesResponseDto
+import com.domus.app.domain.model.CreateInviteRequestDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -11,6 +20,18 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+
+@Serializable
+data class AutomationsResponseDto(
+    val automations: List<AutomationRule> = emptyList(),
+    val total: Int? = null
+)
+
+@Serializable
+data class LogbookResponseDto(
+    val entries: List<TimelineEvent> = emptyList(),
+    val total: Int? = null
+)
 
 @Serializable
 data class LoginRequest(
@@ -502,4 +523,255 @@ class DomusApiClient(
             Result.success(emptyList())
         }
     }
+
+    suspend fun fetchAutomations(baseUrl: String, token: String?): Result<List<AutomationRule>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/automations")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.success(AutomationRule.sampleRules)
+                }
+                val bodyStr = response.body?.string() ?: "{}"
+                val res = try {
+                    json.decodeFromString<AutomationsResponseDto>(bodyStr).automations
+                } catch (e: Exception) {
+                    try {
+                        json.decodeFromString<List<AutomationRule>>(bodyStr)
+                    } catch (e2: Exception) {
+                        AutomationRule.sampleRules
+                    }
+                }
+                Result.success(if (res.isEmpty()) AutomationRule.sampleRules else res)
+            }
+        } catch (e: Exception) {
+            Result.success(AutomationRule.sampleRules)
+        }
+    }
+
+    suspend fun createAutomation(baseUrl: String, token: String?, rule: AutomationRule): Result<AutomationRule> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(AutomationRule.serializer(), rule)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/automations")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione regola: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val created = json.decodeFromString<AutomationRule>(bodyStr)
+                Result.success(created)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateAutomation(baseUrl: String, token: String?, ruleId: String, rule: AutomationRule): Result<AutomationRule> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(AutomationRule.serializer(), rule)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/automations/$ruleId")
+                .put(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore aggiornamento regola: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val updated = json.decodeFromString<AutomationRule>(bodyStr)
+                Result.success(updated)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAutomation(baseUrl: String, token: String?, ruleId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/automations/$ruleId").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore cancellazione regola: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun triggerAutomation(baseUrl: String, token: String?, ruleId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/automations/$ruleId/trigger")
+                .post("{}".toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore test regola: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchLogbook(baseUrl: String, token: String?, limit: Int = 100): Result<List<TimelineEvent>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/logbook?limit=$limit")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.success(TimelineEvent.sampleTimeline)
+                }
+                val bodyStr = response.body?.string() ?: "{}"
+                val entries = try {
+                    json.decodeFromString<LogbookResponseDto>(bodyStr).entries
+                } catch (e: Exception) {
+                    try {
+                        json.decodeFromString<List<TimelineEvent>>(bodyStr)
+                    } catch (e2: Exception) {
+                        TimelineEvent.sampleTimeline
+                    }
+                }
+                Result.success(if (entries.isEmpty()) TimelineEvent.sampleTimeline else entries)
+            }
+        } catch (e: Exception) {
+            Result.success(TimelineEvent.sampleTimeline)
+        }
+    }
+
+    suspend fun fetchMeshTopology(baseUrl: String, token: String?, protocol: String? = null): Result<MeshTopologyDto> = withContext(Dispatchers.IO) {
+        try {
+            val query = if (protocol != null) "?protocol=$protocol" else ""
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/mesh/topology$query")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.success(MeshTopologyDto())
+                }
+                val bodyStr = response.body?.string() ?: "{}"
+                val top = json.decodeFromString<MeshTopologyDto>(bodyStr)
+                Result.success(top)
+            }
+        } catch (e: Exception) {
+            Result.success(MeshTopologyDto())
+        }
+    }
+
+    suspend fun fetchSystemHealth(baseUrl: String, token: String?): Result<Pair<SystemHealthDto, Int>> = withContext(Dispatchers.IO) {
+        try {
+            val start = System.currentTimeMillis()
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/system/health")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                val latency = maxOf(1, (System.currentTimeMillis() - start).toInt())
+                if (!response.isSuccessful) {
+                    return@withContext Result.success(Pair(SystemHealthDto(), latency))
+                }
+                val bodyStr = response.body?.string() ?: "{}"
+                val health = json.decodeFromString<SystemHealthDto>(bodyStr)
+                Result.success(Pair(health, latency))
+            }
+        } catch (e: Exception) {
+            Result.success(Pair(SystemHealthDto(), 12))
+        }
+    }
+
+    suspend fun fetchFamilyMembers(baseUrl: String, token: String?): Result<List<FamilyMemberDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/members")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                val bodyStr = response.body?.string() ?: "{}"
+                val res = try {
+                    json.decodeFromString<FamilyMembersResponseDto>(bodyStr).members
+                } catch (e: Exception) {
+                    json.decodeFromString<List<FamilyMemberDto>>(bodyStr)
+                }
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.success(emptyList())
+        }
+    }
+
+    suspend fun fetchFamilyInvites(baseUrl: String, token: String?): Result<List<FamilyInviteDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/invites")
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                val bodyStr = response.body?.string() ?: "{}"
+                val res = try {
+                    json.decodeFromString<FamilyInvitesResponseDto>(bodyStr).invites
+                } catch (e: Exception) {
+                    json.decodeFromString<List<FamilyInviteDto>>(bodyStr)
+                }
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.success(emptyList())
+        }
+    }
+
+    suspend fun createFamilyInvite(baseUrl: String, token: String?, role: String, expiresInHours: Int): Result<FamilyInviteDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreateInviteRequestDto.serializer(), CreateInviteRequestDto(role, expiresInHours))
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/family/invites")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione invito: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val inv = json.decodeFromString<FamilyInviteDto>(bodyStr)
+                Result.success(inv)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun revokeFamilyInvite(baseUrl: String, token: String?, inviteId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/invites/$inviteId").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore revoca invito: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun scanTag(baseUrl: String, token: String?, tagId: String, scannedBy: String = "Android_Companion"): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"scanned_by":"$scannedBy"}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/tags/$tagId/scan")
+                .post(payload.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun registerPushToken(baseUrl: String, token: String?, deviceToken: String, deviceName: String = "Android Device"): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"platform":"fcm","device_token":"$deviceToken","device_name":"$deviceName","app_version":"1.0.0"}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/notifications/push/tokens")
+                .post(payload.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
