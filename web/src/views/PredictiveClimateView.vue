@@ -1,12 +1,40 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { usePredictiveClimateStore } from '../stores/predictiveClimate'
-import type { PredictiveZoneConfig, RoomOrientation, EmitterType } from '../api/types'
+import type {
+  PredictiveZoneConfig,
+  RoomOrientation,
+  EmitterType,
+  ThermalProfile,
+  PreheatRecommendation,
+  CoastDownRecommendation
+} from '../api/types'
 
 const store = usePredictiveClimateStore()
 
 const showModal = ref(false)
 const editingZone = ref<PredictiveZoneConfig | null>(null)
+
+// Thermal Profile Modal state
+const showProfileModal = ref(false)
+const selectedProfileZone = ref<PredictiveZoneConfig | null>(null)
+const currentProfile = ref<ThermalProfile | null>(null)
+const profileLoading = ref(false)
+
+// Optimal Start & Stop state
+const calcTargetTime = ref('07:30')
+const calcTargetTemp = ref(21.0)
+const preheatResult = ref<PreheatRecommendation | null>(null)
+const calcDepartureTime = ref('08:30')
+const coastResult = ref<CoastDownRecommendation | null>(null)
+
+// Cycle training simulator state
+const trainCycleType = ref<'heating' | 'cooling'>('heating')
+const trainStartTemp = ref(19.0)
+const trainEndTemp = ref(20.5)
+const trainDurationMin = ref(60)
+const trainLoading = ref(false)
+const trainSuccessMsg = ref('')
 
 // Form fields
 const formName = ref('')
@@ -28,6 +56,85 @@ const formEnabled = ref(true)
 onMounted(async () => {
   await store.fetchStatus()
 })
+
+async function openThermalProfileModal(zone: PredictiveZoneConfig) {
+  if (!zone.id) return
+  selectedProfileZone.value = zone
+  calcTargetTemp.value = zone.target_temperature || 21.0
+  preheatResult.value = null
+  coastResult.value = null
+  trainSuccessMsg.value = ''
+  showProfileModal.value = true
+  profileLoading.value = true
+
+  try {
+    currentProfile.value = await store.fetchProfile(zone.id)
+    await handleCalculateOptimalStart()
+    await handleCalculateCoastDown()
+  } catch (e) {
+    console.error('Failed to load thermal profile', e)
+  } finally {
+    profileLoading.value = false
+  }
+}
+
+async function handleCalculateOptimalStart() {
+  if (!selectedProfileZone.value?.id) return
+  try {
+    const today = new Date()
+    const parts = calcTargetTime.value.split(':').map(Number)
+    const hours = parts[0] ?? 7
+    const minutes = parts[1] ?? 30
+    const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    preheatResult.value = await store.getOptimalStart(
+      selectedProfileZone.value.id,
+      targetDate.toISOString(),
+      Number(calcTargetTemp.value)
+    )
+  } catch (err: any) {
+    console.error('Error calculating preheat', err)
+  }
+}
+
+async function handleCalculateCoastDown() {
+  if (!selectedProfileZone.value?.id) return
+  try {
+    const today = new Date()
+    const parts = calcDepartureTime.value.split(':').map(Number)
+    const hours = parts[0] ?? 8
+    const minutes = parts[1] ?? 30
+    const depDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    coastResult.value = await store.getOptimalStop(
+      selectedProfileZone.value.id,
+      depDate.toISOString()
+    )
+  } catch (err: any) {
+    console.error('Error calculating coast down', err)
+  }
+}
+
+async function handleTrainCycle() {
+  if (!selectedProfileZone.value?.id) return
+  trainLoading.value = true
+  trainSuccessMsg.value = ''
+  try {
+    const updated = await store.trainZone(selectedProfileZone.value.id, {
+      cycle_type: trainCycleType.value,
+      start_temp: Number(trainStartTemp.value),
+      end_temp: Number(trainEndTemp.value),
+      duration_minutes: Number(trainDurationMin.value),
+      observed_at: new Date().toISOString()
+    })
+    currentProfile.value = updated
+    trainSuccessMsg.value = `Modello aggiornato! Nuova velocità: ${updated.heat_rate_per_hr} °C/h (Campioni: ${updated.samples_count})`
+    await handleCalculateOptimalStart()
+    await handleCalculateCoastDown()
+  } catch (err: any) {
+    console.error('Error training cycle', err)
+  } finally {
+    trainLoading.value = false
+  }
+}
 
 function openCreateModal() {
   editingZone.value = null
@@ -350,15 +457,25 @@ function getEmitterLabel(emitter: EmitterType): string {
 
         <!-- Actions -->
         <footer class="zone-card-footer">
-          <button
-            type="button"
-            class="btn btn-sm btn-outline"
-            :disabled="store.evaluating"
-            @click="item.config.id && handleEvaluateZone(item.config.id)"
-            aria-label="Calcola setpoint per questa stanza"
-          >
-            ⚡ Valuta Ora
-          </button>
+          <div class="footer-start-actions">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline"
+              :disabled="store.evaluating"
+              @click="item.config.id && handleEvaluateZone(item.config.id)"
+              aria-label="Calcola setpoint per questa stanza"
+            >
+              ⚡ Valuta Ora
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-secondary"
+              @click="openThermalProfileModal(item.config)"
+              aria-label="Visualizza modello termico e start ottimale"
+            >
+              🧠 Modello & Start
+            </button>
+          </div>
           <div class="footer-end-actions">
             <button
               type="button"
@@ -559,6 +676,209 @@ function getEmitterLabel(emitter: EmitterType): string {
             </button>
           </footer>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal Profilo Termico & Auto-Apprendimento Grey-box -->
+    <div
+      v-if="showProfileModal && selectedProfileZone"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="`profile-modal-title-${selectedProfileZone.id}`"
+      @click.self="showProfileModal = false"
+    >
+      <div class="modal-card modal-card-lg">
+        <header class="modal-header">
+          <div>
+            <h2 :id="`profile-modal-title-${selectedProfileZone.id}`">
+              🧠 Modello Termico & Start: {{ selectedProfileZone.name }}
+            </h2>
+            <p class="modal-subtitle">
+              Stima fisica 1R-1C, pre-heating intelligente e coast-down a inerzia
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-close"
+            @click="showProfileModal = false"
+            aria-label="Chiudi finestra"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div v-if="profileLoading" class="modal-body modal-loading">
+          Caricamento parametri termici in corso...
+        </div>
+
+        <div v-else class="modal-body profile-modal-content">
+          <!-- 1. Parametri Appresi -->
+          <section class="profile-section" aria-label="Parametri termici appresi">
+            <h3 class="section-heading">📊 Parametri Appresi (Fisica Grey-Box 1R-1C)</h3>
+            <div class="profile-metrics-grid">
+              <div class="profile-metric-card">
+                <span class="p-label">Velocità Riscaldamento</span>
+                <span class="p-value heat-val">
+                  {{ currentProfile ? currentProfile.heat_rate_per_hr : '--' }} °C/h
+                </span>
+                <span class="p-sub">In potenza attiva nominale</span>
+              </div>
+
+              <div class="profile-metric-card">
+                <span class="p-label">Velocità Dispersione</span>
+                <span class="p-value cool-val">
+                  {{ currentProfile ? currentProfile.cool_rate_per_hr : '--' }} °C/h
+                </span>
+                <span class="p-sub">Normalizzata a Δ10°C esterno</span>
+              </div>
+
+              <div class="profile-metric-card">
+                <span class="p-label">Cicli di Apprendimento</span>
+                <span class="p-value samples-val">
+                  {{ currentProfile ? currentProfile.samples_count : 0 }}
+                </span>
+                <span class="p-sub">Aggiornamenti EMA registrati</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 2. Ottimizzatori: Pre-heating e Coast-Down -->
+          <section class="profile-section" aria-label="Calcolatori dinamici">
+            <div class="optimizers-grid">
+              <!-- Pre-heating Card -->
+              <div class="optimizer-card">
+                <div class="opt-header">
+                  <span class="opt-icon">⚡</span>
+                  <div>
+                    <h4 class="opt-title">Pre-Heating (Start Ottimale)</h4>
+                    <p class="opt-desc">Anticipa l'accensione per raggiungere il comfort esattamente all'orario prefissato</p>
+                  </div>
+                </div>
+
+                <div class="opt-inputs">
+                  <div class="form-group">
+                    <label for="preheat-time">Orario Desiderato</label>
+                    <input
+                      id="preheat-time"
+                      v-model="calcTargetTime"
+                      type="time"
+                      class="form-control form-control-sm"
+                      @change="handleCalculateOptimalStart"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="preheat-temp">Temp Obiettivo (°C)</label>
+                    <input
+                      id="preheat-temp"
+                      v-model.number="calcTargetTemp"
+                      type="number"
+                      step="0.5"
+                      class="form-control form-control-sm"
+                      @change="handleCalculateOptimalStart"
+                    />
+                  </div>
+                </div>
+
+                <div v-if="preheatResult" class="opt-result">
+                  <div class="result-badge badge-preheat">
+                    Anticipo Richiesto: <strong>{{ preheatResult.preheat_minutes }} min</strong>
+                    (Avvio: {{ new Date(preheatResult.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }})
+                  </div>
+                  <p class="result-reason">{{ preheatResult.reason }}</p>
+                </div>
+              </div>
+
+              <!-- Coast-Down Card -->
+              <div class="optimizer-card">
+                <div class="opt-header">
+                  <span class="opt-icon">🛑</span>
+                  <div>
+                    <h4 class="opt-title">Coast-Down (Inerzia & Stop)</h4>
+                    <p class="opt-desc">Spegne il riscaldamento prima dell'uscita o del sonno sfruttando il volano termico</p>
+                  </div>
+                </div>
+
+                <div class="opt-inputs">
+                  <div class="form-group">
+                    <label for="coast-time">Orario Uscita / Sonno</label>
+                    <input
+                      id="coast-time"
+                      v-model="calcDepartureTime"
+                      type="time"
+                      class="form-control form-control-sm"
+                      @change="handleCalculateCoastDown"
+                    />
+                  </div>
+                </div>
+
+                <div v-if="coastResult" class="opt-result">
+                  <div class="result-badge badge-eco">
+                    Spegnimento Anticipato: <strong>{{ coastResult.coast_down_minutes }} min</strong>
+                    (Stop: {{ new Date(coastResult.stop_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }})
+                  </div>
+                  <p class="result-reason">
+                    {{ coastResult.reason }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 3. Allenatore Cicli (Simulazione o Registrazione) -->
+          <section class="profile-section training-box" aria-label="Simulatore ciclo termico">
+            <h3 class="section-heading">🧪 Allenamento Modello da Ciclo Reale</h3>
+            <p class="section-subtext">
+              Inserisci i dati osservati da una sessione per calibrare i parametri con livellamento esponenziale (EMA).
+            </p>
+
+            <div class="training-form-row">
+              <div class="form-group">
+                <label for="train-type">Tipo Ciclo</label>
+                <select id="train-type" v-model="trainCycleType" class="form-control form-control-sm">
+                  <option value="heating">Riscaldamento Attivo</option>
+                  <option value="cooling">Raffreddamento Passivo</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="train-start">Temp Inizio (°C)</label>
+                <input id="train-start" v-model.number="trainStartTemp" type="number" step="0.1" class="form-control form-control-sm" />
+              </div>
+
+              <div class="form-group">
+                <label for="train-end">Temp Fine (°C)</label>
+                <input id="train-end" v-model.number="trainEndTemp" type="number" step="0.1" class="form-control form-control-sm" />
+              </div>
+
+              <div class="form-group">
+                <label for="train-dur">Durata (Minuti)</label>
+                <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" step="5" class="form-control form-control-sm" />
+              </div>
+
+              <div class="form-group training-btn-group">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  :disabled="trainLoading"
+                  @click="handleTrainCycle"
+                >
+                  {{ trainLoading ? 'Calcolo...' : '🚀 Registra Ciclo' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="trainSuccessMsg" class="train-alert-success" role="alert">
+              {{ trainSuccessMsg }}
+            </div>
+          </section>
+        </div>
+
+        <footer class="modal-footer">
+          <button type="button" class="btn btn-secondary" @click="showProfileModal = false">
+            Chiudi
+          </button>
+        </footer>
       </div>
     </div>
   </div>
@@ -1016,5 +1336,196 @@ function getEmitterLabel(emitter: EmitterType): string {
   grid-column: 1 / -1;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 12px;
+}
+
+.footer-start-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.modal-card-lg {
+  max-width: 820px;
+}
+
+.modal-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0 0;
+}
+
+.profile-modal-content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.section-heading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.section-subtext {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.profile-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.profile-metric-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.p-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.p-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.heat-val {
+  color: #f97316;
+}
+
+.cool-val {
+  color: #38bdf8;
+}
+
+.samples-val {
+  color: #a855f7;
+}
+
+.p-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.optimizers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.optimizer-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.opt-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.opt-icon {
+  font-size: 1.5rem;
+}
+
+.opt-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.opt-desc {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.opt-inputs {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.form-control-sm {
+  min-height: 38px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.opt-result {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.result-badge {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.result-reason {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.training-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.training-form-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.training-btn-group {
+  margin-bottom: 0;
+}
+
+.train-alert-success {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
 }
 </style>

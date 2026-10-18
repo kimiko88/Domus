@@ -5,12 +5,17 @@ import type {
   PredictiveZoneConfig,
   PredictiveEvaluation,
   SystemPredictiveStatus,
-  ZoneDashboardStatus
+  ZoneDashboardStatus,
+  ThermalProfile,
+  ThermalCycleObservation,
+  PreheatRecommendation,
+  CoastDownRecommendation
 } from '../api/types'
 
 export const usePredictiveClimateStore = defineStore('predictiveClimate', () => {
   const status = ref<SystemPredictiveStatus | null>(null)
   const zones = ref<PredictiveZoneConfig[]>([])
+  const profiles = ref<Record<string, ThermalProfile>>({})
   const loading = ref(false)
   const evaluating = ref(false)
   const error = ref<string | null>(null)
@@ -140,9 +145,78 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
     }
   }
 
+  async function fetchProfile(zoneId: string): Promise<ThermalProfile> {
+    try {
+      const data = await apiClient.get<ThermalProfile>(
+        `/api/v1/climate/predictive/zones/${zoneId}/profile`
+      )
+      profiles.value[zoneId] = data
+      return data
+    } catch (err: any) {
+      error.value = err.message || 'Errore nel caricamento del profilo termico'
+      throw err
+    }
+  }
+
+  async function trainZone(
+    zoneId: string,
+    observation: ThermalCycleObservation
+  ): Promise<ThermalProfile> {
+    try {
+      const data = await apiClient.post<ThermalProfile>(
+        `/api/v1/climate/predictive/zones/${zoneId}/train`,
+        observation
+      )
+      profiles.value[zoneId] = data
+      return data
+    } catch (err: any) {
+      error.value = err.message || "Errore nell'allenamento del profilo termico"
+      throw err
+    }
+  }
+
+  async function getOptimalStart(
+    zoneId: string,
+    targetTime?: string,
+    targetTemp?: number
+  ): Promise<PreheatRecommendation> {
+    try {
+      const params = new URLSearchParams()
+      if (targetTime) params.set('target_time', targetTime)
+      if (targetTemp) params.set('target_temp', targetTemp.toString())
+      const qs = params.toString() ? `?${params.toString()}` : ''
+
+      return await apiClient.get<PreheatRecommendation>(
+        `/api/v1/climate/predictive/zones/${zoneId}/optimal-start${qs}`
+      )
+    } catch (err: any) {
+      error.value = err.message || "Errore nel calcolo dell'avvio ottimale"
+      throw err
+    }
+  }
+
+  async function getOptimalStop(
+    zoneId: string,
+    departureTime?: string
+  ): Promise<CoastDownRecommendation> {
+    try {
+      const params = new URLSearchParams()
+      if (departureTime) params.set('departure_time', departureTime)
+      const qs = params.toString() ? `?${params.toString()}` : ''
+
+      return await apiClient.get<CoastDownRecommendation>(
+        `/api/v1/climate/predictive/zones/${zoneId}/optimal-stop${qs}`
+      )
+    } catch (err: any) {
+      error.value = err.message || 'Errore nel calcolo dello spegnimento anticipato'
+      throw err
+    }
+  }
+
   return {
     status,
     zones,
+    profiles,
     loading,
     evaluating,
     error,
@@ -156,6 +230,10 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
     saveZone,
     deleteZone,
     evaluateZone,
-    evaluateAll
+    evaluateAll,
+    fetchProfile,
+    trainZone,
+    getOptimalStart,
+    getOptimalStop
   }
 })

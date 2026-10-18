@@ -235,6 +235,9 @@ func (r *PredictiveClimateRepository) GetLatestEvaluations(ctx context.Context) 
 		}
 		evals = append(evals, ev)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating latest evaluations: %w", err)
+	}
 	return evals, nil
 }
 
@@ -266,6 +269,9 @@ func (r *PredictiveClimateRepository) GetZoneEvaluations(ctx context.Context, zo
 			return nil, err
 		}
 		evals = append(evals, ev)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating zone evaluations: %w", err)
 	}
 	return evals, nil
 }
@@ -339,3 +345,110 @@ func (r *PredictiveClimateRepository) scanEvaluation(s rowScanner) (*climate.Pre
 	}
 	return &ev, nil
 }
+
+// SaveProfile inserts or updates a learned thermal profile for a zone.
+func (r *PredictiveClimateRepository) SaveProfile(ctx context.Context, profile *climate.ThermalProfile) error {
+	if profile == nil {
+		return errors.New("cannot save nil thermal profile")
+	}
+	if profile.ZoneID == "" {
+		return errors.New("cannot save thermal profile without zone_id")
+	}
+	if profile.LastTrainedAt.IsZero() {
+		profile.LastTrainedAt = time.Now().UTC()
+	}
+
+	query := `
+		INSERT INTO predictive_climate_profiles (
+			zone_id, heat_rate_per_hr, cool_rate_per_hr,
+			outdoor_loss_coeff, solar_boost_coeff, samples_count, last_trained_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(zone_id) DO UPDATE SET
+			heat_rate_per_hr = excluded.heat_rate_per_hr,
+			cool_rate_per_hr = excluded.cool_rate_per_hr,
+			outdoor_loss_coeff = excluded.outdoor_loss_coeff,
+			solar_boost_coeff = excluded.solar_boost_coeff,
+			samples_count = excluded.samples_count,
+			last_trained_at = excluded.last_trained_at
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		profile.ZoneID, profile.HeatRatePerHr, profile.CoolRatePerHr,
+		profile.OutdoorLossCoeff, profile.SolarBoostCoeff, profile.SamplesCount,
+		profile.LastTrainedAt.Format(time.RFC3339),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save predictive climate profile: %w", err)
+	}
+	return nil
+}
+
+// GetProfile retrieves a learned thermal profile by zone ID.
+func (r *PredictiveClimateRepository) GetProfile(ctx context.Context, zoneID string) (*climate.ThermalProfile, error) {
+	query := `
+		SELECT zone_id, heat_rate_per_hr, cool_rate_per_hr,
+		       outdoor_loss_coeff, solar_boost_coeff, samples_count, last_trained_at
+		FROM predictive_climate_profiles
+		WHERE zone_id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, zoneID)
+	p, err := r.scanProfile(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, climate.ErrThermalProfileNotFound
+		}
+		return nil, fmt.Errorf("failed to get predictive climate profile: %w", err)
+	}
+	return p, nil
+}
+
+// ListProfiles retrieves all learned thermal profiles.
+func (r *PredictiveClimateRepository) ListProfiles(ctx context.Context) ([]*climate.ThermalProfile, error) {
+	query := `
+		SELECT zone_id, heat_rate_per_hr, cool_rate_per_hr,
+		       outdoor_loss_coeff, solar_boost_coeff, samples_count, last_trained_at
+		FROM predictive_climate_profiles
+		ORDER BY zone_id ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list predictive climate profiles: %w", err)
+	}
+	defer rows.Close()
+
+	var profiles []*climate.ThermalProfile
+	for rows.Next() {
+		p, err := r.scanProfile(rows)
+		if err != nil {
+			return nil, err
+		}
+		profiles = append(profiles, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating predictive profiles: %w", err)
+	}
+	return profiles, nil
+}
+
+func (r *PredictiveClimateRepository) scanProfile(s rowScanner) (*climate.ThermalProfile, error) {
+	var (
+		p          climate.ThermalProfile
+		trainedStr string
+	)
+	err := s.Scan(
+		&p.ZoneID,
+		&p.HeatRatePerHr,
+		&p.CoolRatePerHr,
+		&p.OutdoorLossCoeff,
+		&p.SolarBoostCoeff,
+		&p.SamplesCount,
+		&trainedStr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if t, err := time.Parse(time.RFC3339, trainedStr); err == nil {
+		p.LastTrainedAt = t
+	}
+	return &p, nil
+}
+

@@ -109,7 +109,64 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	assert.Equal(t, 1, status.TotalZones)
 	assert.Equal(t, 1, status.EnabledZones)
 
-	// 5. Delete Zone
+	// 5. Get Thermal Profile
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/profile", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var profile domclimate.ThermalProfile
+	err = json.NewDecoder(rec.Body).Decode(&profile)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, profile.ZoneID)
+	assert.Equal(t, 1.2, profile.HeatRatePerHr)
+
+	// 6. Train Zone from real observation
+	trainPayload := domclimate.ThermalCycleObservation{
+		CycleType:       "heating",
+		StartTemp:       19.0,
+		EndTemp:         20.5,
+		DurationMinutes: 60,
+	}
+	trainBody, _ := json.Marshal(trainPayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/climate/predictive/zones/"+created.ID+"/train", bytes.NewReader(trainBody))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var trainedProfile domclimate.ThermalProfile
+	err = json.NewDecoder(rec.Body).Decode(&trainedProfile)
+	require.NoError(t, err)
+	assert.Equal(t, 1, trainedProfile.SamplesCount)
+	assert.Greater(t, trainedProfile.HeatRatePerHr, 1.2)
+
+	// 7. Get Optimal Start
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/optimal-start?target_temp=21.0", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var preheat domclimate.PreheatRecommendation
+	err = json.NewDecoder(rec.Body).Decode(&preheat)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, preheat.ZoneID)
+	assert.Greater(t, preheat.PreheatMinutes, 0)
+	assert.NotEmpty(t, preheat.Reason)
+
+	// 8. Get Optimal Stop
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/optimal-stop", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var coast domclimate.CoastDownRecommendation
+	err = json.NewDecoder(rec.Body).Decode(&coast)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, coast.ZoneID)
+	assert.GreaterOrEqual(t, coast.CoastDownMinutes, 15)
+	assert.NotEmpty(t, coast.Reason)
+
+	// 9. Delete Zone
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/climate/predictive/zones/"+created.ID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

@@ -137,4 +137,86 @@ describe('Predictive Climate Store', () => {
     expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/climate/predictive/zones/pzone_1')
     expect(store.zones).toHaveLength(0)
   })
+
+  it('fetches thermal profile and caches it', async () => {
+    const mockProfile = {
+      zone_id: 'pzone_1',
+      heat_rate_per_hr: 1.25,
+      cool_rate_per_hr: 0.22,
+      outdoor_loss_coeff: 0.02,
+      solar_boost_coeff: 0.3,
+      samples_count: 3,
+      last_trained_at: '2026-10-18T12:00:00Z'
+    }
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockProfile)
+
+    const store = usePredictiveClimateStore()
+    const p = await store.fetchProfile('pzone_1')
+
+    expect(p).toEqual(mockProfile)
+    expect(store.profiles['pzone_1']).toEqual(mockProfile)
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/climate/predictive/zones/pzone_1/profile')
+  })
+
+  it('trains zone and updates cached profile', async () => {
+    const trainedProfile = {
+      zone_id: 'pzone_1',
+      heat_rate_per_hr: 1.35,
+      cool_rate_per_hr: 0.22,
+      outdoor_loss_coeff: 0.02,
+      solar_boost_coeff: 0.3,
+      samples_count: 4,
+      last_trained_at: '2026-10-18T13:00:00Z'
+    }
+    vi.mocked(apiClient.post).mockResolvedValueOnce(trainedProfile)
+
+    const store = usePredictiveClimateStore()
+    const p = await store.trainZone('pzone_1', {
+      cycle_type: 'heating',
+      start_temp: 19.0,
+      end_temp: 20.5,
+      duration_minutes: 60
+    })
+
+    expect(p.samples_count).toBe(4)
+    expect(store.profiles['pzone_1']).toEqual(trainedProfile)
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/v1/climate/predictive/zones/pzone_1/train',
+      expect.objectContaining({ cycle_type: 'heating' })
+    )
+  })
+
+  it('calculates optimal start and stop recommendations', async () => {
+    const mockStart = {
+      zone_id: 'pzone_1',
+      target_time: '2026-10-18T16:00:00Z',
+      target_temp: 21.0,
+      current_temp: 19.5,
+      outdoor_temp: 10.0,
+      preheat_minutes: 45,
+      start_time: '2026-10-18T15:15:00Z',
+      effective_heat_rate: 1.2,
+      reason: 'Avvio anticipato di 45 min'
+    }
+    const mockStop = {
+      zone_id: 'pzone_1',
+      departure_time: '2026-10-18T18:00:00Z',
+      comfort_limit_temp: 20.5,
+      coast_down_minutes: 30,
+      stop_time: '2026-10-18T17:30:00Z',
+      energy_saved_kwh: 0.75,
+      reason: 'Spegnimento anticipato di 30 min'
+    }
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockStart)
+      .mockResolvedValueOnce(mockStop)
+
+    const store = usePredictiveClimateStore()
+    const start = await store.getOptimalStart('pzone_1', '2026-10-18T16:00:00Z', 21.0)
+    expect(start.preheat_minutes).toBe(45)
+
+    const stop = await store.getOptimalStop('pzone_1', '2026-10-18T18:00:00Z')
+    expect(stop.coast_down_minutes).toBe(30)
+    expect(stop.energy_saved_kwh).toBe(0.75)
+  })
 })

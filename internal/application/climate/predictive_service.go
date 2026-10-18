@@ -4,6 +4,8 @@ package climate
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"strconv"
@@ -350,6 +352,224 @@ func (s *PredictiveService) GetDashboardStatus(ctx context.Context) (*SystemPred
 // GetZoneEvaluations returns historical evaluation logs for a zone.
 func (s *PredictiveService) GetZoneEvaluations(ctx context.Context, zoneID string, limit int) ([]*domclimate.PredictiveEvaluation, error) {
 	return s.repo.GetZoneEvaluations(ctx, zoneID, limit)
+}
+
+// GetZoneProfile retrieves the learned thermal profile for a zone, initializing a default profile if none exists.
+func (s *PredictiveService) GetZoneProfile(ctx context.Context, zoneID string) (*domclimate.ThermalProfile, error) {
+	profile, err := s.repo.GetProfile(ctx, zoneID)
+	if err == nil {
+		return profile, nil
+	}
+	if !errors.Is(err, domclimate.ErrThermalProfileNotFound) {
+		return nil, err
+	}
+
+	// Profile not found: check if zone exists to derive emitter-specific baseline
+	zone, err := s.repo.GetByID(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	defProfile := domclimate.DefaultThermalProfile(zone.ID, zone.EmitterType)
+	if saveErr := s.repo.SaveProfile(ctx, &defProfile); saveErr != nil {
+		s.logger.WarnContext(ctx, "failed to persist initial default thermal profile", "zone_id", zoneID, "error", saveErr)
+	}
+	return &defProfile, nil
+}
+
+// TrainFromCycle incorporates a real-world heating or cooling observation into the zone's thermal profile using EMA.
+func (s *PredictiveService) TrainFromCycle(ctx context.Context, obs domclimate.ThermalCycleObservation) (*domclimate.ThermalProfile, error) {
+	if obs.ZoneID == "" {
+		return nil, errors.New("cannot train without zone_id")
+	}
+	profile, err := s.GetZoneProfile(ctx, obs.ZoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	profile.LearnFromCycle(obs)
+	if err := s.repo.SaveProfile(ctx, profile); err != nil {
+		return nil, fmt.Errorf("failed to save trained thermal profile: %w", err)
+	}
+	s.logger.InfoContext(ctx, "thermal profile updated from cycle",
+		"zone_id", obs.ZoneID,
+		"cycle_type", obs.CycleType,
+		"duration_min", obs.DurationMinutes,
+		"heat_rate", profile.HeatRatePerHr,
+		"cool_rate", profile.CoolRatePerHr,
+		"samples", profile.SamplesCount,
+	)
+	return profile, nil
+}
+
+// CalculateOptimalStart computes the preheating advance duration and start time to reach target temperature on schedule.
+func (s *PredictiveService) CalculateOptimalStart(
+	ctx context.Context,
+	zoneID string,
+	targetTime time.Time,
+	targetTemp float64,
+) (*domclimate.PreheatRecommendation, error) {
+	cfg, err := s.repo.GetByID(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	if targetTemp <= 0 {
+		targetTemp = cfg.TargetTemperature
+	}
+	if targetTemp <= 0 {
+		targetTemp = 20.0
+	}
+	if targetTime.IsZero() {
+		targetTime = time.Now().UTC().Add(2 * time.Hour)
+	}
+
+	profile, err := s.GetZoneProfile(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Current indoor temperature
+	currentTemp := 19.0
+	if s.entityRepo != nil && cfg.TempSensorKey != "" {
+		if e, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey); err == nil {
+			if v, ok := parseNumericState(e.State); ok {
+				currentTemp = v
+			}
+		}
+	}
+
+	// Outdoor temperature & solar radiation forecast
+	outdoorTemp := 10.0
+	solarRadiation := 0.0
+	s.mu.RLock()
+	lat, lon := s.lat, s.lon
+	s.mu.RUnlock()
+
+	if s.weatherCli != nil {
+		if report, err := s.weatherCli.FetchForecast(ctx, lat, lon); err == nil && report != nil {
+			for _, h := range report.Hourly {
+				if h.Time.After(targetTime.Add(-1*time.Hour)) && h.Time.Before(targetTime.Add(2*time.Hour)) {
+					outdoorTemp = h.Temperature
+					solarRadiation = h.DirectRadiation
+					break
+				}
+			}
+		}
+	}
+
+	// Solar kW boost calculation
+	factor := domclimate.OrientationFactor(cfg.Orientation, 1.0)
+	solarKw := (solarRadiation * cfg.WindowAreaSqm * factor * 0.7) / 1000.0
+
+	minutes, effectiveRate := profile.CalculatePreheatMinutes(currentTemp, targetTemp, outdoorTemp, solarKw)
+	startTime := targetTime.Add(-time.Duration(minutes) * time.Minute)
+
+	var reason string
+	if minutes == 0 {
+		reason = fmt.Sprintf("Nessun anticipo necessario: temperatura attuale (%.1f°C) già al target comfort (%.1f°C)", currentTemp, targetTemp)
+	} else {
+		reason = fmt.Sprintf("Avvio anticipato di %d min alle %s per raggiungere %.1f°C alle %s (velocità stimata %.2f°C/h con %.1f°C esterni)",
+			minutes,
+			startTime.Format("15:04"),
+			targetTemp,
+			targetTime.Format("15:04"),
+			effectiveRate,
+			outdoorTemp,
+		)
+	}
+
+	return &domclimate.PreheatRecommendation{
+		ZoneID:            zoneID,
+		TargetTime:        targetTime,
+		TargetTemp:        targetTemp,
+		CurrentTemp:       currentTemp,
+		OutdoorTemp:       outdoorTemp,
+		PreheatMinutes:    minutes,
+		StartTime:         startTime,
+		EffectiveHeatRate: effectiveRate,
+		Reason:            reason,
+	}, nil
+}
+
+// CalculateCoastDown calculates how early heating can be turned off before departure or sleep to exploit thermal inertia.
+func (s *PredictiveService) CalculateCoastDown(
+	ctx context.Context,
+	zoneID string,
+	departureTime time.Time,
+) (*domclimate.CoastDownRecommendation, error) {
+	cfg, err := s.repo.GetByID(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	if departureTime.IsZero() {
+		departureTime = time.Now().UTC().Add(2 * time.Hour)
+	}
+
+	profile, err := s.GetZoneProfile(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	targetTemp := cfg.TargetTemperature
+	if targetTemp <= 0 {
+		targetTemp = 20.0
+	}
+
+	currentTemp := targetTemp
+	if s.entityRepo != nil && cfg.TempSensorKey != "" {
+		if e, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey); err == nil {
+			if v, ok := parseNumericState(e.State); ok {
+				currentTemp = v
+			}
+		}
+	}
+
+	outdoorTemp := 10.0
+	s.mu.RLock()
+	lat, lon := s.lat, s.lon
+	s.mu.RUnlock()
+
+	if s.weatherCli != nil {
+		if report, err := s.weatherCli.FetchForecast(ctx, lat, lon); err == nil && report != nil {
+			for _, h := range report.Hourly {
+				if h.Time.After(departureTime.Add(-1*time.Hour)) && h.Time.Before(departureTime.Add(2*time.Hour)) {
+					outdoorTemp = h.Temperature
+					break
+				}
+			}
+		}
+	}
+
+	minutes := profile.CalculateCoastDownMinutes(currentTemp, targetTemp, outdoorTemp)
+	stopTime := departureTime.Add(-time.Duration(minutes) * time.Minute)
+	comfortLimit := targetTemp - 0.5
+
+	// Approximate energy saved: assuming average radiator/emitter electrical/thermal draw of 1.5 kW
+	energySaved := (float64(minutes) / 60.0) * 1.5
+
+	var reason string
+	if minutes == 0 {
+		reason = fmt.Sprintf("Nessun arresto anticipato: temperatura attuale (%.1f°C) sotto il limite comfort (%.1f°C)", currentTemp, comfortLimit)
+	} else {
+		reason = fmt.Sprintf("Spegnimento anticipato di %d min alle %s (uscita alle %s): inerzia termica sfruttabile con risparmio stimato di %.2f kWh",
+			minutes,
+			stopTime.Format("15:04"),
+			departureTime.Format("15:04"),
+			energySaved,
+		)
+	}
+
+	return &domclimate.CoastDownRecommendation{
+		ZoneID:           zoneID,
+		DepartureTime:    departureTime,
+		ComfortLimitTemp: comfortLimit,
+		CoastDownMinutes: minutes,
+		StopTime:         stopTime,
+		EnergySavedKwh:   math.Round(energySaved*100) / 100,
+		Reason:           reason,
+	}, nil
 }
 
 func (s *PredictiveService) dispatchTRVSetpoint(ctx context.Context, trvKey string, targetTemp float64, reason string) {

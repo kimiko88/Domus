@@ -139,7 +139,68 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, float64(1), evalsRes["count"])
 
-	// STEP 5: Delete zone
+	// STEP 5: Thermal Profile Auto-learning & Optimal Start/Stop
+	// 5.1 Fetch initial default thermal profile for Radiant Floor
+	resp, err = client.Get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/profile")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var initialProfile domclimate.ThermalProfile
+	err = json.NewDecoder(resp.Body).Decode(&initialProfile)
+	resp.Body.Close()
+	require.NoError(t, err)
+	assert.Equal(t, createdZone.ID, initialProfile.ZoneID)
+	assert.Equal(t, 0.6, initialProfile.HeatRatePerHr)
+	assert.Equal(t, 0, initialProfile.SamplesCount)
+
+	// 5.2 Train model with active heating cycle observation
+	trainCycle := domclimate.ThermalCycleObservation{
+		CycleType:       "heating",
+		StartTemp:       19.0,
+		EndTemp:         20.8,
+		DurationMinutes: 60,
+	}
+	trainBytes, _ := json.Marshal(trainCycle)
+	resp, err = client.Post(ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID+"/train", "application/json", bytes.NewReader(trainBytes))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var trainedProfile domclimate.ThermalProfile
+	err = json.NewDecoder(resp.Body).Decode(&trainedProfile)
+	resp.Body.Close()
+	require.NoError(t, err)
+	assert.Equal(t, 1, trainedProfile.SamplesCount)
+	assert.Greater(t, trainedProfile.HeatRatePerHr, 0.6)
+
+	// 5.3 Optimal Start Recommendation
+	targetTime := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
+	resp, err = client.Get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-start?target_temp=21.0&target_time=" + targetTime)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var preheatRec domclimate.PreheatRecommendation
+	err = json.NewDecoder(resp.Body).Decode(&preheatRec)
+	resp.Body.Close()
+	require.NoError(t, err)
+	assert.Equal(t, createdZone.ID, preheatRec.ZoneID)
+	assert.Greater(t, preheatRec.PreheatMinutes, 0)
+	assert.NotEmpty(t, preheatRec.Reason)
+
+	// 5.4 Optimal Stop (Coast-Down) Recommendation
+	resp, err = client.Get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-stop")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var coastRec domclimate.CoastDownRecommendation
+	err = json.NewDecoder(resp.Body).Decode(&coastRec)
+	resp.Body.Close()
+	require.NoError(t, err)
+	assert.Equal(t, createdZone.ID, coastRec.ZoneID)
+	assert.GreaterOrEqual(t, coastRec.CoastDownMinutes, 15)
+	assert.Greater(t, coastRec.EnergySavedKwh, 0.0)
+	assert.NotEmpty(t, coastRec.Reason)
+
+	// STEP 6: Delete zone
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID, nil)
 	resp, err = client.Do(req)
 	require.NoError(t, err)

@@ -14,12 +14,14 @@ import (
 type mockPredictiveRepo struct {
 	zones       map[string]*domclimate.PredictiveZoneConfig
 	evaluations map[string][]*domclimate.PredictiveEvaluation
+	profiles    map[string]*domclimate.ThermalProfile
 }
 
 func newMockPredictiveRepo() *mockPredictiveRepo {
 	return &mockPredictiveRepo{
 		zones:       make(map[string]*domclimate.PredictiveZoneConfig),
 		evaluations: make(map[string][]*domclimate.PredictiveEvaluation),
+		profiles:    make(map[string]*domclimate.ThermalProfile),
 	}
 }
 
@@ -49,6 +51,7 @@ func (m *mockPredictiveRepo) List(ctx context.Context) ([]*domclimate.Predictive
 
 func (m *mockPredictiveRepo) Delete(ctx context.Context, id string) error {
 	delete(m.zones, id)
+	delete(m.profiles, id)
 	return nil
 }
 
@@ -69,6 +72,27 @@ func (m *mockPredictiveRepo) GetLatestEvaluations(ctx context.Context) ([]*domcl
 
 func (m *mockPredictiveRepo) GetZoneEvaluations(ctx context.Context, zoneID string, limit int) ([]*domclimate.PredictiveEvaluation, error) {
 	return m.evaluations[zoneID], nil
+}
+
+func (m *mockPredictiveRepo) SaveProfile(ctx context.Context, profile *domclimate.ThermalProfile) error {
+	m.profiles[profile.ZoneID] = profile
+	return nil
+}
+
+func (m *mockPredictiveRepo) GetProfile(ctx context.Context, zoneID string) (*domclimate.ThermalProfile, error) {
+	p, exists := m.profiles[zoneID]
+	if !exists {
+		return nil, domclimate.ErrThermalProfileNotFound
+	}
+	return p, nil
+}
+
+func (m *mockPredictiveRepo) ListProfiles(ctx context.Context) ([]*domclimate.ThermalProfile, error) {
+	var list []*domclimate.ThermalProfile
+	for _, p := range m.profiles {
+		list = append(list, p)
+	}
+	return list, nil
 }
 
 type mockEventBus struct {
@@ -163,3 +187,89 @@ func TestPredictiveService_LifecycleAndEvaluation(t *testing.T) {
 		t.Errorf("expected ColdFrontActive to be true")
 	}
 }
+
+func TestPredictiveService_ThermalProfileAndOptimalStartStop(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	weatherCli := appweather.NewClient()
+
+	svc := appclimate.NewPredictiveService(repo, nil, weatherCli, bus, nil)
+
+	zone := &domclimate.PredictiveZoneConfig{
+		ID:                  "zone_floor_test",
+		Name:                "Camera Matrimoniale",
+		TRVEntityKey:        "climate.valvola_camera",
+		TempSensorKey:       "sensor.camera_temp",
+		TargetTemperature:   21.0,
+		Orientation:         domclimate.OrientationSouth,
+		WindowAreaSqm:       5.0,
+		EmitterType:         domclimate.EmitterFloorRadiant,
+		ThermalInertiaHours: 4.0,
+		Enabled:             true,
+	}
+	if err := svc.SaveZone(ctx, zone); err != nil {
+		t.Fatalf("failed to save zone: %v", err)
+	}
+
+	// 1. Get initial profile (should create default for Radiant Floor: 0.6 °C/h, 0.15 °C/h cool)
+	profile, err := svc.GetZoneProfile(ctx, "zone_floor_test")
+	if err != nil {
+		t.Fatalf("failed to get zone profile: %v", err)
+	}
+	if profile.ZoneID != "zone_floor_test" || profile.HeatRatePerHr != 0.6 || profile.CoolRatePerHr != 0.15 {
+		t.Errorf("unexpected default profile: %+v", profile)
+	}
+
+	// 2. Train from heating cycle (60 mins, rose from 19.0 to 20.2 -> observed 1.2 °C/h)
+	trainedProfile, err := svc.TrainFromCycle(ctx, domclimate.ThermalCycleObservation{
+		ZoneID:          "zone_floor_test",
+		CycleType:       "heating",
+		StartTemp:       19.0,
+		EndTemp:         20.2,
+		DurationMinutes: 60,
+		ObservedAt:      time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("failed to train from cycle: %v", err)
+	}
+	if trainedProfile.SamplesCount != 1 {
+		t.Errorf("expected 1 sample, got %d", trainedProfile.SamplesCount)
+	}
+	if trainedProfile.HeatRatePerHr <= 0.6 {
+		t.Errorf("expected heat rate to increase from 0.6, got %f", trainedProfile.HeatRatePerHr)
+	}
+
+	// 3. Optimal Start (target time in 3 hours)
+	targetTime := time.Now().UTC().Add(3 * time.Hour)
+	preheatRec, err := svc.CalculateOptimalStart(ctx, "zone_floor_test", targetTime, 21.0)
+	if err != nil {
+		t.Fatalf("failed to calculate optimal start: %v", err)
+	}
+	if preheatRec.PreheatMinutes <= 0 {
+		t.Errorf("expected positive preheat minutes, got %d", preheatRec.PreheatMinutes)
+	}
+	if preheatRec.StartTime.After(targetTime) {
+		t.Errorf("start time must be before target time")
+	}
+	if preheatRec.Reason == "" {
+		t.Errorf("expected non-empty reason")
+	}
+
+	// 4. Optimal Coast-Down (departure time in 4 hours)
+	departureTime := time.Now().UTC().Add(4 * time.Hour)
+	coastRec, err := svc.CalculateCoastDown(ctx, "zone_floor_test", departureTime)
+	if err != nil {
+		t.Fatalf("failed to calculate coast down: %v", err)
+	}
+	if coastRec.CoastDownMinutes < 15 || coastRec.CoastDownMinutes > 120 {
+		t.Errorf("expected coast down between 15 and 120 mins, got %d", coastRec.CoastDownMinutes)
+	}
+	if coastRec.EnergySavedKwh <= 0 {
+		t.Errorf("expected positive energy saved, got %f", coastRec.EnergySavedKwh)
+	}
+	if coastRec.StopTime.After(departureTime) {
+		t.Errorf("stop time must be before departure time")
+	}
+}
+

@@ -112,6 +112,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 14, file: "migrations/000014_pantry_recipes_mealplan.up.sql"},
 		{version: 15, file: "migrations/000015_medicines.up.sql"},
 		{version: 16, file: "migrations/000016_predictive_climate.up.sql"},
+		{version: 17, file: "migrations/000017_predictive_climate_profiles.up.sql"},
 	}
 
 	for _, m := range migrations {

@@ -119,7 +119,54 @@ func TestPredictiveClimateRepository_CRUDAndEvaluations(t *testing.T) {
 		t.Errorf("expected 1 history item, got %d", len(history))
 	}
 
-	// 5. Delete Zone
+	// 5. Save and Get Thermal Profile
+	profile := &climate.ThermalProfile{
+		ZoneID:           "pzone_test_1",
+		HeatRatePerHr:    1.45,
+		CoolRatePerHr:    0.28,
+		OutdoorLossCoeff: 0.025,
+		SolarBoostCoeff:  0.35,
+		SamplesCount:     5,
+		LastTrainedAt:    time.Now().UTC(),
+	}
+
+	if err := repo.SaveProfile(ctx, profile); err != nil {
+		t.Fatalf("failed to save thermal profile: %v", err)
+	}
+
+	gotProfile, err := repo.GetProfile(ctx, "pzone_test_1")
+	if err != nil {
+		t.Fatalf("failed to get thermal profile: %v", err)
+	}
+	if gotProfile.ZoneID != "pzone_test_1" || gotProfile.HeatRatePerHr != 1.45 || gotProfile.SamplesCount != 5 {
+		t.Errorf("unexpected profile: %+v", gotProfile)
+	}
+
+	// Update Profile (Upsert)
+	gotProfile.HeatRatePerHr = 1.60
+	gotProfile.SamplesCount = 6
+	if err := repo.SaveProfile(ctx, gotProfile); err != nil {
+		t.Fatalf("failed to update thermal profile: %v", err)
+	}
+
+	updatedProfile, err := repo.GetProfile(ctx, "pzone_test_1")
+	if err != nil {
+		t.Fatalf("failed to get updated profile: %v", err)
+	}
+	if updatedProfile.HeatRatePerHr != 1.60 || updatedProfile.SamplesCount != 6 {
+		t.Errorf("expected updated rate 1.60, got %f", updatedProfile.HeatRatePerHr)
+	}
+
+	// List Profiles
+	profiles, err := repo.ListProfiles(ctx)
+	if err != nil {
+		t.Fatalf("failed to list profiles: %v", err)
+	}
+	if len(profiles) != 1 {
+		t.Errorf("expected 1 profile, got %d", len(profiles))
+	}
+
+	// 6. Delete Zone (and verify cascade delete of profile)
 	if err := repo.Delete(ctx, "pzone_test_1"); err != nil {
 		t.Fatalf("failed to delete zone: %v", err)
 	}
@@ -127,5 +174,10 @@ func TestPredictiveClimateRepository_CRUDAndEvaluations(t *testing.T) {
 	_, err = repo.GetByID(ctx, "pzone_test_1")
 	if err != climate.ErrPredictiveZoneNotFound {
 		t.Errorf("expected ErrPredictiveZoneNotFound, got %v", err)
+	}
+
+	_, err = repo.GetProfile(ctx, "pzone_test_1")
+	if err != climate.ErrThermalProfileNotFound {
+		t.Errorf("expected ErrThermalProfileNotFound after zone delete, got %v", err)
 	}
 }

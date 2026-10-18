@@ -1044,5 +1044,48 @@ export interface SystemPredictiveStatus {
   evaluated_at: string
 }
 
+export interface ThermalProfile {
+  zone_id: string
+  heat_rate_per_hr: number
+  cool_rate_per_hr: number
+  outdoor_loss_coeff: number
+  solar_boost_coeff: number
+  samples_count: number
+  last_trained_at: string
+}
+
+export interface ThermalCycleObservation {
+  zone_id?: string
+  cycle_type: 'heating' | 'cooling'
+  start_temp: number
+  end_temp: number
+  avg_outdoor_temp?: number
+  solar_radiation?: number
+  duration_minutes: number
+  observed_at?: string
+}
+
+export interface PreheatRecommendation {
+  zone_id: string
+  target_time: string
+  target_temp: number
+  current_temp: number
+  outdoor_temp: number
+  preheat_minutes: number
+  start_time: string
+  effective_heat_rate: number
+  reason: string
+}
+
+export interface CoastDownRecommendation {
+  zone_id: string
+  departure_time: string
+  comfort_limit_temp: number
+  coast_down_minutes: number
+  stop_time: string
+  energy_saved_kwh: number
+  reason: string
+}
+
 
 

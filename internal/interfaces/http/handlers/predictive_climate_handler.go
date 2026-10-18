@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
@@ -33,6 +34,10 @@ func (h *PredictiveClimateHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/zones/{id}/evaluate", h.EvaluateZone)
 	r.Get("/zones/{id}/evaluations", h.GetZoneEvaluations)
 	r.Post("/evaluate-all", h.EvaluateAll)
+	r.Get("/zones/{id}/profile", h.GetZoneProfile)
+	r.Post("/zones/{id}/train", h.TrainZone)
+	r.Get("/zones/{id}/optimal-start", h.GetOptimalStart)
+	r.Get("/zones/{id}/optimal-stop", h.GetOptimalStop)
 }
 
 // GetStatus handles GET /api/v1/climate/predictive/status.
@@ -180,3 +185,94 @@ func (h *PredictiveClimateHandler) GetZoneEvaluations(w http.ResponseWriter, r *
 		"count":       len(evals),
 	})
 }
+
+// GetZoneProfile handles GET /api/v1/climate/predictive/zones/{id}/profile.
+func (h *PredictiveClimateHandler) GetZoneProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	profile, err := h.service.GetZoneProfile(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, domclimate.ErrPredictiveZoneNotFound) || errors.Is(err, domclimate.ErrThermalProfileNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "zone or thermal profile not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, profile)
+}
+
+// TrainZone handles POST /api/v1/climate/predictive/zones/{id}/train.
+func (h *PredictiveClimateHandler) TrainZone(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var obs domclimate.ThermalCycleObservation
+	if err := json.NewDecoder(r.Body).Decode(&obs); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+		return
+	}
+	obs.ZoneID = id
+	if obs.ObservedAt.IsZero() {
+		obs.ObservedAt = time.Now().UTC()
+	}
+
+	profile, err := h.service.TrainFromCycle(r.Context(), obs)
+	if err != nil {
+		if errors.Is(err, domclimate.ErrPredictiveZoneNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "predictive zone not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "TRAIN_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, profile)
+}
+
+// GetOptimalStart handles GET /api/v1/climate/predictive/zones/{id}/optimal-start.
+func (h *PredictiveClimateHandler) GetOptimalStart(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var targetTime time.Time
+	if tStr := r.URL.Query().Get("target_time"); tStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, tStr); err == nil {
+			targetTime = parsed
+		}
+	}
+	var targetTemp float64
+	if tempStr := r.URL.Query().Get("target_temp"); tempStr != "" {
+		if parsed, err := strconv.ParseFloat(tempStr, 64); err == nil {
+			targetTemp = parsed
+		}
+	}
+
+	rec, err := h.service.CalculateOptimalStart(r.Context(), id, targetTime, targetTemp)
+	if err != nil {
+		if errors.Is(err, domclimate.ErrPredictiveZoneNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "predictive zone not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "OPTIMAL_START_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, rec)
+}
+
+// GetOptimalStop handles GET /api/v1/climate/predictive/zones/{id}/optimal-stop.
+func (h *PredictiveClimateHandler) GetOptimalStop(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var departureTime time.Time
+	if dStr := r.URL.Query().Get("departure_time"); dStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, dStr); err == nil {
+			departureTime = parsed
+		}
+	}
+
+	rec, err := h.service.CalculateCoastDown(r.Context(), id, departureTime)
+	if err != nil {
+		if errors.Is(err, domclimate.ErrPredictiveZoneNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "predictive zone not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "OPTIMAL_STOP_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, rec)
+}
+

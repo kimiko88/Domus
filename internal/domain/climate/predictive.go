@@ -12,6 +12,7 @@ import (
 var (
 	ErrPredictiveZoneNotFound = errors.New("predictive climate zone not found")
 	ErrInvalidZoneConfig      = errors.New("invalid predictive climate zone configuration")
+	ErrThermalProfileNotFound = errors.New("thermal profile not found")
 )
 
 // RoomOrientation defines the cardinal direction the room primarily faces.
@@ -87,7 +88,7 @@ type PredictiveEvaluation struct {
 	EvaluatedAt             time.Time `json:"evaluated_at"`
 }
 
-// PredictiveRepository defines persistence operations for predictive climate zones and evaluations.
+// PredictiveRepository defines persistence operations for predictive climate zones, evaluations, and learned thermal profiles.
 type PredictiveRepository interface {
 	Save(ctx context.Context, cfg *PredictiveZoneConfig) error
 	GetByID(ctx context.Context, id string) (*PredictiveZoneConfig, error)
@@ -96,6 +97,9 @@ type PredictiveRepository interface {
 	SaveEvaluation(ctx context.Context, eval *PredictiveEvaluation) error
 	GetLatestEvaluations(ctx context.Context) ([]*PredictiveEvaluation, error)
 	GetZoneEvaluations(ctx context.Context, zoneID string, limit int) ([]*PredictiveEvaluation, error)
+	SaveProfile(ctx context.Context, profile *ThermalProfile) error
+	GetProfile(ctx context.Context, zoneID string) (*ThermalProfile, error)
+	ListProfiles(ctx context.Context) ([]*ThermalProfile, error)
 }
 
 // CalculateApparentTemp computes the perceived indoor temperature taking humidity and pressure into account.
