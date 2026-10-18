@@ -25,6 +25,7 @@ import (
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
+	appmed "github.com/domus-hub/domus/internal/application/medicine"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
 	appota "github.com/domus-hub/domus/internal/application/ota"
@@ -702,6 +703,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					}
 				}
 
+				if srv.repos.PredictiveClimate != nil {
+					predSvc := appclimate.NewPredictiveService(srv.repos.PredictiveClimate, srv.repos.Entities, weatherCli, srv.bus, nil)
+					predH := handlers.NewPredictiveClimateHandler(predSvc)
+					domainRouter.Route("/climate/predictive", func(pRouter chi.Router) {
+						predH.RegisterRoutes(pRouter)
+					})
+				}
+
 				domainRouter.Route("/calendar", func(calRouter chi.Router) {
 					calRouter.Get("/events", ecoH.ListCalendarEvents)
 					calRouter.Post("/import", ecoH.ImportICal)
@@ -812,6 +821,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					pantrySvc := apppantry.NewService(srv.repos.Pantry, srv.bus, finRecorder, shopAdder, nil)
 					pantryH := handlers.NewPantryHandler(pantrySvc)
 					pantryH.RegisterRoutes(domainRouter)
+				}
+
+				if srv.repos.Medicines != nil {
+					medSvc := appmed.NewService(srv.repos.Medicines, srv.bus)
+					medH := handlers.NewMedicineHandler(medSvc)
+					medH.RegisterRoutes(domainRouter)
 				}
 
 				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks

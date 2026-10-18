@@ -163,6 +163,9 @@ func (r *WeeklyScheduleRepository) List(ctx context.Context) ([]*schedule.Weekly
 		}
 		results = append(results, &s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed during weekly schedules iteration: %w", err)
+	}
 	return results, nil
 }
 

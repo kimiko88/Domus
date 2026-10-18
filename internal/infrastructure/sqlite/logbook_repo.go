@@ -118,6 +118,9 @@ func (r *LogbookRepository) List(ctx context.Context, filter logbook.Filter) ([]
 		}
 		entries = append(entries, &e)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed during logbook entries iteration: %w", err)
+	}
 
 	return entries, nil
 }

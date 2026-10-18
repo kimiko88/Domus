@@ -283,6 +283,9 @@ func (r *FinanceRepository) GetSummary(ctx context.Context, period string, refDa
 			Count:       count,
 		})
 	}
+	if err := catRows.Err(); err != nil {
+		return nil, fmt.Errorf("finance_repo: catRows error: %w", err)
+	}
 
 	// 4. Fixed vs Variable Breakdown
 	var fixedAmount, varAmount float64
@@ -303,6 +306,10 @@ func (r *FinanceRepository) GetSummary(ctx context.Context, period string, refDa
 					varAmount = amt
 				}
 			}
+		}
+		if err := fvRows.Err(); err != nil {
+			fvRows.Close()
+			return nil, fmt.Errorf("finance_repo: fvRows error: %w", err)
 		}
 		fvRows.Close()
 	}

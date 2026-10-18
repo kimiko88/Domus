@@ -119,16 +119,6 @@ private struct ToggleRequestDTO: Encodable {
     }
 }
 
-private struct ServiceCallDTO: Encodable {
-    let entityId: String
-    let data: [String: String]
-
-    enum CodingKeys: String, CodingKey {
-        case entityId = "entity_id"
-        case data
-    }
-}
-
 // MARK: - DefaultEntityRepository
 
 /// Implementazione concreta del repository entità.
@@ -183,9 +173,7 @@ public actor DefaultEntityRepository: EntityRepositoryProtocol {
     }
 
     public func callService(domain: String, service: String, entityId: String, data: [String: Any]) async throws {
-        let bodyData = data.compactMapValues { "\($0)" }
-        let dto = ServiceCallDTO(entityId: entityId, data: bodyData)
-        try await httpClient.postVoid(path: "/api/v1/services/\(domain)/\(service)", body: dto)
+        try await httpClient.callService(domain: domain, service: service, entityId: entityId, data: data)
     }
 
     public func updateLocalEntity(_ entity: Entity) async {

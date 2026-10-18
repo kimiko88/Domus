@@ -143,6 +143,9 @@ func (r *OTARepository) ListDevices(ctx context.Context) ([]*ota.DeviceOTA, erro
 		}
 		devices = append(devices, &dev)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if devices == nil {
 		devices = []*ota.DeviceOTA{}

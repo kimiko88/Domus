@@ -29,6 +29,8 @@ import {
   Code2,
   Wallet,
   UtensilsCrossed,
+  Pill,
+  Thermometer,
   ChevronDown
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -85,6 +87,7 @@ const macroSections: NavMacroSection[] = [
     items: [
       { name: 'Dispensa & Ricette', labelKey: 'nav.pantry', path: '/pantry', icon: UtensilsCrossed },
       { name: 'Lista Spesa', labelKey: 'nav.shopping', path: '/shopping', icon: ShoppingCart },
+      { name: 'Armadietto Farmaci', labelKey: 'nav.medicines', path: '/medicines', icon: Pill },
       { name: 'Faccende', labelKey: 'nav.chores', path: '/chores', icon: CheckSquare },
       { name: 'Bilancio Casa', labelKey: 'nav.finance', path: '/finance', icon: Wallet },
       { name: 'Famiglia', labelKey: 'nav.family', path: '/family', icon: Users }
@@ -114,6 +117,7 @@ const macroSections: NavMacroSection[] = [
       { name: 'Scene', labelKey: 'nav.scenes', path: '/scenes', icon: Clapperboard },
       { name: 'Programmazione', labelKey: 'nav.schedules', path: '/schedules', icon: Clock },
       { name: 'Energia & Solare', labelKey: 'nav.energy', path: '/energy', icon: Sun },
+      { name: 'Termostato Predittivo', labelKey: 'nav.predictiveClimate', path: '/climate/predictive', icon: Thermometer },
       { name: 'Audio Multi-room', labelKey: 'nav.media', path: '/media', icon: Music },
       { name: 'Zone & Presenza', labelKey: 'nav.zones', path: '/zones', icon: MapPin }
     ]

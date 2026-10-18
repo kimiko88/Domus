@@ -910,4 +910,139 @@ export interface ReceiptImportResult {
   expense_amount: number
 }
 
+// --- MEDICINE CABINET & EXPIRATION TYPES ---
+
+export type MedicineLocation =
+  | 'armadietto_bagno'
+  | 'cassetto_notte'
+  | 'borsa_viaggio'
+  | 'frigo'
+  | 'altro'
+
+export type MedicineUnit =
+  | 'compresse'
+  | 'bustine'
+  | 'gocce'
+  | 'ml'
+  | 'pz'
+  | 'confezione'
+
+export interface Medicine {
+  id: string
+  name: string
+  active_ingredient?: string
+  dosage?: string
+  form?: string
+  aic?: string
+  barcode?: string
+  lot_number?: string
+  expiration_date: string
+  pao_days: number
+  opened_at?: string
+  effective_expiration_date: string
+  location: MedicineLocation
+  requires_cold_chain: boolean
+  quantity: number
+  unit: MedicineUnit
+  min_threshold: number
+  prescription_required: boolean
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DatamatrixParseResult {
+  aic?: string
+  gtin?: string
+  expiration_date?: string
+  lot_number?: string
+  serial_number?: string
+  raw_code: string
+}
+
+export interface AIFARecord {
+  aic: string
+  name: string
+  active_ingredient: string
+  dosage: string
+  form: string
+  unit: MedicineUnit
+  default_quantity: number
+  requires_cold_chain: boolean
+  default_location: MedicineLocation
+  default_pao_days: number
+  prescription_required: boolean
+}
+
+export interface MedicineAlert {
+  medicine_id: string
+  medicine_name: string
+  type: 'expired' | 'expiring_soon_7d' | 'expiring_soon_30d' | 'low_stock' | 'cold_chain_warning'
+  severity: 'critical' | 'warning' | 'info'
+  days_remaining: number
+  message: string
+  location: MedicineLocation
+}
+
+export type RoomOrientation = 'north' | 'south' | 'east' | 'west'
+export type EmitterType = 'radiator' | 'floor_radiant' | 'fancoil'
+
+export interface PredictiveZoneConfig {
+  id?: string
+  name: string
+  area_id?: string
+  trv_entity_key: string
+  temp_sensor_key: string
+  pressure_sensor_key?: string
+  humidity_sensor_key?: string
+  window_sensor_key?: string
+  target_temperature: number
+  orientation: RoomOrientation
+  window_area_sqm: number
+  emitter_type: EmitterType
+  thermal_inertia_hours: number
+  preheat_enabled: boolean
+  solar_cutoff_enabled: boolean
+  pressure_boost_enabled: boolean
+  enabled: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PredictiveEvaluation {
+  id: string
+  zone_id: string
+  zone_name: string
+  current_temp: number
+  target_temp: number
+  current_pressure: number
+  pressure_trend_hpa_hr: number
+  humidity: number
+  apparent_temp: number
+  outdoor_temp_forecast: number
+  direct_radiation_forecast: number
+  estimated_solar_gain_kw: number
+  cold_front_detected: boolean
+  window_open: boolean
+  calculated_setpoint: number
+  mode: 'comfort' | 'cold_front_boost' | 'solar_cutoff' | 'preheat' | 'eco' | 'frost_protection'
+  reason: string
+  evaluated_at: string
+}
+
+export interface ZoneDashboardStatus {
+  config: PredictiveZoneConfig
+  latest_evaluation?: PredictiveEvaluation
+}
+
+export interface SystemPredictiveStatus {
+  total_zones: number
+  enabled_zones: number
+  cold_front_active: boolean
+  solar_cutoff_active: boolean
+  zones: ZoneDashboardStatus[]
+  evaluated_at: string
+}
+
+
 

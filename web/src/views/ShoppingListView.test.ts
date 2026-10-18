@@ -150,4 +150,54 @@ describe('ShoppingListView.vue', () => {
     expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/shopping/item-to-delete')
     expect(wrapper.text()).not.toContain('Detersivo Piatti')
   })
+
+  it('opens receipt modal, parses receipt, and allows matching items', async () => {
+    const mockItems = [
+      {
+        id: 'item-pasta',
+        name: 'Pasta Penne',
+        quantity: '500g',
+        category: 'alimentari',
+        completed: false,
+        added_by: 'Io',
+        created_at: 'Oggi'
+      }
+    ]
+    vi.mocked(apiClient.get).mockResolvedValue(mockItems)
+
+    const wrapper = mount(ShoppingListView)
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    // Find and click the Scan Receipt button
+    const scanBtn = wrapper.find('.btn-scan-receipt')
+    expect(scanBtn.exists()).toBe(true)
+    await scanBtn.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.receipt-modal-backdrop').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Scansiona Scontrino Spesa')
+
+    // Mock receipt parsing
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      store_name: 'Esselunga',
+      date: '2026-10-18',
+      items: [
+        { name: 'Pasta Penne Rigate', quantity: 1, unit: 'pz', total_price: 1.30, category: 'pantry' }
+      ],
+      total_amount: 1.30,
+      confidence: 0.95
+    })
+
+    const textarea = wrapper.find('.receipt-textarea')
+    await textarea.setValue('ESSELUNGA PASTA PENNE 1.30')
+    const parseBtn = wrapper.find('.btn-run-parse')
+    await parseBtn.trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/receipts/parse', expect.objectContaining({
+      raw_text: 'ESSELUNGA PASTA PENNE 1.30'
+    }))
+  })
 })

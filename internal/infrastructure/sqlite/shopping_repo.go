@@ -182,6 +182,9 @@ func (r *ShoppingRepository) ListItems(ctx context.Context) ([]*domainShop.Item,
 		}
 		items = append(items, &item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error in shopping list: %w", err)
+	}
 
 	if items == nil {
 		items = []*domainShop.Item{}

@@ -19,7 +19,12 @@ import {
   Building2,
   Filter,
   Check,
-  PackageCheck
+  PackageCheck,
+  Receipt,
+  FileText,
+  DollarSign,
+  AlertCircle,
+  X
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
 import { usePantryStore } from '../stores/pantry'
@@ -267,6 +272,118 @@ async function handleTransferConfirm(payload: {
   }, 6000)
 }
 
+// --- RECEIPT SCANNER STATE ---
+const showReceiptModal = ref(false)
+const receiptRawText = ref('')
+const isParsingReceipt = ref(false)
+const autoImportToPantryAndFinance = ref(true)
+const selectedReceiptMatches = ref<Record<string, boolean>>({})
+
+const sampleReceiptEsselunga = `ESSELUNGA S.P.A.
+VIA PISACANE 12 - MILANO
+DATA 18/10/2026
+PASTA PENNE RIGATE 500G 1.30
+LATTE PARZ SCREM 1L 1.50
+MELE GOLDEN 1KG 2.20
+PANE INTEGRALE 500G 1.80
+TOTALE EURO 6.80`
+
+const sampleReceiptCoop = `COOP LOMBARDIA
+DATA 18/10/2026
+MELA ROSSA 1KG 2.10
+SAPONE MANI 1PZ 1.60
+DETERSIVO PIATTI 1L 1.99
+TOTALE EURO 5.69`
+
+function loadReceiptSample(sample: string) {
+  receiptRawText.value = sample
+}
+
+async function handleParseShoppingReceipt() {
+  if (!receiptRawText.value.trim()) return
+  isParsingReceipt.value = true
+  try {
+    const res = await pantryStore.parseReceipt(receiptRawText.value.trim())
+    selectedReceiptMatches.value = {}
+    if (res && res.items) {
+      for (const rItem of res.items) {
+        const rName = rItem.name.toLowerCase()
+        const match = items.value.find(
+          (it) => !it.completed && (rName.includes(it.name.toLowerCase()) || it.name.toLowerCase().includes(rName))
+        )
+        if (match) {
+          selectedReceiptMatches.value[match.id] = true
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Errore parsing scontrino:', err)
+  } finally {
+    isParsingReceipt.value = false
+  }
+}
+
+const matchedShoppingItems = computed(() => {
+  if (!pantryStore.parsedReceipt) return []
+  const matches: { shoppingItem: ShoppingItem; receiptName: string; price: number }[] = []
+  for (const rItem of pantryStore.parsedReceipt.items) {
+    const rName = rItem.name.toLowerCase()
+    const match = items.value.find(
+      (it) => !it.completed && (rName.includes(it.name.toLowerCase()) || it.name.toLowerCase().includes(rName))
+    )
+    if (match) {
+      matches.push({ shoppingItem: match, receiptName: rItem.name, price: rItem.total_price })
+    }
+  }
+  return matches
+})
+
+async function applyReceiptResults() {
+  const parsed = pantryStore.parsedReceipt
+  if (!parsed) return
+
+  let count = 0
+  for (const [id, selected] of Object.entries(selectedReceiptMatches.value)) {
+    if (selected) {
+      const it = items.value.find((i) => i.id === id)
+      if (it && !it.completed) {
+        await toggleItem(it)
+        count++
+      }
+    }
+  }
+
+  if (autoImportToPantryAndFinance.value) {
+    try {
+      await pantryStore.importReceipt({
+        store_name: parsed.store_name,
+        date: parsed.date || new Date().toISOString().slice(0, 10),
+        items: parsed.items,
+        total_amount: parsed.total_amount,
+        auto_add_to_finance: true,
+        auto_update_pantry: true
+      })
+    } catch (err) {
+      console.error('Errore import scontrino:', err)
+    }
+  }
+
+  pantryStore.clearParsedReceipt()
+  showReceiptModal.value = false
+  receiptRawText.value = ''
+
+  const msg = `Scontrino applicato! ${count} articol${count === 1 ? 'o' : 'i'} segnat${count === 1 ? 'o' : 'i'} come completat${count === 1 ? 'o' : 'i'}.`
+  transferFeedback.value = {
+    message: msg,
+    type: 'success'
+  }
+  setTimeout(() => {
+    if (transferFeedback.value?.message === msg) {
+      transferFeedback.value = null
+    }
+  }, 6000)
+}
+
 onMounted(async () => {
   try {
     const list = await apiClient.get<ShoppingItem[]>('/api/v1/shopping')
@@ -293,6 +410,15 @@ onMounted(async () => {
       </div>
 
       <div class="header-actions">
+        <button
+          class="btn-scan-receipt"
+          @click="showReceiptModal = true"
+          title="Scansiona scontrino della spesa"
+        >
+          <Receipt :size="16" />
+          <span>Scansiona Scontrino</span>
+        </button>
+
         <button
           v-if="items.length > 0"
           class="btn-transfer-pantry"
@@ -534,6 +660,147 @@ onMounted(async () => {
       @close="showTransferModal = false"
       @confirm="handleTransferConfirm"
     />
+
+    <!-- Receipt Scanner Modal -->
+    <div
+      v-if="showReceiptModal"
+      class="receipt-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="receipt-modal-title"
+      @click.self="showReceiptModal = false"
+    >
+      <div class="receipt-modal-card glass-panel">
+        <header class="receipt-modal-header">
+          <div class="modal-header-info">
+            <div class="icon-circle-receipt">
+              <Receipt :size="22" class="text-primary" />
+            </div>
+            <div>
+              <h2 id="receipt-modal-title" class="receipt-modal-title">Scansiona Scontrino Spesa</h2>
+              <p class="receipt-modal-sub">
+                Incolla o carica il testo dello scontrino per aggiornare automaticamente la lista.
+              </p>
+            </div>
+          </div>
+          <button class="btn-close-modal" @click="showReceiptModal = false" aria-label="Chiudi modale">
+            <X :size="20" />
+          </button>
+        </header>
+
+        <div class="receipt-modal-body">
+          <!-- Sample Chips -->
+          <div class="samples-row">
+            <span class="samples-label">Carica esempio rapido:</span>
+            <button type="button" class="chip-sample" @click="loadReceiptSample(sampleReceiptEsselunga)">
+              Esselunga (15.57 €)
+            </button>
+            <button type="button" class="chip-sample" @click="loadReceiptSample(sampleReceiptCoop)">
+              Coop (5.69 €)
+            </button>
+            <button v-if="receiptRawText" type="button" class="chip-clear" @click="receiptRawText = ''">
+              Pulisci
+            </button>
+          </div>
+
+          <!-- Raw Text Area -->
+          <div class="textarea-wrap">
+            <textarea
+              v-model="receiptRawText"
+              class="receipt-textarea"
+              rows="6"
+              placeholder="Incolla qui il testo dello scontrino (OCR o testo digitale)..."
+              aria-label="Testo grezzo scontrino"
+            ></textarea>
+          </div>
+
+          <div class="parse-btn-row">
+            <button
+              class="btn-run-parse"
+              :disabled="!receiptRawText.trim() || isParsingReceipt"
+              @click="handleParseShoppingReceipt"
+            >
+              <Sparkles :size="16" />
+              <span>{{ isParsingReceipt ? 'Analisi in corso...' : 'Analizza Scontrino' }}</span>
+            </button>
+          </div>
+
+          <!-- Parsed Results -->
+          <div v-if="pantryStore.parsedReceipt" class="parsed-results-panel">
+            <div class="parsed-meta-bar">
+              <div>
+                <span class="meta-store-name">{{ pantryStore.parsedReceipt.store_name || 'Supermercato' }}</span>
+                <span class="meta-date">{{ pantryStore.parsedReceipt.date }}</span>
+              </div>
+              <div class="meta-total">
+                Totale: <strong>€ {{ pantryStore.parsedReceipt.total_amount?.toFixed(2) }}</strong>
+              </div>
+            </div>
+
+            <!-- Matches List -->
+            <div class="matches-section">
+              <h3 class="matches-title">
+                Articoli Rilevati ({{ pantryStore.parsedReceipt.items?.length || 0 }})
+              </h3>
+              <div class="parsed-items-list">
+                <div
+                  v-for="(rItem, idx) in pantryStore.parsedReceipt.items"
+                  :key="idx"
+                  class="parsed-item-card"
+                >
+                  <div class="parsed-item-info">
+                    <span class="parsed-item-name">{{ rItem.name }}</span>
+                    <span class="parsed-item-qty">{{ rItem.quantity }} {{ rItem.unit }}</span>
+                  </div>
+                  <div class="parsed-item-price">
+                    € {{ rItem.total_price?.toFixed(2) }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Matched shopping items -->
+              <div v-if="matchedShoppingItems.length > 0" class="matched-box">
+                <h4 class="matched-box-title">
+                  <CheckCircle :size="16" class="text-success" />
+                  Corrispondenze trovate nella tua lista della spesa:
+                </h4>
+                <div class="matched-checkboxes">
+                  <label
+                    v-for="m in matchedShoppingItems"
+                    :key="m.shoppingItem.id"
+                    class="matched-label"
+                  >
+                    <input
+                      type="checkbox"
+                      v-model="selectedReceiptMatches[m.shoppingItem.id]"
+                    />
+                    <span>Segna come acquistato: <strong>{{ m.shoppingItem.name }}</strong> (trovato come "{{ m.receiptName }}")</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Option checkbox -->
+            <div class="import-options-row">
+              <label class="checkbox-option">
+                <input type="checkbox" v-model="autoImportToPantryAndFinance" />
+                <span>Salva contemporaneamente la spesa nel bilancio familiare e aggiungi gli alimenti in Dispensa</span>
+              </label>
+            </div>
+
+            <div class="modal-footer-actions">
+              <button class="btn-cancel-modal" @click="pantryStore.clearParsedReceipt()">
+                Ricomincia
+              </button>
+              <button class="btn-apply-receipt" @click="applyReceiptResults">
+                <Check :size="16" />
+                <span>Conferma & Segna Acquistati</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast Notification -->
     <Transition name="toast-slide">
@@ -1223,5 +1490,325 @@ onMounted(async () => {
 .toast-slide-leave-to {
   opacity: 0;
   transform: translateY(20px) scale(0.95);
+.btn-scan-receipt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-scan-receipt:hover {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: rgba(14, 165, 233, 0.5);
+  transform: translateY(-1px);
+}
+
+.receipt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.receipt-modal-card {
+  width: 100%;
+  max-width: 680px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--surface-card, #0f172a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.receipt-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.modal-header-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.icon-circle-receipt {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.receipt-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: #f8fafc;
+}
+
+.receipt-modal-sub {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 4px 0 0;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color 0.2s;
+}
+
+.btn-close-modal:hover {
+  color: #fff;
+}
+
+.receipt-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.samples-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.samples-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.chip-sample {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.chip-sample:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.chip-clear {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.receipt-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  padding: 12px;
+  color: #f8fafc;
+  font-family: monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.btn-run-parse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary, #10b981);
+  color: #000;
+  font-weight: 600;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-run-parse:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.parsed-results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.parsed-meta-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.meta-store-name {
+  font-weight: 700;
+  color: #f8fafc;
+  margin-right: 12px;
+}
+
+.meta-date {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.meta-total {
+  font-size: 0.95rem;
+  color: var(--primary, #10b981);
+}
+
+.matches-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0 0 10px;
+}
+
+.parsed-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.parsed-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.parsed-item-name {
+  font-weight: 500;
+  color: #f8fafc;
+  margin-right: 8px;
+}
+
+.parsed-item-qty {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.parsed-item-price {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.matched-box {
+  margin-top: 12px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.matched-box-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #10b981;
+  margin: 0 0 8px;
+}
+
+.matched-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matched-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #f1f5f9;
+  cursor: pointer;
+}
+
+.import-options-row {
+  margin-top: 6px;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.modal-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.btn-cancel-modal {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cbd5e1;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-apply-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary, #10b981);
+  color: #000;
+  font-weight: 600;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 </style>

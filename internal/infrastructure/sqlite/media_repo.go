@@ -180,6 +180,9 @@ func (r *MediaRepository) ListPlayers(ctx context.Context) ([]*media.MediaPlayer
 		}
 		players = append(players, &p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if players == nil {
 		players = []*media.MediaPlayer{}

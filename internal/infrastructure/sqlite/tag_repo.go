@@ -145,6 +145,9 @@ func (r *TagRepository) ListTags(ctx context.Context) ([]*tag.Tag, error) {
 		}
 		tags = append(tags, &t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if tags == nil {
 		tags = []*tag.Tag{}

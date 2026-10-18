@@ -171,6 +171,9 @@ func (r *ScriptRepository) List(ctx context.Context) ([]*script.Script, error) {
 
 		results = append(results, &s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed during scripts iteration: %w", err)
+	}
 
 	return results, nil
 }

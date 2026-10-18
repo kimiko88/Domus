@@ -170,6 +170,9 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 		}
 		packages = append(packages, &pkg)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if packages == nil {
 		packages = []*store.Package{}

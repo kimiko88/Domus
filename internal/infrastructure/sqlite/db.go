@@ -110,6 +110,8 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 12, file: "migrations/000012_outbound_webhooks_and_inapp_notifications.up.sql"},
 		{version: 13, file: "migrations/000013_home_finance.up.sql"},
 		{version: 14, file: "migrations/000014_pantry_recipes_mealplan.up.sql"},
+		{version: 15, file: "migrations/000015_medicines.up.sql"},
+		{version: 16, file: "migrations/000016_predictive_climate.up.sql"},
 	}
 
 	for _, m := range migrations {

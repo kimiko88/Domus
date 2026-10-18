@@ -278,16 +278,21 @@ public actor DomusHttpClient: Sendable {
         try await postVoid(path: "/api/v1/entities/\(id)/toggle", body: ToggleBody(entityId: id, domain: domain))
     }
 
-    public func callService(domain: String, service: String, entityId: String, data: [String: String] = [:]) async throws {
+    public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:]) async throws {
         struct ServiceBody: Encodable {
             let entityId: String
-            let data: [String: String]
+            let data: [String: AnyCodable]
             enum CodingKeys: String, CodingKey {
                 case entityId = "entity_id"
                 case data
             }
         }
-        try await postVoid(path: "/api/v1/services/\(domain)/\(service)", body: ServiceBody(entityId: entityId, data: data))
+        let codableData = data.mapValues { AnyCodable($0) }
+        try await postVoid(path: "/api/v1/services/\(domain)/\(service)", body: ServiceBody(entityId: entityId, data: codableData))
+    }
+
+    public func callService(domain: String, service: String, entityId: String, data: [String: String]) async throws {
+        try await callService(domain: domain, service: service, entityId: entityId, data: data as [String: Any])
     }
 
     // MARK: - Floorplan & Markers API

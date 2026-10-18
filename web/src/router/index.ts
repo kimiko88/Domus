@@ -26,6 +26,8 @@ import MeshMapView from '../views/MeshMapView.vue'
 import StoreView from '../views/StoreView.vue'
 import ShoppingListView from '../views/ShoppingListView.vue'
 import PantryView from '../views/PantryView.vue'
+import MedicinesView from '../views/MedicinesView.vue'
+import PredictiveClimateView from '../views/PredictiveClimateView.vue'
 import FinanceView from '../views/FinanceView.vue'
 import GuideView from '../views/GuideView.vue'
 import LogbookView from '../views/LogbookView.vue'
@@ -117,6 +119,18 @@ export const routes: RouteRecordRaw[] = [
     name: 'pantry',
     component: PantryView,
     meta: { requiresAuth: true, title: 'Dispensa & Ricettario' }
+  },
+  {
+    path: '/medicines',
+    name: 'medicines',
+    component: MedicinesView,
+    meta: { requiresAuth: true, title: 'Armadietto Farmaci' }
+  },
+  {
+    path: '/climate/predictive',
+    name: 'predictive-climate',
+    component: PredictiveClimateView,
+    meta: { requiresAuth: true, title: 'Termostato Predittivo' }
   },
   {
     path: '/finance',

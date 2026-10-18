@@ -139,6 +139,9 @@ func (r *ClimateCompensatorRepository) List(ctx context.Context) ([]*climate.Cli
 		}
 		results = append(results, &c)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed during climate compensations iteration: %w", err)
+	}
 	return results, nil
 }
 

@@ -159,6 +159,9 @@ func (r *CalendarRepository) ListSchedules(ctx context.Context) ([]*schedule.Sch
 		}
 		list = append(list, &s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if list == nil {
 		list = []*schedule.Schedule{}
@@ -287,6 +290,9 @@ func (r *CalendarRepository) ListCalendarEvents(ctx context.Context, from, to ti
 			e.CreatedAt = t
 		}
 		events = append(events, &e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
 	}
 
 	if events == nil {

@@ -168,6 +168,9 @@ func (r *CameraRepository) ListCameras(ctx context.Context) ([]*camera.Camera, e
 		}
 		cameras = append(cameras, &cam)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
 
 	if cameras == nil {
 		cameras = []*camera.Camera{}
@@ -268,6 +271,9 @@ func (r *CameraRepository) ListEvents(ctx context.Context, cameraID string, limi
 			evt.DetectedAt = t
 		}
 		events = append(events, &evt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: rows error: %w", err)
 	}
 
 	if events == nil {
