@@ -77,7 +77,9 @@ public struct FinanceSheet: View {
                 }
             }
             .navigationTitle("Bilancio Casa & Spese")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
@@ -520,7 +522,9 @@ public struct AddExpenseSheet: View {
                     TextField("Titolo (es. Spesa Supermercato)", text: $title)
                         .accessibilityLabel("Titolo della spesa")
                     TextField("Importo in € (es. 45.50)", text: $amountText)
+                        #if os(iOS)
                         .keyboardType(.decimalPad)
+                        #endif
                         .accessibilityLabel("Importo in euro")
 
                     Picker("Categoria", selection: $selectedCategory) {
@@ -537,12 +541,16 @@ public struct AddExpenseSheet: View {
 
                     if selectedCategory == "utilities" {
                         TextField("Consumo kWh (opzionale)", text: $kwhText)
+                            #if os(iOS)
                             .keyboardType(.decimalPad)
+                            #endif
                     }
                 }
             }
             .navigationTitle("Nuova Spesa")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annulla") {
@@ -606,12 +614,16 @@ public struct SetBudgetSheet: View {
             Form {
                 Section(header: Text("Budget Mensile Globale"), footer: Text("Imposta un limite massimo di spesa per la casa. Riceverai avvisi visivi quando ti avvicini o superi la soglia.")) {
                     TextField("Budget in € (es. 1500)", text: $budgetText)
+                        #if os(iOS)
                         .keyboardType(.numberPad)
+                        #endif
                         .accessibilityLabel("Budget mensile in euro")
                 }
             }
             .navigationTitle("Imposta Budget")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annulla") {

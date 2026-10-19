@@ -204,6 +204,16 @@ public struct MonthlyTrendDTO: Codable, Identifiable, Sendable {
         self.foodAmount = foodAmount
         self.transportAmount = transportAmount
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.yearMonth = try container.decode(String.self, forKey: .yearMonth)
+        self.monthName = try container.decodeIfPresent(String.self, forKey: .monthName) ?? ""
+        self.totalAmount = try container.decodeIfPresent(Double.self, forKey: .totalAmount) ?? 0.0
+        self.utilitiesAmount = try container.decodeIfPresent(Double.self, forKey: .utilitiesAmount) ?? 0.0
+        self.foodAmount = try container.decodeIfPresent(Double.self, forKey: .foodAmount) ?? 0.0
+        self.transportAmount = try container.decodeIfPresent(Double.self, forKey: .transportAmount) ?? 0.0
+    }
 }
 
 public struct FixedVsVariableDTO: Codable, Sendable {

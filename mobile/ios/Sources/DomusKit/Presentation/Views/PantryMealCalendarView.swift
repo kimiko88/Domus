@@ -13,7 +13,7 @@ public struct PantryMealCalendarView: View {
     // Mock/Local state for preview and integration
     @State private var items: [PantryItem] = [
         PantryItem(name: "Pasta di Semola", category: "dispensa", location: "dispensa", quantity: 2.0, unit: "kg", minThreshold: 1.0),
-        PantryItem(name: "Latte Intero Fresco", category: "frigo", location: "frigo", quantity: 1.0, unit: "L", minThreshold: 2.0, isLowStock: true, isExpiringSoon: true, expiryDate: "19/10/2026"),
+        PantryItem(name: "Latte Intero Fresco", category: "frigo", location: "frigo", quantity: 1.0, unit: "L", minThreshold: 2.0, expiryDate: "19/10/2026", isLowStock: true, isExpiringSoon: true),
         PantryItem(name: "Passata di Pomodoro", category: "dispensa", location: "dispensa", quantity: 3.0, unit: "pz", minThreshold: 2.0),
         PantryItem(name: "Uova Fresche", category: "frigo", location: "frigo", quantity: 6.0, unit: "pz", minThreshold: 4.0),
         PantryItem(name: "Olio Extra Vergine", category: "dispensa", location: "dispensa", quantity: 0.5, unit: "L", minThreshold: 1.0, isLowStock: true)
@@ -132,16 +132,18 @@ public struct PantryMealCalendarView: View {
                 }
             }
             .navigationTitle("Dispensa & Ricettario")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Chiudi") {
                         dismiss()
                     }
                     .frame(minWidth: 44, minHeight: 44)
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     trailingToolbarButton
                 }
             }
@@ -149,21 +151,21 @@ public struct PantryMealCalendarView: View {
                 AddItemModalView { newItem in
                     items.append(newItem)
                     alertMessage = "Prodotto \(newItem.name) aggiunto alla dispensa!"
-                    Haptics.notification(.success)
+                    Haptics.success()
                 }
             }
             .sheet(isPresented: $showAddRecipeSheet) {
                 AddRecipeModalView { newRecipe in
                     recipes.append(newRecipe)
                     alertMessage = "Ricetta \(newRecipe.title) salvata nel ricettario!"
-                    Haptics.notification(.success)
+                    Haptics.success()
                 }
             }
             .sheet(isPresented: $showAddMealSheet) {
                 AddMealPlanModalView(preselectedRecipe: selectedRecipeForMeal, availableRecipes: recipes) { newPlan in
                     mealPlans.append(newPlan)
                     alertMessage = "Pasto pianificato nel calendario!"
-                    Haptics.notification(.success)
+                    Haptics.success()
                 }
             }
         }
@@ -335,7 +337,11 @@ public struct PantryMealCalendarView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
     }
 
     private func kpiTile(title: String, value: String, color: Color) -> some View {
@@ -418,7 +424,11 @@ public struct PantryMealCalendarView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
     }
 
     // ==========================================
@@ -488,7 +498,7 @@ public struct PantryMealCalendarView: View {
                                     Spacer()
 
                                     Button(action: {
-                                        Haptics.notification(.success)
+                                        Haptics.success()
                                         consumeMealPlan(plan)
                                     }) {
                                         HStack(spacing: 4) {
@@ -515,7 +525,11 @@ public struct PantryMealCalendarView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
     }
 
     private func mealTypeIcon(_ type: String) -> String {
@@ -637,7 +651,7 @@ public struct PantryMealCalendarView: View {
                     Toggle("Registra Spesa in Bilancio Casa (€)", isOn: $autoAddFinance)
 
                     Button(action: {
-                        Haptics.notification(.success)
+                        Haptics.success()
                         importReceipt(receipt)
                     }) {
                         HStack {
@@ -653,7 +667,11 @@ public struct PantryMealCalendarView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
     }
 
     private func parseReceiptText() {
@@ -746,15 +764,21 @@ struct AddItemModalView: View {
                 Section("Quantità e Soglie") {
                     HStack {
                         TextField("Quantità", text: $quantityStr)
+                            #if os(iOS)
                             .keyboardType(.decimalPad)
+                            #endif
                         TextField("Unità (pz, kg, L, g)", text: $unit)
                     }
                     TextField("Soglia Minima Allerta Scorte", text: $thresholdStr)
+                        #if os(iOS)
                         .keyboardType(.decimalPad)
+                        #endif
                 }
             }
             .navigationTitle("Nuovo Alimento")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annulla") { dismiss() }
@@ -814,7 +838,9 @@ struct AddRecipeModalView: View {
                 }
             }
             .navigationTitle("Nuova Ricetta")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annulla") { dismiss() }
@@ -882,7 +908,9 @@ struct AddMealPlanModalView: View {
                 }
             }
             .navigationTitle("Pianifica Pasto")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .onAppear {
                 if let pre = preselectedRecipe {
                     selectedRecipeTitle = pre.title

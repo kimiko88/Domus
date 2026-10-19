@@ -122,8 +122,8 @@ final class FinanceTests: XCTestCase {
 
     func testBudgetTargetDTO() throws {
         let budget = BudgetTargetDTO(
-            id = "b-100",
-            category = "total",
+            id: "b-100",
+            category: "total",
             monthlyLimit: 2200.0,
             monthYear: "global"
         )

@@ -33,7 +33,7 @@ final class EcosystemAndHardwareTests: XCTestCase {
 
     func testAppShortcutsConfiguration() {
         let shortcuts = DomusShortcuts.appShortcuts
-        XCTAssertEqual(shortcuts.count, 2)
+        XCTAssertEqual(shortcuts.count, 4)
         XCTAssertEqual(DomusShortcuts.shortcutTileColor, .lightBlue)
     }
 
