@@ -1058,5 +1058,374 @@ class DomusApiClient(
             Result.failure(e)
         }
     }
+
+    // ==========================================
+    // MEDICINE CABINET & EXPIRATION APIS
+    // ==========================================
+
+    suspend fun getMedicines(
+        baseUrl: String,
+        token: String?,
+        location: String? = null,
+        status: String? = null,
+        query: String? = null
+    ): Result<List<MedicineDto>> = withContext(Dispatchers.IO) {
+        try {
+            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/medicines")?.newBuilder()
+                ?: return@withContext Result.failure(IOException("URL non valido"))
+            if (!location.isNullOrBlank()) urlBuilder.addQueryParameter("location", location)
+            if (!status.isNullOrBlank()) urlBuilder.addQueryParameter("status", status)
+            if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
+
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<MedicineDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getMedicine(baseUrl: String, token: String?, id: String): Result<MedicineDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/medicines/$id").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val med = json.decodeFromString<MedicineDto>(bodyStr)
+                Result.success(med)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createMedicine(baseUrl: String, token: String?, req: CreateMedicineRequestDto): Result<MedicineDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreateMedicineRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/medicines")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione farmaco: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val med = json.decodeFromString<MedicineDto>(bodyStr)
+                Result.success(med)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateMedicine(baseUrl: String, token: String?, id: String, req: UpdateMedicineRequestDto): Result<MedicineDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(UpdateMedicineRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/medicines/$id")
+                .put(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore modifica farmaco: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val med = json.decodeFromString<MedicineDto>(bodyStr)
+                Result.success(med)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteMedicine(baseUrl: String, token: String?, id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/medicines/$id").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore eliminazione farmaco: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun openMedicine(baseUrl: String, token: String?, id: String, openedAt: String? = null): Result<MedicineDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(OpenMedicineRequestDto.serializer(), OpenMedicineRequestDto(opened_at = openedAt))
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/medicines/$id/open")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore apertura confezione: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val med = json.decodeFromString<MedicineDto>(bodyStr)
+                Result.success(med)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun consumeMedicine(baseUrl: String, token: String?, id: String, amount: Double = 1.0): Result<MedicineDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(ConsumeMedicineRequestDto.serializer(), ConsumeMedicineRequestDto(amount = amount))
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/medicines/$id/consume")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore assunzione dose: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val med = json.decodeFromString<MedicineDto>(bodyStr)
+                Result.success(med)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getMedicineAlerts(baseUrl: String, token: String?, fridgeTemp: Double? = null): Result<List<MedicineAlertDto>> = withContext(Dispatchers.IO) {
+        try {
+            var url = "$baseUrl/api/v1/medicines/alerts"
+            if (fridgeTemp != null) {
+                url += "?fridge_temp=$fridgeTemp"
+            }
+            val reqBuilder = Request.Builder().url(url).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore avvisi medicinali: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val alerts = json.decodeFromString<List<MedicineAlertDto>>(bodyStr)
+                Result.success(alerts)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun parseMedicineCode(baseUrl: String, token: String?, code: String): Result<DatamatrixParseResultDto> = withContext(Dispatchers.IO) {
+        try {
+            @Serializable data class CodePayload(val code: String)
+            val reqBody = json.encodeToString(CodePayload.serializer(), CodePayload(code = code))
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/medicines/parse-code")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore parsing codice: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val result = json.decodeFromString<DatamatrixParseResultDto>(bodyStr)
+                Result.success(result)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun lookupAIFA(baseUrl: String, token: String?, query: String? = null, aic: String? = null): Result<List<AIFARecordDto>> = withContext(Dispatchers.IO) {
+        try {
+            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/medicines/lookup")?.newBuilder()
+                ?: return@withContext Result.failure(IOException("URL non valido"))
+            if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
+            if (!aic.isNullOrBlank()) urlBuilder.addQueryParameter("aic", aic)
+
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore lookup AIFA: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val list = json.decodeFromString<List<AIFARecordDto>>(bodyStr)
+                Result.success(list)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==========================================
+    // PREDICTIVE CLIMATE APIS
+    // ==========================================
+
+    suspend fun getPredictiveStatus(baseUrl: String, token: String?): Result<SystemPredictiveStatusDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/status").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore stato predittivo: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val status = json.decodeFromString<SystemPredictiveStatusDto>(bodyStr)
+                Result.success(status)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getPredictiveZones(baseUrl: String, token: String?): Result<List<PredictiveZoneConfigDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore elenco zone: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val resp = json.decodeFromString<PredictiveZonesResponseDto>(bodyStr)
+                Result.success(resp.zones)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getPredictiveZone(baseUrl: String, token: String?, id: String): Result<PredictiveZoneConfigDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore zona predittiva: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val zone = json.decodeFromString<PredictiveZoneConfigDto>(bodyStr)
+                Result.success(zone)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createPredictiveZone(baseUrl: String, token: String?, req: CreatePredictiveZoneRequestDto): Result<PredictiveZoneConfigDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBody = json.encodeToString(CreatePredictiveZoneRequestDto.serializer(), req)
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/climate/predictive/zones")
+                .post(reqBody.toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore creazione zona: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val zone = json.decodeFromString<PredictiveZoneConfigDto>(bodyStr)
+                Result.success(zone)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deletePredictiveZone(baseUrl: String, token: String?, id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id").delete()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore eliminazione zona: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun evaluatePredictiveZone(baseUrl: String, token: String?, id: String): Result<PredictiveEvaluationDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/climate/predictive/zones/$id/evaluate")
+                .post("{}".toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore valutazione zona: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val eval = json.decodeFromString<PredictiveEvaluationDto>(bodyStr)
+                Result.success(eval)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun evaluateAllPredictiveZones(baseUrl: String, token: String?): Result<List<PredictiveEvaluationDto>> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/climate/predictive/evaluate-all")
+                .post("{}".toRequestBody(jsonMediaType))
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore valutazione globale: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "[]"
+                val evals = json.decodeFromString<List<PredictiveEvaluationDto>>(bodyStr)
+                Result.success(evals)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getZoneThermalProfile(baseUrl: String, token: String?, id: String): Result<ThermalProfileDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id/profile").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore profilo termico: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val profile = json.decodeFromString<ThermalProfileDto>(bodyStr)
+                Result.success(profile)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getOptimalStart(
+        baseUrl: String,
+        token: String?,
+        id: String,
+        targetTemp: Double? = null,
+        targetTime: String? = null
+    ): Result<PreheatRecommendationDto> = withContext(Dispatchers.IO) {
+        try {
+            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/climate/predictive/zones/$id/optimal-start")?.newBuilder()
+                ?: return@withContext Result.failure(IOException("URL non valido"))
+            if (targetTemp != null) urlBuilder.addQueryParameter("target_temp", targetTemp.toString())
+            if (!targetTime.isNullOrBlank()) urlBuilder.addQueryParameter("target_time", targetTime)
+
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore avvio ottimale: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val rec = json.decodeFromString<PreheatRecommendationDto>(bodyStr)
+                Result.success(rec)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getOptimalStop(
+        baseUrl: String,
+        token: String?,
+        id: String,
+        departureTime: String? = null
+    ): Result<CoastDownRecommendationDto> = withContext(Dispatchers.IO) {
+        try {
+            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/climate/predictive/zones/$id/optimal-stop")?.newBuilder()
+                ?: return@withContext Result.failure(IOException("URL non valido"))
+            if (!departureTime.isNullOrBlank()) urlBuilder.addQueryParameter("departure_time", departureTime)
+
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore spegnimento anticipato: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                val rec = json.decodeFromString<CoastDownRecommendationDto>(bodyStr)
+                Result.success(rec)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 

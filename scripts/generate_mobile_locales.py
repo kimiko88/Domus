@@ -119,6 +119,77 @@ MOBILE_EXTRA = {
     },
     'settings_language_system': {
         'it': 'Predefinita di sistema', 'en': 'System default', 'fr': 'Par défaut du système', 'es': 'Predeterminado del sistema', 'de': 'Systemstandard'
+    },
+    # Medicines
+    'medicines_title': {
+        'it': 'Armadietto Medicinali', 'en': 'Medicine Cabinet', 'fr': 'Armoire à Pharmacie', 'es': 'Botiquín de Medicamentos', 'de': 'Hausapotheke'
+    },
+    'medicines_subtitle': {
+        'it': 'Monitora scadenze, scorte e dosaggi dei tuoi farmaci', 'en': 'Track expiration dates, stocks and dosages of your medicines', 'fr': "Suivez les dates d'expiration, les stocks et les dosages de vos médicaments", 'es': 'Controla fechas de caducidad, existencias y dosis de tus medicamentos', 'de': 'Verfolgen Sie Verfallsdaten, Bestände und Dosierungen Ihrer Medikamente'
+    },
+    'medicines_new': {
+        'it': 'Nuovo Farmaco', 'en': 'New Medicine', 'fr': 'Nouveau Médicament', 'es': 'Nuevo Medicamento', 'de': 'Neues Medikament'
+    },
+    'medicines_take_dose': {
+        'it': 'Assumi Dose', 'en': 'Take Dose', 'fr': 'Prendre une Dose', 'es': 'Tomar Dosis', 'de': 'Dosis einnehmen'
+    },
+    'medicines_expired': {
+        'it': 'Scaduto', 'en': 'Expired', 'fr': 'Expiré', 'es': 'Caducado', 'de': 'Abgelaufen'
+    },
+    'medicines_expiring_soon': {
+        'it': 'In Scadenza', 'en': 'Expiring Soon', 'fr': 'Expire Bientôt', 'es': 'Por Caducar', 'de': 'Läuft bald ab'
+    },
+    'medicines_low_stock': {
+        'it': 'Scorta Bassa', 'en': 'Low Stock', 'fr': 'Stock Faible', 'es': 'Stock Bajo', 'de': 'Geringer Bestand'
+    },
+    'medicines_cold_chain': {
+        'it': 'Catena del Freddo (Frigo)', 'en': 'Cold Chain (Fridge)', 'fr': 'Chaîne du Froid (Frigo)', 'es': 'Cadena de Frío (Nevera)', 'de': 'Kühlkette (Kühlschrank)'
+    },
+    'medicines_pao_days': {
+        'it': "PAO (Giorni dall'apertura)", 'en': 'PAO (Days after opening)', 'fr': "PAO (Jours après ouverture)", 'es': 'PAO (Días tras apertura)', 'de': 'PAO (Tage nach dem Öffnen)'
+    },
+    'medicines_location_bathroom': {
+        'it': 'Armadietto Bagno', 'en': 'Bathroom Cabinet', 'fr': 'Armoire de Salle de Bain', 'es': 'Armario del Baño', 'de': 'Badezimmerschrank'
+    },
+    'medicines_location_fridge': {
+        'it': 'Frigorifero', 'en': 'Refrigerator', 'fr': 'Réfrigérateur', 'es': 'Refrigerador', 'de': 'Kühlschrank'
+    },
+    'medicines_location_nightstand': {
+        'it': 'Comodino Notte', 'en': 'Nightstand Drawer', 'fr': 'Tiroir de Nuit', 'es': 'Cajón de Noche', 'de': 'Nachttisch'
+    },
+    'medicines_location_travel': {
+        'it': 'Borsa da Viaggio', 'en': 'Travel Bag', 'fr': 'Trousse de Voyage', 'es': 'Bolsa de Viaje', 'de': 'Reiseapotheke'
+    },
+    'medicines_confirm_take': {
+        'it': 'Dose registrata con successo!', 'en': 'Dose recorded successfully!', 'fr': 'Dose enregistrée avec succès!', 'es': '¡Dosis registrada con éxito!', 'de': 'Dosis erfolgreich erfasst!'
+    },
+    # Predictive Climate
+    'predictive_climate_title': {
+        'it': 'Termostato Predittivo', 'en': 'Predictive Thermostat', 'fr': 'Thermostat Prédictif', 'es': 'Termostato Predictivo', 'de': 'Prädiktiver Thermostat'
+    },
+    'predictive_climate_subtitle': {
+        'it': 'Compensazione termica inerziale, meteo e tariffe dinamiche', 'en': 'Thermal inertia compensation, weather forecasts and dynamic tariffs', 'fr': "Compensation d'inertie thermique, météo et tarifs dynamiques", 'es': 'Compensación de inercia térmica, clima y tarifas dinámicas', 'de': 'Thermische Trägheitskompensation, Wetter und dynamische Tarife'
+    },
+    'predictive_cold_front_alert': {
+        'it': 'Fronte Freddo Rilevato', 'en': 'Cold Front Detected', 'fr': 'Front Froid Détecté', 'es': 'Frente Frío Detectado', 'de': 'Kaltfront Erkannt'
+    },
+    'predictive_solar_cutoff': {
+        'it': 'Taglio Solare Attivo', 'en': 'Solar Cutoff Active', 'fr': 'Coupure Solaire Active', 'es': 'Corte Solar Activo', 'de': 'Solar-Abschaltung Aktiv'
+    },
+    'predictive_preheat_rec': {
+        'it': 'Pre-riscaldamento Anticipato', 'en': 'Advance Pre-Heating', 'fr': 'Pré-chauffage Anticipé', 'es': 'Precalentamiento Anticipado', 'de': 'Vorzeitiges Vorheizen'
+    },
+    'predictive_coast_down_rec': {
+        'it': 'Spegnimento Anticipato (Inerzia)', 'en': 'Coast-Down (Thermal Inertia)', 'fr': 'Arrêt Anticipé (Inertie)', 'es': 'Parada Anticipada (Inercia)', 'de': 'Vorzeitiges Abschalten (Trägheit)'
+    },
+    'predictive_thermal_inertia': {
+        'it': 'Inerzia Termica Edificio', 'en': 'Building Thermal Inertia', 'fr': 'Inertie Thermique du Bâtiment', 'es': 'Inercia Térmica del Edificio', 'de': 'Thermische Trägheit des Gebäudes'
+    },
+    'predictive_calculated_setpoint': {
+        'it': 'Setpoint Calcolato', 'en': 'Calculated Setpoint', 'fr': 'Consigne Calculée', 'es': 'Punto de Ajuste Calculado', 'de': 'Berechneter Sollwert'
+    },
+    'predictive_energy_saved': {
+        'it': 'Risparmio Energetico Stimato', 'en': 'Estimated Energy Saved', 'fr': "Économie d'Énergie Estimée", 'es': 'Ahorro Energético Estimado', 'de': 'Geschätzte Energieeinsparung'
     }
 }
 

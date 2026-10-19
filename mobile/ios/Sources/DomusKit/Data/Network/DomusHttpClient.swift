@@ -453,6 +453,134 @@ public actor DomusHttpClient: Sendable {
         }
     }
 
+    // MARK: - Medicine Cabinet & Expiration API
+
+    public func fetchMedicines(location: String? = nil, status: String? = nil, query: String? = nil) async throws -> [Medicine] {
+        var queryItems: [String] = []
+        if let location, !location.isEmpty { queryItems.append("location=\(location)") }
+        if let status, !status.isEmpty { queryItems.append("status=\(status)") }
+        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            queryItems.append("q=\(encoded)")
+        }
+        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
+        return try await get(path: "/api/v1/medicines\(queryString)", as: [Medicine].self)
+    }
+
+    public func fetchMedicine(id: String) async throws -> Medicine {
+        try await get(path: "/api/v1/medicines/\(id)", as: Medicine.self)
+    }
+
+    public func createMedicine(_ medicine: Medicine) async throws -> Medicine {
+        try await post(path: "/api/v1/medicines", body: medicine, as: Medicine.self)
+    }
+
+    public func updateMedicine(id: String, medicine: Medicine) async throws -> Medicine {
+        try await put(path: "/api/v1/medicines/\(id)", body: medicine, as: Medicine.self)
+    }
+
+    public func deleteMedicine(id: String) async throws {
+        try await delete(path: "/api/v1/medicines/\(id)")
+    }
+
+    public func openMedicine(id: String, openedAt: String? = nil) async throws -> Medicine {
+        struct OpenPayload: Encodable {
+            let opened_at: String?
+        }
+        return try await post(path: "/api/v1/medicines/\(id)/open", body: OpenPayload(opened_at: openedAt), as: Medicine.self)
+    }
+
+    public func consumeMedicine(id: String, amount: Double = 1.0) async throws -> Medicine {
+        struct ConsumePayload: Encodable {
+            let amount: Double
+        }
+        return try await post(path: "/api/v1/medicines/\(id)/consume", body: ConsumePayload(amount: amount), as: Medicine.self)
+    }
+
+    public func fetchMedicineAlerts(fridgeTemp: Double? = nil) async throws -> [MedicineAlert] {
+        var path = "/api/v1/medicines/alerts"
+        if let fridgeTemp {
+            path += "?fridge_temp=\(fridgeTemp)"
+        }
+        return try await get(path: path, as: [MedicineAlert].self)
+    }
+
+    public func parseMedicineCode(code: String) async throws -> DatamatrixParseResult {
+        struct CodePayload: Encodable {
+            let code: String
+        }
+        return try await post(path: "/api/v1/medicines/parse-code", body: CodePayload(code: code), as: DatamatrixParseResult.self)
+    }
+
+    public func lookupAIFA(query: String? = nil, aic: String? = nil) async throws -> [AIFARecord] {
+        var queryItems: [String] = []
+        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            queryItems.append("q=\(encoded)")
+        }
+        if let aic, !aic.isEmpty { queryItems.append("aic=\(aic)") }
+        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
+        return try await get(path: "/api/v1/medicines/lookup\(queryString)", as: [AIFARecord].self)
+    }
+
+    // MARK: - Predictive Climate API
+
+    public func fetchPredictiveStatus() async throws -> SystemPredictiveStatus {
+        try await get(path: "/api/v1/climate/predictive/status", as: SystemPredictiveStatus.self)
+    }
+
+    public func fetchPredictiveZones() async throws -> [PredictiveZoneConfig] {
+        let resp = try await get(path: "/api/v1/climate/predictive/zones", as: PredictiveZonesResponseDTO.self)
+        return resp.zones
+    }
+
+    public func fetchPredictiveZone(id: String) async throws -> PredictiveZoneConfig {
+        try await get(path: "/api/v1/climate/predictive/zones/\(id)", as: PredictiveZoneConfig.self)
+    }
+
+    public func createPredictiveZone(_ config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
+        try await post(path: "/api/v1/climate/predictive/zones", body: config, as: PredictiveZoneConfig.self)
+    }
+
+    public func updatePredictiveZone(id: String, config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
+        try await put(path: "/api/v1/climate/predictive/zones/\(id)", body: config, as: PredictiveZoneConfig.self)
+    }
+
+    public func deletePredictiveZone(id: String) async throws {
+        try await delete(path: "/api/v1/climate/predictive/zones/\(id)")
+    }
+
+    public func evaluatePredictiveZone(id: String) async throws -> PredictiveEvaluation {
+        struct EmptyBody: Encodable {}
+        return try await post(path: "/api/v1/climate/predictive/zones/\(id)/evaluate", body: EmptyBody(), as: PredictiveEvaluation.self)
+    }
+
+    public func evaluateAllPredictiveZones() async throws -> [PredictiveEvaluation] {
+        struct EmptyBody: Encodable {}
+        return try await post(path: "/api/v1/climate/predictive/evaluate-all", body: EmptyBody(), as: [PredictiveEvaluation].self)
+    }
+
+    public func fetchZoneThermalProfile(id: String) async throws -> ThermalProfile {
+        try await get(path: "/api/v1/climate/predictive/zones/\(id)/profile", as: ThermalProfile.self)
+    }
+
+    public func fetchOptimalStart(id: String, targetTemp: Double? = nil, targetTime: String? = nil) async throws -> PreheatRecommendation {
+        var queryItems: [String] = []
+        if let targetTemp { queryItems.append("target_temp=\(targetTemp)") }
+        if let targetTime, !targetTime.isEmpty, let encoded = targetTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            queryItems.append("target_time=\(encoded)")
+        }
+        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
+        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-start\(queryString)", as: PreheatRecommendation.self)
+    }
+
+    public func fetchOptimalStop(id: String, departureTime: String? = nil) async throws -> CoastDownRecommendation {
+        var queryItems: [String] = []
+        if let departureTime, !departureTime.isEmpty, let encoded = departureTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            queryItems.append("departure_time=\(encoded)")
+        }
+        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
+        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-stop\(queryString)", as: CoastDownRecommendation.self)
+    }
+
     // MARK: - Private helpers
 
     private func makeURL(path: String) throws -> URL {

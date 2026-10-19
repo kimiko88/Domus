@@ -48,6 +48,8 @@ import com.domus.app.presentation.screens.light.LightControlSheet
 import com.domus.app.presentation.screens.notifications.NotificationHistoryScreen
 import com.domus.app.presentation.screens.presence.PresenceAndNfcScreen
 import com.domus.app.presentation.screens.pantry.PantryScreen
+import com.domus.app.presentation.screens.medicine.MedicineCabinetScreen
+import com.domus.app.presentation.screens.climate.PredictiveClimateScreen
 import com.domus.app.presentation.screens.shopping.ShoppingListScreen
 import com.domus.app.presentation.screens.socket.SocketControlSheet
 import com.domus.app.presentation.screens.timeline.ActivityTimelineScreen
@@ -84,6 +86,8 @@ fun DashboardScreen(
     // Dialog sheets
     var showShoppingSheet by remember { mutableStateOf(false) }
     var showPantrySheet by remember { mutableStateOf(false) }
+    var showMedicineSheet by remember { mutableStateOf(false) }
+    var showPredictiveClimateSheet by remember { mutableStateOf(false) }
     var showAssistantSheet by remember { mutableStateOf(false) }
     var showChoresSheet by remember { mutableStateOf(false) }
     var showEnergySheet by remember { mutableStateOf(false) }
@@ -309,6 +313,8 @@ fun DashboardScreen(
                     QuickActionChip(icon = "👥", label = "Ospiti", onClick = { showGuestAccessSheet = true })
                     QuickActionChip(icon = "🛒", label = "Spesa", onClick = { showShoppingSheet = true })
                     QuickActionChip(icon = "🍲", label = "Dispensa & Pasti", onClick = { showPantrySheet = true })
+                    QuickActionChip(icon = "💊", label = "Medicinali", onClick = { showMedicineSheet = true })
+                    QuickActionChip(icon = "🌡️", label = "Clima Predittivo", onClick = { showPredictiveClimateSheet = true })
                     QuickActionChip(icon = "💰", label = "Spese", onClick = { showFinanceSheet = true })
                     QuickActionChip(icon = "🧹", label = "Faccende", onClick = { showChoresSheet = true })
                     QuickActionChip(icon = "🔔", label = "Notifiche", onClick = { showNotificationsSheet = true })
@@ -575,6 +581,18 @@ fun DashboardScreen(
     if (showPantrySheet) {
         Dialog(onDismissRequest = { showPantrySheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             PantryScreen(viewModel = viewModel, onDismiss = { showPantrySheet = false })
+        }
+    }
+
+    if (showMedicineSheet) {
+        Dialog(onDismissRequest = { showMedicineSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            MedicineCabinetScreen(viewModel = viewModel, onDismiss = { showMedicineSheet = false })
+        }
+    }
+
+    if (showPredictiveClimateSheet) {
+        Dialog(onDismissRequest = { showPredictiveClimateSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            PredictiveClimateScreen(viewModel = viewModel, onDismiss = { showPredictiveClimateSheet = false })
         }
     }
 

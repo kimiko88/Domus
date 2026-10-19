@@ -712,6 +712,127 @@ class DashboardViewModel(
         }
     }
 
+    // --- MEDICINE CABINET & EXPIRATION ---
+    private val _medicines = MutableStateFlow<List<MedicineDto>>(emptyList())
+    val medicines: StateFlow<List<MedicineDto>> = _medicines.asStateFlow()
+
+    private val _medicineAlerts = MutableStateFlow<List<MedicineAlertDto>>(emptyList())
+    val medicineAlerts: StateFlow<List<MedicineAlertDto>> = _medicineAlerts.asStateFlow()
+
+    private val _isMedicineLoading = MutableStateFlow(false)
+    val isMedicineLoading: StateFlow<Boolean> = _isMedicineLoading.asStateFlow()
+
+    fun loadMedicines(location: String? = null, status: String? = null, query: String? = null) {
+        viewModelScope.launch {
+            _isMedicineLoading.value = true
+            val res = apiClient.getMedicines(getBaseUrl(), getToken(), location = location, status = status, query = query)
+            if (res.isSuccess) {
+                _medicines.value = res.getOrDefault(emptyList())
+            }
+            _isMedicineLoading.value = false
+        }
+    }
+
+    fun loadMedicineAlerts(fridgeTemp: Double? = null) {
+        viewModelScope.launch {
+            val res = apiClient.getMedicineAlerts(getBaseUrl(), getToken(), fridgeTemp = fridgeTemp)
+            if (res.isSuccess) {
+                _medicineAlerts.value = res.getOrDefault(emptyList())
+            }
+        }
+    }
+
+    fun createMedicine(req: CreateMedicineRequestDto, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.createMedicine(getBaseUrl(), getToken(), req)
+            val success = res.isSuccess
+            if (success) {
+                loadMedicines()
+                loadMedicineAlerts()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun openMedicine(id: String, openedAt: String? = null, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.openMedicine(getBaseUrl(), getToken(), id, openedAt = openedAt)
+            val success = res.isSuccess
+            if (success) {
+                loadMedicines()
+                loadMedicineAlerts()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun consumeMedicine(id: String, amount: Double = 1.0, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.consumeMedicine(getBaseUrl(), getToken(), id, amount = amount)
+            val success = res.isSuccess
+            if (success) {
+                loadMedicines()
+                loadMedicineAlerts()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun deleteMedicine(id: String, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.deleteMedicine(getBaseUrl(), getToken(), id)
+            val success = res.isSuccess
+            if (success) {
+                loadMedicines()
+                loadMedicineAlerts()
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    // --- PREDICTIVE CLIMATE ---
+    private val _predictiveStatus = MutableStateFlow<SystemPredictiveStatusDto?>(null)
+    val predictiveStatus: StateFlow<SystemPredictiveStatusDto?> = _predictiveStatus.asStateFlow()
+
+    private val _isPredictiveLoading = MutableStateFlow(false)
+    val isPredictiveLoading: StateFlow<Boolean> = _isPredictiveLoading.asStateFlow()
+
+    fun loadPredictiveStatus() {
+        viewModelScope.launch {
+            _isPredictiveLoading.value = true
+            val res = apiClient.getPredictiveStatus(getBaseUrl(), getToken())
+            if (res.isSuccess) {
+                _predictiveStatus.value = res.getOrNull()
+            }
+            _isPredictiveLoading.value = false
+        }
+    }
+
+    fun evaluatePredictiveZone(id: String, onComplete: ((PredictiveEvaluationDto?) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = apiClient.evaluatePredictiveZone(getBaseUrl(), getToken(), id)
+            if (res.isSuccess) {
+                loadPredictiveStatus()
+                onComplete?.invoke(res.getOrNull())
+            } else {
+                onComplete?.invoke(null)
+            }
+        }
+    }
+
+    fun evaluateAllPredictiveZones(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            _isPredictiveLoading.value = true
+            val res = apiClient.evaluateAllPredictiveZones(getBaseUrl(), getToken())
+            val success = res.isSuccess
+            if (success) {
+                loadPredictiveStatus()
+            }
+            _isPredictiveLoading.value = false
+            onComplete?.invoke(success)
+        }
+    }
+
     fun reconnect() {
         viewModelScope.launch {
             _isRefreshing.value = true

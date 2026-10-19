@@ -21,6 +21,8 @@ public struct AdaptiveMainView: View {
     @State private var showGuestAccess: Bool = false
     @State private var showFinance: Bool = false
     @State private var showPantry: Bool = false
+    @State private var showMedicineCabinet: Bool = false
+    @State private var showPredictiveClimate: Bool = false
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -86,6 +88,12 @@ public struct AdaptiveMainView: View {
         }
         .sheet(isPresented: $showPantry) {
             PantryMealCalendarView()
+        }
+        .sheet(isPresented: $showMedicineCabinet) {
+            MedicineCabinetSheet()
+        }
+        .sheet(isPresented: $showPredictiveClimate) {
+            PredictiveClimateSheet()
         }
         .sheet(isPresented: $viewModel.showLoginSheet) {
             LoginView(viewModel: viewModel)
@@ -164,6 +172,22 @@ public struct AdaptiveMainView: View {
                 }) {
                     Label("Dispensa & Pasti", systemImage: "fork.knife")
                         .foregroundColor(.orange)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showMedicineCabinet = true
+                }) {
+                    Label(NSLocalizedString("medicine_cabinet_title", comment: "Armadietto Medicinali"), systemImage: "cross.case.fill")
+                        .foregroundColor(.red)
+                }
+
+                Button(action: {
+                    Haptics.selection()
+                    showPredictiveClimate = true
+                }) {
+                    Label(NSLocalizedString("predictive_climate_title", comment: "Termostato Predittivo"), systemImage: "thermometer.sun.fill")
+                        .foregroundColor(.cyan)
                 }
 
                 Button(action: {

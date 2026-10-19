@@ -11,6 +11,7 @@ public struct ThermostatSheet: View {
 
     @State private var targetTemperature: Double
     @State private var dragAngle: Double = 0.0
+    @State private var showPredictiveClimate: Bool = false
 
     private let minTemp: Double = 15.0
     private let maxTemp: Double = 30.0
@@ -195,6 +196,34 @@ public struct ThermostatSheet: View {
                             hvacButton(title: "Auto", mode: "auto", icon: "arrow.triangle.2.circlepath")
                         }
                         .padding(.horizontal)
+
+                        // Pulsante Termostato Predittivo
+                        Button(action: {
+                            Haptics.selection()
+                            showPredictiveClimate = true
+                        }) {
+                            HStack {
+                                Image(systemName: "thermometer.sun.fill")
+                                    .foregroundColor(.cyan)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(NSLocalizedString("predictive_climate_title", comment: "Termostato Predittivo"))
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.primary)
+                                    Text("Inerzia termica, fronte freddo & cutoff solare")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 6)
                     }
                     .padding(.top, 8)
                     .padding(.bottom, 24)
@@ -204,6 +233,9 @@ public struct ThermostatSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .sheet(isPresented: $showPredictiveClimate) {
+                PredictiveClimateSheet()
+            }
         }
     }
 

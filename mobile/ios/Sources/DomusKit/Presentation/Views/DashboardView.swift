@@ -22,6 +22,8 @@ public struct DashboardView: View {
     @State private var showGuestAccess: Bool = false
     @State private var showFinance: Bool = false
     @State private var showPantry: Bool = false
+    @State private var showMedicineCabinet: Bool = false
+    @State private var showPredictiveClimate: Bool = false
 
     private var columns: [GridItem] {
         if dynamicTypeSize.isAccessibilitySize {
@@ -117,6 +119,12 @@ public struct DashboardView: View {
                         }
                         quickFeaturePill(icon: "fork.knife", label: "Dispensa & Pasti", color: .orange) {
                             showPantry = true
+                        }
+                        quickFeaturePill(icon: "cross.case.fill", label: "Medicinali", color: .red) {
+                            showMedicineCabinet = true
+                        }
+                        quickFeaturePill(icon: "thermometer.sun.fill", label: "Clima Predittivo", color: .cyan) {
+                            showPredictiveClimate = true
                         }
                         quickFeaturePill(icon: "dollarsign.circle.fill", label: "Spese", color: .green) {
                             showFinance = true
@@ -360,6 +368,12 @@ public struct DashboardView: View {
             }
             .sheet(isPresented: $showPantry) {
                 PantryMealCalendarView()
+            }
+            .sheet(isPresented: $showMedicineCabinet) {
+                MedicineCabinetSheet()
+            }
+            .sheet(isPresented: $showPredictiveClimate) {
+                PredictiveClimateSheet()
             }
             .sheet(isPresented: $viewModel.showKioskSettings) {
                 KioskSettingsSheet(kioskManager: viewModel.kioskManager)
