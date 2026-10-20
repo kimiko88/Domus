@@ -138,6 +138,10 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Cache thread-safe con TTL configurabile, detection conflitti concorrenti in-flight (`409 Conflict`) e replay trasparente delle risposte con header `X-Cache-Lookup: HIT-IDEMPOTENT` per prevenire doppi scatti su comandi fisici.
 - [x] **E2E Chaos & Fault Injection Testing Suite**:
   - Suite di chaos test avanzata (`test/e2e/chaos_fault_injection_test.go`): simulazione di failure storm su bus hardware e verifica transizione/recupero automatico del `Supervisor` (Tripped -> Degraded -> Healthy), storm concorrente di 50 goroutine con Idempotency Key, e trigger d'emergenza Safe-Stop ad alta frequenza con risposta sottomillisecondo e latching deterministico.
+- [x] **Isolamento Router Firewall & IoT Device Quarantine**:
+  - Plugin di controllo router e apparati di rete (`internal/plugins/firewall/`) con driver per UniFi Network Controller (`block-sta`), OPNsense (`alias_util domus_quarantine`) e MikroTik RouterOS (`address-list`).
+  - Integrazione con `NetworkGuardian`: azione di isolamento istantaneo su MAC/IP address e dispatch evento `network.device_quarantined`.
+  - Endpoint REST `/api/v1/cameras/faces`, `/api/v1/cameras/plates`, `/api/v1/nvr/status` montati nel router HTTP e collegati al motore di vision locale.
 - [x] **Stato Validazione & Suite di Test (100% PASS)**:
   - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os.
   - Frontend Vue 3: 100% superato (85 file di test, 313 test passati in Vitest).
