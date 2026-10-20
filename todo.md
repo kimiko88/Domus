@@ -122,3 +122,18 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Fuzzing nativo Go 1.18+ per MBAP header decoding, Modbus response parsing e register decoding (`internal/plugins/modbus_tcp/frame_fuzz_test.go`).
   - Fuzzing per KNXnet/IP 6-byte header, messaggi cEMI, decodifica DPT (1, 5, 9, 14) e parsing indirizzi di gruppo/individuali (`internal/plugins/knx/cemi_fuzz_test.go`).
   - Oltre 650.000 mutazioni validate a 0 crash/panic.
+- [x] **Federazione Multi-Hub Parent/Satellite (WireGuard & mTLS)**:
+  - Architettura distribuita parent-hub centrale e satelliti periferici (`internal/application/federation`).
+  - Namespacing automatico entità remote (`satellite_id:domain.entity`), proxying trasparente dei comandi bidirezionali e replicazione dinamica degli stati.
+  - Heartbeat continuo e failover isolato per outbuilding, dépendance o case secondarie.
+- [x] **Edge AI Computer Vision & NVR Locale**:
+  - Biometria facciale dei familiari residenti via cosine similarity locale ($\ge 0.65$) su embedding vettoriali (`internal/application/camera`).
+  - Riconoscimento automatico targhe autorizzate (ALPR/ANPR) per azionamento intelligente varchi carrabili e garage.
+  - Pubblicazione automatica di eventi arricchiti sul bus di dominio per automazioni ed alert push istantanei.
+- [x] **Offline Voice Pipeline & LLM Tool Calling (Ollama)**:
+  - Function calling strutturato con schema OpenAI/Ollama per `control_device`, `set_climate`, `activate_scene` e `query_entity_state` (`internal/application/assistant`).
+  - Esecuzione deterministica con verifica entità e fallback fluido sull'engine euristico locale.
+- [x] **Stato Validazione & Suite di Test (100% PASS)**:
+  - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os.
+  - Frontend Vue 3: 100% superato (85 file di test, 313 test passati in Vitest).
+  - TypeScript Compilation: `vue-tsc -b` completato con 0 errori.
