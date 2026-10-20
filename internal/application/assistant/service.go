@@ -134,6 +134,218 @@ func (s *Service) ProcessPrompt(ctx context.Context, prompt string) (*ChatRespon
 	return resp, nil
 }
 
+// BuildTools returns the OpenAI/Ollama-compatible tool schemas for Domus entity control.
+func (s *Service) BuildTools() []map[string]any {
+	return []map[string]any{
+		{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "control_device",
+				"description": "Control a smart home light, switch or appliance (turn on, turn off, toggle, brightness)",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"entity_key": map[string]any{
+							"type":        "string",
+							"description": "Entity key, e.g. light.soggiorno, light.cucina, switch.fan, group.all_lights",
+						},
+						"service": map[string]any{
+							"type":        "string",
+							"enum":        []string{"turn_on", "turn_off", "toggle"},
+							"description": "Service action to perform",
+						},
+						"brightness": map[string]any{
+							"type":        "integer",
+							"description": "Brightness percentage from 1 to 100",
+						},
+					},
+					"required": []string{"entity_key", "service"},
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "set_climate",
+				"description": "Set HVAC target temperature or heating setpoint on a thermostat",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"entity_key": map[string]any{
+							"type":        "string",
+							"description": "Thermostat entity key, e.g. climate.salotto, climate.camera",
+						},
+						"temperature": map[string]any{
+							"type":        "number",
+							"description": "Target temperature in degrees Celsius (e.g. 20.5)",
+						},
+					},
+					"required": []string{"entity_key", "temperature"},
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "activate_scene",
+				"description": "Activate a pre-configured automation scene or home routine",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"scene_id": map[string]any{
+							"type":        "string",
+							"description": "Scene identifier, e.g. scene.cinema, scene.buonanotte, scene.relax",
+						},
+					},
+					"required": []string{"scene_id"},
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "query_entity_state",
+				"description": "Read the live state or temperature of an entity",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"entity_key": map[string]any{
+							"type":        "string",
+							"description": "Entity key to check (e.g. sensor.temperatura_esterna, lock.portone)",
+						},
+					},
+					"required": []string{"entity_key"},
+				},
+			},
+		},
+	}
+}
+
+// OllamaToolCall represents a tool invocation requested by Ollama.
+type OllamaToolCall struct {
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
+}
+
+// ExecuteToolCall parses arguments and executes a smart home function call.
+func (s *Service) ExecuteToolCall(ctx context.Context, name string, rawArgs []byte) (ActionExecuted, error) {
+	// Clean raw arguments in case they are JSON-escaped strings
+	trimmed := bytes.TrimSpace(rawArgs)
+	if len(trimmed) > 1 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+		var unescaped string
+		if err := json.Unmarshal(trimmed, &unescaped); err == nil {
+			trimmed = []byte(unescaped)
+		}
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal(trimmed, &args); err != nil {
+		return ActionExecuted{}, fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	switch name {
+	case "control_device":
+		entityKey, _ := args["entity_key"].(string)
+		if entityKey == "" {
+			entityKey, _ = args["entity_id"].(string)
+		}
+		service, _ := args["service"].(string)
+		if service == "" {
+			service, _ = args["action"].(string)
+		}
+		if entityKey == "" || service == "" {
+			return ActionExecuted{}, fmt.Errorf("control_device missing entity_key or service")
+		}
+
+		var params map[string]any
+		if briRaw, ok := args["brightness"]; ok {
+			switch b := briRaw.(type) {
+			case float64:
+				params = map[string]any{"brightness": int(b)}
+			case int:
+				params = map[string]any{"brightness": b}
+			}
+		}
+
+		s.dispatchCommand(ctx, entityKey, service, params)
+		return ActionExecuted{
+			EntityKey: entityKey,
+			Service:   service,
+			Params:    params,
+			Success:   true,
+			Message:   fmt.Sprintf("Eseguito %s su %s", service, entityKey),
+		}, nil
+
+	case "set_climate":
+		entityKey, _ := args["entity_key"].(string)
+		if entityKey == "" {
+			entityKey, _ = args["entity_id"].(string)
+		}
+		var temp float64
+		if tVal, ok := args["temperature"].(float64); ok {
+			temp = tVal
+		}
+		if entityKey == "" || temp == 0 {
+			return ActionExecuted{}, fmt.Errorf("set_climate missing entity_key or temperature")
+		}
+
+		params := map[string]any{"temperature": temp}
+		s.dispatchCommand(ctx, entityKey, "set_temperature", params)
+		return ActionExecuted{
+			EntityKey: entityKey,
+			Service:   "set_temperature",
+			Params:    params,
+			Success:   true,
+			Message:   fmt.Sprintf("Impostata temperatura di %s a %.1f°C", entityKey, temp),
+		}, nil
+
+	case "activate_scene":
+		sceneID, _ := args["scene_id"].(string)
+		if sceneID == "" {
+			sceneID, _ = args["entity_key"].(string)
+		}
+		if sceneID == "" {
+			return ActionExecuted{}, fmt.Errorf("activate_scene missing scene_id")
+		}
+
+		s.dispatchCommand(ctx, sceneID, "activate", nil)
+		return ActionExecuted{
+			EntityKey: sceneID,
+			Service:   "activate",
+			Success:   true,
+			Message:   fmt.Sprintf("Scena %s attivata", sceneID),
+		}, nil
+
+	case "query_entity_state":
+		entityKey, _ := args["entity_key"].(string)
+		if entityKey == "" {
+			entityKey, _ = args["entity_id"].(string)
+		}
+		if entityKey == "" {
+			return ActionExecuted{}, fmt.Errorf("query_entity_state missing entity_key")
+		}
+
+		msg := fmt.Sprintf("Entità %s verificata", entityKey)
+		if s.entityRepo != nil {
+			if ent, err := s.entityRepo.GetByKey(ctx, entityKey); err == nil && ent != nil {
+				msg = fmt.Sprintf("Stato attuale di %s: %s", entityKey, ent.State)
+			}
+		}
+
+		return ActionExecuted{
+			EntityKey: entityKey,
+			Service:   "query_state",
+			Success:   true,
+			Message:   msg,
+		}, nil
+
+	default:
+		return ActionExecuted{}, fmt.Errorf("unsupported tool: %s", name)
+	}
+}
+
 // queryOllama calls the local Ollama API instance with tools and system prompt.
 func (s *Service) queryOllama(ctx context.Context, prompt string) (*ChatResponse, error) {
 	s.mu.RLock()
@@ -145,8 +357,9 @@ func (s *Service) queryOllama(ctx context.Context, prompt string) (*ChatResponse
 	reqBody := map[string]any{
 		"model":  model,
 		"stream": false,
+		"tools":  s.BuildTools(),
 		"messages": []map[string]any{
-			{"role": "system", "content": systemPrompt + " Quando l'utente chiede un'azione su una luce o dispositivo, rispondi confermando l'azione."},
+			{"role": "system", "content": systemPrompt + " Usa le function tools fornite quando l'utente ti chiede di controllare luci, clima o scene."},
 			{"role": "user", "content": prompt},
 		},
 	}
@@ -174,7 +387,9 @@ func (s *Service) queryOllama(ctx context.Context, prompt string) (*ChatResponse
 
 	var ollamaRes struct {
 		Message struct {
-			Content string `json:"content"`
+			Role      string           `json:"role"`
+			Content   string           `json:"content"`
+			ToolCalls []OllamaToolCall `json:"tool_calls"`
 		} `json:"message"`
 	}
 
@@ -182,19 +397,40 @@ func (s *Service) queryOllama(ctx context.Context, prompt string) (*ChatResponse
 		return nil, err
 	}
 
-	// Also parse heuristic actions to ensure physical entities are commanded
-	heuristic := s.executeHeuristic(ctx, prompt)
+	var actions []ActionExecuted
+	if len(ollamaRes.Message.ToolCalls) > 0 {
+		for _, tc := range ollamaRes.Message.ToolCalls {
+			act, err := s.ExecuteToolCall(ctx, tc.Function.Name, tc.Function.Arguments)
+			if err == nil {
+				actions = append(actions, act)
+			}
+		}
+	}
 
 	reply := strings.TrimSpace(ollamaRes.Message.Content)
-	if reply == "" {
-		reply = heuristic.ResponseText
+	engine := "ollama"
+
+	if len(actions) > 0 {
+		engine = "ollama_tool_calling"
+		if reply == "" {
+			reply = fmt.Sprintf("Fatto, ho eseguito il comando su %s.", actions[0].EntityKey)
+		}
+	} else {
+		// Fallback to heuristic parser if no tool was invoked by LLM
+		heuristic := s.executeHeuristic(ctx, prompt)
+		if len(heuristic.ActionsExecuted) > 0 {
+			actions = heuristic.ActionsExecuted
+		}
+		if reply == "" {
+			reply = heuristic.ResponseText
+		}
 	}
 
 	return &ChatResponse{
 		UserPrompt:      prompt,
 		ResponseText:    reply,
-		ActionsExecuted: heuristic.ActionsExecuted,
-		EngineUsed:      "ollama",
+		ActionsExecuted: actions,
+		EngineUsed:      engine,
 	}, nil
 }
 

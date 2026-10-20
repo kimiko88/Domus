@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,11 +34,16 @@ type MotionZone struct {
 
 // AIDetection represents an object detected by the local computer vision model.
 type AIDetection struct {
-	Label      string      `json:"label"`      // "person", "vehicle", "animal", "package", "face"
-	Confidence float64     `json:"confidence"` // 0.0 - 1.0
-	Box        BoundingBox `json:"box"`
-	Zone       string      `json:"zone,omitempty"`
-	TrackID    int         `json:"track_id,omitempty"`
+	Label           string      `json:"label"` // "person", "vehicle", "animal", "package", "face"
+	Confidence      float64     `json:"confidence"` // 0.0 - 1.0
+	Box             BoundingBox `json:"box"`
+	Zone            string      `json:"zone,omitempty"`
+	TrackID         int         `json:"track_id,omitempty"`
+	PersonName      string      `json:"person_name,omitempty"`
+	FaceRecognized  bool        `json:"face_recognized,omitempty"`
+	LicensePlate    string      `json:"license_plate,omitempty"`
+	PlateAuthorized bool        `json:"plate_authorized,omitempty"`
+	Embedding       []float32   `json:"-"`
 }
 
 // NVRCameraStats holds live runtime metrics for an active camera feed.
@@ -75,25 +81,105 @@ type EventClip struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// FamilyFace represents a registered family member's biometric face template.
+type FamilyFace struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Embedding []float32 `json:"-"` // e.g. 512-D or 128-D normalized face vector
+}
+
+// AuthorizedVehicle represents a resident vehicle for automatic gate/garage opening.
+type AuthorizedVehicle struct {
+	PlateNumber  string `json:"plate_number"`
+	OwnerName    string `json:"owner_name"`
+	AutoOpenGate bool   `json:"auto_open_gate"`
+}
+
 // LocalNVR is the embedded computer vision engine that monitors RTSP/WebRTC streams and runs local AI inference.
 type LocalNVR struct {
-	mu      sync.RWMutex
-	service *Service
-	bus     events.Bus
-	zones   map[string][]MotionZone // Keyed by cameraID
-	clips   map[string]*EventClip   // Keyed by eventID
-	stats   map[string]*NVRCameraStats
+	mu               sync.RWMutex
+	service          *Service
+	bus              events.Bus
+	zones            map[string][]MotionZone // Keyed by cameraID
+	clips            map[string]*EventClip   // Keyed by eventID
+	stats            map[string]*NVRCameraStats
+	familyFaces      map[string]FamilyFace
+	authorizedPlates map[string]AuthorizedVehicle
 }
 
 // NewLocalNVR initializes the embedded local computer vision NVR.
 func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
 	return &LocalNVR{
-		service: svc,
-		bus:     bus,
-		zones:   make(map[string][]MotionZone),
-		clips:   make(map[string]*EventClip),
-		stats:   make(map[string]*NVRCameraStats),
+		service:          svc,
+		bus:              bus,
+		zones:            make(map[string][]MotionZone),
+		clips:            make(map[string]*EventClip),
+		stats:            make(map[string]*NVRCameraStats),
+		familyFaces:      make(map[string]FamilyFace),
+		authorizedPlates: make(map[string]AuthorizedVehicle),
 	}
+}
+
+// RegisterFamilyFace enrolls a family member's biometric embedding.
+func (n *LocalNVR) RegisterFamilyFace(face FamilyFace) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.familyFaces[face.ID] = face
+}
+
+// RegisterAuthorizedPlate enrolls a vehicle license plate.
+func (n *LocalNVR) RegisterAuthorizedPlate(veh AuthorizedVehicle) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	cleanPlate := strings.ToUpper(strings.ReplaceAll(veh.PlateNumber, " ", ""))
+	veh.PlateNumber = cleanPlate
+	n.authorizedPlates[cleanPlate] = veh
+}
+
+// MatchFace compares a candidate embedding against registered family members.
+func (n *LocalNVR) MatchFace(embedding []float32) (string, float64) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	var bestMatch string
+	var bestScore float64
+
+	for _, member := range n.familyFaces {
+		score := cosineSimilarity(embedding, member.Embedding)
+		if score > bestScore && score >= 0.65 { // 0.65 cosine threshold
+			bestScore = score
+			bestMatch = member.Name
+		}
+	}
+	return bestMatch, bestScore
+}
+
+// MatchPlate checks if a detected license plate string is authorized.
+func (n *LocalNVR) MatchPlate(plate string) (AuthorizedVehicle, bool) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	clean := strings.ToUpper(strings.ReplaceAll(plate, " ", ""))
+	veh, ok := n.authorizedPlates[clean]
+	return veh, ok
+}
+
+func cosineSimilarity(a, b []float32) float64 {
+	if len(a) == 0 || len(a) != len(b) {
+		return 0
+	}
+	var dotProduct, normA, normB float64
+	for i := 0; i < len(a); i++ {
+		valA := float64(a[i])
+		valB := float64(b[i])
+		dotProduct += valA * valB
+		normA += valA * valA
+		normB += valB * valB
+	}
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }
 
 // GetStatus returns real-time NVR pipeline performance and camera stats.
@@ -211,6 +297,26 @@ func (n *LocalNVR) ProcessDetection(ctx context.Context, cameraID string, det AI
 	}
 	n.mu.Unlock()
 
+	// Auto-match face if embedding is present
+	if len(det.Embedding) > 0 && det.PersonName == "" {
+		if matchedName, conf := n.MatchFace(det.Embedding); matchedName != "" {
+			det.PersonName = matchedName
+			det.FaceRecognized = true
+			det.Label = "family_member"
+			det.Confidence = conf
+		}
+	}
+
+	// Auto-match license plate if plate text is present
+	if det.LicensePlate != "" {
+		if veh, ok := n.MatchPlate(det.LicensePlate); ok {
+			det.PlateAuthorized = true
+			if veh.OwnerName != "" {
+				det.PersonName = veh.OwnerName
+			}
+		}
+	}
+
 	// Dispatch enriched event for actionable mobile push notifications & automations
 	if n.bus != nil {
 		_ = n.bus.Publish(ctx, events.Event{
@@ -219,15 +325,19 @@ func (n *LocalNVR) ProcessDetection(ctx context.Context, cameraID string, det AI
 			OccurredAt: now,
 			Source:     "nvr.ai_vision",
 			Payload: map[string]any{
-				"event_id":      evt.ID,
-				"camera_id":     cam.ID,
-				"camera_name":   cam.Name,
-				"label":         det.Label,
-				"confidence":    evt.Score,
-				"zone":          det.Zone,
-				"bounding_box":  det.Box,
-				"thumbnail_url": evt.ThumbnailURL,
-				"clip_url":      clip.ClipURL,
+				"event_id":         evt.ID,
+				"camera_id":        cam.ID,
+				"camera_name":      cam.Name,
+				"label":            det.Label,
+				"confidence":       evt.Score,
+				"zone":             det.Zone,
+				"bounding_box":     det.Box,
+				"person_name":      det.PersonName,
+				"face_recognized":  det.FaceRecognized,
+				"license_plate":    det.LicensePlate,
+				"plate_authorized": det.PlateAuthorized,
+				"thumbnail_url":    evt.ThumbnailURL,
+				"clip_url":         clip.ClipURL,
 			},
 		})
 	}
