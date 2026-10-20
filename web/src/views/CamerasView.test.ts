@@ -19,6 +19,26 @@ describe('CamerasView.vue', () => {
           }
         ] as any
       }
+      if (url.includes('/api/v1/cameras/faces')) {
+        return [
+          {
+            id: 'face_marco',
+            name: 'Marco Rossi',
+            role: 'Amministratore',
+            embedding: [0.5, 0.5, 0.5, 0.5]
+          }
+        ] as any
+      }
+      if (url.includes('/api/v1/cameras/plates')) {
+        return [
+          {
+            plate_number: 'AB123CD',
+            owner_name: 'Marco Rossi',
+            vehicle_model: 'Tesla Model Y',
+            auto_open_gate: true
+          }
+        ] as any
+      }
       if (url.includes('/api/v1/cameras')) {
         return [
           {
@@ -50,5 +70,21 @@ describe('CamerasView.vue', () => {
     expect(wrapper.text()).toContain('Timeline Eventi Riconoscimento Locale')
     expect(wrapper.text()).toContain('PERSON')
     expect(wrapper.text()).toContain('95%')
+  })
+
+  it('switches to Biometria & Targhe AI tab and displays registered faces and plates', async () => {
+    const wrapper = mount(CamerasView)
+    await flushPromises()
+
+    const biometricsBtn = wrapper.findAll('.btn-view-toggle').find(btn => btn.text().includes('Biometria & Targhe AI'))
+    expect(biometricsBtn).toBeDefined()
+    await biometricsBtn?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Profili Biometrici Familiari')
+    expect(wrapper.text()).toContain('Marco Rossi')
+    expect(wrapper.text()).toContain('Targhe Veicoli Autorizzati')
+    expect(wrapper.text()).toContain('AB123CD')
+    expect(wrapper.text()).toContain('Tesla Model Y')
   })
 })

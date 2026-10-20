@@ -590,6 +590,14 @@ func (h *EcosystemHandler) GetEventClip(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, clip)
 }
 
+func (h *EcosystemHandler) ListFamilyFaces(w http.ResponseWriter, r *http.Request) {
+	if h.localNVR == nil {
+		writeJSON(w, http.StatusOK, []appCamera.FamilyFace{})
+		return
+	}
+	writeJSON(w, http.StatusOK, h.localNVR.ListFamilyFaces())
+}
+
 func (h *EcosystemHandler) RegisterFamilyFace(w http.ResponseWriter, r *http.Request) {
 	if h.localNVR == nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "nvr not initialized")
@@ -600,12 +608,33 @@ func (h *EcosystemHandler) RegisterFamilyFace(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
 		return
 	}
-	if face.Name == "" || len(face.Embedding) == 0 {
-		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "face name and biometric embedding are required")
+	if face.Name == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "face name is required")
 		return
 	}
 	h.localNVR.RegisterFamilyFace(face)
 	writeJSON(w, http.StatusCreated, face)
+}
+
+func (h *EcosystemHandler) DeleteFamilyFace(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if h.localNVR == nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "nvr not initialized")
+		return
+	}
+	if !h.localNVR.RemoveFamilyFace(id) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "face profile not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": id})
+}
+
+func (h *EcosystemHandler) ListAuthorizedPlates(w http.ResponseWriter, r *http.Request) {
+	if h.localNVR == nil {
+		writeJSON(w, http.StatusOK, []appCamera.AuthorizedVehicle{})
+		return
+	}
+	writeJSON(w, http.StatusOK, h.localNVR.ListAuthorizedPlates())
 }
 
 func (h *EcosystemHandler) RegisterAuthorizedPlate(w http.ResponseWriter, r *http.Request) {
@@ -624,6 +653,19 @@ func (h *EcosystemHandler) RegisterAuthorizedPlate(w http.ResponseWriter, r *htt
 	}
 	h.localNVR.RegisterAuthorizedPlate(veh)
 	writeJSON(w, http.StatusCreated, veh)
+}
+
+func (h *EcosystemHandler) DeleteAuthorizedPlate(w http.ResponseWriter, r *http.Request) {
+	plate := chi.URLParam(r, "plate")
+	if h.localNVR == nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "nvr not initialized")
+		return
+	}
+	if !h.localNVR.RemoveAuthorizedPlate(plate) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "license plate not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "plate": plate})
 }
 
 // --- WebSerial Firmware Flasher ---

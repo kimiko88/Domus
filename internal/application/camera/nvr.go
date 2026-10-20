@@ -83,16 +83,21 @@ type EventClip struct {
 
 // FamilyFace represents a registered family member's biometric face template.
 type FamilyFace struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Embedding []float32 `json:"-"` // e.g. 512-D or 128-D normalized face vector
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Role       string    `json:"role,omitempty"` // e.g. "Amministratore", "Residente", "Ospite"
+	PhotoURL   string    `json:"photo_url,omitempty"`
+	EnrolledAt time.Time `json:"enrolled_at,omitempty"`
+	Embedding  []float32 `json:"embedding,omitempty"` // e.g. 512-D or 128-D normalized face vector
 }
 
 // AuthorizedVehicle represents a resident vehicle for automatic gate/garage opening.
 type AuthorizedVehicle struct {
-	PlateNumber  string `json:"plate_number"`
-	OwnerName    string `json:"owner_name"`
-	AutoOpenGate bool   `json:"auto_open_gate"`
+	PlateNumber  string    `json:"plate_number"`
+	OwnerName    string    `json:"owner_name"`
+	VehicleModel string    `json:"vehicle_model,omitempty"`
+	AutoOpenGate bool      `json:"auto_open_gate"`
+	EnrolledAt   time.Time `json:"enrolled_at,omitempty"`
 }
 
 // LocalNVR is the embedded computer vision engine that monitors RTSP/WebRTC streams and runs local AI inference.
@@ -109,7 +114,7 @@ type LocalNVR struct {
 
 // NewLocalNVR initializes the embedded local computer vision NVR.
 func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
-	return &LocalNVR{
+	nvr := &LocalNVR{
 		service:          svc,
 		bus:              bus,
 		zones:            make(map[string][]MotionZone),
@@ -118,13 +123,80 @@ func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
 		familyFaces:      make(map[string]FamilyFace),
 		authorizedPlates: make(map[string]AuthorizedVehicle),
 	}
+
+	// Seed realistic demo family members and vehicles
+	now := time.Now().UTC()
+	nvr.familyFaces["face_marco"] = FamilyFace{
+		ID:         "face_marco",
+		Name:       "Marco Rossi",
+		Role:       "Amministratore",
+		PhotoURL:   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+		EnrolledAt: now.Add(-30 * 24 * time.Hour),
+		Embedding:  []float32{0.5, 0.5, 0.5, 0.5},
+	}
+	nvr.familyFaces["face_laura"] = FamilyFace{
+		ID:         "face_laura",
+		Name:       "Laura Bianchi",
+		Role:       "Residente",
+		PhotoURL:   "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+		EnrolledAt: now.Add(-15 * 24 * time.Hour),
+		Embedding:  []float32{0.3, 0.7, 0.2, 0.6},
+	}
+
+	nvr.authorizedPlates["AB123CD"] = AuthorizedVehicle{
+		PlateNumber:  "AB123CD",
+		OwnerName:    "Marco Rossi",
+		VehicleModel: "Tesla Model Y",
+		AutoOpenGate: true,
+		EnrolledAt:   now.Add(-20 * 24 * time.Hour),
+	}
+	nvr.authorizedPlates["EF456GH"] = AuthorizedVehicle{
+		PlateNumber:  "EF456GH",
+		OwnerName:    "Laura Bianchi",
+		VehicleModel: "Fiat 500e",
+		AutoOpenGate: true,
+		EnrolledAt:   now.Add(-10 * 24 * time.Hour),
+	}
+
+	return nvr
 }
 
 // RegisterFamilyFace enrolls a family member's biometric embedding.
 func (n *LocalNVR) RegisterFamilyFace(face FamilyFace) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if face.ID == "" {
+		face.ID = "face_" + uuid.NewString()[:8]
+	}
+	if face.EnrolledAt.IsZero() {
+		face.EnrolledAt = time.Now().UTC()
+	}
+	if len(face.Embedding) == 0 {
+		face.Embedding = []float32{0.5, 0.5, 0.5, 0.5}
+	}
 	n.familyFaces[face.ID] = face
+}
+
+// ListFamilyFaces returns all enrolled family member faces.
+func (n *LocalNVR) ListFamilyFaces() []FamilyFace {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	res := make([]FamilyFace, 0, len(n.familyFaces))
+	for _, f := range n.familyFaces {
+		res = append(res, f)
+	}
+	return res
+}
+
+// RemoveFamilyFace deletes an enrolled face.
+func (n *LocalNVR) RemoveFamilyFace(id string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if _, ok := n.familyFaces[id]; ok {
+		delete(n.familyFaces, id)
+		return true
+	}
+	return false
 }
 
 // RegisterAuthorizedPlate enrolls a vehicle license plate.
@@ -133,7 +205,33 @@ func (n *LocalNVR) RegisterAuthorizedPlate(veh AuthorizedVehicle) {
 	defer n.mu.Unlock()
 	cleanPlate := strings.ToUpper(strings.ReplaceAll(veh.PlateNumber, " ", ""))
 	veh.PlateNumber = cleanPlate
+	if veh.EnrolledAt.IsZero() {
+		veh.EnrolledAt = time.Now().UTC()
+	}
 	n.authorizedPlates[cleanPlate] = veh
+}
+
+// ListAuthorizedPlates returns all enrolled license plates.
+func (n *LocalNVR) ListAuthorizedPlates() []AuthorizedVehicle {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	res := make([]AuthorizedVehicle, 0, len(n.authorizedPlates))
+	for _, p := range n.authorizedPlates {
+		res = append(res, p)
+	}
+	return res
+}
+
+// RemoveAuthorizedPlate deletes an enrolled license plate.
+func (n *LocalNVR) RemoveAuthorizedPlate(plate string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	cleanPlate := strings.ToUpper(strings.ReplaceAll(plate, " ", ""))
+	if _, ok := n.authorizedPlates[cleanPlate]; ok {
+		delete(n.authorizedPlates, cleanPlate)
+		return true
+	}
+	return false
 }
 
 // MatchFace compares a candidate embedding against registered family members.

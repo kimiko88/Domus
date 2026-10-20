@@ -1087,5 +1087,19 @@ export interface CoastDownRecommendation {
   reason: string
 }
 
+export interface FamilyFace {
+  id: string
+  name: string
+  role?: string
+  photo_url?: string
+  enrolled_at?: string
+  embedding?: number[]
+}
 
-
+export interface AuthorizedVehicle {
+  plate_number: string
+  owner_name: string
+  vehicle_model?: string
+  auto_open_gate: boolean
+  enrolled_at?: string
+}
