@@ -193,6 +193,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
+		api.Use(domusmw.Idempotency(nil))
+
 		if srv.repos != nil && srv.repos.BannedIPs != nil {
 			api.Use(domusmw.IPBanMiddleware(srv.repos.BannedIPs))
 		}
