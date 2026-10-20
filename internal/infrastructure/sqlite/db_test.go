@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -131,4 +132,87 @@ func TestForeignKeyEnforcement(t *testing.T) {
 		VALUES ('dev-1', 'non-existent-integration', 'ext-1', 'Living Room Sensor');
 	`)
 	assert.Error(t, err, "Inserting child record with invalid FK must fail")
+}
+
+func TestOpenDualPool_WriteAndReadConnections(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_dual_pool.db")
+
+	cfg := config.DatabaseConfig{
+		Path:          dbPath,
+		WALMode:       true,
+		BusyTimeoutMs: 5000,
+		MaxOpenConns:  1,
+	}
+
+	pool, err := sqlite.OpenDualPool(cfg)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	require.NotNil(t, pool.Write)
+	require.NotNil(t, pool.Read)
+	assert.NotEqual(t, pool.Write, pool.Read, "File-based DB should have distinct write and read pools")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, sqlite.Migrate(ctx, pool.Write))
+
+	// Write record via Write connection
+	_, err = pool.Write.ExecContext(ctx, `
+		INSERT INTO areas (id, name, icon)
+		VALUES ('area-kitchen', 'Cucina', 'kitchen');
+	`)
+	require.NoError(t, err)
+
+	// Read record via Read connection
+	var areaName string
+	err = pool.Read.QueryRowContext(ctx, "SELECT name FROM areas WHERE id = ?;", "area-kitchen").Scan(&areaName)
+	require.NoError(t, err)
+	assert.Equal(t, "Cucina", areaName)
+}
+
+func TestRepositories_DualPoolAndWarmUp(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_repos_dual.db")
+
+	cfg := config.DatabaseConfig{
+		Path:          dbPath,
+		WALMode:       true,
+		BusyTimeoutMs: 5000,
+		MaxOpenConns:  1,
+	}
+
+	pool, err := sqlite.OpenDualPool(cfg)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, sqlite.Migrate(ctx, pool.Write))
+
+	repos := sqlite.NewRepositoriesWithPool(pool)
+	require.NotNil(t, repos)
+	require.NotNil(t, repos.CachedEntities)
+
+	// Insert entity through repos.Entities (which writes via Write pool and caches)
+	err = repos.Entities.Create(ctx, &entity.Entity{
+		ID:        "light.kitchen_main",
+		EntityKey: "light.kitchen_main",
+		Domain:    "light",
+		Name:      "Kitchen Light",
+		Writable:  true,
+		State:     "off",
+	})
+	require.NoError(t, err)
+
+	// Test WarmUp preloading
+	err = repos.WarmUp(ctx)
+	assert.NoError(t, err)
+
+	// Fast cache read
+	ent, err := repos.Entities.GetByID(ctx, "light.kitchen_main")
+	require.NoError(t, err)
+	assert.Equal(t, "Kitchen Light", ent.Name)
 }

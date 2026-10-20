@@ -2,6 +2,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/domus-hub/domus/internal/domain/area"
@@ -31,6 +32,10 @@ import (
 // Repositories aggregates all initialized SQLite repositories.
 type Repositories struct {
 	DB                   *sql.DB
+	ReadDB               *sql.DB
+	Pool                 *DBPool
+	RawEntities          *EntityRepository
+	CachedEntities       *CachedEntityRepository
 	Users                user.UserRepository
 	Sessions             user.SessionRepository
 	Audit                audit.Repository
@@ -71,13 +76,16 @@ type Repositories struct {
 	PredictiveClimate    *PredictiveClimateRepository
 }
 
-// NewRepositories initializes and returns all SQLite repositories.
+// NewRepositories initializes and returns all SQLite repositories with a single database connection.
 func NewRepositories(db *sql.DB) *Repositories {
 	rawEntities := NewEntityRepository(db)
 	cachedEntities := NewCachedEntityRepository(rawEntities)
 
 	return &Repositories{
 		DB:                   db,
+		ReadDB:               db,
+		RawEntities:          rawEntities,
+		CachedEntities:       cachedEntities,
 		Users:                NewUserRepository(db),
 		Sessions:             NewSessionRepository(db),
 		Audit:                NewAuditRepository(db),
@@ -117,4 +125,73 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Medicines:            NewMedicineRepository(db),
 		PredictiveClimate:    NewPredictiveClimateRepository(db),
 	}
+}
+
+// NewRepositoriesWithPool initializes all SQLite repositories using separate write and read database pools.
+func NewRepositoriesWithPool(pool *DBPool) *Repositories {
+	if pool == nil {
+		return NewRepositories(nil)
+	}
+	writeDB := pool.Write
+	readDB := pool.Read
+	if readDB == nil {
+		readDB = writeDB
+	}
+
+	rawEntities := NewEntityRepository(writeDB, readDB)
+	cachedEntities := NewCachedEntityRepository(rawEntities)
+
+	return &Repositories{
+		DB:                   writeDB,
+		ReadDB:               readDB,
+		Pool:                 pool,
+		RawEntities:          rawEntities,
+		CachedEntities:       cachedEntities,
+		Users:                NewUserRepository(writeDB),
+		Sessions:             NewSessionRepository(writeDB),
+		Audit:                NewAuditRepository(writeDB),
+		Areas:                NewAreaRepository(writeDB),
+		Integrations:         NewIntegrationRepository(writeDB),
+		Devices:              NewDeviceRepository(writeDB),
+		Entities:             cachedEntities,
+		Automations:          NewAutomationRepository(writeDB),
+		Scenes:               NewSceneRepository(writeDB),
+		History:              NewHistoryRepository(writeDB, readDB),
+		Invites:              NewInviteRepository(writeDB),
+		Floors:               NewFloorplanRepository(writeDB),
+		Chores:               NewChoreRepository(writeDB),
+		Dashboards:           NewDashboardRepository(writeDB),
+		Helpers:              NewHelperRepository(writeDB),
+		Shopping:             NewShoppingRepository(writeDB),
+		Calendar:             NewCalendarRepository(writeDB),
+		Tags:                 NewTagRepository(writeDB),
+		Media:                NewMediaRepository(writeDB),
+		Cameras:              NewCameraRepository(writeDB),
+		OTA:                  NewOTARepository(writeDB),
+		Store:                NewStoreRepository(writeDB),
+		Templates:            NewTemplateEntityRepository(writeDB),
+		Statistics:           NewStatisticsRepository(writeDB, readDB),
+		TwoFactor:            NewTwoFactorRepository(writeDB),
+		BannedIPs:            NewBannedIPRepository(writeDB),
+		Zones:                NewZoneRepository(writeDB),
+		UtilityMeters:        NewUtilityMeterRepository(writeDB),
+		Scripts:              NewScriptRepository(writeDB),
+		Logbook:              NewLogbookRepository(writeDB, readDB),
+		PushTokens:           NewPushTokenRepository(writeDB),
+		WeeklySchedules:      NewWeeklyScheduleRepository(writeDB),
+		ClimateCompensations: NewClimateCompensatorRepository(writeDB),
+		OutboundWebhooks:     NewOutboundWebhookRepository(writeDB),
+		Finance:              NewFinanceRepository(writeDB),
+		Pantry:               NewPantryRepository(writeDB),
+		Medicines:            NewMedicineRepository(writeDB),
+		PredictiveClimate:    NewPredictiveClimateRepository(writeDB),
+	}
+}
+
+// WarmUp preloads cacheable repositories (such as entities) into RAM.
+func (r *Repositories) WarmUp(ctx context.Context) error {
+	if r.CachedEntities != nil {
+		return r.CachedEntities.WarmUp(ctx)
+	}
+	return nil
 }

@@ -16,12 +16,17 @@ var _ history.StatisticsRepository = (*StatisticsRepository)(nil)
 
 // StatisticsRepository handles persistence for long-term pre-aggregated statistics.
 type StatisticsRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	readDB *sql.DB
 }
 
-// NewStatisticsRepository creates a new SQLite StatisticsRepository.
-func NewStatisticsRepository(db *sql.DB) *StatisticsRepository {
-	return &StatisticsRepository{db: db}
+// NewStatisticsRepository creates a new SQLite StatisticsRepository with optional separate read pool.
+func NewStatisticsRepository(db *sql.DB, readDB ...*sql.DB) *StatisticsRepository {
+	r := &StatisticsRepository{db: db, readDB: db}
+	if len(readDB) > 0 && readDB[0] != nil {
+		r.readDB = readDB[0]
+	}
+	return r
 }
 
 // InsertOrUpdateBatch writes a batch of aggregated statistics records using upsert logic.
@@ -122,7 +127,7 @@ func (r *StatisticsRepository) GetStatistics(ctx context.Context, filter history
 		ORDER BY period_start ASC
 	`, whereClause)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: failed to query statistics: %w", err)
 	}

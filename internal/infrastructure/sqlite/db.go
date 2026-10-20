@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -19,6 +20,29 @@ import (
 
 //go:embed migrations/*.sql
 var migrationFS embed.FS
+
+// DBPool encapsulates separate SQLite connection pools for serialized writes
+// and high-throughput concurrent reads under WAL mode.
+type DBPool struct {
+	Write *sql.DB
+	Read  *sql.DB
+}
+
+// Close closes both write and read database pools cleanly.
+func (p *DBPool) Close() error {
+	var firstErr error
+	if p.Write != nil {
+		if err := p.Write.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	if p.Read != nil && p.Read != p.Write {
+		if err := p.Read.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
 
 // Open establishes a connection to the SQLite database and configures required PRAGMAs.
 func Open(cfg config.DatabaseConfig) (*sql.DB, error) {
@@ -77,6 +101,78 @@ func Open(cfg config.DatabaseConfig) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// OpenDualPool opens separate write and read connection pools for SQLite.
+// The write pool has MaxOpenConns = 1 to guarantee serialized write transactions.
+// The read pool has MaxOpenConns = max(4, NumCPU*2) to allow high-throughput concurrent SELECTs in WAL mode.
+func OpenDualPool(cfg config.DatabaseConfig) (*DBPool, error) {
+	// Configure write pool: strictly 1 connection to prevent SQLite busy locks
+	writeCfg := cfg
+	writeCfg.MaxOpenConns = 1
+	writeDB, err := Open(writeCfg)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: failed to open write pool: %w", err)
+	}
+
+	// For in-memory databases (:memory:), each distinct sql.Open creates a separate in-memory DB.
+	// We share the single connection between Write and Read to prevent database isolation in tests.
+	if cfg.Path == ":memory:" {
+		return &DBPool{Write: writeDB, Read: writeDB}, nil
+	}
+
+	// For persistent file-based databases, open a dedicated read pool
+	readDB, err := sql.Open("sqlite", cfg.Path)
+	if err != nil {
+		_ = writeDB.Close()
+		return nil, fmt.Errorf("sqlite: failed to open read pool: %w", err)
+	}
+
+	readConns := cfg.MaxOpenConns
+	if readConns <= 1 {
+		readConns = runtime.NumCPU() * 2
+		if readConns < 4 {
+			readConns = 4
+		}
+	}
+	readDB.SetMaxOpenConns(readConns)
+	readDB.SetMaxIdleConns(readConns)
+
+	// Apply read-pool PRAGMAs
+	if cfg.WALMode {
+		if _, err := readDB.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+			_ = readDB.Close()
+			_ = writeDB.Close()
+			return nil, fmt.Errorf("sqlite: failed to set WAL mode on read pool: %w", err)
+		}
+	}
+
+	if _, err := readDB.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		_ = readDB.Close()
+		_ = writeDB.Close()
+		return nil, fmt.Errorf("sqlite: failed to enable foreign keys on read pool: %w", err)
+	}
+
+	timeout := cfg.BusyTimeoutMs
+	if timeout <= 0 {
+		timeout = 5000
+	}
+	if _, err := readDB.Exec(fmt.Sprintf("PRAGMA busy_timeout = %d;", timeout)); err != nil {
+		_ = readDB.Close()
+		_ = writeDB.Close()
+		return nil, fmt.Errorf("sqlite: failed to set busy_timeout on read pool: %w", err)
+	}
+
+	if _, err := readDB.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
+		_ = readDB.Close()
+		_ = writeDB.Close()
+		return nil, fmt.Errorf("sqlite: failed to set synchronous pragma on read pool: %w", err)
+	}
+
+	// Enable query_only pragma to guarantee read safety on read connections
+	_, _ = readDB.Exec("PRAGMA query_only = ON;")
+
+	return &DBPool{Write: writeDB, Read: readDB}, nil
 }
 
 // Migrate executes pending migrations embedded in migrationFS in a single transaction.

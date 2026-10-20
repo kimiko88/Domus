@@ -239,3 +239,108 @@ func TestMemoryBus_TracePropagation(t *testing.T) {
 		t.Fatal("timed out waiting for trace propagation in eventbus")
 	}
 }
+
+func TestMemoryBus_SlowHandlerTimeoutDoesNotBlockWorkers(t *testing.T) {
+	// Configure with short timeout of 50ms and 1 single worker
+	bus := eventbus.NewMemoryBus(eventbus.Config{
+		BufferSize:     10,
+		Workers:        1,
+		HandlerTimeout: 50 * time.Millisecond,
+	})
+	defer bus.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Slow handler that hangs for 300ms
+	bus.Subscribe(events.DeviceOnline, func(c context.Context, e events.Event) error {
+		select {
+		case <-c.Done():
+			return c.Err()
+		case <-time.After(300 * time.Millisecond):
+			return nil
+		}
+	})
+
+	secondHandlerRan := make(chan struct{})
+	bus.Subscribe(events.DeviceOffline, func(c context.Context, e events.Event) error {
+		close(secondHandlerRan)
+		return nil
+	})
+
+	// 1. Publish slow event
+	start := time.Now()
+	err := bus.Publish(ctx, events.Event{
+		ID:   "evt-slow",
+		Type: events.DeviceOnline,
+	})
+	require.NoError(t, err)
+
+	// 2. Publish fast event immediately after
+	err = bus.Publish(ctx, events.Event{
+		ID:   "evt-fast",
+		Type: events.DeviceOffline,
+	})
+	require.NoError(t, err)
+
+	// Second handler must execute without waiting the full 300ms of the slow handler
+	select {
+	case <-secondHandlerRan:
+		elapsed := time.Since(start)
+		assert.Less(t, elapsed, 200*time.Millisecond, "Worker should unblock around 50ms timeout, not 300ms")
+	case <-time.After(1 * time.Second):
+		t.Fatal("second event timed out waiting for worker")
+	}
+}
+
+func TestMemoryBus_AsyncQueueIsolation(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{
+		BufferSize:      10,
+		Workers:         1,
+		AsyncBufferSize: 10,
+		AsyncWorkers:    2,
+		HandlerTimeout:  1 * time.Second,
+	})
+	defer bus.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	slowAsyncFinished := make(chan struct{})
+	fastCoreFinished := make(chan struct{})
+
+	// Async subscriber sleeps for 100ms
+	bus.SubscribeAsync(events.EntityStateChanged, func(c context.Context, e events.Event) error {
+		time.Sleep(100 * time.Millisecond)
+		close(slowAsyncFinished)
+		return nil
+	})
+
+	// Core synchronous subscriber executes instantly
+	bus.Subscribe(events.EntityStateChanged, func(c context.Context, e events.Event) error {
+		close(fastCoreFinished)
+		return nil
+	})
+
+	start := time.Now()
+	err := bus.Publish(ctx, events.Event{
+		ID:   "evt-mixed",
+		Type: events.EntityStateChanged,
+	})
+	require.NoError(t, err)
+
+	// Fast core handler must finish well before the slow async handler
+	select {
+	case <-fastCoreFinished:
+		assert.Less(t, time.Since(start), 50*time.Millisecond, "Core handler should finish immediately")
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("fast core handler took too long")
+	}
+
+	select {
+	case <-slowAsyncFinished:
+		// Succeeded asynchronously
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("async handler failed to finish")
+	}
+}

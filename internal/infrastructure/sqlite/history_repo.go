@@ -12,12 +12,17 @@ import (
 
 // HistoryRepository implements history.Repository for SQLite.
 type HistoryRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	readDB *sql.DB
 }
 
-// NewHistoryRepository constructs a HistoryRepository.
-func NewHistoryRepository(db *sql.DB) *HistoryRepository {
-	return &HistoryRepository{db: db}
+// NewHistoryRepository constructs a HistoryRepository with optional separate read pool.
+func NewHistoryRepository(db *sql.DB, readDB ...*sql.DB) *HistoryRepository {
+	r := &HistoryRepository{db: db, readDB: db}
+	if len(readDB) > 0 && readDB[0] != nil {
+		r.readDB = readDB[0]
+	}
+	return r
 }
 
 // SaveBatch inserts a slice of StateHistory entries in a single transaction.
@@ -98,7 +103,7 @@ func (r *HistoryRepository) ListByEntity(ctx context.Context, filter history.His
 	query += " ORDER BY recorded_at ASC, id ASC LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: failed to query state history: %w", err)
 	}

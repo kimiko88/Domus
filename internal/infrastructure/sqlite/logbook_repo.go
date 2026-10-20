@@ -13,12 +13,17 @@ import (
 
 // LogbookRepository implements logbook.Repository using SQLite.
 type LogbookRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	readDB *sql.DB
 }
 
-// NewLogbookRepository constructs a new LogbookRepository.
-func NewLogbookRepository(db *sql.DB) *LogbookRepository {
-	return &LogbookRepository{db: db}
+// NewLogbookRepository constructs a new LogbookRepository with optional separate read pool.
+func NewLogbookRepository(db *sql.DB, readDB ...*sql.DB) *LogbookRepository {
+	r := &LogbookRepository{db: db, readDB: db}
+	if len(readDB) > 0 && readDB[0] != nil {
+		r.readDB = readDB[0]
+	}
+	return r
 }
 
 // Save inserts a new entry into logbook_entries.
@@ -86,7 +91,7 @@ func (r *LogbookRepository) List(ctx context.Context, filter logbook.Filter) ([]
 	query += " ORDER BY timestamp DESC LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query logbook entries: %w", err)
 	}

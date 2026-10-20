@@ -13,12 +13,17 @@ import (
 
 // EntityRepository implements entity.Repository for SQLite.
 type EntityRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	readDB *sql.DB
 }
 
-// NewEntityRepository constructs an EntityRepository.
-func NewEntityRepository(db *sql.DB) *EntityRepository {
-	return &EntityRepository{db: db}
+// NewEntityRepository constructs an EntityRepository with optional separate read pool.
+func NewEntityRepository(db *sql.DB, readDB ...*sql.DB) *EntityRepository {
+	r := &EntityRepository{db: db, readDB: db}
+	if len(readDB) > 0 && readDB[0] != nil {
+		r.readDB = readDB[0]
+	}
+	return r
 }
 
 // Create inserts a new entity record.
@@ -94,7 +99,7 @@ func (r *EntityRepository) GetByID(ctx context.Context, id string) (*entity.Enti
 		FROM entities
 		WHERE id = ?;
 	`
-	row := r.db.QueryRowContext(ctx, query, id)
+	row := r.readDB.QueryRowContext(ctx, query, id)
 	return r.scanEntity(row)
 }
 
@@ -106,7 +111,7 @@ func (r *EntityRepository) GetByKey(ctx context.Context, key string) (*entity.En
 		FROM entities
 		WHERE entity_key = ?;
 	`
-	row := r.db.QueryRowContext(ctx, query, key)
+	row := r.readDB.QueryRowContext(ctx, query, key)
 	return r.scanEntity(row)
 }
 
@@ -143,7 +148,7 @@ func (r *EntityRepository) List(ctx context.Context, filter entity.ListFilter) (
 
 	query += " ORDER BY domain ASC, name ASC;"
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list entities: %w", err)
 	}

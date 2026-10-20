@@ -61,13 +61,14 @@ func main() {
 
 	startedAt := time.Now()
 
-	// 3. Initialize SQLite database & apply migrations
-	db, err := sqlite.Open(cfg.Database)
+	// 3. Initialize SQLite dual database pool (writer & concurrent readers) & apply migrations
+	pool, err := sqlite.OpenDualPool(cfg.Database)
 	if err != nil {
-		slog.Error("failed to open sqlite database", "error", err)
+		slog.Error("failed to open sqlite database pool", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer pool.Close()
+	db := pool.Write
 
 	ctxMigrate, cancelMigrate := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelMigrate()
@@ -78,8 +79,17 @@ func main() {
 	}
 	slog.Info("database initialized and migrations up-to-date")
 
-	// 4. Initialize Repositories and Application Services
-	repos := sqlite.NewRepositories(db)
+	// 4. Initialize Repositories and Application Services with Dual Pool
+	repos := sqlite.NewRepositoriesWithPool(pool)
+
+	// Warm up in-memory entity cache for sub-50-microsecond reads
+	ctxWarmUp, cancelWarmUp := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelWarmUp()
+	if err := repos.WarmUp(ctxWarmUp); err != nil {
+		slog.Warn("failed to warm up entity cache", "error", err)
+	} else {
+		slog.Info("entity cache warmed up successfully")
+	}
 	hasher := crypto.NewArgon2Hasher(crypto.Argon2Params{
 		Memory:      cfg.Auth.Argon2Memory,
 		Iterations:  cfg.Auth.Argon2Time,
