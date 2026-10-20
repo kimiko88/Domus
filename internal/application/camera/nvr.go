@@ -105,6 +105,7 @@ type LocalNVR struct {
 	mu               sync.RWMutex
 	service          *Service
 	bus              events.Bus
+	backend          InferenceBackend
 	zones            map[string][]MotionZone // Keyed by cameraID
 	clips            map[string]*EventClip   // Keyed by eventID
 	stats            map[string]*NVRCameraStats
@@ -117,6 +118,7 @@ func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
 	nvr := &LocalNVR{
 		service:          svc,
 		bus:              bus,
+		backend:          DetectHardwareBackend(),
 		zones:            make(map[string][]MotionZone),
 		clips:            make(map[string]*EventClip),
 		stats:            make(map[string]*NVRCameraStats),
@@ -159,6 +161,14 @@ func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
 	}
 
 	return nvr
+}
+
+// WithBackend sets a custom inference engine backend.
+func (n *LocalNVR) WithBackend(b InferenceBackend) *LocalNVR {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.backend = b
+	return n
 }
 
 // RegisterFamilyFace enrolls a family member's biometric embedding.
@@ -309,13 +319,18 @@ func (n *LocalNVR) GetStatus(ctx context.Context) NVRSystemStatus {
 		}
 	}
 
+	hwAccel := "CPU / SIMD AVX2 & Apple Accelerate"
+	if n.backend != nil {
+		hwAccel = n.backend.Name()
+	}
+
 	return NVRSystemStatus{
 		Engine:           "Domus Local AI Vision (Pure Go + Simd)",
 		TotalCameras:     len(cams),
 		ActiveStreams:    activeCount,
 		DetectionFPS:     25.0,
 		AverageLatencyMs: 18,
-		HardwareAccel:    "CPU / SIMD AVX2 & Apple Accelerate",
+		HardwareAccel:    hwAccel,
 		StorageUsedGB:    1.45,
 		StorageLimitGB:   20.0,
 		Cameras:          camStats,
