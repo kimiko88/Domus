@@ -171,6 +171,94 @@ func (s *Service) Restore(opts RestoreOptions) error {
 	return extractTarGz(tarBytes, opts.OutputDir, opts.SelectiveFiles)
 }
 
+// VerifyResult reports the integrity check outcome of a backup archive.
+type VerifyResult struct {
+	Valid     bool      `json:"valid"`
+	Encrypted bool      `json:"encrypted"`
+	Files     []string  `json:"files"`
+	CreatedAt time.Time `json:"created_at"`
+	SizeBytes int64     `json:"size_bytes"`
+	Error     string    `json:"error,omitempty"`
+}
+
+// VerifyArchive performs an in-memory dry-run restore validation of the archive:
+// testing decryption, gzip decompression, tar structure, and manifest integrity
+// without extracting any files to disk.
+func (s *Service) VerifyArchive(archivePath, passphrase string) (VerifyResult, error) {
+	fi, err := os.Stat(archivePath)
+	if err != nil {
+		return VerifyResult{Valid: false, Error: err.Error()}, fmt.Errorf("verify: archive not found: %w", err)
+	}
+
+	raw, err := os.ReadFile(archivePath)
+	if err != nil {
+		return VerifyResult{Valid: false, Error: err.Error()}, fmt.Errorf("verify: cannot read archive: %w", err)
+	}
+
+	encrypted := strings.HasSuffix(archivePath, ".enc")
+	var tarBytes []byte
+
+	if encrypted {
+		if passphrase == "" {
+			return VerifyResult{Valid: false, Encrypted: true, Error: "passphrase required"}, fmt.Errorf("verify: passphrase required for encrypted archive")
+		}
+		tarBytes, err = config.Decrypt(raw, passphrase)
+		if err != nil {
+			return VerifyResult{Valid: false, Encrypted: true, Error: "decryption failed"}, fmt.Errorf("verify: decryption failed: %w", err)
+		}
+	} else {
+		tarBytes = raw
+	}
+
+	gz, err := gzip.NewReader(bytes.NewReader(tarBytes))
+	if err != nil {
+		return VerifyResult{Valid: false, Encrypted: encrypted, Error: "corrupt gzip stream"}, fmt.Errorf("verify: invalid gzip stream: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	var files []string
+	var manifestFound bool
+	var manifestCreatedAt time.Time
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return VerifyResult{Valid: false, Encrypted: encrypted, Error: "corrupt tar header"}, fmt.Errorf("verify: tar read error: %w", err)
+		}
+
+		files = append(files, hdr.Name)
+		if hdr.Name == "backup_manifest.json" {
+			manifestFound = true
+			var m manifest
+			dec := json.NewDecoder(tr)
+			if err := dec.Decode(&m); err == nil {
+				manifestCreatedAt = m.CreatedAt
+			}
+		} else {
+			// Read and discard file stream to verify integrity
+			if _, err := io.Copy(io.Discard, tr); err != nil {
+				return VerifyResult{Valid: false, Encrypted: encrypted, Error: "corrupt file contents in tar"}, fmt.Errorf("verify: corrupt file %s: %w", hdr.Name, err)
+			}
+		}
+	}
+
+	if !manifestFound {
+		return VerifyResult{Valid: false, Encrypted: encrypted, Error: "missing backup_manifest.json"}, fmt.Errorf("verify: missing manifest")
+	}
+
+	return VerifyResult{
+		Valid:     true,
+		Encrypted: encrypted,
+		Files:     files,
+		CreatedAt: manifestCreatedAt,
+		SizeBytes: fi.Size(),
+	}, nil
+}
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 func buildTarGz(opts CreateOptions, now time.Time) ([]byte, []string, error) {

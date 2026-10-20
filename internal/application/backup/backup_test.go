@@ -215,3 +215,45 @@ func readTarGzFile(t *testing.T, archivePath, name string) string {
 	t.Fatalf("file %q not found in archive %q", name, archivePath)
 	return ""
 }
+
+func TestVerifyArchive_ValidEncryptedAndUnencrypted(t *testing.T) {
+	dbPath := makeTempDB(t)
+	cfgPath := makeTempConfig(t, "")
+	outDir := t.TempDir()
+	svc := backup.NewService()
+
+	// 1. Unencrypted archive
+	resPlain, err := svc.Create(backup.CreateOptions{
+		DBPath:     dbPath,
+		ConfigPath: cfgPath,
+		OutputDir:  outDir,
+	})
+	require.NoError(t, err)
+
+	vPlain, err := svc.VerifyArchive(resPlain.FilePath, "")
+	require.NoError(t, err)
+	assert.True(t, vPlain.Valid)
+	assert.False(t, vPlain.Encrypted)
+	assert.Contains(t, vPlain.Files, "domus.db")
+	assert.Contains(t, vPlain.Files, "backup_manifest.json")
+
+	// 2. Encrypted archive with passphrase
+	resEnc, err := svc.Create(backup.CreateOptions{
+		DBPath:     dbPath,
+		ConfigPath: cfgPath,
+		OutputDir:  outDir,
+		Passphrase: "my-secure-vault-passphrase",
+	})
+	require.NoError(t, err)
+
+	vEnc, err := svc.VerifyArchive(resEnc.FilePath, "my-secure-vault-passphrase")
+	require.NoError(t, err)
+	assert.True(t, vEnc.Valid)
+	assert.True(t, vEnc.Encrypted)
+	assert.Contains(t, vEnc.Files, "domus.db")
+
+	// 3. Encrypted archive with wrong passphrase should fail
+	_, errWrong := svc.VerifyArchive(resEnc.FilePath, "wrong-passphrase")
+	require.Error(t, errWrong)
+}
+

@@ -45,6 +45,7 @@ import (
 	domainShop "github.com/domus-hub/domus/internal/domain/shopping"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/network"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
@@ -875,6 +876,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				} else {
 					domainRouter.Get("/audit", auditH.ServeHTTP)
 				}
+
+				// Network device discovery & IoT fingerprinting
+				networkScanner := network.NewScanner(srv.bus, network.Config{})
+				networkH := handlers.NewNetworkHandler(networkScanner)
+				domainRouter.Get("/network/devices", networkH.ListDiscovered)
+				domainRouter.Post("/network/scan", networkH.TriggerScan)
+				domainRouter.Post("/network/probe", networkH.ProbeHost)
 			})
 		}
 	})

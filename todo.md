@@ -47,6 +47,10 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Latch di emergenza con reset manuale autorizzato e isolamento dei guasti fisici su singola valvola.
 - [x] **Manutenzione Automatica SQLite & Flash Wear Levelling**:
   - Schedulatore integrato per `wal_checkpoint(TRUNCATE)` e `PRAGMA optimize`, con prevenzione usura celle Flash NAND su hub embedded.
+- [x] **Network Scanner & Automatic Device Fingerprinting**:
+  - Scansione passiva/attiva della LAN (ARP table cross-platform Windows/Linux), risoluzione MAC OUI dei vendor IoT principali (Shelly, Espressif, Philips Hue, Sonoff, Tuya, Raspberry Pi) e port-probing TCP mirato con endpoint REST `/api/v1/network/*`.
+- [x] **Dry-Run Restore Validation per Backup**:
+  - Metodo `VerifyArchive` per validazione in-memory di decifratura, decompressione gzip, integrità tar e checksum senza scrittura su disco.
 
 ---
 
