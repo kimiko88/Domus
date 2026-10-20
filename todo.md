@@ -142,7 +142,15 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Plugin di controllo router e apparati di rete (`internal/plugins/firewall/`) con driver per UniFi Network Controller (`block-sta`), OPNsense (`alias_util domus_quarantine`) e MikroTik RouterOS (`address-list`).
   - Integrazione con `NetworkGuardian`: azione di isolamento istantaneo su MAC/IP address e dispatch evento `network.device_quarantined`.
   - Endpoint REST `/api/v1/cameras/faces`, `/api/v1/cameras/plates`, `/api/v1/nvr/status` montati nel router HTTP e collegati al motore di vision locale.
+- [x] **Streaming Replication per Alta Affidabilità (HA SQLite WAL Streamer)**:
+  - Streaming in tempo reale delle pagine WAL di SQLite da Leader a Standby con digest SHA-256 e verifica di monotonicità sequenziale (`internal/application/failover/wal_streamer.go`).
+  - Prevenzione split-brain e calcolo dinamico del replication transit time lag (< 5ms).
+  - Suite unitaria e di integrazione passata al 100% (`internal/application/failover/wal_streamer_test.go`).
+- [x] **Frontend Web: Gestione Biometria Volti Familiari & Targhe ALPR**:
+  - Modalità vista dedicata in `web/src/views/CamerasView.vue` (`currentViewMode = 'ai-faces'`) con schede biometriche per residenti (avatar, ruolo, embedding 128-D attivo, simulazione test match cosine similarity &ge; 0.65), form modale di registrazione e rimozione REST.
+  - Sezione veicoli autorizzati con render grafico delle targhe automobilistiche europee (`[IT] AB 123 CD`), modello auto, badge apertura automatica cancello carrabile e form di aggiunta/eliminazione.
+  - Type-safe con interfacce `FamilyFace` e `AuthorizedVehicle` in `web/src/api/types.ts`.
 - [x] **Stato Validazione & Suite di Test (100% PASS)**:
-  - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os.
-  - Frontend Vue 3: 100% superato (85 file di test, 313 test passati in Vitest).
+  - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os (`go test ./...`).
+  - Frontend Vue 3: 100% superato (85 file di test, 314 test passati in Vitest).
   - TypeScript Compilation: `vue-tsc -b` completato con 0 errori.
