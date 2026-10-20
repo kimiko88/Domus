@@ -133,6 +133,11 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
 - [x] **Offline Voice Pipeline & LLM Tool Calling (Ollama)**:
   - Function calling strutturato con schema OpenAI/Ollama per `control_device`, `set_climate`, `activate_scene` e `query_entity_state` (`internal/application/assistant`).
   - Esecuzione deterministica con verifica entità e fallback fluido sull'engine euristico locale.
+- [x] **Coda Comandi Offline & Idempotency Key (`X-Idempotency-Key`)**:
+  - Middleware HTTP universale `Idempotency` su `/api/v1/*` (`internal/interfaces/http/middleware/idempotency.go`).
+  - Cache thread-safe con TTL configurabile, detection conflitti concorrenti in-flight (`409 Conflict`) e replay trasparente delle risposte con header `X-Cache-Lookup: HIT-IDEMPOTENT` per prevenire doppi scatti su comandi fisici.
+- [x] **E2E Chaos & Fault Injection Testing Suite**:
+  - Suite di chaos test avanzata (`test/e2e/chaos_fault_injection_test.go`): simulazione di failure storm su bus hardware e verifica transizione/recupero automatico del `Supervisor` (Tripped -> Degraded -> Healthy), storm concorrente di 50 goroutine con Idempotency Key, e trigger d'emergenza Safe-Stop ad alta frequenza con risposta sottomillisecondo e latching deterministico.
 - [x] **Stato Validazione & Suite di Test (100% PASS)**:
   - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os.
   - Frontend Vue 3: 100% superato (85 file di test, 313 test passati in Vitest).
