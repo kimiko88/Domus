@@ -5,6 +5,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
+	"database/sql"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"github.com/domus-hub/domus/internal/application/backup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -254,6 +257,45 @@ func TestVerifyArchive_ValidEncryptedAndUnencrypted(t *testing.T) {
 
 	// 3. Encrypted archive with wrong passphrase should fail
 	_, errWrong := svc.VerifyArchive(resEnc.FilePath, "wrong-passphrase")
+	require.Error(t, errWrong)
+}
+
+func makeRealSQLiteDB(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "domus.db")
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec(`
+		CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT);
+		INSERT INTO items (name) VALUES ('lamp_living_room'), ('climate_master');
+	`)
+	require.NoError(t, err)
+	return dbPath
+}
+
+func TestRestoreIntegrityCheck_ValidDatabase(t *testing.T) {
+	ctx := context.Background()
+	dbPath := makeRealSQLiteDB(t)
+	outDir := t.TempDir()
+	svc := backup.NewService()
+
+	// 1. Create encrypted backup archive with SQLite database
+	res, err := svc.Create(backup.CreateOptions{
+		DBPath:     dbPath,
+		OutputDir:  outDir,
+		Passphrase: "vault-passphrase-2026",
+	})
+	require.NoError(t, err)
+
+	// 2. Validate integrity via SQLite PRAGMA integrity_check sandbox execution
+	err = svc.TestRestoreIntegrity(ctx, res.FilePath, "vault-passphrase-2026")
+	require.NoError(t, err)
+
+	// 3. Wrong passphrase fails extraction
+	errWrong := svc.TestRestoreIntegrity(ctx, res.FilePath, "bad-passphrase")
 	require.Error(t, errWrong)
 }
 

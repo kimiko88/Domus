@@ -15,10 +15,18 @@ import {
   Plus,
   ArrowRight,
   ShieldCheck,
+  ShieldAlert,
   Cpu,
   Layers,
-  Usb
+  Usb,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Globe,
+  Activity
 } from '@lucide/vue'
+import { soundEffects } from '../utils/audioSynthesizer'
+import type { NetworkDiscoveredHost, NetworkLeakAlert, NetworkGuardianLeaksResponse } from '../api/types'
 import FirmwareFlasherModal from '../components/modals/FirmwareFlasherModal.vue'
 
 const { t } = useI18n()
@@ -69,7 +77,7 @@ interface BrandCatalogEntry {
   icon: string
 }
 
-const activeTab = ref<'active' | 'discovery' | 'catalog'>('active')
+const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian'>('active')
 const integrations = ref<Integration[]>([])
 const discoveredDevices = ref<DiscoveredDevice[]>([])
 const catalog = ref<BrandCatalogEntry[]>([])
@@ -81,6 +89,15 @@ const manualIp = ref('')
 const brandFilter = ref('all')
 const isFlasherOpen = ref(false)
 const notificationsStore = useNotificationsStore()
+
+// --- Network Scanner & IoT Guardian State ---
+const networkHosts = ref<NetworkDiscoveredHost[]>([])
+const networkLeaks = ref<NetworkLeakAlert[]>([])
+const isolatedMacs = ref<string[]>([])
+const probingIp = ref<string | null>(null)
+const quarantiningMac = ref<string | null>(null)
+const guardianLoading = ref(false)
+
 
 async function fetchIntegrations() {
   loading.value = true
@@ -178,12 +195,94 @@ const filteredCatalog = computed(() => {
   return catalog.value.filter((b) => b.id === brandFilter.value || b.category.toLowerCase().includes(brandFilter.value))
 })
 
+async function fetchGuardianData() {
+  guardianLoading.value = true
+  try {
+    const [devices, leaksRes] = await Promise.all([
+      apiClient.get<NetworkDiscoveredHost[]>('/api/v1/network/devices'),
+      apiClient.get<NetworkGuardianLeaksResponse>('/api/v1/network/leaks')
+    ])
+    networkHosts.value = devices || []
+    networkLeaks.value = leaksRes?.leaks || []
+    isolatedMacs.value = leaksRes?.isolated_macs || []
+  } catch (err: any) {
+    console.warn('Failed to load network guardian telemetry:', err)
+  } finally {
+    guardianLoading.value = false
+  }
+}
+
+async function triggerArpScan() {
+  scanning.value = true
+  soundEffects.playClick()
+  try {
+    const res = await apiClient.post<{ count: number; hosts: NetworkDiscoveredHost[] }>('/api/v1/network/scan')
+    networkHosts.value = res.hosts || []
+    notificationsStore.success('Scansione ARP Completata', `Rilevati ${res.count} host fisici sulla rete locale.`)
+    soundEffects.playSuccessChime()
+  } catch (err: any) {
+    notificationsStore.error('Errore Scansione', err?.message || 'Impossibile completare la scansione di rete.')
+  } finally {
+    scanning.value = false
+  }
+}
+
+async function probeHostPorts(ip: string) {
+  probingIp.value = ip
+  soundEffects.playClick()
+  try {
+    const res = await apiClient.post<{ ip: string; open_ports: number[]; host: NetworkDiscoveredHost }>('/api/v1/network/probe', { ip })
+    notificationsStore.info('Port Probe Completato', `Host ${ip}: porte aperte [${res.open_ports.join(', ')}]`)
+    await fetchGuardianData()
+  } catch (err: any) {
+    notificationsStore.error('Errore Probe', err?.message || 'Impossibile eseguire port probe.')
+  } finally {
+    probingIp.value = null
+  }
+}
+
+async function quarantineDevice(mac: string, ip: string, reason?: string) {
+  quarantiningMac.value = mac
+  soundEffects.playClick()
+  try {
+    await apiClient.post('/api/v1/network/quarantine', {
+      mac,
+      ip,
+      reason: reason || 'Dispositivo isolato manualmente da Network Guardian'
+    })
+    notificationsStore.warning('Dispositivo Confinato!', `MAC ${mac} isolato a livello di router/firewall.`)
+    soundEffects.playSuccessChime()
+    await fetchGuardianData()
+  } catch (err: any) {
+    notificationsStore.error('Errore Quarantena', err?.message || 'Impossibile isolare il dispositivo.')
+  } finally {
+    quarantiningMac.value = null
+  }
+}
+
+async function unblockDevice(mac: string, ip: string) {
+  quarantiningMac.value = mac
+  soundEffects.playClick()
+  try {
+    await apiClient.post('/api/v1/network/unblock', { mac, ip })
+    notificationsStore.success('Dispositivo Sbloccato', `MAC ${mac} rimosso dalla quarantena.`)
+    soundEffects.playSuccessChime()
+    await fetchGuardianData()
+  } catch (err: any) {
+    notificationsStore.error('Errore Sblocco', err?.message || 'Impossibile sbloccare il dispositivo.')
+  } finally {
+    quarantiningMac.value = null
+  }
+}
+
 onMounted(() => {
   fetchIntegrations()
   fetchCatalog()
   fetchDiscovered()
+  fetchGuardianData()
 })
 </script>
+
 
 <template>
   <div class="integrations-view">
@@ -225,6 +324,15 @@ onMounted(() => {
         >
           <Layers :size="16" />
           <span>{{ t('brands.catalogTab') }}</span>
+        </button>
+
+        <button
+          :class="['tab-btn', { active: activeTab === 'guardian' }]"
+          @click="activeTab = 'guardian'"
+        >
+          <ShieldAlert :size="16" />
+          <span>LAN & IoT Guardian</span>
+          <span v-if="networkLeaks.length > 0" class="counter-badge alert-pulse">{{ networkLeaks.length }}</span>
         </button>
       </div>
     </div>
@@ -438,6 +546,215 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- TAB 4: LAN & IOT NETWORK GUARDIAN -->
+    <div v-if="activeTab === 'guardian'" class="tab-content">
+      <!-- Top Telemetry & Controls Banner -->
+      <div class="guardian-banner glass-panel">
+        <div class="guardian-meta">
+          <div class="guardian-icon-box">
+            <ShieldAlert :size="28" />
+          </div>
+          <div>
+            <h3 class="guardian-title">IoT Network Guardian & Confinamento LAN</h3>
+            <p class="guardian-subtitle">
+              Monitoraggio attivo della LAN, analisi passiva ARP/DHCP e rilevamento istantaneo di tentativi di leak verso server cloud esterni non autorizzati.
+            </p>
+          </div>
+        </div>
+
+        <div class="guardian-stats-row">
+          <div class="stat-pill glass-card">
+            <Globe :size="16" class="stat-icon-blue" />
+            <div class="stat-info">
+              <span class="stat-value">{{ networkHosts.length }}</span>
+              <span class="stat-label">Host LAN Rilevati</span>
+            </div>
+          </div>
+
+          <div class="stat-pill glass-card">
+            <Lock :size="16" class="stat-icon-amber" />
+            <div class="stat-info">
+              <span class="stat-value">{{ isolatedMacs.length }}</span>
+              <span class="stat-label">In Quarantena</span>
+            </div>
+          </div>
+
+          <div class="stat-pill glass-card">
+            <AlertTriangle :size="16" class="stat-icon-red" />
+            <div class="stat-info">
+              <span class="stat-value">{{ networkLeaks.length }}</span>
+              <span class="stat-label">Leak WAN Intercettati</span>
+            </div>
+          </div>
+
+          <button
+            class="btn-scan-arp glass-panel"
+            :disabled="scanning || guardianLoading"
+            @click="triggerArpScan"
+          >
+            <RefreshCw :size="16" :class="{ 'animate-spin': scanning }" />
+            <span>{{ scanning ? 'Scansione in corso...' : 'Scansione ARP' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section: WAN Leak Alerts -->
+      <div class="guardian-section">
+        <div class="section-subhead">
+          <div class="subhead-left">
+            <AlertTriangle :size="18" class="text-warning" />
+            <h4 class="subhead-title">Tentativi di Connessione Esterna (WAN Leaks)</h4>
+          </div>
+          <span class="subhead-badge" v-if="networkLeaks.length > 0">
+            {{ networkLeaks.length }} anomalie registrate
+          </span>
+        </div>
+
+        <div v-if="networkLeaks.length === 0" class="empty-guardian-state glass-card">
+          <ShieldCheck :size="36" class="text-success" />
+          <h4>Nessun Leak Rilevato</h4>
+          <p>Tutti i dispositivi IoT monitorati sono conformi e operano rigorosamente offline all'interno della rete locale.</p>
+        </div>
+
+        <div v-else class="leaks-list">
+          <div
+            v-for="leak in networkLeaks"
+            :key="leak.id"
+            class="leak-card glass-card"
+          >
+            <div class="leak-left">
+              <div class="leak-indicator"></div>
+              <div class="leak-details">
+                <div class="leak-header-row">
+                  <span class="leak-device">{{ leak.device_name || 'Dispositivo IoT' }}</span>
+                  <span class="leak-time">{{ new Date(leak.detected_at).toLocaleTimeString() }}</span>
+                </div>
+                <div class="leak-flow">
+                  <code>{{ leak.source_ip }}</code>
+                  <ArrowRight :size="14" class="flow-arrow" />
+                  <code class="text-danger">{{ leak.destination_ip }}:{{ leak.port }} ({{ leak.protocol.toUpperCase() }})</code>
+                </div>
+                <p class="leak-reason">{{ leak.reason }}</p>
+              </div>
+            </div>
+
+            <div class="leak-actions">
+              <button
+                v-if="leak.source_mac && isolatedMacs.includes(leak.source_mac.toLowerCase())"
+                class="btn-quarantine active"
+                :disabled="quarantiningMac === leak.source_mac"
+                @click="unblockDevice(leak.source_mac, leak.source_ip)"
+              >
+                <Unlock :size="15" />
+                <span>Sblocca</span>
+              </button>
+              <button
+                v-else
+                class="btn-quarantine"
+                :disabled="quarantiningMac === leak.source_mac"
+                @click="quarantineDevice(leak.source_mac || '', leak.source_ip, leak.reason)"
+              >
+                <Lock :size="15" />
+                <span>Metti in Quarantena</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Discovered Physical Hosts -->
+      <div class="guardian-section">
+        <div class="section-subhead">
+          <div class="subhead-left">
+            <Globe :size="18" class="text-primary" />
+            <h4 class="subhead-title">Mappa Host Rilevati su LAN (OUI & Port Fingerprint)</h4>
+          </div>
+          <span class="subhead-badge">{{ networkHosts.length }} Host</span>
+        </div>
+
+        <div v-if="networkHosts.length === 0" class="empty-guardian-state glass-card">
+          <RefreshCw :size="32" class="animate-spin text-muted" />
+          <p>Nessun host registrato nella cache ARP. Clicca su "Scansione ARP" per rilevare i nodi.</p>
+        </div>
+
+        <div v-else class="hosts-grid">
+          <div
+            v-for="host in networkHosts"
+            :key="host.mac || host.ip"
+            :class="['host-card glass-card', { 'is-quarantined': host.mac && isolatedMacs.includes(host.mac.toLowerCase()) }]"
+          >
+            <div class="host-top">
+              <div class="host-brand-icon">
+                <Cpu :size="20" />
+              </div>
+              <div class="host-meta">
+                <span class="host-vendor">{{ host.vendor || 'Generic LAN Host' }}</span>
+                <span class="host-ip">{{ host.ip }}</span>
+              </div>
+              <div v-if="host.mac && isolatedMacs.includes(host.mac.toLowerCase())" class="badge-quarantined">
+                <Lock :size="12" />
+                <span>ISOLATO</span>
+              </div>
+              <div v-else-if="host.is_iot" class="badge-iot">
+                <Zap :size="12" />
+                <span>IoT</span>
+              </div>
+            </div>
+
+            <div class="host-specs">
+              <div class="spec-line">
+                <span class="spec-key">MAC:</span>
+                <code class="spec-code">{{ host.mac }}</code>
+              </div>
+              <div v-if="host.suggested_plugin" class="spec-line">
+                <span class="spec-key">Plugin:</span>
+                <span class="spec-val-plugin">{{ host.suggested_plugin }}</span>
+              </div>
+              <div class="spec-line">
+                <span class="spec-key">Porte Aperte:</span>
+                <span v-if="host.open_ports && host.open_ports.length > 0" class="ports-list">
+                  <span v-for="p in host.open_ports" :key="p" class="port-tag">{{ p }}</span>
+                </span>
+                <span v-else class="text-muted-xs">Nessuna sonda recente</span>
+              </div>
+            </div>
+
+            <div class="host-footer">
+              <button
+                class="btn-host-probe"
+                :disabled="probingIp === host.ip"
+                @click="probeHostPorts(host.ip)"
+                title="Esegui TCP probe sulle porte IoT comuni (554, 1883, 6053, 502, 3671)"
+              >
+                <Activity :size="14" :class="{ 'animate-spin': probingIp === host.ip }" />
+                <span>{{ probingIp === host.ip ? 'Probe...' : 'Probe Porte' }}</span>
+              </button>
+
+              <button
+                v-if="host.mac && isolatedMacs.includes(host.mac.toLowerCase())"
+                class="btn-host-quarantine unblock"
+                :disabled="quarantiningMac === host.mac"
+                @click="unblockDevice(host.mac, host.ip)"
+              >
+                <Unlock :size="14" />
+                <span>Sblocca</span>
+              </button>
+              <button
+                v-else
+                class="btn-host-quarantine"
+                :disabled="quarantiningMac === host.mac"
+                @click="quarantineDevice(host.mac, host.ip, 'Isolamento manuale da mappa host')"
+              >
+                <Lock :size="14" />
+                <span>Isola</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <FirmwareFlasherModal :is-open="isFlasherOpen" @close="isFlasherOpen = false" />
   </div>
 </template>
@@ -1093,4 +1410,460 @@ onMounted(() => {
   margin-top: 8px;
   line-height: 1.5;
 }
+
+/* ========================================================
+   NETWORK GUARDIAN & LAN CONFINEMENT STYLES
+   ======================================================== */
+.guardian-banner {
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(14, 165, 233, 0.05));
+  border: 1px solid var(--border-subtle);
+}
+
+.guardian-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.guardian-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guardian-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.guardian-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.guardian-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  flex: 1;
+  min-width: 160px;
+}
+
+.stat-icon-blue { color: #0ea5e9; }
+.stat-icon-amber { color: #f59e0b; }
+.stat-icon-red { color: #ef4444; }
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-scan-arp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--primary);
+  color: white;
+  border: none;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-scan-arp:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.guardian-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subhead-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subhead-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.subhead-badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.empty-guardian-state {
+  padding: 36px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border-card);
+  color: var(--text-muted);
+}
+
+.empty-guardian-state h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.empty-guardian-state p {
+  font-size: 13px;
+  max-width: 480px;
+}
+
+.leaks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leak-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.leak-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.leak-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: #ef4444;
+  margin-top: 6px;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+  animation: pulse-ring 2s infinite;
+}
+
+.leak-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leak-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.leak-device {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.leak-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.leak-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.flow-arrow {
+  color: var(--text-muted);
+}
+
+.leak-reason {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-quarantine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-quarantine:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.btn-quarantine.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.hosts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.host-card {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: all var(--transition-normal);
+}
+
+.host-card.is-quarantined {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.host-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.host-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.host-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.host-vendor {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.host-ip {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.badge-quarantined {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-iot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.host-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.spec-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.spec-key {
+  color: var(--text-muted);
+}
+
+.spec-code {
+  font-family: var(--font-mono);
+  color: var(--text-main);
+}
+
+.spec-val-plugin {
+  font-family: var(--font-mono);
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.ports-list {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.port-tag {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.text-muted-xs {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.host-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-host-probe,
+.btn-host-quarantine {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-host-probe {
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
+}
+
+.btn-host-probe:hover:not(:disabled) {
+  background: var(--bg-surface-active);
+}
+
+.btn-host-quarantine {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.btn-host-quarantine:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.btn-host-quarantine.unblock {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+}
+
+.alert-pulse {
+  background: #ef4444 !important;
+  color: white;
+  animation: pulse-ring 1.8s infinite;
+}
 </style>
+

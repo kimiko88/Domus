@@ -9,7 +9,7 @@ import AutomationEditorModal from '../components/modals/AutomationEditorModal.vu
 import AutomationRunsModal from '../components/modals/AutomationRunsModal.vue'
 import AutomationFlowchartModal from '../components/modals/AutomationFlowchartModal.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
-import { Zap, Plus, Search, Globe, Copy, Check, Trash2, Key, Link2, X, Layers } from '@lucide/vue'
+import { Zap, Plus, Search, Globe, Copy, Check, Trash2, Key, Link2, X, Layers, Workflow } from '@lucide/vue'
 import { apiClient } from '../api/client'
 import type { InboundWebhook } from '../api/types'
 
@@ -164,6 +164,10 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       </div>
 
       <div class="header-actions">
+        <router-link to="/automations/flow" class="btn-flow-editor glass-panel" title="Apri Editor Visuale a Nodi">
+          <Workflow :size="16" />
+          <span>Editor a Nodi</span>
+        </router-link>
         <button class="btn-flowchart glass-panel" @click="isFlowchartOpen = true">
           <Layers :size="16" />
           <span>{{ t('flowchart.btnFlowchart') }}</span>
@@ -416,6 +420,27 @@ async function handleSaveAutomation(data: Partial<Automation>) {
 
 .btn-flowchart:hover {
   background: rgba(14, 165, 233, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-flow-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  color: #c084fc;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-flow-editor:hover {
+  background: rgba(168, 85, 247, 0.25);
   transform: translateY(-1px);
 }
 

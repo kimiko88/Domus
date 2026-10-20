@@ -34,6 +34,7 @@ import LogbookView from '../views/LogbookView.vue'
 import ZonesView from '../views/ZonesView.vue'
 import TemplateEntitiesView from '../views/TemplateEntitiesView.vue'
 import SharedDashboardView from '../views/SharedDashboardView.vue'
+import FlowEditorView from '../views/FlowEditorView.vue'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -161,6 +162,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'automations',
     component: AutomationsView,
     meta: { requiresAuth: true, title: 'Automazioni' }
+  },
+  {
+    path: '/automations/flow/:id?',
+    name: 'flow-editor',
+    component: FlowEditorView,
+    meta: { requiresAuth: true, title: 'Visual Flow Editor' }
   },
   {
     path: '/scenes',

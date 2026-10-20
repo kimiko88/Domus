@@ -150,7 +150,15 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Modalità vista dedicata in `web/src/views/CamerasView.vue` (`currentViewMode = 'ai-faces'`) con schede biometriche per residenti (avatar, ruolo, embedding 128-D attivo, simulazione test match cosine similarity &ge; 0.65), form modale di registrazione e rimozione REST.
   - Sezione veicoli autorizzati con render grafico delle targhe automobilistiche europee (`[IT] AB 123 CD`), modello auto, badge apertura automatica cancello carrabile e form di aggiunta/eliminazione.
   - Type-safe con interfacce `FamilyFace` e `AuthorizedVehicle` in `web/src/api/types.ts`.
+- [x] **IoT Network Guardian REST & UI di Confinamento LAN**:
+  - Endpoint REST completi in `NetworkHandler`: `GET /api/v1/network/leaks`, `POST /api/v1/network/quarantine`, `POST /api/v1/network/unblock` montati nel server HTTP Chi.
+  - Tab dedicato `LAN & IoT Guardian` in `web/src/views/IntegrationsView.vue` con banner telemetria (host LAN, apparati confinati, alert WAN leaks), scansione ARP attiva/passiva, port probing TCP e azione 1-click di isolamento/sblocco apparati rogue.
+- [x] **Visual Flow-Based Automation Editor (Node Canvas)**:
+  - Nuova vista a pagina intera `web/src/views/FlowEditorView.vue` collegata alla rotta `/automations/flow/:id?` e pulsante rapido "Editor a Nodi" in `AutomationsView.vue`.
+  - Motore canvas interattivo con pan, zoom, grid a punti, curve di Bézier SVG per i collegamenti e libreria nodi categorized (Triggers, Conditions, Logic & Flow, Actions).
+  - Compilatore AST bidirezionale (Graph <-> Automation JSON) per caricamento e salvataggio trasparente sull'engine Go.
+  - Inspector drawer reattivo per parametri dei nodi e simulazione animata visuale "Test Run" step-by-step.
 - [x] **Stato Validazione & Suite di Test (100% PASS)**:
   - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os (`go test ./...`).
-  - Frontend Vue 3: 100% superato (85 file di test, 314 test passati in Vitest).
+  - Frontend Vue 3: 100% superato (86 file di test, 319 test passati in Vitest).
   - TypeScript Compilation: `vue-tsc -b` completato con 0 errori.

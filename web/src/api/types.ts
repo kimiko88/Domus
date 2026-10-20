@@ -1103,3 +1103,36 @@ export interface AuthorizedVehicle {
   auto_open_gate: boolean
   enrolled_at?: string
 }
+
+export interface NetworkDiscoveredHost {
+  ip: string
+  mac: string
+  hostname?: string
+  vendor?: string
+  suggested_plugin?: string
+  confidence: number
+  open_ports?: number[]
+  first_seen_at?: string
+  last_seen_at?: string
+  is_iot: boolean
+  metadata?: Record<string, string>
+}
+
+export interface NetworkLeakAlert {
+  id: string
+  source_ip: string
+  source_mac?: string
+  device_name?: string
+  destination_ip: string
+  port: number
+  protocol: string
+  detected_at: string
+  reason: string
+}
+
+export interface NetworkGuardianLeaksResponse {
+  count: number
+  leaks: NetworkLeakAlert[]
+  isolated_macs: string[]
+}
+

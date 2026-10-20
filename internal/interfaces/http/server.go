@@ -887,12 +887,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Get("/audit", auditH.ServeHTTP)
 				}
 
-				// Network device discovery & IoT fingerprinting
+				// Network device discovery, IoT fingerprinting & guardian quarantine
 				networkScanner := network.NewScanner(srv.bus, network.Config{})
-				networkH := handlers.NewNetworkHandler(networkScanner)
+				networkGuardian, _ := network.NewGuardian(srv.bus, network.GuardianConfig{})
+				networkH := handlers.NewNetworkHandler(networkScanner).WithGuardian(networkGuardian)
 				domainRouter.Get("/network/devices", networkH.ListDiscovered)
 				domainRouter.Post("/network/scan", networkH.TriggerScan)
 				domainRouter.Post("/network/probe", networkH.ProbeHost)
+				domainRouter.Get("/network/leaks", networkH.ListLeaks)
+				domainRouter.Post("/network/quarantine", networkH.QuarantineDevice)
+				domainRouter.Post("/network/unblock", networkH.UnblockDevice)
 			})
 		}
 	})

@@ -106,7 +106,7 @@ describe('IntegrationsView.vue', () => {
 
     // Switch to discovery tab
     const tabs = wrapper.findAll('.tab-btn')
-    expect(tabs.length).toBe(3)
+    expect(tabs.length).toBe(4)
     await tabs[1].trigger('click')
     await wrapper.vm.$nextTick()
 
@@ -159,4 +159,68 @@ describe('IntegrationsView.vue', () => {
     expect(wrapper.text()).toContain('Zero-Cloud')
     expect(wrapper.text()).toContain('Shelly Plus 1PM')
   })
+
+  it('switches to LAN & IoT Guardian tab and allows device quarantine', async () => {
+    const mockHosts = [
+      {
+        ip: '192.168.1.55',
+        mac: '34:94:54:11:22:33',
+        vendor: 'Shelly (Allterco)',
+        suggested_plugin: 'mqtt_generic',
+        confidence: 0.85,
+        open_ports: [80, 1883],
+        is_iot: true
+      }
+    ]
+
+    const mockLeaks = {
+      count: 1,
+      leaks: [
+        {
+          id: 'leak_1',
+          source_ip: '192.168.1.55',
+          source_mac: '34:94:54:11:22:33',
+          device_name: 'Shelly Plug Infiltrato',
+          destination_ip: '104.26.4.12',
+          port: 1883,
+          protocol: 'tcp',
+          detected_at: new Date().toISOString(),
+          reason: 'Isolated IoT node attempted outbound WAN connection'
+        }
+      ],
+      isolated_macs: []
+    }
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/network/devices') return mockHosts
+      if (url === '/api/v1/network/leaks') return mockLeaks
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'quarantined' })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    const tabs = wrapper.findAll('.tab-btn')
+    // 4th tab is Guardian
+    await tabs[3].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('IoT Network Guardian & Confinamento LAN')
+    expect(wrapper.text()).toContain('Shelly Plug Infiltrato')
+    expect(wrapper.text()).toContain('104.26.4.12:1883')
+    expect(wrapper.text()).toContain('34:94:54:11:22:33')
+
+    // Click on Quarantine button
+    const quarantineBtn = wrapper.find('.btn-quarantine')
+    expect(quarantineBtn.exists()).toBe(true)
+    await quarantineBtn.trigger('click')
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/network/quarantine', expect.objectContaining({
+      mac: '34:94:54:11:22:33',
+      ip: '192.168.1.55'
+    }))
+  })
 })
+

@@ -70,3 +70,67 @@ func TestNetworkHandler_ListAndTriggerScan(t *testing.T) {
 		t.Fatalf("expected 200 OK for probe, got %d", wProbe.Code)
 	}
 }
+
+func TestNetworkHandler_GuardianLeaksAndQuarantine(t *testing.T) {
+	guardian, err := network.NewGuardian(nil, network.GuardianConfig{
+		IoTSlotsSubnets: []string{"192.168.30.0/24"},
+	})
+	if err != nil {
+		t.Fatalf("failed to create guardian: %v", err)
+	}
+
+	h := handlers.NewNetworkHandler(nil).WithGuardian(guardian)
+
+	// Simulate flow leak
+	guardian.InspectFlow(network.FlowRecord{
+		SourceIP:        "192.168.30.45",
+		SourceMAC:       "34:94:54:aa:bb:cc",
+		DestinationIP:   "45.33.32.156",
+		DestinationPort: 1883,
+		Protocol:        "tcp",
+	})
+
+	// 1. List Leaks
+	reqLeaks := httptest.NewRequest(http.MethodGet, "/api/v1/network/leaks", nil)
+	wLeaks := httptest.NewRecorder()
+	h.ListLeaks(wLeaks, reqLeaks)
+	if wLeaks.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", wLeaks.Code)
+	}
+
+	var leaksResp struct {
+		Count int                 `json:"count"`
+		Leaks []network.LeakAlert `json:"leaks"`
+	}
+	if err := json.NewDecoder(wLeaks.Body).Decode(&leaksResp); err != nil {
+		t.Fatalf("failed to decode leaks: %v", err)
+	}
+	if leaksResp.Count != 1 {
+		t.Errorf("expected 1 leak alert, got %d", leaksResp.Count)
+	}
+
+	// 2. Quarantine Device
+	qBody, _ := json.Marshal(map[string]string{
+		"mac":    "34:94:54:aa:bb:cc",
+		"ip":     "192.168.30.45",
+		"reason": "Suspicious WAN broker connection",
+	})
+	reqQ := httptest.NewRequest(http.MethodPost, "/api/v1/network/quarantine", bytes.NewReader(qBody))
+	wQ := httptest.NewRecorder()
+	h.QuarantineDevice(wQ, reqQ)
+	if wQ.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for quarantine, got %d", wQ.Code)
+	}
+
+	// 3. Unblock Device
+	uBody, _ := json.Marshal(map[string]string{
+		"mac": "34:94:54:aa:bb:cc",
+		"ip":  "192.168.30.45",
+	})
+	reqU := httptest.NewRequest(http.MethodPost, "/api/v1/network/unblock", bytes.NewReader(uBody))
+	wU := httptest.NewRecorder()
+	h.UnblockDevice(wU, reqU)
+	if wU.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for unblock, got %d", wU.Code)
+	}
+}

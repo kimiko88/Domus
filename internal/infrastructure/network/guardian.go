@@ -296,3 +296,48 @@ func (g *Guardian) QuarantineDevice(ctx context.Context, mac, ip, reason string)
 	return nil
 }
 
+// UnblockDevice removes an IoT device from quarantine and restores network connectivity.
+func (g *Guardian) UnblockDevice(ctx context.Context, mac, ip string) error {
+	normMAC := normalizeMAC(mac)
+
+	g.mu.Lock()
+	if normMAC != "" {
+		delete(g.isolatedMACs, normMAC)
+	}
+	fw := g.firewall
+	bus := g.bus
+	g.mu.Unlock()
+
+	if fw != nil {
+		if err := fw.UnblockClient(ctx, normMAC, ip); err != nil {
+			return fmt.Errorf("guardian: failed to unblock on router: %w", err)
+		}
+	}
+
+	if bus != nil {
+		_ = bus.Publish(ctx, events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.EventType("network.device_unblocked"),
+			OccurredAt: time.Now().UTC(),
+			Source:     "network.guardian",
+			Payload: map[string]any{
+				"mac": normMAC,
+				"ip":  ip,
+			},
+		})
+	}
+	return nil
+}
+
+// ListIsolatedMACs returns all currently quarantined MAC addresses.
+func (g *Guardian) ListIsolatedMACs() []string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	macs := make([]string, 0, len(g.isolatedMACs))
+	for mac := range g.isolatedMACs {
+		macs = append(macs, mac)
+	}
+	return macs
+}
+

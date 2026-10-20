@@ -10,6 +10,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +21,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/infrastructure/config"
+	_ "modernc.org/sqlite"
 )
 
 // ─── options ──────────────────────────────────────────────────────────────────
@@ -257,6 +260,53 @@ func (s *Service) VerifyArchive(archivePath, passphrase string) (VerifyResult, e
 		CreatedAt: manifestCreatedAt,
 		SizeBytes: fi.Size(),
 	}, nil
+}
+
+// TestRestoreIntegrity extracts the database from an archive into a temporary sandbox
+// and executes SQLite "PRAGMA integrity_check;" on the restored database file.
+// This guarantees that the backup is uncorrupted, recoverable, and relationally valid.
+func (s *Service) TestRestoreIntegrity(ctx context.Context, archivePath, passphrase string) error {
+	tmpDir, err := os.MkdirTemp("", "domus_restore_check_*")
+	if err != nil {
+		return fmt.Errorf("test_restore: cannot create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Restore database selectively into temporary sandbox
+	err = s.Restore(RestoreOptions{
+		ArchivePath:    archivePath,
+		OutputDir:      tmpDir,
+		Passphrase:     passphrase,
+		SelectiveFiles: []string{"domus.db"},
+	})
+	if err != nil {
+		return fmt.Errorf("test_restore: extraction failed: %w", err)
+	}
+
+	dbPath := filepath.Join(tmpDir, "domus.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return fmt.Errorf("test_restore: domus.db not found in restored archive: %w", err)
+	}
+
+	// Open connection with query_only=ON in read-only verification mode
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_query_only=1", filepath.ToSlash(dbPath))
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return fmt.Errorf("test_restore: failed to open restored sqlite database: %w", err)
+	}
+	defer db.Close()
+
+	var result string
+	row := db.QueryRowContext(ctx, "PRAGMA integrity_check;")
+	if err := row.Scan(&result); err != nil {
+		return fmt.Errorf("test_restore: integrity_check query failed: %w", err)
+	}
+
+	if result != "ok" {
+		return fmt.Errorf("test_restore: SQLite database corruption detected: %s", result)
+	}
+
+	return nil
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

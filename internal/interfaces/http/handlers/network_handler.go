@@ -8,14 +8,22 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/network"
 )
 
-// NetworkHandler manages API endpoints for network device discovery and fingerprinting.
+// NetworkHandler manages API endpoints for network device discovery,
+// fingerprinting, and IoT security guardian with quarantine actions.
 type NetworkHandler struct {
-	scanner *network.Scanner
+	scanner  *network.Scanner
+	guardian *network.Guardian
 }
 
 // NewNetworkHandler creates a NetworkHandler instance.
 func NewNetworkHandler(scanner *network.Scanner) *NetworkHandler {
 	return &NetworkHandler{scanner: scanner}
+}
+
+// WithGuardian attaches the IoT network guardian to handle WAN leaks and device quarantine.
+func (h *NetworkHandler) WithGuardian(guardian *network.Guardian) *NetworkHandler {
+	h.guardian = guardian
+	return h
 }
 
 // ListDiscovered returns all currently discovered network devices with vendor fingerprints.
@@ -76,3 +84,83 @@ func (h *NetworkHandler) ProbeHost(w http.ResponseWriter, r *http.Request) {
 		"host":       host,
 	})
 }
+
+// ListLeaks returns recent intercepted unauthorized WAN leak attempts by isolated IoT devices.
+func (h *NetworkHandler) ListLeaks(w http.ResponseWriter, r *http.Request) {
+	if h.guardian == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+
+	alerts := h.guardian.RecentAlerts()
+	isolatedMACs := h.guardian.ListIsolatedMACs()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"count":         len(alerts),
+		"leaks":         alerts,
+		"isolated_macs": isolatedMACs,
+	})
+}
+
+// QuarantineDevice isolates a rogue or leaking IoT device at the router/firewall level.
+func (h *NetworkHandler) QuarantineDevice(w http.ResponseWriter, r *http.Request) {
+	if h.guardian == nil {
+		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "network guardian is not initialized")
+		return
+	}
+
+	var req struct {
+		MAC    string `json:"mac"`
+		IP     string `json:"ip"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.MAC == "" && req.IP == "") {
+		writeError(w, http.StatusBadRequest, "bad_request", "MAC address or IP required for quarantine")
+		return
+	}
+
+	if req.Reason == "" {
+		req.Reason = "Manually quarantined by administrator"
+	}
+
+	if err := h.guardian.QuarantineDevice(r.Context(), req.MAC, req.IP, req.Reason); err != nil {
+		writeError(w, http.StatusInternalServerError, "quarantine_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "quarantined",
+		"mac":    req.MAC,
+		"ip":     req.IP,
+		"reason": req.Reason,
+	})
+}
+
+// UnblockDevice restores full LAN access for a previously quarantined device.
+func (h *NetworkHandler) UnblockDevice(w http.ResponseWriter, r *http.Request) {
+	if h.guardian == nil {
+		writeError(w, http.StatusServiceUnavailable, "service_unavailable", "network guardian is not initialized")
+		return
+	}
+
+	var req struct {
+		MAC string `json:"mac"`
+		IP  string `json:"ip"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.MAC == "" && req.IP == "") {
+		writeError(w, http.StatusBadRequest, "bad_request", "MAC address or IP required for unblock")
+		return
+	}
+
+	if err := h.guardian.UnblockDevice(r.Context(), req.MAC, req.IP); err != nil {
+		writeError(w, http.StatusInternalServerError, "unblock_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "unblocked",
+		"mac":    req.MAC,
+		"ip":     req.IP,
+	})
+}
+
