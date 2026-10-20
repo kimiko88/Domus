@@ -51,6 +51,21 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Scansione passiva/attiva della LAN (ARP table cross-platform Windows/Linux), risoluzione MAC OUI dei vendor IoT principali (Shelly, Espressif, Philips Hue, Sonoff, Tuya, Raspberry Pi) e port-probing TCP mirato con endpoint REST `/api/v1/network/*`.
 - [x] **Dry-Run Restore Validation per Backup**:
   - Metodo `VerifyArchive` per validazione in-memory di decifratura, decompressione gzip, integrità tar e checksum senza scrittura su disco.
+- [x] **IoT Network Guardian & WAN Leak Detection**:
+  - Boundary isolation per subnet/VLAN IoT e MAC untrusted, ispezione dei flussi di rete e alert immediato (`network.leak_alert`) per tentativi di connessione a server WAN esterni con cooldown anti-flood.
+- [x] **Hotplug USB Dinamico via udev (Domus OS)**:
+  - Monitoraggio real-time di `/dev/serial/by-id/` con classificazione automatica dei dongle Zigbee (CC2652, Sonoff, ConBee, SkyConnect) e Z-Wave (Zooz 700/800, Aeotec), con emissione eventi `usb.plugged` / `usb.unplugged` e riconnessione a caldo.
+- [x] **Simulatore di Presenza Intelligente ("Modalità Vacanza")**:
+  - Replay realistico delle routine di luci e tapparelle registrate con applicazione di jitter stocastico ($\pm 15$ min) per simulare la presenza umana a casa disabitata.
+- [x] **Automazioni basate su Pendolarismo ed ETA**:
+  - Tracciamento dinamico della traiettoria e calcolo ETA d'arrivo a casa (`CommuteTracker`) per pre-riscaldamento/climatizzazione anticipata e avvio intelligente ricarica auto.
+- [x] **Manutenzione Predittiva & Rilevamento Anomalie**:
+  - Rilevamento micro-perdite idriche continue da flussimetro (con soglie differenziate giorno/notte).
+  - Rilevamento porte frigo/freezer rimaste socchiuse con protezione deterioramento alimenti.
+  - Diagnostica anomalie motori/pompe (blocco rotore $> 135\%$ e cavitazione a secco $< 30\%$).
+  - Calcolo del punto di rugiada (*Dew Point*) tramite formula di Magnus-Tetens e valutazione rischio muffa per pareti e ponti termici.
+- [x] **Standard OCPP 1.6J / 2.0.1 & Ricarica Solare Intelligente**:
+  - Server OCPP WebSocket nativo per colonnine/wallbox con modulazione continua della corrente (6A - 32A) in base alla sovrapproduzione fotovoltaica, stato di carica (SoC) e protezione anti-blackout contatore.
 
 ---
 

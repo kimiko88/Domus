@@ -109,6 +109,18 @@ const (
 
 	// EmergencyReset fires when an operator disarms and resets an emergency latch.
 	EmergencyReset EventType = "emergency.reset"
+
+	// NetworkLeakAlert fires when an isolated IoT device attempts to communicate with an unauthorized external WAN host.
+	NetworkLeakAlert EventType = "network.leak_alert"
+
+	// USBDevicePlugged fires when a supported serial dongle (Zigbee, Z-Wave, ConBee) is connected.
+	USBDevicePlugged EventType = "usb.plugged"
+
+	// USBDeviceUnplugged fires when a dongle is detached.
+	USBDeviceUnplugged EventType = "usb.unplugged"
+
+	// PresenceCommuteUpdated fires when a user's commute ETA or transit progress is updated.
+	PresenceCommuteUpdated EventType = "presence.commute_updated"
 )
 
 // Event is the common envelope for all domain events.
