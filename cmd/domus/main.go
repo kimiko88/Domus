@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	appenergy "github.com/domus-hub/domus/internal/application/energy"
 	apphistory "github.com/domus-hub/domus/internal/application/history"
 	apppresence "github.com/domus-hub/domus/internal/application/presence"
+	"github.com/domus-hub/domus/internal/application/safety"
 	appscene "github.com/domus-hub/domus/internal/application/scene"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
@@ -27,6 +29,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	serverpkg "github.com/domus-hub/domus/internal/interfaces/http"
+	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/google/uuid"
 )
 
@@ -90,6 +93,22 @@ func main() {
 	} else {
 		slog.Info("entity cache warmed up successfully")
 	}
+
+	// Initialize envelope encryption at rest for sensitive credentials
+	masterKeyPath := filepath.Join(filepath.Dir(cfg.Database.Path), "master.key")
+	if cfg.Database.Path == ":memory:" {
+		masterKeyPath = filepath.Join(os.TempDir(), "domus_master.key")
+	}
+	masterKey, err := crypto.LoadOrCreateMasterKey(masterKeyPath)
+	if err != nil {
+		slog.Warn("failed to load master key from disk, generating ephemeral key", "error", err)
+		masterKey, _ = crypto.GenerateMasterKey()
+	}
+	if cipher, err := crypto.NewEnvelopeCipher(masterKey); err == nil {
+		repos.WithCipher(cipher)
+		slog.Info("envelope encryption at rest initialized")
+	}
+
 	hasher := crypto.NewArgon2Hasher(crypto.Argon2Params{
 		Memory:      cfg.Auth.Argon2Memory,
 		Iterations:  cfg.Auth.Argon2Time,
@@ -112,6 +131,28 @@ func main() {
 		Workers:    4,
 	})
 	defer bus.Close()
+
+	// 5.1 Initialize Plugin Supervision Tree & Circuit Breaker
+	pluginSupervisor := plugins.NewSupervisor(bus)
+	ctxSupervisor, cancelSupervisor := context.WithCancel(context.Background())
+	defer cancelSupervisor()
+	if err := pluginSupervisor.Start(ctxSupervisor); err != nil {
+		slog.Warn("failed to start plugin supervisor", "error", err)
+	}
+
+	// 5.2 Initialize High-Priority Life-Safety Safe-Stop Pipeline (<50ms reaction)
+	safetyService := safety.NewService(bus)
+	defer safetyService.Stop()
+
+	// 5.3 Initialize SQLite Storage Maintenance & Flash Wear Protection
+	maintService := sqlite.NewMaintenanceService(pool, sqlite.MaintenanceConfig{
+		CheckpointInterval: 4 * time.Hour,
+		DBPath:             cfg.Database.Path,
+	})
+	ctxMaint, cancelMaint := context.WithCancel(context.Background())
+	defer cancelMaint()
+	maintService.Start(ctxMaint)
+	defer maintService.Stop()
 
 	// 6. Initialize WebSocket Hub
 	wsHub := wsinfra.NewHub(bus)
@@ -245,6 +286,10 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("error during http server shutdown", "error", err)
+	}
+
+	if err := pluginSupervisor.Stop(shutdownCtx); err != nil {
+		slog.Error("error during plugin supervisor shutdown", "error", err)
 	}
 
 	slog.Info("domus hub stopped cleanly")

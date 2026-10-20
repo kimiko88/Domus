@@ -103,6 +103,12 @@ const (
 
 	// ReceiptProcessed fires when a scanned receipt is parsed and imported into pantry and finance.
 	ReceiptProcessed EventType = "receipt.processed"
+
+	// EmergencyTriggered fires immediately when a life-safety hazard (gas, water leak, smoke) trips safe-stop.
+	EmergencyTriggered EventType = "emergency.triggered"
+
+	// EmergencyReset fires when an operator disarms and resets an emergency latch.
+	EmergencyReset EventType = "emergency.reset"
 )
 
 // Event is the common envelope for all domain events.

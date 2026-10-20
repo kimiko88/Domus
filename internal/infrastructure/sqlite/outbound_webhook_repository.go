@@ -8,14 +8,22 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/webhook"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 )
 
 type OutboundWebhookRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	cipher *crypto.EnvelopeCipher
 }
 
 func NewOutboundWebhookRepository(db *sql.DB) *OutboundWebhookRepository {
 	return &OutboundWebhookRepository{db: db}
+}
+
+// WithCipher configures the envelope encryption cipher for secret tokens.
+func (r *OutboundWebhookRepository) WithCipher(c *crypto.EnvelopeCipher) *OutboundWebhookRepository {
+	r.cipher = c
+	return r
 }
 
 func (r *OutboundWebhookRepository) Create(ctx context.Context, wh *webhook.OutboundWebhook) error {
@@ -29,11 +37,18 @@ func (r *OutboundWebhookRepository) Create(ctx context.Context, wh *webhook.Outb
 		enabledInt = 1
 	}
 
+	secretToken := wh.SecretToken
+	if r.cipher != nil && secretToken != "" {
+		if enc, err := r.cipher.Encrypt(secretToken); err == nil {
+			secretToken = enc
+		}
+	}
+
 	_, err = r.db.ExecContext(ctx, `
 		INSERT INTO outbound_webhooks (
 			id, name, target_url, secret_token, events_json, enabled, last_dispatched_at, last_status, fail_count, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, wh.ID, wh.Name, wh.TargetURL, wh.SecretToken, string(eventsJSON), enabledInt, wh.LastDispatchedAt, wh.LastStatus, wh.FailCount, wh.CreatedAt)
+	`, wh.ID, wh.Name, wh.TargetURL, secretToken, string(eventsJSON), enabledInt, wh.LastDispatchedAt, wh.LastStatus, wh.FailCount, wh.CreatedAt)
 	return err
 }
 
@@ -72,6 +87,11 @@ func (r *OutboundWebhookRepository) List(ctx context.Context) ([]webhook.Outboun
 		_ = json.Unmarshal([]byte(eventsStr), &wh.Events)
 		if wh.Events == nil {
 			wh.Events = []string{"*"}
+		}
+		if r.cipher != nil && wh.SecretToken != "" {
+			if dec, err := r.cipher.Decrypt(wh.SecretToken); err == nil {
+				wh.SecretToken = dec
+			}
 		}
 
 		list = append(list, wh)
@@ -119,6 +139,11 @@ func (r *OutboundWebhookRepository) GetByID(ctx context.Context, id string) (*we
 	if wh.Events == nil {
 		wh.Events = []string{"*"}
 	}
+	if r.cipher != nil && wh.SecretToken != "" {
+		if dec, err := r.cipher.Decrypt(wh.SecretToken); err == nil {
+			wh.SecretToken = dec
+		}
+	}
 
 	return &wh, nil
 }
@@ -134,11 +159,18 @@ func (r *OutboundWebhookRepository) Update(ctx context.Context, wh *webhook.Outb
 		enabledInt = 1
 	}
 
+	secretToken := wh.SecretToken
+	if r.cipher != nil && secretToken != "" {
+		if enc, err := r.cipher.Encrypt(secretToken); err == nil {
+			secretToken = enc
+		}
+	}
+
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE outbound_webhooks
 		SET name = ?, target_url = ?, secret_token = ?, events_json = ?, enabled = ?
 		WHERE id = ?
-	`, wh.Name, wh.TargetURL, wh.SecretToken, string(eventsJSON), enabledInt, wh.ID)
+	`, wh.Name, wh.TargetURL, secretToken, string(eventsJSON), enabledInt, wh.ID)
 	if err != nil {
 		return err
 	}

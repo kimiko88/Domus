@@ -27,6 +27,7 @@ import (
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/domain/webhook"
 	"github.com/domus-hub/domus/internal/domain/zone"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 )
 
 // Repositories aggregates all initialized SQLite repositories.
@@ -34,6 +35,7 @@ type Repositories struct {
 	DB                   *sql.DB
 	ReadDB               *sql.DB
 	Pool                 *DBPool
+	Cipher               *crypto.EnvelopeCipher
 	RawEntities          *EntityRepository
 	CachedEntities       *CachedEntityRepository
 	Users                user.UserRepository
@@ -194,4 +196,13 @@ func (r *Repositories) WarmUp(ctx context.Context) error {
 		return r.CachedEntities.WarmUp(ctx)
 	}
 	return nil
+}
+
+// WithCipher configures envelope encryption on all supported repositories storing sensitive data at rest.
+func (r *Repositories) WithCipher(c *crypto.EnvelopeCipher) *Repositories {
+	r.Cipher = c
+	if whRepo, ok := r.OutboundWebhooks.(*OutboundWebhookRepository); ok && whRepo != nil {
+		whRepo.WithCipher(c)
+	}
+	return r
 }
