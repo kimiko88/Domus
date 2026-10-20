@@ -16,9 +16,14 @@ import {
   Layers,
   CalendarCheck,
   Cpu,
+  Car,
+  PlugZap,
+  ShieldCheck,
+  RefreshCw,
+  Gauge
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
-import type { MultiUtilitySummary, UtilityMeter } from '../api/types'
+import type { MultiUtilitySummary, UtilityMeter, WallboxStatusResponse, WallboxChargingMode } from '../api/types'
 
 const { t } = useI18n()
 
@@ -189,7 +194,55 @@ onMounted(async () => {
   await fetchDynamicTariffs()
   await fetchMultiUtility()
   await fetchBESSSchedule()
+  await fetchWallboxStatus()
 })
+
+const wallboxData = ref<WallboxStatusResponse | null>(null)
+const isUpdatingWallbox = ref(false)
+const selectedWallboxMode = ref<WallboxChargingMode>('solar_optimized')
+
+async function fetchWallboxStatus() {
+  try {
+    const res = await apiClient.get<WallboxStatusResponse>('/api/v1/energy/wallbox')
+    if (res) {
+      wallboxData.value = res
+      if (res.modulation?.mode) {
+        selectedWallboxMode.value = res.modulation.mode
+      }
+    }
+  } catch {}
+}
+
+async function setWallboxMode(mode: WallboxChargingMode) {
+  audioSynthesizer.playClick()
+  selectedWallboxMode.value = mode
+  isUpdatingWallbox.value = true
+  try {
+    await apiClient.post('/api/v1/energy/wallbox/mode', { mode })
+    await fetchWallboxStatus()
+    audioSynthesizer.playSuccessChime()
+  } catch {
+  } finally {
+    isUpdatingWallbox.value = false
+  }
+}
+
+async function recalculateModulation() {
+  audioSynthesizer.playClick()
+  isUpdatingWallbox.value = true
+  try {
+    await apiClient.post('/api/v1/energy/wallbox/modulate', {
+      charge_point_id: wallboxData.value?.charge_point_id || 'domus_wallbox_1',
+      solar_surplus_w: Math.max(0, flow.value.solar_watts - flow.value.house_consumption_watts),
+      house_load_w: flow.value.house_consumption_watts
+    })
+    await fetchWallboxStatus()
+    audioSynthesizer.playSuccessChime()
+  } catch {
+  } finally {
+    isUpdatingWallbox.value = false
+  }
+}
 
 import { audioSynthesizer } from '../utils/audioSynthesizer'
 
@@ -368,6 +421,13 @@ async function handleOptimizeBESS() {
             </animateMotion>
           </circle>
 
+          <!-- Inverter to EV Particle -->
+          <circle v-if="(wallboxData?.telemetry?.active_power_w ?? 0) > 50" r="5" fill="#a855f7" filter="drop-shadow(0 0 6px #a855f7)">
+            <animateMotion dur="2.0s" repeatCount="indefinite">
+              <mpath href="#pathCenterToEV" />
+            </animateMotion>
+          </circle>
+
           <!-- Central Hub: Inverter Ibrido -->
           <g transform="translate(400, 200)">
             <circle r="46" fill="#1e293b" stroke="#64748b" stroke-width="3" />
@@ -411,7 +471,7 @@ async function handleOptimizeBESS() {
             <rect width="140" height="58" rx="10" fill="rgba(168, 85, 247, 0.15)" stroke="url(#evGrad)" stroke-width="2" />
             <text x="70" y="24" fill="#c084fc" font-weight="700" text-anchor="middle" font-size="12">🚗 WALLBOX EV</text>
             <text x="70" y="44" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="14">
-              {{ flow.house_consumption_watts > 1500 ? '1800 W' : '0 W (Standby)' }}
+              {{ (wallboxData?.telemetry?.active_power_w ?? 0) > 0 ? (wallboxData?.telemetry?.active_power_w + ' W') : (flow.house_consumption_watts > 1500 ? '1800 W' : '0 W (Standby)') }}
             </text>
           </g>
         </svg>
@@ -441,6 +501,193 @@ async function handleOptimizeBESS() {
           <Sparkles :size="16" />
           <span>{{ isOptimizingBESS ? 'Ottimizzazione in corso...' : 'Ricalcola Arbitraggio Ottimale' }}</span>
         </button>
+      </div>
+    </section>
+
+    <!-- OCPP Wallbox & Smart Solar EV Modulation -->
+    <section class="wallbox-section glass-panel">
+      <div class="wallbox-header">
+        <div class="wallbox-title-box">
+          <div class="wallbox-icon-circle">
+            <Car :size="24" class="text-purple" />
+          </div>
+          <div>
+            <div class="wallbox-title-row">
+              <h2 class="section-title">Ricarica Solare Intelligente & Wallbox OCPP</h2>
+              <span
+                v-if="wallboxData?.telemetry"
+                class="wb-status-badge"
+                :class="wallboxData.telemetry.status.toLowerCase()"
+              >
+                <span class="pulse-dot"></span>
+                {{ wallboxData.telemetry.status }}
+              </span>
+            </div>
+            <p class="section-subtitle">
+              Modulazione dinamica IEC 61851 su eccedenza fotovoltaica netta con protezione anti-blackout contatore
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="wb-recalc-btn"
+          :disabled="isUpdatingWallbox"
+          @click="recalculateModulation"
+          title="Ricalcola modulazione fotovoltaica"
+        >
+          <RefreshCw :size="16" :class="{ 'spin-icon': isUpdatingWallbox }" />
+          <span>{{ isUpdatingWallbox ? 'Aggiornamento...' : 'Ricalcola Modulazione' }}</span>
+        </button>
+      </div>
+
+      <!-- Live Telemetry Badges -->
+      <div class="wb-telemetry-grid">
+        <div class="wb-stat-card">
+          <div class="wb-stat-top">
+            <span class="wb-stat-label">Potenza Attiva</span>
+            <PlugZap :size="18" class="text-purple" />
+          </div>
+          <div class="wb-stat-val">
+            {{ wallboxData?.telemetry?.active_power_w ?? 0 }} <span class="unit">W</span>
+          </div>
+          <div class="wb-stat-sub">
+            Target: <strong>{{ wallboxData?.modulation?.target_amps ?? 16 }}A</strong> ({{ (((wallboxData?.modulation?.expected_power_w ?? 3680)) / 1000).toFixed(1) }} kW)
+          </div>
+        </div>
+
+        <div class="wb-stat-card">
+          <div class="wb-stat-top">
+            <span class="wb-stat-label">Corrente Erogata</span>
+            <Gauge :size="18" class="text-info" />
+          </div>
+          <div class="wb-stat-val">
+            {{ wallboxData?.telemetry?.delivered_amps ?? 0 }} <span class="unit">A</span>
+          </div>
+          <div class="wb-stat-sub">
+            Pilota PWM: {{ wallboxData?.telemetry?.offered_amps ?? 16 }}A erogabili
+          </div>
+        </div>
+
+        <div class="wb-stat-card">
+          <div class="wb-stat-top">
+            <span class="wb-stat-label">Batteria Veicolo (SoC)</span>
+            <Battery :size="18" class="text-success" />
+          </div>
+          <div class="wb-stat-val">
+            {{ wallboxData?.telemetry?.vehicle_soc_pct ?? 68 }} <span class="unit">%</span>
+          </div>
+          <div class="wb-soc-track">
+            <div
+              class="wb-soc-fill"
+              :style="{ width: (wallboxData?.telemetry?.vehicle_soc_pct ?? 68) + '%' }"
+            ></div>
+          </div>
+        </div>
+
+        <div class="wb-stat-card">
+          <div class="wb-stat-top">
+            <span class="wb-stat-label">Energia Sessione</span>
+            <Zap :size="18" class="text-warning" />
+          </div>
+          <div class="wb-stat-val">
+            {{ (((wallboxData?.telemetry?.energy_wh ?? 14200)) / 1000).toFixed(2) }} <span class="unit">kWh</span>
+          </div>
+          <div class="wb-stat-sub">
+            Stazione: {{ wallboxData?.charge_point_id ?? 'domus_wallbox_1' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Charging Mode Selectors -->
+      <div class="wb-modes-section">
+        <h3 class="wb-modes-title">Modalità di Gestione Carica</h3>
+        <div class="wb-modes-grid">
+          <button
+            type="button"
+            class="wb-mode-card"
+            :class="{ active: selectedWallboxMode === 'solar_only' }"
+            @click="setWallboxMode('solar_only')"
+          >
+            <div class="mode-icon-box solar">
+              <Sun :size="20" />
+            </div>
+            <div class="mode-info">
+              <div class="mode-title-row">
+                <span class="mode-name">Solo Solare (100% FV)</span>
+                <span v-if="selectedWallboxMode === 'solar_only'" class="active-badge">Attivo</span>
+              </div>
+              <p class="mode-desc">Ricarica esclusivamente con eccedenza fotovoltaica netta (&ge; 6A / 1.4kW). Zero prelievi da rete.</p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="wb-mode-card"
+            :class="{ active: selectedWallboxMode === 'solar_optimized' }"
+            @click="setWallboxMode('solar_optimized')"
+          >
+            <div class="mode-icon-box hybrid">
+              <Sparkles :size="20" />
+            </div>
+            <div class="mode-info">
+              <div class="mode-title-row">
+                <span class="mode-name">Solare Ottimizzato (Ibrido)</span>
+                <span v-if="selectedWallboxMode === 'solar_optimized'" class="active-badge">Attivo</span>
+              </div>
+              <p class="mode-desc">Garantisce 6A continui (1.4kW) e aumenta la corrente dinamicamente se c'è surplus solare.</p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="wb-mode-card"
+            :class="{ active: selectedWallboxMode === 'fast_charging' }"
+            @click="setWallboxMode('fast_charging')"
+          >
+            <div class="mode-icon-box fast">
+              <Zap :size="20" />
+            </div>
+            <div class="mode-info">
+              <div class="mode-title-row">
+                <span class="mode-name">Fast Charge (Massima Potenza)</span>
+                <span v-if="selectedWallboxMode === 'fast_charging'" class="active-badge">Attivo</span>
+              </div>
+              <p class="mode-desc">Carica alla massima potenza contrattuale disponibile con protezione anti-blackout contatore.</p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            class="wb-mode-card"
+            :class="{ active: selectedWallboxMode === 'scheduled_night' }"
+            @click="setWallboxMode('scheduled_night')"
+          >
+            <div class="mode-icon-box night">
+              <Clock :size="20" />
+            </div>
+            <div class="mode-info">
+              <div class="mode-title-row">
+                <span class="mode-name">Notturna Economica</span>
+                <span v-if="selectedWallboxMode === 'scheduled_night'" class="active-badge">Attivo</span>
+              </div>
+              <p class="mode-desc">Pianifica la carica nelle fasce orarie F3 / PUN minimo notturno per massimizzare il risparmio.</p>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modulation Decision Banner -->
+      <div v-if="wallboxData?.modulation" class="wb-decision-banner">
+        <ShieldCheck :size="20" class="text-success" />
+        <div class="decision-content">
+          <span class="decision-title">Decisione Algoritmo di Bilanciamento Dinamico:</span>
+          <span class="decision-text">{{ wallboxData.modulation.reason }}</span>
+        </div>
+        <div class="decision-stats">
+          <span class="stat-pill">Surplus FV: {{ Math.round(wallboxData.modulation.solar_surplus_w) }} W</span>
+          <span class="stat-pill">Carichi Casa: {{ Math.round(wallboxData.modulation.home_grid_power_w) }} W</span>
+        </div>
       </div>
     </section>
 
@@ -1415,5 +1662,347 @@ async function handleOptimizeBESS() {
   border-radius: 0.4rem;
   font-size: 0.75rem;
   border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+/* Wallbox OCPP & EV Smart Charging */
+.wallbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  background: var(--surface-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+}
+
+.wallbox-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.wallbox-title-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.wallbox-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(168, 85, 247, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wallbox-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.text-purple {
+  color: #c084fc;
+}
+
+.wb-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.wb-status-badge.charging {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.wb-status-badge.suspendedevse,
+.wb-status-badge.suspendedev {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  animation: pulseWB 2s infinite ease-in-out;
+}
+
+@keyframes pulseWB {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.wb-recalc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wb-recalc-btn:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.25);
+  transform: translateY(-1px);
+}
+
+.wb-recalc-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spin-icon {
+  animation: spinWB 1s linear infinite;
+}
+
+@keyframes spinWB {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Telemetry Grid */
+.wb-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.wb-stat-card {
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.wb-stat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wb-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.wb-stat-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.wb-stat-val .unit {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wb-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.wb-soc-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.wb-soc-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Modes Grid */
+.wb-modes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.wb-modes-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.wb-modes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.wb-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: inherit;
+}
+
+.wb-mode-card:hover {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(168, 85, 247, 0.4);
+}
+
+.wb-mode-card.active {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: #a855f7;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.2);
+}
+
+.mode-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mode-icon-box.solar {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.mode-icon-box.hybrid {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+
+.mode-icon-box.fast {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.mode-icon-box.night {
+  background: rgba(6, 182, 212, 0.15);
+  color: #06b6d4;
+}
+
+.mode-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.mode-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mode-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.active-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.3rem;
+}
+
+.mode-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Decision Banner */
+.wb-decision-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 0.75rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  flex-wrap: wrap;
+}
+
+.decision-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.decision-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #10b981;
+  text-transform: uppercase;
+}
+
+.decision-text {
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+
+.decision-stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  font-size: 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
 }
 </style>

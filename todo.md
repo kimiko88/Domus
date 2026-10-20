@@ -158,7 +158,23 @@ Questo documento traccia lo stato reale di avanzamento, le funzionalità impleme
   - Motore canvas interattivo con pan, zoom, grid a punti, curve di Bézier SVG per i collegamenti e libreria nodi categorized (Triggers, Conditions, Logic & Flow, Actions).
   - Compilatore AST bidirezionale (Graph <-> Automation JSON) per caricamento e salvataggio trasparente sull'engine Go.
   - Inspector drawer reattivo per parametri dei nodi e simulazione animata visuale "Test Run" step-by-step.
+- [x] **Frontend Wallbox OCPP & Ricarica Solare Intelligente (EV)**:
+  - Sezione dedicata "Ricarica Solare Intelligente & Wallbox OCPP" in `web/src/views/EnergyDashboardView.vue`.
+  - Telemetria live Wallbox: Potenza Attiva (W), Corrente Erogata (A), SoC Veicolo (%), Energia Sessione (kWh), badge stato Live (Charging/Suspended) con pulse-dot animato.
+  - Selettore visuale di 4 modalità di gestione carica: Solo Solare (IEC 61851 ≥6A), Solare Ottimizzato (6A base + boost), Fast Charge, Notturna Economica.
+  - Banner algoritmo di bilanciamento dinamico con surplus FV e carichi casa in tempo reale.
+  - Particella SVG animata inverter→EV nel Power Wheel quando wallbox attiva.
+  - API types TypeScript (`WallboxStatusResponse`, `WallboxTelemetry`, `WallboxModulationResult`, `WallboxChargingMode`).
+  - 2 nuovi test Vitest per rendering telemetria e interazione mode-change/modulation.
+- [x] **Frontend Simulatore di Presenza Vacanza (Vacation Mode)**:
+  - Sezione "Simulatore di Presenza — Modalità Vacanza" in `web/src/views/ZonesView.vue`.
+  - Toggle ARIA-compliant (`role="switch"`) per abilitare/disabilitare la simulazione con aggiornamento backend REST.
+  - Banner stato dinamico (Simulazione Attiva/Disattivata) con pulse-dot animato in verde.
+  - Lista azioni simulate (entity_id, command, typical_time) con modale di aggiunta nuove azioni.
+  - Integrazione API: `GET/POST /api/v1/presence/vacation`, `POST /api/v1/presence/vacation/actions`.
+  - API types TypeScript (`VacationModeStatus`, `VacationSimulatedAction`, `CommuteStatus`).
+  - 3 nuovi test Vitest per rendering, toggle e modale azioni.
 - [x] **Stato Validazione & Suite di Test (100% PASS)**:
   - Backend Go: 100% superato su tutti i package di dominio, applicazione, infrastruttura, plugin, e2e ed os (`go test ./...`).
-  - Frontend Vue 3: 100% superato (86 file di test, 319 test passati in Vitest).
+  - Frontend Vue 3: **86 file di test, 324 test passati in Vitest** (0 fallimenti).
   - TypeScript Compilation: `vue-tsc -b` completato con 0 errori.

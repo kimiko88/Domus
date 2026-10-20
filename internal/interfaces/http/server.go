@@ -472,6 +472,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					eRouter.Get("/bess/schedule", advH.GetBESSSchedule)
 					eRouter.Post("/bess/optimize", advH.OptimizeBESS)
 					eRouter.Put("/bess/config", advH.UpdateBESSConfig)
+					eRouter.Get("/wallbox", advH.GetWallboxStatus)
+					eRouter.Post("/wallbox/mode", advH.SetWallboxMode)
+					eRouter.Post("/wallbox/modulate", advH.CalculateOptimalWallboxCurrent)
 					if srv.authService != nil {
 						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
 					} else {
@@ -528,6 +531,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/presence", func(pRouter chi.Router) {
 					pRouter.Post("/gps", advH.UpdateGPS)
 					pRouter.Get("/status", advH.GetPresenceStatus)
+					pRouter.Get("/vacation", advH.GetVacationMode)
+					pRouter.Post("/vacation", advH.SetVacationMode)
+					pRouter.Post("/vacation/actions", advH.RegisterVacationAction)
+					pRouter.Post("/commute", advH.UpdateCommuteLocation)
+					pRouter.Get("/commute/{userId}", advH.GetCommuteStatus)
 					if zoneH != nil {
 						pRouter.Get("/persons", zoneH.ListPersons)
 					}

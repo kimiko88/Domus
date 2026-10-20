@@ -133,7 +133,109 @@
       </section>
     </div>
 
-    <!-- Create/Edit Modal -->
+    <!-- Vacation Presence Simulator -->
+    <section class="vacation-section" aria-label="Simulatore di Presenza Vacanza">
+      <div class="vacation-header">
+        <div class="vacation-title-box">
+          <span class="vacation-icon-badge" aria-hidden="true">🏖️</span>
+          <div>
+            <h2 class="vacation-title">Simulatore di Presenza — Modalità Vacanza</h2>
+            <p class="vacation-desc">
+              Riproduce le abitudini quotidiane (luci, tapparelle, TV) con ±{{ vacationStatus.jitter_minutes }} min di jitter gaussiano
+              per scoraggiare intrusioni e profilazioni esterne durante l'assenza.
+            </p>
+          </div>
+        </div>
+
+        <!-- Enable/Disable Toggle -->
+        <div class="vacation-toggle-area">
+          <span class="toggle-label">{{ vacationStatus.enabled ? 'Attiva' : 'Disattiva' }}</span>
+          <button
+            type="button"
+            class="vacation-toggle"
+            :class="{ enabled: vacationStatus.enabled }"
+            role="switch"
+            :aria-checked="vacationStatus.enabled"
+            aria-label="Attiva o disattiva Modalità Vacanza"
+            :disabled="isTogglingVacation"
+            @click="toggleVacationMode"
+          >
+            <span class="vacation-toggle-thumb" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Banner -->
+      <div class="vacation-status-banner" :class="vacationStatus.enabled ? 'banner-active' : 'banner-inactive'">
+        <span class="status-dot" />
+        <span v-if="vacationStatus.enabled">
+          🛡️ Simulazione attiva — le abitudini familiari vengono riprodotte automaticamente con perturbazione casuale.
+        </span>
+        <span v-else>
+          Modalità Vacanza disattivata — abilita per attivare il replay intelligente delle abitudini in tua assenza.
+        </span>
+      </div>
+
+      <!-- Simulated Actions List -->
+      <div class="vacation-actions-wrap">
+        <div class="va-header-row">
+          <h3 class="va-title">Azioni Simulate Registrate</h3>
+          <button
+            type="button"
+            class="va-add-btn"
+            @click="openAddActionModal"
+            aria-label="Aggiungi azione simulata"
+          >
+            + Aggiungi Azione
+          </button>
+        </div>
+
+        <div v-if="simulatedActions.length === 0" class="va-empty">
+          <span>Nessuna azione simulata. Aggiungi luci, tapparelle o TV che vuoi replicare durante la vacanza.</span>
+        </div>
+        <div v-else class="va-actions-grid">
+          <div
+            v-for="action in simulatedActions"
+            :key="action.entity_id + action.typical_time"
+            class="va-action-card"
+          >
+            <div class="va-action-icon">⏰</div>
+            <div class="va-action-body">
+              <span class="va-entity">{{ action.entity_id }}</span>
+              <span class="va-cmd">{{ action.command }}</span>
+            </div>
+            <span class="va-time">{{ action.typical_time }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Simulated Action Modal -->
+    <div v-if="showActionModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-modal-title" @click.self="showActionModal = false">
+      <div class="modal-card">
+        <h2 id="action-modal-title">Aggiungi Azione Simulata</h2>
+        <form @submit.prevent="saveSimulatedAction" class="modal-form">
+          <div class="form-group">
+            <label for="va-entity">Entity ID (es. light.salotto)</label>
+            <input id="va-entity" v-model="actionForm.entity_id" required placeholder="light.salotto" class="input" />
+          </div>
+          <div class="form-group">
+            <label for="va-command">Comando (es. turn_on, turn_off)</label>
+            <input id="va-command" v-model="actionForm.command" required placeholder="turn_on" class="input" />
+          </div>
+          <div class="form-group">
+            <label for="va-time">Orario Tipico (HH:MM)</label>
+            <input id="va-time" v-model="actionForm.typical_time" type="time" required class="input" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" @click="showActionModal = false">Annulla</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingAction">Salva Azione</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Create/Edit Zone Modal -->
     <div v-if="showModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-card">
         <h2 id="modal-title">Crea Nuova Zona Geografica</h2>
@@ -179,6 +281,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useZonesStore } from '../stores/zones'
+import { apiClient } from '../api/client'
+import type { VacationModeStatus, VacationSimulatedAction } from '../api/types'
 import type { SpatialZone } from '../api/types'
 
 const store = useZonesStore()
@@ -195,9 +299,54 @@ const form = ref<Partial<SpatialZone>>({
   passive: false,
 })
 
+// ─── Vacation Presence Simulator ───────────────────────────────────────────
+const vacationStatus = ref<VacationModeStatus>({ enabled: false, jitter_minutes: 15 })
+const simulatedActions = ref<VacationSimulatedAction[]>([])
+const isTogglingVacation = ref(false)
+const showActionModal = ref(false)
+const savingAction = ref(false)
+const actionForm = ref<VacationSimulatedAction>({ entity_id: '', command: 'turn_on', typical_time: '20:00' })
+
+async function fetchVacationStatus() {
+  try {
+    const res = await apiClient.get<VacationModeStatus>('/api/v1/presence/vacation')
+    if (res) vacationStatus.value = res
+  } catch {}
+}
+
+async function toggleVacationMode() {
+  isTogglingVacation.value = true
+  try {
+    const newState = !vacationStatus.value.enabled
+    const res = await apiClient.post<VacationModeStatus>('/api/v1/presence/vacation', { enabled: newState })
+    if (res) vacationStatus.value = { ...vacationStatus.value, enabled: res.enabled ?? newState }
+  } catch {} finally {
+    isTogglingVacation.value = false
+  }
+}
+
+function openAddActionModal() {
+  actionForm.value = { entity_id: '', command: 'turn_on', typical_time: '20:00' }
+  showActionModal.value = true
+}
+
+async function saveSimulatedAction() {
+  if (!actionForm.value.entity_id || !actionForm.value.command) return
+  savingAction.value = true
+  try {
+    const res = await apiClient.post<VacationSimulatedAction>('/api/v1/presence/vacation/actions', actionForm.value)
+    if (res) simulatedActions.value.push(res)
+    showActionModal.value = false
+  } catch {} finally {
+    savingAction.value = false
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 onMounted(async () => {
   await store.fetchZones()
   await store.fetchPersons()
+  await fetchVacationStatus()
   if (store.zones.length > 0) {
     selectedZone.value = store.zones[0]
   }
@@ -558,5 +707,242 @@ h1 {
   background: var(--bg-surface-hover);
   color: var(--text-main);
   border: 1px solid var(--border-color);
+}
+
+/* ─── Vacation Presence Simulator ─── */
+.vacation-section {
+  background: var(--surface-card, rgba(30, 41, 59, 0.7));
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  backdrop-filter: blur(12px);
+}
+
+.vacation-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.vacation-title-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  flex: 1;
+}
+
+.vacation-icon-badge {
+  font-size: 2rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.vacation-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 0.25rem;
+}
+
+.vacation-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.vacation-toggle-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.toggle-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 56px;
+  text-align: right;
+}
+
+.vacation-toggle {
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease;
+  padding: 0;
+}
+
+.vacation-toggle.enabled {
+  background: rgba(16, 185, 129, 0.4);
+  border-color: #10b981;
+}
+
+.vacation-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vacation-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.25s ease;
+  display: block;
+}
+
+.vacation-toggle.enabled .vacation-toggle-thumb {
+  transform: translateX(24px);
+}
+
+/* Status Banner */
+.vacation-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.banner-active {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #a7f3d0;
+}
+
+.banner-inactive {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.banner-active .status-dot {
+  box-shadow: 0 0 6px #10b981;
+  animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Actions */
+.vacation-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.va-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.va-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.va-add-btn {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  cursor: pointer;
+  transition: background 0.2s;
+  min-height: 32px;
+}
+
+.va-add-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+}
+
+.va-empty {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 1rem;
+  background: rgba(148, 163, 184, 0.05);
+  border-radius: 0.5rem;
+  border: 1px dashed rgba(148, 163, 184, 0.15);
+  text-align: center;
+}
+
+.va-actions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.va-action-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+}
+
+.va-action-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.va-action-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.va-entity {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: var(--font-mono, monospace);
+}
+
+.va-cmd {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.va-time {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: var(--font-mono, monospace);
+  background: rgba(56, 189, 248, 0.1);
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.35rem;
 }
 </style>

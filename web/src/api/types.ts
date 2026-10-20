@@ -1136,3 +1136,66 @@ export interface NetworkGuardianLeaksResponse {
   isolated_macs: string[]
 }
 
+// 27. OCPP Wallbox & Smart Solar EV Modulation
+export type WallboxChargingMode = 'solar_only' | 'solar_optimized' | 'fast_charging' | 'scheduled_night'
+
+export interface WallboxTelemetry {
+  charge_point_id: string
+  status: string
+  active_power_w: number
+  offered_amps: number
+  delivered_amps: number
+  vehicle_soc_pct: number
+  energy_wh: number
+  last_seen_at?: string
+}
+
+export interface WallboxModulationResult {
+  charge_point_id: string
+  mode: WallboxChargingMode
+  target_amps: number
+  expected_power_w: number
+  solar_surplus_w: number
+  home_grid_power_w: number
+  reason: string
+  timestamp: string
+}
+
+export interface WallboxStatusResponse {
+  charge_point_id: string
+  telemetry: WallboxTelemetry
+  modulation: WallboxModulationResult
+}
+
+// 28. Vacation Presence Simulator & Commute Tracking
+export interface VacationModeStatus {
+  enabled: boolean
+  jitter_minutes: number
+}
+
+export interface VacationSimulatedAction {
+  id?: string
+  entity_id: string
+  command: string
+  typical_time: string
+  parameters?: Record<string, any>
+}
+
+export interface CommuteLocationUpdate {
+  user_id: string
+  latitude: number
+  longitude: number
+  speed_kmh: number
+}
+
+export interface CommuteStatus {
+  user_id: string
+  distance_km: number
+  eta_minutes: number
+  is_approaching: boolean
+  preconditioning_active: boolean
+  target_climate_temp?: number
+  updated_at: string
+}
+
+

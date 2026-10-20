@@ -37,6 +37,31 @@ describe('EnergyDashboardView.vue', () => {
           }
         } as any
       }
+      if (url.includes('/api/v1/energy/wallbox')) {
+        return {
+          charge_point_id: 'domus_wallbox_1',
+          telemetry: {
+            charge_point_id: 'domus_wallbox_1',
+            status: 'Charging',
+            active_power_w: 3680,
+            offered_amps: 16,
+            delivered_amps: 16,
+            vehicle_soc_pct: 72,
+            energy_wh: 12500,
+            last_seen_at: new Date().toISOString()
+          },
+          modulation: {
+            charge_point_id: 'domus_wallbox_1',
+            mode: 'solar_optimized',
+            target_amps: 16,
+            expected_power_w: 3680,
+            solar_surplus_w: 2500,
+            home_grid_power_w: 800,
+            reason: 'Solar optimized charging with 6A base + 10A solar surplus',
+            timestamp: new Date().toISOString()
+          }
+        } as any
+      }
       return null as any
     })
   })
@@ -69,4 +94,44 @@ describe('EnergyDashboardView.vue', () => {
     expect(wrapper.text()).toContain('m³')
     expect(wrapper.text()).toContain('Smc')
   })
+
+  it('renders OCPP Wallbox telemetry and mode selector', async () => {
+    const wrapper = mount(EnergyDashboardView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ricarica Solare Intelligente & Wallbox OCPP')
+    expect(wrapper.text()).toContain('Charging')
+    expect(wrapper.text()).toContain('3680')
+    expect(wrapper.text()).toContain('72')
+    expect(wrapper.text()).toContain('Solo Solare (100% FV)')
+    expect(wrapper.text()).toContain('Solare Ottimizzato (Ibrido)')
+    expect(wrapper.text()).toContain('Fast Charge (Massima Potenza)')
+    expect(wrapper.text()).toContain('Notturna Economica')
+    expect(wrapper.text()).toContain('Solar optimized charging with 6A base + 10A solar surplus')
+  })
+
+  it('triggers wallbox mode change and modulation recalculate', async () => {
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'updated' } as any)
+    const wrapper = mount(EnergyDashboardView)
+    await flushPromises()
+
+    // Find and click the solar_only mode button
+    const modeButtons = wrapper.findAll('.wb-mode-card')
+    expect(modeButtons.length).toBe(4)
+    await modeButtons[0].trigger('click')
+    await flushPromises()
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/energy/wallbox/mode', { mode: 'solar_only' })
+
+    // Find and click the recalculate modulation button
+    const recalcBtn = wrapper.find('.wb-recalc-btn')
+    expect(recalcBtn.exists()).toBe(true)
+    await recalcBtn.trigger('click')
+    await flushPromises()
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/energy/wallbox/modulate', expect.objectContaining({
+      charge_point_id: 'domus_wallbox_1'
+    }))
+  })
 })
+

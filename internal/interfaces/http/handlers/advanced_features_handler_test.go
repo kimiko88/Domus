@@ -16,6 +16,7 @@ import (
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/user"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/domus-hub/domus/internal/plugins/ocpp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -362,3 +363,112 @@ func TestAdvancedFeaturesHandler_BESSArbitrage(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &updateResp))
 	assert.Equal(t, "updated", updateResp["status"])
 }
+
+func TestAdvancedFeaturesHandler_WallboxOCPP(t *testing.T) {
+	ocppCtrl := ocpp.NewController(nil, ocpp.ControllerConfig{
+		GridVoltage:      230,
+		MaxContractWatts: 6000,
+		DefaultMode:      ocpp.ModeSolarOptimized,
+	})
+
+	h := NewAdvancedFeaturesHandler(nil, nil, nil).WithOCPPController(ocppCtrl)
+
+	// 1. Get Status
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/energy/wallbox?charge_point_id=domus_wb_test", nil)
+	rr := httptest.NewRecorder()
+	h.GetWallboxStatus(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var statusResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &statusResp))
+	assert.Equal(t, "domus_wb_test", statusResp["charge_point_id"])
+
+	// 2. Set Charging Mode
+	modeBody, _ := json.Marshal(map[string]string{"mode": "solar_only"})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/energy/wallbox/mode", bytes.NewReader(modeBody))
+	rr = httptest.NewRecorder()
+	h.SetWallboxMode(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 3. Modulate Current dynamically
+	modBody, _ := json.Marshal(map[string]any{
+		"charge_point_id": "domus_wb_test",
+		"solar_surplus_w": 2800.0,
+		"house_load_w":    650.0,
+	})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/energy/wallbox/modulate", bytes.NewReader(modBody))
+	rr = httptest.NewRecorder()
+	h.CalculateOptimalWallboxCurrent(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var modResp ocpp.DynamicModulationResult
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &modResp))
+	assert.Equal(t, ocpp.ModeSolarOnly, modResp.Mode)
+	assert.Greater(t, modResp.TargetAmps, 0.0)
+}
+
+func TestAdvancedFeaturesHandler_VacationPresenceSimulator(t *testing.T) {
+	vacationSim := presence.NewVacationSimulator(nil, presence.VacationSimulatorConfig{
+		Enabled:       false,
+		JitterMinutes: 15,
+	})
+
+	h := NewAdvancedFeaturesHandler(nil, nil, nil).WithVacationSimulator(vacationSim)
+
+	// 1. Get Vacation Mode -> disabled
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/presence/vacation", nil)
+	rr := httptest.NewRecorder()
+	h.GetVacationMode(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var vacResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &vacResp))
+	assert.Equal(t, false, vacResp["enabled"])
+
+	// 2. Enable Vacation Mode -> enabled
+	enableBody, _ := json.Marshal(map[string]bool{"enabled": true})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/vacation", bytes.NewReader(enableBody))
+	rr = httptest.NewRecorder()
+	h.SetVacationMode(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// 3. Register Simulated Action
+	actBody, _ := json.Marshal(presence.SimulatedAction{
+		EntityID:     "light.living_room",
+		Command:      "turn_on",
+		TimeOfDaySec: 73800, // 20:30
+		JitterMin:    15,
+	})
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/vacation/actions", bytes.NewReader(actBody))
+	rr = httptest.NewRecorder()
+	h.RegisterVacationAction(rr, req)
+	assert.Equal(t, http.StatusCreated, rr.Code)
+}
+
+func TestAdvancedFeaturesHandler_CommuteTracker(t *testing.T) {
+	tracker := presence.NewCommuteTracker(nil, presence.CommuteConfig{
+		HomeLatitude:  41.9028,
+		HomeLongitude: 12.4964,
+	})
+
+	h := NewAdvancedFeaturesHandler(nil, nil, nil).WithCommuteTracker(tracker)
+
+	// Update Commute Location
+	locBody, _ := json.Marshal(map[string]any{
+		"user_id":   "user_alice",
+		"latitude":  41.9250,
+		"longitude": 12.5150,
+		"speed_kmh": 50.0,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/presence/commute", bytes.NewReader(locBody))
+	rr := httptest.NewRecorder()
+	h.UpdateCommuteLocation(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var commuteResp presence.CommuteStatus
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &commuteResp))
+	assert.Equal(t, "user_alice", commuteResp.UserID)
+	assert.Greater(t, commuteResp.DistanceMeters, 0.0)
+	assert.Greater(t, commuteResp.MinutesToHome, 0.0)
+}
+

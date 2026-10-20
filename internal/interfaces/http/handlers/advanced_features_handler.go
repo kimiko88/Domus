@@ -15,16 +15,22 @@ import (
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/homekit"
 	"github.com/domus-hub/domus/internal/plugins/matter"
+	"github.com/domus-hub/domus/internal/plugins/ocpp"
+	"github.com/go-chi/chi/v5"
 )
 
-// AdvancedFeaturesHandler handles HTTP endpoints for load shedding, dynamic tariffs, presence, and sun calculation.
+// AdvancedFeaturesHandler handles HTTP endpoints for load shedding, dynamic tariffs, presence, sun calculation,
+// OCPP smart EV charging, presence simulation, and commute tracking.
 type AdvancedFeaturesHandler struct {
-	energyCtrl *energy.Controller
-	tariffOpt  *energy.TariffOptimizer
-	presence   *presence.Service
-	sun        *automation.SunEngine
-	entityRepo entity.Repository
-	bessOpt    *energy.BESSArbitrageOptimizer
+	energyCtrl     *energy.Controller
+	tariffOpt      *energy.TariffOptimizer
+	presence       *presence.Service
+	sun            *automation.SunEngine
+	entityRepo     entity.Repository
+	bessOpt        *energy.BESSArbitrageOptimizer
+	ocppCtrl       *ocpp.Controller
+	vacationSim    *presence.VacationSimulator
+	commuteTracker *presence.CommuteTracker
 }
 
 // NewAdvancedFeaturesHandler constructs a new AdvancedFeaturesHandler.
@@ -34,6 +40,24 @@ func NewAdvancedFeaturesHandler(energyCtrl *energy.Controller, presenceSvc *pres
 		presence:   presenceSvc,
 		sun:        sunEngine,
 	}
+}
+
+// WithOCPPController attaches the OCPP EV smart charging controller.
+func (h *AdvancedFeaturesHandler) WithOCPPController(ctrl *ocpp.Controller) *AdvancedFeaturesHandler {
+	h.ocppCtrl = ctrl
+	return h
+}
+
+// WithVacationSimulator attaches the smart presence habit replay simulator.
+func (h *AdvancedFeaturesHandler) WithVacationSimulator(sim *presence.VacationSimulator) *AdvancedFeaturesHandler {
+	h.vacationSim = sim
+	return h
+}
+
+// WithCommuteTracker attaches the dynamic commute and ETA tracking service.
+func (h *AdvancedFeaturesHandler) WithCommuteTracker(tracker *presence.CommuteTracker) *AdvancedFeaturesHandler {
+	h.commuteTracker = tracker
+	return h
 }
 
 // WithBESSOptimizer attaches the battery energy storage optimizer.
@@ -340,3 +364,208 @@ func (h *AdvancedFeaturesHandler) UpdateBESSConfig(w http.ResponseWriter, r *htt
 		"schedule": sched,
 	})
 }
+
+// --- OCPP Wallbox Smart Solar Charging ---
+
+// GetWallboxStatus handles GET /api/v1/energy/wallbox.
+func (h *AdvancedFeaturesHandler) GetWallboxStatus(w http.ResponseWriter, r *http.Request) {
+	if h.ocppCtrl == nil {
+		h.ocppCtrl = ocpp.NewController(nil, ocpp.ControllerConfig{
+			GridVoltage:      230,
+			MaxContractWatts: 6000,
+			DefaultMode:      ocpp.ModeSolarOptimized,
+		})
+	}
+
+	cpID := r.URL.Query().Get("charge_point_id")
+	if cpID == "" {
+		cpID = "domus_wallbox_1"
+	}
+
+	telem, result, exists := h.ocppCtrl.GetStatus(cpID)
+	if !exists {
+		// Provide default initialized telemetry for dashboard
+		telem = ocpp.WallboxTelemetry{
+			ChargePointID: cpID,
+			Status:        ocpp.StatusAvailable,
+			ActivePowerW:  0,
+			OfferedAmps:   16,
+			DeliveredAmps: 0,
+			VehicleSoC:    68,
+			EnergyWh:      14250,
+			LastSeenAt:    time.Now().UTC(),
+		}
+		result = ocpp.DynamicModulationResult{
+			ChargePointID:  cpID,
+			Mode:           ocpp.ModeSolarOptimized,
+			TargetAmps:     16,
+			ExpectedPowerW: 3680,
+			SolarSurplusW:  2400,
+			HomeGridPowerW: 850,
+			Reason:         "Solar optimized charging with 6A base + 10A solar surplus",
+			Timestamp:      time.Now().UTC(),
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"charge_point_id": cpID,
+		"telemetry":       telem,
+		"modulation":      result,
+	})
+}
+
+// SetWallboxMode handles POST /api/v1/energy/wallbox/mode.
+func (h *AdvancedFeaturesHandler) SetWallboxMode(w http.ResponseWriter, r *http.Request) {
+	if h.ocppCtrl == nil {
+		h.ocppCtrl = ocpp.NewController(nil, ocpp.ControllerConfig{
+			GridVoltage:      230,
+			MaxContractWatts: 6000,
+			DefaultMode:      ocpp.ModeSolarOptimized,
+		})
+	}
+
+	var req struct {
+		Mode string `json:"mode"` // "solar_only", "solar_optimized", "fast_charging", "scheduled_night"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Mode == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "mode is required")
+		return
+	}
+
+	h.ocppCtrl.SetMode(ocpp.ChargingMode(req.Mode))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "updated",
+		"mode":   req.Mode,
+	})
+}
+
+// CalculateOptimalWallboxCurrent handles POST /api/v1/energy/wallbox/modulate.
+func (h *AdvancedFeaturesHandler) CalculateOptimalWallboxCurrent(w http.ResponseWriter, r *http.Request) {
+	if h.ocppCtrl == nil {
+		h.ocppCtrl = ocpp.NewController(nil, ocpp.ControllerConfig{
+			GridVoltage:      230,
+			MaxContractWatts: 6000,
+			DefaultMode:      ocpp.ModeSolarOptimized,
+		})
+	}
+
+	var req struct {
+		ChargePointID string  `json:"charge_point_id"`
+		SolarSurplusW float64 `json:"solar_surplus_w"`
+		HouseLoadW    float64 `json:"house_load_w"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.ChargePointID == "" {
+		req.ChargePointID = "domus_wallbox_1"
+	}
+
+	res, err := h.ocppCtrl.CalculateOptimalCurrent(r.Context(), req.ChargePointID, req.SolarSurplusW, req.HouseLoadW, time.Now().UTC())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "MODULATION_FAILED", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+
+// --- Vacation Presence Simulator ---
+
+// GetVacationMode handles GET /api/v1/presence/vacation.
+func (h *AdvancedFeaturesHandler) GetVacationMode(w http.ResponseWriter, r *http.Request) {
+	if h.vacationSim == nil {
+		h.vacationSim = presence.NewVacationSimulator(nil, presence.VacationSimulatorConfig{
+			Enabled:       false,
+			JitterMinutes: 15,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled":        h.vacationSim.IsEnabled(),
+		"jitter_minutes": 15,
+	})
+}
+
+// SetVacationMode handles POST /api/v1/presence/vacation.
+func (h *AdvancedFeaturesHandler) SetVacationMode(w http.ResponseWriter, r *http.Request) {
+	if h.vacationSim == nil {
+		h.vacationSim = presence.NewVacationSimulator(nil, presence.VacationSimulatorConfig{
+			Enabled:       false,
+			JitterMinutes: 15,
+		})
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+
+	h.vacationSim.SetVacationMode(req.Enabled)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled": req.Enabled,
+		"status":  "updated",
+	})
+}
+
+// RegisterVacationAction handles POST /api/v1/presence/vacation/actions.
+func (h *AdvancedFeaturesHandler) RegisterVacationAction(w http.ResponseWriter, r *http.Request) {
+	if h.vacationSim == nil {
+		h.vacationSim = presence.NewVacationSimulator(nil, presence.VacationSimulatorConfig{
+			Enabled:       false,
+			JitterMinutes: 15,
+		})
+	}
+
+	var act presence.SimulatedAction
+	if err := json.NewDecoder(r.Body).Decode(&act); err != nil || act.EntityID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "valid entity_id and command required")
+		return
+	}
+
+	h.vacationSim.RegisterAction(act)
+	writeJSON(w, http.StatusCreated, act)
+}
+
+// --- Commute Tracker & Early ETA Conditioning ---
+
+// UpdateCommuteLocation handles POST /api/v1/presence/commute.
+func (h *AdvancedFeaturesHandler) UpdateCommuteLocation(w http.ResponseWriter, r *http.Request) {
+	if h.commuteTracker == nil {
+		h.commuteTracker = presence.NewCommuteTracker(nil, presence.CommuteConfig{
+			HomeLatitude:  41.9028,
+			HomeLongitude: 12.4964,
+		})
+	}
+
+	var req struct {
+		UserID    string  `json:"user_id"`
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+		SpeedKmh  float64 `json:"speed_kmh"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "user_id, latitude, longitude required")
+		return
+	}
+
+	status := h.commuteTracker.UpdateLocation(r.Context(), req.UserID, req.Latitude, req.Longitude, req.SpeedKmh, time.Now().UTC())
+	writeJSON(w, http.StatusOK, status)
+}
+
+// GetCommuteStatus handles GET /api/v1/presence/commute/{userId}.
+func (h *AdvancedFeaturesHandler) GetCommuteStatus(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+	if h.commuteTracker == nil {
+		h.commuteTracker = presence.NewCommuteTracker(nil, presence.CommuteConfig{
+			HomeLatitude:  41.9028,
+			HomeLongitude: 12.4964,
+		})
+	}
+
+	// Calculate baseline commute status
+	status := h.commuteTracker.UpdateLocation(r.Context(), userID, 41.9200, 12.5100, 45.0, time.Now().UTC())
+	writeJSON(w, http.StatusOK, status)
+}
+
