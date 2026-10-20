@@ -48,6 +48,12 @@ type GuardianConfig struct {
 	AlertCooldownSeconds int               `json:"cooldown_seconds"`  // Prevents notification flooding
 }
 
+// FirewallClient abstracts router/switch level client quarantine.
+type FirewallClient interface {
+	IsolateClient(ctx context.Context, mac, ip, reason string) error
+	UnblockClient(ctx context.Context, mac, ip string) error
+}
+
 // Guardian monitors local IoT traffic for unauthorized external WAN communications.
 type Guardian struct {
 	mu           sync.RWMutex
@@ -58,6 +64,7 @@ type Guardian struct {
 	lastAlerts   map[string]time.Time // key: source_ip -> last alert time
 	history      []LeakAlert
 	bus          events.Bus
+	firewall     FirewallClient
 }
 
 // NewGuardian instantiates an IoT Network Guardian.
@@ -247,3 +254,45 @@ func isPrivateOrLocal(ip net.IP) bool {
 	}
 	return false
 }
+
+// SetFirewall attaches a router/firewall client for physical network quarantine.
+func (g *Guardian) SetFirewall(fw FirewallClient) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.firewall = fw
+}
+
+// QuarantineDevice isolates a compromised or unauthorized IoT device.
+func (g *Guardian) QuarantineDevice(ctx context.Context, mac, ip, reason string) error {
+	normMAC := normalizeMAC(mac)
+
+	g.mu.Lock()
+	if normMAC != "" {
+		g.isolatedMACs[normMAC] = true
+	}
+	fw := g.firewall
+	bus := g.bus
+	g.mu.Unlock()
+
+	if fw != nil {
+		if err := fw.IsolateClient(ctx, normMAC, ip, reason); err != nil {
+			return fmt.Errorf("guardian: failed to isolate on router: %w", err)
+		}
+	}
+
+	if bus != nil {
+		_ = bus.Publish(ctx, events.Event{
+			ID:         uuid.NewString(),
+			Type:       events.NetworkDeviceQuarantined,
+			OccurredAt: time.Now().UTC(),
+			Source:     "network.guardian",
+			Payload: map[string]any{
+				"mac":    normMAC,
+				"ip":     ip,
+				"reason": reason,
+			},
+		})
+	}
+	return nil
+}
+

@@ -618,6 +618,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					cRouter.Get("/", ecoH.ListCameras)
 					cRouter.Post("/", ecoH.CreateCamera)
 					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
+					cRouter.Post("/faces", ecoH.RegisterFamilyFace)
+					cRouter.Post("/plates", ecoH.RegisterAuthorizedPlate)
 					cRouter.Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
 					cRouter.Get("/{id}/zones", ecoH.GetCameraZones)
 					cRouter.Post("/{id}/zones", ecoH.AddCameraZone)
@@ -625,6 +627,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					cRouter.Get("/events", ecoH.ListCameraEvents)
 					cRouter.Get("/events/{id}/clip", ecoH.GetEventClip)
 				})
+
+				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/tags", func(tRouter chi.Router) {
 					tRouter.Get("/", ecoH.ListTags)

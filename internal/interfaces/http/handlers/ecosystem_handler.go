@@ -590,6 +590,42 @@ func (h *EcosystemHandler) GetEventClip(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, clip)
 }
 
+func (h *EcosystemHandler) RegisterFamilyFace(w http.ResponseWriter, r *http.Request) {
+	if h.localNVR == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "nvr not initialized")
+		return
+	}
+	var face appCamera.FamilyFace
+	if err := json.NewDecoder(r.Body).Decode(&face); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	if face.Name == "" || len(face.Embedding) == 0 {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "face name and biometric embedding are required")
+		return
+	}
+	h.localNVR.RegisterFamilyFace(face)
+	writeJSON(w, http.StatusCreated, face)
+}
+
+func (h *EcosystemHandler) RegisterAuthorizedPlate(w http.ResponseWriter, r *http.Request) {
+	if h.localNVR == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "nvr not initialized")
+		return
+	}
+	var veh appCamera.AuthorizedVehicle
+	if err := json.NewDecoder(r.Body).Decode(&veh); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	if veh.PlateNumber == "" {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "plate_number is required")
+		return
+	}
+	h.localNVR.RegisterAuthorizedPlate(veh)
+	writeJSON(w, http.StatusCreated, veh)
+}
+
 // --- WebSerial Firmware Flasher ---
 func (h *EcosystemHandler) ListFlasherFirmwares(w http.ResponseWriter, r *http.Request) {
 	if h.flasherSvc == nil {

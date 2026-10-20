@@ -1,6 +1,7 @@
 package network_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -119,3 +120,49 @@ func TestGuardian_IsolatedMACCheck(t *testing.T) {
 		t.Errorf("expected leak alert for isolated MAC")
 	}
 }
+
+type mockFirewallClient struct {
+	isolatedMAC string
+	isolatedIP  string
+	reason      string
+}
+
+func (m *mockFirewallClient) IsolateClient(ctx context.Context, mac, ip, reason string) error {
+	m.isolatedMAC = mac
+	m.isolatedIP = ip
+	m.reason = reason
+	return nil
+}
+
+func (m *mockFirewallClient) UnblockClient(ctx context.Context, mac, ip string) error {
+	return nil
+}
+
+func TestGuardian_QuarantineWithFirewallClient(t *testing.T) {
+	bus := &mockBus{}
+	guardian, err := network.NewGuardian(bus, network.GuardianConfig{})
+	if err != nil {
+		t.Fatalf("failed to init guardian: %v", err)
+	}
+
+	fw := &mockFirewallClient{}
+	guardian.SetFirewall(fw)
+
+	ctx := context.Background()
+	err = guardian.QuarantineDevice(ctx, "00:11:22:33:44:55", "192.168.1.200", "Critical WAN leak detected")
+	if err != nil {
+		t.Fatalf("QuarantineDevice failed: %v", err)
+	}
+
+	if fw.isolatedMAC != "00:11:22:33:44:55" || fw.isolatedIP != "192.168.1.200" {
+		t.Errorf("expected firewall to isolate 00:11:22:33:44:55 / 192.168.1.200, got %s / %s", fw.isolatedMAC, fw.isolatedIP)
+	}
+
+	bus.mu.Lock()
+	eventsCount := len(bus.events)
+	bus.mu.Unlock()
+	if eventsCount != 1 {
+		t.Errorf("expected 1 event emitted on bus, got %d", eventsCount)
+	}
+}
+

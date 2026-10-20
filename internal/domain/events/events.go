@@ -113,6 +113,9 @@ const (
 	// NetworkLeakAlert fires when an isolated IoT device attempts to communicate with an unauthorized external WAN host.
 	NetworkLeakAlert EventType = "network.leak_alert"
 
+	// NetworkDeviceQuarantined fires when an IoT device is actively quarantined on the router/firewall.
+	NetworkDeviceQuarantined EventType = "network.device_quarantined"
+
 	// USBDevicePlugged fires when a supported serial dongle (Zigbee, Z-Wave, ConBee) is connected.
 	USBDevicePlugged EventType = "usb.plugged"
 
