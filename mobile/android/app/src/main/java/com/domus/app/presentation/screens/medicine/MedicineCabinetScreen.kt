@@ -174,14 +174,10 @@ private fun MedicineAlertsBanner(alerts: List<MedicineAlertDto>) {
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFEF4444)
-                )
+                Text("⚠️", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.medicine_alerts_banner_title),
+                    text = "Avvisi Farmaci in Scadenza o Scorta Bassa",
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 16.sp

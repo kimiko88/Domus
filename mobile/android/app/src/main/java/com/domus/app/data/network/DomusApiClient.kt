@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 
 @Serializable
@@ -1071,7 +1072,7 @@ class DomusApiClient(
         query: String? = null
     ): Result<List<MedicineDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/medicines")?.newBuilder()
+            val urlBuilder = "$baseUrl/api/v1/medicines".toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IOException("URL non valido"))
             if (!location.isNullOrBlank()) urlBuilder.addQueryParameter("location", location)
             if (!status.isNullOrBlank()) urlBuilder.addQueryParameter("status", status)
@@ -1231,7 +1232,7 @@ class DomusApiClient(
 
     suspend fun lookupAIFA(baseUrl: String, token: String?, query: String? = null, aic: String? = null): Result<List<AIFARecordDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/medicines/lookup")?.newBuilder()
+            val urlBuilder = "$baseUrl/api/v1/medicines/lookup".toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IOException("URL non valido"))
             if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
             if (!aic.isNullOrBlank()) urlBuilder.addQueryParameter("aic", aic)
@@ -1386,7 +1387,7 @@ class DomusApiClient(
         targetTime: String? = null
     ): Result<PreheatRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/climate/predictive/zones/$id/optimal-start")?.newBuilder()
+            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-start".toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IOException("URL non valido"))
             if (targetTemp != null) urlBuilder.addQueryParameter("target_temp", targetTemp.toString())
             if (!targetTime.isNullOrBlank()) urlBuilder.addQueryParameter("target_time", targetTime)
@@ -1411,7 +1412,7 @@ class DomusApiClient(
         departureTime: String? = null
     ): Result<CoastDownRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = okhttp3.HttpUrl.parse("$baseUrl/api/v1/climate/predictive/zones/$id/optimal-stop")?.newBuilder()
+            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-stop".toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IOException("URL non valido"))
             if (!departureTime.isNullOrBlank()) urlBuilder.addQueryParameter("departure_time", departureTime)
 

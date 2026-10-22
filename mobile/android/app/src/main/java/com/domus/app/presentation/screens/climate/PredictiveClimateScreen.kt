@@ -7,21 +7,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.domus.app.R
 import com.domus.app.domain.model.*
 import com.domus.app.presentation.theme.*
 import com.domus.app.presentation.viewmodel.DashboardViewModel
@@ -46,7 +39,7 @@ fun PredictiveClimateScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.predictive_climate_title),
+                        text = "Clima Predittivo & Inerzia",
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -56,11 +49,7 @@ fun PredictiveClimateScreen(
                         onClick = onDismiss,
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.common_close),
-                            tint = Color.White
-                        )
+                        Text("✕", fontSize = 20.sp, color = Color.White)
                     }
                 },
                 actions = {
@@ -68,11 +57,7 @@ fun PredictiveClimateScreen(
                         onClick = { viewModel.evaluateAllPredictiveZones() },
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.climate_evaluate_all),
-                            tint = AccentBlue
-                        )
+                        Text("🔄", fontSize = 18.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DomusSurfaceDark)
@@ -93,58 +78,54 @@ fun PredictiveClimateScreen(
                 if (s.cold_front_active) {
                     item {
                         WeatherAlertBanner(
-                            icon = Icons.Default.Warning,
-                            title = stringResource(R.string.climate_cold_front_alert_title),
-                            description = stringResource(R.string.climate_cold_front_alert_desc),
+                            iconText = "❄️",
+                            title = "Ondata di Freddo Imminente",
+                            description = "Pre-riscaldamento predittivo attivato per anticipare la perdita termica dovuta al calo repentino della temperatura esterna.",
                             color = Color(0xFF06B6D4)
                         )
                     }
                 }
-
                 if (s.solar_cutoff_active) {
                     item {
                         WeatherAlertBanner(
-                            icon = Icons.Default.Star,
-                            title = stringResource(R.string.climate_solar_cutoff_alert_title),
-                            description = stringResource(R.string.climate_solar_cutoff_alert_desc),
+                            iconText = "☀️",
+                            title = "Spegnimento Anticipato per Irraggiamento Solare",
+                            description = "Riscaldamento modulato verso il basso per sfruttare il guadagno termico passivo solare stimato sulle vetrate.",
                             color = Color(0xFFF59E0B)
                         )
                     }
                 }
 
-                // Header Metriche
                 item {
                     PredictiveMetricsRow(status = s)
                 }
+            }
 
-                // Elenco Zone Termiche
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(R.string.climate_zones_header),
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = 18.sp
-                        )
-
-                        TextButton(
-                            onClick = { viewModel.evaluateAllPredictiveZones() }
-                        ) {
-                            Text(stringResource(R.string.climate_evaluate_all), color = AccentBlue)
-                        }
+            // Intestazione Sezione Zone
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Zone Clima Monitorate",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                    TextButton(onClick = { viewModel.evaluateAllPredictiveZones() }) {
+                        Text("Ricalcola Tutte", color = AccentBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
 
-                if (s.zones.isEmpty()) {
-                    item {
-                        EmptyZonesPlaceholder()
-                    }
+            // Lista Zone
+            status?.zones?.let { zones ->
+                if (zones.isEmpty()) {
+                    item { EmptyZonesPlaceholder() }
                 } else {
-                    items(s.zones, key = { it.config.id }) { zoneItem ->
+                    items(zones, key = { it.config.id }) { zoneItem ->
                         PredictiveZoneCard(
                             zone = zoneItem,
                             isEvaluating = evaluatingZoneId == zoneItem.config.id,
@@ -172,7 +153,7 @@ fun PredictiveClimateScreen(
 
 @Composable
 private fun WeatherAlertBanner(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconText: String,
     title: String,
     description: String,
     color: Color
@@ -187,7 +168,7 @@ private fun WeatherAlertBanner(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+            Text(iconText, fontSize = 24.sp)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(text = title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -205,20 +186,20 @@ private fun PredictiveMetricsRow(status: SystemPredictiveStatusDto) {
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         MetricTile(
-            title = stringResource(R.string.climate_metric_zones),
+            title = "Zone Attive",
             value = "${status.enabled_zones}/${status.total_zones}",
             color = AccentBlue,
             modifier = Modifier.weight(1f)
         )
         MetricTile(
-            title = stringResource(R.string.climate_metric_cold_front),
-            value = if (status.cold_front_active) stringResource(R.string.common_active) else stringResource(R.string.common_nominal),
+            title = "Ondata Freddo",
+            value = if (status.cold_front_active) "Attivo" else "Nominale",
             color = if (status.cold_front_active) Color(0xFF06B6D4) else Color(0xFF10B981),
             modifier = Modifier.weight(1f)
         )
         MetricTile(
-            title = stringResource(R.string.climate_metric_solar_cutoff),
-            value = if (status.solar_cutoff_active) stringResource(R.string.common_active) else stringResource(R.string.common_nominal),
+            title = "Taglio Solare",
+            value = if (status.solar_cutoff_active) "Attivo" else "Nominale",
             color = if (status.solar_cutoff_active) Color(0xFFF59E0B) else Color(0xFF10B981),
             modifier = Modifier.weight(1f)
         )
@@ -226,22 +207,20 @@ private fun PredictiveMetricsRow(status: SystemPredictiveStatusDto) {
 }
 
 @Composable
-private fun MetricTile(
-    title: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
+private fun MetricTile(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = DomusSurfaceDark),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = value, color = color, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = title, color = Color.Gray, fontSize = 11.sp, maxLines = 1)
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = title, color = Color.Gray, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
@@ -252,27 +231,34 @@ private fun PredictiveZoneCard(
     isEvaluating: Boolean,
     onEvaluate: () -> Unit
 ) {
-    val eval = zone.latest_evaluation
-    val mode = eval?.parsedMode ?: PredictiveMode.COMFORT
+    val eval: PredictiveEvaluationDto? = zone.latest_evaluation
+    val mode: PredictiveMode = eval?.parsedMode ?: PredictiveMode.COMFORT
 
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = DomusSurfaceDark),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Header: Nome e Pill Modalità
-            Row(verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header Zona: Nome e Modalità Raccomandata
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
                     Text(
                         text = zone.config.name,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        fontSize = 16.sp
+                        fontSize = 17.sp
                     )
                     Text(
-                        text = "${zone.config.orientation.uppercase()} • ${zone.config.emitter_type} • ${zone.config.thermal_inertia_hours}h inerzia",
+                        text = zone.config.area_id ?: "Casa",
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
@@ -281,10 +267,10 @@ private fun PredictiveZoneCard(
                 Surface(
                     shape = CircleShape,
                     color = modeColor(mode).copy(alpha = 0.18f),
-                    border = BorderStroke(1.dp, modeColor(mode).copy(alpha = 0.35f))
+                    border = BorderStroke(1.dp, modeColor(mode).copy(alpha = 0.5f))
                 ) {
                     Text(
-                        text = mode.value.replace("_", " ").uppercase(),
+                        text = modeDisplayName(mode),
                         color = modeColor(mode),
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -298,62 +284,52 @@ private fun PredictiveZoneCard(
             // Griglia Temperature: Attuale, Target, Calcolato
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TemperatureColumn(
-                    label = stringResource(R.string.climate_temp_current),
-                    value = eval?.let { String.format("%.1f°C", it.current_temp) } ?: "--",
+                    label = "Attuale",
+                    value = eval?.current_temp?.let { String.format("%.1f°C", it) } ?: "--",
                     color = Color.White
                 )
 
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                )
+                Text("→", fontSize = 16.sp, color = Color.Gray, modifier = Modifier.align(Alignment.CenterVertically))
 
                 TemperatureColumn(
-                    label = stringResource(R.string.climate_temp_target),
+                    label = "Target",
                     value = String.format("%.1f°C", zone.config.target_temperature),
                     color = AccentBlue
                 )
 
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                )
+                Text("→", fontSize = 16.sp, color = Color.Gray, modifier = Modifier.align(Alignment.CenterVertically))
 
                 TemperatureColumn(
-                    label = stringResource(R.string.climate_temp_calculated),
-                    value = eval?.let { String.format("%.1f°C", it.calculated_setpoint) } ?: "--",
+                    label = "Calcolato",
+                    value = eval?.calculated_setpoint?.let { String.format("%.1f°C", it) } ?: "--",
                     color = if (eval != null && eval.calculated_setpoint != zone.config.target_temperature) Color(0xFFF59E0B) else Color(0xFF10B981)
                 )
             }
 
             // Sensori Ambientali e Ragione Algoritmo
-            eval?.let { e ->
+            if (eval != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
-                        text = String.format("%.1f hPa", e.current_pressure),
+                        text = String.format("%.1f hPa", eval.current_pressure),
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
                     Text(
-                        text = "${e.humidity.toInt()}% UR",
+                        text = "${eval.humidity.toInt()}% UR",
                         color = Color.Gray,
                         fontSize = 12.sp
                     )
-                    if (e.estimated_solar_gain_kw > 0) {
+                    if (eval.estimated_solar_gain_kw > 0.0) {
                         Text(
-                            text = String.format("+%.2f kW Sole", e.estimated_solar_gain_kw),
+                            text = String.format("+%.2f kW Sole", eval.estimated_solar_gain_kw),
                             color = Color(0xFFF59E0B),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
                         )
                     }
-                    if (e.window_open) {
+                    if (eval.window_open) {
                         Text(
-                            text = stringResource(R.string.climate_window_open),
+                            text = "Finestra Aperta",
                             color = Color(0xFFEF4444),
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -361,9 +337,9 @@ private fun PredictiveZoneCard(
                     }
                 }
 
-                if (e.reason.isNotBlank()) {
+                if (eval.reason.isNotBlank()) {
                     Text(
-                        text = e.reason,
+                        text = eval.reason,
                         color = Color.White.copy(alpha = 0.7f),
                         fontSize = 12.sp,
                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
@@ -384,7 +360,7 @@ private fun PredictiveZoneCard(
                     if (isEvaluating) {
                         CircularProgressIndicator(color = AccentBlue, modifier = Modifier.size(16.dp))
                     } else {
-                        Text(stringResource(R.string.climate_action_evaluate), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Valuta Ora", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -411,6 +387,17 @@ private fun modeColor(mode: PredictiveMode): Color {
     }
 }
 
+private fun modeDisplayName(mode: PredictiveMode): String {
+    return when (mode) {
+        PredictiveMode.COMFORT -> "Comfort"
+        PredictiveMode.COLD_FRONT_BOOST -> "Anticipo Freddo"
+        PredictiveMode.SOLAR_CUTOFF -> "Taglio Solare"
+        PredictiveMode.PREHEAT -> "Pre-riscaldamento"
+        PredictiveMode.ECO -> "Eco"
+        PredictiveMode.FROST_PROTECTION -> "Antigelo"
+    }
+}
+
 @Composable
 private fun EmptyZonesPlaceholder() {
     Column(
@@ -421,13 +408,13 @@ private fun EmptyZonesPlaceholder() {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = stringResource(R.string.climate_empty_zones),
+            text = "Nessuna zona predittiva configurata",
             color = Color.White,
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp
         )
         Text(
-            text = stringResource(R.string.climate_empty_zones_subtitle),
+            text = "Configura le zone clima con parametri di inerzia termica dal pannello web",
             color = Color.Gray,
             fontSize = 13.sp
         )
