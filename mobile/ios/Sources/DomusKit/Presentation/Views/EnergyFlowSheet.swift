@@ -13,6 +13,9 @@ public struct EnergyFlowSheet: View {
     @State private var homeConsumptionWatts: Double = 0.0
     @State private var loadSheddingLimitKw: Double = 4.5
     @State private var currentTariffEurKwh: Double = 0.185
+    @State private var wallboxStatus: WallboxStatusDTO? = nil
+    @State private var selectedWallboxMode: String = "SOLAR_OPTIMIZED"
+    @State private var isUpdatingWallbox: Bool = false
 
     public init() {}
 
@@ -30,6 +33,9 @@ public struct EnergyFlowSheet: View {
 
                     // Tariffa Attiva & PUN
                     tariffCard
+
+                    // Wallbox Ricarica Solare OCPP
+                    wallboxCard
 
                     // Soglia contrattuale Load Shedding
                     loadSheddingCard
@@ -63,13 +69,21 @@ public struct EnergyFlowSheet: View {
 
     private func loadEnergyFlow() async {
         do {
-            let flow = try await DomusHttpClient.shared.fetchEnergyFlow()
+            async let flowTask = DomusHttpClient.shared.fetchEnergyFlow()
+            async let wallboxTask = DomusHttpClient.shared.fetchWallboxStatus()
+
+            let flow = try await flowTask
             self.solarPowerWatts = flow.solarWatts
             self.gridPowerWatts = flow.gridWatts
             self.batteryPowerWatts = flow.batteryWatts
             self.batteryLevelPercent = Int(flow.batterySoc)
             self.homeConsumptionWatts = flow.houseConsumptionWatts
             DomusAccessibility.announce("Dati energetici aggiornati: autoconsumo \(String(format: "%.1f", flow.houseConsumptionWatts / 1000.0)) kilowatt")
+
+            if let wb = try? await wallboxTask {
+                self.wallboxStatus = wb
+                self.selectedWallboxMode = wb.chargingMode
+            }
         } catch {
             // Rete non raggiungibile
         }
@@ -187,6 +201,155 @@ public struct EnergyFlowSheet: View {
         .padding(.horizontal)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tariffa dinamica attuale: \(String(format: "%.3f", currentTariffEurKwh)) euro per kilowattora, fascia F1 economica")
+    }
+
+    private var wallboxCard: some View {
+        let wb = wallboxStatus ?? WallboxStatusDTO(
+            connected: true,
+            chargeBoxId: "DOMUS-WB-01",
+            status: "SuspendedEV",
+            activePowerW: 0.0,
+            currentAmps: 0.0,
+            vehicleSocPercent: 68,
+            sessionEnergyKwh: 14.2,
+            chargingMode: selectedWallboxMode,
+            solarSurplusW: max(0, solarPowerWatts - homeConsumptionWatts),
+            gridImportW: max(0, gridPowerWatts)
+        )
+
+        let isCharging = wb.status == "Charging"
+        let statusColor: Color = isCharging ? .green : (wb.connected ? .cyan : .secondary)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.car.fill")
+                        .foregroundColor(.green)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Wallbox EV (OCPP 1.6J)")
+                            .font(.headline)
+                        Text(wb.chargeBoxId.isEmpty ? "Wallbox Smart" : wb.chargeBoxId)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                    Text(wallboxStatusLabel(wb.status))
+                        .font(.caption2.bold())
+                        .foregroundColor(statusColor)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(statusColor.opacity(0.12))
+                .clipShape(Capsule())
+            }
+
+            // Metriche di Ricarica
+            HStack(spacing: 8) {
+                wallboxMetric(title: "Potenza", value: String(format: "%.1f kW", wb.activePowerW / 1000.0), icon: "bolt.fill", color: .yellow)
+                wallboxMetric(title: "Corrente", value: String(format: "%.0f A", wb.currentAmps), icon: "waveform.path", color: .cyan)
+                if let soc = wb.vehicleSocPercent {
+                    wallboxMetric(title: "Batteria EV", value: "\(soc)%", icon: "battery.100.bolt", color: .green)
+                }
+                wallboxMetric(title: "Sessione", value: String(format: "%.1f kWh", wb.sessionEnergyKwh), icon: "clock.arrow.circlepath", color: .purple)
+            }
+
+            Divider()
+
+            // Modalità di Ricarica
+            Text("MODALITÀ DI RICARICA SOLARE")
+                .font(.caption2.bold())
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 6) {
+                wallboxModeButton(mode: "SOLAR_ONLY", label: "☀️ Solare")
+                wallboxModeButton(mode: "SOLAR_OPTIMIZED", label: "⚡ Smart")
+                wallboxModeButton(mode: "FAST", label: "🚀 Rapida")
+                wallboxModeButton(mode: "NIGHT", label: "🌙 Notte")
+            }
+        }
+        .padding(16)
+        .background(Color.domusSecondarySystemGroupedBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Wallbox ricarica veicolo elettrico")
+    }
+
+    private func wallboxMetric(title: String, value: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Text(value)
+                .font(.footnote.bold())
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(Color.domusSystemGroupedBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func wallboxModeButton(mode: String, label: String) -> some View {
+        let isSelected = selectedWallboxMode == mode
+        return Button(action: {
+            Task {
+                await selectWallboxMode(mode)
+            }
+        }) {
+            Text(label)
+                .font(.caption.bold())
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(isSelected ? Color.green : Color.domusSystemGroupedBackground)
+                .foregroundColor(isSelected ? .white : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.green : Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+        }
+        .disabled(isUpdatingWallbox)
+        .accessibilityLabel("Modalità ricarica \(label)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func selectWallboxMode(_ mode: String) async {
+        isUpdatingWallbox = true
+        selectedWallboxMode = mode
+        Haptics.light()
+        do {
+            try await DomusHttpClient.shared.setWallboxMode(mode: mode)
+            let updated = try await DomusHttpClient.shared.fetchWallboxStatus()
+            self.wallboxStatus = updated
+            DomusAccessibility.announce("Modalità Wallbox impostata su \(mode)")
+        } catch {
+            // Ignora o ritenta
+        }
+        isUpdatingWallbox = false
+    }
+
+    private func wallboxStatusLabel(_ status: String) -> String {
+        switch status.lowercased() {
+        case "charging": return "In Carica"
+        case "suspendedev": return "In Attesa Veicolo"
+        case "preparing": return "Cavo Connesso"
+        case "finishing": return "Completata"
+        default: return "Disponibile"
+        }
     }
 
     private var loadSheddingCard: some View {

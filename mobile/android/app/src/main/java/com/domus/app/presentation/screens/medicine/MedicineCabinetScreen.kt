@@ -11,8 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,11 +84,7 @@ fun MedicineCabinetScreen(
                         onClick = onDismiss,
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.common_close),
-                            tint = Color.White
-                        )
+                        Text("✕", fontSize = 20.sp, color = Color.White)
                     }
                 },
                 actions = {
@@ -98,11 +92,7 @@ fun MedicineCabinetScreen(
                         onClick = { showAddDialog = true },
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.medicine_add_button),
-                            tint = AccentBlue
-                        )
+                        Text("＋", fontSize = 22.sp, color = AccentBlue)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DomusSurfaceDark)
@@ -245,11 +235,11 @@ private fun MedicineSearchAndFilters(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
             placeholder = { Text(stringResource(R.string.medicine_search_placeholder), color = Color.Gray, fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+            leadingIcon = { Text("🔍", fontSize = 14.sp) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Cancella", tint = Color.Gray)
+                        Text("✕", fontSize = 16.sp, color = Color.Gray)
                     }
                 }
             },
@@ -418,7 +408,7 @@ private fun MedicineCard(
                     if (medicine.requires_cold_chain) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFF06B6D4), modifier = Modifier.size(12.dp))
+                            Text("❄️", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(2.dp))
                             Text("Frigo", color = Color(0xFF06B6D4), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
@@ -502,12 +492,7 @@ private fun MedicineEmptyState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.Info,
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier.size(48.dp)
-        )
+        Text("💊", fontSize = 42.sp)
         Text(
             text = stringResource(R.string.medicine_empty_state_title),
             color = Color.White,

@@ -1427,5 +1427,113 @@ class DomusApiClient(
             Result.failure(e)
         }
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // EV Wallbox OCPP — Ricarica Solare Intelligente
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Fetches live wallbox telemetry from the OCPP backend. */
+    suspend fun getWallboxStatus(baseUrl: String, token: String?): Result<WallboxStatusDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/wallbox").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Wallbox status error: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                Result.success(json.decodeFromString<WallboxStatusDto>(bodyStr))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Sets the wallbox charging mode (SOLAR_ONLY, SOLAR_OPTIMIZED, FAST, NIGHT). */
+    suspend fun setWallboxMode(baseUrl: String, token: String?, mode: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"mode":"$mode"}"""
+            val body = payload.toRequestBody("application/json".toMediaType())
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/wallbox/mode").post(body)
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Wallbox mode error: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Commute Tracker — ETA-based Automations
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Posts the user's current GPS coordinates to the Domus CommuteTracker endpoint.
+     * The backend calculates ETA and triggers preheat/lighting automations accordingly.
+     */
+    suspend fun postCommuteLocation(
+        baseUrl: String,
+        token: String?,
+        userId: String,
+        latitude: Double,
+        longitude: Double
+    ): Result<CommuteStatusDto> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"user_id":"$userId","latitude":$latitude,"longitude":$longitude}"""
+            val body = payload.toRequestBody("application/json".toMediaType())
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/commute").post(body)
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Commute update error: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                Result.success(json.decodeFromString<CommuteStatusDto>(bodyStr))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Gets the current commute status (ETA, distance, phase) for the given user. */
+    suspend fun getCommuteStatus(baseUrl: String, token: String?, userId: String): Result<CommuteStatusDto> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/commute/$userId").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Commute status error: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                Result.success(json.decodeFromString<CommuteStatusDto>(bodyStr))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// DTOs – Wallbox OCPP & Commute Tracker
+// ──────────────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class WallboxStatusDto(
+    val connected: Boolean = false,
+    val charge_box_id: String = "",
+    val status: String = "Available", // Available | Preparing | Charging | SuspendedEV | Finishing
+    val active_power_w: Double = 0.0,
+    val current_amps: Double = 0.0,
+    val vehicle_soc_percent: Int? = null,
+    val session_energy_kwh: Double = 0.0,
+    val charging_mode: String = "SOLAR_OPTIMIZED",
+    val solar_surplus_w: Double = 0.0,
+    val grid_import_w: Double = 0.0
+)
+
+@Serializable
+data class CommuteStatusDto(
+    val user_id: String = "",
+    val phase: String = "idle", // idle | commuting | approaching | arrived
+    val distance_km: Double = 0.0,
+    val eta_minutes: Int = 0,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val automations_triggered: List<String> = emptyList()
+)

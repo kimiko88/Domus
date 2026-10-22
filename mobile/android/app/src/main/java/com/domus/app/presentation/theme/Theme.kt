@@ -20,6 +20,10 @@ val AmberWarning = Color(0xFFF59E0B)
 val RoseError = Color(0xFFF43F5E)
 val RoseDanger = RoseError
 
+val DomusBackgroundDark = Slate900
+val DomusSurfaceDark = Slate800
+val AccentBlue = CyanAccent
+
 private val DarkColorScheme = darkColorScheme(
     primary = CyanAccent,
     secondary = IndigoPrimary,

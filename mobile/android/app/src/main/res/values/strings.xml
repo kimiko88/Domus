@@ -615,4 +615,31 @@
     <string name="tour_step9_tagline">Sei pronto per vivere la tua casa smart</string>
     <string name="tour_step9_title">Tutto Pronto! 🚀</string>
     <string name="tour_step_indicator">Passo {current} di {total}</string>
+
+    <!-- Medicine Cabinet -->
+    <string name="common_close">Chiudi</string>
+    <string name="medicine_cabinet_title">Armadietto Farmaci</string>
+    <string name="medicine_add_button">Aggiungi Farmaco</string>
+    <string name="medicine_search_placeholder">Cerca farmaco, principio attivo o AIC...</string>
+    <string name="medicine_filter_expiring">In Scadenza</string>
+    <string name="medicine_filter_low_stock">Scorte Basse</string>
+    <string name="medicine_filter_cold_chain">Catena Freddo</string>
+    <string name="medicine_all_locations">Tutte le Posizioni</string>
+    <string name="medicine_loc_bathroom">Bagno</string>
+    <string name="medicine_loc_nightstand">Comodino</string>
+    <string name="medicine_loc_travel_bag">Borsa Viaggio</string>
+    <string name="medicine_loc_fridge">Frigorifero</string>
+    <string name="medicine_loc_other">Altro</string>
+    <string name="medicine_status_low_stock">Scorta Bassa</string>
+    <string name="medicine_status_valid">Valido</string>
+    <string name="medicine_field_expiration">Scadenza</string>
+    <string name="medicine_field_location">Posizione</string>
+    <string name="medicine_action_open">Apri Confezione</string>
+    <string name="medicine_action_take_dose">Prendi Dose</string>
+    <string name="medicine_empty_state_title">Nessun farmaco trovato</string>
+    <string name="medicine_empty_state_subtitle">Tutti i medicinali registrati compariranno qui con scadenze e scorte</string>
+    <string name="medicine_add_title">Aggiungi Nuovo Medicinale</string>
+    <string name="medicine_field_name">Nome Commerciale</string>
+    <string name="medicine_field_active">Principio Attivo</string>
+    <string name="medicine_field_dosage">Dosaggio</string>
 </resources>

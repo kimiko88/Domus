@@ -581,6 +581,43 @@ public actor DomusHttpClient: Sendable {
         return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-stop\(queryString)", as: CoastDownRecommendation.self)
     }
 
+    // MARK: - EV Wallbox OCPP API
+
+    public func fetchWallboxStatus() async throws -> WallboxStatusDTO {
+        try await get(path: "/api/v1/energy/wallbox", as: WallboxStatusDTO.self)
+    }
+
+    public func setWallboxMode(mode: String) async throws {
+        struct ModeBody: Encodable {
+            let mode: String
+        }
+        try await postVoid(path: "/api/v1/energy/wallbox/mode", body: ModeBody(mode: mode))
+    }
+
+    // MARK: - Commute Tracker API
+
+    public func postCommuteLocation(userId: String, latitude: Double, longitude: Double) async throws -> CommuteStatusDTO {
+        struct CommuteBody: Encodable {
+            let userId: String
+            let latitude: Double
+            let longitude: Double
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case latitude
+                case longitude
+            }
+        }
+        return try await post(
+            path: "/api/v1/presence/commute",
+            body: CommuteBody(userId: userId, latitude: latitude, longitude: longitude),
+            as: CommuteStatusDTO.self
+        )
+    }
+
+    public func fetchCommuteStatus(userId: String) async throws -> CommuteStatusDTO {
+        try await get(path: "/api/v1/presence/commute/\(userId)", as: CommuteStatusDTO.self)
+    }
+
     // MARK: - Private helpers
 
     private func makeURL(path: String) throws -> URL {
@@ -1266,5 +1303,95 @@ public enum DomusNetworkError: Error, LocalizedError {
         case .httpError(let code): return "Errore HTTP \(code)"
         case .notConnected: return "Non connesso al server Domus"
         }
+    }
+}
+
+// MARK: - Wallbox OCPP & Commute Tracker DTOs
+
+public struct WallboxStatusDTO: Codable, Sendable {
+    public let connected: Bool
+    public let chargeBoxId: String
+    public let status: String
+    public let activePowerW: Double
+    public let currentAmps: Double
+    public let vehicleSocPercent: Int?
+    public let sessionEnergyKwh: Double
+    public let chargingMode: String
+    public let solarSurplusW: Double
+    public let gridImportW: Double
+
+    enum CodingKeys: String, CodingKey {
+        case connected
+        case chargeBoxId = "charge_box_id"
+        case status
+        case activePowerW = "active_power_w"
+        case currentAmps = "current_amps"
+        case vehicleSocPercent = "vehicle_soc_percent"
+        case sessionEnergyKwh = "session_energy_kwh"
+        case chargingMode = "charging_mode"
+        case solarSurplusW = "solar_surplus_w"
+        case gridImportW = "grid_import_w"
+    }
+
+    public init(
+        connected: Bool = false,
+        chargeBoxId: String = "",
+        status: String = "Available",
+        activePowerW: Double = 0.0,
+        currentAmps: Double = 0.0,
+        vehicleSocPercent: Int? = nil,
+        sessionEnergyKwh: Double = 0.0,
+        chargingMode: String = "SOLAR_OPTIMIZED",
+        solarSurplusW: Double = 0.0,
+        gridImportW: Double = 0.0
+    ) {
+        self.connected = connected
+        self.chargeBoxId = chargeBoxId
+        self.status = status
+        self.activePowerW = activePowerW
+        self.currentAmps = currentAmps
+        self.vehicleSocPercent = vehicleSocPercent
+        self.sessionEnergyKwh = sessionEnergyKwh
+        self.chargingMode = chargingMode
+        self.solarSurplusW = solarSurplusW
+        self.gridImportW = gridImportW
+    }
+}
+
+public struct CommuteStatusDTO: Codable, Sendable {
+    public let userId: String
+    public let phase: String
+    public let distanceKm: Double
+    public let etaMinutes: Int
+    public let latitude: Double?
+    public let longitude: Double?
+    public let automationsTriggered: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case phase
+        case distanceKm = "distance_km"
+        case etaMinutes = "eta_minutes"
+        case latitude
+        case longitude
+        case automationsTriggered = "automations_triggered"
+    }
+
+    public init(
+        userId: String = "",
+        phase: String = "idle",
+        distanceKm: Double = 0.0,
+        etaMinutes: Int = 0,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        automationsTriggered: [String] = []
+    ) {
+        self.userId = userId
+        self.phase = phase
+        self.distanceKm = distanceKm
+        self.etaMinutes = etaMinutes
+        self.latitude = latitude
+        self.longitude = longitude
+        self.automationsTriggered = automationsTriggered
     }
 }

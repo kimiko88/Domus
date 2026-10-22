@@ -64,6 +64,14 @@ fun EnergyScreen(
     var contractLimitKw by remember { mutableFloatStateOf(4.5f) }
     val punTariffEur = 0.128 // €/kWh PUN attuale
 
+    // EV Wallbox OCPP Smart Charging State
+    var wallboxMode by remember { mutableStateOf("SOLAR_OPTIMIZED") }
+    var wallboxPowerW by remember { mutableDoubleStateOf(0.0) }
+    var wallboxAmps by remember { mutableDoubleStateOf(0.0) }
+    var wallboxSoc by remember { mutableStateOf<Int?>(72) }
+    var wallboxKwh by remember { mutableDoubleStateOf(14.8) }
+    var wallboxStatus by remember { mutableStateOf("SuspendedEV") }
+
     val entities by viewModel?.filteredEntities?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     val consumers = remember(entities) {
         entities.filter { it.domain == "switch" || it.domain == "climate" || it.domain == "heater" }.take(6).mapIndexed { i, e ->
@@ -139,196 +147,351 @@ fun EnergyScreen(
             }
         }
 
-        // Energy Flow Diagram Box
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Slate800),
-            border = BorderStroke(1.dp, Slate700),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(210.dp)
-                    .padding(16.dp)
-            ) {
-                // Background Flow Lines
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val center = Offset(w / 2f, h / 2f)
-
-                    val topNode = Offset(w / 2f, 24f)
-                    val bottomNode = Offset(w / 2f, h - 24f)
-                    val leftNode = Offset(36f, h / 2f)
-                    val rightNode = Offset(w - 36f, h / 2f)
-
-                    val dashEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), flowPhase)
-
-                    // Solar to Center
-                    drawLine(
-                        color = AmberWarning,
-                        start = topNode,
-                        end = center,
-                        strokeWidth = 3f,
-                        pathEffect = dashEffect,
-                        cap = StrokeCap.Round
-                    )
-
-                    // Center to Home
-                    drawLine(
-                        color = CyanAccent,
-                        start = center,
-                        end = bottomNode,
-                        strokeWidth = 3f,
-                        pathEffect = dashEffect,
-                        cap = StrokeCap.Round
-                    )
-
-                    // Battery to Center
-                    drawLine(
-                        color = EmeraldSuccess,
-                        start = leftNode,
-                        end = center,
-                        strokeWidth = 3f,
-                        pathEffect = dashEffect,
-                        cap = StrokeCap.Round
-                    )
-
-                    // Center to Grid
-                    drawLine(
-                        color = IndigoPrimary,
-                        start = center,
-                        end = rightNode,
-                        strokeWidth = 3f,
-                        pathEffect = dashEffect,
-                        cap = StrokeCap.Round
-                    )
-                }
-
-                // Solar Node (Top)
-                EnergyNode(
-                    icon = "☀️",
-                    title = "Solare",
-                    value = "${solarWatts} W",
-                    color = AmberWarning,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
-
-                // Battery Node (Left)
-                EnergyNode(
-                    icon = "🔋",
-                    title = "Batteria ($batteryPercentage%)",
-                    value = "+${batteryWatts} W",
-                    color = EmeraldSuccess,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                )
-
-                // Center Node Hub
-                Surface(
-                    shape = CircleShape,
-                    color = Slate900,
-                    border = BorderStroke(2.dp, CyanAccent),
-                    modifier = Modifier
-                        .size(46.dp)
-                        .align(Alignment.Center)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("⚡", fontSize = 18.sp)
-                    }
-                }
-
-                // Grid Node (Right)
-                EnergyNode(
-                    icon = "🌐",
-                    title = "Rete (Export)",
-                    value = "${gridWatts} W",
-                    color = IndigoPrimary,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
-
-                // Home Load Node (Bottom)
-                EnergyNode(
-                    icon = "🏠",
-                    title = "Carico Casa",
-                    value = "${homeWatts} W",
-                    color = CyanAccent,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
-        }
-
-        // Peak Load Shedding Contract Slider
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Slate800),
-            border = BorderStroke(1.dp, Slate700),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Soglia Anti-Distacco (Load Shedding)",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = String.format("%.1f kW", contractLimitKw),
-                        color = CyanAccent,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
-
-                Slider(
-                    value = contractLimitKw,
-                    onValueChange = { contractLimitKw = it },
-                    valueRange = 2.0f..6.5f,
-                    steps = 8,
-                    colors = SliderDefaults.colors(
-                        thumbColor = CyanAccent,
-                        activeTrackColor = CyanAccent,
-                        inactiveTrackColor = Slate700
-                    )
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("2.0 kW (Base)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                    Text("4.5 kW (Standard)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                    Text("6.5 kW (Potenza Max)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                }
-            }
-        }
-
-        // Prioritized Heavy Loads Table
-        Text(
-            text = "CARICHI PRIORITARI INTELLIGENTI",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = CyanAccent,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
+            // Energy Flow Diagram Box
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    border = BorderStroke(1.dp, Slate700),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(210.dp)
+                            .padding(16.dp)
+                    ) {
+                        // Background Flow Lines
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            val center = Offset(w / 2f, h / 2f)
+
+                            val topNode = Offset(w / 2f, 24f)
+                            val bottomNode = Offset(w / 2f, h - 24f)
+                            val leftNode = Offset(36f, h / 2f)
+                            val rightNode = Offset(w - 36f, h / 2f)
+
+                            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), flowPhase)
+
+                            // Solar to Center
+                            drawLine(
+                                color = AmberWarning,
+                                start = topNode,
+                                end = center,
+                                strokeWidth = 3f,
+                                pathEffect = dashEffect,
+                                cap = StrokeCap.Round
+                            )
+
+                            // Center to Home
+                            drawLine(
+                                color = CyanAccent,
+                                start = center,
+                                end = bottomNode,
+                                strokeWidth = 3f,
+                                pathEffect = dashEffect,
+                                cap = StrokeCap.Round
+                            )
+
+                            // Battery to Center
+                            drawLine(
+                                color = EmeraldSuccess,
+                                start = leftNode,
+                                end = center,
+                                strokeWidth = 3f,
+                                pathEffect = dashEffect,
+                                cap = StrokeCap.Round
+                            )
+
+                            // Center to Grid
+                            drawLine(
+                                color = IndigoPrimary,
+                                start = center,
+                                end = rightNode,
+                                strokeWidth = 3f,
+                                pathEffect = dashEffect,
+                                cap = StrokeCap.Round
+                            )
+                        }
+
+                        // Solar Node (Top)
+                        EnergyNode(
+                            icon = "☀️",
+                            title = "Solare",
+                            value = "${solarWatts} W",
+                            color = AmberWarning,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+
+                        // Battery Node (Left)
+                        EnergyNode(
+                            icon = "🔋",
+                            title = "Batteria ($batteryPercentage%)",
+                            value = "+${batteryWatts} W",
+                            color = EmeraldSuccess,
+                            modifier = Modifier.align(Alignment.CenterStart)
+                        )
+
+                        // Center Node Hub
+                        Surface(
+                            shape = CircleShape,
+                            color = Slate900,
+                            border = BorderStroke(2.dp, CyanAccent),
+                            modifier = Modifier
+                                .size(46.dp)
+                                .align(Alignment.Center)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("⚡", fontSize = 18.sp)
+                            }
+                        }
+
+                        // Grid Node (Right)
+                        EnergyNode(
+                            icon = "🌐",
+                            title = "Rete (Export)",
+                            value = "${gridWatts} W",
+                            color = IndigoPrimary,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
+
+                        // Home Load Node (Bottom)
+                        EnergyNode(
+                            icon = "🏠",
+                            title = "Carico Casa",
+                            value = "${homeWatts} W",
+                            color = CyanAccent,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
+                }
+            }
+
+            // EV Wallbox OCPP Smart Charging Card
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    border = BorderStroke(1.dp, Slate700),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⚡", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = "Wallbox EV (OCPP 1.6J)",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Ricarica Solare Dinamica",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            val isCharging = wallboxStatus == "Charging"
+                            val statusText = when (wallboxStatus) {
+                                "Charging" -> "In Carica"
+                                "SuspendedEV" -> "In Attesa Veicolo"
+                                "Preparing" -> "Cavo Connesso"
+                                else -> "Disponibile"
+                            }
+                            val statusColor = if (isCharging) EmeraldSuccess else CyanAccent
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = statusColor.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                            ) {
+                                Text(
+                                    text = statusText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Telemetry Grid
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(Slate900, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Potenza", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text(String.format("%.1f kW", wallboxPowerW / 1000.0), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AmberWarning)
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(Slate900, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Corrente", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text(String.format("%.0f A", wallboxAmps), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyanAccent)
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(Slate900, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Batteria EV", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text("${wallboxSoc ?: "--"}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(Slate900, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Sessione", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+                                Text(String.format("%.1f kWh", wallboxKwh), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Solar Charging Mode Selector
+                        Text(
+                            text = "MODALITÀ DI RICARICA",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val modes = listOf(
+                                "SOLAR_ONLY" to "☀️ Solare",
+                                "SOLAR_OPTIMIZED" to "⚡ Smart",
+                                "FAST" to "🚀 Rapida",
+                                "NIGHT" to "🌙 Notte"
+                            )
+                            modes.forEach { (modeKey, label) ->
+                                val isSelected = wallboxMode == modeKey
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) EmeraldSuccess else Slate700,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { wallboxMode = modeKey }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier
+                                            .padding(vertical = 8.dp)
+                                            .wrapContentWidth(Alignment.CenterHorizontally)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Peak Load Shedding Contract Slider
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    border = BorderStroke(1.dp, Slate700),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Soglia Anti-Distacco (Load Shedding)",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = String.format("%.1f kW", contractLimitKw),
+                                color = CyanAccent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        Slider(
+                            value = contractLimitKw,
+                            onValueChange = { contractLimitKw = it },
+                            valueRange = 2.0f..6.5f,
+                            steps = 8,
+                            colors = SliderDefaults.colors(
+                                thumbColor = CyanAccent,
+                                activeTrackColor = CyanAccent,
+                                inactiveTrackColor = Slate700
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("2.0 kW (Base)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                            Text("4.5 kW (Standard)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                            Text("6.5 kW (Potenza Max)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+
+            // Prioritized Heavy Loads Section Title
+            item {
+                Text(
+                    text = "CARICHI PRIORITARI INTELLIGENTI",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CyanAccent,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            }
             items(consumers, key = { it.id }) { consumer ->
                 Card(
                     shape = RoundedCornerShape(12.dp),
