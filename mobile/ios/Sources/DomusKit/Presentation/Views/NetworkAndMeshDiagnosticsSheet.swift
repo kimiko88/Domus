@@ -60,7 +60,7 @@ public struct NetworkAndMeshDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var nodes: [MeshNodeDiagnostic] = []
-    @State private var selectedTab: Int = 0 // 0: Segnale & Mesh, 1: Batterie (<15%), 2: Latenza & Hub
+    @State private var selectedTab: Int = 0 // 0: Segnale & Mesh, 1: Batterie (<15%), 2: Latenza & Hub, 3: IoT Guardian
     @State private var localLatencyMs: Int = 0
     @State private var remoteLatencyMs: Int = 0
     @State private var systemUptimeText: String = "In rilevamento..."
@@ -70,6 +70,8 @@ public struct NetworkAndMeshDiagnosticsSheet: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     @State private var selectedProtocolFilter: String = "Tutti"
+    @State private var networkLeaks: [NetworkLeakAlertDTO] = []
+    @State private var isolatedMacs: [String] = []
 
     private let protocolOptions = ["Tutti", "Zigbee 3.0", "Thread / Matter", "Z-Wave Plus", "BLE Proxy"]
 
@@ -96,9 +98,10 @@ public struct NetworkAndMeshDiagnosticsSheet: View {
             VStack(spacing: 0) {
                 // Selettore Sezione Superiore
                 Picker("Sezione Diagnostica", selection: $selectedTab) {
-                    Text("Mesh & RSSI").tag(0)
-                    Text("Batterie (\(lowBatteryNodes.count) critiche)").tag(1)
-                    Text("Latenza & Hub").tag(2)
+                    Text("Mesh").tag(0)
+                    Text("Batterie (\(lowBatteryNodes.count))").tag(1)
+                    Text("Hub").tag(2)
+                    Text("IoT Guardian (\(networkLeaks.count))").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -149,8 +152,10 @@ public struct NetworkAndMeshDiagnosticsSheet: View {
                         meshSignalView
                     case 1:
                         batteryHealthView
-                    default:
+                    case 2:
                         hubAndLatencyView
+                    default:
+                        iotGuardianView
                     }
                 }
             }
@@ -538,10 +543,145 @@ public struct NetworkAndMeshDiagnosticsSheet: View {
             }
         }
 
+        // 4. Lettura IoT Network Guardian Leaks da /api/v1/network/leaks
+        var collectedLeaks: [NetworkLeakAlertDTO] = []
+        var collectedIsolated: [String] = []
+        if let leaksResp = try? await DomusHttpClient.shared.fetchNetworkLeaks() {
+            collectedLeaks = leaksResp.leaks
+            collectedIsolated = leaksResp.isolatedMacs
+        }
+
         await MainActor.run {
             self.nodes = collectedNodes
+            self.networkLeaks = collectedLeaks
+            self.isolatedMacs = collectedIsolated
             self.isLoading = false
             DomusAccessibility.announce("Diagnostica di rete sincronizzata dal server. \(collectedNodes.count) nodi rilevati.")
+        }
+    }
+
+    // MARK: - IoT Network Guardian & Quarantine View
+
+    private var iotGuardianView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Header Shield Card
+                HStack(spacing: 12) {
+                    Image(systemName: "shield.checkered")
+                        .font(.system(size: 32))
+                        .foregroundColor(networkLeaks.isEmpty ? .green : .orange)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("IoT Network Guardian & Isolamento")
+                            .font(.headline)
+                        Text(networkLeaks.isEmpty ? "Nessuna anomalia WAN rilevata" : "\(networkLeaks.count) tentativi di leak WAN bloccati")
+                            .font(.caption)
+                            .foregroundColor(networkLeaks.isEmpty ? .secondary : .orange)
+                    }
+                    Spacer()
+                }
+                .padding()
+                .background(Color.domusSecondarySystemGroupedBackground)
+                .cornerRadius(12)
+                .padding(.horizontal)
+
+                // Dispositivi in Quarantena
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Dispositivi Confinati / Quarantena")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Text("\(isolatedMacs.count)")
+                            .font(.caption.bold())
+                            .foregroundColor(.orange)
+                    }
+
+                    if isolatedMacs.isEmpty {
+                        Text("Nessun dispositivo attualmente confinato.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(isolatedMacs, id: \.self) { mac in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(mac)
+                                        .font(.system(.subheadline, design: .monospaced).bold())
+                                    Text("Isolato a livello Firewall")
+                                        .font(.caption2)
+                                        .foregroundColor(.red)
+                                }
+                                Spacer()
+                                Button("Sblocca") {
+                                    Task {
+                                        try? await DomusHttpClient.shared.unblockDevice(mac: mac, ip: "")
+                                        await refreshDiagnostics()
+                                    }
+                                }
+                                .font(.caption.bold())
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.green.opacity(0.12))
+                                .cornerRadius(8)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.domusSecondarySystemGroupedBackground)
+                .cornerRadius(12)
+                .padding(.horizontal)
+
+                // Alert Recenti di Leak WAN
+                if !networkLeaks.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Tentativi Recenti di Connessione Esterna")
+                            .font(.subheadline.bold())
+
+                        ForEach(networkLeaks) { leak in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text(leak.mac.isEmpty ? leak.ip : leak.mac)
+                                            .font(.caption.bold())
+                                        Spacer()
+                                        Text(leak.timestamp)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Text("Destinazione: \(leak.destination)")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                }
+                                Spacer()
+                                Button("Isola") {
+                                    Task {
+                                        try? await DomusHttpClient.shared.quarantineDevice(
+                                            mac: leak.mac,
+                                            ip: leak.ip,
+                                            reason: "Leak WAN verso \(leak.destination)"
+                                        )
+                                        await refreshDiagnostics()
+                                    }
+                                }
+                                .font(.caption.bold())
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.red.opacity(0.12))
+                                .cornerRadius(8)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .padding()
+                    .background(Color.domusSecondarySystemGroupedBackground)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.vertical)
         }
     }
 }

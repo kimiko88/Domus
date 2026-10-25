@@ -1,0 +1,165 @@
+name: iOS - Test & TestFlight Deployment
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'mobile/ios/**'
+      - '.github/workflows/ios-testflight.yml'
+  pull_request:
+    paths:
+      - 'mobile/ios/**'
+      - '.github/workflows/ios-testflight.yml'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Forza la pubblicazione anche se eseguito manualmente'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-ios:
+    name: iOS Unit Tests & Build Validation
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: |
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app
+          elif [ -d "/Applications/Xcode_16.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.app
+          elif [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app
+          fi
+          xcodebuild -version
+
+      - name: Run DomusKit Swift Package Tests
+        working-directory: mobile/ios
+        run: swift test --verbose
+
+      - name: Build Xcode iOS App (Simulator Validation)
+        working-directory: mobile/ios
+        run: |
+          xcodebuild -project domus/domus.xcodeproj \
+            -scheme domus \
+            -destination "generic/platform=iOS Simulator" \
+            clean build \
+            CODE_SIGNING_ALLOWED=NO
+
+  deploy-testflight:
+    name: iOS TestFlight Deployment
+    needs: [test-ios]
+    runs-on: macos-14
+    # Esegui solo se i test sono passati e siamo su master, main o workflow_dispatch
+    if: success() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Publication Secrets Availability
+        id: check_secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          CERT_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PWD: ${{ secrets.P12_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_CONTENT" ] && [ -n "$CERT_BASE64" ] && [ -n "$P12_PWD" ] && [ -n "$PROFILE_BASE64" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tutte le variabili e secrets per la pubblicazione su TestFlight sono presenti."
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=TestFlight Deployment Skipped::Parametri di pubblicazione o firma mancanti nei GitHub Secrets. I test sono passati con successo e la pubblicazione su TestFlight è stata saltata."
+          fi
+
+      - name: Select Xcode Version
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app
+          elif [ -d "/Applications/Xcode_16.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.app
+          fi
+          xcodebuild -version
+
+      - name: Setup Keychain and Install Certificates
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'domus_ci_temp_keychain' }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Decodifica certificato P12 e Provisioning Profile da Base64
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+
+          # Creazione keychain temporaneo
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Importazione certificato
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Installazione MobileProvision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Setup Ruby for Fastlane
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Install Fastlane
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: gem install fastlane --no-document
+
+      - name: Build & Deploy to TestFlight
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        working-directory: mobile/ios
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'LLNSXF9WW4' }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CHANGELOG: "Domus iOS - Commit: ${{ github.sha }} (Run #${{ github.run_number }})"
+        run: fastlane ios beta
+
+      - name: Clean up Keychain & Sensitive Files
+        if: always() && steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db 2>/dev/null || true
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null || true
+          rm -f $RUNNER_TEMP/build_certificate.p12 $RUNNER_TEMP/build_pp.mobileprovision 2>/dev/null || true

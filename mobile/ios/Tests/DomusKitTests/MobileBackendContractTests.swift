@@ -65,4 +65,47 @@ final class MobileBackendContractTests: XCTestCase {
         XCTAssertEqual(thermostat.isClimate, true)
         XCTAssertEqual(thermostat.currentTemperature, 21.5)
     }
+
+    func testVacationModeContractDecoding() throws {
+        let jsonString = """
+        {
+            "enabled": true,
+            "jitter_minutes": 15
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let vac = try JSONDecoder().decode(VacationModeStatusDTO.self, from: data)
+
+        XCTAssertTrue(vac.enabled)
+        XCTAssertEqual(vac.jitterMinutes, 15)
+    }
+
+    func testNetworkLeaksContractDecoding() throws {
+        let jsonString = """
+        {
+            "count": 1,
+            "leaks": [
+                {
+                    "id": "leak_01",
+                    "mac": "bc:24:11:22:33:44",
+                    "ip": "192.168.1.188",
+                    "destination": "api2.tuya.cn:443",
+                    "timestamp": "2026-10-25T16:00:00Z",
+                    "action": "quarantined"
+                }
+            ],
+            "isolated_macs": [
+                "bc:24:11:22:33:44"
+            ]
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let resp = try JSONDecoder().decode(NetworkLeaksResponseDTO.self, from: data)
+
+        XCTAssertEqual(resp.count, 1)
+        XCTAssertEqual(resp.leaks.count, 1)
+        XCTAssertEqual(resp.leaks.first?.destination, "api2.tuya.cn:443")
+        XCTAssertEqual(resp.isolatedMacs, ["bc:24:11:22:33:44"])
+    }
 }
+

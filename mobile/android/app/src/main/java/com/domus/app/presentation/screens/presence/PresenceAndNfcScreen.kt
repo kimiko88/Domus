@@ -33,6 +33,12 @@ fun PresenceAndNfcScreen(
     val context = LocalContext.current
     var radiusSlider by remember { mutableFloatStateOf(150f) }
     var isGeofenceActive by remember { mutableStateOf(true) }
+    var isVacationModeEnabled by remember { mutableStateOf(false) }
+    var vacationJitter by remember { mutableIntStateOf(15) }
+    var commuteEtaMinutes by remember { mutableIntStateOf(18) }
+    var commuteDistanceKm by remember { mutableDoubleStateOf(12.4) }
+    var commutePhase by remember { mutableStateOf("In Avvicinamento") }
+    val scope = rememberCoroutineScope()
     val nfcStatusMessage by viewModel.nfcManager.lastStatusMessage.collectAsState()
     val lastReadTag by viewModel.nfcManager.lastReadTag.collectAsState()
     var feedbackBanner by remember { mutableStateOf<String?>(null) }
@@ -245,6 +251,115 @@ fun PresenceAndNfcScreen(
                             Text("✨ Simula Scan", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            // SECTION 4: SMART VACATION PRESENCE SIMULATOR
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Slate800),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🏖️", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Simulatore Presenza Vacanza", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("Replay abitudini reali luci & tapparelle", fontSize = 11.sp, color = Color.White.copy(alpha = 0.6f))
+                            }
+                        }
+
+                        Switch(
+                            checked = isVacationModeEnabled,
+                            onCheckedChange = { enabled ->
+                                isVacationModeEnabled = enabled
+                                feedbackBanner = if (enabled) "Modalità Vacanza attiva (±15 min jitter stocastico)" else "Modalità Vacanza disattivata"
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = EmeraldSuccess,
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                                uncheckedTrackColor = Slate700
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Slate700,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🎲", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Jitter casuale: ±$vacationJitter min per simulare presenza umana reale",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text("Routine Replay Configurate:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyanAccent)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("• 20:30 (±15m): Accensione Luce Salotto (light.living_room)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text("• 22:15 (±15m): Chiusura Tapparelle Notte (cover.bedroom)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+                    Text("• 23:00 (±15m): Spegnimento Luci Cucina (light.kitchen)", fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+                }
+            }
+
+            // SECTION 5: COMMUTE TRACKER & ETA PRE-CLIMATE
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Slate800),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🚗", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Pendolarismo & ETA Casa", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("Fase: $commutePhase", fontSize = 11.sp, color = CyanAccent)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = EmeraldSuccess.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "$commuteEtaMinutes min",
+                                color = EmeraldSuccess,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Distanza stimata: $commuteDistanceKm km • Pre-climatizzazione automatica inserita",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
                 }
             }
 

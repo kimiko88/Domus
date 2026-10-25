@@ -1,5 +1,5 @@
 # Domus iOS Appfile
 app_identifier("com.fabriziochimienti.domus")
 apple_id(ENV["APPLE_ID"] || "developer@domus-smart.local")
-team_id(ENV["APPLE_TEAM_ID"] || "DOMUSLABS01")
+team_id(ENV["APPLE_TEAM_ID"] || "LLNSXF9WW4")
 itc_team_id(ENV["ITC_TEAM_ID"] || "")

@@ -30,18 +30,26 @@ platform :ios do
 
   desc "Compila e distribuisce la nuova build su Apple TestFlight per i beta tester"
   lane :beta do
-    # Verifica che le variabili d'ambiente per il signing siano presenti
-    ensure_env_vars(
-      env_vars: ["APPLE_ID", "APPLE_TEAM_ID"]
-    )
+    # 1. Configurazione App Store Connect API Key (se configurata)
+    api_key = nil
+    if ENV["APP_STORE_CONNECT_KEY_ID"] && ENV["APP_STORE_CONNECT_ISSUER_ID"] && (ENV["APP_STORE_CONNECT_KEY_CONTENT"] || ENV["APP_STORE_CONNECT_KEY_PATH"])
+      api_key = app_store_connect_api_key(
+        key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+        key_content: ENV["APP_STORE_CONNECT_KEY_CONTENT"],
+        key_filepath: ENV["APP_STORE_CONNECT_KEY_PATH"],
+        is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_CONTENT_IS_BASE64"] == "true"
+      )
+    end
 
-    # Incrementa il build number basandosi su timestamp o git commit count
+    # 2. Incrementa il build number basandosi su variabile CI (BUILD_NUMBER) o commit count
+    build_num = ENV["BUILD_NUMBER"] || (number_of_commits rescue Time.now.to_i.to_s)
     increment_build_number(
       xcodeproj: "domus/domus.xcodeproj",
-      build_number: number_of_commits
+      build_number: build_num
     )
 
-    # Compilazione ed esportazione IPA per App Store / TestFlight
+    # 3. Compilazione ed esportazione IPA per App Store / TestFlight
     build_app(
       project: "domus/domus.xcodeproj",
       scheme: "domus",
@@ -51,10 +59,13 @@ platform :ios do
       output_name: "domus.ipa"
     )
 
-    # Caricamento su Apple TestFlight
-    upload_to_testflight(
+    # 4. Caricamento su Apple TestFlight
+    upload_opts = {
       skip_waiting_for_build_processing: true,
-      changelog: "Domus Companion Native iOS - Build automatica da CI/CD GitHub Actions"
-    )
+      changelog: ENV["CHANGELOG"] || "Domus Native iOS - Build automatica da CI/CD GitHub Actions"
+    }
+    upload_opts[:api_key] = api_key if api_key
+
+    upload_to_testflight(upload_opts)
   end
 end

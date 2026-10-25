@@ -618,6 +618,47 @@ public actor DomusHttpClient: Sendable {
         try await get(path: "/api/v1/presence/commute/\(userId)", as: CommuteStatusDTO.self)
     }
 
+    // MARK: - Vacation Presence Simulator & Habit Replay
+
+    public func fetchVacationMode() async throws -> VacationModeStatusDTO {
+        try await get(path: "/api/v1/presence/vacation", as: VacationModeStatusDTO.self)
+    }
+
+    public func setVacationMode(enabled: Bool) async throws {
+        struct VacationToggleReq: Encodable { let enabled: Bool }
+        try await postVoid(path: "/api/v1/presence/vacation", body: VacationToggleReq(enabled: enabled))
+    }
+
+    public func registerVacationAction(entityId: String, command: String, typicalTime: String) async throws {
+        try await postVoid(
+            path: "/api/v1/presence/vacation/actions",
+            body: VacationActionDTO(entityId: entityId, command: command, typicalTime: typicalTime)
+        )
+    }
+
+    // MARK: - IoT Network Guardian & Quarantine
+
+    public func fetchNetworkLeaks() async throws -> NetworkLeaksResponseDTO {
+        try await get(path: "/api/v1/network/leaks", as: NetworkLeaksResponseDTO.self)
+    }
+
+    public func quarantineDevice(mac: String, ip: String, reason: String = "Isolato da Domus Mobile") async throws {
+        struct QuarantineReq: Encodable {
+            let mac: String
+            let ip: String
+            let reason: String
+        }
+        try await postVoid(path: "/api/v1/network/quarantine", body: QuarantineReq(mac: mac, ip: ip, reason: reason))
+    }
+
+    public func unblockDevice(mac: String, ip: String) async throws {
+        struct UnblockReq: Encodable {
+            let mac: String
+            let ip: String
+        }
+        try await postVoid(path: "/api/v1/network/unblock", body: UnblockReq(mac: mac, ip: ip))
+    }
+
     // MARK: - Private helpers
 
     private func makeURL(path: String) throws -> URL {
@@ -632,6 +673,9 @@ public actor DomusHttpClient: Sendable {
         let effectiveToken = token ?? UserDefaults.standard.string(forKey: "domus_auth_token")
         if let effectiveToken, !effectiveToken.isEmpty {
             request.setValue("Bearer \(effectiveToken)", forHTTPHeaderField: "Authorization")
+        }
+        if request.httpMethod != "GET" && request.value(forHTTPHeaderField: "X-Idempotency-Key") == nil {
+            request.setValue(UUID().uuidString, forHTTPHeaderField: "X-Idempotency-Key")
         }
     }
 
@@ -1395,3 +1439,81 @@ public struct CommuteStatusDTO: Codable, Sendable {
         self.automationsTriggered = automationsTriggered
     }
 }
+
+public struct VacationModeStatusDTO: Codable, Sendable {
+    public let enabled: Bool
+    public let jitterMinutes: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case jitterMinutes = "jitter_minutes"
+    }
+
+    public init(enabled: Bool = false, jitterMinutes: Int? = 15) {
+        self.enabled = enabled
+        self.jitterMinutes = jitterMinutes
+    }
+}
+
+public struct VacationActionDTO: Codable, Identifiable, Sendable {
+    public var id: String { "\(entityId)_\(typicalTime)" }
+    public let entityId: String
+    public let command: String
+    public let typicalTime: String
+
+    enum CodingKeys: String, CodingKey {
+        case entityId = "entity_id"
+        case command
+        case typicalTime = "typical_time"
+    }
+
+    public init(entityId: String, command: String, typicalTime: String) {
+        self.entityId = entityId
+        self.command = command
+        self.typicalTime = typicalTime
+    }
+}
+
+public struct NetworkLeaksResponseDTO: Codable, Sendable {
+    public let count: Int
+    public let leaks: [NetworkLeakAlertDTO]
+    public let isolatedMacs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case count
+        case leaks
+        case isolatedMacs = "isolated_macs"
+    }
+
+    public init(count: Int = 0, leaks: [NetworkLeakAlertDTO] = [], isolatedMacs: [String] = []) {
+        self.count = count
+        self.leaks = leaks
+        self.isolatedMacs = isolatedMacs
+    }
+}
+
+public struct NetworkLeakAlertDTO: Codable, Identifiable, Sendable {
+    public let id: String
+    public let mac: String
+    public let ip: String
+    public let destination: String
+    public let timestamp: String
+    public let action: String
+
+    public init(
+        id: String = UUID().uuidString,
+        mac: String = "",
+        ip: String = "",
+        destination: String = "",
+        timestamp: String = "",
+        action: String = "quarantined"
+    ) {
+        self.id = id
+        self.mac = mac
+        self.ip = ip
+        self.destination = destination
+        self.timestamp = timestamp
+        self.action = action
+    }
+}
+

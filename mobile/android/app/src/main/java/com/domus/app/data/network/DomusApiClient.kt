@@ -251,6 +251,7 @@ class DomusApiClient(
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
+            reqBuilder.addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
 
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -1508,10 +1509,120 @@ class DomusApiClient(
             Result.failure(e)
         }
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Vacation Mode (Smart Presence Replay Simulator)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    suspend fun fetchVacationMode(baseUrl: String, token: String?): Result<VacationModeResponse> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/vacation").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Vacation mode error: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                Result.success(json.decodeFromString<VacationModeResponse>(bodyStr))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun setVacationMode(baseUrl: String, token: String?, enabled: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"enabled":$enabled}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/presence/vacation")
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Set vacation mode error: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun registerVacationAction(
+        baseUrl: String,
+        token: String?,
+        entityId: String,
+        command: String,
+        typicalTime: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"entity_id":"$entityId","command":"$command","typical_time":"$typicalTime"}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/presence/vacation/actions")
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Register vacation action error: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // IoT Network Guardian & Device Quarantine
+    // ──────────────────────────────────────────────────────────────────────────
+
+    suspend fun fetchNetworkLeaks(baseUrl: String, token: String?): Result<NetworkLeaksResponse> = withContext(Dispatchers.IO) {
+        try {
+            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/network/leaks").get()
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Network leaks error: HTTP ${response.code}"))
+                val bodyStr = response.body?.string() ?: "{}"
+                Result.success(json.decodeFromString<NetworkLeaksResponse>(bodyStr))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun quarantineDevice(baseUrl: String, token: String?, mac: String, ip: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"mac":"$mac","ip":"$ip","reason":"$reason"}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/network/quarantine")
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Quarantine error: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun unblockDevice(baseUrl: String, token: String?, mac: String, ip: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val payload = """{"mac":"$mac","ip":"$ip"}"""
+            val reqBuilder = Request.Builder()
+                .url("$baseUrl/api/v1/network/unblock")
+                .post(payload.toRequestBody(jsonMediaType))
+                .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
+            if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+            client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Unblock error: HTTP ${response.code}"))
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// DTOs – Wallbox OCPP & Commute Tracker
+// DTOs – Wallbox OCPP & Commute Tracker & Vacation & Leaks
 // ──────────────────────────────────────────────────────────────────────────────
 
 @Serializable
@@ -1537,4 +1648,27 @@ data class CommuteStatusDto(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val automations_triggered: List<String> = emptyList()
+)
+
+@Serializable
+data class VacationModeResponse(
+    val enabled: Boolean = false,
+    val jitter_minutes: Int = 15
+)
+
+@Serializable
+data class NetworkLeaksResponse(
+    val count: Int = 0,
+    val leaks: List<NetworkLeakItem> = emptyList(),
+    val isolated_macs: List<String> = emptyList()
+)
+
+@Serializable
+data class NetworkLeakItem(
+    val id: String = "",
+    val mac: String = "",
+    val ip: String = "",
+    val destination: String = "",
+    val timestamp: String = "",
+    val action: String = "quarantined"
 )

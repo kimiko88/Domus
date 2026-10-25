@@ -1,0 +1,3 @@
+# Domus Android Appfile
+package_name("com.domus.app")
+json_key_file(ENV["PLAY_STORE_SERVICE_ACCOUNT_JSON_PATH"] || "")

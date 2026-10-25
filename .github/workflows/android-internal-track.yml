@@ -1,0 +1,125 @@
+name: Android - Test & Google Play Internal Track Deployment
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'mobile/android/**'
+      - '.github/workflows/android-internal-track.yml'
+  pull_request:
+    paths:
+      - 'mobile/android/**'
+      - '.github/workflows/android-internal-track.yml'
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Forza la pubblicazione anche se eseguito manualmente'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-android:
+    name: Android Unit & Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run Android Unit & Contract Tests
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew test --stacktrace --no-daemon
+
+  deploy-internal-track:
+    name: Google Play Internal Track Deployment
+    needs: [test-android]
+    runs-on: ubuntu-latest
+    # Esegui solo se i test sono passati e siamo su master, main o workflow_dispatch
+    if: success() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Publication Secrets Availability
+        id: check_secrets
+        env:
+          PLAY_STORE_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PWD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PWD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$PLAY_STORE_JSON" ] && [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PWD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PWD" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tutte le variabili e secrets per la pubblicazione su Google Play Internal Track sono presenti."
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Google Play Deployment Skipped::Parametri di pubblicazione o keystore mancanti nei GitHub Secrets. I test sono passati con successo e la pubblicazione su Google Play Internal Track è stata saltata."
+          fi
+
+      - name: Set up JDK 17
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Decode Keystore & Service Account Credentials
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          PLAY_STORE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo -n "$KEYSTORE_BASE64" | base64 --decode > mobile/android/app/release.keystore
+          echo "$PLAY_STORE_SERVICE_ACCOUNT_JSON" > mobile/android/service_account.json
+
+      - name: Build Signed Android App Bundle (AAB)
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        working-directory: mobile/android
+        env:
+          KEYSTORE_PATH: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:bundleRelease --stacktrace --no-daemon
+
+      - name: Upload AAB to Google Play Internal Track
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: mobile/android/service_account.json
+          packageName: com.domus.app
+          releaseFiles: mobile/android/app/build/outputs/bundle/release/*.aab
+          track: internal
+          status: completed
+
+      - name: Clean up Keystore & Sensitive Files
+        if: always() && steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          rm -f mobile/android/app/release.keystore mobile/android/service_account.json 2>/dev/null || true

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -109,6 +110,11 @@ fun MeshDiagnosticsScreen(
                     onClick = { selectedTab = 2 },
                     text = { Text("Salute Hub", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                 )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text("IoT Guardian", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -181,6 +187,104 @@ fun MeshDiagnosticsScreen(
                 2 -> {
                     // System Health & Latency Section
                     HubHealthSection(health = health, latencyMs = latencyMs)
+                }
+
+                3 -> {
+                    // IoT Network Guardian & Quarantine Section
+                    IoTGuardianSection()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun IoTGuardianSection() {
+    var isolatedList by remember { mutableStateOf(listOf("bc:24:11:22:33:44 (Shelly Plug Rogue)")) }
+    var leaksList by remember { mutableStateOf(listOf("Tentativo connessione non autorizzato: api2.tuya.cn:443")) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Slate800),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🛡️", fontSize = 28.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("IoT Network Guardian Attivo", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                    Text("Protezione automatica WAN Leak e isolamento rogue", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                }
+            }
+        }
+
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Slate800),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Dispositivi Confinati / Quarantena (${isolatedList.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = CyanAccent)
+                if (isolatedList.isEmpty()) {
+                    Text("Nessun dispositivo attualmente in quarantena.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+                } else {
+                    isolatedList.forEach { dev ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(dev, fontSize = 12.sp, color = Color.White)
+                            Button(
+                                onClick = { isolatedList = isolatedList.filter { it != dev } },
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess.copy(alpha = 0.2f), contentColor = EmeraldSuccess),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Sblocca", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Slate800),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Alert Recenti di Leak WAN", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFEF4444))
+                leaksList.forEach { leak ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(leak, fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                isolatedList = isolatedList + "Dispositivo Intercettato ($leak)"
+                                leaksList = emptyList()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.2f), contentColor = Color(0xFFEF4444)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text("Isola", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

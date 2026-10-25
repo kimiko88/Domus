@@ -1,0 +1,52 @@
+# Domus Android Fastfile — CI/CD, Test automatizzati e Google Play Internal Track
+default_platform(:android)
+
+platform :android do
+  desc "Esegue tutti i test unitari e di contratto di Domus Android"
+  lane :test do
+    gradle(
+      task: "test",
+      project_dir: "."
+    )
+  end
+
+  desc "Compila l'Android App Bundle (AAB) di Release"
+  lane :build_release do
+    gradle(
+      task: "bundleRelease",
+      project_dir: "."
+    )
+  end
+
+  desc "Compila e carica la release su Google Play Console (Internal Track)"
+  lane :internal do
+    # Verifica che le variabili necessarie siano presenti
+    ensure_env_vars(
+      env_vars: [
+        "KEYSTORE_PATH",
+        "KEYSTORE_PASSWORD",
+        "KEY_ALIAS",
+        "KEY_PASSWORD"
+      ]
+    )
+
+    # Compila AAB firmato
+    gradle(
+      task: "bundleRelease",
+      project_dir: "."
+    )
+
+    # Carica su Google Play Console Internal Track
+    upload_to_play_store(
+      package_name: "com.domus.app",
+      track: "internal",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      json_key: ENV["PLAY_STORE_SERVICE_ACCOUNT_JSON_PATH"],
+      json_key_data: ENV["PLAY_STORE_SERVICE_ACCOUNT_JSON"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true
+    )
+  end
+end
