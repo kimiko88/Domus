@@ -123,3 +123,10 @@ dependencies {
   implementation(libs.androidx.car.app)
   implementation(libs.androidx.biometric)
 }
+
+tasks.register("unitTestClasses") {
+    description = "Assembles unit test classes."
+    group = "Verification"
+    dependsOn(tasks.matching { it.name.startsWith("compile") && it.name.endsWith("UnitTestSources") })
+}
+

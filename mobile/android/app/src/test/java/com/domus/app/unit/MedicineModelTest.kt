@@ -7,7 +7,7 @@ import org.junit.Test
 
 class MedicineModelTest {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     @Test
     fun testMedicineDtoSerializationAndLogic() {
@@ -94,7 +94,7 @@ class MedicineModelTest {
             gtin = "08001234567890",
             expiration_date = "2027-05-31",
             lot_number = "LOT2026B",
-            rawCode = "01080012345678901727053110LOT2026B"
+            raw_code = "01080012345678901727053110LOT2026B"
         )
         assertEquals("029028014", dm.aic)
         assertEquals("2027-05-31", dm.expiration_date)
