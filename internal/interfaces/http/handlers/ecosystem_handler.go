@@ -505,7 +505,9 @@ func (h *EcosystemHandler) TriggerOTAUpgrade(w http.ResponseWriter, r *http.Requ
 // --- Domus Store ---
 func (h *EcosystemHandler) ListStorePackages(w http.ResponseWriter, r *http.Request) {
 	filterType := r.URL.Query().Get("type")
-	pkgs, err := h.storeSvc.ListPackages(r.Context(), filterType)
+	tier := r.URL.Query().Get("tier")
+	status := r.URL.Query().Get("status")
+	pkgs, err := h.storeSvc.ListPackagesWithOptions(r.Context(), filterType, tier, status)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
@@ -526,6 +528,44 @@ func (h *EcosystemHandler) InstallStorePackage(w http.ResponseWriter, r *http.Re
 func (h *EcosystemHandler) UninstallStorePackage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	pkg, err := h.storeSvc.UninstallPackage(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, pkg)
+}
+
+func (h *EcosystemHandler) SubmitCommunityPackage(w http.ResponseWriter, r *http.Request) {
+	var req appStore.SubmitPackageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	pkg, err := h.storeSvc.SubmitCommunityPackage(r.Context(), req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, pkg)
+}
+
+func (h *EcosystemHandler) ApproveCommunityPackage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	pkg, err := h.storeSvc.ApprovePackage(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, pkg)
+}
+
+func (h *EcosystemHandler) RejectCommunityPackage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	pkg, err := h.storeSvc.RejectPackage(r.Context(), id, body.Reason)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
 		return

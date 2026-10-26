@@ -1,5 +1,5 @@
 {
-  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "$schema": "../extension-manifest.schema.json",
   "id": "domus.blueprint.circadian-lighting",
   "name": "Illuminazione Circadiana Adattiva (Sun-Sync)",
   "version": "2.1.0",

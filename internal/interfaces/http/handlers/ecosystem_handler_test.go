@@ -83,6 +83,9 @@ func setupEcosystemRouter() (*chi.Mux, *handlers.EcosystemHandler) {
 	r.Post("/ota/devices/{id}/upgrade", h.TriggerOTAUpgrade)
 	r.Get("/store/packages", h.ListStorePackages)
 	r.Post("/store/packages/{id}/install", h.InstallStorePackage)
+	r.Post("/store/community/submit", h.SubmitCommunityPackage)
+	r.Post("/store/community/{id}/approve", h.ApproveCommunityPackage)
+	r.Post("/store/community/{id}/reject", h.RejectCommunityPackage)
 
 	return r, h
 }
@@ -181,6 +184,40 @@ func TestEcosystemHandler_OTAAndStore(t *testing.T) {
 
 	// Install package
 	req = httptest.NewRequest(http.MethodPost, "/store/packages/pkg_bp_circadian/install", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Community submit package
+	commBody := map[string]any{
+		"package_id":     "domus.community.mesh_test",
+		"name":           "Mesh Test Plugin",
+		"type":           "wasm_plugin",
+		"version":        "1.0.0",
+		"author":         "Tester",
+		"description":    "Test description",
+		"repository_url": "https://github.com/domus-community/mesh_test",
+		"license":        "MIT",
+	}
+	commRaw, _ := json.Marshal(commBody)
+	req = httptest.NewRequest(http.MethodPost, "/store/community/submit", bytes.NewReader(commRaw))
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	var subResp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &subResp))
+	commID := subResp["id"].(string)
+
+	// Approve community package
+	req = httptest.NewRequest(http.MethodPost, "/store/community/"+commID+"/approve", nil)
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Reject community package
+	rejectBody, _ := json.Marshal(map[string]string{"reason": "Testing reject"})
+	req = httptest.NewRequest(http.MethodPost, "/store/community/"+commID+"/reject", bytes.NewReader(rejectBody))
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)

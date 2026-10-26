@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.mmwave-radar-dsp",
+  "name": "mmWave Radar Point-Cloud DSP & Micro-Presence Filter",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus Sensing Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-mmwave-dsp",
+  "homepage": "https://domus-hub.org/extensions/mmwave-dsp",
+  "description": "Elaborazione in tempo reale del segnale grezzo FMCW (sensori radar 24GHz/60GHz come HLK-LD2410, Seeed MR60) per tracciamento micro-presenza, rilevamento respiro da fermo e allarme cadute anziani.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:serial-port",
+    "presence:write",
+    "events:write"
+  ],
+  "configuration": {
+    "detection_gate_max": {
+      "type": "number",
+      "default": 8,
+      "description": "Portata massima in gate di distanza (ogni gate ~0.75m)"
+    },
+    "fall_detection_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Abilita trigger di emergenza su caduta improvvisa"
+    }
+  }
+}

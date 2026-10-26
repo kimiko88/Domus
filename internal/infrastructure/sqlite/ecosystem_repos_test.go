@@ -398,7 +398,7 @@ func TestStoreRepository_SeedDefaultPackages(t *testing.T) {
 
 	seeded, err := repos.Store.ListPackages(ctx, "")
 	require.NoError(t, err)
-	assert.Len(t, seeded, 5)
+	assert.Len(t, seeded, len(store.DefaultPackages()))
 
 	// Idempotency check: seeding again should not duplicate
 	err = repos.Store.SeedDefaultPackages(ctx)
@@ -406,5 +406,5 @@ func TestStoreRepository_SeedDefaultPackages(t *testing.T) {
 
 	seededAgain, err := repos.Store.ListPackages(ctx, "")
 	require.NoError(t, err)
-	assert.Len(t, seededAgain, 5)
+	assert.Len(t, seededAgain, len(store.DefaultPackages()))
 }

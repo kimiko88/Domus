@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.dynamic-tariffs",
+  "name": "Day-Ahead Dynamic Energy Tariffs Engine (PUN/Nord Pool/EPEX)",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus Energy Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-dynamic-tariffs",
+  "homepage": "https://domus-hub.org/extensions/dynamic-tariffs",
+  "description": "Download, parsing e indicizzazione oraria dei prezzi dell'energia elettrica all'ingrosso (PUN GME italiano, Nord Pool, EPEX Spot) per alimentare le automazioni di accumulo e carichi prioritari.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:http:fetch",
+    "energy:write",
+    "events:write"
+  ],
+  "configuration": {
+    "market_zone": {
+      "type": "string",
+      "default": "IT_PUN",
+      "description": "Mercato e zona elettrica (es. IT_PUN, NO1, SE3, FR, DE_LU)"
+    },
+    "vat_percentage": {
+      "type": "number",
+      "default": 10.0,
+      "description": "IVA applicata sul costo dell'energia (%)"
+    }
+  }
+}

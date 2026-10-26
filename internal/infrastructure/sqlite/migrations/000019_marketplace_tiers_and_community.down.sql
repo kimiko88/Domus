@@ -1,0 +1,2 @@
+-- Down migration 000019
+-- Note: SQLite versions older than 3.35.0 do not support DROP COLUMN.

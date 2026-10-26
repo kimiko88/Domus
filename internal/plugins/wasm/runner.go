@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,10 +50,20 @@ type ExportedSymbol struct {
 	Kind byte // 0x00 = func, 0x01 = table, 0x02 = mem, 0x03 = global
 }
 
+// ImportedSymbol represents a function, table, memory, or global required by a WASM module.
+type ImportedSymbol struct {
+	Module string
+	Field  string
+	Kind   byte // 0x00 = func, 0x01 = table, 0x02 = mem, 0x03 = global
+}
+
 // ModuleHeader contains parsed structure and security properties of a WASM plugin.
 type ModuleHeader struct {
 	Version      uint32
 	Exports      []ExportedSymbol
+	Imports      []ImportedSymbol
+	IsWASI       bool
+	WasiFeatures []string
 	MemoryPages  uint32
 	HasEventHook bool
 	HasCmdHook   bool
@@ -97,7 +108,17 @@ func ParseWasmBinary(data []byte) (*ModuleHeader, error) {
 			return nil, err
 		}
 
-		if secID == SecExport {
+		switch secID {
+		case SecImport:
+			imports, _ := parseImportSection(secBytes)
+			hdr.Imports = imports
+			for _, imp := range imports {
+				if imp.Module == "wasi_snapshot_preview1" || imp.Module == "wasi_unstable" || strings.HasPrefix(imp.Module, "wasi:") {
+					hdr.IsWASI = true
+					hdr.WasiFeatures = append(hdr.WasiFeatures, imp.Field)
+				}
+			}
+		case SecExport:
 			exports, _ := parseExportSection(secBytes)
 			hdr.Exports = exports
 			for _, exp := range exports {
@@ -131,6 +152,68 @@ func readVarUint32(r io.ByteReader) (uint32, error) {
 	return result, nil
 }
 
+func parseImportSection(data []byte) ([]ImportedSymbol, error) {
+	r := bytes.NewReader(data)
+	count, err := readVarUint32(r)
+	if err != nil {
+		return nil, err
+	}
+
+	imports := make([]ImportedSymbol, 0, count)
+	for i := uint32(0); i < count; i++ {
+		modLen, err := readVarUint32(r)
+		if err != nil {
+			break
+		}
+		modBytes := make([]byte, modLen)
+		if _, err := io.ReadFull(r, modBytes); err != nil {
+			break
+		}
+
+		fieldLen, err := readVarUint32(r)
+		if err != nil {
+			break
+		}
+		fieldBytes := make([]byte, fieldLen)
+		if _, err := io.ReadFull(r, fieldBytes); err != nil {
+			break
+		}
+
+		kind, err := r.ReadByte()
+		if err != nil {
+			break
+		}
+
+		switch kind {
+		case 0x00: // func
+			_, _ = readVarUint32(r) // type_idx
+		case 0x01: // table
+			_, _ = r.ReadByte() // elem_type
+			flags, _ := r.ReadByte()
+			_, _ = readVarUint32(r) // initial
+			if (flags & 0x01) != 0 {
+				_, _ = readVarUint32(r) // max
+			}
+		case 0x02: // memory
+			flags, _ := r.ReadByte()
+			_, _ = readVarUint32(r) // initial
+			if (flags & 0x01) != 0 {
+				_, _ = readVarUint32(r) // max
+			}
+		case 0x03: // global
+			_, _ = r.ReadByte() // val_type
+			_, _ = r.ReadByte() // mutability
+		}
+
+		imports = append(imports, ImportedSymbol{
+			Module: string(modBytes),
+			Field:  string(fieldBytes),
+			Kind:   kind,
+		})
+	}
+	return imports, nil
+}
+
 func parseExportSection(data []byte) ([]ExportedSymbol, error) {
 	r := bytes.NewReader(data)
 	count, err := readVarUint32(r)
@@ -162,7 +245,8 @@ func parseExportSection(data []byte) ([]ExportedSymbol, error) {
 	return exports, nil
 }
 
-// SandboxRuntime manages execution of an isolated WASM plugin.
+// SandboxRuntime manages execution of an isolated WASM/WASI plugin.
+// It implements the plugins.Adapter interface so it can be managed by the supervisor tree.
 type SandboxRuntime struct {
 	mu           sync.Mutex
 	pluginID     string
@@ -173,7 +257,7 @@ type SandboxRuntime struct {
 	memoryBuffer []byte
 }
 
-// NewSandboxRuntime initializes a secure execution sandbox for a WASM plugin.
+// NewSandboxRuntime initializes a secure execution sandbox for a WASM/WASI plugin.
 func NewSandboxRuntime(pluginID string, wasmData []byte, capabilities []string, bus events.Bus) (*SandboxRuntime, error) {
 	hdr, err := ParseWasmBinary(wasmData)
 	if err != nil {
@@ -185,14 +269,75 @@ func NewSandboxRuntime(pluginID string, wasmData []byte, capabilities []string, 
 		caps[c] = true
 	}
 
-	return &SandboxRuntime{
+	runtime := &SandboxRuntime{
 		pluginID:     pluginID,
 		header:       hdr,
 		capabilities: caps,
 		bus:          bus,
 		active:       true,
 		memoryBuffer: make([]byte, 64*1024), // Initial 64KB isolated linear memory page
-	}, nil
+	}
+
+	if err := runtime.validateWasiCapabilities(); err != nil {
+		return nil, err
+	}
+
+	return runtime, nil
+}
+
+func (s *SandboxRuntime) validateWasiCapabilities() error {
+	for _, imp := range s.header.Imports {
+		if imp.Module == "wasi_snapshot_preview1" || imp.Module == "wasi_unstable" || strings.HasPrefix(imp.Module, "wasi:") {
+			if strings.HasPrefix(imp.Field, "sock_") && !s.capabilities["wasi:sockets"] {
+				return fmt.Errorf("%w: plugin %s requires wasi:sockets for %s", ErrExecutionDenied, s.pluginID, imp.Field)
+			}
+			if (strings.HasPrefix(imp.Field, "path_") || (strings.HasPrefix(imp.Field, "fd_") && imp.Field != "fd_write")) && !s.capabilities["wasi:filesystem"] {
+				return fmt.Errorf("%w: plugin %s requires wasi:filesystem for %s", ErrExecutionDenied, s.pluginID, imp.Field)
+			}
+		}
+	}
+	return nil
+}
+
+// ID returns the unique identifier of the WASM plugin instance (plugins.Adapter).
+func (s *SandboxRuntime) ID() string {
+	return s.pluginID
+}
+
+// Type returns the adapter type descriptor (plugins.Adapter).
+func (s *SandboxRuntime) Type() string {
+	return "wasm_plugin"
+}
+
+// Start activates the sandboxed runtime (plugins.Adapter).
+func (s *SandboxRuntime) Start(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active = true
+	return nil
+}
+
+// Stop safely deactivates the sandboxed runtime and frees resources (plugins.Adapter).
+func (s *SandboxRuntime) Stop(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active = false
+	return nil
+}
+
+// HealthCheck verifies that the sandboxed plugin is currently active and healthy (plugins.Adapter).
+func (s *SandboxRuntime) HealthCheck(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.active {
+		return errors.New("wasm: plugin runtime is stopped")
+	}
+	return nil
+}
+
+// Header returns the parsed module metadata.
+func (s *SandboxRuntime) Header() *ModuleHeader {
+	return s.header
 }
 
 // DispatchEvent routes an event to the sandboxed plugin if permitted.

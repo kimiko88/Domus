@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.meshtastic-lora",
+  "name": "Meshtastic & LoRa Off-Grid Emergency Beacon",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "community",
+  "author": "OffGrid Mesh Community",
+  "license": "GPL-3.0",
+  "repository_url": "https://github.com/domus-community/wasm-meshtastic-lora",
+  "homepage": "https://meshtastic.org",
+  "description": "Bridge radio LoRa (868/915 MHz) per reti mesh decentralizzate Meshtastic: invia allarmi critici della casa e riceve comandi di emergenza anche in caso di blackout totale della rete elettrica e cellulare.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:serial-port",
+    "alarm:read",
+    "events:write"
+  ],
+  "configuration": {
+    "serial_port": {
+      "type": "string",
+      "default": "/dev/ttyACM0",
+      "description": "Porta seriale del nodo LoRa Meshtastic (es. Heltec V3, T-Beam)"
+    },
+    "channel_name": {
+      "type": "string",
+      "default": "DomusEmergency",
+      "description": "Canale crittografato primario della rete mesh"
+    }
+  }
+}

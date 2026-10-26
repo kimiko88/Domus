@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.acoustic-classifier",
+  "name": "Local Acoustic Event & Emergency Siren Classifier",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus AI Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-acoustic-classifier",
+  "homepage": "https://domus-hub.org/extensions/acoustic-classifier",
+  "description": "Classificatore acustico neurale WASI-NN locale per flussi audio RTSP e microfoni: riconosce sirene fumo/CO T3-T4, rottura cristalli, allarmi perdite idriche e pianto di neonati.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:nn",
+    "safety:trigger",
+    "events:write"
+  ],
+  "configuration": {
+    "detection_threshold": {
+      "type": "number",
+      "default": 0.85,
+      "description": "Soglia di confidenza minima per l'innesco degli allarmi"
+    },
+    "alert_on_smoke_t3": {
+      "type": "boolean",
+      "default": true,
+      "description": "Attiva allarme sonoro ed evacuazione su sirena fumo T3"
+    }
+  }
+}

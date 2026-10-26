@@ -803,6 +803,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					stRouter.Get("/packages", ecoH.ListStorePackages)
 					stRouter.Post("/packages/{id}/install", ecoH.InstallStorePackage)
 					stRouter.Post("/packages/{id}/uninstall", ecoH.UninstallStorePackage)
+					stRouter.Post("/community/submit", ecoH.SubmitCommunityPackage)
+					stRouter.Post("/community/{id}/approve", ecoH.ApproveCommunityPackage)
+					stRouter.Post("/community/{id}/reject", ecoH.RejectCommunityPackage)
 				})
 
 				// Shared Shopping List routes

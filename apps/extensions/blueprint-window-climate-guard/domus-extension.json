@@ -1,5 +1,5 @@
 {
-  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "$schema": "../extension-manifest.schema.json",
   "id": "domus.blueprint.window-climate-guard",
   "name": "Guardia Clima & Infissi Intelligente",
   "version": "1.0.4",

@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.gsm-sms-failover",
+  "name": "Local GSM/LTE AT-Command Modem & SMS Failover",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "community",
+  "author": "Domus Hardware Lab",
+  "license": "MIT",
+  "repository_url": "https://github.com/domus-community/wasm-gsm-sms-failover",
+  "homepage": "https://github.com/domus-community/wasm-gsm-sms-failover",
+  "description": "Controllo diretto via comandi AT di modem cellulari USB/mini-PCIe (SIMCom, Quectel) per invio SMS di emergenza e failover connettività quando la linea internet fissa è interrotta.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:serial-port",
+    "notification:send",
+    "network:failover"
+  ],
+  "configuration": {
+    "modem_serial_port": {
+      "type": "string",
+      "default": "/dev/ttyUSB2",
+      "description": "Porta seriale comandi AT del modem cellulare"
+    },
+    "emergency_phone_numbers": {
+      "type": "string",
+      "default": "+393400000000",
+      "description": "Numeri di telefono destinatari degli SMS di allarme (separati da virgola)"
+    }
+  }
+}

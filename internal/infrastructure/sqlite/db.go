@@ -210,6 +210,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 16, file: "migrations/000016_predictive_climate.up.sql"},
 		{version: 17, file: "migrations/000017_predictive_climate_profiles.up.sql"},
 		{version: 18, file: "migrations/000018_advanced_features_persistence.up.sql"},
+		{version: 19, file: "migrations/000019_marketplace_tiers_and_community.up.sql"},
 	}
 
 	for _, m := range migrations {

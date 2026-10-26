@@ -1,0 +1,31 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.wmbus-meters",
+  "name": "Wireless M-Bus & OMS Smart Metering (868 MHz)",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus IoT Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-wmbus-meters",
+  "homepage": "https://domus-hub.org/extensions/wmbus-meters",
+  "description": "Decodifica radio crittografata EN 13757-4 OMS (Open Metering System) su 868 MHz per contatori smart di acqua, gas, energia termica e ripartitori di calore (Kamstrup, Diehl, B-Meters, Sontex).",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:serial-port",
+    "crypto:aes128",
+    "events:write"
+  ],
+  "configuration": {
+    "device": {
+      "type": "string",
+      "default": "/dev/ttyUSB1",
+      "description": "Dispositivo Dongle wM-Bus C1/T1 (es. IMST iM871A, Amber Wireless)"
+    },
+    "link_modes": {
+      "type": "string",
+      "default": "T1,C1",
+      "description": "Modalità di ricezione telegrammi radio OMS"
+    }
+  }
+}

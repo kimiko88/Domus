@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -37,9 +38,38 @@ func (r *StoreRepository) SavePackage(ctx context.Context, pkg *store.Package) e
 		installedAtStr = &s
 	}
 
+	tier := string(pkg.Tier)
+	if tier == "" {
+		tier = string(store.TierVerified)
+	}
+
+	reviewStatus := string(pkg.ReviewStatus)
+	if reviewStatus == "" {
+		reviewStatus = string(store.ReviewStatusApproved)
+	}
+
+	license := pkg.License
+	if license == "" {
+		license = "Apache-2.0"
+	}
+
+	icon := pkg.Icon
+	if icon == "" {
+		icon = "box"
+	}
+
+	capsBytes, _ := json.Marshal(pkg.Capabilities)
+	capsJSON := string(capsBytes)
+	if capsJSON == "" || capsJSON == "null" {
+		capsJSON = "[]"
+	}
+
 	query := `
-		INSERT INTO store_packages (id, package_id, name, type, version, author, description, installed, installed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO store_packages (
+			id, package_id, name, type, version, author, description,
+			installed, installed_at, tier, review_status, repository_url, license, capabilities_json, icon
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(package_id) DO UPDATE SET
 			name = excluded.name,
 			type = excluded.type,
@@ -47,7 +77,13 @@ func (r *StoreRepository) SavePackage(ctx context.Context, pkg *store.Package) e
 			author = excluded.author,
 			description = excluded.description,
 			installed = excluded.installed,
-			installed_at = excluded.installed_at
+			installed_at = excluded.installed_at,
+			tier = excluded.tier,
+			review_status = excluded.review_status,
+			repository_url = excluded.repository_url,
+			license = excluded.license,
+			capabilities_json = excluded.capabilities_json,
+			icon = excluded.icon
 	`
 	_, err := r.db.ExecContext(
 		ctx, query,
@@ -60,6 +96,12 @@ func (r *StoreRepository) SavePackage(ctx context.Context, pkg *store.Package) e
 		pkg.Description,
 		installedInt,
 		installedAtStr,
+		tier,
+		reviewStatus,
+		pkg.RepositoryURL,
+		license,
+		capsJSON,
+		icon,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: failed to save store package: %w", err)
@@ -70,7 +112,8 @@ func (r *StoreRepository) SavePackage(ctx context.Context, pkg *store.Package) e
 // GetPackage retrieves a package by ID or package_id.
 func (r *StoreRepository) GetPackage(ctx context.Context, id string) (*store.Package, error) {
 	query := `
-		SELECT id, package_id, name, type, version, author, description, installed, installed_at
+		SELECT id, package_id, name, type, version, author, description, installed, installed_at,
+		       tier, review_status, repository_url, license, capabilities_json, icon
 		FROM store_packages
 		WHERE id = ? OR package_id = ?
 	`
@@ -80,6 +123,12 @@ func (r *StoreRepository) GetPackage(ctx context.Context, id string) (*store.Pac
 		description    sql.NullString
 		installedInt   int
 		installedAtStr sql.NullString
+		tier           sql.NullString
+		reviewStatus   sql.NullString
+		repoURL        sql.NullString
+		license        sql.NullString
+		capsJSON       sql.NullString
+		icon           sql.NullString
 	)
 
 	err := r.db.QueryRowContext(ctx, query, id, id).Scan(
@@ -92,6 +141,12 @@ func (r *StoreRepository) GetPackage(ctx context.Context, id string) (*store.Pac
 		&description,
 		&installedInt,
 		&installedAtStr,
+		&tier,
+		&reviewStatus,
+		&repoURL,
+		&license,
+		&capsJSON,
+		&icon,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -109,6 +164,35 @@ func (r *StoreRepository) GetPackage(ctx context.Context, id string) (*store.Pac
 		}
 	}
 
+	if tier.Valid && tier.String != "" {
+		pkg.Tier = store.PackageTier(tier.String)
+	} else {
+		pkg.Tier = store.TierVerified
+	}
+
+	if reviewStatus.Valid && reviewStatus.String != "" {
+		pkg.ReviewStatus = store.ReviewStatus(reviewStatus.String)
+	} else {
+		pkg.ReviewStatus = store.ReviewStatusApproved
+	}
+
+	pkg.RepositoryURL = repoURL.String
+	pkg.License = license.String
+	if pkg.License == "" {
+		pkg.License = "Apache-2.0"
+	}
+	pkg.Icon = icon.String
+	if pkg.Icon == "" {
+		pkg.Icon = "box"
+	}
+
+	if capsJSON.Valid && capsJSON.String != "" && capsJSON.String != "[]" {
+		_ = json.Unmarshal([]byte(capsJSON.String), &pkg.Capabilities)
+	}
+	if pkg.Capabilities == nil {
+		pkg.Capabilities = []string{}
+	}
+
 	return &pkg, nil
 }
 
@@ -118,7 +202,8 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 	var args []any
 	if filterType != "" {
 		query = `
-			SELECT id, package_id, name, type, version, author, description, installed, installed_at
+			SELECT id, package_id, name, type, version, author, description, installed, installed_at,
+			       tier, review_status, repository_url, license, capabilities_json, icon
 			FROM store_packages
 			WHERE type = ?
 			ORDER BY name ASC
@@ -126,7 +211,8 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 		args = []any{filterType}
 	} else {
 		query = `
-			SELECT id, package_id, name, type, version, author, description, installed, installed_at
+			SELECT id, package_id, name, type, version, author, description, installed, installed_at,
+			       tier, review_status, repository_url, license, capabilities_json, icon
 			FROM store_packages
 			ORDER BY name ASC
 		`
@@ -146,6 +232,12 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 			description    sql.NullString
 			installedInt   int
 			installedAtStr sql.NullString
+			tier           sql.NullString
+			reviewStatus   sql.NullString
+			repoURL        sql.NullString
+			license        sql.NullString
+			capsJSON       sql.NullString
+			icon           sql.NullString
 		)
 		if err := rows.Scan(
 			&pkg.ID,
@@ -157,6 +249,12 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 			&description,
 			&installedInt,
 			&installedAtStr,
+			&tier,
+			&reviewStatus,
+			&repoURL,
+			&license,
+			&capsJSON,
+			&icon,
 		); err != nil {
 			return nil, fmt.Errorf("sqlite: scan store package error: %w", err)
 		}
@@ -168,6 +266,36 @@ func (r *StoreRepository) ListPackages(ctx context.Context, filterType string) (
 				pkg.InstalledAt = &t
 			}
 		}
+
+		if tier.Valid && tier.String != "" {
+			pkg.Tier = store.PackageTier(tier.String)
+		} else {
+			pkg.Tier = store.TierVerified
+		}
+
+		if reviewStatus.Valid && reviewStatus.String != "" {
+			pkg.ReviewStatus = store.ReviewStatus(reviewStatus.String)
+		} else {
+			pkg.ReviewStatus = store.ReviewStatusApproved
+		}
+
+		pkg.RepositoryURL = repoURL.String
+		pkg.License = license.String
+		if pkg.License == "" {
+			pkg.License = "Apache-2.0"
+		}
+		pkg.Icon = icon.String
+		if pkg.Icon == "" {
+			pkg.Icon = "box"
+		}
+
+		if capsJSON.Valid && capsJSON.String != "" && capsJSON.String != "[]" {
+			_ = json.Unmarshal([]byte(capsJSON.String), &pkg.Capabilities)
+		}
+		if pkg.Capabilities == nil {
+			pkg.Capabilities = []string{}
+		}
+
 		packages = append(packages, &pkg)
 	}
 	if err := rows.Err(); err != nil {

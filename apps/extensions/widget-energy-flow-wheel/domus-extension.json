@@ -1,5 +1,5 @@
 {
-  "$schema": "https://domus-hub.org/schemas/extension-manifest.json",
+  "$schema": "../extension-manifest.schema.json",
   "id": "domus.widget.energy-flow-wheel",
   "name": "Power Flow Wheel & BESS Monitor",
   "version": "1.4.2",

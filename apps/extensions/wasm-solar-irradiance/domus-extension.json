@@ -1,0 +1,36 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.solar-irradiance",
+  "name": "Solar Irradiance & Clear-Sky Local Predictor",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus Energy Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-solar-irradiance",
+  "homepage": "https://domus-hub.org/extensions/solar-irradiance",
+  "description": "Algoritmo fisico astronomico locale (Perez/PVLib) per la stima accurata della produzione fotovoltaica a 24-48 ore senza dipendenze da API cloud esterne.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:clock",
+    "energy:read",
+    "events:write"
+  ],
+  "configuration": {
+    "pv_nominal_kwp": {
+      "type": "number",
+      "default": 6.0,
+      "description": "Potenza nominale totale dell'impianto fotovoltaico in kWp"
+    },
+    "panel_tilt_deg": {
+      "type": "number",
+      "default": 30.0,
+      "description": "Inclinazione dei pannelli in gradi"
+    },
+    "panel_azimuth_deg": {
+      "type": "number",
+      "default": 180.0,
+      "description": "Orientamento azimuth (180 = Sud)"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../extension-manifest.schema.json",
+  "id": "domus.wasi.sunspec-modbus",
+  "name": "SunSpec Modbus RTU / RS485 Inverter & Heat Pump Driver",
+  "version": "1.0.0",
+  "type": "wasm_plugin",
+  "tier": "verified",
+  "author": "Domus Energy Labs",
+  "license": "Apache-2.0",
+  "repository_url": "https://github.com/domus-hub/extensions/tree/main/wasm-sunspec-modbus",
+  "homepage": "https://domus-hub.org/extensions/sunspec-modbus",
+  "description": "Driver sandboxed WASI per inverter solari e pompe di calore conformi allo standard SunSpec Alliance (Fronius, SolarEdge, SMA, Huawei, Daikin) su linea seriale RS485 o Modbus TCP.",
+  "entrypoint": "plugin.wasm",
+  "capabilities": [
+    "wasi:serial-port",
+    "energy:read",
+    "energy:control",
+    "events:write"
+  ],
+  "configuration": {
+    "serial_device": {
+      "type": "string",
+      "default": "/dev/ttyUSB0",
+      "description": "Porta seriale RS485 o indirizzo IP bridge"
+    },
+    "baud_rate": {
+      "type": "number",
+      "default": 9600,
+      "description": "Baud rate comunicazione seriale"
+    },
+    "slave_id": {
+      "type": "number",
+      "default": 1,
+      "description": "Indirizzo Modbus Slave ID dell'inverter"
+    }
+  }
+}

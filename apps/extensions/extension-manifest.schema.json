@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://domus-hub.org/schemas/extension-manifest.json",
+  "title": "Domus Extension Manifest",
+  "description": "Schema definition for Domus OS Smart Home extension manifests (WASM/WASI plugins, Blueprints, Widgets).",
+  "type": "object",
+  "required": ["id", "name", "version", "type"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI or relative path of the JSON Schema for validation."
+    },
+    "id": {
+      "type": "string",
+      "description": "Unique reverse-domain identifier for the extension (e.g. domus.wasi.sunspec-modbus)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the extension."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?$",
+      "description": "Semantic versioning string (SemVer)."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["wasm_plugin", "blueprint", "widget"],
+      "description": "Type of extension."
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["verified", "community"],
+      "default": "community",
+      "description": "Verification tier: 'verified' (official Domus team) or 'community' (open-source community)."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author, organization, or developer name."
+    },
+    "license": {
+      "type": "string",
+      "description": "Open source SPDX license identifier (e.g. Apache-2.0, MIT, GPL-3.0)."
+    },
+    "repository_url": {
+      "type": "string",
+      "description": "Public open source repository URL (e.g. GitHub or GitLab)."
+    },
+    "homepage": {
+      "type": "string",
+      "description": "Homepage or documentation URL."
+    },
+    "description": {
+      "type": "string",
+      "description": "Comprehensive explanation of what the extension does and its supported devices."
+    },
+    "entrypoint": {
+      "type": "string",
+      "description": "Primary binary entrypoint (e.g. plugin.wasm) or script."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of sandboxed capabilities requested by the plugin (e.g. wasi:serial-port, energy:read, events:write)."
+    },
+    "configuration": {
+      "type": "object",
+      "description": "Configurable parameters presented to the user in the Domus UI.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "description"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "integer"]
+          },
+          "default": {
+            "description": "Default initial value."
+          },
+          "description": {
+            "type": "string",
+            "description": "User-facing description of the configuration option."
+          }
+        }
+      }
+    }
+  }
+}

@@ -99,4 +99,49 @@ describe('StoreView.vue', () => {
 
     expect(wrapper.find('.modal-card').exists()).toBe(false)
   })
+
+  it('handles community plugin proposal modal submission', async () => {
+    const wrapper = mount(StoreView)
+    await flushPromises()
+
+    const proposeBtn = wrapper.find('.btn-propose-community')
+    expect(proposeBtn.exists()).toBe(true)
+    await proposeBtn.trigger('click')
+
+    expect(wrapper.find('.modal-card.modal-lg').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Proponi un Plugin Open Source')
+
+    // Fill form
+    await wrapper.find('input#pkg-name').setValue('LoRa Emergency Beacon')
+    await wrapper.find('input#pkg-id').setValue('domus.community.lora_beacon')
+    await wrapper.find('input#pkg-repo').setValue('https://github.com/community/lora-beacon')
+
+    // Mock successful submission response
+    vi.spyOn(apiClient, 'post').mockResolvedValueOnce({
+      id: 'pkg_comm_lora_beacon',
+      package_id: 'domus.community.lora_beacon',
+      name: 'LoRa Emergency Beacon',
+      type: 'wasm_plugin',
+      tier: 'community',
+      review_status: 'pending_review',
+      version: '1.0.0',
+      author: 'Community',
+      description: 'LoRa beacon for emergencies',
+      repository_url: 'https://github.com/community/lora-beacon',
+      license: 'GPL-3.0',
+      installed: false
+    } as any)
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/v1/store/community/submit',
+      expect.objectContaining({
+        name: 'LoRa Emergency Beacon',
+        package_id: 'domus.community.lora_beacon',
+        repository_url: 'https://github.com/community/lora-beacon'
+      })
+    )
+  })
 })
