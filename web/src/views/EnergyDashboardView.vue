@@ -386,11 +386,11 @@ async function handleOptimizeBESS() {
           </defs>
 
           <!-- Interconnection Lines -->
-          <line x1="170" y1="95" x2="400" y2="200" stroke="#f59e0b" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
-          <line x1="170" y1="305" x2="400" y2="200" stroke="#3b82f6" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
-          <line x1="400" y1="200" x2="630" y2="95" stroke="#10b981" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
-          <line x1="400" y1="200" x2="630" y2="305" stroke="#06b6d4" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
-          <line x1="400" y1="200" x2="400" y2="340" stroke="#a855f7" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line class="sankey-flow-line" x1="170" y1="95" x2="400" y2="200" stroke="#f59e0b" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line class="sankey-flow-line" x1="170" y1="305" x2="400" y2="200" stroke="#3b82f6" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line class="sankey-flow-line" x1="400" y1="200" x2="630" y2="95" stroke="#10b981" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line class="sankey-flow-line" x1="400" y1="200" x2="630" y2="305" stroke="#06b6d4" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
+          <line class="sankey-flow-line" x1="400" y1="200" x2="400" y2="340" stroke="#a855f7" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="6 4" />
 
           <!-- Flowing Animated Particles (speed inversely proportional to power) -->
           <!-- Solar Flow Particle -->
@@ -429,48 +429,48 @@ async function handleOptimizeBESS() {
           </circle>
 
           <!-- Central Hub: Inverter Ibrido -->
-          <g transform="translate(400, 200)">
-            <circle r="46" fill="#1e293b" stroke="#64748b" stroke-width="3" />
-            <circle r="38" fill="rgba(30, 41, 59, 0.8)" />
-            <text y="-8" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">INVERTER</text>
-            <text y="14" fill="#38bdf8" font-size="14" font-weight="800" text-anchor="middle">
+          <g transform="translate(400, 200)" class="sankey-center-hub">
+            <circle r="46" class="sankey-hub-outer" />
+            <circle r="38" class="sankey-hub-inner" />
+            <text y="-8" class="sankey-hub-label">INVERTER</text>
+            <text y="14" class="sankey-hub-value">
               {{ flow.solar_watts + Math.abs(flow.battery_watts) }} W
             </text>
           </g>
 
           <!-- Node: Solar Fotovoltaico (Top-Left) -->
-          <g transform="translate(100, 60)">
-            <rect width="140" height="70" rx="12" fill="rgba(245, 158, 11, 0.15)" stroke="url(#solarGrad)" stroke-width="2" />
-            <text x="70" y="28" fill="#f59e0b" font-weight="700" text-anchor="middle" font-size="13">☀️ SOLARE</text>
-            <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ flow.solar_watts }} W</text>
+          <g transform="translate(100, 60)" class="sankey-node node-solar">
+            <rect width="140" height="70" rx="12" class="sankey-node-box" />
+            <text x="70" y="28" class="sankey-node-title">☀️ SOLARE</text>
+            <text x="70" y="52" class="sankey-node-val">{{ flow.solar_watts }} W</text>
           </g>
 
           <!-- Node: Grid Rete Elettrica (Bottom-Left) -->
-          <g transform="translate(100, 270)">
-            <rect width="140" height="70" rx="12" fill="rgba(59, 130, 246, 0.15)" stroke="url(#gridGrad)" stroke-width="2" />
-            <text x="70" y="28" fill="#3b82f6" font-weight="700" text-anchor="middle" font-size="13">🌐 RETE</text>
-            <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ Math.abs(flow.grid_watts) }} W</text>
+          <g transform="translate(100, 270)" class="sankey-node node-grid">
+            <rect width="140" height="70" rx="12" class="sankey-node-box" />
+            <text x="70" y="28" class="sankey-node-title">🌐 RETE</text>
+            <text x="70" y="52" class="sankey-node-val">{{ Math.abs(flow.grid_watts) }} W</text>
           </g>
 
           <!-- Node: House Casa (Top-Right) -->
-          <g transform="translate(560, 60)">
-            <rect width="140" height="70" rx="12" fill="rgba(16, 185, 129, 0.15)" stroke="url(#houseGrad)" stroke-width="2" />
-            <text x="70" y="28" fill="#10b981" font-weight="700" text-anchor="middle" font-size="13">🏠 CARICHI CASA</text>
-            <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ flow.house_consumption_watts }} W</text>
+          <g transform="translate(560, 60)" class="sankey-node node-house">
+            <rect width="140" height="70" rx="12" class="sankey-node-box" />
+            <text x="70" y="28" class="sankey-node-title">🏠 CARICHI CASA</text>
+            <text x="70" y="52" class="sankey-node-val">{{ flow.house_consumption_watts }} W</text>
           </g>
 
           <!-- Node: Battery Accumulo BESS (Bottom-Right) -->
-          <g transform="translate(560, 270)">
-            <rect width="140" height="70" rx="12" fill="rgba(6, 182, 212, 0.15)" stroke="url(#batteryGrad)" stroke-width="2" />
-            <text x="70" y="28" fill="#06b6d4" font-weight="700" text-anchor="middle" font-size="13">🔋 BATTERIA ({{ flow.battery_soc }}%)</text>
-            <text x="70" y="52" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="16">{{ Math.abs(flow.battery_watts) }} W</text>
+          <g transform="translate(560, 270)" class="sankey-node node-battery">
+            <rect width="140" height="70" rx="12" class="sankey-node-box" />
+            <text x="70" y="28" class="sankey-node-title">🔋 BATTERIA ({{ flow.battery_soc }}%)</text>
+            <text x="70" y="52" class="sankey-node-val">{{ Math.abs(flow.battery_watts) }} W</text>
           </g>
 
           <!-- Node: Wallbox EV (Bottom-Center) -->
-          <g transform="translate(330, 310)">
-            <rect width="140" height="58" rx="10" fill="rgba(168, 85, 247, 0.15)" stroke="url(#evGrad)" stroke-width="2" />
-            <text x="70" y="24" fill="#c084fc" font-weight="700" text-anchor="middle" font-size="12">🚗 WALLBOX EV</text>
-            <text x="70" y="44" fill="#ffffff" font-weight="800" text-anchor="middle" font-size="14">
+          <g transform="translate(330, 310)" class="sankey-node node-wallbox">
+            <rect width="140" height="58" rx="10" class="sankey-node-box" />
+            <text x="70" y="24" class="sankey-node-title">🚗 WALLBOX EV</text>
+            <text x="70" y="44" class="sankey-node-val">
               {{ (wallboxData?.telemetry?.active_power_w ?? 0) > 0 ? (wallboxData?.telemetry?.active_power_w + ' W') : (flow.house_consumption_watts > 1500 ? '1800 W' : '0 W (Standby)') }}
             </text>
           </g>
@@ -1128,6 +1128,94 @@ async function handleOptimizeBESS() {
   height: auto;
 }
 
+.sankey-flow-line {
+  stroke-opacity: 0.35;
+  transition: stroke-opacity 0.2s ease;
+}
+
+.sankey-hub-outer {
+  fill: #0f172a;
+  stroke: #0ea5e9;
+  stroke-width: 2.5;
+  transition: all 0.2s ease;
+}
+
+.sankey-hub-inner {
+  fill: #1e293b;
+  stroke: rgba(14, 165, 233, 0.4);
+  stroke-width: 1.5;
+  transition: all 0.2s ease;
+}
+
+.sankey-hub-label {
+  fill: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  text-anchor: middle;
+  letter-spacing: 0.05em;
+}
+
+.sankey-hub-value {
+  fill: #38bdf8;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+  letter-spacing: 0.02em;
+}
+
+.sankey-node-box {
+  stroke-width: 1.5;
+  transition: all 0.2s ease;
+}
+
+.node-solar .sankey-node-box {
+  fill: rgba(245, 158, 11, 0.12);
+  stroke: #f59e0b;
+}
+
+.node-grid .sankey-node-box {
+  fill: rgba(59, 130, 246, 0.12);
+  stroke: #3b82f6;
+}
+
+.node-house .sankey-node-box {
+  fill: rgba(16, 185, 129, 0.12);
+  stroke: #10b981;
+}
+
+.node-battery .sankey-node-box {
+  fill: rgba(6, 182, 212, 0.12);
+  stroke: #06b6d4;
+}
+
+.node-wallbox .sankey-node-box {
+  fill: rgba(168, 85, 247, 0.12);
+  stroke: #a855f7;
+}
+
+.sankey-node-title {
+  text-anchor: middle;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.node-solar .sankey-node-title { fill: #fbbf24; }
+.node-grid .sankey-node-title { fill: #60a5fa; }
+.node-house .sankey-node-title { fill: #34d399; }
+.node-battery .sankey-node-title { fill: #22d3ee; }
+.node-wallbox .sankey-node-title { fill: #c084fc; }
+
+.sankey-node-val {
+  text-anchor: middle;
+  font-size: 14px;
+  font-weight: 800;
+  fill: #ffffff;
+}
+
+.node-wallbox .sankey-node-val {
+  font-size: 12.5px;
+}
+
 /* Bottom Grid */
 .bottom-grid {
   display: grid;
@@ -1157,6 +1245,19 @@ async function handleOptimizeBESS() {
   margin: 0;
 }
 
+.cost-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  margin-left: auto;
+}
+
 .slot-pill {
   display: flex;
   justify-content: space-between;
@@ -1166,7 +1267,7 @@ async function handleOptimizeBESS() {
   padding: 0.75rem 1.25rem;
   border-radius: 0.75rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
   margin-bottom: 1rem;
 }
 
@@ -1182,18 +1283,18 @@ async function handleOptimizeBESS() {
   padding: 0.6rem 0.8rem;
   border-radius: 0.5rem;
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .tariff-row.current {
   background: rgba(255, 255, 255, 0.05);
-  color: #f3f4f6;
+  color: var(--text-main);
   font-weight: 600;
 }
 
 .price-col {
   font-weight: 700;
-  color: #f3f4f6;
+  color: var(--text-main);
 }
 
 /* Utilities */
@@ -1239,18 +1340,48 @@ async function handleOptimizeBESS() {
 
 .u-title {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .u-val {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .u-cost {
   font-size: 0.8rem;
   color: #10b981;
+}
+
+.submeters-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.submeter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+}
+
+.chip-name {
+  color: var(--text-muted);
+}
+
+.chip-val {
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: var(--font-mono, monospace);
 }
 
 /* Dynamic Tariffs Section & 24h Bar Chart */
@@ -1541,7 +1672,7 @@ async function handleOptimizeBESS() {
 .sub-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -1633,7 +1764,7 @@ async function handleOptimizeBESS() {
 }
 
 .meta-item .val {
-  color: #f1f5f9;
+  color: var(--text-main);
   font-weight: 500;
 }
 
@@ -2004,5 +2135,465 @@ async function handleOptimizeBESS() {
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   font-family: var(--font-mono, monospace);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME CONTRAST & ACCESSIBILITY OVERRIDES (WCAG 2.2 AA / AAA)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme="light"] .energy-header,
+:root[data-theme="light"] .summary-card,
+:root[data-theme="light"] .sankey-section,
+:root[data-theme="light"] .tariff-card,
+:root[data-theme="light"] .utilities-card,
+:root[data-theme="light"] .dynamic-tariffs-section,
+:root[data-theme="light"] .wallbox-section {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+:root[data-theme="light"] .icon-circle {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+:root[data-theme="light"] .meta-label,
+:root[data-theme="light"] .page-subtitle,
+:root[data-theme="light"] .section-subtitle,
+:root[data-theme="light"] .section-sub,
+:root[data-theme="light"] .load-key {
+  color: #475569;
+}
+
+/* Sankey Diagram in Light Mode */
+:root[data-theme="light"] .sankey-flow-line {
+  stroke-opacity: 0.65;
+}
+
+:root[data-theme="light"] .sankey-hub-outer {
+  fill: #f8fafc;
+  stroke: #0284c7;
+  stroke-width: 2.5;
+}
+
+:root[data-theme="light"] .sankey-hub-inner {
+  fill: #ffffff;
+  stroke: rgba(2, 132, 199, 0.35);
+  stroke-width: 1.5;
+}
+
+:root[data-theme="light"] .sankey-hub-label {
+  fill: #475569;
+}
+
+:root[data-theme="light"] .sankey-hub-value {
+  fill: #0369a1;
+}
+
+:root[data-theme="light"] .node-solar .sankey-node-box {
+  fill: #fffbeb;
+  stroke: #d97706;
+  stroke-width: 2;
+}
+
+:root[data-theme="light"] .node-grid .sankey-node-box {
+  fill: #eff6ff;
+  stroke: #2563eb;
+  stroke-width: 2;
+}
+
+:root[data-theme="light"] .node-house .sankey-node-box {
+  fill: #f0fdf4;
+  stroke: #059669;
+  stroke-width: 2;
+}
+
+:root[data-theme="light"] .node-battery .sankey-node-box {
+  fill: #ecfeff;
+  stroke: #0891b2;
+  stroke-width: 2;
+}
+
+:root[data-theme="light"] .node-wallbox .sankey-node-box {
+  fill: #faf5ff;
+  stroke: #7e22ce;
+  stroke-width: 2;
+}
+
+:root[data-theme="light"] .node-solar .sankey-node-title { fill: #b45309; }
+:root[data-theme="light"] .node-grid .sankey-node-title { fill: #1d4ed8; }
+:root[data-theme="light"] .node-house .sankey-node-title { fill: #047857; }
+:root[data-theme="light"] .node-battery .sankey-node-title { fill: #0e7490; }
+:root[data-theme="light"] .node-wallbox .sankey-node-title { fill: #6b21a8; }
+
+:root[data-theme="light"] .sankey-node-val {
+  fill: #0f172a;
+}
+
+/* BESS Section in Light Mode */
+:root[data-theme="light"] .bess-mode-pill {
+  background: #ecfeff;
+  border-color: #67e8f9;
+  color: #0e7490;
+}
+
+:root[data-theme="light"] .bess-mode-pill.force_charge_grid {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .bess-mode-pill.force_discharge {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+:root[data-theme="light"] .bess-arbitrage-card {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .bess-stat .label {
+  color: #475569;
+}
+
+:root[data-theme="light"] .bess-stat .value {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .bess-stat .value.text-primary {
+  color: #0284c7;
+}
+
+:root[data-theme="light"] .bess-stat .value.text-success {
+  color: #047857;
+}
+
+:root[data-theme="light"] .bess-action-btn {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Tariffs in Light Mode */
+:root[data-theme="light"] .slot-pill {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+:root[data-theme="light"] .slot-pill .slot-price {
+  color: #1e3a8a;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .tariff-row {
+  color: #475569;
+}
+
+:root[data-theme="light"] .tariff-row.current {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+:root[data-theme="light"] .price-col {
+  color: #0f172a;
+}
+
+/* Utilities in Light Mode */
+:root[data-theme="light"] .utility-item {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .u-title {
+  color: #475569;
+}
+
+:root[data-theme="light"] .u-val {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .u-cost {
+  color: #047857;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .cost-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+
+:root[data-theme="light"] .submeter-chip {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+:root[data-theme="light"] .chip-name {
+  color: #475569;
+}
+
+:root[data-theme="light"] .chip-val {
+  color: #0f172a;
+}
+
+/* Wallbox in Light Mode */
+:root[data-theme="light"] .text-purple {
+  color: #7e22ce !important;
+}
+
+:root[data-theme="light"] .wallbox-icon-circle {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+:root[data-theme="light"] .wb-status-badge {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+:root[data-theme="light"] .wb-status-badge.charging {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+:root[data-theme="light"] .wb-status-badge.suspendedevse,
+:root[data-theme="light"] .wb-status-badge.suspendedev {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+:root[data-theme="light"] .wb-recalc-btn {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border-color: #d8b4fe;
+}
+
+:root[data-theme="light"] .wb-recalc-btn:hover:not(:disabled) {
+  background: #e9d5ff;
+  color: #581c87;
+}
+
+:root[data-theme="light"] .wb-stat-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+:root[data-theme="light"] .wb-stat-label,
+:root[data-theme="light"] .wb-stat-sub {
+  color: #475569;
+}
+
+:root[data-theme="light"] .wb-stat-val {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .wb-stat-sub strong {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .wb-soc-track {
+  background: #e2e8f0;
+}
+
+:root[data-theme="light"] .wb-mode-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+:root[data-theme="light"] .wb-mode-card:hover {
+  background: #f8fafc;
+  border-color: #c084fc;
+}
+
+:root[data-theme="light"] .wb-mode-card.active {
+  background: #faf5ff;
+  border-color: #7e22ce;
+  box-shadow: 0 0 12px rgba(126, 34, 206, 0.15);
+}
+
+:root[data-theme="light"] .mode-icon-box.solar {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+:root[data-theme="light"] .mode-icon-box.hybrid {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+:root[data-theme="light"] .mode-icon-box.fast {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .mode-icon-box.night {
+  background: #ecfeff;
+  color: #0e7490;
+}
+
+:root[data-theme="light"] .mode-name {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .mode-desc {
+  color: #475569;
+}
+
+:root[data-theme="light"] .active-badge {
+  color: #581c87;
+  background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+}
+
+:root[data-theme="light"] .wb-decision-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+:root[data-theme="light"] .decision-title {
+  color: #047857;
+}
+
+:root[data-theme="light"] .decision-text {
+  color: #064e3b;
+  font-weight: 500;
+}
+
+:root[data-theme="light"] .stat-pill {
+  background: #ffffff;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-weight: 600;
+}
+
+/* PUN & Dynamic Tariffs in Light Mode */
+:root[data-theme="light"] .dynamic-badge-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+:root[data-theme="light"] .pun-stat-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+:root[data-theme="light"] .pun-stat-lbl {
+  color: #475569;
+  font-weight: 700;
+}
+
+:root[data-theme="light"] .pun-stat-val {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .text-emerald {
+  color: #047857 !important;
+}
+
+:root[data-theme="light"] .text-rose {
+  color: #be123c !important;
+}
+
+:root[data-theme="light"] .hourly-chart-container {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .chart-title {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .legend-item {
+  color: #475569;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .bar-fill-track {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme="light"] .bar-hour-label {
+  color: #475569;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .hourly-bar-col.is-current .bar-hour-label {
+  color: #0284c7;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .bar-tooltip {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .bar-tooltip .tooltip-slot {
+  color: #cbd5e1;
+}
+
+:root[data-theme="light"] .sub-title {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .flexible-load-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+:root[data-theme="light"] .flexible-load-card:hover {
+  border-color: #10b981;
+}
+
+:root[data-theme="light"] .load-name {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .toggle-switch {
+  background: #cbd5e1;
+}
+
+:root[data-theme="light"] .toggle-switch.active {
+  background: #059669;
+}
+
+:root[data-theme="light"] .load-meta-row {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+:root[data-theme="light"] .meta-item .lbl {
+  color: #475569;
+}
+
+:root[data-theme="light"] .meta-item .val {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .scheduled-badge {
+  color: #047857 !important;
+}
+
+:root[data-theme="light"] .cost-stat {
+  color: #334155;
+}
+
+:root[data-theme="light"] .cost-stat strong {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .savings-tag {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
 }
 </style>

@@ -905,9 +905,12 @@ function getEmitterLabel(emitter: EmitterType): string {
   font-size: 1.75rem;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+  color: var(--text-main);
+  /* gradient only in dark/oled themes where white text is readable */
+  background: linear-gradient(135deg, var(--text-main) 0%, var(--text-muted) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .view-subtitle {
@@ -1067,7 +1070,8 @@ function getEmitterLabel(emitter: EmitterType): string {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-surface-elevated, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--border-subtle);
   padding: 0.75rem;
   border-radius: 8px;
 }
@@ -1086,7 +1090,7 @@ function getEmitterLabel(emitter: EmitterType): string {
 .metric-temp {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .metric-sub {
@@ -1131,7 +1135,7 @@ function getEmitterLabel(emitter: EmitterType): string {
 
 /* Reason Box */
 .zone-reason {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--primary-light, rgba(14, 165, 233, 0.08));
   border-left: 3px solid #38bdf8;
   padding: 0.5rem 0.75rem;
   border-radius: 0 6px 6px 0;
@@ -1152,7 +1156,7 @@ function getEmitterLabel(emitter: EmitterType): string {
   align-items: center;
   margin-top: auto;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .footer-end-actions {
@@ -1182,8 +1186,9 @@ function getEmitterLabel(emitter: EmitterType): string {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
 }
 
 .btn-outline {
@@ -1221,14 +1226,14 @@ function getEmitterLabel(emitter: EmitterType): string {
 }
 
 .modal-card {
-  background: var(--bg-surface, #1e293b);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  border: var(--modal-border);
   border-radius: var(--radius-xl, 16px);
   width: 100%;
   max-width: 620px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--modal-shadow);
 }
 
 .modal-header {
@@ -1275,11 +1280,11 @@ function getEmitterLabel(emitter: EmitterType): string {
 }
 
 .form-control {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-surface-elevated, rgba(15, 23, 42, 0.8));
+  border: 1px solid var(--border-card);
   border-radius: 8px;
   padding: 0.65rem 0.85rem;
-  color: #fff;
+  color: var(--text-main);
   font-size: 0.95rem;
   min-height: 44px;
 }

@@ -68,4 +68,26 @@ describe('useNotificationsStore', () => {
     expect(store.notifications[2].type).toBe('info')
     expect(store.notifications[3].type).toBe('warning')
   })
+
+  it('handles actionable notifications and execution', async () => {
+    const store = useNotificationsStore()
+    store.addActionable({
+      id: 'rain_open_window',
+      title: 'Pioggia Rilevata',
+      message: 'Finestra Bagno Aperta',
+      critical: true,
+      actions: [
+        { id: 'close_window', title: 'Chiudi Finestra' },
+        { id: 'dismiss', title: 'Ignora', destructive: true }
+      ],
+      created_at: new Date().toISOString()
+    })
+
+    expect(store.activeActionable.length).toBe(1)
+    expect(store.unreadActionableCount).toBe(1)
+
+    store.dismissActionable('rain_open_window')
+    expect(store.activeActionable.length).toBe(0)
+    expect(store.unreadActionableCount).toBe(0)
+  })
 })

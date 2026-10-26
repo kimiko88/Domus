@@ -543,6 +543,64 @@ func (s *Service) executeHeuristic(ctx context.Context, prompt string) *ChatResp
 		} else {
 			replyText = "La temperatura media rilevata in casa è di 21.5°C."
 		}
+	} else if strings.Contains(lower, "freddo") {
+		targetTRV := "climate.termostato"
+		if matchedRoom != "" {
+			targetTRV = "climate." + matchedRoom
+		}
+		params := map[string]any{"temperature_delta": 1.0}
+		s.dispatchCommand(ctx, targetTRV, "increase_temperature", params)
+		actions = append(actions, ActionExecuted{
+			EntityKey: targetTRV,
+			Service:   "increase_temperature",
+			Params:    params,
+			Success:   true,
+			Message:   "Alzato il termostato di 1°C per riscaldare la stanza",
+		})
+		roomDesc := "in casa"
+		if matchedRoom != "" {
+			roomDesc = "in " + matchedRoom
+		}
+		replyText = fmt.Sprintf("Ho alzato di 1°C il termostato %s per riscaldare l'ambiente.", roomDesc)
+	} else if strings.Contains(lower, "caldo") && !strings.Contains(lower, "scald") {
+		targetTRV := "climate.termostato"
+		if matchedRoom != "" {
+			targetTRV = "climate." + matchedRoom
+		}
+		params := map[string]any{"temperature_delta": -1.0}
+		s.dispatchCommand(ctx, targetTRV, "decrease_temperature", params)
+		actions = append(actions, ActionExecuted{
+			EntityKey: targetTRV,
+			Service:   "decrease_temperature",
+			Params:    params,
+			Success:   true,
+			Message:   "Abbassato il termostato di 1°C per rinfrescare la stanza",
+		})
+		roomDesc := "in casa"
+		if matchedRoom != "" {
+			roomDesc = "in " + matchedRoom
+		}
+		replyText = fmt.Sprintf("Ho abbassato di 1°C il termostato %s per rinfrescare l'ambiente.", roomDesc)
+	} else if strings.Contains(lower, "dormire") || strings.Contains(lower, "buonanotte") {
+		s.dispatchCommand(ctx, "scene.buonanotte", "activate_scene", nil)
+		s.dispatchCommand(ctx, "group.all_lights", "turn_off", nil)
+		actions = append(actions, ActionExecuted{
+			EntityKey: "scene.buonanotte",
+			Service:   "activate_scene",
+			Success:   true,
+			Message:   "Attivata routine notte, spente luci e verificato il perimetro",
+		})
+		replyText = "Buonanotte! Ho attivato la scena notte, spento tutte le luci e verificato il perimetro di sicurezza."
+	} else if strings.Contains(lower, "esco") || strings.Contains(lower, "sto uscendo") {
+		s.dispatchCommand(ctx, "scene.fuori_casa", "activate_scene", nil)
+		s.dispatchCommand(ctx, "group.all_lights", "turn_off", nil)
+		actions = append(actions, ActionExecuted{
+			EntityKey: "scene.fuori_casa",
+			Service:   "activate_scene",
+			Success:   true,
+			Message:   "Impostata modalità fuori casa",
+		})
+		replyText = "A presto! Ho impostato la casa su modalità fuori casa e spento i dispositivi attivi."
 	} else if strings.Contains(lower, "allarme") {
 		if strings.Contains(lower, "attiva") || strings.Contains(lower, "arma") {
 			replyText = "Per motivi di sicurezza, puoi armare l'allarme direttamente dal pannello o inserire il PIN a voce."

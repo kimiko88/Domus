@@ -14,7 +14,8 @@ import {
   CloudSun,
   TrendingUp,
   Settings2,
-  Sparkles
+  Sparkles,
+  Tablet
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
 
@@ -32,8 +33,10 @@ interface KioskConfig {
   enabled: boolean
   screensaverTimeoutSec: number
   wakeOnPresence: boolean
+  wakeOnCamera?: boolean
   showClock: boolean
   showWeather: boolean
+  pinCode?: string
 }
 
 interface DashboardProfile {
@@ -81,6 +84,21 @@ const inactivityTimer = ref<any>(null)
 const currentTime = ref(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))
 const currentDate = ref(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))
 
+// Kiosk Configurator State
+const isKioskConfigModalOpen = ref(false)
+const isPinModalOpen = ref(false)
+const enteredPin = ref('')
+const pinError = ref(false)
+const kioskConfig = ref<KioskConfig>({
+  enabled: true,
+  screensaverTimeoutSec: 60,
+  wakeOnPresence: true,
+  wakeOnCamera: false,
+  showClock: true,
+  showWeather: true,
+  pinCode: ''
+})
+
 // Circular Thermostat State
 const currentTemp = ref(20.0)
 const targetTemp = ref(20.0)
@@ -100,7 +118,80 @@ function switchDashboardProfile() {
       }
       activeRoomName.value = cfg.room || 'Salotto'
     } catch {}
+
+    if (profile.kiosk_config_json) {
+      try {
+        const kCfg = JSON.parse(profile.kiosk_config_json)
+        kioskConfig.value = { ...kioskConfig.value, ...kCfg }
+      } catch {}
+    }
     localStorage.setItem('domus_active_tablet_dashboard', profile.id)
+  }
+}
+
+async function saveKioskConfig() {
+  const profile = dashboards.value.find(d => d.id === currentDashboardId.value)
+  if (profile) {
+    profile.kiosk_config_json = JSON.stringify(kioskConfig.value)
+    try {
+      await apiClient.put(`/api/v1/dashboards/${profile.id}`, profile)
+    } catch {}
+  }
+  localStorage.setItem(`kiosk_cfg_${currentDashboardId.value}`, JSON.stringify(kioskConfig.value))
+  isKioskConfigModalOpen.value = false
+  if (kioskConfig.value.wakeOnCamera) {
+    startCameraMotion()
+  } else {
+    stopCameraMotion()
+  }
+  resetInactivity()
+}
+
+// Camera Motion Wake-up Detection for Wall Tablets
+let cameraStream: MediaStream | null = null
+let motionInterval: any = null
+let lastFrameData: Uint8ClampedArray | null = null
+
+async function startCameraMotion() {
+  if (!kioskConfig.value.wakeOnCamera || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 64, height: 64, facingMode: 'user' } })
+    const video = document.createElement('video')
+    video.srcObject = cameraStream
+    video.autoplay = true
+    await video.play().catch(() => {})
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 32
+    canvas.height = 32
+    const ctx = canvas.getContext('2d')
+
+    motionInterval = setInterval(() => {
+      if (!ctx || !showScreensaver.value) return
+      ctx.drawImage(video, 0, 0, 32, 32)
+      const currentData = ctx.getImageData(0, 0, 32, 32).data
+      if (lastFrameData) {
+        let diff = 0
+        for (let i = 0; i < currentData.length; i += 4) {
+          diff += Math.abs(currentData[i] - lastFrameData[i])
+        }
+        if (diff > 8000) { // motion threshold
+          resetInactivity()
+        }
+      }
+      lastFrameData = new Uint8ClampedArray(currentData)
+    }, 500)
+  } catch {}
+}
+
+function stopCameraMotion() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop())
+    cameraStream = null
+  }
+  if (motionInterval) {
+    clearInterval(motionInterval)
+    motionInterval = null
   }
 }
 
@@ -134,10 +225,29 @@ function resetInactivity() {
     showScreensaver.value = false
   }
   clearTimeout(inactivityTimer.value)
-  if (isKioskMode.value) {
+  if (isKioskMode.value && kioskConfig.value.screensaverTimeoutSec > 0) {
     inactivityTimer.value = setTimeout(() => {
       showScreensaver.value = true
-    }, 60000)
+    }, kioskConfig.value.screensaverTimeoutSec * 1000)
+  }
+}
+
+function attemptExitKiosk() {
+  if (kioskConfig.value.pinCode && kioskConfig.value.pinCode.trim().length > 0) {
+    isPinModalOpen.value = true
+    enteredPin.value = ''
+    pinError.value = false
+  } else {
+    toggleFullscreen()
+  }
+}
+
+function verifyPinAndExit() {
+  if (enteredPin.value === kioskConfig.value.pinCode) {
+    isPinModalOpen.value = false
+    toggleFullscreen()
+  } else {
+    pinError.value = true
   }
 }
 
@@ -145,12 +255,16 @@ function toggleFullscreen() {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().catch(() => {})
     isKioskMode.value = true
+    if (kioskConfig.value.wakeOnCamera) {
+      startCameraMotion()
+    }
     resetInactivity()
   } else {
     document.exitFullscreen().catch(() => {})
     isKioskMode.value = false
     showScreensaver.value = false
     clearTimeout(inactivityTimer.value)
+    stopCameraMotion()
   }
 }
 
@@ -246,6 +360,11 @@ onUnmounted(() => {
           </option>
         </select>
 
+        <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" title="Configura Modalità Kiosk & Screensaver">
+          <Settings2 :size="18" />
+          <span>Configura Kiosk</span>
+        </button>
+
         <button class="kiosk-toggle-btn" @click="toggleFullscreen" title="Avvia Modalità Tablet a Parete">
           <Maximize2 :size="18" />
           <span>Kiosk Mode</span>
@@ -254,7 +373,7 @@ onUnmounted(() => {
     </header>
 
     <!-- Floating Exit Kiosk Button (only visible in kiosk) -->
-    <button v-if="isKioskMode && !showScreensaver" class="exit-kiosk-fab" @click="toggleFullscreen">
+    <button v-if="isKioskMode && !showScreensaver" class="exit-kiosk-fab" @click="attemptExitKiosk" title="Esci da Kiosk">
       <Minimize2 :size="20" />
     </button>
 
@@ -402,10 +521,10 @@ onUnmounted(() => {
     <transition name="fade">
       <div v-if="showScreensaver" class="screensaver-overlay" @click="resetInactivity">
         <div class="screensaver-content">
-          <div class="clock-display">{{ currentTime }}</div>
-          <div class="date-display">{{ currentDate }}</div>
+          <div v-if="kioskConfig.showClock" class="clock-display">{{ currentTime }}</div>
+          <div v-if="kioskConfig.showClock" class="date-display">{{ currentDate }}</div>
 
-          <div class="screensaver-weather">
+          <div v-if="kioskConfig.showWeather" class="screensaver-weather">
             <CloudSun :size="36" class="text-warning" />
             <div class="weather-meta">
               <span class="temp">22°C Soleggiato</span>
@@ -420,6 +539,97 @@ onUnmounted(() => {
         </div>
       </div>
     </transition>
+
+    <!-- Kiosk Configuration Modal Dialog -->
+    <div v-if="isKioskConfigModalOpen" class="modal-backdrop" @click="isKioskConfigModalOpen = false">
+      <div class="kiosk-modal glass-panel" @click.stop>
+        <div class="modal-header">
+          <div class="header-left">
+            <Tablet :size="22" class="text-primary" />
+            <h3 class="modal-title">Configurazione Kiosk & Wall Tablet</h3>
+          </div>
+          <button class="btn-close-modal" @click="isKioskConfigModalOpen = false">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="config-field">
+            <label>Timeout Inattività Screensaver</label>
+            <select v-model.number="kioskConfig.screensaverTimeoutSec" class="form-select">
+              <option :value="15">15 secondi (Test rapido)</option>
+              <option :value="30">30 secondi</option>
+              <option :value="60">1 minuto (Consigliato)</option>
+              <option :value="120">2 minuti</option>
+              <option :value="300">5 minuti</option>
+              <option :value="0">Mai (Sempre attivo)</option>
+            </select>
+            <p class="field-hint">Tempo di assenza tocco prima di oscurare lo schermo o mostrare lo screensaver.</p>
+          </div>
+
+          <div class="config-toggle-row">
+            <div>
+              <span class="toggle-label">Risveglio via Fotocamera / Movimento</span>
+              <p class="toggle-desc">Usa la fotocamera frontale del tablet per rilevare quando qualcuno si avvicina</p>
+            </div>
+            <input type="checkbox" v-model="kioskConfig.wakeOnCamera" class="toggle-checkbox" />
+          </div>
+
+          <div class="config-toggle-row">
+            <div>
+              <span class="toggle-label">Mostra Orologio Digitale & Data</span>
+              <p class="toggle-desc">Visualizza orario grande con contrasto elevato nello screensaver</p>
+            </div>
+            <input type="checkbox" v-model="kioskConfig.showClock" class="toggle-checkbox" />
+          </div>
+
+          <div class="config-toggle-row">
+            <div>
+              <span class="toggle-label">Mostra Meteo & Qualità Aria</span>
+              <p class="toggle-desc">Widget meteo con temperatura locale e indice particolato PM2.5</p>
+            </div>
+            <input type="checkbox" v-model="kioskConfig.showWeather" class="toggle-checkbox" />
+          </div>
+
+          <div class="config-field">
+            <label>PIN di Protezione Uscita (Opzionale)</label>
+            <input
+              type="password"
+              maxlength="6"
+              v-model="kioskConfig.pinCode"
+              placeholder="Es. 1234 (lascia vuoto per disattivare)"
+              class="form-input"
+            />
+            <p class="field-hint">Impedisce a bambini o visitatori di uscire dal Kiosk o accedere alle altre sezioni.</p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="isKioskConfigModalOpen = false">Annulla</button>
+          <button class="btn-save" @click="saveKioskConfig">Salva Configurazione</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIN Unlock Modal for Exiting Kiosk Mode -->
+    <div v-if="isPinModalOpen" class="modal-backdrop" @click="isPinModalOpen = false">
+      <div class="pin-modal glass-panel" @click.stop>
+        <h3 class="pin-title">Sblocco Kiosk Mode</h3>
+        <p class="pin-desc">Inserisci il PIN per uscire dalla modalità tablet</p>
+        <input
+          type="password"
+          maxlength="6"
+          v-model="enteredPin"
+          placeholder="••••"
+          class="pin-input"
+          @keyup.enter="verifyPinAndExit"
+          autofocus
+        />
+        <p v-if="pinError" class="pin-error">PIN errato, riprova.</p>
+        <div class="pin-actions">
+          <button class="btn-cancel" @click="isPinModalOpen = false">Annulla</button>
+          <button class="btn-save" @click="verifyPinAndExit">Sblocca</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -790,5 +1000,254 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.kiosk-config-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.kiosk-config-btn:hover {
+  background: var(--primary-light, rgba(14, 165, 233, 0.15));
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.kiosk-modal {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.config-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.2rem 0 0;
+}
+
+.form-select,
+.form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+.config-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.toggle-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.2rem 0 0;
+}
+
+.toggle-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-surface-hover);
+}
+
+.btn-cancel {
+  padding: 0.55rem 1.15rem;
+  border-radius: 0.6rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-save {
+  padding: 0.55rem 1.25rem;
+  border-radius: 0.6rem;
+  background: var(--primary);
+  border: none;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* PIN Modal */
+.pin-modal {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  text-align: center;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+}
+
+.pin-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 0.5rem;
+}
+
+.pin-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1.25rem;
+}
+
+.pin-input {
+  width: 160px;
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+  text-align: center;
+  padding: 0.5rem;
+  border-radius: 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  margin-bottom: 0.75rem;
+}
+
+.pin-error {
+  font-size: 0.8rem;
+  color: var(--color-danger, #f43f5e);
+  margin: 0 0 0.75rem;
+}
+
+.pin-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+/* Light Mode Overrides */
+:root[data-theme="light"] .kiosk-modal,
+:root[data-theme="light"] .pin-modal {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.15);
+}
+
+:root[data-theme="light"] .modal-title,
+:root[data-theme="light"] .pin-title,
+:root[data-theme="light"] .config-field label,
+:root[data-theme="light"] .toggle-label {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .field-hint,
+:root[data-theme="light"] .toggle-desc,
+:root[data-theme="light"] .pin-desc {
+  color: #475569;
+}
+
+:root[data-theme="light"] .form-select,
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .pin-input {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 </style>

@@ -20,12 +20,14 @@ const (
 	RoleViewer Role = "viewer"
 	// RoleGuest has restricted area access and temporary validity.
 	RoleGuest Role = "guest"
+	// RoleKid has child-safe permissions (only own room entities, family chores, media).
+	RoleKid Role = "kid"
 )
 
 // Valid returns true if the role is one of the recognized role types.
 func (r Role) Valid() bool {
 	switch r {
-	case RoleAdmin, RoleOperator, RoleViewer, RoleGuest:
+	case RoleAdmin, RoleOperator, RoleViewer, RoleGuest, RoleKid:
 		return true
 	default:
 		return false
@@ -45,18 +47,21 @@ var (
 
 // User represents an authenticated identity within Domus.
 type User struct {
-	ID             string     `json:"id"`
-	Username       string     `json:"username"`
-	Email          string     `json:"email,omitempty"`
-	PasswordHash   string     `json:"-"`
-	Role           Role       `json:"role"`
-	Enabled        bool       `json:"enabled"`
-	IsGuest        bool       `json:"is_guest"`
-	GuestExpiresAt *time.Time `json:"guest_expires_at,omitempty"`
-	PinCode        string     `json:"pin_code,omitempty"`
-	KioskMode      bool       `json:"kiosk_mode"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID               string     `json:"id"`
+	Username         string     `json:"username"`
+	Email            string     `json:"email,omitempty"`
+	PasswordHash     string     `json:"-"`
+	Role             Role       `json:"role"`
+	Enabled          bool       `json:"enabled"`
+	IsGuest          bool       `json:"is_guest"`
+	GuestExpiresAt   *time.Time `json:"guest_expires_at,omitempty"`
+	PinCode          string     `json:"pin_code,omitempty"`
+	KioskMode        bool       `json:"kiosk_mode"`
+	AllowedViews     []string   `json:"allowed_views,omitempty"`
+	AllowedAreaIDs   []string   `json:"allowed_area_ids,omitempty"`
+	AllowedEntityIDs []string   `json:"allowed_entity_ids,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 // IsGuestExpired returns true if the user is a guest whose expiration timestamp has passed.

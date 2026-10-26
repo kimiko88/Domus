@@ -54,7 +54,20 @@ func TestAssistantService_HeuristicNLP(t *testing.T) {
 	assert.Equal(t, "climate.salotto", res.ActionsExecuted[0].EntityKey)
 	assert.Equal(t, 21.5, res.ActionsExecuted[0].Params["temperature"])
 
-	// 4. Empty prompt
+	// 4. Contextual Natural Language: "Fa un po' freddo qui"
+	res, err = svc.ProcessPrompt(ctx, "Fa un po' freddo qui in salotto")
+	require.NoError(t, err)
+	assert.Contains(t, res.ResponseText, "riscaldare")
+	assert.Equal(t, "climate.salotto", res.ActionsExecuted[0].EntityKey)
+	assert.Equal(t, "increase_temperature", res.ActionsExecuted[0].Service)
+
+	// 5. Contextual Routine: "Vado a dormire"
+	res, err = svc.ProcessPrompt(ctx, "Vado a dormire")
+	require.NoError(t, err)
+	assert.Contains(t, res.ResponseText, "Buonanotte")
+	assert.Equal(t, "scene.buonanotte", res.ActionsExecuted[0].EntityKey)
+
+	// 6. Empty prompt
 	res, err = svc.ProcessPrompt(ctx, "")
 	require.NoError(t, err)
 	assert.Contains(t, res.ResponseText, "Non ho capito")

@@ -264,16 +264,19 @@ onMounted(() => {
       <!-- Tab 1: Chat & Quick Commands -->
       <div v-if="activeTab === 'chat'" class="chat-tab-container">
         <!-- Quick Chips -->
-        <div class="quick-chips">
-          <button
-            v-for="chip in quickChips"
-            :key="chip"
-            type="button"
-            class="chip-btn"
-            @click="handleChipClick(chip)"
-          >
-            {{ chip }}
-          </button>
+        <div class="quick-chips-wrapper">
+          <div class="quick-chips" role="list" aria-label="Comandi rapidi suggeriti">
+            <button
+              v-for="chip in quickChips"
+              :key="chip"
+              type="button"
+              class="chip-btn"
+              role="listitem"
+              @click="handleChipClick(chip)"
+            >
+              {{ chip }}
+            </button>
+          </div>
         </div>
 
         <!-- Chat History -->
@@ -509,12 +512,12 @@ onMounted(() => {
   height: 640px;
   max-height: 90vh;
   border-radius: 1.25rem;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  background: var(--card-bg, #0f172a);
+  border: var(--modal-border, 1px solid rgba(255, 255, 255, 0.12));
+  background: var(--bg-surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--modal-shadow, 0 20px 40px rgba(0, 0, 0, 0.5));
 }
 
 .assistant-header {
@@ -590,18 +593,61 @@ onMounted(() => {
   color: var(--text-primary, #f8fafc);
 }
 
+/* Chip bar with horizontal scroll */
+.quick-chips-wrapper {
+  position: relative;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+  background: var(--bg-surface-elevated);
+}
+
+/* Fade-out gradient hints on left and right edges */
+.quick-chips-wrapper::before,
+.quick-chips-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.quick-chips-wrapper::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-surface-elevated), transparent);
+}
+
+.quick-chips-wrapper::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-surface-elevated), transparent);
+}
+
 .quick-chips {
   padding: 0.75rem 1.5rem;
   display: flex;
+  flex-wrap: nowrap;               /* never wrap — forces horizontal scroll */
   gap: 0.5rem;
   overflow-x: auto;
-  scrollbar-width: none;
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
-  background: rgba(0, 0, 0, 0.2);
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;  /* native rubber-band on iOS, stop parent scroll leak */
+  -webkit-overflow-scrolling: touch; /* momentum scroll on iOS */
+  /* show a slim scrollbar so desktop users know it's scrollable */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-card) transparent;
+  scroll-snap-type: x proximity;
 }
 
 .quick-chips::-webkit-scrollbar {
-  display: none;
+  height: 4px;
+}
+
+.quick-chips::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quick-chips::-webkit-scrollbar-thumb {
+  background: var(--border-card);
+  border-radius: 4px;
 }
 
 .chip-btn {
@@ -609,9 +655,9 @@ onMounted(() => {
   font-size: 0.8rem;
   padding: 0.35rem 0.75rem;
   border-radius: 1rem;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary, #cbd5e1);
+  border: 1px solid var(--border-card);
+  background: var(--primary-light, rgba(255, 255, 255, 0.05));
+  color: var(--text-main);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -680,9 +726,9 @@ onMounted(() => {
 }
 
 .row-assistant .msg-bubble {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-primary, #f1f5f9);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
   border-bottom-left-radius: 0.25rem;
 }
 
@@ -729,7 +775,7 @@ onMounted(() => {
 
 .msg-meta {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-dim);
   margin-top: 0.35rem;
   text-align: right;
 }
@@ -762,16 +808,16 @@ onMounted(() => {
   align-items: center;
   gap: 0.75rem;
   border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--bg-surface-elevated);
 }
 
 .prompt-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
-  color: var(--text-primary, #f8fafc);
+  color: var(--text-main);
   font-size: 0.95rem;
   outline: none;
   transition: all 0.2s;
@@ -786,9 +832,9 @@ onMounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary, #f8fafc);
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface-elevated);
+  color: var(--text-main);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -797,7 +843,7 @@ onMounted(() => {
 }
 
 .mic-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-surface-hover);
 }
 
 .mic-btn.is-listening {
@@ -839,7 +885,7 @@ onMounted(() => {
 /* Assistant Navigation Tabs */
 .assistant-tabs {
   display: flex;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--bg-surface-elevated);
   border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   padding: 0 1rem;
   gap: 0.5rem;
@@ -853,7 +899,7 @@ onMounted(() => {
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -861,7 +907,7 @@ onMounted(() => {
 }
 
 .tab-btn:hover {
-  color: #f1f5f9;
+  color: var(--text-main);
 }
 
 .tab-btn.active {

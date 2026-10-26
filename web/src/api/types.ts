@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'operator' | 'viewer' | 'guest'
+export type UserRole = 'admin' | 'operator' | 'viewer' | 'guest' | 'kid'
 
 export interface User {
   id: string
@@ -9,8 +9,43 @@ export interface User {
   guest_expires_at?: string
   pin_code?: string
   kiosk_mode?: boolean
+  allowed_views?: string[]
+  allowed_area_ids?: string[]
+  allowed_entity_ids?: string[]
   created_at: string
   updated_at: string
+}
+
+export interface NotificationAction {
+  id: string
+  title: string
+  destructive?: boolean
+}
+
+export interface ActionableNotification {
+  id: string
+  title: string
+  message: string
+  image_url?: string
+  critical?: boolean
+  volume?: number
+  actions: NotificationAction[]
+  created_at: string
+  resolved_at?: string
+}
+
+export interface DiscoveredHost {
+  ip: string
+  mac: string
+  hostname?: string
+  vendor?: string
+  suggested_plugin?: string
+  confidence: number
+  open_ports?: number[]
+  first_seen_at: string
+  last_seen_at: string
+  is_iot: boolean
+  metadata?: Record<string, string>
 }
 
 export interface SetupStatus {
@@ -1197,5 +1232,25 @@ export interface CommuteStatus {
   target_climate_temp?: number
   updated_at: string
 }
+
+// 29. Store & Marketplace Packages
+export interface StorePackage {
+  id: string
+  package_id: string
+  name: string
+  type: 'wasm_plugin' | 'blueprint' | 'widget'
+  tier?: 'verified' | 'community'
+  review_status?: 'approved' | 'pending_review' | 'rejected'
+  version: string
+  author: string
+  description: string
+  repository_url?: string
+  license?: string
+  capabilities?: string[]
+  installed: boolean
+  installed_at?: string
+  icon?: string
+}
+
 
 

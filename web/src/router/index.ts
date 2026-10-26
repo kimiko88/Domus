@@ -281,7 +281,12 @@ export function createRouterInstance(isTest: boolean = false): Router {
       return next('/login')
     }
 
-    // 4. Guest-only route check (e.g. login/setup when already authenticated)
+    // 4. Role-based view access check (Kid / Guest / Custom restrictions)
+    if (isAuthenticated && !authStore.canAccessRoute(to.path)) {
+      return next('/')
+    }
+
+    // 5. Guest-only route check (e.g. login/setup when already authenticated)
     if (to.meta.guestOnly && isAuthenticated && !setupNeeded) {
       return next('/')
     }

@@ -628,7 +628,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc).
 					WithLocalNVR(appcamera.NewLocalNVR(camSvc, srv.bus).WithRepository(srv.repos.NVR)).
-					WithBackupRepository(srv.repos.Backup)
+					WithBackupRepository(srv.repos.Backup).
+					WithBus(srv.bus)
+
+				domainRouter.Route("/intercom", func(iRouter chi.Router) {
+					iRouter.Post("/ring", ecoH.RingIntercomDoorbell)
+					iRouter.Post("/{id}/unlock", ecoH.UnlockIntercomGate)
+					iRouter.Post("/{id}/audio", ecoH.NegotiateIntercomAudio)
+				})
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
 					cRouter.Get("/", ecoH.ListCameras)

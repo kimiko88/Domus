@@ -124,6 +124,12 @@ const (
 
 	// PresenceCommuteUpdated fires when a user's commute ETA or transit progress is updated.
 	PresenceCommuteUpdated EventType = "presence.commute_updated"
+
+	// IntercomDoorbellRing fires when a video doorbell button is pressed.
+	IntercomDoorbellRing EventType = "intercom.doorbell_ring"
+
+	// IntercomGateUnlocked fires when an operator unlocks the gate or door from the intercom feed.
+	IntercomGateUnlocked EventType = "intercom.gate_unlocked"
 )
 
 // Event is the common envelope for all domain events.

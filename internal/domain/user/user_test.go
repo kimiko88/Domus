@@ -14,8 +14,27 @@ func TestRole_Valid(t *testing.T) {
 	assert.True(t, RoleAdmin.Valid())
 	assert.True(t, RoleOperator.Valid())
 	assert.True(t, RoleViewer.Valid())
+	assert.True(t, RoleGuest.Valid())
+	assert.True(t, RoleKid.Valid())
 	assert.False(t, Role("superuser").Valid())
 	assert.False(t, Role("").Valid())
+}
+
+func TestPermissions_KidGuest(t *testing.T) {
+	kid := DefaultKidPermissions("kid_1")
+	assert.Equal(t, RoleKid, kid.Role)
+	assert.False(t, kid.CanManageSettings)
+	assert.False(t, kid.CanManageAutomations)
+	assert.False(t, kid.CanViewCameras)
+	assert.True(t, kid.CanAccessView("/"))
+	assert.True(t, kid.CanAccessView("/media"))
+	assert.False(t, kid.CanAccessView("/settings"))
+
+	guest := DefaultGuestPermissions("guest_1")
+	assert.Equal(t, RoleGuest, guest.Role)
+	assert.False(t, guest.CanManageSettings)
+	assert.True(t, guest.CanAccessView("/"))
+	assert.False(t, guest.CanAccessView("/cameras"))
 }
 
 func TestUser_Validate(t *testing.T) {

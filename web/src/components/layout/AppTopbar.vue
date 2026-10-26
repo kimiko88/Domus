@@ -5,9 +5,12 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../../stores/auth'
 import { useWsStore } from '../../stores/ws'
 import { useTheme } from '../../composables/useTheme'
+import { useNotificationsStore } from '../../stores/notifications'
 import { getCurrentLanguage, setLanguage, supportedLanguages, type SupportedLanguage } from '../../locales'
-import { Menu, LogOut, User as UserIcon, Sun, Moon, Sparkles, BookOpen, ChevronDown, Check } from '@lucide/vue'
+import { Menu, LogOut, User as UserIcon, Sun, Moon, Sparkles, BookOpen, ChevronDown, Check, Bell, Video } from '@lucide/vue'
 import VoiceAssistantModal from '../modals/VoiceAssistantModal.vue'
+import ActionableNotificationsModal from '../modals/ActionableNotificationsModal.vue'
+import IntercomCallModal from '../modals/IntercomCallModal.vue'
 
 interface Props {
   title?: string
@@ -25,8 +28,11 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const wsStore = useWsStore()
+const notifStore = useNotificationsStore()
 const { isDark, toggleTheme } = useTheme()
 const isAssistantOpen = ref(false)
+const isNotifDrawerOpen = ref(false)
+const isIntercomOpen = ref(false)
 const isLangMenuOpen = ref(false)
 const langDropdownRef = ref<HTMLElement | null>(null)
 
@@ -59,6 +65,7 @@ function handleKeydown(e: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleKeydown)
+  notifStore.fetchActionable()
 })
 
 onUnmounted(() => {
@@ -96,6 +103,19 @@ async function handleLogout() {
         <span class="guide-label">{{ t('nav.guide') }}</span>
       </button>
 
+      <!-- Actionable Notifications Bell -->
+      <button
+        class="notif-toggle-btn"
+        title="Notifiche Azionabili della Casa"
+        aria-label="Apri Notifiche Azionabili"
+        @click="isNotifDrawerOpen = true"
+      >
+        <Bell :size="16" />
+        <span v-if="notifStore.unreadActionableCount > 0" class="topbar-badge">
+          {{ notifStore.unreadActionableCount }}
+        </span>
+      </button>
+
       <!-- Domus AI Assistant Button -->
       <button
         class="assistant-toggle-btn"
@@ -105,6 +125,17 @@ async function handleLogout() {
       >
         <Sparkles :size="16" />
         <span class="assistant-label">Assistant</span>
+      </button>
+
+      <!-- Video Intercom & Doorbell Button -->
+      <button
+        class="intercom-toggle-btn"
+        title="Citofonia & Campanelli Video (WebRTC Live Intercom)"
+        aria-label="Apri Video Citofono"
+        @click="isIntercomOpen = true"
+      >
+        <Video :size="16" />
+        <span class="intercom-label">Citofono</span>
       </button>
 
       <!-- Language Selector Dropdown -->
@@ -195,6 +226,12 @@ async function handleLogout() {
 
   <!-- Voice Assistant Modal -->
   <VoiceAssistantModal :is-open="isAssistantOpen" @close="isAssistantOpen = false" />
+
+  <!-- Actionable Notifications Drawer Modal -->
+  <ActionableNotificationsModal :is-open="isNotifDrawerOpen" @close="isNotifDrawerOpen = false" />
+
+  <!-- Video Intercom & Doorbell Modal -->
+  <IntercomCallModal :is-open="isIntercomOpen" @close="isIntercomOpen = false" />
 </template>
 
 <style scoped>
@@ -275,6 +312,40 @@ async function handleLogout() {
   }
 }
 
+.notif-toggle-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notif-toggle-btn:hover {
+  background: var(--primary-light, rgba(14, 165, 233, 0.15));
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.topbar-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--color-danger, #f43f5e);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 9px;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.5);
+}
+
 .assistant-toggle-btn {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
   border: 1px solid rgba(139, 92, 246, 0.4);
@@ -296,6 +367,29 @@ async function handleLogout() {
   color: #e9d5ff;
   transform: translateY(-1px);
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+}
+
+.intercom-toggle-btn {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(14, 165, 233, 0.15));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.intercom-toggle-btn:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(14, 165, 233, 0.3));
+  border-color: #10b981;
+  color: #a7f3d0;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
 .lang-dropdown-container {
@@ -533,5 +627,16 @@ async function handleLogout() {
 .btn-logout:hover {
   color: var(--color-danger);
   background: rgba(244, 63, 94, 0.1);
+}
+
+[data-theme="light"] .intercom-toggle-btn {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #047857;
+}
+
+[data-theme="light"] .intercom-toggle-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+  color: #065f46;
 }
 </style>

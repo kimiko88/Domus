@@ -12,6 +12,25 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.role === 'admin')
   const isOperator = computed(() => user.value?.role === 'admin' || user.value?.role === 'operator')
+  const isKid = computed(() => user.value?.role === 'kid')
+  const isGuest = computed(() => user.value?.role === 'guest' || user.value?.is_guest === true)
+
+  function canAccessRoute(routePath: string): boolean {
+    if (!user.value) return false
+    if (user.value.role === 'admin') return true
+    if (user.value.role === 'kid') {
+      const allowed = ['/', '/media', '/chores', '/family', '/custom-dashboards']
+      return allowed.includes(routePath) || allowed.some(p => p !== '/' && routePath.startsWith(p))
+    }
+    if (user.value.role === 'guest' || user.value.is_guest) {
+      const allowed = ['/', '/custom-dashboards', '/media']
+      return allowed.includes(routePath) || allowed.some(p => p !== '/' && routePath.startsWith(p))
+    }
+    if (user.value.allowed_views && user.value.allowed_views.length > 0) {
+      return user.value.allowed_views.includes(routePath) || user.value.allowed_views.some(p => p !== '/' && routePath.startsWith(p))
+    }
+    return true
+  }
 
   async function checkSetup(): Promise<boolean> {
     try {
@@ -129,6 +148,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isOperator,
+    isKid,
+    isGuest,
+    canAccessRoute,
     isSetupRequired,
     loading,
     error,

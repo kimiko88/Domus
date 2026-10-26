@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { getActivePinia } from 'pinia'
+import { useAuthStore } from '../../stores/auth'
 import {
   LayoutDashboard,
   Grid,
@@ -138,6 +140,18 @@ const macroSections: NavMacroSection[] = [
   }
 ]
 
+const authStore = getActivePinia() ? useAuthStore() : null
+
+const visibleMacroSections = computed(() => {
+  if (!authStore) return macroSections
+  return macroSections
+    .map(sec => ({
+      ...sec,
+      items: sec.items.filter(item => authStore.canAccessRoute(item.path))
+    }))
+    .filter(sec => sec.items.length > 0)
+})
+
 function isItemActive(path: string): boolean {
   if (path === '/') return props.currentPath === '/'
   return props.currentPath?.startsWith(path) ?? false
@@ -213,7 +227,7 @@ watch(
       <!-- Navigation Links Grouped into Macrosections -->
       <nav class="sidebar-nav">
         <div
-          v-for="section in macroSections"
+          v-for="section in visibleMacroSections"
           :key="section.id"
           class="macro-section"
           :class="{ 'is-expanded': openSections[section.id], 'has-active': isSectionActive(section) }"

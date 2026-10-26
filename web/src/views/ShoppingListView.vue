@@ -1490,6 +1490,8 @@ onMounted(async () => {
 .toast-slide-leave-to {
   opacity: 0;
   transform: translateY(20px) scale(0.95);
+}
+
 .btn-scan-receipt {
   display: flex;
   align-items: center;
