@@ -9,9 +9,11 @@ import (
 	"time"
 
 	appalarm "github.com/domus-hub/domus/internal/application/alarm"
+	appanomaly "github.com/domus-hub/domus/internal/application/anomaly"
 	appassistant "github.com/domus-hub/domus/internal/application/assistant"
 	"github.com/domus-hub/domus/internal/application/auth"
 	appauto "github.com/domus-hub/domus/internal/application/automation"
+	appsafety "github.com/domus-hub/domus/internal/application/safety"
 	appbrand "github.com/domus-hub/domus/internal/application/brand"
 	appcal "github.com/domus-hub/domus/internal/application/calendar"
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
@@ -461,7 +463,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 
 				// Advanced Features: Energy Load Shedding & Multi-tier Presence
-				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine).WithEntityRepository(srv.repos.Entities)
+				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine).
+					WithEntityRepository(srv.repos.Entities).
+					WithWallboxRepository(srv.repos.Wallbox).
+					WithVacationRepository(srv.repos.Vacation).
+					WithCommuteRepository(srv.repos.Commute)
 				domainRouter.Route("/energy", func(eRouter chi.Router) {
 					eRouter.Get("/load-shedding", advH.GetLoadSheddingStatus)
 					eRouter.Get("/flow", advH.GetEnergyFlow)
@@ -620,7 +626,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				storeSvc := appstore.NewService(storeRepo)
 
-				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc)
+				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc).
+					WithLocalNVR(appcamera.NewLocalNVR(camSvc, srv.bus).WithRepository(srv.repos.NVR)).
+					WithBackupRepository(srv.repos.Backup)
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
 					cRouter.Get("/", ecoH.ListCameras)
@@ -767,7 +775,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/system/backup/remote", func(bkRouter chi.Router) {
 					bkRouter.Get("/config", ecoH.GetRemoteBackupConfig)
+					bkRouter.Put("/config", ecoH.UpdateRemoteBackupConfig)
+					bkRouter.Post("/config", ecoH.UpdateRemoteBackupConfig)
 					bkRouter.Post("/sync", ecoH.TriggerRemoteBackupSync)
+					bkRouter.Get("/records", ecoH.ListRemoteBackupRecords)
 				})
 
 				domainRouter.Route("/voice", func(vRouter chi.Router) {
@@ -905,6 +916,20 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Get("/network/leaks", networkH.ListLeaks)
 				domainRouter.Post("/network/quarantine", networkH.QuarantineDevice)
 				domainRouter.Post("/network/unblock", networkH.UnblockDevice)
+
+				// Household Predictive Anomaly Engine (Water Leaks, Appliance Health, Condensation Mold)
+				anomalySvc := appanomaly.NewService(srv.bus).WithRepository(srv.repos.Anomaly)
+				anomalyH := handlers.NewAnomalyHandler(anomalySvc)
+				domainRouter.Route("/anomalies", func(anRouter chi.Router) {
+					anomalyH.RegisterRoutes(anRouter)
+				})
+
+				// Deterministic Sub-50ms Emergency Safe-Stop Pipeline
+				safetySvc := appsafety.NewService(srv.bus).WithRepository(srv.repos.Safety)
+				safetyH := handlers.NewSafetyHandler(safetySvc)
+				domainRouter.Route("/safety", func(safRouter chi.Router) {
+					safetyH.RegisterRoutes(safRouter)
+				})
 			})
 		}
 	})

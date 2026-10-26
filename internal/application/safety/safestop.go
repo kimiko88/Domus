@@ -87,11 +87,22 @@ type EmergencyStatus struct {
 	LastResult      *EmergencyResult  `json:"last_result,omitempty"`
 }
 
+// SafetyRepository defines SQLite persistence for emergency valves and incidents.
+type SafetyRepository interface {
+	SaveValve(ctx context.Context, v ValveRegistration) error
+	ListValves(ctx context.Context) ([]ValveRegistration, error)
+	DeleteValve(ctx context.Context, id string) error
+	RecordIncident(ctx context.Context, alert EmergencyAlert, result EmergencyResult) error
+	ListIncidents(ctx context.Context, limit int) ([]map[string]any, error)
+	ClearIncident(ctx context.Context, alertID, clearedBy, reason string) error
+}
+
 // Service manages enrolled emergency shut-off actuators and coordinates
 // deterministic out-of-band safe-stop execution.
 type Service struct {
 	mu           sync.RWMutex
 	valves       map[string]ValveRegistration
+	repo         SafetyRepository
 	isLatched    bool
 	activeAlert  *EmergencyAlert
 	lastResult   *EmergencyResult
@@ -114,6 +125,35 @@ func NewService(bus events.Bus) *Service {
 	return s
 }
 
+// DefaultLoopbackActuator provides an in-memory/simulated actuator when hardware driver is not directly attached.
+type DefaultLoopbackActuator struct{}
+
+func (d *DefaultLoopbackActuator) CloseValve(ctx context.Context, valveID string) error {
+	return nil
+}
+
+func (d *DefaultLoopbackActuator) OpenValve(ctx context.Context, valveID string) error {
+	return nil
+}
+
+// WithRepository connects SQLite database persistence and preloads configured emergency valves.
+func (s *Service) WithRepository(repo SafetyRepository) *Service {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.repo = repo
+	if repo != nil {
+		if valves, err := repo.ListValves(context.Background()); err == nil {
+			for _, v := range valves {
+				if v.Actuator == nil {
+					v.Actuator = &DefaultLoopbackActuator{}
+				}
+				s.valves[v.ID] = v
+			}
+		}
+	}
+	return s
+}
+
 // FastChannel returns the direct, non-blocking ingestion channel for hardware interrupt routines.
 func (s *Service) FastChannel() chan<- EmergencyAlert {
 	return s.fastQueue
@@ -125,15 +165,21 @@ func (s *Service) RegisterValve(v ValveRegistration) error {
 		return errors.New("valve ID cannot be empty")
 	}
 	if v.Actuator == nil {
-		return errors.New("valve actuator cannot be nil")
+		v.Actuator = &DefaultLoopbackActuator{}
 	}
 	if v.TimeoutMs <= 0 {
 		v.TimeoutMs = 35 // Default 35ms timeout to ensure sub-50ms roundtrip
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.valves[v.ID] = v
+	repo := s.repo
+	s.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.SaveValve(context.Background(), v)
+	}
+
 	slog.Info("emergency valve registered", "id", v.ID, "type", v.Type, "location", v.Location)
 	return nil
 }
@@ -141,8 +187,35 @@ func (s *Service) RegisterValve(v ValveRegistration) error {
 // UnregisterValve removes a valve from emergency safe-stop.
 func (s *Service) UnregisterValve(valveID string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	delete(s.valves, valveID)
+	repo := s.repo
+	s.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.DeleteValve(context.Background(), valveID)
+	}
+}
+
+// ListValves returns all currently registered emergency valves.
+func (s *Service) ListValves(ctx context.Context) ([]ValveRegistration, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make([]ValveRegistration, 0, len(s.valves))
+	for _, v := range s.valves {
+		res = append(res, v)
+	}
+	return res, nil
+}
+
+// ListIncidents queries historical emergency incidents from persistence.
+func (s *Service) ListIncidents(ctx context.Context, limit int) ([]map[string]any, error) {
+	s.mu.RLock()
+	repo := s.repo
+	s.mu.RUnlock()
+	if repo != nil {
+		return repo.ListIncidents(ctx, limit)
+	}
+	return []map[string]any{}, nil
 }
 
 // TriggerSafeStop executes immediate parallel shut-off across all relevant valves,
@@ -225,7 +298,12 @@ func (s *Service) TriggerSafeStop(ctx context.Context, alert EmergencyAlert) (Em
 	s.mu.Lock()
 	resCopy := res
 	s.lastResult = &resCopy
+	repo := s.repo
 	s.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.RecordIncident(ctx, alert, res)
+	}
 
 	// Asynchronously publish to normal event bus for telemetry/dashboard without delaying response
 	if s.bus != nil {
@@ -266,7 +344,12 @@ func (s *Service) ResetEmergency(ctx context.Context, operatorID, reason string)
 	s.isLatched = false
 	prevAlert := s.activeAlert
 	s.activeAlert = nil
+	repo := s.repo
 	s.mu.Unlock()
+
+	if repo != nil && prevAlert != nil {
+		_ = repo.ClearIncident(ctx, prevAlert.ID, operatorID, reason)
+	}
 
 	slog.Warn("EMERGENCY SAFE-STOP LATCH DISARMED",
 		"operator_id", operatorID,

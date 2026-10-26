@@ -12,6 +12,7 @@ import (
 	"github.com/domus-hub/domus/internal/application/energy"
 	"github.com/domus-hub/domus/internal/application/presence"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/homekit"
 	"github.com/domus-hub/domus/internal/plugins/matter"
@@ -31,6 +32,9 @@ type AdvancedFeaturesHandler struct {
 	ocppCtrl       *ocpp.Controller
 	vacationSim    *presence.VacationSimulator
 	commuteTracker *presence.CommuteTracker
+	wallboxRepo    *sqlite.WallboxRepository
+	vacationRepo   *sqlite.VacationRepository
+	commuteRepo    *sqlite.CommuteRepository
 }
 
 // NewAdvancedFeaturesHandler constructs a new AdvancedFeaturesHandler.
@@ -75,6 +79,24 @@ func (h *AdvancedFeaturesHandler) WithTariffOptimizer(opt *energy.TariffOptimize
 // WithEntityRepository attaches the entity repository to calculate real power and energy flow.
 func (h *AdvancedFeaturesHandler) WithEntityRepository(repo entity.Repository) *AdvancedFeaturesHandler {
 	h.entityRepo = repo
+	return h
+}
+
+// WithWallboxRepository attaches the SQLite Wallbox persistence repository.
+func (h *AdvancedFeaturesHandler) WithWallboxRepository(repo *sqlite.WallboxRepository) *AdvancedFeaturesHandler {
+	h.wallboxRepo = repo
+	return h
+}
+
+// WithVacationRepository attaches the SQLite Vacation simulator persistence repository.
+func (h *AdvancedFeaturesHandler) WithVacationRepository(repo *sqlite.VacationRepository) *AdvancedFeaturesHandler {
+	h.vacationRepo = repo
+	return h
+}
+
+// WithCommuteRepository attaches the SQLite Commute tracker persistence repository.
+func (h *AdvancedFeaturesHandler) WithCommuteRepository(repo *sqlite.CommuteRepository) *AdvancedFeaturesHandler {
+	h.commuteRepo = repo
 	return h
 }
 
@@ -383,6 +405,20 @@ func (h *AdvancedFeaturesHandler) GetWallboxStatus(w http.ResponseWriter, r *htt
 	}
 
 	telem, result, exists := h.ocppCtrl.GetStatus(cpID)
+	if !exists && h.wallboxRepo != nil {
+		storedTelem, storedMode, err := h.wallboxRepo.GetChargePoint(r.Context(), cpID)
+		if err == nil && storedTelem != nil {
+			telem = *storedTelem
+			exists = true
+			result = ocpp.DynamicModulationResult{
+				ChargePointID: cpID,
+				Mode:          storedMode,
+				TargetAmps:    storedTelem.OfferedAmps,
+				Timestamp:     storedTelem.LastSeenAt,
+			}
+		}
+	}
+
 	if !exists {
 		// Provide default initialized telemetry for dashboard
 		telem = ocpp.WallboxTelemetry{
@@ -404,6 +440,9 @@ func (h *AdvancedFeaturesHandler) GetWallboxStatus(w http.ResponseWriter, r *htt
 			HomeGridPowerW: 850,
 			Reason:         "Solar optimized charging with 6A base + 10A solar surplus",
 			Timestamp:      time.Now().UTC(),
+		}
+		if h.wallboxRepo != nil {
+			_ = h.wallboxRepo.SaveChargePoint(r.Context(), telem, ocpp.ModeSolarOptimized)
 		}
 	}
 
@@ -432,7 +471,14 @@ func (h *AdvancedFeaturesHandler) SetWallboxMode(w http.ResponseWriter, r *http.
 		return
 	}
 
-	h.ocppCtrl.SetMode(ocpp.ChargingMode(req.Mode))
+	chargingMode := ocpp.ChargingMode(req.Mode)
+	h.ocppCtrl.SetMode(chargingMode)
+	if h.wallboxRepo != nil {
+		telem, _, _ := h.ocppCtrl.GetStatus("domus_wallbox_1")
+		telem.ChargePointID = "domus_wallbox_1"
+		_ = h.wallboxRepo.SaveChargePoint(r.Context(), telem, chargingMode)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "updated",
 		"mode":   req.Mode,
@@ -465,6 +511,15 @@ func (h *AdvancedFeaturesHandler) CalculateOptimalWallboxCurrent(w http.Response
 		return
 	}
 
+	if h.wallboxRepo != nil {
+		telem, _, _ := h.ocppCtrl.GetStatus(req.ChargePointID)
+		telem.ChargePointID = req.ChargePointID
+		telem.OfferedAmps = res.TargetAmps
+		telem.ActivePowerW = res.ExpectedPowerW
+		telem.LastSeenAt = res.Timestamp
+		_ = h.wallboxRepo.SaveChargePoint(r.Context(), telem, res.Mode)
+	}
+
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -472,16 +527,21 @@ func (h *AdvancedFeaturesHandler) CalculateOptimalWallboxCurrent(w http.Response
 
 // GetVacationMode handles GET /api/v1/presence/vacation.
 func (h *AdvancedFeaturesHandler) GetVacationMode(w http.ResponseWriter, r *http.Request) {
-	if h.vacationSim == nil {
-		h.vacationSim = presence.NewVacationSimulator(nil, presence.VacationSimulatorConfig{
-			Enabled:       false,
-			JitterMinutes: 15,
-		})
+	enabled := false
+	jitterMinutes := 15
+	if h.vacationRepo != nil {
+		dbEnabled, dbJitter, err := h.vacationRepo.GetConfig(r.Context())
+		if err == nil {
+			enabled = dbEnabled
+			jitterMinutes = dbJitter
+		}
+	} else if h.vacationSim != nil {
+		enabled = h.vacationSim.IsEnabled()
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":        h.vacationSim.IsEnabled(),
-		"jitter_minutes": 15,
+		"enabled":        enabled,
+		"jitter_minutes": jitterMinutes,
 	})
 }
 
@@ -503,6 +563,10 @@ func (h *AdvancedFeaturesHandler) SetVacationMode(w http.ResponseWriter, r *http
 	}
 
 	h.vacationSim.SetVacationMode(req.Enabled)
+	if h.vacationRepo != nil {
+		_ = h.vacationRepo.SetConfig(r.Context(), req.Enabled, 15)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enabled": req.Enabled,
 		"status":  "updated",
@@ -524,7 +588,15 @@ func (h *AdvancedFeaturesHandler) RegisterVacationAction(w http.ResponseWriter, 
 		return
 	}
 
+	if act.ID == "" {
+		act.ID = "act_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+
 	h.vacationSim.RegisterAction(act)
+	if h.vacationRepo != nil {
+		_ = h.vacationRepo.SaveAction(r.Context(), act)
+	}
+
 	writeJSON(w, http.StatusCreated, act)
 }
 
@@ -551,12 +623,28 @@ func (h *AdvancedFeaturesHandler) UpdateCommuteLocation(w http.ResponseWriter, r
 	}
 
 	status := h.commuteTracker.UpdateLocation(r.Context(), req.UserID, req.Latitude, req.Longitude, req.SpeedKmh, time.Now().UTC())
+	if h.commuteRepo != nil {
+		_ = h.commuteRepo.SaveLocation(r.Context(), status)
+	}
+
 	writeJSON(w, http.StatusOK, status)
 }
 
 // GetCommuteStatus handles GET /api/v1/presence/commute/{userId}.
 func (h *AdvancedFeaturesHandler) GetCommuteStatus(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userId")
+	if userID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "userId is required")
+		return
+	}
+
+	if h.commuteRepo != nil {
+		if stored, err := h.commuteRepo.GetLocation(r.Context(), userID); err == nil && stored != nil {
+			writeJSON(w, http.StatusOK, stored)
+			return
+		}
+	}
+
 	if h.commuteTracker == nil {
 		h.commuteTracker = presence.NewCommuteTracker(nil, presence.CommuteConfig{
 			HomeLatitude:  41.9028,
@@ -564,8 +652,12 @@ func (h *AdvancedFeaturesHandler) GetCommuteStatus(w http.ResponseWriter, r *htt
 		})
 	}
 
-	// Calculate baseline commute status
+	// Calculate commute status from tracker
 	status := h.commuteTracker.UpdateLocation(r.Context(), userID, 41.9200, 12.5100, 45.0, time.Now().UTC())
+	if h.commuteRepo != nil {
+		_ = h.commuteRepo.SaveLocation(r.Context(), status)
+	}
+
 	writeJSON(w, http.StatusOK, status)
 }
 

@@ -76,6 +76,13 @@ type Repositories struct {
 	Pantry               *PantryRepository
 	Medicines            *MedicineRepository
 	PredictiveClimate    *PredictiveClimateRepository
+	NVR                  *NVRRepository
+	Anomaly              *AnomalyRepository
+	Safety               *SafetyRepository
+	Backup               *BackupRepository
+	Vacation             *VacationRepository
+	Commute              *CommuteRepository
+	Wallbox              *WallboxRepository
 }
 
 // NewRepositories initializes and returns all SQLite repositories with a single database connection.
@@ -126,6 +133,13 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Pantry:               NewPantryRepository(db),
 		Medicines:            NewMedicineRepository(db),
 		PredictiveClimate:    NewPredictiveClimateRepository(db),
+		NVR:                  NewNVRRepository(db),
+		Anomaly:              NewAnomalyRepository(db),
+		Safety:               NewSafetyRepository(db),
+		Backup:               NewBackupRepository(db),
+		Vacation:             NewVacationRepository(db),
+		Commute:              NewCommuteRepository(db),
+		Wallbox:              NewWallboxRepository(db),
 	}
 }
 
@@ -187,6 +201,13 @@ func NewRepositoriesWithPool(pool *DBPool) *Repositories {
 		Pantry:               NewPantryRepository(writeDB),
 		Medicines:            NewMedicineRepository(writeDB),
 		PredictiveClimate:    NewPredictiveClimateRepository(writeDB),
+		NVR:                  NewNVRRepository(writeDB),
+		Anomaly:              NewAnomalyRepository(writeDB),
+		Safety:               NewSafetyRepository(writeDB),
+		Backup:               NewBackupRepository(writeDB),
+		Vacation:             NewVacationRepository(writeDB),
+		Commute:              NewCommuteRepository(writeDB),
+		Wallbox:              NewWallboxRepository(writeDB),
 	}
 }
 
@@ -205,4 +226,23 @@ func (r *Repositories) WithCipher(c *crypto.EnvelopeCipher) *Repositories {
 		whRepo.WithCipher(c)
 	}
 	return r
+}
+
+// DatabaseSizeBytes returns the real storage size in bytes of the SQLite database.
+func (r *Repositories) DatabaseSizeBytes(ctx context.Context) int64 {
+	db := r.DB
+	if db == nil {
+		db = r.ReadDB
+	}
+	if db == nil {
+		return 0
+	}
+	var pageCount, pageSize int64
+	if err := db.QueryRowContext(ctx, "PRAGMA page_count;").Scan(&pageCount); err != nil {
+		return 0
+	}
+	if err := db.QueryRowContext(ctx, "PRAGMA page_size;").Scan(&pageSize); err != nil {
+		return 0
+	}
+	return pageCount * pageSize
 }

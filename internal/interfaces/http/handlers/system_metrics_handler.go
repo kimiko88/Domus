@@ -66,6 +66,11 @@ func (h *SystemMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		uptimeSeconds = 0
 	}
 
+	var dbSizeBytes int64
+	if h.repos != nil {
+		dbSizeBytes = h.repos.DatabaseSizeBytes(ctx)
+	}
+
 	resp := map[string]any{
 		"status":         "ok",
 		"uptime_s":       uptimeSeconds,
@@ -73,7 +78,7 @@ func (h *SystemMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		"device_count":   deviceCount,
 		"mqtt_connected": h.mqttConnected,
 		"ws_clients":     wsClients,
-		"db_size_bytes":  0,
+		"db_size_bytes":  dbSizeBytes,
 	}
 
 	writeJSON(w, http.StatusOK, resp)

@@ -100,12 +100,27 @@ type AuthorizedVehicle struct {
 	EnrolledAt   time.Time `json:"enrolled_at,omitempty"`
 }
 
+// NVRRepository defines database persistence for biometric faces, license plates, zones, and clips.
+type NVRRepository interface {
+	SaveFamilyFace(ctx context.Context, f FamilyFace) error
+	ListFamilyFaces(ctx context.Context) ([]FamilyFace, error)
+	DeleteFamilyFace(ctx context.Context, id string) error
+	SaveAuthorizedPlate(ctx context.Context, v AuthorizedVehicle) error
+	ListAuthorizedPlates(ctx context.Context) ([]AuthorizedVehicle, error)
+	DeleteAuthorizedPlate(ctx context.Context, plate string) error
+	SaveZone(ctx context.Context, z MotionZone) error
+	GetZones(ctx context.Context, cameraID string) ([]MotionZone, error)
+	SaveEventClip(ctx context.Context, c *EventClip) error
+	GetEventClip(ctx context.Context, eventID string) (*EventClip, error)
+}
+
 // LocalNVR is the embedded computer vision engine that monitors RTSP/WebRTC streams and runs local AI inference.
 type LocalNVR struct {
 	mu               sync.RWMutex
 	service          *Service
 	bus              events.Bus
 	backend          InferenceBackend
+	repo             NVRRepository
 	zones            map[string][]MotionZone // Keyed by cameraID
 	clips            map[string]*EventClip   // Keyed by eventID
 	stats            map[string]*NVRCameraStats
@@ -115,7 +130,7 @@ type LocalNVR struct {
 
 // NewLocalNVR initializes the embedded local computer vision NVR.
 func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
-	nvr := &LocalNVR{
+	return &LocalNVR{
 		service:          svc,
 		bus:              bus,
 		backend:          DetectHardwareBackend(),
@@ -125,42 +140,29 @@ func NewLocalNVR(svc *Service, bus events.Bus) *LocalNVR {
 		familyFaces:      make(map[string]FamilyFace),
 		authorizedPlates: make(map[string]AuthorizedVehicle),
 	}
+}
 
-	// Seed realistic demo family members and vehicles
-	now := time.Now().UTC()
-	nvr.familyFaces["face_marco"] = FamilyFace{
-		ID:         "face_marco",
-		Name:       "Marco Rossi",
-		Role:       "Amministratore",
-		PhotoURL:   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-		EnrolledAt: now.Add(-30 * 24 * time.Hour),
-		Embedding:  []float32{0.5, 0.5, 0.5, 0.5},
+// WithRepository connects the database repository and loads enrolled biometric faces and plates into cache.
+func (n *LocalNVR) WithRepository(repo NVRRepository) *LocalNVR {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.repo = repo
+	if repo != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if faces, err := repo.ListFamilyFaces(ctx); err == nil {
+			for _, f := range faces {
+				n.familyFaces[f.ID] = f
+			}
+		}
+		if plates, err := repo.ListAuthorizedPlates(ctx); err == nil {
+			for _, p := range plates {
+				cleanPlate := strings.ToUpper(strings.ReplaceAll(p.PlateNumber, " ", ""))
+				n.authorizedPlates[cleanPlate] = p
+			}
+		}
 	}
-	nvr.familyFaces["face_laura"] = FamilyFace{
-		ID:         "face_laura",
-		Name:       "Laura Bianchi",
-		Role:       "Residente",
-		PhotoURL:   "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
-		EnrolledAt: now.Add(-15 * 24 * time.Hour),
-		Embedding:  []float32{0.3, 0.7, 0.2, 0.6},
-	}
-
-	nvr.authorizedPlates["AB123CD"] = AuthorizedVehicle{
-		PlateNumber:  "AB123CD",
-		OwnerName:    "Marco Rossi",
-		VehicleModel: "Tesla Model Y",
-		AutoOpenGate: true,
-		EnrolledAt:   now.Add(-20 * 24 * time.Hour),
-	}
-	nvr.authorizedPlates["EF456GH"] = AuthorizedVehicle{
-		PlateNumber:  "EF456GH",
-		OwnerName:    "Laura Bianchi",
-		VehicleModel: "Fiat 500e",
-		AutoOpenGate: true,
-		EnrolledAt:   now.Add(-10 * 24 * time.Hour),
-	}
-
-	return nvr
+	return n
 }
 
 // WithBackend sets a custom inference engine backend.
@@ -174,7 +176,6 @@ func (n *LocalNVR) WithBackend(b InferenceBackend) *LocalNVR {
 // RegisterFamilyFace enrolls a family member's biometric embedding.
 func (n *LocalNVR) RegisterFamilyFace(face FamilyFace) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	if face.ID == "" {
 		face.ID = "face_" + uuid.NewString()[:8]
 	}
@@ -185,11 +186,24 @@ func (n *LocalNVR) RegisterFamilyFace(face FamilyFace) {
 		face.Embedding = []float32{0.5, 0.5, 0.5, 0.5}
 	}
 	n.familyFaces[face.ID] = face
+	repo := n.repo
+	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.SaveFamilyFace(context.Background(), face)
+	}
 }
 
 // ListFamilyFaces returns all enrolled family member faces.
 func (n *LocalNVR) ListFamilyFaces() []FamilyFace {
 	n.mu.RLock()
+	repo := n.repo
+	if repo != nil {
+		if faces, err := repo.ListFamilyFaces(context.Background()); err == nil && len(faces) > 0 {
+			n.mu.RUnlock()
+			return faces
+		}
+	}
 	defer n.mu.RUnlock()
 	res := make([]FamilyFace, 0, len(n.familyFaces))
 	for _, f := range n.familyFaces {
@@ -201,29 +215,46 @@ func (n *LocalNVR) ListFamilyFaces() []FamilyFace {
 // RemoveFamilyFace deletes an enrolled face.
 func (n *LocalNVR) RemoveFamilyFace(id string) bool {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	if _, ok := n.familyFaces[id]; ok {
+	repo := n.repo
+	_, exists := n.familyFaces[id]
+	if exists {
 		delete(n.familyFaces, id)
-		return true
 	}
-	return false
+	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.DeleteFamilyFace(context.Background(), id)
+	}
+	return exists
 }
 
 // RegisterAuthorizedPlate enrolls a vehicle license plate.
 func (n *LocalNVR) RegisterAuthorizedPlate(veh AuthorizedVehicle) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	cleanPlate := strings.ToUpper(strings.ReplaceAll(veh.PlateNumber, " ", ""))
 	veh.PlateNumber = cleanPlate
 	if veh.EnrolledAt.IsZero() {
 		veh.EnrolledAt = time.Now().UTC()
 	}
 	n.authorizedPlates[cleanPlate] = veh
+	repo := n.repo
+	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.SaveAuthorizedPlate(context.Background(), veh)
+	}
 }
 
 // ListAuthorizedPlates returns all enrolled license plates.
 func (n *LocalNVR) ListAuthorizedPlates() []AuthorizedVehicle {
 	n.mu.RLock()
+	repo := n.repo
+	if repo != nil {
+		if plates, err := repo.ListAuthorizedPlates(context.Background()); err == nil && len(plates) > 0 {
+			n.mu.RUnlock()
+			return plates
+		}
+	}
 	defer n.mu.RUnlock()
 	res := make([]AuthorizedVehicle, 0, len(n.authorizedPlates))
 	for _, p := range n.authorizedPlates {
@@ -235,13 +266,18 @@ func (n *LocalNVR) ListAuthorizedPlates() []AuthorizedVehicle {
 // RemoveAuthorizedPlate deletes an enrolled license plate.
 func (n *LocalNVR) RemoveAuthorizedPlate(plate string) bool {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	cleanPlate := strings.ToUpper(strings.ReplaceAll(plate, " ", ""))
-	if _, ok := n.authorizedPlates[cleanPlate]; ok {
+	_, exists := n.authorizedPlates[cleanPlate]
+	if exists {
 		delete(n.authorizedPlates, cleanPlate)
-		return true
 	}
-	return false
+	repo := n.repo
+	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.DeleteAuthorizedPlate(context.Background(), cleanPlate)
+	}
+	return exists
 }
 
 // MatchFace compares a candidate embedding against registered family members.
@@ -340,17 +376,28 @@ func (n *LocalNVR) GetStatus(ctx context.Context) NVRSystemStatus {
 // AddZone configures an intelligent detection zone for a camera.
 func (n *LocalNVR) AddZone(zone MotionZone) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-
 	if zone.ID == "" {
 		zone.ID = "zone_" + uuid.NewString()[:8]
 	}
 	n.zones[zone.CameraID] = append(n.zones[zone.CameraID], zone)
+	repo := n.repo
+	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.SaveZone(context.Background(), zone)
+	}
 }
 
 // GetZones returns all detection zones configured for a camera.
 func (n *LocalNVR) GetZones(cameraID string) []MotionZone {
 	n.mu.RLock()
+	repo := n.repo
+	if repo != nil {
+		if zones, err := repo.GetZones(context.Background(), cameraID); err == nil && len(zones) > 0 {
+			n.mu.RUnlock()
+			return zones
+		}
+	}
 	defer n.mu.RUnlock()
 
 	zones, ok := n.zones[cameraID]
@@ -408,7 +455,12 @@ func (n *LocalNVR) ProcessDetection(ctx context.Context, cameraID string, det AI
 		st.TotalEvents24h++
 		st.LastDetection = now
 	}
+	repo := n.repo
 	n.mu.Unlock()
+
+	if repo != nil {
+		_ = repo.SaveEventClip(ctx, clip)
+	}
 
 	// Auto-match face if embedding is present
 	if len(det.Embedding) > 0 && det.PersonName == "" {
@@ -461,11 +513,22 @@ func (n *LocalNVR) ProcessDetection(ctx context.Context, cameraID string, det AI
 // GetEventClip retrieves the recorded video clip metadata for an event.
 func (n *LocalNVR) GetEventClip(eventID string) (*EventClip, error) {
 	n.mu.RLock()
-	defer n.mu.RUnlock()
-
 	clip, ok := n.clips[eventID]
-	if !ok {
-		return nil, fmt.Errorf("nvr: clip for event %s not found", eventID)
+	repo := n.repo
+	n.mu.RUnlock()
+
+	if ok {
+		return clip, nil
 	}
-	return clip, nil
+
+	if repo != nil {
+		if c, err := repo.GetEventClip(context.Background(), eventID); err == nil && c != nil {
+			n.mu.Lock()
+			n.clips[eventID] = c
+			n.mu.Unlock()
+			return c, nil
+		}
+	}
+
+	return nil, fmt.Errorf("nvr: clip for event %s not found", eventID)
 }
