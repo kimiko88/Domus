@@ -43,7 +43,7 @@
   /* Typography Colors */
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  --text-dim: #8492a6;
   --text-inverse: #0f172a;
 
   /* Borders & Dividers */
@@ -114,7 +114,7 @@
 
   --text-main: #0f172a;
   --text-muted: #334155;
-  --text-dim: #64748b;
+  --text-dim: #475569;
   --text-inverse: #ffffff;
 
   --border-subtle: rgba(15, 23, 42, 0.10);
@@ -159,7 +159,7 @@
 
   --text-main: #ffffff;
   --text-muted: #a1a1aa;
-  --text-dim: #71717a;
+  --text-dim: #94a3b8;
   --text-inverse: #000000;
 
   --border-subtle: rgba(255, 255, 255, 0.12);

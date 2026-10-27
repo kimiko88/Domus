@@ -106,12 +106,23 @@ function getIcon(type: string) {
   flex-shrink: 0;
   background: transparent;
   color: var(--text-dim);
-  padding: 2px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: color var(--transition-fast);
+  position: relative;
+  cursor: pointer;
+}
+
+.toast-dismiss::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .toast-dismiss:hover {

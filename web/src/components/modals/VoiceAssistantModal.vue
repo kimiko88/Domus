@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssistantStore } from '../../stores/assistant'
+import { useNotificationsStore } from '../../stores/notifications'
+import { useModalA11y } from '../../composables/useModalA11y'
 import {
   Sparkles,
   Mic,
@@ -29,13 +31,22 @@ interface Props {
   isOpen: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
 const assistantStore = useAssistantStore()
+const notifStore = useNotificationsStore()
+
+const modalContainerRef = ref<HTMLElement | null>(null)
+useModalA11y({
+  isOpen: toRef(props, 'isOpen'),
+  modalRef: modalContainerRef,
+  onClose: () => emit('close')
+})
+
 const inputPrompt = ref('')
 const isListening = ref(false)
 const chatContainer = ref<HTMLElement | null>(null)
@@ -153,7 +164,10 @@ let recognition: any = null
 function toggleVoiceListening() {
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   if (!SpeechRecognition) {
-    alert('Il riconoscimento vocale Web Speech API non è supportato da questo browser. Puoi digitare il comando nel campo testo.')
+    notifStore.warning(
+      'Riconoscimento Vocale',
+      'Il riconoscimento vocale Web Speech API non è supportato da questo browser. Puoi digitare il comando nel campo testo.'
+    )
     return
   }
 
@@ -201,8 +215,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="emit('close')">
-    <div class="assistant-modal glass-panel">
+  <div v-if="isOpen" class="modal-overlay" @click="emit('close')">
+    <div
+      ref="modalContainerRef"
+      class="assistant-modal glass-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="assistant-modal-title"
+      @click.stop
+    >
       <!-- Header -->
       <div class="assistant-header">
         <div class="header-title">
@@ -210,7 +231,7 @@ onMounted(() => {
             <Sparkles :size="20" class="sparkle-anim" />
           </div>
           <div>
-            <h3 class="modal-title">Domus AI Assistant</h3>
+            <h3 id="assistant-modal-title" class="modal-title">Domus AI Assistant</h3>
             <div class="engine-badge">
               <Cpu :size="12" />
               <span>Offline-First (Ollama LLM & Heuristic NLP)</span>
@@ -223,6 +244,7 @@ onMounted(() => {
             type="button"
             class="icon-btn"
             title="Azzera conversazione"
+            aria-label="Azzera cronologia conversazione"
             @click="assistantStore.clearHistory"
           >
             <RotateCcw :size="16" />
@@ -231,6 +253,7 @@ onMounted(() => {
             type="button"
             class="icon-btn"
             title="Chiudi"
+            aria-label="Chiudi assistente vocale"
             @click="emit('close')"
           >
             <X :size="18" />
@@ -239,10 +262,14 @@ onMounted(() => {
       </div>
 
       <!-- Assistant Navigation Tabs -->
-      <div class="assistant-tabs">
+      <div class="assistant-tabs" role="tablist" aria-label="Sezioni assistente vocale">
         <button
+          id="assistant-tab-chat"
           type="button"
           class="tab-btn"
+          role="tab"
+          :aria-selected="activeTab === 'chat'"
+          aria-controls="assistant-panel-chat"
           :class="{ active: activeTab === 'chat' }"
           @click="activeTab = 'chat'"
         >
@@ -250,8 +277,12 @@ onMounted(() => {
           <span>{{ t('satellites.tabChat') }}</span>
         </button>
         <button
+          id="assistant-tab-satellites"
           type="button"
           class="tab-btn"
+          role="tab"
+          :aria-selected="activeTab === 'satellites'"
+          aria-controls="assistant-panel-satellites"
           :class="{ active: activeTab === 'satellites' }"
           @click="activeTab = 'satellites'"
         >
@@ -262,7 +293,13 @@ onMounted(() => {
       </div>
 
       <!-- Tab 1: Chat & Quick Commands -->
-      <div v-if="activeTab === 'chat'" class="chat-tab-container">
+      <div
+        v-if="activeTab === 'chat'"
+        id="assistant-panel-chat"
+        class="chat-tab-container"
+        role="tabpanel"
+        aria-labelledby="assistant-tab-chat"
+      >
         <!-- Quick Chips -->
         <div class="quick-chips-wrapper">
           <div class="quick-chips" role="list" aria-label="Comandi rapidi suggeriti">
@@ -336,6 +373,7 @@ onMounted(() => {
             class="mic-btn"
             :class="{ 'is-listening': isListening }"
             :title="isListening ? 'In ascolto... clicca per fermare' : 'Attiva dettatura vocale'"
+            :aria-label="isListening ? 'Interrompi dettatura vocale' : 'Attiva dettatura vocale'"
             @click="toggleVoiceListening"
           >
             <Mic :size="20" v-if="!isListening" />
@@ -357,6 +395,8 @@ onMounted(() => {
           <button
             type="submit"
             class="send-btn"
+            title="Invia comando"
+            aria-label="Invia comando all'assistente vocale"
             :disabled="!inputPrompt.trim() || isProcessing"
           >
             <Send :size="18" />
@@ -365,7 +405,13 @@ onMounted(() => {
       </div>
 
       <!-- Tab 2: Multi-Room Satellites & Wake Word Always-On -->
-      <div v-else class="satellites-tab-container">
+      <div
+        v-else
+        id="assistant-panel-satellites"
+        class="satellites-tab-container"
+        role="tabpanel"
+        aria-labelledby="assistant-tab-satellites"
+      >
         <!-- Always-On Wake Word Visualizer Banner -->
         <div class="satellite-hero-banner">
           <div class="hero-top-row">

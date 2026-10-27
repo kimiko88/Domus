@@ -176,6 +176,13 @@ async function handleBrightnessChange() {
   padding: 2px;
 }
 
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+  min-height: 44px;
+}
+
 .toggle-indicator {
   position: absolute;
   top: 2px;
@@ -197,16 +204,17 @@ async function handleBrightnessChange() {
   transform: translateX(20px);
 }
 
-/* Brightness Slider */
+/* Brightness Slider with WCAG touch-target optimization */
 .slider-row {
   display: flex;
   align-items: center;
-  padding-top: 4px;
+  min-height: 44px;
+  padding: 4px 0;
 }
 
 .brightness-slider {
   width: 100%;
-  height: 6px;
+  height: 8px;
   -webkit-appearance: none;
   appearance: none;
   background: rgba(255, 255, 255, 0.15);
@@ -218,16 +226,33 @@ async function handleBrightnessChange() {
 .brightness-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #fbbf24;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
   cursor: pointer;
   transition: transform var(--transition-fast);
 }
 
-.brightness-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+.brightness-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
+  border: none;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.brightness-slider::-webkit-slider-thumb:hover,
+.brightness-slider:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+.brightness-slider::-moz-range-thumb:hover,
+.brightness-slider:focus-visible::-moz-range-thumb {
+  transform: scale(1.18);
 }
 </style>

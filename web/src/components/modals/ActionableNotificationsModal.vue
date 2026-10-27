@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, toRef } from 'vue'
 import { Bell, CheckCircle, AlertTriangle, X, ShieldAlert, Sparkles, Clock } from '@lucide/vue'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAuthStore } from '../../stores/auth'
+import { useModalA11y } from '../../composables/useModalA11y'
 
 const props = defineProps<{
   isOpen: boolean
@@ -14,6 +15,13 @@ const emit = defineEmits<{
 
 const notifStore = useNotificationsStore()
 const authStore = useAuthStore()
+
+const drawerRef = ref<HTMLElement | null>(null)
+useModalA11y({
+  isOpen: toRef(props, 'isOpen'),
+  modalRef: drawerRef,
+  onClose: () => emit('close')
+})
 
 const activeItems = computed(() => notifStore.activeActionable)
 
@@ -39,7 +47,14 @@ function formatTime(isoStr: string) {
 <template>
   <Transition name="fade">
     <div v-if="isOpen" class="modal-backdrop" @click="emit('close')">
-      <div class="notif-drawer glass-panel" role="dialog" aria-modal="true" @click.stop>
+      <div
+        ref="drawerRef"
+        class="notif-drawer glass-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notif-drawer-title"
+        @click.stop
+      >
         <!-- Drawer Header -->
         <div class="drawer-header">
           <div class="header-title-box">
@@ -50,7 +65,7 @@ function formatTime(isoStr: string) {
               </span>
             </div>
             <div>
-              <h2 class="drawer-title">Notifiche Azionabili</h2>
+              <h2 id="notif-drawer-title" class="drawer-title">Notifiche Azionabili</h2>
               <p class="drawer-sub">Comandi rapidi e avvisi interattivi della casa</p>
             </div>
           </div>
@@ -85,7 +100,12 @@ function formatTime(isoStr: string) {
                 <div class="time-meta">
                   <Clock :size="12" />
                   <span>{{ formatTime(item.created_at) }}</span>
-                  <button class="btn-dismiss" title="Archivia" @click="handleDismiss(item.id)">
+                  <button
+                    class="btn-dismiss"
+                    title="Archivia"
+                    :aria-label="`Archivia notifica: ${item.title}`"
+                    @click="handleDismiss(item.id)"
+                  >
                     <X :size="14" />
                   </button>
                 </div>
@@ -299,11 +319,20 @@ function formatTime(isoStr: string) {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px;
+  padding: 4px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+
+.btn-dismiss::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .btn-dismiss:hover {

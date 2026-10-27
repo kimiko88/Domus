@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { getActivePinia } from 'pinia'
 import { useAuthStore } from '../../stores/auth'
 import {
@@ -200,6 +200,31 @@ watch(
   },
   { immediate: true }
 )
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.isOpen) {
+    emit('close')
+  }
+}
+
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (typeof window === 'undefined') return
+    if (open) {
+      document.addEventListener('keydown', handleKeydown)
+    } else {
+      document.removeEventListener('keydown', handleKeydown)
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    document.removeEventListener('keydown', handleKeydown)
+  }
+})
 </script>
 
 <template>
@@ -234,6 +259,7 @@ watch(
         >
           <!-- Macro-section Header Accordion Button -->
           <button
+            :id="`btn-section-${section.id}`"
             type="button"
             class="macro-section-header"
             :aria-expanded="openSections[section.id]"
@@ -266,12 +292,14 @@ watch(
             :id="`section-${section.id}`"
             class="nav-sub-list"
             role="region"
+            :aria-labelledby="`btn-section-${section.id}`"
           >
             <RouterLink
               v-for="item in section.items"
               :key="item.path"
               :to="item.path"
               :class="['nav-item', 'sub-nav-item', { active: isItemActive(item.path) }]"
+              :aria-current="isItemActive(item.path) ? 'page' : undefined"
               @click="emit('close')"
             >
               <component :is="item.icon" :size="17" class="nav-icon" />

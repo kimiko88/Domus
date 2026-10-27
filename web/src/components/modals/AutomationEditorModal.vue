@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, toRef } from 'vue'
 import type { Automation } from '../../api/types'
 import BaseButton from '../ui/BaseButton.vue'
+import { useModalA11y } from '../../composables/useModalA11y'
 import { X, Zap, AlertCircle, CheckCircle, Code2, Sparkles } from '@lucide/vue'
 
 interface Props {
@@ -18,6 +19,13 @@ const emit = defineEmits<{
   (e: 'save', data: Partial<Automation>): void
   (e: 'close'): void
 }>()
+
+const modalContainerRef = ref<HTMLElement | null>(null)
+useModalA11y({
+  isOpen: toRef(props, 'isOpen'),
+  modalRef: modalContainerRef,
+  onClose: () => emit('close')
+})
 
 const name = ref('')
 const description = ref('')
@@ -139,14 +147,21 @@ function handleSubmit() {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-backdrop">
-    <div class="modal-card glass-panel animate-enter">
+  <div v-if="isOpen" class="modal-backdrop" @click="emit('close')">
+    <div
+      ref="modalContainerRef"
+      class="modal-card glass-panel animate-enter"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="automation-modal-title"
+      @click.stop
+    >
       <div class="modal-header">
         <div class="header-title">
           <Zap :size="20" class="title-icon" />
-          <h3>{{ automation ? 'Modifica Automazione' : 'Nuova Automazione' }}</h3>
+          <h3 id="automation-modal-title">{{ automation ? 'Modifica Automazione' : 'Nuova Automazione' }}</h3>
         </div>
-        <button class="btn-close" aria-label="Close modal" @click="emit('close')">
+        <button class="btn-close" aria-label="Chiudi finestra automazione" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>

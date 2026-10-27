@@ -9,6 +9,7 @@ import AppTopbar from './components/layout/AppTopbar.vue'
 import BaseToast from './components/ui/BaseToast.vue'
 import AppTourModal from './components/modals/AppTourModal.vue'
 import { useTourStore } from './stores/tour'
+import { WifiOff } from '@lucide/vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -105,6 +106,18 @@ onMounted(() => {
           @toggle-menu="isSidebarOpen = !isSidebarOpen"
         />
 
+        <Transition name="fade-slide">
+          <div
+            v-if="!isAuthPage && authStore.isAuthenticated && !wsStore.isConnected"
+            class="offline-banner"
+            role="status"
+            aria-live="polite"
+          >
+            <WifiOff :size="16" class="offline-icon" />
+            <span class="offline-text">Connessione all'hub locale interrotta. Riconnessione automatica in corso...</span>
+          </div>
+        </Transition>
+
         <main id="main-content" class="page-content" tabindex="-1">
           <RouterView />
         </main>
@@ -144,6 +157,26 @@ onMounted(() => {
   .content-wrapper {
     margin-left: 0;
   }
+}
+
+.offline-banner {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.2) 0%, rgba(244, 63, 94, 0.2) 100%);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: var(--blur-card);
+  -webkit-backdrop-filter: var(--blur-card);
+}
+
+.offline-icon {
+  flex-shrink: 0;
+  animation: pulse-subtle 2s infinite;
 }
 
 .page-content {

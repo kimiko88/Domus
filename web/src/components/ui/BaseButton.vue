@@ -28,6 +28,7 @@ function handleClick(event: MouseEvent) {
   <button
     :type="type"
     :disabled="disabled || loading"
+    :aria-busy="loading ? 'true' : undefined"
     :class="[
       'btn',
       `btn-${variant}`,
@@ -37,6 +38,7 @@ function handleClick(event: MouseEvent) {
     @click="handleClick"
   >
     <span v-if="loading" class="btn-spinner" aria-hidden="true" />
+    <span v-if="loading" class="sr-only">Caricamento in corso...</span>
     <span :class="['btn-content', { 'opacity-0': loading }]">
       <slot />
     </span>
@@ -69,6 +71,14 @@ function handleClick(event: MouseEvent) {
   padding: 6px 12px;
   font-size: 13px;
   gap: 6px;
+  position: relative;
+}
+
+.btn-sm::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
+  min-height: 44px;
 }
 
 .btn-md {

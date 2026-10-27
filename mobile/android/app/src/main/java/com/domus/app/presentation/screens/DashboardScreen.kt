@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -467,8 +468,10 @@ fun DashboardScreen(
                             }
                         }
                     } else {
+                        val fontScale = LocalDensity.current.fontScale
+                        val gridColumns = if (fontScale > 1.3f) GridCells.Fixed(1) else GridCells.Fixed(2)
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
+                            columns = gridColumns,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()

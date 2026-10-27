@@ -155,6 +155,13 @@ async function handleToggle() {
   padding: 2px;
 }
 
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+  min-height: 44px;
+}
+
 .toggle-indicator {
   position: absolute;
   top: 2px;

@@ -270,12 +270,13 @@ a:hover {
   position: relative;
 }
 
-.close-btn {
+.close-btn,
+.btn-close {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--border-card);
   color: var(--text-muted);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
@@ -284,11 +285,35 @@ a:hover {
   line-height: 1;
   transition: all var(--transition-fast);
   cursor: pointer;
+  position: relative;
 }
 
-.close-btn:hover {
+.close-btn::after,
+.btn-close::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.close-btn:hover,
+.btn-close:hover {
   background: rgba(244, 63, 94, 0.25);
   border-color: rgba(244, 63, 94, 0.6);
   color: #ffffff;
 }
+
+/* Touch Target Expander for Switch Buttons (WCAG 2.2 AA - min 44x44px target) */
+.toggle-btn {
+  position: relative;
+}
+
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  inset: -8px -2px;
+  min-height: 44px;
+}
+
 

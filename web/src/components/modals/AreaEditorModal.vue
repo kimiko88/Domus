@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Area } from '../../api/types'
 import BaseButton from '../ui/BaseButton.vue'
+import { useModalA11y } from '../../composables/useModalA11y'
 import {
   X,
   Grid,
@@ -30,6 +31,13 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'save', payload: { name: string; icon: string; sort_order: number }): void
 }>()
+
+const modalContainerRef = ref<HTMLElement | null>(null)
+useModalA11y({
+  isOpen: toRef(props, 'isOpen'),
+  modalRef: modalContainerRef,
+  onClose: () => emit('close')
+})
 
 const name = ref('')
 const selectedIcon = ref('grid')
@@ -94,14 +102,21 @@ function handleSubmit() {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-backdrop" @click.self="emit('close')">
-    <div class="modal-card glass-panel animate-enter">
+  <div v-if="isOpen" class="modal-backdrop" @click="emit('close')">
+    <div
+      ref="modalContainerRef"
+      class="modal-card glass-panel animate-enter"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="area-modal-title"
+      @click.stop
+    >
       <div class="modal-header">
         <div class="header-title">
           <Sparkles :size="20" class="title-icon" />
-          <h3>{{ area ? t('areas.editArea') : t('areas.newArea') }}</h3>
+          <h3 id="area-modal-title">{{ area ? t('areas.editArea') : t('areas.newArea') }}</h3>
         </div>
-        <button class="btn-close" aria-label="Close modal" @click="emit('close')">
+        <button class="btn-close" aria-label="Chiudi finestra area" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>

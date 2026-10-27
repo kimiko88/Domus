@@ -12,6 +12,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -33,6 +35,7 @@ fun EntityCard(
     onClick: ((Entity) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val isOn = entity.isOn
     val activeColor by animateColorAsState(
         targetValue = if (isOn) CyanAccent.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface,
@@ -78,6 +81,7 @@ fun EntityCard(
             .clickable(
                 onClickLabel = if (isOn) "Gestisci ${entity.name}" else "Accendi ${entity.name}"
             ) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (onClick != null) {
                     onClick(entity)
                 } else {
