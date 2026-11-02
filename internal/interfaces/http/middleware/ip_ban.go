@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"strings"
 
 	domauth "github.com/domus-hub/domus/internal/domain/auth"
 )
@@ -37,18 +36,13 @@ func IPBanMiddleware(bannedRepo domauth.BannedIPRepository) func(http.Handler) h
 	}
 }
 
-// ExtractClientIP extracts the real client IP address considering proxy headers.
+// ExtractClientIP extracts the verified client IP address from the request.
+// It relies exclusively on r.RemoteAddr, which represents the authenticated
+// TCP peer set by the Go HTTP server and (when applicable) rewritten by a
+// trusted proxy middleware. Raw X-Forwarded-For / X-Real-IP headers are
+// intentionally ignored here to prevent IP-spoofing via header injection
+// (CVE-2026-114437 / go-chi/chi ClientIPFromXFF bypass).
 func ExtractClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		ip := strings.TrimSpace(parts[0])
-		if ip != "" {
-			return ip
-		}
-	}
-	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-		return strings.TrimSpace(xrip)
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
 		return host

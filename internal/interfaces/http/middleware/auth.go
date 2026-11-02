@@ -128,14 +128,11 @@ func RateLimit(limiter *auth.RateLimiter) func(http.Handler) http.Handler {
 	}
 }
 
+// extractIP returns the verified client IP from r.RemoteAddr.
+// X-Forwarded-For / X-Real-IP headers are intentionally ignored to prevent
+// IP-spoofing (CVE-2026-114437). The chi RealIP middleware (when present)
+// is the single authorised place to rewrite RemoteAddr from a trusted proxy.
 func extractIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		candidate := strings.TrimSpace(parts[0])
-		if net.ParseIP(candidate) != nil {
-			return candidate
-		}
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {
 		return host

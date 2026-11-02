@@ -152,7 +152,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// Global standard middlewares
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
+	// NOTE: chimw.RealIP (chi's X-Forwarded-For rewriter) is intentionally
+	// omitted. Domus is a local-first hub: the authenticated TCP peer address
+	// in r.RemoteAddr is always the source of truth. Blindly trusting XFF
+	// headers enables client-IP spoofing (CVE-2026-114437).
 	r.Use(domusmw.TraceContext())
 	r.Use(domusmw.RequestLogger())
 	r.Use(chimw.Recoverer)
