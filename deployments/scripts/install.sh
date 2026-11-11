@@ -25,7 +25,7 @@
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
 #   INSTALL_MOSQUITTO=1   install the Mosquitto MQTT broker via apt
-#   KEEP_TOOLCHAINS=1     keep downloaded Go/Node under /opt/domus-toolchains
+#   KEEP_TOOLCHAINS=1     keep downloaded Node under /opt/domus-toolchains
 # ==============================================================================
 set -euo pipefail
 
