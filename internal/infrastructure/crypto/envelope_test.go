@@ -86,6 +86,19 @@ func TestEnvelopeCipher_LoadOrCreateMasterKey(t *testing.T) {
 	key2, err := crypto.LoadOrCreateMasterKey(keyPath)
 	require.NoError(t, err)
 	assert.Equal(t, key1, key2, "Loading from existing path must yield identical key")
+
+	info, err := os.Stat(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+
+	// Existing keys with broad permissions are tightened without changing bytes.
+	require.NoError(t, os.Chmod(keyPath, 0644))
+	key3, err := crypto.LoadOrCreateMasterKey(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, key1, key3)
+	info, err = os.Stat(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
 
