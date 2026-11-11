@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -157,6 +158,7 @@ func TestServer_SwaggerAndDocsEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rrDocs.Code)
 	assert.Contains(t, rrDocs.Header().Get("Content-Type"), "text/html")
 	assert.Contains(t, rrDocs.Body.String(), "SwaggerUIBundle")
+	assert.Contains(t, rrDocs.Header().Get("Content-Security-Policy"), "https://unpkg.com")
 
 	// 2. /swagger endpoint
 	reqSwagger := httptest.NewRequest(http.MethodGet, "/swagger", nil)
@@ -390,4 +392,39 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 	demoteAdminBody, _ := json.Marshal(map[string]any{"role": "viewer"})
 	rr = doReq(http.MethodPut, "/api/v1/family/members/"+adminUser.ID+"/role", adminSess.ID, demoteAdminBody)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+
+func TestServer_ServesFrontendAndSPAFallback(t *testing.T) {
+	webDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(webDir, "index.html"), []byte("<html>Domus UI</html>"), 0600))
+	require.NoError(t, os.Mkdir(filepath.Join(webDir, "assets"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(webDir, "assets", "app.js"), []byte("console.log('domus')"), 0600))
+
+	cfg := config.ServerConfig{Host: "127.0.0.1", Port: 8080, WebDir: webDir}
+	srv := serverpkg.NewServer(cfg, "1.0.0", time.Now(), &dummyPinger{})
+
+	doReq := func(path string) *httptest.ResponseRecorder {
+		rr := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		return rr
+	}
+
+	root := doReq("/")
+	assert.Equal(t, http.StatusOK, root.Code)
+	assert.Contains(t, root.Body.String(), "Domus UI")
+
+	spaRoute := doReq("/dashboard/overview")
+	assert.Equal(t, http.StatusOK, spaRoute.Code)
+	assert.Contains(t, spaRoute.Body.String(), "Domus UI")
+
+	asset := doReq("/assets/app.js")
+	assert.Equal(t, http.StatusOK, asset.Code)
+	assert.Contains(t, asset.Body.String(), "console.log")
+
+	missingAsset := doReq("/assets/missing.js")
+	assert.Equal(t, http.StatusNotFound, missingAsset.Code)
+
+	missingAPI := doReq("/api/v1/does-not-exist")
+	assert.Equal(t, http.StatusNotFound, missingAPI.Code)
 }
