@@ -142,6 +142,18 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 	}
 
 	load := func() ([]byte, error) {
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("envelope: master key path %s must be a regular file, not a symlink or special file", path)
+		}
+		if info.Mode().Perm() != 0o600 {
+			if err := os.Chmod(path, 0o600); err != nil {
+				return nil, fmt.Errorf("envelope: failed to secure master key permissions: %w", err)
+			}
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
