@@ -547,6 +547,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/presence", func(pRouter chi.Router) {
 					pRouter.Post("/gps", advH.UpdateGPS)
+					pRouter.Post("/room", advH.UpdateRoomPresence)
 					pRouter.Get("/status", advH.GetPresenceStatus)
 					pRouter.Get("/vacation", advH.GetVacationMode)
 					pRouter.Post("/vacation", advH.SetVacationMode)
