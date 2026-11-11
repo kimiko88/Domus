@@ -20,7 +20,7 @@
 # then run this script on the Pi: it will just install what it finds.
 #
 # Environment overrides:
-#   DOMUS_VERSION, DOMUS_PORT, DOMUS_USER, DOMUS_GROUP
+#   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_USER, DOMUS_GROUP
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   NODE_MAJOR (default: 22)
@@ -35,6 +35,7 @@ DOMUS_DATA_DIR="${DOMUS_DATA_DIR:-/var/lib/domus}"
 DOMUS_WEB_DIR="${DOMUS_WEB_DIR:-/usr/local/share/domus/web}"
 DOMUS_USER="${DOMUS_USER:-domus}"
 DOMUS_GROUP="${DOMUS_GROUP:-domus}"
+DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
@@ -57,7 +58,7 @@ cleanup() {
         rm -rf "${WORK_DIR}"
     fi
     if [[ ${rc} -ne 0 ]]; then
-        log_error "Installation failed (exit code ${rc}). Nothing was started."
+        log_error "Installation failed (exit code ${rc}). Check the messages above and the service logs."
     fi
 }
 trap cleanup EXIT
@@ -285,6 +286,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
         cp "${PROJECT_ROOT}/domus.toml.example" "${CONFIG_TARGET}"
         # Absolute paths + chosen port instead of the dev defaults
         sed -i -E \
+            -e "s|^[[:space:]]*host[[:space:]]*=.*|host = \"${DOMUS_HOST}\"|" \
             -e "s|^port[[:space:]]*=.*|port = ${DOMUS_PORT}|" \
             -e "s|^path[[:space:]]*=.*|path = \"${DOMUS_DATA_DIR}/domus.db\"|" \
             -e "s|^web_dir[[:space:]]*=.*|web_dir = \"${DOMUS_WEB_DIR}\"|" \
@@ -295,7 +297,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
     else
         cat > "${CONFIG_TARGET}" <<EOF
 [server]
-host = "0.0.0.0"
+host = "${DOMUS_HOST}"
 port = ${DOMUS_PORT}
 cookie_secure = false
 web_dir = "${DOMUS_WEB_DIR}"
@@ -347,7 +349,12 @@ if (( HAVE_SYSTEMD )); then
         ui_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
         [[ "${ui_code}" == "200" ]] || log_warn "UI check: GET / returned ${ui_code} (expected 200). Is the backend serving web_dir? See: journalctl -u domus -n 50"
     else
-        log_warn "No health response. Logs: journalctl -u domus -n 100 --no-pager"
+        log_error "Domus did not become healthy within 30 seconds."
+        log_error "Recent service logs:"
+        journalctl -u domus -n 100 --no-pager >&2 || true
+        log_warn "Stopping the unhealthy service. Fix the reported error, then run: systemctl start domus"
+        systemctl stop domus.service || true
+        exit 1
     fi
 else
     log_warn "systemd not found: run manually  DOMUS_SERVER_WEB_DIR=${DOMUS_WEB_DIR} ${DOMUS_INSTALL_DIR}/domus -config ${CONFIG_TARGET}"
