@@ -4,6 +4,7 @@ package presence
 import (
 	"context"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,10 +27,13 @@ type PersonLocation struct {
 	State         PresenceState `json:"state"`
 	GPSLat        float64       `json:"gps_lat,omitempty"`
 	GPSLon        float64       `json:"gps_lon,omitempty"`
+	HasGPS        bool          `json:"has_gps"`
 	WiFiConnected bool          `json:"wifi_connected"`
 	WiFiMAC       string        `json:"wifi_mac,omitempty"`
 	RoomZone      string        `json:"room_zone,omitempty"` // e.g. "bedroom", "living_room"
 	SubState      string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
+	RoomOccupied  bool          `json:"room_occupied"`
+	RoomLastSeenAt time.Time    `json:"room_last_seen_at,omitempty"`
 	LastSeenAt    time.Time     `json:"last_seen_at"`
 }
 
@@ -38,6 +42,7 @@ type HomeGeofence struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 	RadiusM   float64 `json:"radius_m"` // default 150m
+	Enabled   bool    `json:"enabled"`
 }
 
 // Service manages presence evaluation and multi-sensor fusion.
@@ -67,14 +72,22 @@ func (s *Service) UpdateGPS(ctx context.Context, userID string, lat, lon float64
 	defer s.mu.Unlock()
 
 	p := s.getOrCreate(userID)
+	if !ValidCoordinates(lat, lon) {
+		return p.State
+	}
 	p.GPSLat = lat
 	p.GPSLon = lon
+	p.HasGPS = true
 	p.LastSeenAt = now
 
-	distMeters := haversineDistance(lat, lon, s.geofence.Latitude, s.geofence.Longitude)
-	isWithinGeofence := distMeters <= s.geofence.RadiusM
-
-	return s.evaluateStateLocked(ctx, p, isWithinGeofence, p.WiFiConnected, now)
+	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
+	inGPSZone := false
+	if geofenceEnabled {
+		distMeters := haversineDistance(lat, lon, s.geofence.Latitude, s.geofence.Longitude)
+		inGPSZone = distMeters <= s.geofence.RadiusM
+	}
+	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && now.Sub(p.RoomLastSeenAt) <= 5*time.Minute
+	return s.evaluateStateLocked(ctx, p, inGPSZone, p.WiFiConnected, roomPresent, now)
 }
 
 // UpdateWiFi handles local network ARP / Wi-Fi association updates.
@@ -87,8 +100,14 @@ func (s *Service) UpdateWiFi(ctx context.Context, userID string, mac string, con
 	p.WiFiConnected = connected
 	p.LastSeenAt = now
 
-	// Wi-Fi connected to local LAN is high-confidence proof that user is at home!
-	return s.evaluateStateLocked(ctx, p, p.GPSLat != 0 && haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM, connected, now)
+	// Wi-Fi connected to local LAN is high-confidence proof that user is at home.
+	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
+	inGPSZone := false
+	if p.HasGPS && geofenceEnabled {
+		inGPSZone = haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+	}
+	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && now.Sub(p.RoomLastSeenAt) <= 5*time.Minute
+	return s.evaluateStateLocked(ctx, p, inGPSZone, connected, roomPresent, now)
 }
 
 // UpdateRoomSensor updates room-level mmWave radar presence (stationary, moving, sleeping).
@@ -100,21 +119,30 @@ func (s *Service) UpdateRoomSensor(ctx context.Context, userID string, room stri
 	p.RoomZone = room
 	p.SubState = subState
 	p.LastSeenAt = now
-
-	// mmWave detecting person in a room guarantees user is home
-	if p.State != StateHome {
-		p.State = StateHome
-		s.publishPresenceChanged(ctx, p, now)
+	normalized := strings.ToLower(strings.TrimSpace(subState))
+	p.RoomOccupied = strings.TrimSpace(room) != "" &&
+		normalized != "clear" && normalized != "cleared" &&
+		normalized != "away" && normalized != "vacant" &&
+		normalized != "none" && normalized != "off"
+	if p.RoomOccupied {
+		p.RoomLastSeenAt = now
+	} else {
+		p.RoomLastSeenAt = time.Time{}
 	}
+	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
+	inGPSZone := p.HasGPS && geofenceEnabled &&
+		haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero()
+	s.evaluateStateLocked(ctx, p, inGPSZone, p.WiFiConnected, roomPresent, now)
 }
 
-func (s *Service) evaluateStateLocked(ctx context.Context, p *PersonLocation, inGPSZone bool, wifiConnected bool, now time.Time) PresenceState {
+func (s *Service) evaluateStateLocked(ctx context.Context, p *PersonLocation, inGPSZone bool, wifiConnected bool, roomPresent bool, now time.Time) PresenceState {
 	oldState := p.State
 	var newState PresenceState
 
 	// Multi-tier fusion:
 	// If Wi-Fi is connected OR GPS is inside geofence -> user is HOME
-	if wifiConnected || inGPSZone {
+	if wifiConnected || inGPSZone || roomPresent {
 		if oldState == StateAway || oldState == "" {
 			newState = StateJustArrived
 		} else {
@@ -190,6 +218,13 @@ func (s *Service) getOrCreate(userID string) *PersonLocation {
 	}
 	s.people[userID] = p
 	return p
+}
+
+// ValidCoordinates reports whether latitude and longitude are finite WGS84 coordinates.
+func ValidCoordinates(lat, lon float64) bool {
+	return !math.IsNaN(lat) && !math.IsNaN(lon) &&
+		!math.IsInf(lat, 0) && !math.IsInf(lon, 0) &&
+		lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
 }
 
 // haversineDistance calculates meters between two WGS84 geographic coordinates.
