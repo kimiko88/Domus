@@ -113,6 +113,7 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			path := strings.TrimSuffix(r.URL.Path, "/")
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
 			selfService := hasSuffix("/presence/gps") ||
+				hasSuffix("/presence/room") ||
 				hasSuffix("/presence/commute") ||
 				hasSuffix("/shopping") ||
 				strings.Contains(path, "/shopping/") ||
