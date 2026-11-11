@@ -372,8 +372,16 @@ if (( HAVE_SYSTEMD )); then
     done
     if (( healthy )); then
         log_success "Domus is up"
-        ui_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
-        [[ "${ui_code}" == "200" ]] || log_warn "UI check: GET / returned ${ui_code} (expected 200). Is the backend serving web_dir? See: journalctl -u domus -n 50"
+        ui_code="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
+        if [[ "${ui_code}" != "200" ]]; then
+            log_error "Frontend health check failed: GET / returned ${ui_code} (expected 200)."
+            log_error "Recent service logs:"
+            journalctl -u domus -n 100 --no-pager >&2 || true
+            log_warn "Stopping Domus because the web interface is not available."
+            systemctl stop domus.service || true
+            exit 1
+        fi
+        log_success "Web interface responds with HTTP 200"
     else
         log_error "Domus did not become healthy within 30 seconds."
         log_error "Recent service logs:"
