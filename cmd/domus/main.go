@@ -218,10 +218,15 @@ func main() {
 	presenceSvc := apppresence.NewService(homeGeofence, bus)
 
 	var sunEngine *appauto.SunEngine
+	var commuteTracker *apppresence.CommuteTracker
 	if homeGeofence.Enabled {
 		sunEngine = appauto.NewSunEngine(homeGeofence.Latitude, homeGeofence.Longitude)
+		commuteTracker = apppresence.NewCommuteTracker(bus, apppresence.CommuteConfig{
+			HomeLatitude:  homeGeofence.Latitude,
+			HomeLongitude: homeGeofence.Longitude,
+		})
 	} else {
-		slog.Warn("home coordinates are not configured; GPS geofencing and solar position are disabled")
+		slog.Warn("home coordinates are not configured; GPS geofencing, commute tracking and solar position are disabled")
 	}
 
 	// 11. Telemetry Downsampler (Nightly compaction of telemetry > 30 days old into hourly buckets)
@@ -258,7 +263,7 @@ func main() {
 		serverpkg.WithAuth(authService, loginLimiter),
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithAutomation(autoEngine, sceneService),
-		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine),
+		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine, commuteTracker),
 		serverpkg.WithWebSocket(wsHub),
 	)
 
