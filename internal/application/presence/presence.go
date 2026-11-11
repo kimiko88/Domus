@@ -255,6 +255,84 @@ func (s *Service) GetPersonState(userID string) (*PersonLocation, bool) {
 	return &cp, true
 }
 
+// Start periodically expires stale presence signals so automations receive
+// departure events even when a device stops reporting without a final "away".
+func (s *Service) Start(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				s.ExpireStaleSignals(now.UTC())
+			}
+		}
+	}()
+}
+
+// ExpireStaleSignals recomputes presence from recent GPS, Wi-Fi and room sensor
+// evidence. It is exported so deterministic tests and maintenance tasks can
+// trigger expiry without waiting for the periodic worker.
+func (s *Service) ExpireStaleSignals(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, p := range s.people {
+		p.RoomOccupied = false
+		p.RoomLastSeenAt = time.Time{}
+		latestRoom := ""
+		latestSubState := ""
+		for room, signal := range p.roomPresence {
+			age := now.Sub(signal.LastSeenAt)
+			if age < -30*time.Second || age > 5*time.Minute {
+				delete(p.roomPresence, room)
+				continue
+			}
+			if p.RoomLastSeenAt.IsZero() || signal.LastSeenAt.After(p.RoomLastSeenAt) {
+				p.RoomOccupied = true
+				p.RoomLastSeenAt = signal.LastSeenAt
+				latestRoom = room
+				latestSubState = signal.SubState
+			}
+		}
+		if p.RoomOccupied {
+			p.RoomZone = latestRoom
+			p.SubState = latestSubState
+		}
+
+		gpsAge := now.Sub(p.GPSLastSeenAt)
+		wifiAge := now.Sub(p.WiFiLastSeenAt)
+		roomAge := now.Sub(p.RoomLastSeenAt)
+		gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && gpsAge >= -30*time.Second && gpsAge <= 10*time.Minute
+		wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && wifiAge >= -30*time.Second && wifiAge <= 2*time.Minute
+		roomFresh := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && roomAge >= -30*time.Second && roomAge <= 5*time.Minute
+
+		geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
+		gpsHome := gpsFresh && geofenceEnabled &&
+			haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+		evidence := wifiFresh || roomFresh || gpsHome
+
+		oldState := p.State
+		if evidence {
+			if oldState == StateAway || oldState == StateJustLeft || oldState == "" {
+				p.State = StateJustArrived
+			} else {
+				p.State = StateHome
+			}
+		} else if oldState == StateHome || oldState == StateJustArrived {
+			p.State = StateJustLeft
+		} else {
+			p.State = StateAway
+		}
+
+		if oldState != p.State {
+			s.publishPresenceChanged(ctx, p, now)
+		}
+	}
+}
+
 // IsAnyoneHome returns true if at least one tracked user is home.
 func (s *Service) IsAnyoneHome() bool {
 	s.mu.RLock()
