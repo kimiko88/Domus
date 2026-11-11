@@ -213,7 +213,7 @@ else
     [[ "${need_go}" =~ ^[0-9]+\.[0-9]+$ ]] && need_go="${need_go}.0"
     ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" == "$2" ]]; } # $1 >= $2
 
-    if [[ -x /usr/local/go/bin/go ]]; then
+    if ! command -v go >/dev/null 2>&1 && [[ -x /usr/local/go/bin/go ]]; then
         export PATH="/usr/local/go/bin:${PATH}"
     fi
 
