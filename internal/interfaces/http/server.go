@@ -922,7 +922,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				assistantH.RegisterRoutes(domainRouter)
 
 				// Cloud Voice Assistant Bridge (Amazon Alexa & Google Home Smart Home Actions)
-				cloudAssistantSvc := appcloudassistant.NewService(srv.repos.Entities, srv.bus, "", true)
+				cloudAssistantToken := strings.TrimSpace(os.Getenv("DOMUS_CLOUD_ASSISTANT_TOKEN"))
+				cloudAssistantSvc := appcloudassistant.NewService(
+					srv.repos.Entities,
+					srv.bus,
+					cloudAssistantToken,
+					cloudAssistantToken != "",
+				)
+				if cloudAssistantToken == "" {
+					slog.Warn("cloud voice assistant endpoints disabled: DOMUS_CLOUD_ASSISTANT_TOKEN is not configured")
+				}
 				cloudAssistantH := handlers.NewCloudAssistantHandler(cloudAssistantSvc)
 				cloudAssistantH.RegisterRoutes(api)
 
