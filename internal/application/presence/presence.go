@@ -28,7 +28,9 @@ type PersonLocation struct {
 	GPSLat        float64       `json:"gps_lat,omitempty"`
 	GPSLon        float64       `json:"gps_lon,omitempty"`
 	HasGPS        bool          `json:"has_gps"`
-	WiFiConnected bool          `json:"wifi_connected"`
+	GPSLastSeenAt time.Time     `json:"gps_last_seen_at,omitempty"`
+	WiFiConnected bool
+	WiFiLastSeenAt time.Time    `json:"wifi_last_seen_at,omitempty"`          `json:"wifi_connected"`
 	WiFiMAC       string        `json:"wifi_mac,omitempty"`
 	RoomZone      string        `json:"room_zone,omitempty"` // e.g. "bedroom", "living_room"
 	SubState      string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
@@ -78,6 +80,7 @@ func (s *Service) UpdateGPS(ctx context.Context, userID string, lat, lon float64
 	p.GPSLat = lat
 	p.GPSLon = lon
 	p.HasGPS = true
+	p.GPSLastSeenAt = now
 	p.LastSeenAt = now
 
 	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
@@ -86,8 +89,13 @@ func (s *Service) UpdateGPS(ctx context.Context, userID string, lat, lon float64
 		distMeters := haversineDistance(lat, lon, s.geofence.Latitude, s.geofence.Longitude)
 		inGPSZone = distMeters <= s.geofence.RadiusM
 	}
+	gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && now.Sub(p.GPSLastSeenAt) <= 10*time.Minute
+	if !gpsFresh {
+		inGPSZone = false
+	}
+	wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && now.Sub(p.WiFiLastSeenAt) <= 2*time.Minute
 	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && now.Sub(p.RoomLastSeenAt) <= 5*time.Minute
-	return s.evaluateStateLocked(ctx, p, inGPSZone, p.WiFiConnected, roomPresent, now)
+	return s.evaluateStateLocked(ctx, p, inGPSZone, wifiFresh, roomPresent, now)
 }
 
 // UpdateWiFi handles local network ARP / Wi-Fi association updates.
@@ -98,6 +106,7 @@ func (s *Service) UpdateWiFi(ctx context.Context, userID string, mac string, con
 	p := s.getOrCreate(userID)
 	p.WiFiMAC = mac
 	p.WiFiConnected = connected
+	p.WiFiLastSeenAt = now
 	p.LastSeenAt = now
 
 	// Wi-Fi connected to local LAN is high-confidence proof that user is at home.
@@ -105,6 +114,10 @@ func (s *Service) UpdateWiFi(ctx context.Context, userID string, mac string, con
 	inGPSZone := false
 	if p.HasGPS && geofenceEnabled {
 		inGPSZone = haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+	}
+	gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && now.Sub(p.GPSLastSeenAt) <= 10*time.Minute
+	if !gpsFresh {
+		inGPSZone = false
 	}
 	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && now.Sub(p.RoomLastSeenAt) <= 5*time.Minute
 	return s.evaluateStateLocked(ctx, p, inGPSZone, connected, roomPresent, now)
@@ -132,8 +145,13 @@ func (s *Service) UpdateRoomSensor(ctx context.Context, userID string, room stri
 	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
 	inGPSZone := p.HasGPS && geofenceEnabled &&
 		haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+	gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && now.Sub(p.GPSLastSeenAt) <= 10*time.Minute
+	if !gpsFresh {
+		inGPSZone = false
+	}
+	wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && now.Sub(p.WiFiLastSeenAt) <= 2*time.Minute
 	roomPresent := p.RoomOccupied && !p.RoomLastSeenAt.IsZero()
-	s.evaluateStateLocked(ctx, p, inGPSZone, p.WiFiConnected, roomPresent, now)
+	s.evaluateStateLocked(ctx, p, inGPSZone, wifiFresh, roomPresent, now)
 }
 
 func (s *Service) evaluateStateLocked(ctx context.Context, p *PersonLocation, inGPSZone bool, wifiConnected bool, roomPresent bool, now time.Time) PresenceState {
