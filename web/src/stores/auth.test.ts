@@ -59,6 +59,17 @@ describe('Auth Store', () => {
     expect(store.user).toEqual(mockUser)
   })
 
+  it('does not report login success when the session user cannot be loaded', async () => {
+    const store = useAuthStore()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ message: 'Login successful' })
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('session lookup failed'))
+
+    await expect(store.login('admin', 'secret123')).rejects.toThrow('session lookup failed')
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.user).toBeNull()
+    expect(store.error).toBe('session lookup failed')
+  })
+
   it('logs out and clears user state', async () => {
     const store = useAuthStore()
     store.user = { id: 'usr-1', username: 'admin', role: 'admin', created_at: '', updated_at: '' }
