@@ -328,7 +328,7 @@ func (r *FinanceRepository) GetSummary(ctx context.Context, period string, refDa
 	currMonthStr := refDate.Format("2006-01")
 	monthlyBudget := 0.0
 	var budgetVal float64
-	err = r.db.QueryRowContext(ctx, "SELECT monthly_limit FROM budget_targets WHERE category = 'total' AND (month_year = ? OR month_year = 'global') ORDER BY month_year DESC LIMIT 1", currMonthStr).Scan(&budgetVal)
+	err = r.db.QueryRowContext(ctx, "SELECT monthly_limit FROM budget_targets WHERE category = 'total' AND (month_year = ? OR month_year = 'global') ORDER BY CASE WHEN month_year = ? THEN 0 ELSE 1 END LIMIT 1", currMonthStr, currMonthStr).Scan(&budgetVal)
 	if err == nil && budgetVal > 0 {
 		monthlyBudget = budgetVal
 	}
@@ -426,11 +426,11 @@ func (r *FinanceRepository) GetBudget(ctx context.Context, category, monthYear s
 		SELECT id, category, monthly_limit, month_year, created_at, updated_at
 		FROM budget_targets
 		WHERE category = ? AND (month_year = ? OR month_year = 'global')
-		ORDER BY month_year DESC LIMIT 1
+		ORDER BY CASE WHEN month_year = ? THEN 0 ELSE 1 END LIMIT 1
 	`
 	var b finance.BudgetTarget
 	var ca, ua string
-	err := r.db.QueryRowContext(ctx, query, category, monthYear).Scan(&b.ID, &b.Category, &b.MonthlyLimit, &b.MonthYear, &ca, &ua)
+	err := r.db.QueryRowContext(ctx, query, category, monthYear, monthYear).Scan(&b.ID, &b.Category, &b.MonthlyLimit, &b.MonthYear, &ca, &ua)
 	if err != nil {
 		return nil, err
 	}
