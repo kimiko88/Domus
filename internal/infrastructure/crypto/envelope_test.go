@@ -3,6 +3,7 @@ package crypto_test
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
@@ -112,4 +113,27 @@ func TestLoadOrCreateMasterKey_RejectsMalformedExistingKey(t *testing.T) {
 	data, readErr := os.ReadFile(keyPath)
 	require.NoError(t, readErr)
 	assert.Equal(t, "truncated-key", string(data), "a malformed key must never be silently replaced")
+}
+
+
+func TestLoadOrCreateMasterKey_ConcurrentCreation(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "master.key")
+	const workers = 12
+	keys := make([][]byte, workers)
+	errs := make([]error, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			keys[i], errs[i] = crypto.LoadOrCreateMasterKey(keyPath)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := range keys {
+		require.NoError(t, errs[i])
+		require.Len(t, keys[i], 32)
+		assert.Equal(t, keys[0], keys[i], "all concurrent starts must load the same key")
+	}
 }
