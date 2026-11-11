@@ -45,7 +45,7 @@ func TestPresenceService_Fusion(t *testing.T) {
 	}
 
 	// 2. Wi-Fi connects on local network (e.g. phone enters driveway)
-	st = svc.UpdateWiFi(ctx, "user_marco", "AA:BB:CC:DD:EE:FF", true, now.Add(1*time.Minute))
+	st = svc.UpdateWiFi(ctx, "user_marco", "AA:BB:CC:DD:EE:FF", true, now.Add(1*time.Second))
 	if st != StateJustArrived {
 		t.Errorf("expected just_arrived, got %s", st)
 	}
@@ -54,7 +54,7 @@ func TestPresenceService_Fusion(t *testing.T) {
 	}
 
 	// 3. mmWave radar detects movement in living room
-	svc.UpdateRoomSensor(ctx, "user_marco", "living_room", "stationary", now.Add(2*time.Minute))
+	svc.UpdateRoomSensor(ctx, "user_marco", "living_room", "stationary", now.Add(2*time.Second))
 	p, ok := svc.GetPersonState("user_marco")
 	if !ok || p.RoomZone != "living_room" || p.SubState != "stationary" {
 		t.Errorf("expected living_room stationary, got %+v", p)
