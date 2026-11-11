@@ -257,6 +257,7 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 	health := &MockHealthChecker{returnHealthy: true}
 
 	cfg := supervisor.DefaultConfig()
+	cfg.DataDir = t.TempDir()
 	cfg.HealthCheckInterval = 5 * time.Millisecond
 	cfg.MaxHealthRetries = 3
 	engine := supervisor.NewEngine(cfg, runtime, rauc, health)
