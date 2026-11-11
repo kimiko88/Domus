@@ -30,11 +30,12 @@ type Service struct {
 
 // NewService constructs a cloud voice assistant service.
 func NewService(entities entity.Repository, bus events.Bus, bearerToken string, enabled bool) *Service {
+	token := strings.TrimSpace(bearerToken)
 	return &Service{
 		entities:    entities,
 		bus:         bus,
-		bearerToken: strings.TrimSpace(bearerToken),
-		enabled:     enabled,
+		bearerToken: token,
+		enabled:     enabled && token != "",
 	}
 }
 
