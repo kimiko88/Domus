@@ -69,6 +69,25 @@ func TestServer_APIV1_HealthEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
+func TestServer_SystemMaintenanceRequiresAuthentication(t *testing.T) {
+	srv := serverpkg.NewServer(config.ServerConfig{Host: "127.0.0.1", Port: 8080}, "1.0.0", time.Now(), &dummyPinger{})
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/v1/system/diagnostics"},
+		{http.MethodGet, "/api/v1/system/maintenance/status"},
+		{http.MethodPost, "/api/v1/system/maintenance/enable"},
+		{http.MethodPost, "/api/v1/system/maintenance/disable"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		rr := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rr, req)
+		assert.Equalf(t, http.StatusUnauthorized, rr.Code, "%s %s must reject anonymous access", tc.method, tc.path)
+	}
+}
+
 func TestServer_WithAuthRoutes(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "server_auth_test.db")
@@ -305,6 +324,14 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 	// 3. Viewer: CANNOT execute commands -> 403 Forbidden
 	cmdBody, _ := json.Marshal(map[string]any{"service": "turn_on"})
 	rr = doReq(http.MethodPost, "/api/v1/entities/"+ent.ID+"/command", viewSess.ID, cmdBody)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	// Viewer cannot perform ordinary state-changing API operations either.
+	rr = doReq(http.MethodPost, "/api/v1/energy/wallbox/mode", viewSess.ID, []byte(`{"mode":"fast_charging"}`))
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	// Diagnostics and maintenance are administrator-only.
+	rr = doReq(http.MethodGet, "/api/v1/system/diagnostics", viewSess.ID, nil)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	// 4. Viewer: CANNOT invite members -> 403 Forbidden
