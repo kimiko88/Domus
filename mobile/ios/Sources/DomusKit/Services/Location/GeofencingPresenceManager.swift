@@ -1,6 +1,5 @@
 import Foundation
 import CoreLocation
-import Network
 
 /// Stato di presenza dell'utente rispetto all'abitazione.
 public enum PresenceState: String, Codable, Sendable {
@@ -17,8 +16,8 @@ public struct HomePerimeterConfig: Codable, Sendable {
     public var homeWifiSSID: String?
 
     public init(
-        latitude: Double = 41.9028,
-        longitude: Double = 12.4964,
+        latitude: Double = 0.0,
+        longitude: Double = 0.0,
         radiusMeters: Double = 150.0,
         homeWifiSSID: String? = nil
     ) {
@@ -40,8 +39,6 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
     @Published public var config: HomePerimeterConfig
 
     private let locationManager = CLLocationManager()
-    private let pathMonitor = NWPathMonitor()
-    private let monitorQueue = DispatchQueue(label: "com.domus.network.presence")
     private let httpClient: DomusHttpClient?
 
     public var onPresenceChanged: ((PresenceState) -> Void)?
@@ -59,7 +56,6 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
         #endif
         self.authorizationStatus = locationManager.authorizationStatus
 
-        setupNetworkPathMonitoring()
     }
 
     /// Richiede le autorizzazioni di geolocalizzazione (Always per geofence in background).
@@ -73,7 +69,8 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
 
     /// Avvia il monitoraggio della geofence domestica.
     public func startMonitoring() {
-        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
+        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self),
+              isHomeLocationConfigured else { return }
 
         let center = CLLocationCoordinate2D(latitude: config.latitude, longitude: config.longitude)
         let region = CLCircularRegion(center: center, radius: config.radiusMeters, identifier: "domus_home_geofence")
@@ -95,29 +92,31 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
 
     /// Aggiorna le coordinate della casa e riavvia il monitoraggio.
     public func updateHomeLocation(latitude: Double, longitude: Double, radius: Double) {
+        guard latitude.isFinite, longitude.isFinite,
+              (-90.0...90.0).contains(latitude),
+              (-180.0...180.0).contains(longitude),
+              radius.isFinite, radius > 0, radius <= 100_000,
+              latitude != 0 || longitude != 0 else { return }
+
         config.latitude = latitude
         config.longitude = longitude
         config.radiusMeters = radius
         if isMonitoringActive {
+            stopMonitoring()
             startMonitoring()
         }
     }
 
-    // MARK: - Tier 1: Local Network Presence
-
-    private func setupNetworkPathMonitoring() {
-        pathMonitor.pathUpdateHandler = { [weak self] path in
-            guard let self else { return }
-            Task { @MainActor in
-                if path.status == .satisfied && !path.isExpensive {
-                    // Connesso a Wi-Fi locale non-metred
-                    if self.presenceState != .home {
-                        self.updatePresence(.home, source: "Wi-Fi LAN")
-                    }
-                }
-            }
-        }
-        pathMonitor.start(queue: monitorQueue)
+    /// A zero/zero location is the unconfigured default, never Rome or another
+    /// inferred home address. Wi-Fi reachability alone cannot prove presence
+    /// on the home LAN because NWPathMonitor does not expose the SSID.
+    private var isHomeLocationConfigured: Bool {
+        config.latitude.isFinite && config.longitude.isFinite &&
+        (-90.0...90.0).contains(config.latitude) &&
+        (-180.0...180.0).contains(config.longitude) &&
+        config.radiusMeters.isFinite && config.radiusMeters > 0 &&
+        config.radiusMeters <= 100_000 &&
+        (config.latitude != 0 || config.longitude != 0)
     }
 
     private func updatePresence(_ newState: PresenceState, source: String) {
