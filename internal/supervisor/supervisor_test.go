@@ -261,9 +261,12 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 	cfg.HealthCheckInterval = 5 * time.Millisecond
 	cfg.MaxHealthRetries = 3
 	engine := supervisor.NewEngine(cfg, runtime, rauc, health)
-	engine.GetMaintenanceManager().SetServiceManager(&mockSSHServiceManager{})
 	ctx := context.Background()
 	_ = engine.Start(ctx)
+
+	// Engine.Start initializes the maintenance manager; inject the fake
+	// service manager afterwards so the test never invokes host systemd.
+	engine.GetMaintenanceManager().SetServiceManager(&mockSSHServiceManager{})
 
 	time.Sleep(30 * time.Millisecond)
 
