@@ -143,5 +143,6 @@ func TestRequireOperatorForWrites(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/scenes", viewer).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/scenes", operator).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/presence/gps", viewer).Code)
+	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/presence/commute", viewer).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/scenes", viewer).Code)
 }
