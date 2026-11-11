@@ -5,11 +5,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CERTS_DIR="${SCRIPT_DIR}/../rauc/certs"
+CERTS_DIR="${DOMUS_RAUC_CERTS_DIR:-${SCRIPT_DIR}/../rauc/certs}"
 mkdir -p "${CERTS_DIR}"
 
 DAYS=3650
-KEY_SIZE=4096
+KEY_SIZE="${DOMUS_RAUC_KEY_SIZE:-4096}"
 
 echo "=== Generating Domus OS RAUC x.509 PKI in ${CERTS_DIR} ==="
 
