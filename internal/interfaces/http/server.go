@@ -218,24 +218,26 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 
 		api.Route("/system", func(sys chi.Router) {
+			// Health remains public for local service supervision and installer probes.
 			sys.Method(http.MethodGet, "/health", healthHandler)
+
+			// Operational diagnostics and maintenance can expose host details or
+			// alter appliance state: require an authenticated administrator.
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/diagnostics", handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", "")).GetDiagnostics)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/diagnostics/export", handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", "")).ExportDiagnostics)
+			osH := handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", ""))
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/maintenance/status", osH.GetMaintenanceStatus)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Post("/maintenance/enable", osH.EnableMaintenance)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Post("/maintenance/disable", osH.DisableMaintenance)
+
 			if srv.repos != nil {
 				metricsH := handlers.NewSystemMetricsHandler(srv.startedAt, srv.repos, srv.wsHub, srv.mqttConnected)
-				sys.Get("/metrics", metricsH.ServeHTTP)
+				sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/metrics", metricsH.ServeHTTP)
 			}
 
-			// Domus OS Appliance Diagnostics & Maintenance
-			supClient := infrasup.NewClient("/run/domus/supervisor.sock", "")
-			osH := handlers.NewSystemOSHandler(supClient)
-			sys.Get("/diagnostics", osH.GetDiagnostics)
-			sys.Get("/diagnostics/export", osH.ExportDiagnostics)
-			sys.Get("/maintenance/status", osH.GetMaintenanceStatus)
-			sys.Post("/maintenance/enable", osH.EnableMaintenance)
-			sys.Post("/maintenance/disable", osH.DisableMaintenance)
-
-			// Solar position & astronomical calculation
+			// Solar position is informational but still belongs to an authenticated API.
 			advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine)
-			sys.Get("/sun", advH.GetSunPosition)
+			sys.With(domusmw.RequireAuth()).Get("/sun", advH.GetSunPosition)
 		})
 
 		// Auth routes
@@ -324,9 +326,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 
 			api.Group(func(domainRouter chi.Router) {
-				if srv.authService != nil {
-					domainRouter.Use(domusmw.RequireAuth())
-				}
+				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireOperatorForWrites())
 
 				domainRouter.Route("/integrations", func(intRouter chi.Router) {
 					intRouter.Get("/", integrationH.List)
@@ -555,6 +555,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Hardware Modern Standards & Commissioning
 				domainRouter.Route("/hardware", func(hwRouter chi.Router) {
+					hwRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					hwRouter.Get("/homekit", advH.GetHomeKitPairing)
 					hwRouter.Post("/matter/commission", advH.CommissionMatter)
 				})
@@ -778,6 +779,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/system/remote-access", func(raRouter chi.Router) {
+					raRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					raRouter.Get("/wireguard/server", ecoH.GetWireGuardServer)
 					raRouter.Get("/wireguard/peers", ecoH.ListWireGuardPeers)
 					raRouter.Post("/wireguard/peers", ecoH.EnrollWireGuardPeer)
@@ -787,6 +789,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/system/backup/remote", func(bkRouter chi.Router) {
+					bkRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					bkRouter.Get("/config", ecoH.GetRemoteBackupConfig)
 					bkRouter.Put("/config", ecoH.UpdateRemoteBackupConfig)
 					bkRouter.Post("/config", ecoH.UpdateRemoteBackupConfig)
@@ -799,6 +802,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {
+					otaRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					otaRouter.Get("/devices", ecoH.ListOTADevices)
 					otaRouter.Post("/devices/{id}/upgrade", ecoH.TriggerOTAUpgrade)
 					otaRouter.Get("/flasher/catalog", ecoH.ListFlasherFirmwares)
@@ -807,12 +811,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/system/failover", func(foRouter chi.Router) {
+					foRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					foRouter.Get("/status", ecoH.GetFailoverStatus)
 					foRouter.Post("/heartbeat", ecoH.ReceiveHeartbeat)
 					foRouter.Post("/promote", ecoH.PromoteNode)
 				})
 
 				domainRouter.Route("/store", func(stRouter chi.Router) {
+					stRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					stRouter.Get("/packages", ecoH.ListStorePackages)
 					stRouter.Post("/packages/{id}/install", ecoH.InstallStorePackage)
 					stRouter.Post("/packages/{id}/uninstall", ecoH.UninstallStorePackage)
