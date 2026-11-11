@@ -825,10 +825,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					otaRouter.Post("/flasher/provision", ecoH.GenerateFlasherProvision)
 				})
 
+				// Peer heartbeats use a dedicated shared secret rather than a browser
+				// admin session. The handler fails closed if the secret is unset.
+				api.Post("/system/failover/heartbeat", ecoH.ReceiveHeartbeat)
 				domainRouter.Route("/system/failover", func(foRouter chi.Router) {
 					foRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					foRouter.Get("/status", ecoH.GetFailoverStatus)
-					foRouter.Post("/heartbeat", ecoH.ReceiveHeartbeat)
 					foRouter.Post("/promote", ecoH.PromoteNode)
 				})
 
