@@ -3,12 +3,16 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from './auth'
 import { apiClient } from '../api/client'
 
-vi.mock('../api/client', () => ({
-  apiClient: {
-    get: vi.fn(),
-    post: vi.fn()
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>()
+  return {
+    ...actual,
+    apiClient: {
+      get: vi.fn(),
+      post: vi.fn()
+    }
   }
-}))
+})
 
 describe('Auth Store', () => {
   beforeEach(() => {
