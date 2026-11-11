@@ -342,9 +342,25 @@ EOF
     log_success "Created ${CONFIG_TARGET}"
 else
     log_info "Existing configuration preserved: ${CONFIG_TARGET}"
-    # Use the port the user actually configured for the health check below
+    # Upgrade missing installer-managed paths without overwriting user settings.
+    if ! grep -Eq '^[[:space:]]*web_dir[[:space:]]*=' "${CONFIG_TARGET}"; then
+        if grep -q '^\[server\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\]/a web_dir = \"${DOMUS_WEB_DIR}\"" "${CONFIG_TARGET}"
+            log_success "Added missing server.web_dir to existing configuration"
+        else
+            log_error "Existing config has no [server] section; cannot configure web_dir safely"
+            exit 1
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+        chmod 0640 "${CONFIG_TARGET}"
+    fi
+    # Use the port and host the user actually configured for the health check.
     cfg_port="$(awk -F= '/^[[:space:]]*port[[:space:]]*=/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' "${CONFIG_TARGET}")"
     [[ "${cfg_port}" =~ ^[0-9]+$ ]] && DOMUS_PORT="${cfg_port}"
+    cfg_host="$(awk -F= '/^[[:space:]]*host[[:space:]]*=/ {gsub(/[[:space:]"]/,"",$2); print $2; exit}' "${CONFIG_TARGET}")"
+    if [[ "${cfg_host}" == "127.0.0.1" || "${cfg_host}" == "localhost" ]]; then
+        log_warn "Server is bound to ${cfg_host}; LAN access requires host = \"0.0.0.0\" in ${CONFIG_TARGET}"
+    fi
 fi
 
 # ── 8. systemd unit (generated from the repo template) ─────────────────────────
