@@ -2,7 +2,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -669,7 +671,7 @@ func (h *AdvancedFeaturesHandler) GetCommuteStatus(w http.ResponseWriter, r *htt
 		if stored, err := h.commuteRepo.GetLocation(r.Context(), userID); err == nil && stored != nil {
 			writeJSON(w, http.StatusOK, stored)
 			return
-		} else if err != nil {
+		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusInternalServerError, "PERSISTENCE_FAILED", "could not load commute status")
 			return
 		}
