@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	appalarm "github.com/domus-hub/domus/internal/application/alarm"
@@ -946,6 +949,46 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			})
 		}
 	})
+
+	// Serve the compiled Vue application and support HTML5 history-mode routes.
+	// API, WebSocket and operational endpoints must keep their own 404 behavior.
+	if webDir := strings.TrimSpace(cfg.WebDir); webDir != "" {
+		if info, err := os.Stat(webDir); err == nil && info.IsDir() {
+			fileServer := http.FileServer(http.Dir(webDir))
+			r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+				requestPath := req.URL.Path
+				if requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") ||
+					requestPath == "/ws" || requestPath == "/health" ||
+					requestPath == "/docs" || requestPath == "/swagger" {
+					http.NotFound(w, req)
+					return
+				}
+
+				relativePath := strings.TrimPrefix(
+					filepath.Clean("/"+strings.TrimPrefix(requestPath, "/")),
+					string(filepath.Separator),
+				)
+				target := filepath.Join(webDir, relativePath)
+				if targetInfo, statErr := os.Stat(target); statErr == nil && !targetInfo.IsDir() {
+					fileServer.ServeHTTP(w, req)
+					return
+				}
+
+				// Missing files (for example, a JS bundle) must remain 404s.
+				// Only extensionless paths are eligible for the SPA entry point.
+				if filepath.Ext(requestPath) != "" {
+					http.NotFound(w, req)
+					return
+				}
+				indexFile := filepath.Join(webDir, "index.html")
+				if _, statErr := os.Stat(indexFile); statErr != nil {
+					http.NotFound(w, req)
+					return
+				}
+				http.ServeFile(w, req, indexFile)
+			})
+		}
+	}
 
 	srv.router = r
 	srv.httpServer = &http.Server{
