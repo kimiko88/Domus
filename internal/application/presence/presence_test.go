@@ -116,3 +116,27 @@ func TestValidCoordinates(t *testing.T) {
 		}
 	}
 }
+
+
+func TestPresenceService_ExpiresStaleSignalsAndTransitionsAway(t *testing.T) {
+	svc := NewService(HomeGeofence{Latitude: 45.0, Longitude: 9.0, RadiusM: 100}, nil)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	state := svc.UpdateGPS(ctx, "user-expiry", 45.0, 9.0, now)
+	if state != StateJustArrived {
+		t.Fatalf("expected just_arrived, got %s", state)
+	}
+
+	svc.ExpireStaleSignals(now.Add(11 * time.Minute))
+	person, _ := svc.GetPersonState("user-expiry")
+	if person.State != StateJustLeft {
+		t.Fatalf("expected just_left after GPS expires, got %s", person.State)
+	}
+
+	svc.ExpireStaleSignals(now.Add(12 * time.Minute))
+	person, _ = svc.GetPersonState("user-expiry")
+	if person.State != StateAway {
+		t.Fatalf("expected away after departure grace period, got %s", person.State)
+	}
+}
