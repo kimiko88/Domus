@@ -105,13 +105,13 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			}
 
 			path := strings.TrimSuffix(r.URL.Path, "/")
-			selfService := path == "/presence/gps" ||
-				path == "/presence/commute" ||
-				path == "/shopping" ||
-				strings.HasPrefix(path, "/shopping/") ||
-				strings.HasPrefix(path, "/notifications/actionable/actions/") ||
-				(strings.HasPrefix(path, "/chores/") && strings.HasSuffix(path, "/complete")) ||
-				strings.HasPrefix(path, "/safety/")
+			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
+			selfService := hasSuffix("/presence/gps") ||
+				hasSuffix("/presence/commute") ||
+				hasSuffix("/shopping") ||
+				strings.Contains(path, "/shopping/") ||
+				strings.Contains(path, "/notifications/actionable/actions/") ||
+				(strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete"))
 			if selfService {
 				next.ServeHTTP(w, r)
 				return
