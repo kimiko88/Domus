@@ -373,10 +373,10 @@ function closeModal() {
 }
 
 async function saveZone() {
-  const latitude = Number(form.value.latitude)
-  const longitude = Number(form.value.longitude)
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+  const latitude = form.value.latitude
+  const longitude = form.value.longitude
+  if (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
     window.alert('Inserisci coordinate valide: latitudine da -90 a 90 e longitudine da -180 a 180.')
     return
   }
