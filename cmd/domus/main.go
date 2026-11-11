@@ -209,13 +209,20 @@ func main() {
 		Enabled:          true,
 	}, bus)
 
-	presenceSvc := apppresence.NewService(apppresence.HomeGeofence{
-		Latitude:  41.9028,
-		Longitude: 12.4964,
-		RadiusM:   150.0,
-	}, bus)
+	homeGeofence := apppresence.HomeGeofence{
+		Latitude:  cfg.Presence.HomeLatitude,
+		Longitude: cfg.Presence.HomeLongitude,
+		RadiusM:   cfg.Presence.GeofenceRadiusM,
+		Enabled:   cfg.Presence.GeofenceEnabled || cfg.Presence.HomeLatitude != 0 || cfg.Presence.HomeLongitude != 0,
+	}
+	presenceSvc := apppresence.NewService(homeGeofence, bus)
 
-	sunEngine := appauto.NewSunEngine(41.9028, 12.4964)
+	var sunEngine *appauto.SunEngine
+	if homeGeofence.Enabled {
+		sunEngine = appauto.NewSunEngine(homeGeofence.Latitude, homeGeofence.Longitude)
+	} else {
+		slog.Warn("home coordinates are not configured; GPS geofencing and solar position are disabled")
+	}
 
 	// 11. Telemetry Downsampler (Nightly compaction of telemetry > 30 days old into hourly buckets)
 	downsampler := apphistory.NewDownsampler(db)
