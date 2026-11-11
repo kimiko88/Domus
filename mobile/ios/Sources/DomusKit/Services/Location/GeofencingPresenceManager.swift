@@ -125,19 +125,22 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
         lastLocationTimestamp = Date()
         onPresenceChanged?(newState)
 
-        // Sincronizza con il backend Domus
+        // Ask CoreLocation for a fresh fix; the backend evaluates it against
+        // its configured home geofence rather than trusting a client state flag.
+        locationManager.requestLocation()
+    }
+
+    private func syncGPSLocation(latitude: Double, longitude: Double) {
+        guard latitude.isFinite, longitude.isFinite,
+              (-90.0...90.0).contains(latitude),
+              (-180.0...180.0).contains(longitude) else { return }
+        struct GPSPayload: Encodable {
+            let latitude: Double
+            let longitude: Double
+        }
+        let payload = GPSPayload(latitude: latitude, longitude: longitude)
         Task {
-            struct PresencePayload: Encodable {
-                let state: String
-                let source: String
-                let timestamp: String
-            }
-            let payload = PresencePayload(
-                state: newState.rawValue,
-                source: source,
-                timestamp: ISO8601DateFormatter().string(from: Date())
-            )
-            _ = try? await self.httpClient?.postVoid(path: "/api/v1/presence/update", body: payload)
+            _ = try? await httpClient?.postVoid(path: "/api/v1/presence/gps", body: payload)
         }
     }
 }
@@ -159,6 +162,15 @@ extension GeofencingPresenceManager: CLLocationManagerDelegate {
             #endif
         }
 
+    }
+
+    public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        let latitude = location.coordinate.latitude
+        let longitude = location.coordinate.longitude
+        Task { @MainActor in
+            self.syncGPSLocation(latitude: latitude, longitude: longitude)
+        }
     }
 
     public nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
