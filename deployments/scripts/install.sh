@@ -363,6 +363,25 @@ else
     fi
 fi
 
+# Optional secrets and environment overrides. Preserve an existing file.
+ENV_FILE="${DOMUS_CONFIG_DIR}/domus.env"
+if [[ ! -f "${ENV_FILE}" ]]; then
+    cat > "${ENV_FILE}" <<'EOF'
+# Optional runtime secrets. Remove the leading # and set strong random values.
+# DOMUS_CLOUD_ASSISTANT_TOKEN=
+# DOMUS_FAILOVER_HEARTBEAT_TOKEN=
+#
+# Optional geofence overrides (normally configure these in domus.toml):
+# DOMUS_PRESENCE_HOME_LATITUDE=
+# DOMUS_PRESENCE_HOME_LONGITUDE=
+# DOMUS_PRESENCE_GEOFENCE_RADIUS_M=
+# DOMUS_PRESENCE_GEOFENCE_ENABLED=
+EOF
+    log_success "Created optional environment file ${ENV_FILE}"
+fi
+chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
+chmod 0640 "${ENV_FILE}"
+
 # ── 8. systemd unit (generated from the repo template) ─────────────────────────
 if (( HAVE_SYSTEMD )); then
     TEMPLATE="${PROJECT_ROOT}/deployments/systemd/domus.service"
