@@ -218,8 +218,20 @@ func (s *Service) GetPersonState(userID string) (*PersonLocation, bool) {
 func (s *Service) IsAnyoneHome() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	now := time.Now().UTC()
 	for _, p := range s.people {
-		if p.State == StateHome || p.State == StateJustArrived {
+		gpsAge := now.Sub(p.GPSLastSeenAt)
+		wifiAge := now.Sub(p.WiFiLastSeenAt)
+		roomAge := now.Sub(p.RoomLastSeenAt)
+		gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && gpsAge >= 0 && gpsAge <= 10*time.Minute
+		wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && wifiAge >= 0 && wifiAge <= 2*time.Minute
+		roomFresh := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && roomAge >= 0 && roomAge <= 5*time.Minute
+
+		geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
+		gpsHome := gpsFresh && geofenceEnabled &&
+			haversineDistance(p.GPSLat, p.GPSLon, s.geofence.Latitude, s.geofence.Longitude) <= s.geofence.RadiusM
+		if wifiFresh || roomFresh || gpsHome {
 			return true
 		}
 	}
