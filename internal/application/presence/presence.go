@@ -22,6 +22,11 @@ const (
 )
 
 // PersonLocation holds raw multi-sensor telemetry for a person.
+type roomPresenceState struct {
+	SubState  string
+	LastSeenAt time.Time
+}
+
 type PersonLocation struct {
 	UserID        string        `json:"user_id"`
 	State         PresenceState `json:"state"`
@@ -36,6 +41,7 @@ type PersonLocation struct {
 	SubState      string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
 	RoomOccupied  bool          `json:"room_occupied"`
 	RoomLastSeenAt time.Time    `json:"room_last_seen_at,omitempty"`
+	roomPresence  map[string]roomPresenceState
 	LastSeenAt    time.Time     `json:"last_seen_at"`
 }
 
@@ -129,18 +135,47 @@ func (s *Service) UpdateRoomSensor(ctx context.Context, userID string, room stri
 	defer s.mu.Unlock()
 
 	p := s.getOrCreate(userID)
-	p.RoomZone = room
-	p.SubState = subState
 	p.LastSeenAt = now
+	room = strings.TrimSpace(room)
 	normalized := strings.ToLower(strings.TrimSpace(subState))
-	p.RoomOccupied = strings.TrimSpace(room) != "" &&
+	if p.roomPresence == nil {
+		p.roomPresence = make(map[string]roomPresenceState)
+	}
+	roomActive := room != "" &&
 		normalized != "clear" && normalized != "cleared" &&
 		normalized != "away" && normalized != "vacant" &&
 		normalized != "none" && normalized != "off"
-	if p.RoomOccupied {
-		p.RoomLastSeenAt = now
+	if roomActive {
+		p.roomPresence[room] = roomPresenceState{SubState: normalized, LastSeenAt: now}
 	} else {
-		p.RoomLastSeenAt = time.Time{}
+		delete(p.roomPresence, room)
+	}
+
+	// Keep presence from every room independently: a clear event in one room
+	// must not cancel a fresh occupied signal from another room.
+	p.RoomOccupied = false
+	p.RoomLastSeenAt = time.Time{}
+	latestRoom := ""
+	latestSubState := ""
+	for roomName, signal := range p.roomPresence {
+		age := now.Sub(signal.LastSeenAt)
+		if age < -30*time.Second || age > 5*time.Minute {
+			delete(p.roomPresence, roomName)
+			continue
+		}
+		if p.RoomLastSeenAt.IsZero() || signal.LastSeenAt.After(p.RoomLastSeenAt) {
+			p.RoomOccupied = true
+			p.RoomLastSeenAt = signal.LastSeenAt
+			latestRoom = roomName
+			latestSubState = signal.SubState
+		}
+	}
+	if p.RoomOccupied {
+		p.RoomZone = latestRoom
+		p.SubState = latestSubState
+	} else {
+		p.RoomZone = room
+		p.SubState = normalized
 	}
 	geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
 	inGPSZone := p.HasGPS && geofenceEnabled &&
@@ -211,6 +246,12 @@ func (s *Service) GetPersonState(userID string) (*PersonLocation, bool) {
 		return nil, false
 	}
 	cp := *p
+	if p.roomPresence != nil {
+		cp.roomPresence = make(map[string]roomPresenceState, len(p.roomPresence))
+		for room, signal := range p.roomPresence {
+			cp.roomPresence[room] = signal
+		}
+	}
 	return &cp, true
 }
 
