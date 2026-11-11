@@ -476,3 +476,36 @@ func TestAdvancedFeaturesHandler_CommuteTracker(t *testing.T) {
 	assert.Greater(t, commuteResp.MinutesToHome, 0.0)
 }
 
+
+
+func TestAdvancedFeaturesHandler_RoomPresenceRequiresIdentityAndFusesSensorState(t *testing.T) {
+	svc := presence.NewService(presence.HomeGeofence{Latitude: 45.0, Longitude: 9.0, RadiusM: 100}, nil)
+	h := NewAdvancedFeaturesHandler(nil, svc, nil)
+	body := []byte(`{"room":"living_room","sub_state":"stationary"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/presence/room", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.UpdateRoomPresence(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	testUser := &user.User{ID: "user-1", Username: "member", Role: user.RoleViewer}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/room", bytes.NewReader(body))
+	req = req.WithContext(domusmw.WithUser(req.Context(), testUser))
+	rr = httptest.NewRecorder()
+	h.UpdateRoomPresence(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	person, ok := svc.GetPersonState("user-1")
+	require.True(t, ok)
+	assert.Equal(t, presence.StateJustArrived, person.State)
+	assert.True(t, person.RoomOccupied)
+
+	clearBody := []byte(`{"room":"living_room","sub_state":"clear"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/room", bytes.NewReader(clearBody))
+	req = req.WithContext(domusmw.WithUser(req.Context(), testUser))
+	rr = httptest.NewRecorder()
+	h.UpdateRoomPresence(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	person, _ = svc.GetPersonState("user-1")
+	assert.False(t, person.RoomOccupied)
+	assert.Equal(t, presence.StateJustLeft, person.State)
+}
