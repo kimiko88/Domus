@@ -60,14 +60,16 @@ func TestPantryAndMealPlanner_EndToEnd(t *testing.T) {
 	defer bus.Close()
 
 	repos := sqlite.NewRepositories(db)
+	authOption, sessionID := configureE2EAuth(t, repos)
 	srv := serverpkg.NewServer(cfg.Server, "1.0.0-test", time.Now(), db,
 		serverpkg.WithRepositories(repos, bus),
+		authOption,
 	)
 
 	ts := httptest.NewServer(srv.Router())
 	defer ts.Close()
 
-	client := ts.Client()
+	client := newAuthenticatedE2EClient(ts, sessionID)
 
 	// STEP 1: Scan and Parse Supermarket Receipt via /api/v1/receipts/parse
 	receiptRaw := `
