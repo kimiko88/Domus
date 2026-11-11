@@ -116,11 +116,11 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 				hasSuffix("/presence/room")
 			choreCompletion := strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete")
 			shoppingMutation := hasSuffix("/shopping") || strings.Contains(path, "/shopping/")
-			if presenceSelfService || (choreCompletion && u.Role != user.RoleGuest) {
+			if presenceSelfService && u.Role != user.RoleGuest {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if shoppingMutation && u.Role != user.RoleGuest {
+			if (choreCompletion || shoppingMutation) && u.Role == user.RoleKid {
 				next.ServeHTTP(w, r)
 				return
 			}
