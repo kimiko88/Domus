@@ -328,7 +328,7 @@ func (s *Service) ExpireStaleSignals(now time.Time) {
 		}
 
 		if oldState != p.State {
-			s.publishPresenceChanged(ctx, p, now)
+			s.publishPresenceChanged(context.Background(), p, now)
 		}
 	}
 }
