@@ -138,11 +138,18 @@ func TestRequireOperatorForWrites(t *testing.T) {
 
 	viewer := &user.User{ID: "viewer-1", Role: user.RoleViewer}
 	operator := &user.User{ID: "operator-1", Role: user.RoleOperator}
+	kid := &user.User{ID: "kid-1", Role: user.RoleKid}
+	guest := &user.User{ID: "guest-1", Role: user.RoleGuest}
 
 	assert.Equal(t, http.StatusUnauthorized, request(http.MethodPost, "/api/v1/scenes", nil).Code)
 	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/scenes", viewer).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/scenes", operator).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/presence/gps", viewer).Code)
 	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/presence/commute", viewer).Code)
+	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/shopping", viewer).Code)
+	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/shopping", kid).Code)
+	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/chores/123/complete", viewer).Code)
+	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/chores/123/complete", kid).Code)
+	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/presence/gps", guest).Code)
 	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/scenes", viewer).Code)
 }
