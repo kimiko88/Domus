@@ -36,6 +36,7 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
     @Published public var isMonitoringActive: Bool = false
     @Published public var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published public var lastLocationTimestamp: Date? = nil
+    @Published public var lastPresenceSource: String? = nil
     @Published public var config: HomePerimeterConfig
 
     private let locationManager = CLLocationManager()
@@ -123,6 +124,7 @@ public final class GeofencingPresenceManager: NSObject, ObservableObject {
         guard presenceState != newState else { return }
         presenceState = newState
         lastLocationTimestamp = Date()
+        lastPresenceSource = source
         onPresenceChanged?(newState)
 
         // Ask CoreLocation for a fresh fix; the backend evaluates it against
