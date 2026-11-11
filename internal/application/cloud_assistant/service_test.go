@@ -291,4 +291,6 @@ func TestCloudAssistant_EmptyTokenFailsClosed(t *testing.T) {
 	svc := appCloud.NewService(newMockEntityRepo(), nil, "", true)
 	assert.False(t, svc.ValidateToken(""))
 	assert.False(t, svc.ValidateToken("Bearer any-value"))
+	_, err := svc.HandleAlexa(context.Background(), []byte(`{}`))
+	assert.ErrorIs(t, err, appCloud.ErrCloudDisabled)
 }
