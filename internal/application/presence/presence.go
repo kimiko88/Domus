@@ -224,9 +224,9 @@ func (s *Service) IsAnyoneHome() bool {
 		gpsAge := now.Sub(p.GPSLastSeenAt)
 		wifiAge := now.Sub(p.WiFiLastSeenAt)
 		roomAge := now.Sub(p.RoomLastSeenAt)
-		gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && gpsAge >= 0 && gpsAge <= 10*time.Minute
-		wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && wifiAge >= 0 && wifiAge <= 2*time.Minute
-		roomFresh := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && roomAge >= 0 && roomAge <= 5*time.Minute
+		gpsFresh := p.HasGPS && !p.GPSLastSeenAt.IsZero() && gpsAge >= -30*time.Second && gpsAge <= 10*time.Minute
+		wifiFresh := p.WiFiConnected && !p.WiFiLastSeenAt.IsZero() && wifiAge >= -30*time.Second && wifiAge <= 2*time.Minute
+		roomFresh := p.RoomOccupied && !p.RoomLastSeenAt.IsZero() && roomAge >= -30*time.Second && roomAge <= 5*time.Minute
 
 		geofenceEnabled := s.geofence.Enabled || s.geofence.Latitude != 0 || s.geofence.Longitude != 0
 		gpsHome := gpsFresh && geofenceEnabled &&
