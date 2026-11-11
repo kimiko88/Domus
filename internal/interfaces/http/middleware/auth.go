@@ -112,14 +112,16 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 
 			path := strings.TrimSuffix(r.URL.Path, "/")
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
-			selfService := hasSuffix("/presence/gps") ||
+			presenceSelfService := hasSuffix("/presence/gps") ||
 				hasSuffix("/presence/room") ||
-				hasSuffix("/presence/commute") ||
-				hasSuffix("/shopping") ||
-				strings.Contains(path, "/shopping/") ||
-				strings.Contains(path, "/notifications/actionable/actions/") ||
-				(strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete"))
-			if selfService {
+				hasSuffix("/presence/commute")
+			choreCompletion := strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete")
+			shoppingMutation := hasSuffix("/shopping") || strings.Contains(path, "/shopping/")
+			if presenceSelfService || choreCompletion {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if shoppingMutation && u.Role != user.RoleGuest {
 				next.ServeHTTP(w, r)
 				return
 			}
