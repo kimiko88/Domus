@@ -74,11 +74,19 @@ func TestPresenceService_RoomSensorAndSignalExpiry(t *testing.T) {
 		t.Fatalf("room sensor should establish presence, got %+v", person)
 	}
 
-	// Clearing the room sensor removes that evidence; no stale room state remains.
-	svc.UpdateRoomSensor(ctx, "user-1", "living_room", "clear", now.Add(time.Minute))
+	// A second room sensor independently reports presence.
+	svc.UpdateRoomSensor(ctx, "user-1", "kitchen", "occupied", now.Add(10*time.Second))
+	// Clearing the living room must not cancel the kitchen's fresh occupancy.
+	svc.UpdateRoomSensor(ctx, "user-1", "living_room", "clear", now.Add(20*time.Second))
 	person, _ = svc.GetPersonState("user-1")
-	if person.RoomOccupied {
-		t.Fatalf("clear sensor event should clear room occupancy, got %+v", person)
+	if !person.RoomOccupied || person.RoomZone != "kitchen" {
+		t.Fatalf("clearing one room must preserve another active room, got %+v", person)
+	}
+	// Clearing the remaining occupied room removes the room-based evidence.
+	svc.UpdateRoomSensor(ctx, "user-1", "kitchen", "clear", now.Add(time.Minute))
+	person, _ = svc.GetPersonState("user-1")
+	if person.RoomOccupied || person.State != StateJustLeft {
+		t.Fatalf("clearing all room sensors should remove presence, got %+v", person)
 	}
 
 	// A stale GPS fix must not keep a person home indefinitely.
