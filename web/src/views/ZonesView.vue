@@ -248,11 +248,11 @@
           <div class="form-row">
             <div class="form-group">
               <label for="zone-lat">Latitudine</label>
-              <input id="zone-lat" v-model.number="form.latitude" type="number" step="any" required class="input" />
+              <input id="zone-lat" v-model.number="form.latitude" type="number" min="-90" max="90" step="any" required placeholder="es. 45.4642" class="input" />
             </div>
             <div class="form-group">
               <label for="zone-lon">Longitudine</label>
-              <input id="zone-lon" v-model.number="form.longitude" type="number" step="any" required class="input" />
+              <input id="zone-lon" v-model.number="form.longitude" type="number" min="-180" max="180" step="any" required placeholder="es. 9.1900" class="input" />
             </div>
           </div>
 
@@ -292,8 +292,8 @@ const saving = ref(false)
 
 const form = ref<Partial<SpatialZone>>({
   name: '',
-  latitude: 41.9028,
-  longitude: 12.4964,
+  latitude: undefined,
+  longitude: undefined,
   radius: 150,
   icon: '📍',
   passive: false,
@@ -359,8 +359,8 @@ function selectZone(zone: SpatialZone) {
 function openCreateModal() {
   form.value = {
     name: '',
-    latitude: 41.9028,
-    longitude: 12.4964,
+    latitude: undefined,
+    longitude: undefined,
     radius: 150,
     icon: '📍',
     passive: false,
@@ -373,6 +373,13 @@ function closeModal() {
 }
 
 async function saveZone() {
+  const latitude = Number(form.value.latitude)
+  const longitude = Number(form.value.longitude)
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    window.alert('Inserisci coordinate valide: latitudine da -90 a 90 e longitudine da -180 a 180.')
+    return
+  }
   saving.value = true
   try {
     await store.createZone(form.value)
