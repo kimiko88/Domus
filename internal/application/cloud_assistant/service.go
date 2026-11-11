@@ -2,6 +2,7 @@ package cloud_assistant
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,11 +51,13 @@ func (s *Service) ValidateToken(authHeader string) bool {
 	if !s.enabled || s.bearerToken == "" {
 		return false
 	}
-	parts := strings.Split(strings.TrimSpace(authHeader), " ")
+	candidate := strings.TrimSpace(authHeader)
+	parts := strings.Split(candidate, " ")
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-		return parts[1] == s.bearerToken
+		candidate = parts[1]
 	}
-	return authHeader == s.bearerToken
+	return len(candidate) == len(s.bearerToken) &&
+		subtle.ConstantTimeCompare([]byte(candidate), []byte(s.bearerToken)) == 1
 }
 
 // HandleAlexa processes an Alexa Smart Home directive.
