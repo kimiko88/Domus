@@ -180,29 +180,46 @@ func TestMemoryBus_ConcurrentPublish(t *testing.T) {
 }
 
 func TestMemoryBus_BufferFullReturnsError(t *testing.T) {
-	// A bus with buffer size 1 and 0 workers won't consume
+	// Block the sole worker inside a handler so the bounded queue can be
+	// filled deterministically. Workers=0 is normalized to the default.
 	bus := eventbus.NewMemoryBus(eventbus.Config{
-		BufferSize: 1,
-		Workers:    0,
+		BufferSize:     1,
+		Workers:        1,
+		HandlerTimeout: time.Minute,
 	})
-	defer bus.Close()
+	releaseHandler := make(chan struct{})
+	handlerStarted := make(chan struct{})
+	bus.Subscribe(events.SystemStarted, func(context.Context, events.Event) error {
+		close(handlerStarted)
+		<-releaseHandler
+		return nil
+	})
+	defer func() {
+		close(releaseHandler)
+		_ = bus.Close()
+	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+	ctx := context.Background()
+	require.NoError(t, bus.Publish(ctx, events.Event{
+		ID: "evt-1", Type: events.SystemStarted,
+	}))
+	select {
+	case <-handlerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start the blocking handler")
+	}
 
-	// First event fills the buffer
+	// The worker is occupied by evt-1, so evt-2 fills the only queue slot.
+	require.NoError(t, bus.Publish(ctx, events.Event{
+		ID: "evt-2", Type: events.SystemStarted,
+	}))
+
+	// evt-3 must be rejected rather than silently accepted.
 	err := bus.Publish(ctx, events.Event{
-		ID:   "evt-1",
-		Type: events.SystemStarted,
+		ID: "evt-3", Type: events.SystemStarted,
 	})
-	require.NoError(t, err)
-
-	// Second event should return context deadline or buffer full error
-	err = bus.Publish(ctx, events.Event{
-		ID:   "evt-2",
-		Type: events.SystemStarted,
-	})
-	assert.Error(t, err, "Publishing to full buffer must return an error")
+	require.ErrorIs(t, err, eventbus.ErrQueueFull,
+		"publishing to a full buffer must return ErrQueueFull")
 }
 
 func TestMemoryBus_TracePropagation(t *testing.T) {
