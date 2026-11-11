@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,9 +16,6 @@ func TestMS03_Update_FilesExist(t *testing.T) {
 	requiredFiles := []string{
 		"os/rauc/system.conf",
 		"os/rauc/domus-os.raucm",
-		"os/rauc/certs/ca.cert.pem",
-		"os/rauc/certs/development.cert.pem",
-		"os/rauc/certs/development.key.pem",
 		"os/board/raspberrypi4-64/uboot.env.txt",
 		"os/board/raspberrypi4-64/fw_env.config",
 		"os/scripts/generate-rauc-keys.sh",
@@ -85,17 +83,29 @@ func TestMS03_RaucSystemConf_ValidSlots(t *testing.T) {
 // to verify they are valid, well-formed x.509 PEM certificates.
 func TestMS03_X509_CertificateValidity(t *testing.T) {
 	baseDir := findRepoRoot(t)
-
-	certFiles := []string{
-		"os/rauc/certs/ca.cert.pem",
-		"os/rauc/certs/development.cert.pem",
+	if _, err := exec.LookPath("openssl"); err != nil {
+		t.Skip("openssl not available; skipping generated RAUC certificate validation")
 	}
 
+	// Release signing material is intentionally generated, not committed to git.
+	// Generate an ephemeral test CA and signer in a temporary directory.
+	certsDir := filepath.Join(t.TempDir(), "certs")
+	generator := filepath.Join(baseDir, "os", "scripts", "generate-rauc-keys.sh")
+	cmd := exec.Command("bash", generator)
+	cmd.Env = append(os.Environ(),
+		"DOMUS_RAUC_CERTS_DIR="+certsDir,
+		"DOMUS_RAUC_KEY_SIZE=2048",
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to generate temporary RAUC certificates: %v\n%s", err, output)
+	}
+
+	certFiles := []string{"ca.cert.pem", "development.cert.pem"}
 	for _, cf := range certFiles {
-		fullPath := filepath.Join(baseDir, cf)
+		fullPath := filepath.Join(certsDir, cf)
 		data, err := os.ReadFile(fullPath)
 		if err != nil {
-			t.Fatalf("failed to read cert file %s: %v", cf, err)
+			t.Fatalf("failed to read generated cert file %s: %v", cf, err)
 		}
 
 		block, _ := pem.Decode(data)
