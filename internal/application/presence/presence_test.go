@@ -2,6 +2,7 @@ package presence
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -57,5 +58,53 @@ func TestPresenceService_Fusion(t *testing.T) {
 	p, ok := svc.GetPersonState("user_marco")
 	if !ok || p.RoomZone != "living_room" || p.SubState != "stationary" {
 		t.Errorf("expected living_room stationary, got %+v", p)
+	}
+}
+
+
+func TestPresenceService_RoomSensorAndSignalExpiry(t *testing.T) {
+	svc := NewService(HomeGeofence{Latitude: 45.0, Longitude: 9.0, RadiusM: 100}, nil)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+
+	// A room sensor can establish presence even when GPS is outside the geofence.
+	svc.UpdateRoomSensor(ctx, "user-1", "living_room", "stationary", now)
+	person, ok := svc.GetPersonState("user-1")
+	if !ok || person.State != StateJustArrived || !person.RoomOccupied {
+		t.Fatalf("room sensor should establish presence, got %+v", person)
+	}
+
+	// Clearing the room sensor removes that evidence; no stale room state remains.
+	svc.UpdateRoomSensor(ctx, "user-1", "living_room", "clear", now.Add(time.Minute))
+	person, _ = svc.GetPersonState("user-1")
+	if person.RoomOccupied {
+		t.Fatalf("clear sensor event should clear room occupancy, got %+v", person)
+	}
+
+	// A stale GPS fix must not keep a person home indefinitely.
+	svc.UpdateGPS(ctx, "user-2", 45.0, 9.0, now)
+	person, _ = svc.GetPersonState("user-2")
+	if person.State != StateJustArrived {
+		t.Fatalf("expected geofence arrival, got %s", person.State)
+	}
+	svc.UpdateWiFi(ctx, "user-2", "AA:BB:CC:DD:EE:FF", false, now.Add(11*time.Minute))
+	person, _ = svc.GetPersonState("user-2")
+	if person.State != StateJustLeft {
+		t.Fatalf("stale GPS should expire, expected just_left, got %s", person.State)
+	}
+}
+
+func TestValidCoordinates(t *testing.T) {
+	valid := [][2]float64{{0, 0}, {90, 180}, {-90, -180}, {45.4642, 9.19}}
+	for _, point := range valid {
+		if !ValidCoordinates(point[0], point[1]) {
+			t.Errorf("expected valid coordinates %v", point)
+		}
+	}
+	invalid := [][2]float64{{91, 0}, {0, 181}, {-91, 0}, {0, -181}, {math.NaN(), 0}, {0, math.Inf(1)}}
+	for _, point := range invalid {
+		if ValidCoordinates(point[0], point[1]) {
+			t.Errorf("expected invalid coordinates %v", point)
+		}
 	}
 }
