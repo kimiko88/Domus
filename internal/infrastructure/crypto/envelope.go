@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -140,30 +141,36 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 		return nil, errors.New("envelope: key path cannot be empty")
 	}
 
-	// If file exists, load key
-	if data, err := os.ReadFile(path); err == nil {
+	load := func() ([]byte, error) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		// Preserve compatibility with existing raw, hex, and Base64 keys.
+		if len(data) == KeySize {
+			return data, nil
+		}
 		trimmed := strings.TrimSpace(string(data))
-		// Support either raw 32-byte binary, 64-character hex, or Base64 encoded key
-		if len(trimmed) == 64 {
-			// Hex encoded
-			var key [32]byte
-			n, err := fmt.Sscanf(trimmed, "%x", &key)
-			if err == nil && n == 1 {
-				return key[:], nil
+		if len(trimmed) == KeySize*2 {
+			decoded, err := hex.DecodeString(trimmed)
+			if err == nil && len(decoded) == KeySize {
+				return decoded, nil
 			}
 		}
 		if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(decoded) == KeySize {
 			return decoded, nil
 		}
-		if len(data) == KeySize {
-			return data, nil
-		}
-		// If key size is different, derive via sha256
-		hash := sha256.Sum256(data)
-		return hash[:], nil
+		return nil, fmt.Errorf("envelope: master key at %s is malformed (expected %d raw bytes, %d hex chars, or Base64 for %d bytes)", path, KeySize, KeySize*2, KeySize)
 	}
 
-	// Ensure parent directory exists
+	key, err := load()
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("envelope: failed to read existing master key %s: %w", path, err)
+	}
+
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -171,16 +178,34 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 		}
 	}
 
-	// Generate fresh key
-	key, err := GenerateMasterKey()
+	key, err = GenerateMasterKey()
 	if err != nil {
 		return nil, err
 	}
+	encoded := []byte(base64.StdEncoding.EncodeToString(key) + "\n")
 
-	// Write key with strict read/write owner-only permissions
-	encoded := base64.StdEncoding.EncodeToString(key) + "\n"
-	if err := os.WriteFile(path, []byte(encoded), 0o600); err != nil {
+	// O_EXCL prevents concurrent startups from replacing a key another process
+	// has just created. If another process wins, load and use its key.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return load()
+	}
+	if err != nil {
 		return nil, fmt.Errorf("envelope: failed to persist master key to %s: %w", path, err)
+	}
+	writeErr := func() error {
+		if _, err := file.Write(encoded); err != nil {
+			return err
+		}
+		if err := file.Sync(); err != nil {
+			return err
+		}
+		return file.Close()
+	}()
+	if writeErr != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return nil, fmt.Errorf("envelope: failed to persist master key to %s: %w", path, writeErr)
 	}
 
 	return key, nil
