@@ -1,6 +1,7 @@
 package crypto_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -85,4 +86,17 @@ func TestEnvelopeCipher_LoadOrCreateMasterKey(t *testing.T) {
 	key2, err := crypto.LoadOrCreateMasterKey(keyPath)
 	require.NoError(t, err)
 	assert.Equal(t, key1, key2, "Loading from existing path must yield identical key")
+}
+
+
+func TestLoadOrCreateMasterKey_RejectsMalformedExistingKey(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "master.key")
+	require.NoError(t, os.WriteFile(keyPath, []byte("truncated-key"), 0600))
+
+	_, err := crypto.LoadOrCreateMasterKey(keyPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "malformed")
+	data, readErr := os.ReadFile(keyPath)
+	require.NoError(t, readErr)
+	assert.Equal(t, "truncated-key", string(data), "a malformed key must never be silently replaced")
 }
