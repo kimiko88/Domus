@@ -128,16 +128,12 @@ func TestAdvancedFeaturesHandler_Presence(t *testing.T) {
 }
 
 func TestAdvancedFeaturesHandler_SunPosition(t *testing.T) {
-	t.Run("nil sun engine defaults to fallback coordinates and returns 200", func(t *testing.T) {
+	t.Run("nil sun engine returns not configured instead of inventing a location", func(t *testing.T) {
 		h := NewAdvancedFeaturesHandler(nil, nil, nil)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/system/sun", nil)
 		rr := httptest.NewRecorder()
 		h.GetSunPosition(rr, req)
-		assert.Equal(t, http.StatusOK, rr.Code)
-
-		var pos automation.SunPosition
-		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &pos))
-		assert.NotZero(t, pos.Sunrise)
+		assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	})
 
 	t.Run("explicit sun engine returns calculated coordinates", func(t *testing.T) {
@@ -462,6 +458,14 @@ func TestAdvancedFeaturesHandler_CommuteTracker(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/presence/commute", bytes.NewReader(locBody))
 	rr := httptest.NewRecorder()
+	h.UpdateCommuteLocation(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	// The stored identity comes from the session, never from the request body.
+	testUser := &user.User{ID: "user_alice", Username: "alice", Role: user.RoleOperator}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/commute", bytes.NewReader(locBody))
+	req = req.WithContext(domusmw.WithUser(req.Context(), testUser))
+	rr = httptest.NewRecorder()
 	h.UpdateCommuteLocation(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 
