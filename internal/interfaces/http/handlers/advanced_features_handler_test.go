@@ -451,7 +451,7 @@ func TestAdvancedFeaturesHandler_CommuteTracker(t *testing.T) {
 
 	// Update Commute Location
 	locBody, _ := json.Marshal(map[string]any{
-		"user_id":   "user_alice",
+		"user_id":   "attacker-selected-user",
 		"latitude":  41.9250,
 		"longitude": 12.5150,
 		"speed_kmh": 50.0,
