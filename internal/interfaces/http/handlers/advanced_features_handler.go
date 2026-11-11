@@ -163,6 +163,51 @@ func (h *AdvancedFeaturesHandler) UpdateGPS(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// UpdateRoomPresence handles authenticated room-level mmWave presence telemetry.
+func (h *AdvancedFeaturesHandler) UpdateRoomPresence(w http.ResponseWriter, r *http.Request) {
+	if h.presence == nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "presence service is not initialized")
+		return
+	}
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	var req struct {
+		Room     string `json:"room"`
+		SubState string `json:"sub_state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+	req.Room = strings.TrimSpace(req.Room)
+	req.SubState = strings.ToLower(strings.TrimSpace(req.SubState))
+	if req.Room == "" || len(req.Room) > 64 {
+		writeError(w, http.StatusBadRequest, "INVALID_ROOM", "room must contain between 1 and 64 characters")
+		return
+	}
+	switch req.SubState {
+	case "moving", "stationary", "sleeping", "clear", "cleared", "away", "vacant", "none", "off":
+	default:
+		writeError(w, http.StatusBadRequest, "INVALID_SUB_STATE", "unsupported room presence state")
+		return
+	}
+
+	now := time.Now().UTC()
+	h.presence.UpdateRoomSensor(r.Context(), u.ID, req.Room, req.SubState, now)
+	person, _ := h.presence.GetPersonState(u.ID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id":       u.ID,
+		"state":         string(person.State),
+		"room_zone":     person.RoomZone,
+		"sub_state":     person.SubState,
+		"room_occupied": person.RoomOccupied,
+		"last_seen_at":  person.LastSeenAt,
+	})
+}
+
 // GetPresenceStatus handles GET /api/v1/presence/status.
 func (h *AdvancedFeaturesHandler) GetPresenceStatus(w http.ResponseWriter, r *http.Request) {
 	if h.presence == nil {
