@@ -261,6 +261,7 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 	cfg.HealthCheckInterval = 5 * time.Millisecond
 	cfg.MaxHealthRetries = 3
 	engine := supervisor.NewEngine(cfg, runtime, rauc, health)
+	engine.GetMaintenanceManager().SetServiceManager(&mockSSHServiceManager{})
 	ctx := context.Background()
 	_ = engine.Start(ctx)
 
@@ -411,3 +412,10 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 		}
 	})
 }
+
+
+type mockSSHServiceManager struct{}
+
+func (*mockSSHServiceManager) StartSSH(context.Context) error { return nil }
+func (*mockSSHServiceManager) StopSSH(context.Context) error { return nil }
+func (*mockSSHServiceManager) IsSSHRunning(context.Context) (bool, error) { return true, nil }
