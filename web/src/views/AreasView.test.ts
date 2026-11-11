@@ -101,7 +101,7 @@ describe('AreasView.vue', () => {
     ]
     vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
     vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.stubGlobal('confirm', vi.fn(() => true))
     const deleteSpy = vi.spyOn(areasStore, 'deleteArea').mockResolvedValue()
 
     const wrapper = mount(AreasView)
