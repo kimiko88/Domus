@@ -90,11 +90,14 @@ func WithAutomation(engine *appauto.Engine, sceneService *appscene.Service) Serv
 }
 
 // WithAdvancedFeatures configures energy load shedding, multi-tier presence, and solar calculations.
-func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *appauto.SunEngine) ServerOption {
+func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *appauto.SunEngine, commute ...*presence.CommuteTracker) ServerOption {
 	return func(s *Server) {
 		s.energyCtrl = energyCtrl
 		s.presenceSvc = presenceSvc
 		s.sunEngine = sunEngine
+		if len(commute) > 0 {
+			s.commuteTracker = commute[0]
+		}
 	}
 }
 
@@ -138,6 +141,7 @@ type Server struct {
 	energyCtrl     *energy.Controller
 	presenceSvc    *presence.Service
 	sunEngine      *appauto.SunEngine
+	commuteTracker *presence.CommuteTracker
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -470,6 +474,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Advanced Features: Energy Load Shedding & Multi-tier Presence
 				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine).
+					WithCommuteTracker(srv.commuteTracker).
 					WithEntityRepository(srv.repos.Entities).
 					WithWallboxRepository(srv.repos.Wallbox).
 					WithVacationRepository(srv.repos.Vacation).
