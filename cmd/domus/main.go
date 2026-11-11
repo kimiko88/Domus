@@ -216,6 +216,9 @@ func main() {
 		Enabled:   cfg.Presence.GeofenceEnabled || cfg.Presence.HomeLatitude != 0 || cfg.Presence.HomeLongitude != 0,
 	}
 	presenceSvc := apppresence.NewService(homeGeofence, bus)
+	presenceCtx, cancelPresence := context.WithCancel(context.Background())
+	defer cancelPresence()
+	presenceSvc.Start(presenceCtx)
 
 	var sunEngine *appauto.SunEngine
 	var commuteTracker *apppresence.CommuteTracker
