@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -119,6 +120,9 @@ func Load(path string) (Config, error) {
 	}
 
 	applyEnvOverrides(&cfg)
+	if err := validatePresenceConfig(cfg.Presence); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -157,6 +161,26 @@ func defaults() Config {
 			GeofenceEnabled: false,
 		},
 	}
+}
+
+
+// validatePresenceConfig prevents invalid home coordinates from silently
+// producing incorrect geofence and solar calculations.
+func validatePresenceConfig(cfg PresenceConfig) error {
+	configured := cfg.GeofenceEnabled || cfg.HomeLatitude != 0 || cfg.HomeLongitude != 0
+	if !configured {
+		return nil
+	}
+	if math.IsNaN(cfg.HomeLatitude) || math.IsInf(cfg.HomeLatitude, 0) ||
+		math.IsNaN(cfg.HomeLongitude) || math.IsInf(cfg.HomeLongitude, 0) ||
+		cfg.HomeLatitude < -90 || cfg.HomeLatitude > 90 ||
+		cfg.HomeLongitude < -180 || cfg.HomeLongitude > 180 {
+		return fmt.Errorf("invalid presence home coordinates: latitude must be -90..90 and longitude -180..180")
+	}
+	if math.IsNaN(cfg.GeofenceRadiusM) || math.IsInf(cfg.GeofenceRadiusM, 0) || cfg.GeofenceRadiusM <= 0 {
+		return fmt.Errorf("invalid presence geofence radius: must be a finite value greater than zero")
+	}
+	return nil
 }
 
 // applyEnvOverrides applies DOMUS_* environment variables on top of cfg.
