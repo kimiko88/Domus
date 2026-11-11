@@ -445,6 +445,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				if srv.repos.Floors != nil {
 					floorH := handlers.NewFloorplanHandler(srv.repos.Floors)
 					domainRouter.Route("/floors", func(flRouter chi.Router) {
+						flRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						flRouter.Get("/", floorH.List)
 						flRouter.Post("/", floorH.Create)
 						flRouter.Get("/{id}", floorH.GetByID)
@@ -514,6 +515,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					zoneSvc := appzone.NewService(srv.repos.Zones, srv.bus)
 					zoneH = handlers.NewZoneHandler(zoneSvc, srv.repos.Zones)
 					domainRouter.Route("/zones", func(zRouter chi.Router) {
+						zRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						zRouter.Get("/", zoneH.ListZones)
 						zRouter.Post("/", zoneH.CreateZone)
 						zRouter.Get("/{id}", zoneH.GetZone)
@@ -521,6 +523,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						zRouter.Delete("/{id}", zoneH.DeleteZone)
 					})
 					domainRouter.Route("/persons", func(pRouter chi.Router) {
+						pRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						pRouter.Get("/", zoneH.ListPersons)
 						pRouter.Post("/", zoneH.CreatePerson)
 						pRouter.Get("/{id}", zoneH.GetPerson)
@@ -536,6 +539,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					_ = teSvc.Start(context.Background())
 					teH := handlers.NewTemplateEntityHandler(teSvc, srv.repos.Templates)
 					domainRouter.Route("/template-entities", func(teRouter chi.Router) {
+						teRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						teRouter.Get("/", teH.List)
 						teRouter.Post("/", teH.Create)
 						teRouter.Post("/preview", teH.Preview)
@@ -571,6 +575,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					dashService := appdash.NewService(srv.repos.Dashboards)
 					dashH := handlers.NewDashboardHandler(dashService)
 					domainRouter.Route("/dashboards", func(dRouter chi.Router) {
+						dRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						dRouter.Get("/", dashH.List)
 						dRouter.Post("/", dashH.Create)
 						dRouter.Get("/{id}", dashH.Get)
@@ -587,6 +592,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					helperService := apphelper.NewService(srv.repos.Helpers, srv.bus)
 					helperH := handlers.NewHelperHandler(helperService)
 					domainRouter.Route("/helpers", func(hRouter chi.Router) {
+						hRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						hRouter.Get("/", helperH.List)
 						hRouter.Post("/", helperH.Create)
 						hRouter.Get("/{id}", helperH.Get)
@@ -651,6 +657,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
+						cRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					cRouter.Get("/", ecoH.ListCameras)
 					cRouter.Post("/", ecoH.CreateCamera)
 					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
@@ -718,6 +725,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					scriptSvc := appscript.NewService(srv.repos.Scripts, srv.bus)
 					scriptH := handlers.NewScriptHandler(scriptSvc)
 					domainRouter.Route("/scripts", func(scRouter chi.Router) {
+						scRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						scRouter.Get("/", scriptH.List)
 						scRouter.Post("/", scriptH.Create)
 						scRouter.Get("/{id}", scriptH.Get)
@@ -780,6 +788,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/mesh", func(meshRouter chi.Router) {
+						meshRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					meshRouter.Get("/topology", ecoH.GetMeshTopology)
 					meshRouter.Get("/thread/topology", ecoH.GetThreadTopology)
 				})
@@ -853,6 +862,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					financeSvc := appfinance.NewService(srv.repos.Finance, srv.bus)
 					financeH := handlers.NewFinanceHandler(financeSvc)
 					domainRouter.Route("/finance", func(finRouter chi.Router) {
+						finRouter.Use(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin))
 						finRouter.Get("/expenses", financeH.List)
 						finRouter.Post("/expenses", financeH.Create)
 						finRouter.Get("/expenses/{id}", financeH.GetByID)
@@ -899,6 +909,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 					if webhookH != nil {
 						domainRouter.Route("/webhook-configs", func(whRouter chi.Router) {
+							whRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 							whRouter.Get("/", webhookH.ListWebhooks)
 							whRouter.Post("/", webhookH.CreateWebhook)
 							whRouter.Delete("/{id}", webhookH.DeleteWebhook)
@@ -908,6 +919,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 							whRouter.Post("/outbound/{id}/test", webhookH.TestOutbound)
 						})
 						domainRouter.Route("/webhooks/outbound", func(obRouter chi.Router) {
+							obRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 							obRouter.Get("/", webhookH.ListOutbound)
 							obRouter.Post("/", webhookH.CreateOutbound)
 							obRouter.Delete("/{id}", webhookH.DeleteOutbound)
@@ -958,6 +970,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				anomalySvc := appanomaly.NewService(srv.bus).WithRepository(srv.repos.Anomaly)
 				anomalyH := handlers.NewAnomalyHandler(anomalySvc)
 				domainRouter.Route("/anomalies", func(anRouter chi.Router) {
+					anRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					anomalyH.RegisterRoutes(anRouter)
 				})
 
