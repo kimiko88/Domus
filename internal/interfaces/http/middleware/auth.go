@@ -92,6 +92,45 @@ func RequireAuth() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireOperatorForWrites prevents read-only and restricted roles from invoking
+// mutating domain endpoints. A small set of personal/family actions remains
+// available to authenticated members with lower roles.
+func RequireOperatorForWrites() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			path := strings.TrimSuffix(r.URL.Path, "/")
+			selfService := path == "/presence/gps" ||
+				path == "/presence/commute" ||
+				path == "/shopping" ||
+				strings.HasPrefix(path, "/shopping/") ||
+				strings.HasPrefix(path, "/notifications/actionable/actions/") ||
+				(strings.HasPrefix(path, "/chores/") && strings.HasSuffix(path, "/complete")) ||
+				strings.HasPrefix(path, "/safety/")
+			if selfService {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			if u.Role != user.RoleOperator && u.Role != user.RoleAdmin {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "operator or admin role required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireRole enforces that the authenticated user possesses one of the allowed roles.
 func RequireRole(allowedRoles ...user.Role) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
