@@ -196,7 +196,7 @@ func (s *Service) evaluateStateLocked(ctx context.Context, p *PersonLocation, in
 	// Multi-tier fusion:
 	// If Wi-Fi is connected OR GPS is inside geofence -> user is HOME
 	if wifiConnected || inGPSZone || roomPresent {
-		if oldState == StateAway || oldState == "" {
+		if oldState == StateAway || oldState == StateJustLeft || oldState == "" {
 			newState = StateJustArrived
 		} else {
 			newState = StateHome
