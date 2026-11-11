@@ -118,3 +118,30 @@ func TestRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
 	handler.ServeHTTP(rr3, req)
 	assert.Equal(t, http.StatusTooManyRequests, rr3.Code)
 }
+
+
+func TestRequireOperatorForWrites(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := domusmw.RequireOperatorForWrites()(next)
+
+	request := func(method, path string, u *user.User) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		if u != nil {
+			req = req.WithContext(domusmw.WithUser(req.Context(), u))
+		}
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr
+	}
+
+	viewer := &user.User{ID: "viewer-1", Role: user.RoleViewer}
+	operator := &user.User{ID: "operator-1", Role: user.RoleOperator}
+
+	assert.Equal(t, http.StatusUnauthorized, request(http.MethodPost, "/api/v1/scenes", nil).Code)
+	assert.Equal(t, http.StatusForbidden, request(http.MethodPost, "/api/v1/scenes", viewer).Code)
+	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/scenes", operator).Code)
+	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/presence/gps", viewer).Code)
+	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/scenes", viewer).Code)
+}
