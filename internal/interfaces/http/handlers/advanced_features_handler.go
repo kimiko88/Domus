@@ -609,28 +609,42 @@ func (h *AdvancedFeaturesHandler) RegisterVacationAction(w http.ResponseWriter, 
 // UpdateCommuteLocation handles POST /api/v1/presence/commute.
 func (h *AdvancedFeaturesHandler) UpdateCommuteLocation(w http.ResponseWriter, r *http.Request) {
 	if h.commuteTracker == nil {
-		h.commuteTracker = presence.NewCommuteTracker(nil, presence.CommuteConfig{
-			HomeLatitude:  41.9028,
-			HomeLongitude: 12.4964,
-		})
+		writeError(w, http.StatusServiceUnavailable, "NOT_CONFIGURED", "home coordinates and commute tracking are not configured")
+		return
+	}
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
 	}
 
 	var req struct {
-		UserID    string  `json:"user_id"`
 		Latitude  float64 `json:"latitude"`
 		Longitude float64 `json:"longitude"`
 		SpeedKmh  float64 `json:"speed_kmh"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_JSON", "user_id, latitude, longitude required")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
+		return
+	}
+	if !presence.ValidCoordinates(req.Latitude, req.Longitude) {
+		writeError(w, http.StatusBadRequest, "INVALID_COORDINATES", "latitude and longitude are outside valid WGS84 ranges")
+		return
+	}
+	if req.SpeedKmh < 0 || req.SpeedKmh > 300 {
+		writeError(w, http.StatusBadRequest, "INVALID_SPEED", "speed_kmh must be between 0 and 300")
 		return
 	}
 
-	status := h.commuteTracker.UpdateLocation(r.Context(), req.UserID, req.Latitude, req.Longitude, req.SpeedKmh, time.Now().UTC())
+	// Never accept a caller-supplied user_id: location telemetry belongs to
+	// the authenticated session identity.
+	status := h.commuteTracker.UpdateLocation(r.Context(), u.ID, req.Latitude, req.Longitude, req.SpeedKmh, time.Now().UTC())
 	if h.commuteRepo != nil {
-		_ = h.commuteRepo.SaveLocation(r.Context(), status)
+		if err := h.commuteRepo.SaveLocation(r.Context(), status); err != nil {
+			writeError(w, http.StatusInternalServerError, "PERSISTENCE_FAILED", "could not persist commute location")
+			return
+		}
 	}
-
 	writeJSON(w, http.StatusOK, status)
 }
 
@@ -641,27 +655,31 @@ func (h *AdvancedFeaturesHandler) GetCommuteStatus(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusBadRequest, "INVALID_ID", "userId is required")
 		return
 	}
+	u := domusmw.GetUser(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "authentication required")
+		return
+	}
+	if userID != u.ID && u.Role != "admin" {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "you can only view your own commute status")
+		return
+	}
 
 	if h.commuteRepo != nil {
 		if stored, err := h.commuteRepo.GetLocation(r.Context(), userID); err == nil && stored != nil {
 			writeJSON(w, http.StatusOK, stored)
 			return
+		} else if err != nil {
+			writeError(w, http.StatusInternalServerError, "PERSISTENCE_FAILED", "could not load commute status")
+			return
 		}
 	}
-
-	if h.commuteTracker == nil {
-		h.commuteTracker = presence.NewCommuteTracker(nil, presence.CommuteConfig{
-			HomeLatitude:  41.9028,
-			HomeLongitude: 12.4964,
-		})
+	if h.commuteTracker != nil {
+		if status, ok := h.commuteTracker.GetStatus(userID); ok {
+			writeJSON(w, http.StatusOK, status)
+			return
+		}
 	}
-
-	// Calculate commute status from tracker
-	status := h.commuteTracker.UpdateLocation(r.Context(), userID, 41.9200, 12.5100, 45.0, time.Now().UTC())
-	if h.commuteRepo != nil {
-		_ = h.commuteRepo.SaveLocation(r.Context(), status)
-	}
-
-	writeJSON(w, http.StatusOK, status)
+	writeError(w, http.StatusNotFound, "NOT_FOUND", "no commute telemetry is available for this user")
 }
 
