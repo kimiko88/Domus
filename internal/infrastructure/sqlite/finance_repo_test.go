@@ -74,7 +74,15 @@ func TestFinanceRepository_SQLite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, foodExpenses, 1)
 
-	// 5. Budget Target
+	// 5. Budget Target: a month-specific target must override the global fallback.
+	globalBudget := &finance.BudgetTarget{
+		ID:           "bgt_global",
+		Category:     "total",
+		MonthlyLimit: 2000.0,
+		MonthYear:    "global",
+	}
+	require.NoError(t, repo.SetBudget(ctx, globalBudget))
+
 	bgt := &finance.BudgetTarget{
 		ID:           "bgt_oct",
 		Category:     "total",
@@ -82,6 +90,11 @@ func TestFinanceRepository_SQLite(t *testing.T) {
 		MonthYear:    "2026-10",
 	}
 	require.NoError(t, repo.SetBudget(ctx, bgt))
+
+	gotBudget, err := repo.GetBudget(ctx, "total", "2026-10")
+	require.NoError(t, err)
+	assert.Equal(t, "2026-10", gotBudget.MonthYear)
+	assert.Equal(t, 1500.0, gotBudget.MonthlyLimit)
 
 	budgets, err := repo.ListBudgets(ctx, "2026-10")
 	require.NoError(t, err)
