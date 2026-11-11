@@ -149,6 +149,10 @@ func (h *AdvancedFeaturesHandler) UpdateGPS(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request payload")
 		return
 	}
+	if !presence.ValidCoordinates(req.Latitude, req.Longitude) {
+		writeError(w, http.StatusBadRequest, "INVALID_COORDINATES", "latitude must be between -90 and 90 and longitude between -180 and 180")
+		return
+	}
 
 	state := h.presence.UpdateGPS(r.Context(), u.ID, req.Latitude, req.Longitude, time.Now().UTC())
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -173,8 +177,8 @@ func (h *AdvancedFeaturesHandler) GetPresenceStatus(w http.ResponseWriter, r *ht
 func (h *AdvancedFeaturesHandler) GetSunPosition(w http.ResponseWriter, r *http.Request) {
 	engine := h.sun
 	if engine == nil {
-		// Default to Rome coords if unconfigured
-		engine = automation.NewSunEngine(41.9028, 12.4964)
+		writeError(w, http.StatusServiceUnavailable, "NOT_CONFIGURED", "home coordinates are not configured")
+		return
 	}
 
 	targetTime := time.Now().UTC()
