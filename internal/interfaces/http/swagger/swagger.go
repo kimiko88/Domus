@@ -26,6 +26,17 @@ func (h *Handler) ServeSpec(w http.ResponseWriter, r *http.Request) {
 
 // ServeUI serves the embedded Swagger UI documentation page.
 func (h *Handler) ServeUI(w http.ResponseWriter, r *http.Request) {
+	// Swagger UI assets are currently loaded from unpkg. Scope this exception
+	// to the documentation page rather than weakening the global application CSP.
+	w.Header().Set("Content-Security-Policy",
+		"default-src 'self'; "+
+			"script-src 'self' 'unsafe-inline' https://unpkg.com; "+
+			"style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; "+
+			"font-src 'self' https://fonts.gstatic.com; "+
+			"img-src 'self' data:; "+
+			"connect-src 'self' ws: wss:; "+
+			"frame-ancestors 'none';",
+	)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(swaggerHTML))
