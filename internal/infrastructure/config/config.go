@@ -23,6 +23,7 @@ type Config struct {
 	Auth      AuthConfig      `toml:"auth"`
 	Logging   LoggingConfig   `toml:"logging"`
 	Retention RetentionConfig `toml:"retention"`
+	Presence  PresenceConfig  `toml:"presence"`
 }
 
 // ─── Sub-configs ──────────────────────────────────────────────────────────────
@@ -55,6 +56,14 @@ type AuthConfig struct {
 	Argon2Time           uint32   `toml:"argon2_time"`
 	Argon2Memory         uint32   `toml:"argon2_memory"`
 	Argon2Threads        uint8    `toml:"argon2_threads"`
+}
+
+// PresenceConfig configures the physical home location used for geofencing and solar calculations.
+type PresenceConfig struct {
+	HomeLatitude    float64 `toml:"home_latitude"`
+	HomeLongitude   float64 `toml:"home_longitude"`
+	GeofenceRadiusM float64 `toml:"geofence_radius_m"`
+	GeofenceEnabled bool    `toml:"geofence_enabled"`
 }
 
 // LoggingConfig controls structured logging output.
@@ -143,6 +152,10 @@ func defaults() Config {
 			AuditLogDays:      90,
 			AutomationRunDays: 30,
 		},
+		Presence: PresenceConfig{
+			GeofenceRadiusM: 150,
+			GeofenceEnabled: false,
+		},
 	}
 }
 
@@ -173,5 +186,25 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("DOMUS_LOG_FORMAT"); v != "" {
 		cfg.Logging.Format = v
+	}
+	if v := os.Getenv("DOMUS_PRESENCE_HOME_LATITUDE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Presence.HomeLatitude = n
+		}
+	}
+	if v := os.Getenv("DOMUS_PRESENCE_HOME_LONGITUDE"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Presence.HomeLongitude = n
+		}
+	}
+	if v := os.Getenv("DOMUS_PRESENCE_GEOFENCE_RADIUS_M"); v != "" {
+		if n, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Presence.GeofenceRadiusM = n
+		}
+	}
+	if v := os.Getenv("DOMUS_PRESENCE_GEOFENCE_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Presence.GeofenceEnabled = b
+		}
 	}
 }
