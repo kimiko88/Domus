@@ -29,8 +29,8 @@ type PersonLocation struct {
 	GPSLon        float64       `json:"gps_lon,omitempty"`
 	HasGPS        bool          `json:"has_gps"`
 	GPSLastSeenAt time.Time     `json:"gps_last_seen_at,omitempty"`
-	WiFiConnected bool
-	WiFiLastSeenAt time.Time    `json:"wifi_last_seen_at,omitempty"`          `json:"wifi_connected"`
+	WiFiConnected  bool      `json:"wifi_connected"`
+	WiFiLastSeenAt time.Time `json:"wifi_last_seen_at,omitempty"`
 	WiFiMAC       string        `json:"wifi_mac,omitempty"`
 	RoomZone      string        `json:"room_zone,omitempty"` // e.g. "bedroom", "living_room"
 	SubState      string        `json:"sub_state,omitempty"` // "moving", "stationary", "sleeping"
