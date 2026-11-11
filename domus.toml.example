@@ -61,3 +61,11 @@ audit_log_days = 90
 
 # Retention period for automation execution logs (days).
 automation_run_days = 30
+
+[presence]
+# Home coordinates used by GPS geofencing and solar calculations.
+# Set geofence_enabled=true and replace these example values with your own.
+home_latitude = 0.0
+home_longitude = 0.0
+geofence_radius_m = 150.0
+geofence_enabled = false
