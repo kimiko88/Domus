@@ -189,7 +189,7 @@ func (h *AdvancedFeaturesHandler) UpdateRoomPresence(w http.ResponseWriter, r *h
 		return
 	}
 	switch req.SubState {
-	case "moving", "stationary", "sleeping", "clear", "cleared", "away", "vacant", "none", "off":
+	case "moving", "stationary", "sleeping", "occupied", "present", "detected", "on", "clear", "cleared", "away", "vacant", "none", "off":
 	default:
 		writeError(w, http.StatusBadRequest, "INVALID_SUB_STATE", "unsupported room presence state")
 		return
