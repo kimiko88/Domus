@@ -196,28 +196,47 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 	}
 	encoded := []byte(base64.StdEncoding.EncodeToString(key) + "\n")
 
-	// O_EXCL prevents concurrent startups from replacing a key another process
-	// has just created. If another process wins, load and use its key.
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		return load()
-	}
+	// Write a complete private temporary file, fsync it, then publish it with
+	// an atomic no-overwrite hard link. Concurrent starts can only observe a
+	// complete key and can never replace the winner's key.
+	tmp, err := os.CreateTemp(dir, ".domus-master-key-*")
 	if err != nil {
-		return nil, fmt.Errorf("envelope: failed to persist master key to %s: %w", path, err)
+		return nil, fmt.Errorf("envelope: failed to create temporary master key: %w", err)
 	}
-	writeErr := func() error {
-		if _, err := file.Write(encoded); err != nil {
-			return err
-		}
-		if err := file.Sync(); err != nil {
-			return err
-		}
-		return file.Close()
-	}()
-	if writeErr != nil {
-		_ = file.Close()
-		_ = os.Remove(path)
-		return nil, fmt.Errorf("envelope: failed to persist master key to %s: %w", path, writeErr)
+	tmpPath := tmp.Name()
+	cleanupTemp := func() { _ = os.Remove(tmpPath) }
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to secure temporary master key: %w", err)
+	}
+	if _, err := tmp.Write(encoded); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to write temporary master key: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to sync temporary master key: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to close temporary master key: %w", err)
+	}
+
+	if err := os.Link(tmpPath, path); errors.Is(err, os.ErrExist) {
+		cleanupTemp()
+		return load()
+	} else if err != nil {
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to publish master key to %s: %w", path, err)
+	}
+	cleanupTemp()
+
+	if dirHandle, err := os.Open(dir); err == nil {
+		_ = dirHandle.Sync()
+		_ = dirHandle.Close()
 	}
 
 	return key, nil
