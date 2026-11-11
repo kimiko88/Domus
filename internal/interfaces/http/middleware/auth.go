@@ -104,6 +104,12 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 				return
 			}
 
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+
 			path := strings.TrimSuffix(r.URL.Path, "/")
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
 			selfService := hasSuffix("/presence/gps") ||
@@ -114,12 +120,6 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 				(strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete"))
 			if selfService {
 				next.ServeHTTP(w, r)
-				return
-			}
-
-			u := GetUser(r.Context())
-			if u == nil {
-				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 				return
 			}
 			if u.Role != user.RoleOperator && u.Role != user.RoleAdmin {
