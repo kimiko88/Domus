@@ -234,9 +234,16 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 	}
 	cleanupTemp()
 
-	if dirHandle, err := os.Open(dir); err == nil {
-		_ = dirHandle.Sync()
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return nil, fmt.Errorf("envelope: failed to open master key directory for sync: %w", err)
+	}
+	if err := dirHandle.Sync(); err != nil {
 		_ = dirHandle.Close()
+		return nil, fmt.Errorf("envelope: failed to sync master key directory: %w", err)
+	}
+	if err := dirHandle.Close(); err != nil {
+		return nil, fmt.Errorf("envelope: failed to close master key directory: %w", err)
 	}
 
 	return key, nil
