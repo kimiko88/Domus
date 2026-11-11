@@ -45,9 +45,9 @@ func (s *Service) IsEnabled() bool {
 
 // ValidateToken verifies the Authorization header.
 func (s *Service) ValidateToken(authHeader string) bool {
-	if s.bearerToken == "" {
-		// When no token is configured, allow if enabled
-		return s.enabled
+	// An enabled integration without a secret is never authenticated.
+	if !s.enabled || s.bearerToken == "" {
+		return false
 	}
 	parts := strings.Split(strings.TrimSpace(authHeader), " ")
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
