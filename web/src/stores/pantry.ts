@@ -391,6 +391,27 @@ export const usePantryStore = defineStore('pantry', () => {
     }
   }
 
+  async function parseReceiptImage(file: File): Promise<Receipt> {
+    try {
+      loading.value = true
+      error.value = null
+      if (file.size > 4 * 1024 * 1024) throw new Error('L’immagine supera il limite di 4 MB')
+      const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-image', {
+        method: 'POST',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        timeoutMs: 30_000
+      })
+      parsedReceipt.value = result
+      return result
+    } catch (err: any) {
+      error.value = err?.message || 'Errore durante la lettura della fotografia'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function importReceipt(data: {
     store_name: string
     date: string
@@ -405,8 +426,9 @@ export const usePantryStore = defineStore('pantry', () => {
       error.value = null
       const res = await apiClient.post<ReceiptImportResult>('/api/v1/receipts/import', data)
       parsedReceipt.value = null
-      // Re-fetch pantry and low stock
-      await Promise.all([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
+      // The server has already committed the import. Refresh failures must not
+      // make the caller retry the POST and create a duplicate expense.
+      await Promise.allSettled([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
       return res
     } catch (err: any) {
       error.value = err?.message || "Errore nell'importazione dello scontrino"
@@ -459,6 +481,7 @@ export const usePantryStore = defineStore('pantry', () => {
     consumeMealPlan,
     parseReceipt,
     parseReceiptPDF,
+    parseReceiptImage,
     importReceipt,
     clearParsedReceipt
   }

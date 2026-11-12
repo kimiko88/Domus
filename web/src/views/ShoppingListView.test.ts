@@ -177,6 +177,8 @@ describe('ShoppingListView.vue', () => {
 
     expect(wrapper.find('.receipt-modal-backdrop').exists()).toBe(true)
     expect(wrapper.text()).toContain('Scansiona Scontrino Spesa')
+    expect(wrapper.find('#receipt-image-input').exists()).toBe(true)
+    expect(wrapper.find('#receipt-image-input').attributes('capture')).toBe('environment')
 
     // Mock receipt parsing
     vi.mocked(apiClient.post).mockResolvedValueOnce({
@@ -191,7 +193,7 @@ describe('ShoppingListView.vue', () => {
 
     const textarea = wrapper.find('.receipt-textarea')
     await textarea.setValue('ESSELUNGA PASTA PENNE 1.30')
-    const parseBtn = wrapper.find('.btn-run-parse')
+    const parseBtn = wrapper.find('.scanner-input-card button.btn-primary')
     await parseBtn.trigger('click')
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()

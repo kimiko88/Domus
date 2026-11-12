@@ -61,6 +61,7 @@ func (h *PantryHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/receipts", func(rc chi.Router) {
 		rc.Post("/parse", h.ParseReceipt)
 		rc.Post("/parse-pdf", h.ParseReceiptPDF)
+		rc.Post("/parse-image", h.ParseReceiptImage)
 		rc.Post("/import", h.ImportReceipt)
 	})
 }
@@ -439,6 +440,33 @@ func (h *PantryHandler) ParseReceiptPDF(w http.ResponseWriter, r *http.Request) 
 		if strings.Contains(err.Error(), "unavailable") { status = http.StatusServiceUnavailable }
 		if errors.Is(err, errPDFTextTooLarge) { status = http.StatusRequestEntityTooLarge }
 		writeError(w, status, "PDF_EXTRACTION_ERROR", err.Error())
+		return
+	}
+	receipt, err := h.svc.ParseReceipt(r.Context(), rawText)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "PARSE_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, receipt)
+}
+
+
+ // ParseReceiptImage performs bounded server-side OCR for browsers without the
+ // experimental TextDetector API (notably mobile Safari).
+func (h *PantryHandler) ParseReceiptImage(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxReceiptImageBytes)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "IMAGE_TOO_LARGE", "image must be 4 MB or smaller")
+		return
+	}
+	rawText, err := extractReceiptImageText(r.Context(), data)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, context.DeadlineExceeded) { status = http.StatusRequestTimeout }
+		if strings.Contains(err.Error(), "unavailable") { status = http.StatusServiceUnavailable }
+		if errors.Is(err, errReceiptImageTextTooLarge) { status = http.StatusRequestEntityTooLarge }
+		writeError(w, status, "IMAGE_OCR_ERROR", err.Error())
 		return
 	}
 	receipt, err := h.svc.ParseReceipt(r.Context(), rawText)

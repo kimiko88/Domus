@@ -142,10 +142,13 @@ onMounted(() => {
 .main-layout {
   display: flex;
   min-height: 100vh;
+  min-width: 0;
+  width: 100%;
 }
 
-.content-wrapper {
+ .content-wrapper {
   flex: 1;
+  width: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -189,7 +192,13 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .page-content {
-    padding: 16px;
+    padding: 16px 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-content {
+    padding: 12px 10px;
   }
 }
 </style>
