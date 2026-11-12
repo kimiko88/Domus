@@ -73,7 +73,7 @@ func (c *OAuthClient) tokenRequest(ctx context.Context,path string,q url.Values)
   return OAuthToken{},fmt.Errorf("tuya oauth: invalid token response")
  }
  if resp.StatusCode!=http.StatusOK || !env.Success {
-  return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:env.Msg}
+  return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:safeMessage(env.Msg)}
  }
  if env.Result.AccessToken=="" || env.Result.RefreshToken=="" || env.Result.UID=="" {
   return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:"provider returned an incomplete token"}
