@@ -405,8 +405,9 @@ export const usePantryStore = defineStore('pantry', () => {
       error.value = null
       const res = await apiClient.post<ReceiptImportResult>('/api/v1/receipts/import', data)
       parsedReceipt.value = null
-      // Re-fetch pantry and low stock
-      await Promise.all([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
+      // The server has already committed the import. Refresh failures must not
+      // make the caller retry the POST and create a duplicate expense.
+      await Promise.allSettled([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
       return res
     } catch (err: any) {
       error.value = err?.message || "Errore nell'importazione dello scontrino"
