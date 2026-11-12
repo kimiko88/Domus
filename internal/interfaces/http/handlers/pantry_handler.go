@@ -4,8 +4,11 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"context"
+	"strings"
 
 	appPantry "github.com/domus-hub/domus/internal/application/pantry"
 	domainPantry "github.com/domus-hub/domus/internal/domain/pantry"
@@ -57,6 +60,7 @@ func (h *PantryHandler) RegisterRoutes(r chi.Router) {
 	// 4. Receipt OCR & Smart Import
 	r.Route("/receipts", func(rc chi.Router) {
 		rc.Post("/parse", h.ParseReceipt)
+		rc.Post("/parse-pdf", h.ParseReceiptPDF)
 		rc.Post("/import", h.ImportReceipt)
 	})
 }
@@ -413,6 +417,31 @@ func (h *PantryHandler) ParseReceipt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	receipt, err := h.svc.ParseReceipt(r.Context(), req.RawText)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "PARSE_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, receipt)
+}
+
+// ParseReceiptPDF extracts selectable text from a bounded PDF and reuses the receipt parser.
+func (h *PantryHandler) ParseReceiptPDF(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxReceiptPDFBytes)
+	pdf, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "PDF_TOO_LARGE", "PDF must be 10 MB or smaller")
+		return
+	}
+	rawText, err := extractPDFText(r.Context(), pdf)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, context.DeadlineExceeded) { status = http.StatusRequestTimeout }
+		if strings.Contains(err.Error(), "unavailable") { status = http.StatusServiceUnavailable }
+		if errors.Is(err, errPDFTextTooLarge) { status = http.StatusRequestEntityTooLarge }
+		writeError(w, status, "PDF_EXTRACTION_ERROR", err.Error())
+		return
+	}
+	receipt, err := h.svc.ParseReceipt(r.Context(), rawText)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "PARSE_ERROR", err.Error())
 		return
