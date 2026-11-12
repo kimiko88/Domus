@@ -40,6 +40,7 @@ const rawReceiptText = ref('')
 const documentType = ref<'receipt' | 'invoice'>('receipt')
 const ocrStatus = ref('')
 const maxImageBytes = 10 * 1024 * 1024
+const maxPDFBytes = 3 * 1024 * 1024
 const autoAddToFinance = ref(true)
 const autoUpdatePantry = ref(true)
 
@@ -89,8 +90,8 @@ async function handleImageSelected(event: Event) {
   if (!file) return
 
   if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-    if (file.size > maxImageBytes) {
-      ocrStatus.value = 'PDF troppo grande: il limite è 10 MB.'
+    if (file.size > maxPDFBytes) {
+      ocrStatus.value = 'PDF troppo grande: il limite è 3 MB.'
       return
     }
     ocrStatus.value = 'Invio del PDF al server Domus per estrarre il testo (massimo 20 pagine)…'
