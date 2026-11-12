@@ -351,14 +351,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					intRouter.Post("/discovery/pair", integrationH.Pair)
 					intRouter.Get("/{id}", integrationH.GetByID)
 					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
-				}
+				})
 				if tuyaCloudClient != nil {
 					cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
 					domainRouter.Route("/integrations/tuya-cloud", func(cloudRouter chi.Router) {
 						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						cloudH.RegisterRoutes(cloudRouter)
 					})
-				})
+				}
 
 				domainRouter.Route("/areas", func(areaRouter chi.Router) {
 					areaRouter.Get("/", areaH.List)
