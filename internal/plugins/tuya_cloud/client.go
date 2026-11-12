@@ -45,6 +45,7 @@ type Device struct {
 }
 type Status struct { Code string `json:"code"`; Value any `json:"value"` }
 type Command struct { Code string `json:"code"`; Value any `json:"value"` }
+type Function struct { Code string `json:"code"`; Name string `json:"name"`; Type string `json:"type"`; Values string `json:"values"` }
 type envelope struct {
 	Success bool `json:"success"`
 	Code any `json:"code"`
@@ -75,10 +76,24 @@ func (c *Client) Devices(ctx context.Context) ([]Device,error) {
 	if result.Devices==nil { result.Devices=[]Device{} }
 	return result.Devices,nil
 }
+func (c *Client) Functions(ctx context.Context, deviceID string) ([]Function, error) {
+	if deviceID == "" || len(deviceID) > 128 || strings.ContainsAny(deviceID, "/?#") {
+		return nil, errors.New("tuya cloud: invalid device ID")
+	}
+	var result struct { Functions []Function `json:"functions"` }
+	path := "/v1.0/iot-03/devices/" + url.PathEscape(deviceID) + "/functions"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &result); err != nil { return nil, err }
+	if result.Functions == nil { result.Functions = []Function{} }
+	return result.Functions, nil
+}
+
 func (c *Client) SendCommands(ctx context.Context,deviceID string,commands []Command) error {
 	if deviceID=="" || len(deviceID)>128 || strings.ContainsAny(deviceID,"/?#") { return errors.New("tuya cloud: invalid device ID") }
 	if len(commands)==0 || len(commands)>32 { return errors.New("tuya cloud: between 1 and 32 commands are required") }
 	for _,cmd:=range commands { if cmd.Code=="" || len(cmd.Code)>64 || strings.ContainsAny(cmd.Code,"/?#") { return errors.New("tuya cloud: invalid command code") } }
+	functions,err:=c.Functions(ctx,deviceID); if err!=nil{return err}
+	allowed:=make(map[string]struct{},len(functions)); for _,fn:=range functions { allowed[fn.Code]=struct{}{} }
+	for _,cmd:=range commands { if _,ok:=allowed[cmd.Code]; !ok { return fmt.Errorf("tuya cloud: datapoint %q is not a writable device function",cmd.Code) } }
 	body:=struct { Commands []Command `json:"commands"` }{commands}
 	return c.do(ctx,http.MethodPost,"/v1.0/iot-03/devices/"+url.PathEscape(deviceID)+"/commands",nil,body,nil)
 }
