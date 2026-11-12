@@ -27,7 +27,7 @@ func (b *cappedBuffer) Write(p []byte)(int,error) {
 	return b.Buffer.Write(p)
 }
 
-// extractPDFText invokes Poppler without a shell, writes no uploaded data to disk,
+// extractPDFText invokes Poppler without a shell and uses a private, short-lived workspace for OCR;
 // and limits both processing time and the number of pages examined.
 func extractPDFText(ctx context.Context, pdf []byte) (string, error) {
 	if len(pdf) < 5 || !bytes.HasPrefix(pdf, []byte("%PDF-")) {
@@ -36,16 +36,13 @@ func extractPDFText(ctx context.Context, pdf []byte) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	// First use the embedded text layer; this is much faster and more accurate
-	// than OCR for digitally generated invoices.
+	// Prefer the embedded text layer; this is more accurate than OCR.
 	cmd := exec.CommandContext(ctx, "pdftotext", "-layout", "-enc", "UTF-8", "-f", "1", "-l", "20", "-", "-")
 	cmd.Stdin = bytes.NewReader(pdf)
 	out := &cappedBuffer{limit: maxReceiptPDFText}
-	cmd.Stdout = out
-	cmd.Stderr = io.Discard
+	cmd.Stdout, cmd.Stderr = out, io.Discard
 	if err := cmd.Run(); err == nil {
-		text := strings.TrimSpace(out.String())
-		if text != "" { return text, nil }
+		if text := strings.TrimSpace(out.String()); text != "" { return text, nil }
 	} else {
 		if ctx.Err() != nil { return "", ctx.Err() }
 		if _, lookErr := exec.LookPath("pdftotext"); lookErr != nil {
@@ -55,47 +52,57 @@ func extractPDFText(ctx context.Context, pdf []byte) (string, error) {
 		return "", errors.New("unable to read this PDF; it may be encrypted or damaged")
 	}
 
-	// Scanned PDFs have no text layer: rasterize at a bounded resolution and
-	// OCR each of at most 20 pages with Italian and English language models.
+	// Scanned PDFs are rasterized one page at a time to bound temporary disk use.
 	if _, err := exec.LookPath("pdftoppm"); err != nil { return "", errors.New("PDF OCR is unavailable: pdftoppm was not found") }
+	if _, err := exec.LookPath("pdfinfo"); err != nil { return "", errors.New("PDF OCR is unavailable: pdfinfo was not found") }
 	if _, err := exec.LookPath("tesseract"); err != nil { return "", errors.New("PDF OCR is unavailable: install tesseract-ocr and ita/eng language data") }
 	dir, err := os.MkdirTemp("", "domus-pdf-")
 	if err != nil { return "", errors.New("unable to allocate temporary PDF workspace") }
 	defer os.RemoveAll(dir)
 	pdfPath := filepath.Join(dir, "document.pdf")
 	if err := os.WriteFile(pdfPath, pdf, 0600); err != nil { return "", errors.New("unable to stage PDF for OCR") }
-	prefix := filepath.Join(dir, "page")
-	render := exec.CommandContext(ctx, "pdftoppm", "-f", "1", "-l", "20", "-scale-to", "1800", "-png", pdfPath, prefix)
-	render.Stdout = io.Discard
-	render.Stderr = io.Discard
-	if err := render.Run(); err != nil {
+
+	info := exec.CommandContext(ctx, "pdfinfo", pdfPath)
+	infoOut := &cappedBuffer{limit: 32 << 10}
+	info.Stdout, info.Stderr = infoOut, io.Discard
+	if err := info.Run(); err != nil {
 		if ctx.Err() != nil { return "", ctx.Err() }
-		return "", errors.New("unable to render scanned PDF pages")
+		return "", errors.New("unable to inspect scanned PDF")
 	}
-	pages, err := filepath.Glob(prefix + "-*.png")
-	if err != nil || len(pages) == 0 { return "", errors.New("PDF contains no readable pages") }
-	// Glob sorts lexicographically (page-10 before page-2); restore numeric page order.
-	sort.Slice(pages, func(i, j int) bool {
-		pageNumber := func(path string) int {
-			base := strings.TrimSuffix(filepath.Base(path), ".png")
-			n, _ := strconv.Atoi(strings.TrimPrefix(base, "page-"))
-			return n
+	pageCount := 0
+	for _, line := range strings.Split(infoOut.String(), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && strings.TrimSuffix(fields[0], ":") == "Pages" {
+			pageCount, _ = strconv.Atoi(fields[1])
+			break
 		}
-		return pageNumber(pages[i]) < pageNumber(pages[j])
-	})
+	}
+	if pageCount < 1 { return "", errors.New("PDF contains no readable pages") }
+	if pageCount > 20 { pageCount = 20 }
+
 	var text strings.Builder
-	for _, page := range pages {
-		ocr := exec.CommandContext(ctx, "tesseract", page, "stdout", "-l", "ita+eng", "--psm", "6")
+	for page := 1; page <= pageCount; page++ {
+		prefix := filepath.Join(dir, "page")
+		render := exec.CommandContext(ctx, "pdftoppm", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), "-singlefile", "-scale-to", "1400", "-png", pdfPath, prefix)
+		render.Stdout, render.Stderr = io.Discard, io.Discard
+		if err := render.Run(); err != nil {
+			if ctx.Err() != nil { return "", ctx.Err() }
+			return "", errors.New("unable to render scanned PDF page")
+		}
+		imagePath := prefix + ".png"
+		stat, err := os.Stat(imagePath)
+		if err != nil || stat.Size() > 8<<20 { return "", errors.New("rendered PDF page exceeds the 8 MiB safety limit") }
+		ocr := exec.CommandContext(ctx, "tesseract", imagePath, "stdout", "-l", "ita+eng", "--psm", "6")
 		pageText := &cappedBuffer{limit: maxReceiptPDFText - text.Len()}
-		ocr.Stdout = pageText
-		ocr.Stderr = io.Discard
+		ocr.Stdout, ocr.Stderr = pageText, io.Discard
 		if err := ocr.Run(); err != nil {
 			if ctx.Err() != nil { return "", ctx.Err() }
 			if errors.Is(err, errPDFTextTooLarge) { return "", errPDFTextTooLarge }
 			return "", errors.New("OCR failed while reading a PDF page")
 		}
 		text.WriteString(pageText.String())
-		text.WriteByte('\n')
+		if text.Len() < maxReceiptPDFText { text.WriteByte('\n') }
+		_ = os.Remove(imagePath)
 	}
 	result := strings.TrimSpace(text.String())
 	if result == "" { return "", errors.New("OCR could not recognize text in this PDF") }
