@@ -77,7 +77,7 @@ interface BrandCatalogEntry {
   icon: string
 }
 
-const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian'>('active')
+const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian' | 'cloud'>('active')
 const integrations = ref<Integration[]>([])
 const discoveredDevices = ref<DiscoveredDevice[]>([])
 const catalog = ref<BrandCatalogEntry[]>([])
@@ -97,6 +97,51 @@ const isolatedMacs = ref<string[]>([])
 const probingIp = ref<string | null>(null)
 const quarantiningMac = ref<string | null>(null)
 const guardianLoading = ref(false)
+
+// --- Official Tuya Cloud OpenAPI ---
+interface TuyaCloudDevice {
+  id: string
+  name: string
+  product_name?: string
+  category?: string
+  online: boolean
+  status: { code: string; value: unknown }[]
+}
+const tuyaCloudDevices = ref<TuyaCloudDevice[]>([])
+const tuyaCloudLoading = ref(false)
+const tuyaCloudError = ref('')
+const tuyaCloudCommanding = ref<string | null>(null)
+
+async function fetchTuyaCloudDevices() {
+  tuyaCloudLoading.value = true
+  tuyaCloudError.value = ''
+  try {
+    const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
+    tuyaCloudDevices.value = result.devices || []
+  } catch (err: any) {
+    tuyaCloudError.value = err?.message || 'Cloud Tuya non configurato o non raggiungibile.'
+  } finally {
+    tuyaCloudLoading.value = false
+  }
+}
+
+async function toggleTuyaCloudStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
+  if (typeof point.value !== 'boolean') return
+  const key = `${device.id}:${point.code}`
+  tuyaCloudCommanding.value = key
+  try {
+    await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
+      commands: [{ code: point.code, value: !point.value }]
+    })
+    notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
+    await fetchTuyaCloudDevices()
+  } catch (err: any) {
+    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore Tuya Cloud')
+  } finally {
+    tuyaCloudCommanding.value = null
+  }
+}
+
 
 
 async function fetchIntegrations() {
@@ -333,6 +378,15 @@ onMounted(() => {
           <ShieldAlert :size="16" />
           <span>LAN & IoT Guardian</span>
           <span v-if="networkLeaks.length > 0" class="counter-badge alert-pulse">{{ networkLeaks.length }}</span>
+        </button>
+
+        <button
+          :class="['tab-btn', { active: activeTab === 'cloud' }]"
+          @click="activeTab = 'cloud'; fetchTuyaCloudDevices()"
+        >
+          <Globe :size="16" />
+          <span>Smart Life Cloud</span>
+          <span v-if="tuyaCloudDevices.length > 0" class="counter-badge">{{ tuyaCloudDevices.length }}</span>
         </button>
       </div>
     </div>
@@ -748,6 +802,68 @@ onMounted(() => {
               >
                 <Lock :size="14" />
                 <span>Isola</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: OFFICIAL TUYA / SMART LIFE CLOUD -->
+    <div v-if="activeTab === 'cloud'" class="tab-content">
+      <div class="discovery-toolbar glass-card">
+        <div class="discovery-intro">
+          <div class="icon-chip"><Globe :size="20" /></div>
+          <div>
+            <h3 class="disc-title">Tuya / Smart Life Cloud</h3>
+            <p class="disc-sub">Dispositivi collegati al progetto Tuya Cloud configurato sul server Domus. Le credenziali non vengono mai inviate al browser.</p>
+          </div>
+        </div>
+        <button class="btn-scan" :disabled="tuyaCloudLoading" @click="fetchTuyaCloudDevices">
+          <RefreshCw :size="16" :class="{ 'animate-spin': tuyaCloudLoading }" />
+          <span>Aggiorna dispositivi</span>
+        </button>
+      </div>
+
+      <div v-if="tuyaCloudError" class="empty-guardian-state glass-card">
+        <AlertCircle :size="30" />
+        <h4>Cloud Tuya non disponibile</h4>
+        <p>{{ tuyaCloudError }}</p>
+        <p>Configura TUYA_CLOUD_CLIENT_ID, TUYA_CLOUD_CLIENT_SECRET e, se necessario, TUYA_CLOUD_BASE_URL / TUYA_CLOUD_SCHEMA sul server. Consulta docs/integrations/tuya-cloud-and-pdf-scanning.md.</p>
+      </div>
+
+      <div v-else-if="tuyaCloudLoading && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
+        <RefreshCw :size="28" class="animate-spin" />
+        <p>Caricamento dispositivi Smart Life…</p>
+      </div>
+
+      <div v-else-if="tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
+        <Globe :size="32" />
+        <h4>Nessun dispositivo visibile al progetto</h4>
+        <p>Verifica regione, autorizzazioni API e collegamento dell’app Smart Life/OEM al progetto Tuya Cloud.</p>
+      </div>
+
+      <div v-else class="hosts-grid">
+        <div v-for="device in tuyaCloudDevices" :key="device.id" class="host-card glass-card">
+          <div class="host-top">
+            <div class="host-brand-icon"><Zap :size="20" /></div>
+            <div class="host-meta">
+              <span class="host-vendor">{{ device.name }}</span>
+              <span class="host-ip">{{ device.product_name || device.category || device.id }}</span>
+            </div>
+            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+          </div>
+          <div class="host-specs">
+            <div v-for="point in device.status || []" :key="point.code" class="spec-line">
+              <span class="spec-key">{{ point.code }}</span>
+              <span class="spec-code">{{ String(point.value) }}</span>
+              <button
+                v-if="typeof point.value === 'boolean'"
+                class="btn-host-probe"
+                :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || !device.online"
+                @click="toggleTuyaCloudStatus(device, point)"
+              >
+                {{ point.value ? 'Spegni' : 'Accendi' }}
               </button>
             </div>
           </div>
