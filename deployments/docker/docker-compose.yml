@@ -14,6 +14,10 @@ services:
       - DOMUS_DATABASE_PATH=/data/domus.db
       - DOMUS_LOG_LEVEL=info
       - DOMUS_LOG_FORMAT=json
+      - TUYA_CLOUD_CLIENT_ID=${TUYA_CLOUD_CLIENT_ID:-}
+      - TUYA_CLOUD_CLIENT_SECRET=${TUYA_CLOUD_CLIENT_SECRET:-}
+      - TUYA_CLOUD_BASE_URL=${TUYA_CLOUD_BASE_URL:-https://openapi.tuyaeu.com}
+      - TUYA_CLOUD_SCHEMA=${TUYA_CLOUD_SCHEMA:-}
     volumes:
       - domus_data:/data
     depends_on:
