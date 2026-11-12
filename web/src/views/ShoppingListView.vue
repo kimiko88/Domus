@@ -318,6 +318,19 @@ async function handleParseShoppingReceipt(rawText: string) {
   }
 }
 
+async function handleParseShoppingReceiptImage(file: File) {
+  isParsingReceipt.value = true
+  try {
+    const receipt = await pantryStore.parseReceiptImage(file)
+    selectReceiptMatches(receipt)
+  } catch (err) {
+    console.error('Errore OCR immagine:', err)
+    transferFeedback.value = { message: 'Impossibile leggere la fotografia. Prova con una foto più nitida o incolla il testo.', type: 'error' }
+  } finally {
+    isParsingReceipt.value = false
+  }
+}
+
 async function handleParseShoppingReceiptPDF(file: File) {
   isParsingReceipt.value = true
   try {
@@ -702,6 +715,7 @@ onMounted(async () => {
           :loading="isParsingReceipt || pantryStore.loading"
           @parse-receipt="handleParseShoppingReceipt"
           @parse-pdf="handleParseShoppingReceiptPDF"
+          @parse-image="handleParseShoppingReceiptImage"
           @import-receipt="handleImportShoppingReceipt"
           @clear-parsed="pantryStore.clearParsedReceipt"
         />

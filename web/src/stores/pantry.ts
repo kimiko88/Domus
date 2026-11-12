@@ -391,6 +391,27 @@ export const usePantryStore = defineStore('pantry', () => {
     }
   }
 
+  async function parseReceiptImage(file: File): Promise<Receipt> {
+    try {
+      loading.value = true
+      error.value = null
+      if (file.size > 10 * 1024 * 1024) throw new Error('L’immagine supera il limite di 10 MB')
+      const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-image', {
+        method: 'POST',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        timeoutMs: 30_000
+      })
+      parsedReceipt.value = result
+      return result
+    } catch (err: any) {
+      error.value = err?.message || 'Errore durante la lettura della fotografia'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function importReceipt(data: {
     store_name: string
     date: string
@@ -460,6 +481,7 @@ export const usePantryStore = defineStore('pantry', () => {
     consumeMealPlan,
     parseReceipt,
     parseReceiptPDF,
+    parseReceiptImage,
     importReceipt,
     clearParsedReceipt
   }
