@@ -42,7 +42,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
 # ─── Stage 3: Minimal Distroless / Hardened Runtime ───────────────────────────
 FROM alpine:3.20 AS runtime
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata poppler-utils \
     && addgroup -g 1000 domus \
     && adduser -u 1000 -G domus -s /bin/sh -D domus \
     && mkdir -p /data /etc/domus /usr/local/share/domus/web \
