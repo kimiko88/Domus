@@ -40,7 +40,7 @@ const emit = defineEmits<{
 const rawReceiptText = ref('')
 const documentType = ref<'receipt' | 'invoice'>('receipt')
 const ocrStatus = ref('')
-const maxImageBytes = 10 * 1024 * 1024
+const maxImageBytes = 4 * 1024 * 1024
 const maxPDFBytes = 3 * 1024 * 1024
 const autoAddToFinance = ref(true)
 const autoUpdatePantry = ref(true)
@@ -99,12 +99,12 @@ async function handleImageSelected(event: Event) {
     emit('parse-pdf', file)
     return
   }
-  if (!file.type.startsWith('image/')) {
+  if (!['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) {
     ocrStatus.value = 'Seleziona un’immagine JPG/PNG oppure un PDF.'
     return
   }
   if (file.size > maxImageBytes) {
-    ocrStatus.value = 'Immagine troppo grande: il limite è 10 MB.'
+    ocrStatus.value = 'Immagine troppo grande: il limite è 4 MB.'
     return
   }
 
@@ -196,7 +196,7 @@ function handleConfirmImport() {
           id="receipt-image-input"
           class="visually-hidden"
           type="file"
-          accept="image/*,.pdf,application/pdf"
+          accept="image/jpeg,image/png,.jpg,.jpeg,.png,.pdf,application/pdf"
           capture="environment"
           aria-label="Scatta o seleziona un'immagine di scontrino o fattura"
           @change="handleImageSelected"

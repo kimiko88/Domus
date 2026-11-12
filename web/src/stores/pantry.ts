@@ -395,7 +395,7 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      if (file.size > 10 * 1024 * 1024) throw new Error('L’immagine supera il limite di 10 MB')
+      if (file.size > 4 * 1024 * 1024) throw new Error('L’immagine supera il limite di 4 MB')
       const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-image', {
         method: 'POST',
         body: file,

@@ -457,7 +457,7 @@ func (h *PantryHandler) ParseReceiptImage(w http.ResponseWriter, r *http.Request
 	r.Body = http.MaxBytesReader(w, r.Body, maxReceiptImageBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "IMAGE_TOO_LARGE", "image must be 10 MB or smaller")
+		writeError(w, http.StatusRequestEntityTooLarge, "IMAGE_TOO_LARGE", "image must be 4 MB or smaller")
 		return
 	}
 	rawText, err := extractReceiptImageText(r.Context(), data)

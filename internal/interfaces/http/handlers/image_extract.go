@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxReceiptImageBytes = 10 << 20
+	maxReceiptImageBytes = 4 << 20
 	maxReceiptImagePixels = 24_000_000
 	maxReceiptImageText = 64 << 10
 )
@@ -25,7 +25,7 @@ var errReceiptImageTextTooLarge = errors.New("image OCR text exceeds the 64 KiB 
 // never invokes a shell, and caps both runtime and output.
 func extractReceiptImageText(parent context.Context, data []byte) (string, error) {
 	if len(data) == 0 || len(data) > maxReceiptImageBytes {
-		return "", errors.New("image must be 10 MB or smaller")
+		return "", errors.New("image must be 4 MB or smaller")
 	}
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || (format != "jpeg" && format != "png") {
