@@ -233,11 +233,18 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
-		if tuyaOAuthHandler != nil { tuyaOAuthHandler.RegisterCallback(api) }
+		// Chi requires middleware to be registered before the first route.
 		api.Use(domusmw.Idempotency(nil))
 
 		if srv.repos != nil && srv.repos.BannedIPs != nil {
 			api.Use(domusmw.IPBanMiddleware(srv.repos.BannedIPs))
+		}
+
+		// Register the public provider callback only after all API middleware.
+		// It is intentionally unauthenticated; its one-time state binds it to
+		// the administrator who initiated the authorization.
+		if tuyaOAuthHandler != nil {
+			tuyaOAuthHandler.RegisterCallback(api)
 		}
 
 		if srv.wsHub != nil {
