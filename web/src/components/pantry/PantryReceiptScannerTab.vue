@@ -23,6 +23,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'parse-receipt', rawText: string): void
+  (e: 'parse-pdf', file: File): void
   (e: 'import-receipt', data: {
     store_name: string
     date: string
@@ -87,8 +88,17 @@ async function handleImageSelected(event: Event) {
   input.value = ''
   if (!file) return
 
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (file.size > maxImageBytes) {
+      ocrStatus.value = 'PDF troppo grande: il limite è 10 MB.'
+      return
+    }
+    ocrStatus.value = 'Invio del PDF al server Domus per estrarre il testo (massimo 20 pagine)…'
+    emit('parse-pdf', file)
+    return
+  }
   if (!file.type.startsWith('image/')) {
-    ocrStatus.value = 'Seleziona un file immagine (JPG, PNG o WEBP).'
+    ocrStatus.value = 'Seleziona un’immagine JPG/PNG/WEBP oppure un PDF.'
     return
   }
   if (file.size > maxImageBytes) {
@@ -176,18 +186,18 @@ function handleConfirmImport() {
       </div>
 
       <div class="image-scan-controls">
-        <label class="btn btn-secondary" for="receipt-image-input">Scatta o carica scontrino / fattura</label>
+        <label class="btn btn-secondary" for="receipt-image-input">Scatta o carica immagine / PDF</label>
         <input
           id="receipt-image-input"
           class="visually-hidden"
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,application/pdf"
           capture="environment"
           aria-label="Scatta o seleziona un'immagine di scontrino o fattura"
           @change="handleImageSelected"
         />
         <p v-if="ocrStatus" class="ocr-status" role="status" aria-live="polite">{{ ocrStatus }}</p>
-        <p class="ocr-privacy-note">L’estrazione supportata dal browser avviene localmente: l’immagine non viene caricata sul server.</p>
+        <p class="ocr-privacy-note">Le immagini vengono lette localmente quando il browser supporta TextDetector. I PDF vengono inviati al server Domus per estrarre il testo: non sono salvati e vengono elaborati solo le prime 20 pagine.</p>
       </div>
 
       <div class="quick-samples">
