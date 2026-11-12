@@ -10,7 +10,7 @@ COPY web/ ./
 RUN npm run build
 
 # ─── Stage 2: Build Pure Go Binaries ──────────────────────────────────────────
-FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 WORKDIR /src
 
