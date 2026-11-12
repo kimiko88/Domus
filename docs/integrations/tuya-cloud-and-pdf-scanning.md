@@ -29,7 +29,8 @@ Supported regional hosts are restricted to Tuya's known HTTPS OpenAPI endpoints.
 All routes require an authenticated administrator:
 
 - `GET /api/v1/integrations/tuya-cloud/devices` — list devices visible to the configured project.
-- `GET /api/v1/integrations/tuya-cloud/devices/{deviceID}/functions` — list writable datapoints exposed by the device.\n- `POST /api/v1/integrations/tuya-cloud/devices/{deviceID}/commands` — send up to 32 device datapoint commands; Domus checks each code against the device function list before sending.
+- `GET /api/v1/integrations/tuya-cloud/devices/{deviceID}/functions` — list writable datapoints exposed by the device.
+- `POST /api/v1/integrations/tuya-cloud/devices/{deviceID}/commands` — send up to 32 device datapoint commands; Domus checks each code against the device function list before sending.
 
 Example request:
 
