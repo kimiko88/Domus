@@ -375,6 +375,7 @@ export const usePantryStore = defineStore('pantry', () => {
     date: string
     items: Receipt['items']
     total_amount: number
+    document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
   }): Promise<ReceiptImportResult> {
