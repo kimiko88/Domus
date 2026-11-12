@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"os/exec"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
