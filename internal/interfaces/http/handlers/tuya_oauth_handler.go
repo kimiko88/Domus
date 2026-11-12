@@ -106,9 +106,17 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 	u:=domusmw.GetUser(r.Context())
 	if u==nil || u.Role!=user.RoleAdmin { writeError(w,http.StatusForbidden,"FORBIDDEN","administrator role required");return }
 	token,err:=h.validToken(r.Context(),u.ID)
-	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","Smart Life account is not connected or token renewal failed");return }
+	if err!=nil {
+		logTuyaOAuthFailure("prepare_device_request",err)
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","Smart Life account is not connected or token renewal failed")
+		return
+	}
 	devices,err:=h.client.Devices(r.Context(),token)
-	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices");return }
+	if err!=nil {
+		logTuyaOAuthFailure("list_user_devices",err)
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices")
+		return
+	}
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
 }
 
