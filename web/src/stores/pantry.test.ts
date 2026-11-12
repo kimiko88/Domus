@@ -155,6 +155,7 @@ describe('Pantry Store', () => {
       date: parsed.date,
       items: parsed.items,
       total_amount: parsed.total_amount,
+      document_type: 'receipt',
       auto_add_to_finance: true,
       auto_update_pantry: true
     })
