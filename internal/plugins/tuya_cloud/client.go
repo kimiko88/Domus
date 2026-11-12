@@ -56,7 +56,7 @@ type tokenResult struct { AccessToken string `json:"access_token"`; ExpireTime i
 func New(cfg Config) (*Client,error) {
 	if strings.TrimSpace(cfg.ClientID)=="" || strings.TrimSpace(cfg.Secret)=="" { return nil,errors.New("tuya cloud: client ID and secret are required") }
 	u,err:=url.Parse(cfg.BaseURL)
-	if err!=nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || (u.Path!="" && u.Path!="/") || u.RawQuery!="" || u.Fragment!="" { return nil,errors.New("tuya cloud: base URL must be an HTTPS regional endpoint") }
+	if err!=nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || (u.Port()!="" && u.Port()!="443") || (u.Path!="" && u.Path!="/") || u.RawQuery!="" || u.Fragment!="" { return nil,errors.New("tuya cloud: base URL must be an HTTPS regional endpoint") }
 	allowed:=map[string]bool{"openapi.tuyaeu.com":true,"openapi.tuyaus.com":true,"openapi.tuyacn.com":true,"openapi.tuyain.com":true,"openapi-ueaz.tuyaus.com":true,"openapi-weaz.tuyaeu.com":true}
 	if !allowed[strings.ToLower(u.Hostname())] { return nil,errors.New("tuya cloud: unsupported regional API host") }
 	if cfg.HTTPClient==nil { cfg.HTTPClient=&http.Client{Timeout:12*time.Second} }
