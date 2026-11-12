@@ -31,12 +31,15 @@ func extractReceiptImageText(parent context.Context, data []byte) (string, error
 	if err != nil || (format != "jpeg" && format != "png") {
 		return "", errors.New("unsupported or invalid image: use JPEG or PNG")
 	}
-	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > maxReceiptImagePixels {
+	if config.Width <= 0 || config.Height <= 0 || config.Width > maxReceiptImagePixels/config.Height {
 		return "", errors.New("image dimensions exceed the 24 megapixel safety limit")
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	defer cancel()
+	release, err := acquireReceiptOCR(ctx)
+	if err != nil { return "", err }
+	defer release()
 	cmd := exec.CommandContext(ctx, "tesseract", "stdin", "stdout", "-l", "ita+eng", "--psm", "6")
 	cmd.Stdin = bytes.NewReader(data)
 	out := &cappedBuffer{limit: maxReceiptImageText}
