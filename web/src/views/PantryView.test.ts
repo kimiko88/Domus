@@ -82,17 +82,16 @@ describe('PantryView.vue', () => {
     expect(wrapper.text()).toContain('Dispensa & Scorte')
     expect(wrapper.text()).toContain('Ricettario')
     expect(wrapper.text()).toContain('Calendario Pasti')
-    expect(wrapper.text()).toContain('Scanner Scontrino')
   })
 
-  it('switches tabs properly between inventory, recipes, calendar, and scanner', async () => {
+  it('switches tabs properly between inventory, recipes, and calendar', async () => {
     vi.mocked(apiClient.get).mockResolvedValue([])
 
     const wrapper = mount(PantryView)
     await wrapper.vm.$nextTick()
 
     const tabs = wrapper.findAll('button.tab-nav-btn')
-    expect(tabs.length).toBe(4)
+    expect(tabs.length).toBe(3)
 
     // Switch to Recipes tab
     await tabs[1].trigger('click')
@@ -102,9 +101,6 @@ describe('PantryView.vue', () => {
     await tabs[2].trigger('click')
     expect(wrapper.text()).toContain('Pianifica Pasto')
 
-    // Switch to Scanner tab
-    await tabs[3].trigger('click')
-    expect(wrapper.text()).toContain('Lettura intelligente di scontrini e fatture')
   })
 
   it('opens and closes item creation modal', async () => {

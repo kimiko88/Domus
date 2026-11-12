@@ -335,6 +335,8 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   width: var(--sidebar-width);
+  max-width: calc(100vw - 40px);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   z-index: 1000;
@@ -395,8 +397,9 @@ onUnmounted(() => {
   letter-spacing: 0.05em;
 }
 
-.sidebar-nav {
+ .sidebar-nav {
   flex: 1;
+  min-height: 0;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
@@ -595,5 +598,16 @@ onUnmounted(() => {
     animation: none;
     transition: none;
   }
+}
+
+@media (max-width: 768px) {
+  .app-sidebar {
+    width: min(var(--sidebar-width), calc(100vw - 40px));
+    max-width: calc(100vw - 40px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sidebar-nav { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .macro-section-header,
+  .nav-item { min-height: 44px; }
 }
 </style>
