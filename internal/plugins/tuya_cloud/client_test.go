@@ -5,6 +5,7 @@ import (
 	"testing"
 	"context"
 	"io"
+	"bytes"
 	"strings"
 )
 
@@ -57,4 +58,29 @@ func TestDevicesObtainsAndCachesProjectToken(t *testing.T) {
 		if len(devices)!=1 || devices[0].ID!="device-1" { t.Fatalf("unexpected devices: %#v",devices) }
 	}
 	if calls!=3 { t.Fatalf("request count = %d, want one token request and two list requests",calls) }
+}
+
+func TestSendCommandsAllowsOnlyDeclaredFunctions(t *testing.T) {
+	commandsSent:=0
+	transport:=roundTripFunc(func(r *http.Request)(*http.Response,error) {
+		payload:=`{"success":true,"result":{"access_token":"token","expire_time":3600}}`
+		switch r.URL.Path {
+		case "/v1.0/token":
+		case "/v1.0/iot-03/devices/device-1/functions":
+			payload=`{"success":true,"result":{"functions":[{"code":"switch_led","type":"Boolean"}]}}`
+		case "/v1.0/iot-03/devices/device-1/commands":
+			commandsSent++
+			body,_:=io.ReadAll(r.Body)
+			if !bytes.Contains(body,[]byte(`"code":"switch_led"`)) { t.Fatalf("unexpected command body: %s",body) }
+			payload=`{"success":true,"result":true}`
+		default:
+			t.Fatalf("unexpected Tuya API path %s",r.URL.Path)
+		}
+		return &http.Response{StatusCode:200,Header:make(http.Header),Body:io.NopCloser(strings.NewReader(payload)),Request:r},nil
+	})
+	client,err:=New(Config{ClientID:"client-id",Secret:"secret",BaseURL:"https://openapi.tuyaeu.com",HTTPClient:&http.Client{Transport:transport}})
+	if err!=nil { t.Fatal(err) }
+	if err:=client.SendCommands(context.Background(),"device-1",[]Command{{Code:"switch_led",Value:true}}); err!=nil { t.Fatal(err) }
+	if err:=client.SendCommands(context.Background(),"device-1",[]Command{{Code:"battery",Value:true}}); err==nil { t.Fatal("read-only/unknown datapoint must be rejected") }
+	if commandsSent!=1 { t.Fatalf("sent %d commands, want exactly one",commandsSent) }
 }
