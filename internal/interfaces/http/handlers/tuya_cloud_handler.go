@@ -15,12 +15,18 @@ func NewTuyaCloudHandler(client *tuya_cloud.Client) *TuyaCloudHandler { return &
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/devices",h.ListDevices)
+	r.Get("/devices/{deviceID}/functions",h.ListFunctions)
 	r.Post("/devices/{deviceID}/commands",h.SendCommands)
 }
 func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter,r *http.Request) {
 	devices,err:=h.client.Devices(r.Context())
 	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_CLOUD_ERROR",err.Error()); return }
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
+}
+func (h *TuyaCloudHandler) ListFunctions(w http.ResponseWriter, r *http.Request) {
+	functions, err := h.client.Functions(r.Context(), chi.URLParam(r, "deviceID"))
+	if err != nil { writeError(w, http.StatusBadGateway, "TUYA_CLOUD_ERROR", err.Error()); return }
+	writeJSON(w, http.StatusOK, map[string]any{"functions": functions})
 }
 func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter,r *http.Request) {
 	r.Body=http.MaxBytesReader(w,r.Body,16*1024)
