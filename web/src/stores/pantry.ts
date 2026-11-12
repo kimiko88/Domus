@@ -374,7 +374,7 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      if (file.size > 10 * 1024 * 1024) throw new Error('Il PDF supera il limite di 10 MB')
+      if (file.size > 3 * 1024 * 1024) throw new Error('Il PDF supera il limite di 3 MB')
       const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-pdf', {
         method: 'POST',
         body: file,
