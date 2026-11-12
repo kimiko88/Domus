@@ -185,6 +185,10 @@ func TestEndToEnd_SupervisorDiagnosticsAndMaintenanceAPI(t *testing.T) {
 	ctx := context.Background()
 	_ = engine.Start(ctx)
 
+	// Keep this test hermetic: do not attempt to start a real host SSH daemon
+	// on the CI runner.
+	engine.GetMaintenanceManager().SetServiceManager(&mockMaintenanceSSH{})
+
 	apiServer := supervisor.NewAPIServer(engine)
 	handler := apiServer.Handler()
 
@@ -302,3 +306,10 @@ type mockHealthChecker struct{}
 func (m *mockHealthChecker) Check(ctx context.Context, url string) (bool, error) {
 	return true, nil
 }
+
+
+type mockMaintenanceSSH struct{}
+
+func (*mockMaintenanceSSH) StartSSH(context.Context) error { return nil }
+func (*mockMaintenanceSSH) StopSSH(context.Context) error { return nil }
+func (*mockMaintenanceSSH) IsSSHRunning(context.Context) (bool, error) { return true, nil }

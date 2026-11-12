@@ -1,7 +1,9 @@
 package crypto_test
 
 import (
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
@@ -85,4 +87,53 @@ func TestEnvelopeCipher_LoadOrCreateMasterKey(t *testing.T) {
 	key2, err := crypto.LoadOrCreateMasterKey(keyPath)
 	require.NoError(t, err)
 	assert.Equal(t, key1, key2, "Loading from existing path must yield identical key")
+
+	info, err := os.Stat(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+
+	// Existing keys with broad permissions are tightened without changing bytes.
+	require.NoError(t, os.Chmod(keyPath, 0644))
+	key3, err := crypto.LoadOrCreateMasterKey(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, key1, key3)
+	info, err = os.Stat(keyPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+
+func TestLoadOrCreateMasterKey_RejectsMalformedExistingKey(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "master.key")
+	require.NoError(t, os.WriteFile(keyPath, []byte("truncated-key"), 0600))
+
+	_, err := crypto.LoadOrCreateMasterKey(keyPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "malformed")
+	data, readErr := os.ReadFile(keyPath)
+	require.NoError(t, readErr)
+	assert.Equal(t, "truncated-key", string(data), "a malformed key must never be silently replaced")
+}
+
+
+func TestLoadOrCreateMasterKey_ConcurrentCreation(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "master.key")
+	const workers = 12
+	keys := make([][]byte, workers)
+	errs := make([]error, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			keys[i], errs[i] = crypto.LoadOrCreateMasterKey(keyPath)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := range keys {
+		require.NoError(t, errs[i])
+		require.Len(t, keys[i], 32)
+		assert.Equal(t, keys[0], keys[i], "all concurrent starts must load the same key")
+	}
 }

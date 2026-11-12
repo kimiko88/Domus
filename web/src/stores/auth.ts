@@ -71,7 +71,10 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
       await apiClient.post('/api/v1/auth/login', { username, password })
-      await fetchMe()
+      const authenticatedUser = await fetchMe()
+      if (!authenticatedUser) {
+        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+      }
       return true
     } catch (err: any) {
       error.value = err?.message || 'Login failed'
@@ -86,7 +89,10 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
       await apiClient.post('/api/v1/auth/kiosk-login', { pin: pinCode })
-      await fetchMe()
+      const authenticatedUser = await fetchMe()
+      if (!authenticatedUser) {
+        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+      }
       return true
     } catch (err: any) {
       error.value = err?.message || 'Kiosk login failed'
@@ -102,7 +108,10 @@ export const useAuthStore = defineStore('auth', () => {
       error.value = null
       await apiClient.post('/api/v1/auth/setup', { username, password })
       isSetupRequired.value = false
-      await fetchMe()
+      const authenticatedUser = await fetchMe()
+      if (!authenticatedUser) {
+        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+      }
       return true
     } catch (err: any) {
       error.value = err?.message || 'First admin setup failed'
@@ -121,7 +130,10 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
       await apiClient.post('/api/v1/auth/register', data)
-      await fetchMe()
+      const authenticatedUser = await fetchMe()
+      if (!authenticatedUser) {
+        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+      }
       return true
     } catch (err: any) {
       error.value = err?.message || 'Registration failed'

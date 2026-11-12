@@ -101,13 +101,18 @@ func main() {
 	}
 	masterKey, err := crypto.LoadOrCreateMasterKey(masterKeyPath)
 	if err != nil {
-		slog.Warn("failed to load master key from disk, generating ephemeral key", "error", err)
-		masterKey, _ = crypto.GenerateMasterKey()
+		// Never continue with an ephemeral key: encrypted values would become
+		// unreadable after restart and new writes would be encrypted irreversibly.
+		slog.Error("failed to load or persist master key; refusing to start", "path", masterKeyPath, "error", err)
+		os.Exit(1)
 	}
-	if cipher, err := crypto.NewEnvelopeCipher(masterKey); err == nil {
-		repos.WithCipher(cipher)
-		slog.Info("envelope encryption at rest initialized")
+	envelopeCipher, err := crypto.NewEnvelopeCipher(masterKey)
+	if err != nil {
+		slog.Error("failed to initialize envelope encryption; refusing to start", "error", err)
+		os.Exit(1)
 	}
+	repos.WithCipher(envelopeCipher)
+	slog.Info("envelope encryption at rest initialized", "key_path", masterKeyPath)
 
 	hasher := crypto.NewArgon2Hasher(crypto.Argon2Params{
 		Memory:      cfg.Auth.Argon2Memory,
@@ -204,13 +209,28 @@ func main() {
 		Enabled:          true,
 	}, bus)
 
-	presenceSvc := apppresence.NewService(apppresence.HomeGeofence{
-		Latitude:  41.9028,
-		Longitude: 12.4964,
-		RadiusM:   150.0,
-	}, bus)
+	homeGeofence := apppresence.HomeGeofence{
+		Latitude:  cfg.Presence.HomeLatitude,
+		Longitude: cfg.Presence.HomeLongitude,
+		RadiusM:   cfg.Presence.GeofenceRadiusM,
+		Enabled:   cfg.Presence.GeofenceEnabled || cfg.Presence.HomeLatitude != 0 || cfg.Presence.HomeLongitude != 0,
+	}
+	presenceSvc := apppresence.NewService(homeGeofence, bus)
+	presenceCtx, cancelPresence := context.WithCancel(context.Background())
+	defer cancelPresence()
+	presenceSvc.Start(presenceCtx)
 
-	sunEngine := appauto.NewSunEngine(41.9028, 12.4964)
+	var sunEngine *appauto.SunEngine
+	var commuteTracker *apppresence.CommuteTracker
+	if homeGeofence.Enabled {
+		sunEngine = appauto.NewSunEngine(homeGeofence.Latitude, homeGeofence.Longitude)
+		commuteTracker = apppresence.NewCommuteTracker(bus, apppresence.CommuteConfig{
+			HomeLatitude:  homeGeofence.Latitude,
+			HomeLongitude: homeGeofence.Longitude,
+		})
+	} else {
+		slog.Warn("home coordinates are not configured; GPS geofencing, commute tracking and solar position are disabled")
+	}
 
 	// 11. Telemetry Downsampler (Nightly compaction of telemetry > 30 days old into hourly buckets)
 	downsampler := apphistory.NewDownsampler(db)
@@ -246,7 +266,7 @@ func main() {
 		serverpkg.WithAuth(authService, loginLimiter),
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithAutomation(autoEngine, sceneService),
-		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine),
+		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine, commuteTracker),
 		serverpkg.WithWebSocket(wsHub),
 	)
 

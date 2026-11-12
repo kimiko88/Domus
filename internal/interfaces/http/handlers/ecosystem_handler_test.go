@@ -305,3 +305,28 @@ func TestEcosystemHandler_ThreadAndRemoteAccessAndVoice(t *testing.T) {
 	assert.Equal(t, "spegni tutte le luci", voiceResp["transcribed_text"])
 	assert.NotEmpty(t, voiceResp["response_text"])
 }
+
+
+func TestEcosystemHandler_FailoverHeartbeatRequiresSharedSecret(t *testing.T) {
+	_, h := setupEcosystemRouter()
+	body := []byte(`{}`)
+
+	t.Setenv("DOMUS_FAILOVER_HEARTBEAT_TOKEN", "")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/system/failover/heartbeat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.ReceiveHeartbeat(rr, req)
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+
+	t.Setenv("DOMUS_FAILOVER_HEARTBEAT_TOKEN", "cluster-secret")
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/system/failover/heartbeat", bytes.NewReader(body))
+	req.Header.Set("X-Domus-Failover-Token", "wrong-secret")
+	rr = httptest.NewRecorder()
+	h.ReceiveHeartbeat(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/system/failover/heartbeat", bytes.NewReader(body))
+	req.Header.Set("X-Domus-Failover-Token", "cluster-secret")
+	rr = httptest.NewRecorder()
+	h.ReceiveHeartbeat(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -140,30 +141,48 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 		return nil, errors.New("envelope: key path cannot be empty")
 	}
 
-	// If file exists, load key
-	if data, err := os.ReadFile(path); err == nil {
+	load := func() ([]byte, error) {
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("envelope: master key path %s must be a regular file, not a symlink or special file", path)
+		}
+		if info.Mode().Perm() != 0o600 {
+			if err := os.Chmod(path, 0o600); err != nil {
+				return nil, fmt.Errorf("envelope: failed to secure master key permissions: %w", err)
+			}
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		// Preserve compatibility with existing raw, hex, and Base64 keys.
+		if len(data) == KeySize {
+			return data, nil
+		}
 		trimmed := strings.TrimSpace(string(data))
-		// Support either raw 32-byte binary, 64-character hex, or Base64 encoded key
-		if len(trimmed) == 64 {
-			// Hex encoded
-			var key [32]byte
-			n, err := fmt.Sscanf(trimmed, "%x", &key)
-			if err == nil && n == 1 {
-				return key[:], nil
+		if len(trimmed) == KeySize*2 {
+			decoded, err := hex.DecodeString(trimmed)
+			if err == nil && len(decoded) == KeySize {
+				return decoded, nil
 			}
 		}
 		if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(decoded) == KeySize {
 			return decoded, nil
 		}
-		if len(data) == KeySize {
-			return data, nil
-		}
-		// If key size is different, derive via sha256
-		hash := sha256.Sum256(data)
-		return hash[:], nil
+		return nil, fmt.Errorf("envelope: master key at %s is malformed (expected %d raw bytes, %d hex chars, or Base64 for %d bytes)", path, KeySize, KeySize*2, KeySize)
 	}
 
-	// Ensure parent directory exists
+	key, err := load()
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("envelope: failed to read existing master key %s: %w", path, err)
+	}
+
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -171,16 +190,60 @@ func LoadOrCreateMasterKey(path string) ([]byte, error) {
 		}
 	}
 
-	// Generate fresh key
-	key, err := GenerateMasterKey()
+	key, err = GenerateMasterKey()
 	if err != nil {
 		return nil, err
 	}
+	encoded := []byte(base64.StdEncoding.EncodeToString(key) + "\n")
 
-	// Write key with strict read/write owner-only permissions
-	encoded := base64.StdEncoding.EncodeToString(key) + "\n"
-	if err := os.WriteFile(path, []byte(encoded), 0o600); err != nil {
-		return nil, fmt.Errorf("envelope: failed to persist master key to %s: %w", path, err)
+	// Write a complete private temporary file, fsync it, then publish it with
+	// an atomic no-overwrite hard link. Concurrent starts can only observe a
+	// complete key and can never replace the winner's key.
+	tmp, err := os.CreateTemp(dir, ".domus-master-key-*")
+	if err != nil {
+		return nil, fmt.Errorf("envelope: failed to create temporary master key: %w", err)
+	}
+	tmpPath := tmp.Name()
+	cleanupTemp := func() { _ = os.Remove(tmpPath) }
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to secure temporary master key: %w", err)
+	}
+	if _, err := tmp.Write(encoded); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to write temporary master key: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to sync temporary master key: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to close temporary master key: %w", err)
+	}
+
+	if err := os.Link(tmpPath, path); errors.Is(err, os.ErrExist) {
+		cleanupTemp()
+		return load()
+	} else if err != nil {
+		cleanupTemp()
+		return nil, fmt.Errorf("envelope: failed to publish master key to %s: %w", path, err)
+	}
+	cleanupTemp()
+
+	dirHandle, err := os.Open(dir)
+	if err != nil {
+		return nil, fmt.Errorf("envelope: failed to open master key directory for sync: %w", err)
+	}
+	if err := dirHandle.Sync(); err != nil {
+		_ = dirHandle.Close()
+		return nil, fmt.Errorf("envelope: failed to sync master key directory: %w", err)
+	}
+	if err := dirHandle.Close(); err != nil {
+		return nil, fmt.Errorf("envelope: failed to close master key directory: %w", err)
 	}
 
 	return key, nil

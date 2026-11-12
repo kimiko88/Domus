@@ -125,5 +125,5 @@ func TestCloudAssistantHandler_Disabled(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer secret-token")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

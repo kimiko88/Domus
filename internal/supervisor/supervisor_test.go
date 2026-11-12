@@ -257,11 +257,16 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 	health := &MockHealthChecker{returnHealthy: true}
 
 	cfg := supervisor.DefaultConfig()
+	cfg.DataDir = t.TempDir()
 	cfg.HealthCheckInterval = 5 * time.Millisecond
 	cfg.MaxHealthRetries = 3
 	engine := supervisor.NewEngine(cfg, runtime, rauc, health)
 	ctx := context.Background()
 	_ = engine.Start(ctx)
+
+	// Engine.Start initializes the maintenance manager; inject the fake
+	// service manager afterwards so the test never invokes host systemd.
+	engine.GetMaintenanceManager().SetServiceManager(&mockSSHServiceManager{})
 
 	time.Sleep(30 * time.Millisecond)
 
@@ -410,3 +415,10 @@ func TestSupervisor_API_Endpoints(t *testing.T) {
 		}
 	})
 }
+
+
+type mockSSHServiceManager struct{}
+
+func (*mockSSHServiceManager) StartSSH(context.Context) error { return nil }
+func (*mockSSHServiceManager) StopSSH(context.Context) error { return nil }
+func (*mockSSHServiceManager) IsSSHRunning(context.Context) (bool, error) { return true, nil }

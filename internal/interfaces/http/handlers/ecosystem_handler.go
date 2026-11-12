@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -881,6 +884,17 @@ func (h *EcosystemHandler) GetFailoverStatus(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *EcosystemHandler) ReceiveHeartbeat(w http.ResponseWriter, r *http.Request) {
+	expectedToken := strings.TrimSpace(os.Getenv("DOMUS_FAILOVER_HEARTBEAT_TOKEN"))
+	if expectedToken == "" {
+		writeError(w, http.StatusServiceUnavailable, "FAILOVER_NOT_CONFIGURED", "failover heartbeat token is not configured")
+		return
+	}
+	providedToken := r.Header.Get("X-Domus-Failover-Token")
+	if len(providedToken) != len(expectedToken) ||
+		subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) != 1 {
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid failover heartbeat token")
+		return
+	}
 	if h.failoverSvc == nil {
 		h.failoverSvc = appFailover.NewService("hub_primary", appFailover.RoleLeader, "", nil)
 	}

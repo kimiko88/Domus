@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -90,11 +91,14 @@ func WithAutomation(engine *appauto.Engine, sceneService *appscene.Service) Serv
 }
 
 // WithAdvancedFeatures configures energy load shedding, multi-tier presence, and solar calculations.
-func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *appauto.SunEngine) ServerOption {
+func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.Service, sunEngine *appauto.SunEngine, commute ...*presence.CommuteTracker) ServerOption {
 	return func(s *Server) {
 		s.energyCtrl = energyCtrl
 		s.presenceSvc = presenceSvc
 		s.sunEngine = sunEngine
+		if len(commute) > 0 {
+			s.commuteTracker = commute[0]
+		}
 	}
 }
 
@@ -138,6 +142,7 @@ type Server struct {
 	energyCtrl     *energy.Controller
 	presenceSvc    *presence.Service
 	sunEngine      *appauto.SunEngine
+	commuteTracker *presence.CommuteTracker
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -218,24 +223,26 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 
 		api.Route("/system", func(sys chi.Router) {
+			// Health remains public for local service supervision and installer probes.
 			sys.Method(http.MethodGet, "/health", healthHandler)
+
+			// Operational diagnostics and maintenance can expose host details or
+			// alter appliance state: require an authenticated administrator.
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/diagnostics", handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", "")).GetDiagnostics)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/diagnostics/export", handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", "")).ExportDiagnostics)
+			osH := handlers.NewSystemOSHandler(infrasup.NewClient("/run/domus/supervisor.sock", ""))
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/maintenance/status", osH.GetMaintenanceStatus)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Post("/maintenance/enable", osH.EnableMaintenance)
+			sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Post("/maintenance/disable", osH.DisableMaintenance)
+
 			if srv.repos != nil {
 				metricsH := handlers.NewSystemMetricsHandler(srv.startedAt, srv.repos, srv.wsHub, srv.mqttConnected)
-				sys.Get("/metrics", metricsH.ServeHTTP)
+				sys.With(domusmw.RequireAuth(), domusmw.RequireRole(user.RoleAdmin)).Get("/metrics", metricsH.ServeHTTP)
 			}
 
-			// Domus OS Appliance Diagnostics & Maintenance
-			supClient := infrasup.NewClient("/run/domus/supervisor.sock", "")
-			osH := handlers.NewSystemOSHandler(supClient)
-			sys.Get("/diagnostics", osH.GetDiagnostics)
-			sys.Get("/diagnostics/export", osH.ExportDiagnostics)
-			sys.Get("/maintenance/status", osH.GetMaintenanceStatus)
-			sys.Post("/maintenance/enable", osH.EnableMaintenance)
-			sys.Post("/maintenance/disable", osH.DisableMaintenance)
-
-			// Solar position & astronomical calculation
+			// Solar position is informational but still belongs to an authenticated API.
 			advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine)
-			sys.Get("/sun", advH.GetSunPosition)
+			sys.With(domusmw.RequireAuth()).Get("/sun", advH.GetSunPosition)
 		})
 
 		// Auth routes
@@ -324,9 +331,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 
 			api.Group(func(domainRouter chi.Router) {
-				if srv.authService != nil {
-					domainRouter.Use(domusmw.RequireAuth())
-				}
+				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireOperatorForWrites())
 
 				domainRouter.Route("/integrations", func(intRouter chi.Router) {
 					intRouter.Get("/", integrationH.List)
@@ -441,6 +446,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				if srv.repos.Floors != nil {
 					floorH := handlers.NewFloorplanHandler(srv.repos.Floors)
 					domainRouter.Route("/floors", func(flRouter chi.Router) {
+						flRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						flRouter.Get("/", floorH.List)
 						flRouter.Post("/", floorH.Create)
 						flRouter.Get("/{id}", floorH.GetByID)
@@ -470,6 +476,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Advanced Features: Energy Load Shedding & Multi-tier Presence
 				advH := handlers.NewAdvancedFeaturesHandler(srv.energyCtrl, srv.presenceSvc, srv.sunEngine).
+					WithCommuteTracker(srv.commuteTracker).
 					WithEntityRepository(srv.repos.Entities).
 					WithWallboxRepository(srv.repos.Wallbox).
 					WithVacationRepository(srv.repos.Vacation).
@@ -509,6 +516,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					zoneSvc := appzone.NewService(srv.repos.Zones, srv.bus)
 					zoneH = handlers.NewZoneHandler(zoneSvc, srv.repos.Zones)
 					domainRouter.Route("/zones", func(zRouter chi.Router) {
+						zRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						zRouter.Get("/", zoneH.ListZones)
 						zRouter.Post("/", zoneH.CreateZone)
 						zRouter.Get("/{id}", zoneH.GetZone)
@@ -516,6 +524,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						zRouter.Delete("/{id}", zoneH.DeleteZone)
 					})
 					domainRouter.Route("/persons", func(pRouter chi.Router) {
+						pRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						pRouter.Get("/", zoneH.ListPersons)
 						pRouter.Post("/", zoneH.CreatePerson)
 						pRouter.Get("/{id}", zoneH.GetPerson)
@@ -531,6 +540,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					_ = teSvc.Start(context.Background())
 					teH := handlers.NewTemplateEntityHandler(teSvc, srv.repos.Templates)
 					domainRouter.Route("/template-entities", func(teRouter chi.Router) {
+						teRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						teRouter.Get("/", teH.List)
 						teRouter.Post("/", teH.Create)
 						teRouter.Post("/preview", teH.Preview)
@@ -542,6 +552,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/presence", func(pRouter chi.Router) {
 					pRouter.Post("/gps", advH.UpdateGPS)
+					pRouter.Post("/room", advH.UpdateRoomPresence)
 					pRouter.Get("/status", advH.GetPresenceStatus)
 					pRouter.Get("/vacation", advH.GetVacationMode)
 					pRouter.Post("/vacation", advH.SetVacationMode)
@@ -555,6 +566,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Hardware Modern Standards & Commissioning
 				domainRouter.Route("/hardware", func(hwRouter chi.Router) {
+					hwRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					hwRouter.Get("/homekit", advH.GetHomeKitPairing)
 					hwRouter.Post("/matter/commission", advH.CommissionMatter)
 				})
@@ -564,6 +576,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					dashService := appdash.NewService(srv.repos.Dashboards)
 					dashH := handlers.NewDashboardHandler(dashService)
 					domainRouter.Route("/dashboards", func(dRouter chi.Router) {
+						dRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						dRouter.Get("/", dashH.List)
 						dRouter.Post("/", dashH.Create)
 						dRouter.Get("/{id}", dashH.Get)
@@ -580,6 +593,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					helperService := apphelper.NewService(srv.repos.Helpers, srv.bus)
 					helperH := handlers.NewHelperHandler(helperService)
 					domainRouter.Route("/helpers", func(hRouter chi.Router) {
+						hRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						hRouter.Get("/", helperH.List)
 						hRouter.Post("/", helperH.Create)
 						hRouter.Get("/{id}", helperH.Get)
@@ -644,6 +658,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
+						cRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					cRouter.Get("/", ecoH.ListCameras)
 					cRouter.Post("/", ecoH.CreateCamera)
 					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
@@ -711,6 +726,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					scriptSvc := appscript.NewService(srv.repos.Scripts, srv.bus)
 					scriptH := handlers.NewScriptHandler(scriptSvc)
 					domainRouter.Route("/scripts", func(scRouter chi.Router) {
+						scRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						scRouter.Get("/", scriptH.List)
 						scRouter.Post("/", scriptH.Create)
 						scRouter.Get("/{id}", scriptH.Get)
@@ -773,11 +789,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/mesh", func(meshRouter chi.Router) {
+						meshRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					meshRouter.Get("/topology", ecoH.GetMeshTopology)
 					meshRouter.Get("/thread/topology", ecoH.GetThreadTopology)
 				})
 
 				domainRouter.Route("/system/remote-access", func(raRouter chi.Router) {
+					raRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					raRouter.Get("/wireguard/server", ecoH.GetWireGuardServer)
 					raRouter.Get("/wireguard/peers", ecoH.ListWireGuardPeers)
 					raRouter.Post("/wireguard/peers", ecoH.EnrollWireGuardPeer)
@@ -787,6 +805,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/system/backup/remote", func(bkRouter chi.Router) {
+					bkRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					bkRouter.Get("/config", ecoH.GetRemoteBackupConfig)
 					bkRouter.Put("/config", ecoH.UpdateRemoteBackupConfig)
 					bkRouter.Post("/config", ecoH.UpdateRemoteBackupConfig)
@@ -799,6 +818,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {
+					otaRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					otaRouter.Get("/devices", ecoH.ListOTADevices)
 					otaRouter.Post("/devices/{id}/upgrade", ecoH.TriggerOTAUpgrade)
 					otaRouter.Get("/flasher/catalog", ecoH.ListFlasherFirmwares)
@@ -806,13 +826,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					otaRouter.Post("/flasher/provision", ecoH.GenerateFlasherProvision)
 				})
 
+				// Peer heartbeats use a dedicated shared secret rather than a browser
+				// admin session. The handler fails closed if the secret is unset.
+				api.Post("/system/failover/heartbeat", ecoH.ReceiveHeartbeat)
 				domainRouter.Route("/system/failover", func(foRouter chi.Router) {
+					foRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					foRouter.Get("/status", ecoH.GetFailoverStatus)
-					foRouter.Post("/heartbeat", ecoH.ReceiveHeartbeat)
 					foRouter.Post("/promote", ecoH.PromoteNode)
 				})
 
 				domainRouter.Route("/store", func(stRouter chi.Router) {
+					stRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					stRouter.Get("/packages", ecoH.ListStorePackages)
 					stRouter.Post("/packages/{id}/install", ecoH.InstallStorePackage)
 					stRouter.Post("/packages/{id}/uninstall", ecoH.UninstallStorePackage)
@@ -841,6 +865,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					financeSvc := appfinance.NewService(srv.repos.Finance, srv.bus)
 					financeH := handlers.NewFinanceHandler(financeSvc)
 					domainRouter.Route("/finance", func(finRouter chi.Router) {
+						finRouter.Use(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin))
 						finRouter.Get("/expenses", financeH.List)
 						finRouter.Post("/expenses", financeH.Create)
 						finRouter.Get("/expenses/{id}", financeH.GetByID)
@@ -887,6 +912,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 					if webhookH != nil {
 						domainRouter.Route("/webhook-configs", func(whRouter chi.Router) {
+							whRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 							whRouter.Get("/", webhookH.ListWebhooks)
 							whRouter.Post("/", webhookH.CreateWebhook)
 							whRouter.Delete("/{id}", webhookH.DeleteWebhook)
@@ -896,6 +922,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 							whRouter.Post("/outbound/{id}/test", webhookH.TestOutbound)
 						})
 						domainRouter.Route("/webhooks/outbound", func(obRouter chi.Router) {
+							obRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 							obRouter.Get("/", webhookH.ListOutbound)
 							obRouter.Post("/", webhookH.CreateOutbound)
 							obRouter.Delete("/{id}", webhookH.DeleteOutbound)
@@ -910,7 +937,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				assistantH.RegisterRoutes(domainRouter)
 
 				// Cloud Voice Assistant Bridge (Amazon Alexa & Google Home Smart Home Actions)
-				cloudAssistantSvc := appcloudassistant.NewService(srv.repos.Entities, srv.bus, "", true)
+				cloudAssistantToken := strings.TrimSpace(os.Getenv("DOMUS_CLOUD_ASSISTANT_TOKEN"))
+				cloudAssistantSvc := appcloudassistant.NewService(
+					srv.repos.Entities,
+					srv.bus,
+					cloudAssistantToken,
+					cloudAssistantToken != "",
+				)
+				if cloudAssistantToken == "" {
+					slog.Warn("cloud voice assistant endpoints disabled: DOMUS_CLOUD_ASSISTANT_TOKEN is not configured")
+				}
 				cloudAssistantH := handlers.NewCloudAssistantHandler(cloudAssistantSvc)
 				cloudAssistantH.RegisterRoutes(api)
 
@@ -926,17 +962,18 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				networkScanner := network.NewScanner(srv.bus, network.Config{})
 				networkGuardian, _ := network.NewGuardian(srv.bus, network.GuardianConfig{})
 				networkH := handlers.NewNetworkHandler(networkScanner).WithGuardian(networkGuardian)
-				domainRouter.Get("/network/devices", networkH.ListDiscovered)
-				domainRouter.Post("/network/scan", networkH.TriggerScan)
-				domainRouter.Post("/network/probe", networkH.ProbeHost)
-				domainRouter.Get("/network/leaks", networkH.ListLeaks)
-				domainRouter.Post("/network/quarantine", networkH.QuarantineDevice)
-				domainRouter.Post("/network/unblock", networkH.UnblockDevice)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/network/devices", networkH.ListDiscovered)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/network/scan", networkH.TriggerScan)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/network/probe", networkH.ProbeHost)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/network/leaks", networkH.ListLeaks)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/network/quarantine", networkH.QuarantineDevice)
+				domainRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/network/unblock", networkH.UnblockDevice)
 
 				// Household Predictive Anomaly Engine (Water Leaks, Appliance Health, Condensation Mold)
 				anomalySvc := appanomaly.NewService(srv.bus).WithRepository(srv.repos.Anomaly)
 				anomalyH := handlers.NewAnomalyHandler(anomalySvc)
 				domainRouter.Route("/anomalies", func(anRouter chi.Router) {
+					anRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 					anomalyH.RegisterRoutes(anRouter)
 				})
 

@@ -3,12 +3,16 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from './auth'
 import { apiClient } from '../api/client'
 
-vi.mock('../api/client', () => ({
-  apiClient: {
-    get: vi.fn(),
-    post: vi.fn()
+vi.mock('../api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/client')>()
+  return {
+    ...actual,
+    apiClient: {
+      get: vi.fn(),
+      post: vi.fn()
+    }
   }
-}))
+})
 
 describe('Auth Store', () => {
   beforeEach(() => {
@@ -57,6 +61,17 @@ describe('Auth Store', () => {
     })
     expect(store.isAuthenticated).toBe(true)
     expect(store.user).toEqual(mockUser)
+  })
+
+  it('does not report login success when the session user cannot be loaded', async () => {
+    const store = useAuthStore()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ message: 'Login successful' })
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('session lookup failed'))
+
+    await expect(store.login('admin', 'secret123')).rejects.toThrow('session lookup failed')
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.user).toBeNull()
+    expect(store.error).toBe('session lookup failed')
   })
 
   it('logs out and clears user state', async () => {

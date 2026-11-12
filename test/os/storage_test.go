@@ -213,7 +213,7 @@ func TestMS02_StorageInit_ExecutionDryRun(t *testing.T) {
 	relScript := "./os/scripts/domus-storage-init.sh"
 
 	// Run script with DATA_ROOT pointing to fakeData
-	cmd := exec.Command(bashPath, "-c", "DATA_ROOT='"+slashData+"' SKIP_RESIZE=true "+relScript)
+	cmd := exec.Command(bashPath, "-c", "DATA_ROOT='"+slashData+"' SKIP_RESIZE=true bash "+relScript)
 	cmd.Dir = baseDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -248,7 +248,7 @@ func TestMS02_StorageInit_ExecutionDryRun(t *testing.T) {
 	}
 
 	// Test idempotency: run a second time, must exit 0 without errors
-	cmd2 := exec.Command(bashPath, "-c", "DATA_ROOT='"+slashData+"' SKIP_RESIZE=true "+relScript)
+	cmd2 := exec.Command(bashPath, "-c", "DATA_ROOT='"+slashData+"' SKIP_RESIZE=true bash "+relScript)
 	cmd2.Dir = baseDir
 	out2, err := cmd2.CombinedOutput()
 	if err != nil {

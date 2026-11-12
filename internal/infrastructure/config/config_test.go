@@ -218,3 +218,29 @@ func writeTempConfig(t *testing.T, content string) string {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	return path
 }
+
+
+func TestLoad_PresenceEnvironmentOverrides(t *testing.T) {
+	t.Setenv("DOMUS_PRESENCE_HOME_LATITUDE", "45.4642")
+	t.Setenv("DOMUS_PRESENCE_HOME_LONGITUDE", "9.1900")
+	t.Setenv("DOMUS_PRESENCE_GEOFENCE_RADIUS_M", "250")
+	t.Setenv("DOMUS_PRESENCE_GEOFENCE_ENABLED", "true")
+
+	cfg, err := config.Load("")
+	require.NoError(t, err)
+	assert.InDelta(t, 45.4642, cfg.Presence.HomeLatitude, 0.000001)
+	assert.InDelta(t, 9.19, cfg.Presence.HomeLongitude, 0.000001)
+	assert.Equal(t, 250.0, cfg.Presence.GeofenceRadiusM)
+	assert.True(t, cfg.Presence.GeofenceEnabled)
+}
+
+
+func TestLoad_RejectsInvalidConfiguredGeofence(t *testing.T) {
+	t.Setenv("DOMUS_PRESENCE_GEOFENCE_ENABLED", "true")
+	t.Setenv("DOMUS_PRESENCE_HOME_LATITUDE", "91")
+	t.Setenv("DOMUS_PRESENCE_HOME_LONGITUDE", "9.19")
+
+	_, err := config.Load("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid presence home coordinates")
+}

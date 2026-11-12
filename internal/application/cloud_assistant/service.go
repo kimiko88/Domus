@@ -2,6 +2,7 @@ package cloud_assistant
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,11 +31,12 @@ type Service struct {
 
 // NewService constructs a cloud voice assistant service.
 func NewService(entities entity.Repository, bus events.Bus, bearerToken string, enabled bool) *Service {
+	token := strings.TrimSpace(bearerToken)
 	return &Service{
 		entities:    entities,
 		bus:         bus,
-		bearerToken: strings.TrimSpace(bearerToken),
-		enabled:     enabled,
+		bearerToken: token,
+		enabled:     enabled && token != "",
 	}
 }
 
@@ -45,15 +47,17 @@ func (s *Service) IsEnabled() bool {
 
 // ValidateToken verifies the Authorization header.
 func (s *Service) ValidateToken(authHeader string) bool {
-	if s.bearerToken == "" {
-		// When no token is configured, allow if enabled
-		return s.enabled
+	// An enabled integration without a secret is never authenticated.
+	if !s.enabled || s.bearerToken == "" {
+		return false
 	}
-	parts := strings.Split(strings.TrimSpace(authHeader), " ")
+	candidate := strings.TrimSpace(authHeader)
+	parts := strings.Split(candidate, " ")
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-		return parts[1] == s.bearerToken
+		candidate = parts[1]
 	}
-	return authHeader == s.bearerToken
+	return len(candidate) == len(s.bearerToken) &&
+		subtle.ConstantTimeCompare([]byte(candidate), []byte(s.bearerToken)) == 1
 }
 
 // HandleAlexa processes an Alexa Smart Home directive.

@@ -68,7 +68,7 @@ describe('ScenesView.vue', () => {
     const deleteSpy = vi.spyOn(scenesStore, 'deleteScene').mockResolvedValue(undefined)
 
     // Mock confirm
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.stubGlobal('confirm', vi.fn(() => true))
 
     const wrapper = mount(ScenesView)
     await wrapper.vm.$nextTick()

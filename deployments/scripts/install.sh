@@ -23,9 +23,9 @@
 #   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_USER, DOMUS_GROUP
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
-#   GO_VERSION (default: read from go.mod)   NODE_MAJOR (default: 22)
+#   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
 #   INSTALL_MOSQUITTO=1   install the Mosquitto MQTT broker via apt
-#   KEEP_TOOLCHAINS=1     keep downloaded Go/Node under /opt/domus-toolchains
+#   KEEP_TOOLCHAINS=1     keep downloaded Node under /opt/domus-toolchains
 # ==============================================================================
 set -euo pipefail
 
@@ -40,6 +40,7 @@ DOMUS_PORT="${DOMUS_PORT:-8080}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
+GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
 
 BOLD=$'\033[1m'; GREEN=$'\033[0;32m'; CYAN=$'\033[0;36m'
 YELLOW=$'\033[1;33m'; RED=$'\033[0;31m'; NC=$'\033[0m'
@@ -145,21 +146,37 @@ toolchain_dir() {
 install_go() {
     local want="${GO_VERSION:-$(awk '/^go[[:space:]]/ {print $2; exit}' "${PROJECT_ROOT}/go.mod")}"
     [[ "${want}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { log_error "Cannot determine Go version from go.mod"; exit 1; }
-    # Since Go 1.21 release tarballs are named go1.X.0 (go.mod may say just "1.X")
+    # Go release archives use a patch version (e.g. 1.26.0).
     [[ "${want}" =~ ^[0-9]+\.[0-9]+$ ]] && want="${want}.0"
-    ensure_workdir
-    local tdir; tdir="$(toolchain_dir)"
-    local name="go${want}.linux-${GO_DL_ARCH}.tar.gz"
-    if [[ ! -x "${tdir}/go-${want}/bin/go" ]]; then
-        log_info "Downloading Go ${want} (${GO_DL_ARCH})..."
-        curl -fsSL "https://dl.google.com/go/${name}" -o "${WORK_DIR}/${name}"
-        local sum; sum="$(curl -fsSL "https://dl.google.com/go/${name}.sha256" | awk '{print $1}')"
-        sha256_check "${WORK_DIR}/${name}" "${sum}"
-        mkdir -p "${tdir}/go-${want}"
-        tar -C "${tdir}/go-${want}" --strip-components=1 -xzf "${WORK_DIR}/${name}"
-        rm -f "${WORK_DIR}/${name}"
+
+    local go_root="${GO_INSTALL_DIR}/go-${want}"
+    if [[ -x "${go_root}/bin/go" ]]; then
+        local cached_version
+        cached_version="$("${go_root}/bin/go" env GOVERSION 2>/dev/null | sed 's/^go//')"
+        if [[ -n "${cached_version}" ]] && ver_ge "${cached_version}" "${want}"; then
+            log_info "Using previously downloaded Go ${cached_version} from ${go_root}"
+            export PATH="${go_root}/bin:${PATH}"
+            return
+        fi
+        log_warn "Cached Go at ${go_root} is unusable or too old; replacing it"
+        rm -rf "${go_root}"
     fi
-    export PATH="${tdir}/go-${want}/bin:${PATH}"
+
+    ensure_workdir
+    local name="go${want}.linux-${GO_DL_ARCH}.tar.gz"
+    log_info "Downloading Go ${want} (${GO_DL_ARCH}) into ${GO_INSTALL_DIR}..."
+    mkdir -p "${GO_INSTALL_DIR}"
+    curl -fsSL "https://dl.google.com/go/${name}" -o "${WORK_DIR}/${name}"
+    local sum; sum="$(curl -fsSL "https://dl.google.com/go/${name}.sha256" | awk '{print $1}')"
+    sha256_check "${WORK_DIR}/${name}" "${sum}"
+
+    local unpack_dir="${WORK_DIR}/go-${want}"
+    mkdir -p "${unpack_dir}"
+    tar -C "${unpack_dir}" --strip-components=1 -xzf "${WORK_DIR}/${name}"
+    mkdir -p "${go_root}"
+    cp -a "${unpack_dir}/." "${go_root}/"
+    rm -f "${WORK_DIR}/${name}"
+    export PATH="${go_root}/bin:${PATH}"
 }
 
 install_node() {
@@ -190,15 +207,24 @@ if [[ -f "${PROJECT_ROOT}/domus" && -f "${PROJECT_ROOT}/domus-cli" ]]; then
 else
     ensure_workdir
     mkdir -p "${WORK_DIR}/bin"
-    # Use system Go only if it satisfies go.mod; otherwise download the right one.
+    # Prefer an already installed Go (including the standard /usr/local/go location).
+    # Only download a toolchain when no usable installation meets go.mod.
     need_go="${GO_VERSION:-$(awk '/^go[[:space:]]/ {print $2; exit}' "${PROJECT_ROOT}/go.mod")}"
+    [[ "${need_go}" =~ ^[0-9]+\.[0-9]+$ ]] && need_go="${need_go}.0"
+    ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" == "$2" ]]; } # $1 >= $2
+
+    if ! command -v go >/dev/null 2>&1 && [[ -x /usr/local/go/bin/go ]]; then
+        export PATH="/usr/local/go/bin:${PATH}"
+    fi
+
     have_go=""
     if command -v go >/dev/null 2>&1; then
         have_go="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
     fi
-    ver_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" == "$2" ]]; } # $1 >= $2
-    if [[ -z "${have_go}" ]] || ! ver_ge "${have_go}" "${need_go}"; then
-        [[ -n "${have_go}" ]] && log_warn "System Go ${have_go} is older than required ${need_go}"
+    if [[ -n "${have_go}" ]] && ver_ge "${have_go}" "${need_go}"; then
+        log_success "Using installed Go ${have_go}; no Go download or reinstall needed"
+    else
+        [[ -n "${have_go}" ]] && log_warn "Installed Go ${have_go} is older than required ${need_go}"
         install_go
     fi
     # Caches live in the temp dir (no SD-card clutter); GOTOOLCHAIN=local = never auto-download another Go.
@@ -316,10 +342,45 @@ EOF
     log_success "Created ${CONFIG_TARGET}"
 else
     log_info "Existing configuration preserved: ${CONFIG_TARGET}"
-    # Use the port the user actually configured for the health check below
+    # Upgrade missing installer-managed paths without overwriting user settings.
+    if ! grep -Eq '^[[:space:]]*web_dir[[:space:]]*=' "${CONFIG_TARGET}"; then
+        if grep -q '^\[server\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\]/a web_dir = \"${DOMUS_WEB_DIR}\"" "${CONFIG_TARGET}"
+            log_success "Added missing server.web_dir to existing configuration"
+        else
+            log_error "Existing config has no [server] section; cannot configure web_dir safely"
+            exit 1
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+        chmod 0640 "${CONFIG_TARGET}"
+    fi
+    # Use the port and host the user actually configured for the health check.
     cfg_port="$(awk -F= '/^[[:space:]]*port[[:space:]]*=/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' "${CONFIG_TARGET}")"
     [[ "${cfg_port}" =~ ^[0-9]+$ ]] && DOMUS_PORT="${cfg_port}"
+    cfg_host="$(awk -F= '/^[[:space:]]*host[[:space:]]*=/ {gsub(/[[:space:]"]/,"",$2); print $2; exit}' "${CONFIG_TARGET}")"
+    if [[ "${cfg_host}" == "127.0.0.1" || "${cfg_host}" == "localhost" ]]; then
+        log_warn "Server is bound to ${cfg_host}; LAN access requires host = \"0.0.0.0\" in ${CONFIG_TARGET}"
+    fi
 fi
+
+# Optional secrets and environment overrides. Preserve an existing file.
+ENV_FILE="${DOMUS_CONFIG_DIR}/domus.env"
+if [[ ! -f "${ENV_FILE}" ]]; then
+    cat > "${ENV_FILE}" <<'EOF'
+# Optional runtime secrets. Remove the leading # and set strong random values.
+# DOMUS_CLOUD_ASSISTANT_TOKEN=
+# DOMUS_FAILOVER_HEARTBEAT_TOKEN=
+#
+# Optional geofence overrides (normally configure these in domus.toml):
+# DOMUS_PRESENCE_HOME_LATITUDE=
+# DOMUS_PRESENCE_HOME_LONGITUDE=
+# DOMUS_PRESENCE_GEOFENCE_RADIUS_M=
+# DOMUS_PRESENCE_GEOFENCE_ENABLED=
+EOF
+    log_success "Created optional environment file ${ENV_FILE}"
+fi
+chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
+chmod 0640 "${ENV_FILE}"
 
 # ── 8. systemd unit (generated from the repo template) ─────────────────────────
 if (( HAVE_SYSTEMD )); then
@@ -346,8 +407,16 @@ if (( HAVE_SYSTEMD )); then
     done
     if (( healthy )); then
         log_success "Domus is up"
-        ui_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
-        [[ "${ui_code}" == "200" ]] || log_warn "UI check: GET / returned ${ui_code} (expected 200). Is the backend serving web_dir? See: journalctl -u domus -n 50"
+        ui_code="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
+        if [[ "${ui_code}" != "200" ]]; then
+            log_error "Frontend health check failed: GET / returned ${ui_code} (expected 200)."
+            log_error "Recent service logs:"
+            journalctl -u domus -n 100 --no-pager >&2 || true
+            log_warn "Stopping Domus because the web interface is not available."
+            systemctl stop domus.service || true
+            exit 1
+        fi
+        log_success "Web interface responds with HTTP 200"
     else
         log_error "Domus did not become healthy within 30 seconds."
         log_error "Recent service logs:"
