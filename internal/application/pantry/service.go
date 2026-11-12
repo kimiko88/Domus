@@ -2,6 +2,7 @@ package pantry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -595,18 +596,23 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 			}
 			itemNames = append(itemNames, fmt.Sprintf("%s (%.1f %s)", trimmedName, item.Quantity, item.Unit))
 
-			existing, err := s.repo.GetPantryItemByName(ctx, trimmedName)
-			if err == nil && existing != nil {
-				// Increment existing item quantity
+			existing, lookupErr := s.repo.GetPantryItemByName(ctx, trimmedName)
+			if lookupErr == nil && existing != nil {
+				// Never merge quantities expressed in different units (e.g. g and kg).
+				if existing.Unit != item.Unit {
+					return nil, fmt.Errorf("pantry: cannot merge receipt item %q: existing unit %q differs from receipt unit %q", trimmedName, existing.Unit, item.Unit)
+				}
 				existing.Quantity += item.Quantity
 				existing.Cost = item.TotalPrice
 				existing.UpdatedAt = now
+				if err := existing.Validate(); err != nil {
+					return nil, fmt.Errorf("pantry: invalid merged receipt item %q: %w", trimmedName, err)
+				}
 				if err := s.repo.UpdatePantryItem(ctx, existing); err != nil {
 					return nil, fmt.Errorf("pantry: failed to update receipt item %q: %w", trimmedName, err)
 				}
 				result.ItemsUpdated++
-			} else {
-				// Create new pantry item
+			} else if errors.Is(lookupErr, domain.ErrItemNotFound) || (lookupErr == nil && existing == nil) {
 				newItem := &domain.PantryItem{
 					ID:           uuid.NewString(),
 					Name:         trimmedName,
@@ -619,10 +625,15 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 					CreatedAt:    now,
 					UpdatedAt:    now,
 				}
+				if err := newItem.Validate(); err != nil {
+					return nil, fmt.Errorf("pantry: invalid receipt item %q: %w", trimmedName, err)
+				}
 				if err := s.repo.CreatePantryItem(ctx, newItem); err != nil {
 					return nil, fmt.Errorf("pantry: failed to create receipt item %q: %w", trimmedName, err)
 				}
 				result.ItemsAdded++
+			} else {
+				return nil, fmt.Errorf("pantry: failed to find existing receipt item %q: %w", trimmedName, lookupErr)
 			}
 		}
 	} else {
