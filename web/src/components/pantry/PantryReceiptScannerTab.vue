@@ -35,6 +35,8 @@ const emit = defineEmits<{
 }>()
 
 const rawReceiptText = ref('')
+const ocrStatus = ref('')
+const maxImageBytes = 10 * 1024 * 1024
 const autoAddToFinance = ref(true)
 const autoUpdatePantry = ref(true)
 
@@ -77,6 +79,49 @@ function loadSample(sample: string) {
   rawReceiptText.value = sample
 }
 
+async function handleImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    ocrStatus.value = 'Seleziona un file immagine (JPG, PNG o WEBP).'
+    return
+  }
+  if (file.size > maxImageBytes) {
+    ocrStatus.value = 'Immagine troppo grande: il limite è 10 MB.'
+    return
+  }
+
+  const detectorWindow = window as unknown as {
+    TextDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue?: string }>> }
+  }
+  if (!detectorWindow.TextDetector || typeof createImageBitmap !== 'function') {
+    ocrStatus.value = 'OCR locale non supportato da questo browser. Puoi incollare il testo estratto manualmente.'
+    return
+  }
+
+  let bitmap: ImageBitmap | undefined
+  try {
+    ocrStatus.value = 'Lettura locale dell’immagine in corso…'
+    bitmap = await createImageBitmap(file)
+    const detector = new detectorWindow.TextDetector()
+    const blocks = await detector.detect(bitmap)
+    const extracted = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join('\n')
+    if (!extracted) {
+      ocrStatus.value = 'Nessun testo riconosciuto. Prova con una foto più nitida o incolla il testo.'
+      return
+    }
+    rawReceiptText.value = extracted
+    ocrStatus.value = 'Testo estratto sul dispositivo. Controllalo e avvia l’analisi.'
+  } catch {
+    ocrStatus.value = 'Impossibile leggere questa immagine con l’OCR del browser.'
+  } finally {
+    bitmap?.close()
+  }
+}
+
 function handleParse() {
   if (!rawReceiptText.value.trim()) return
   emit('parse-receipt', rawReceiptText.value.trim())
@@ -117,6 +162,21 @@ function handleConfirmImport() {
             Incolla il testo dello scontrino fotografato o inserisci le righe per riconoscere automaticamente prodotti, quantità, categorie e totale speso.
           </p>
         </div>
+      </div>
+
+      <div class="image-scan-controls">
+        <label class="btn btn-secondary" for="receipt-image-input">Scatta o carica scontrino / fattura</label>
+        <input
+          id="receipt-image-input"
+          class="visually-hidden"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          aria-label="Scatta o seleziona un'immagine di scontrino o fattura"
+          @change="handleImageSelected"
+        />
+        <p v-if="ocrStatus" class="ocr-status" role="status" aria-live="polite">{{ ocrStatus }}</p>
+        <p class="ocr-privacy-note">L’estrazione supportata dal browser avviene localmente: l’immagine non viene caricata sul server.</p>
       </div>
 
       <div class="quick-samples">
@@ -314,6 +374,30 @@ function handleConfirmImport() {
 </template>
 
 <style scoped>
+.image-scan-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.ocr-status, .ocr-privacy-note {
+  margin: 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.82rem;
+}
+.ocr-status { color: var(--text-main, #f8fafc); }
+
 .scanner-tab-content {
   display: flex;
   flex-direction: column;
