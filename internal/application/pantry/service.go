@@ -542,6 +542,32 @@ type ImportReceiptRequest struct {
 
 // ImportReceipt persists recognized items into the pantry and automatically records the expense in Home Finance!
 func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (*domain.ReceiptImportResult, error) {
+	if len(req.Items) > 500 {
+		return nil, fmt.Errorf("receipt contains too many items")
+	}
+	if math.IsNaN(req.TotalAmount) || math.IsInf(req.TotalAmount, 0) || req.TotalAmount < 0 || req.TotalAmount > 1_000_000 {
+		return nil, fmt.Errorf("receipt total amount is invalid")
+	}
+	if strings.TrimSpace(req.StoreName) == "" {
+		req.StoreName = "Supermercato"
+	}
+	if req.Date != "" {
+		if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+			return nil, fmt.Errorf("receipt date must use YYYY-MM-DD: %w", err)
+		}
+	}
+	for i, item := range req.Items {
+		if strings.TrimSpace(item.Name) == "" || len(item.Name) > 200 {
+			return nil, fmt.Errorf("receipt item %d has an invalid name", i+1)
+		}
+		if math.IsNaN(item.Quantity) || math.IsInf(item.Quantity, 0) || item.Quantity <= 0 || item.Quantity > 1_000_000 {
+			return nil, fmt.Errorf("receipt item %d has an invalid quantity", i+1)
+		}
+		if math.IsNaN(item.TotalPrice) || math.IsInf(item.TotalPrice, 0) || item.TotalPrice < 0 || item.TotalPrice > 1_000_000 {
+			return nil, fmt.Errorf("receipt item %d has an invalid price", i+1)
+		}
+	}
+
 	result := &domain.ReceiptImportResult{
 		ExpenseAmount: req.TotalAmount,
 	}
@@ -564,7 +590,9 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 				existing.Quantity += item.Quantity
 				existing.Cost = item.TotalPrice
 				existing.UpdatedAt = now
-				_ = s.repo.UpdatePantryItem(ctx, existing)
+				if err := s.repo.UpdatePantryItem(ctx, existing); err != nil {
+					return nil, fmt.Errorf("pantry: failed to update receipt item %q: %w", trimmedName, err)
+				}
 				result.ItemsUpdated++
 			} else {
 				// Create new pantry item
@@ -580,9 +608,10 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 					CreatedAt:    now,
 					UpdatedAt:    now,
 				}
-				if err := s.repo.CreatePantryItem(ctx, newItem); err == nil {
-					result.ItemsAdded++
+				if err := s.repo.CreatePantryItem(ctx, newItem); err != nil {
+					return nil, fmt.Errorf("pantry: failed to create receipt item %q: %w", trimmedName, err)
 				}
+				result.ItemsAdded++
 			}
 		}
 	} else {
@@ -615,7 +644,10 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 			false,
 			notes,
 		)
-		if err == nil && exp != nil {
+		if err != nil {
+			return nil, fmt.Errorf("pantry: failed to record receipt expense: %w", err)
+		}
+		if exp != nil {
 			result.ExpenseID = &exp.ID
 		}
 	}
