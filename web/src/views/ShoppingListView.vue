@@ -18,17 +18,15 @@ import {
   Store,
   Building2,
   Filter,
-  Check,
   PackageCheck,
   Receipt,
-  FileText,
-  DollarSign,
-  AlertCircle,
   X
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
 import { usePantryStore } from '../stores/pantry'
 import TransferShoppingModal, { type ShoppingItemForTransfer } from '../components/pantry/TransferShoppingModal.vue'
+import PantryReceiptScannerTab from '../components/pantry/PantryReceiptScannerTab.vue'
+import type { Receipt as ReceiptData } from '../api/types'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -143,17 +141,20 @@ function selectSupermarketPreset(name: string) {
   }
 }
 
-async function toggleItem(it: ShoppingItem) {
-  it.completed = !it.completed
-  if (it.completed) {
-    it.completed_by = 'Io'
-  } else {
-    it.completed_by = undefined
-  }
+async function toggleItem(it: ShoppingItem): Promise<boolean> {
+  const previousCompleted = it.completed
+  const previousCompletedBy = it.completed_by
+  it.completed = !previousCompleted
+  it.completed_by = it.completed ? 'Io' : undefined
 
   try {
     await apiClient.post(`/api/v1/shopping/${it.id}/toggle`, { completed_by: 'Io' })
-  } catch {}
+    return true
+  } catch {
+    it.completed = previousCompleted
+    it.completed_by = previousCompletedBy
+    return false
+  }
 }
 
 async function deleteItem(id: string) {
@@ -272,52 +273,59 @@ async function handleTransferConfirm(payload: {
   }, 6000)
 }
 
-// --- RECEIPT SCANNER STATE ---
+// --- RECEIPT SCANNER ---
 const showReceiptModal = ref(false)
-const receiptRawText = ref('')
 const isParsingReceipt = ref(false)
-const autoImportToPantryAndFinance = ref(true)
 const selectedReceiptMatches = ref<Record<string, boolean>>({})
 
-const sampleReceiptEsselunga = `ESSELUNGA S.P.A.
-VIA PISACANE 12 - MILANO
-DATA 18/10/2026
-PASTA PENNE RIGATE 500G 1.30
-LATTE PARZ SCREM 1L 1.50
-MELE GOLDEN 1KG 2.20
-PANE INTEGRALE 500G 1.80
-TOTALE EURO 6.80`
-
-const sampleReceiptCoop = `COOP LOMBARDIA
-DATA 18/10/2026
-MELA ROSSA 1KG 2.10
-SAPONE MANI 1PZ 1.60
-DETERSIVO PIATTI 1L 1.99
-TOTALE EURO 5.69`
-
-function loadReceiptSample(sample: string) {
-  receiptRawText.value = sample
+function openReceiptModal() {
+  selectedReceiptMatches.value = {}
+  pantryStore.clearParsedReceipt()
+  showReceiptModal.value = true
 }
 
-async function handleParseShoppingReceipt() {
-  if (!receiptRawText.value.trim()) return
+function closeReceiptModal() {
+  showReceiptModal.value = false
+  selectedReceiptMatches.value = {}
+  pantryStore.clearParsedReceipt()
+}
+
+function selectReceiptMatches(receipt: { items: Array<{ name: string }> }) {
+  const matches: Record<string, boolean> = {}
+  for (const receiptItem of receipt.items) {
+    const receiptName = receiptItem.name.trim().toLowerCase()
+    if (!receiptName) continue
+    const match = items.value.find((item) => {
+      const itemName = item.name.trim().toLowerCase()
+      return !item.completed && (receiptName.includes(itemName) || itemName.includes(receiptName))
+    })
+    if (match) matches[match.id] = true
+  }
+  selectedReceiptMatches.value = matches
+}
+
+async function handleParseShoppingReceipt(rawText: string) {
+  if (!rawText.trim()) return
   isParsingReceipt.value = true
   try {
-    const res = await pantryStore.parseReceipt(receiptRawText.value.trim())
-    selectedReceiptMatches.value = {}
-    if (res && res.items) {
-      for (const rItem of res.items) {
-        const rName = rItem.name.toLowerCase()
-        const match = items.value.find(
-          (it) => !it.completed && (rName.includes(it.name.toLowerCase()) || it.name.toLowerCase().includes(rName))
-        )
-        if (match) {
-          selectedReceiptMatches.value[match.id] = true
-        }
-      }
-    }
+    const receipt = await pantryStore.parseReceipt(rawText.trim())
+    selectReceiptMatches(receipt)
   } catch (err) {
     console.error('Errore parsing scontrino:', err)
+    transferFeedback.value = { message: 'Impossibile analizzare lo scontrino. Riprova.', type: 'error' }
+  } finally {
+    isParsingReceipt.value = false
+  }
+}
+
+async function handleParseShoppingReceiptPDF(file: File) {
+  isParsingReceipt.value = true
+  try {
+    const receipt = await pantryStore.parseReceiptPDF(file)
+    selectReceiptMatches(receipt)
+  } catch (err) {
+    console.error('Errore lettura PDF:', err)
+    transferFeedback.value = { message: 'Impossibile leggere il PDF. Verifica il file e riprova.', type: 'error' }
   } finally {
     isParsingReceipt.value = false
   }
@@ -326,62 +334,62 @@ async function handleParseShoppingReceipt() {
 const matchedShoppingItems = computed(() => {
   if (!pantryStore.parsedReceipt) return []
   const matches: { shoppingItem: ShoppingItem; receiptName: string; price: number }[] = []
-  for (const rItem of pantryStore.parsedReceipt.items) {
-    const rName = rItem.name.toLowerCase()
-    const match = items.value.find(
-      (it) => !it.completed && (rName.includes(it.name.toLowerCase()) || it.name.toLowerCase().includes(rName))
-    )
-    if (match) {
-      matches.push({ shoppingItem: match, receiptName: rItem.name, price: rItem.total_price })
-    }
+  for (const receiptItem of pantryStore.parsedReceipt.items) {
+    const receiptName = receiptItem.name.toLowerCase()
+    const match = items.value.find((item) => {
+      const itemName = item.name.toLowerCase()
+      return !item.completed && (receiptName.includes(itemName) || itemName.includes(receiptName))
+    })
+    if (match) matches.push({ shoppingItem: match, receiptName: receiptItem.name, price: receiptItem.total_price })
   }
   return matches
 })
 
-async function applyReceiptResults() {
-  const parsed = pantryStore.parsedReceipt
-  if (!parsed) return
+async function handleImportShoppingReceipt(data: {
+  store_name: string
+  date: string
+  items: ReceiptData['items']
+  total_amount: number
+  document_type: 'receipt' | 'invoice'
+  auto_add_to_finance: boolean
+  auto_update_pantry: boolean
+}) {
+  // Persist the receipt first; never mark items purchased if import failed.
+  if (data.auto_add_to_finance || data.auto_update_pantry) {
+    try {
+      await pantryStore.importReceipt({
+        ...data,
+        date: data.date || new Date().toISOString().slice(0, 10)
+      })
+    } catch (err) {
+      console.error('Errore import scontrino:', err)
+      transferFeedback.value = { message: 'Importazione non riuscita: gli articoli della lista non sono stati modificati.', type: 'error' }
+      return
+    }
+  }
 
   let count = 0
-  for (const [id, selected] of Object.entries(selectedReceiptMatches.value)) {
-    if (selected) {
-      const it = items.value.find((i) => i.id === id)
-      if (it && !it.completed) {
-        await toggleItem(it)
-        count++
+  let failedCount = 0
+  if (data.document_type === 'receipt') {
+    for (const [id, selected] of Object.entries(selectedReceiptMatches.value)) {
+      if (!selected) continue
+      const item = items.value.find((candidate) => candidate.id === id)
+      if (item && !item.completed) {
+        if (await toggleItem(item)) count++
+        else failedCount++
       }
     }
   }
 
-  if (autoImportToPantryAndFinance.value) {
-    try {
-      await pantryStore.importReceipt({
-        store_name: parsed.store_name,
-        date: parsed.date || new Date().toISOString().slice(0, 10),
-        items: parsed.items,
-        total_amount: parsed.total_amount,
-        document_type: 'receipt',
-        auto_add_to_finance: true,
-        auto_update_pantry: true
-      })
-    } catch (err) {
-      console.error('Errore import scontrino:', err)
-    }
-  }
-
-  pantryStore.clearParsedReceipt()
-  showReceiptModal.value = false
-  receiptRawText.value = ''
-
-  const msg = `Scontrino applicato! ${count} articol${count === 1 ? 'o' : 'i'} segnat${count === 1 ? 'o' : 'i'} come completat${count === 1 ? 'o' : 'i'}.`
-  transferFeedback.value = {
-    message: msg,
-    type: 'success'
-  }
+  closeReceiptModal()
+  const message = failedCount > 0
+    ? `Importazione completata; ${failedCount} articol${failedCount === 1 ? 'o' : 'i'} non sono stati aggiornati nella lista.`
+    : data.document_type === 'invoice'
+      ? (data.auto_add_to_finance ? 'Fattura registrata nel bilancio familiare.' : 'Fattura analizzata.')
+      : `Scontrino applicato: ${count} articol${count === 1 ? 'o' : 'i'} segnati come acquistati.`
+  transferFeedback.value = { message, type: failedCount > 0 ? 'error' : 'success' }
   setTimeout(() => {
-    if (transferFeedback.value?.message === msg) {
-      transferFeedback.value = null
-    }
+    if (transferFeedback.value?.message === message) transferFeedback.value = null
   }, 6000)
 }
 
@@ -413,7 +421,7 @@ onMounted(async () => {
       <div class="header-actions">
         <button
           class="btn-scan-receipt"
-          @click="showReceiptModal = true"
+          @click="openReceiptModal"
           title="Scansiona scontrino della spesa"
         >
           <Receipt :size="16" />
@@ -669,9 +677,9 @@ onMounted(async () => {
       role="dialog"
       aria-modal="true"
       aria-labelledby="receipt-modal-title"
-      @click.self="showReceiptModal = false"
+      @click.self="closeReceiptModal"
     >
-      <div class="receipt-modal-card glass-panel">
+      <div class="receipt-modal-card glass-panel" @click.stop>
         <header class="receipt-modal-header">
           <div class="modal-header-info">
             <div class="icon-circle-receipt">
@@ -680,124 +688,37 @@ onMounted(async () => {
             <div>
               <h2 id="receipt-modal-title" class="receipt-modal-title">Scansiona Scontrino Spesa</h2>
               <p class="receipt-modal-sub">
-                Incolla o carica il testo dello scontrino per aggiornare automaticamente la lista.
+                Scatta una foto, carica un’immagine o un PDF oppure incolla il testo. Verifica i prodotti prima di confermare.
               </p>
             </div>
           </div>
-          <button class="btn-close-modal" @click="showReceiptModal = false" aria-label="Chiudi modale">
+          <button class="btn-close-modal" type="button" @click="closeReceiptModal" aria-label="Chiudi scanner">
             <X :size="20" />
           </button>
         </header>
 
-        <div class="receipt-modal-body">
-          <!-- Sample Chips -->
-          <div class="samples-row">
-            <span class="samples-label">Carica esempio rapido:</span>
-            <button type="button" class="chip-sample" @click="loadReceiptSample(sampleReceiptEsselunga)">
-              Esselunga (15.57 €)
-            </button>
-            <button type="button" class="chip-sample" @click="loadReceiptSample(sampleReceiptCoop)">
-              Coop (5.69 €)
-            </button>
-            <button v-if="receiptRawText" type="button" class="chip-clear" @click="receiptRawText = ''">
-              Pulisci
-            </button>
-          </div>
+        <PantryReceiptScannerTab
+          :parsed-receipt="pantryStore.parsedReceipt"
+          :loading="isParsingReceipt || pantryStore.loading"
+          @parse-receipt="handleParseShoppingReceipt"
+          @parse-pdf="handleParseShoppingReceiptPDF"
+          @import-receipt="handleImportShoppingReceipt"
+          @clear-parsed="pantryStore.clearParsedReceipt"
+        />
 
-          <!-- Raw Text Area -->
-          <div class="textarea-wrap">
-            <textarea
-              v-model="receiptRawText"
-              class="receipt-textarea"
-              rows="6"
-              placeholder="Incolla qui il testo dello scontrino (OCR o testo digitale)..."
-              aria-label="Testo grezzo scontrino"
-            ></textarea>
-          </div>
-
-          <div class="parse-btn-row">
-            <button
-              class="btn-run-parse"
-              :disabled="!receiptRawText.trim() || isParsingReceipt"
-              @click="handleParseShoppingReceipt"
-            >
-              <Sparkles :size="16" />
-              <span>{{ isParsingReceipt ? 'Analisi in corso...' : 'Analizza Scontrino' }}</span>
-            </button>
-          </div>
-
-          <!-- Parsed Results -->
-          <div v-if="pantryStore.parsedReceipt" class="parsed-results-panel">
-            <div class="parsed-meta-bar">
-              <div>
-                <span class="meta-store-name">{{ pantryStore.parsedReceipt.store_name || 'Supermercato' }}</span>
-                <span class="meta-date">{{ pantryStore.parsedReceipt.date }}</span>
-              </div>
-              <div class="meta-total">
-                Totale: <strong>€ {{ pantryStore.parsedReceipt.total_amount?.toFixed(2) }}</strong>
-              </div>
-            </div>
-
-            <!-- Matches List -->
-            <div class="matches-section">
-              <h3 class="matches-title">
-                Articoli Rilevati ({{ pantryStore.parsedReceipt.items?.length || 0 }})
-              </h3>
-              <div class="parsed-items-list">
-                <div
-                  v-for="(rItem, idx) in pantryStore.parsedReceipt.items"
-                  :key="idx"
-                  class="parsed-item-card"
-                >
-                  <div class="parsed-item-info">
-                    <span class="parsed-item-name">{{ rItem.name }}</span>
-                    <span class="parsed-item-qty">{{ rItem.quantity }} {{ rItem.unit }}</span>
-                  </div>
-                  <div class="parsed-item-price">
-                    € {{ rItem.total_price?.toFixed(2) }}
-                  </div>
-                </div>
-              </div>
-
-              <!-- Matched shopping items -->
-              <div v-if="matchedShoppingItems.length > 0" class="matched-box">
-                <h4 class="matched-box-title">
-                  <CheckCircle :size="16" class="text-success" />
-                  Corrispondenze trovate nella tua lista della spesa:
-                </h4>
-                <div class="matched-checkboxes">
-                  <label
-                    v-for="m in matchedShoppingItems"
-                    :key="m.shoppingItem.id"
-                    class="matched-label"
-                  >
-                    <input
-                      type="checkbox"
-                      v-model="selectedReceiptMatches[m.shoppingItem.id]"
-                    />
-                    <span>Segna come acquistato: <strong>{{ m.shoppingItem.name }}</strong> (trovato come "{{ m.receiptName }}")</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Option checkbox -->
-            <div class="import-options-row">
-              <label class="checkbox-option">
-                <input type="checkbox" v-model="autoImportToPantryAndFinance" />
-                <span>Salva contemporaneamente la spesa nel bilancio familiare e aggiungi gli alimenti in Dispensa</span>
-              </label>
-            </div>
-
-            <div class="modal-footer-actions">
-              <button class="btn-cancel-modal" @click="pantryStore.clearParsedReceipt()">
-                Ricomincia
-              </button>
-              <button class="btn-apply-receipt" @click="applyReceiptResults">
-                <Check :size="16" />
-                <span>Conferma & Segna Acquistati</span>
-              </button>
-            </div>
+        <div v-if="pantryStore.parsedReceipt" class="shopping-receipt-matches">
+          <h3>Confronto con la lista della spesa</h3>
+          <p v-if="matchedShoppingItems.length === 0" class="text-dim">
+            Nessuna corrispondenza automatica: puoi comunque verificare lo scontrino e confermare l’importazione.
+          </p>
+          <div v-else class="matched-checkboxes">
+            <label v-for="match in matchedShoppingItems" :key="match.shoppingItem.id" class="matched-label">
+              <input v-model="selectedReceiptMatches[match.shoppingItem.id]" type="checkbox" />
+              <span>
+                Segna come acquistato: <strong>{{ match.shoppingItem.name }}</strong>
+                <small>(riconosciuto come “{{ match.receiptName }}”)</small>
+              </span>
+            </label>
           </div>
         </div>
       </div>
@@ -1814,4 +1735,166 @@ onMounted(async () => {
   border-radius: 8px;
   cursor: pointer;
 }
+
+.shopping-receipt-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.shopping-receipt-matches h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.shopping-receipt-matches .matched-label small {
+  display: block;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .shopping-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .header-title-box {
+    min-width: 0;
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .header-title-box > div:last-child {
+    min-width: 0;
+  }
+
+  .page-title,
+  .page-subtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .header-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .header-actions > button {
+    flex: 1 1 180px;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  .add-bar-panel { padding: 14px; }
+
+  .inputs-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.65fr);
+  }
+
+  .inputs-row > *,
+  .input-name,
+  .input-qty,
+  .input-supermarket {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .supermarket-input-wrap {
+    min-width: 0;
+    grid-column: 1 / -1;
+  }
+
+  .btn-add { min-height: 44px; justify-content: center; }
+
+  .filters-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-pills {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .pill-btn {
+    min-width: 0;
+    padding: 8px 6px;
+    overflow-wrap: anywhere;
+  }
+
+  .supermarket-filter-bar { min-width: 0; }
+
+  .completed-prompt-banner {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .prompt-left { align-items: flex-start; }
+  .btn-prompt-transfer { width: 100%; justify-content: center; min-height: 44px; }
+
+  .item-card { align-items: flex-start; gap: 12px; padding: 12px; }
+  .item-left { min-width: 0; align-items: flex-start; gap: 10px; }
+  .item-info { min-width: 0; }
+  .item-name { overflow-wrap: anywhere; }
+  .item-card-actions { flex-shrink: 0; }
+
+  .receipt-modal-backdrop {
+    align-items: flex-start;
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  .receipt-modal-card {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    min-height: 0;
+    padding: 14px;
+    gap: 14px;
+    margin: auto 0;
+  }
+
+  .receipt-modal-header,
+  .modal-header-info { min-width: 0; }
+
+  .modal-header-info { align-items: flex-start; gap: 10px; }
+  .receipt-modal-title { font-size: 1.05rem; overflow-wrap: anywhere; }
+  .receipt-modal-sub { line-height: 1.4; }
+
+  .transfer-feedback-toast {
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-width: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .toast-left { min-width: 0; flex: 1 1 100%; }
+  .toast-right { width: 100%; justify-content: flex-end; }
+}
+
+@media (max-width: 420px) {
+  .shopping-view-container { gap: 14px; }
+  .icon-circle { width: 40px; height: 40px; flex: 0 0 40px; }
+  .page-title { font-size: 1.15rem; line-height: 1.25; }
+  .page-subtitle { font-size: 0.8rem; }
+  .header-actions > button { flex-basis: 100%; }
+  .filter-pills { grid-template-columns: 1fr; }
+  .item-card { flex-wrap: wrap; }
+  .item-left { flex: 1 1 100%; }
+  .item-card-actions { width: 100%; justify-content: flex-end; }
+  .empty-state { padding: 28px 16px; }
+}
+
 </style>

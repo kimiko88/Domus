@@ -755,4 +755,42 @@ function handleConfirmImport() {
   cursor: pointer;
   font-size: 0.85rem;
 }
+
+@media (max-width: 640px) {
+  .scanner-input-card,
+  .scanner-preview-card { padding: 12px; border-radius: 14px; }
+  .card-intro { align-items: flex-start; gap: 10px; }
+  .intro-icon { width: 42px; height: 42px; flex: 0 0 42px; }
+  .intro-title { font-size: 1rem; }
+  .image-scan-controls,
+  .image-scan-controls .btn { width: 100%; }
+  .image-scan-controls .btn { justify-content: center; min-height: 44px; text-align: center; }
+  .input-actions,
+  .input-actions .btn { width: 100%; }
+  .input-actions .btn { justify-content: center; min-height: 44px; }
+  .preview-header,
+  .header-left,
+  .header-right { width: 100%; align-items: stretch; flex-direction: column; }
+  .store-badge,
+  .date-badge,
+  .total-badge { width: 100%; min-width: 0; }
+  .store-name-input,
+  .date-input { min-width: 0; max-width: 100%; }
+  .items-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .receipt-table { min-width: 700px; }
+  .integration-switches-box { padding: 10px; }
+  .confirm-bar { flex-direction: column-reverse; align-items: stretch; }
+  .confirm-bar .btn { width: 100%; justify-content: center; min-height: 44px; }
+  .modal-footer-actions { flex-direction: column-reverse; }
+  .modal-footer-actions > button { width: 100%; min-height: 44px; }
+}
+
+@media (max-width: 420px) {
+  .scanner-input-card,
+  .scanner-preview-card { padding: 10px; }
+  .quick-samples { align-items: stretch; }
+  .sample-btn { min-height: 40px; }
+  .receipt-textarea { font-size: 16px; }
+  .preview-header { gap: 8px; }
+}
 </style>
