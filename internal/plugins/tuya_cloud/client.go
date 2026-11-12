@@ -68,13 +68,25 @@ func New(cfg Config) (*Client,error) {
 	return &Client{cfg:cfg,http:&httpClient},nil
 }
 
-func (c *Client) Devices(ctx context.Context) ([]Device,error) {
-	q:=url.Values{"page_no":[]string{"1"},"page_size":[]string{"100"}}
-	if c.cfg.Schema!="" { q.Set("schema",c.cfg.Schema) }
-	var result struct { Devices []Device `json:"devices"` }
-	if err:=c.do(ctx,http.MethodGet,"/v1.0/devices",q,nil,&result); err!=nil{return nil,err}
-	if result.Devices==nil { result.Devices=[]Device{} }
-	return result.Devices,nil
+func (c *Client) Devices(ctx context.Context) ([]Device, error) {
+	const pageSize = 100
+	const maxPages = 20
+	devices := make([]Device, 0)
+	var total int64
+	for page := 1; page <= maxPages; page++ {
+		q := url.Values{"page_no": []string{strconv.Itoa(page)}, "page_size": []string{strconv.Itoa(pageSize)}}
+		if c.cfg.Schema != "" { q.Set("schema", c.cfg.Schema) }
+		var result struct {
+			Devices []Device `json:"devices"`
+			Total int64 `json:"total"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/v1.0/devices", q, nil, &result); err != nil { return nil, err }
+		devices = append(devices, result.Devices...)
+		if result.Total > 0 { total = result.Total }
+		if len(result.Devices) < pageSize || (total > 0 && int64(len(devices)) >= total) { return devices, nil }
+	}
+	if total > int64(len(devices)) { return nil, errors.New("tuya cloud: device count exceeds the safe 2,000-device listing limit") }
+	return devices, nil
 }
 func (c *Client) Functions(ctx context.Context, deviceID string) ([]Function, error) {
 	if deviceID == "" || len(deviceID) > 128 || strings.ContainsAny(deviceID, "/?#") {
