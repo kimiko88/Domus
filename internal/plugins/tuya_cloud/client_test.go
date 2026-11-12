@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewRequiresRegionalHTTPSHost(t *testing.T) {
-	for _, base := range []string{"http://openapi.tuyaeu.com", "https://evil.example", "https://user:pass@openapi.tuyaeu.com"} {
+	for _, base := range []string{"http://openapi.tuyaeu.com", "https://evil.example", "https://user:pass@openapi.tuyaeu.com", "https://openapi.tuyaeu.com:444"} {
 		if _, err := New(Config{ClientID:"id",Secret:"secret",BaseURL:base}); err == nil {
 			t.Fatalf("expected %q to be rejected",base)
 		}
@@ -83,4 +83,16 @@ func TestSendCommandsAllowsOnlyDeclaredFunctions(t *testing.T) {
 	if err:=client.SendCommands(context.Background(),"device-1",[]Command{{Code:"switch_led",Value:true}}); err!=nil { t.Fatal(err) }
 	if err:=client.SendCommands(context.Background(),"device-1",[]Command{{Code:"battery",Value:true}}); err==nil { t.Fatal("read-only/unknown datapoint must be rejected") }
 	if commandsSent!=1 { t.Fatalf("sent %d commands, want exactly one",commandsSent) }
+}
+
+func TestTokenRequestDoesNotFollowRedirects(t *testing.T) {
+	calls:=0
+	transport:=roundTripFunc(func(r *http.Request)(*http.Response,error) {
+		calls++
+		return &http.Response{StatusCode:http.StatusFound,Header:http.Header{"Location":[]string{"https://attacker.example/collect"}},Body:io.NopCloser(strings.NewReader("")),Request:r},nil
+	})
+	client,err:=New(Config{ClientID:"client-id",Secret:"secret",BaseURL:"https://openapi.tuyaeu.com",HTTPClient:&http.Client{Transport:transport}})
+	if err!=nil { t.Fatal(err) }
+	if _,err:=client.accessToken(context.Background()); err==nil { t.Fatal("expected redirect response to fail token acquisition") }
+	if calls!=1 { t.Fatalf("redirect target was contacted: %d requests",calls) }
 }
