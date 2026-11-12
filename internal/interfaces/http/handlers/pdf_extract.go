@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -72,6 +74,15 @@ func extractPDFText(ctx context.Context, pdf []byte) (string, error) {
 	}
 	pages, err := filepath.Glob(prefix + "-*.png")
 	if err != nil || len(pages) == 0 { return "", errors.New("PDF contains no readable pages") }
+	// Glob sorts lexicographically (page-10 before page-2); restore numeric page order.
+	sort.Slice(pages, func(i, j int) bool {
+		pageNumber := func(path string) int {
+			base := strings.TrimSuffix(filepath.Base(path), ".png")
+			n, _ := strconv.Atoi(strings.TrimPrefix(base, "page-"))
+			return n
+		}
+		return pageNumber(pages[i]) < pageNumber(pages[j])
+	})
 	var text strings.Builder
 	for _, page := range pages {
 		ocr := exec.CommandContext(ctx, "tesseract", page, "stdout", "-l", "ita+eng", "--psm", "6")
