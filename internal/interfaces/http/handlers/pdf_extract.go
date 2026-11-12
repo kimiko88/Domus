@@ -22,7 +22,7 @@ var errPDFTextTooLarge = errors.New("PDF text exceeds the 64 KiB extraction limi
 
 type cappedBuffer struct { bytes.Buffer; limit int }
 func (b *cappedBuffer) Write(p []byte)(int,error) {
-	if b.Len()+len(p)>b.limit { remaining:=b.limit-b.Len(); if remaining>0 { _,_=b.Buffer.Write(p[:remaining]) }; return 0,errPDFTextTooLarge }
+	if b.Len()+len(p)>b.limit { remaining:=b.limit-b.Len(); if remaining>0 { _,_=b.Buffer.Write(p[:remaining]) }; return remaining,errPDFTextTooLarge }
 	return b.Buffer.Write(p)
 }
 
