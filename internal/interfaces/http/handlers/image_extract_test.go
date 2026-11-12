@@ -15,7 +15,7 @@ func TestExtractReceiptImageTextRejectsInvalidImage(t *testing.T) {
 
 func TestExtractReceiptImageTextRejectsOversizedInput(t *testing.T) {
 	_, err := extractReceiptImageText(context.Background(), make([]byte, maxReceiptImageBytes+1))
-	if err == nil || !strings.Contains(err.Error(), "10 MB") {
+	if err == nil || !strings.Contains(err.Error(), "4 MB") {
 		t.Fatalf("expected image size error, got %v", err)
 	}
 }
