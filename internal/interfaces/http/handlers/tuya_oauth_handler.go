@@ -134,15 +134,21 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 func isTuyaTokenRejection(err error) bool {
 	var providerErr *tuya_cloud.OAuthAPIError
 	if !errors.As(err,&providerErr) { return false }
-	switch strings.TrimSpace(providerErr.Code) {
-	case "1010", "1011", "1012":
-		return true
-	}
 	message:=strings.ToLower(strings.TrimSpace(providerErr.Message))
-	return strings.Contains(message,"token invalid") ||
+	// Tuya's numeric code 1010 is overloaded/inconsistent across API
+	// responses: "token scope not allow" is an authorization failure, not
+	// an expired token. The provider message must take precedence.
+	if strings.Contains(message,"scope") || strings.Contains(message,"permission") ||
+		strings.Contains(message,"not allow") || strings.Contains(message,"not authorized") {
+		return false
+	}
+	if strings.Contains(message,"token invalid") ||
 		strings.Contains(message,"invalid token") ||
 		strings.Contains(message,"token expired") ||
-		strings.Contains(message,"token has expired")
+		strings.Contains(message,"token has expired") {
+		return true
+	}
+	return providerErr.Code=="1011" || providerErr.Code=="1012"
 }
 
 // refreshRejectedToken serializes refresh-token rotation. If another request has
