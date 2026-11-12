@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -109,6 +110,22 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 	devices,err:=h.client.Devices(r.Context(),token)
 	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices");return }
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
+}
+
+func logTuyaOAuthFailure(operation string, err error) {
+ var providerErr *tuya_cloud.OAuthAPIError
+ if errors.As(err,&providerErr) {
+  slog.Error("Tuya Smart Life OAuth provider request failed",
+   "operation",operation,
+   "upstream_status",providerErr.HTTPStatus,
+   "tuya_code",providerErr.Code,
+   "tuya_message",providerErr.Message)
+  return
+ }
+ // Do not log arbitrary transport errors: their URLs may contain refresh tokens.
+ slog.Error("Tuya Smart Life OAuth operation failed",
+  "operation",operation,
+  "error_type",fmt.Sprintf("%T",err))
 }
 
 func (h *TuyaOAuthHandler) Disconnect(w http.ResponseWriter,r *http.Request) {
