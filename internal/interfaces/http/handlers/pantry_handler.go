@@ -403,6 +403,7 @@ func (h *PantryHandler) ConsumeMealPlan(w http.ResponseWriter, r *http.Request) 
 // --- RECEIPT OCR & IMPORT ---
 
 func (h *PantryHandler) ParseReceipt(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req struct {
 		RawText string `json:"raw_text"`
 	}
@@ -420,6 +421,7 @@ func (h *PantryHandler) ParseReceipt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PantryHandler) ImportReceipt(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 256*1024)
 	var req appPantry.ImportReceiptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
