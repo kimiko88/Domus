@@ -424,7 +424,7 @@ onMounted(() => {
 
         <button
           :class="['tab-btn', { active: activeTab === 'cloud' }]"
-          @click="activeTab = 'cloud'; fetchTuyaCloudDevices(); fetchTuyaOAuthStatus()"
+          @click="activeTab = 'cloud'; fetchTuyaOAuthStatus()"
         >
           <Globe :size="16" />
           <span>Smart Life Cloud</span>
