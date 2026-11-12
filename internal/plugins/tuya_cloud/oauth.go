@@ -168,7 +168,7 @@ func (c *OAuthClient) Devices(ctx context.Context, token OAuthToken) ([]Device, 
 		return nil, fmt.Errorf("tuya oauth: invalid devices response")
 	}
 	if resp.StatusCode != http.StatusOK || !env.Success {
-		return nil, &OAuthAPIError{HTTPStatus: resp.StatusCode, Code: providerCode(env.Code), Message: env.Msg}
+		return nil, &OAuthAPIError{HTTPStatus: resp.StatusCode, Code: providerCode(env.Code), Message: safeMessage(env.Msg)}
 	}
 	if env.Result == nil {
 		env.Result = []Device{}
