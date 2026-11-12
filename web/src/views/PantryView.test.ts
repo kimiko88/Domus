@@ -104,7 +104,7 @@ describe('PantryView.vue', () => {
 
     // Switch to Scanner tab
     await tabs[3].trigger('click')
-    expect(wrapper.text()).toContain('Lettura Intelligente Scontrino Spesa')
+    expect(wrapper.text()).toContain('Lettura intelligente di scontrini e fatture')
   })
 
   it('opens and closes item creation modal', async () => {
