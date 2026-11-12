@@ -543,6 +543,16 @@ type ImportReceiptRequest struct {
 
 // ImportReceipt persists recognized items into the pantry and automatically records the expense in Home Finance!
 func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (*domain.ReceiptImportResult, error) {
+	documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
+	if documentType == "" {
+		documentType = "receipt"
+	}
+	if documentType != "receipt" && documentType != "invoice" {
+		return nil, fmt.Errorf("unsupported financial document type %q", documentType)
+	}
+	if documentType == "invoice" {
+		req.AutoUpdatePantry = false
+	}
 	if len(req.Items) > 500 {
 		return nil, fmt.Errorf("receipt contains too many items")
 	}
@@ -629,13 +639,6 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 		}
 
 		store := req.StoreName
-		documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
-		if documentType == "" {
-			documentType = "receipt"
-		}
-		if documentType != "receipt" && documentType != "invoice" {
-			return nil, fmt.Errorf("unsupported financial document type %q", documentType)
-		}
 		category := domainFinance.CategoryFood
 		subcategory := domainFinance.SubcategoryGroceries
 		title := fmt.Sprintf("Spesa %s", store)
