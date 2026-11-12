@@ -117,7 +117,7 @@ This no-domain setup uses a **Cloudflare Quick Tunnel**. Its `trycloudflare.com`
    curl -i http://127.0.0.1:8787/api/v1/integrations/tuya-oauth/callback
    ```
 
-   The first request must return 404. The second should reach Domus and return 400 because no one-time `state` and authorization `code` were supplied.
+   The first request must return 404. The callback request returns 400 only after all required `TUYA_OAUTH_*` settings are present and Domus has been restarted; without an enabled OAuth handler it returns 404. The 400 response is expected because no one-time `state` and authorization `code` were supplied.
 4. Start a Quick Tunnel (no `cloudflared tunnel login` or domain is needed):
 
    ```bash
