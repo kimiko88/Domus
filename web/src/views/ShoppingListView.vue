@@ -360,6 +360,7 @@ async function applyReceiptResults() {
         date: parsed.date || new Date().toISOString().slice(0, 10),
         items: parsed.items,
         total_amount: parsed.total_amount,
+        document_type: 'receipt',
         auto_add_to_finance: true,
         auto_update_pantry: true
       })
