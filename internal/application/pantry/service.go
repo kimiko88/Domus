@@ -532,6 +532,7 @@ func (s *Service) ParseReceipt(ctx context.Context, rawText string) (*domain.Rec
 }
 
 type ImportReceiptRequest struct {
+	DocumentType     string               `json:"document_type"`
 	StoreName        string               `json:"store_name"`
 	Date             string               `json:"date"`
 	Items            []domain.ReceiptItem `json:"items"`
@@ -628,18 +629,31 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 		}
 
 		store := req.StoreName
-		if store == "" {
-			store = "Supermercato"
+		documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
+		if documentType == "" {
+			documentType = "receipt"
 		}
+		if documentType != "receipt" && documentType != "invoice" {
+			return nil, fmt.Errorf("unsupported financial document type %q", documentType)
+		}
+		category := domainFinance.CategoryFood
+		subcategory := domainFinance.SubcategoryGroceries
 		title := fmt.Sprintf("Spesa %s", store)
-		notes := fmt.Sprintf("Import da scontrino: %s", strings.Join(itemNames, ", "))
+		documentLabel := "scontrino"
+		if documentType == "invoice" {
+			category = domainFinance.CategoryOther
+			subcategory = ""
+			title = fmt.Sprintf("Fattura %s", store)
+			documentLabel = "fattura"
+		}
+		notes := fmt.Sprintf("Import da %s: %s", documentLabel, strings.Join(itemNames, ", "))
 
 		exp, err := s.financeApp.RecordExpense(
 			ctx,
 			title,
 			req.TotalAmount,
-			domainFinance.CategoryFood,
-			domainFinance.SubcategoryGroceries,
+			category,
+			subcategory,
 			expDate,
 			false,
 			notes,
