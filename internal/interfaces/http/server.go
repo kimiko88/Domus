@@ -56,6 +56,7 @@ import (
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
+	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -154,6 +155,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	for _, opt := range opts {
 		opt(srv)
+	}
+
+	// Tuya Cloud credentials stay server-side and are never exposed to the browser.
+	var tuyaCloudClient *tuya_cloud.Client
+	if clientID, secret := os.Getenv("TUYA_CLOUD_CLIENT_ID"), os.Getenv("TUYA_CLOUD_CLIENT_SECRET"); clientID != "" && secret != "" {
+		baseURL := os.Getenv("TUYA_CLOUD_BASE_URL")
+		if baseURL == "" { baseURL = "https://openapi.tuyaeu.com" }
+		cloudClient, err := tuya_cloud.New(tuya_cloud.Config{ClientID: clientID, Secret: secret, BaseURL: baseURL, Schema: os.Getenv("TUYA_CLOUD_SCHEMA")})
+		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = cloudClient }
 	}
 
 	r := chi.NewRouter()
@@ -341,6 +351,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					intRouter.Post("/discovery/pair", integrationH.Pair)
 					intRouter.Get("/{id}", integrationH.GetByID)
 					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
+				}
+				if tuyaCloudClient != nil {
+					cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
+					domainRouter.Route("/integrations/tuya-cloud", func(cloudRouter chi.Router) {
+						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						cloudH.RegisterRoutes(cloudRouter)
+					})
 				})
 
 				domainRouter.Route("/areas", func(areaRouter chi.Router) {
