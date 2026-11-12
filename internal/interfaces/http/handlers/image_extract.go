@@ -43,7 +43,7 @@ func extractReceiptImageText(parent context.Context, data []byte) (string, error
 	cmd.Stdout, cmd.Stderr = out, io.Discard
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil { return "", ctx.Err() }
-		if errors.Is(err, errReceiptImageTextTooLarge) { return "", errReceiptImageTextTooLarge }
+		if errors.Is(err, errPDFTextTooLarge) { return "", errReceiptImageTextTooLarge }
 		if _, lookErr := exec.LookPath("tesseract"); lookErr != nil {
 			return "", errors.New("image OCR is unavailable: install tesseract-ocr and ita/eng language data")
 		}
