@@ -89,3 +89,59 @@ Use HTTPS end-to-end and keep the Domus master key backed up securely. Losing th
 The scanner accepts PDFs up to 3 MiB. Domus first extracts an existing PDF text layer; if none is present, it rasterizes at bounded resolution and runs Tesseract OCR using Italian and English language data. At most the first 20 pages are processed, with a 20-second execution deadline and a 64 KiB extracted-text limit. The temporary PDF and page images are removed after processing; they are not persisted. The extracted text is parsed by the same receipt/invoice parser and must be reviewed before import.
 
 The Docker runtime installs `poppler-utils`, `tesseract-ocr`, and Italian/English Tesseract language data. Non-Docker installations must provide `pdftotext`, `pdftoppm`, `tesseract`, and the `ita`/`eng` language packs on PATH.
+
+
+### Publish only the callback without buying a domain (Tailscale + Cloudflare Quick Tunnel)
+
+A Domus installation performed with `deployments/scripts/install.sh` runs as a native systemd service; Docker is not required. The installer defaults to port `8080`. Keep the Domus UI private on Tailscale and publish only the provider callback through a loopback-only Nginx proxy.
+
+This no-domain setup uses a **Cloudflare Quick Tunnel**. Its `trycloudflare.com` hostname is temporary and changes when the tunnel is recreated, so use it for initial OAuth testing rather than as a durable production endpoint. A stable production callback needs a stable public hostname.
+
+1. Install Nginx and `cloudflared` on the Domus ARM64 host. Install `cloudflared` using Cloudflare's official Debian/Ubuntu package repository: https://pkg.cloudflare.com/.
+2. Copy `deployments/nginx/domus-tuya-oauth.conf` to `/etc/nginx/sites-available/domus-tuya-oauth`, enable it, and reload Nginx:
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y nginx
+   sudo install -m 0644 deployments/nginx/domus-tuya-oauth.conf /etc/nginx/sites-available/domus-tuya-oauth
+   sudo ln -s /etc/nginx/sites-available/domus-tuya-oauth /etc/nginx/sites-enabled/domus-tuya-oauth
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+   The supplied proxy listens only on `127.0.0.1:8787`, forwards only the exact callback path to `127.0.0.1:8080`, accepts only GET, returns 404 for every other path, and disables access logging so OAuth query parameters are not written to Nginx access logs. It does not expose the Domus UI.
+3. Verify the local proxy before opening the tunnel:
+
+   ```bash
+   curl -i http://127.0.0.1:8787/
+   curl -i http://127.0.0.1:8787/api/v1/integrations/tuya-oauth/callback
+   ```
+
+   The first request must return 404. The second should reach Domus and return 400 because no one-time `state` and authorization `code` were supplied.
+4. Start a Quick Tunnel (no `cloudflared tunnel login` or domain is needed):
+
+   ```bash
+   cloudflared tunnel --url http://127.0.0.1:8787
+   ```
+
+   Keep this process running during the entire authorization. Copy the generated HTTPS hostname, for example `https://random-words.trycloudflare.com`.
+5. Set the exact callback in `/etc/domus/domus.env` (keep all App Authorization secrets on the server):
+
+   ```dotenv
+   TUYA_OAUTH_CALLBACK_URL=https://random-words.trycloudflare.com/api/v1/integrations/tuya-oauth/callback
+   ```
+
+   Keep the other required `TUYA_OAUTH_*` variables from the preceding section. Protect the file with `root:domus` ownership and mode `0640` (the installer already applies these permissions when it creates the file), then restart Domus:
+
+   ```bash
+   sudo chown root:domus /etc/domus/domus.env
+   sudo chmod 0640 /etc/domus/domus.env
+   sudo systemctl restart domus
+   sudo systemctl --no-pager --full status domus
+   ```
+6. Register the **identical full HTTPS callback URL** in the Tuya Developer Platform under Cloud project → Devices → Link App Account → Configure OAuth 2.0 Authorization. Confirm that the selected Smart Life app and data center match the App Authorization credentials.
+7. Open Domus over Tailscale, go to Integrations, and start the Smart Life connection. Complete the consent screen. Tuya returns to the public callback; after successful code exchange Domus displays a static Italian confirmation page. Close that tab and return to the existing Domus tab over Tailscale.
+
+The OAuth success page deliberately does not redirect to `/integrations` on the public tunnel hostname. It uses no external assets, scripts, forms, or redirects, and sends no-store and restrictive Content-Security-Policy headers.
+
+**Quick Tunnel limitations:** the generated hostname is ephemeral, the foreground process must remain running, and restarting it can invalidate the callback registered in Tuya. If the hostname changes, update both `TUYA_OAUTH_CALLBACK_URL` and the Tuya callback registration, then restart Domus. Do not use the Quick Tunnel as a permanent integration endpoint. Cloudflare documents this mode at https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/.
