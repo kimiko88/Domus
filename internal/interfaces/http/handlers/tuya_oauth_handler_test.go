@@ -59,6 +59,11 @@ func TestIsTuyaTokenRejection(t *testing.T) {
 			t.Errorf("code %s should trigger a token refresh",code)
 		}
 	}
+	for _,msg:=range []string{"permission deny","token scope not allow","scope not allowed"} {
+		if isTuyaTokenRejection(&tuya_cloud.OAuthAPIError{HTTPStatus:http.StatusOK,Code:"1010",Message:msg}) {
+			t.Errorf("authorization error %q must not trigger a token refresh",msg)
+		}
+	}
 	if isTuyaTokenRejection(&tuya_cloud.OAuthAPIError{HTTPStatus:http.StatusOK,Code:"1106",Message:"permission deny"}) {
 		t.Fatal("permission errors must not trigger a token refresh")
 	}
