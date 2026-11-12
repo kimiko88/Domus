@@ -112,6 +112,48 @@ const tuyaCloudLoading = ref(false)
 const tuyaCloudError = ref('')
 const tuyaCloudCommanding = ref<string | null>(null)
 
+interface TuyaOAuthStatus { connected: boolean; expires_at?: string }
+const tuyaOAuthStatus = ref<TuyaOAuthStatus>({ connected: false })
+const tuyaOAuthDevices = ref<TuyaCloudDevice[]>([])
+const tuyaOAuthLoading = ref(false)
+async function fetchTuyaOAuthStatus() {
+  try {
+    tuyaOAuthStatus.value = await apiClient.get<TuyaOAuthStatus>('/api/v1/integrations/tuya-oauth/status')
+    if (tuyaOAuthStatus.value.connected) await fetchTuyaOAuthDevices()
+  } catch {
+    tuyaOAuthStatus.value = { connected: false }
+    tuyaOAuthDevices.value = []
+  }
+}
+async function fetchTuyaOAuthDevices() {
+  tuyaOAuthLoading.value = true
+  try {
+    const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = result.devices || []
+  } catch (err: any) {
+    notificationsStore.error('Smart Life OAuth', err?.message || 'Impossibile caricare i dispositivi autorizzati.')
+  } finally { tuyaOAuthLoading.value = false }
+}
+async function connectTuyaAccount() {
+  try {
+    const result = await apiClient.post<{ authorization_url: string }>('/api/v1/integrations/tuya-oauth/authorize', {})
+    if (!result.authorization_url || !result.authorization_url.startsWith('https://')) throw new Error('URL di autorizzazione Tuya non valido.')
+    window.location.assign(result.authorization_url)
+  } catch (err: any) {
+    notificationsStore.error('Autorizzazione Smart Life', err?.message || 'Impossibile avviare OAuth.')
+  }
+}
+async function disconnectTuyaAccount() {
+  try {
+    await apiClient.post('/api/v1/integrations/tuya-oauth/disconnect', {})
+    tuyaOAuthStatus.value = { connected: false }
+    tuyaOAuthDevices.value = []
+    notificationsStore.success('Smart Life scollegato', 'I token OAuth cifrati sono stati eliminati da Domus.')
+  } catch (err: any) {
+    notificationsStore.error('Disconnessione Smart Life', err?.message || 'Impossibile scollegare l’account.')
+  }
+}
+
 async function fetchTuyaCloudDevices() {
   tuyaCloudLoading.value = true
   tuyaCloudError.value = ''
@@ -382,7 +424,7 @@ onMounted(() => {
 
         <button
           :class="['tab-btn', { active: activeTab === 'cloud' }]"
-          @click="activeTab = 'cloud'; fetchTuyaCloudDevices()"
+          @click="activeTab = 'cloud'; fetchTuyaCloudDevices(); fetchTuyaOAuthStatus()"
         >
           <Globe :size="16" />
           <span>Smart Life Cloud</span>
@@ -811,6 +853,34 @@ onMounted(() => {
 
     <!-- TAB 5: OFFICIAL TUYA / SMART LIFE CLOUD -->
     <div v-if="activeTab === 'cloud'" class="tab-content">
+      <div class="discovery-toolbar glass-card">
+        <div class="discovery-intro">
+          <div class="icon-chip"><Lock :size="20" /></div>
+          <div>
+            <h3 class="disc-title">Account Smart Life autorizzato</h3>
+            <p class="disc-sub">Collega il tuo account tramite la pagina ufficiale Tuya. Domus non richiede né memorizza la password Smart Life.</p>
+            <p class="disc-sub">{{ tuyaOAuthStatus.connected ? 'Account collegato: token cifrati sul server.' : 'Nessun account utente collegato.' }}</p>
+          </div>
+        </div>
+        <div class="discovery-inputs">
+          <button v-if="!tuyaOAuthStatus.connected" class="btn-scan" @click="connectTuyaAccount"><Lock :size="16" /><span>Collega account Smart Life</span></button>
+          <template v-else>
+            <button class="btn-action glass-panel" :disabled="tuyaOAuthLoading" @click="fetchTuyaOAuthDevices"><RefreshCw :size="15" :class="{ 'animate-spin': tuyaOAuthLoading }" /><span>Aggiorna account</span></button>
+            <button class="btn-action glass-panel" @click="disconnectTuyaAccount"><Unlock :size="15" /><span>Disconnetti</span></button>
+          </template>
+        </div>
+      </div>
+      <div v-if="tuyaOAuthStatus.connected" class="hosts-grid">
+        <div v-for="device in tuyaOAuthDevices" :key="device.id" class="host-card glass-card">
+          <div class="host-top">
+            <div class="host-brand-icon"><Zap :size="20" /></div>
+            <div class="host-meta"><span class="host-vendor">{{ device.name }}</span><span class="host-ip">{{ device.product_name || device.category || device.id }}</span></div>
+            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+          </div>
+          <div class="host-specs"><div v-for="point in device.status || []" :key="point.code" class="spec-line"><span class="spec-key">{{ point.code }}</span><span class="spec-code">{{ String(point.value) }}</span></div></div>
+        </div>
+      </div>
+
       <div class="discovery-toolbar glass-card">
         <div class="discovery-intro">
           <div class="icon-chip"><Globe :size="20" /></div>

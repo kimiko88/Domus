@@ -166,6 +166,23 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = cloudClient }
 	}
 
+	// End-user Smart Life OAuth uses a separate Tuya App Authorization key pair.
+	var tuyaOAuthHandler *handlers.TuyaOAuthHandler
+	oauthClientID, oauthSecret, oauthIdentifier := os.Getenv("TUYA_OAUTH_APP_CLIENT_ID"), os.Getenv("TUYA_OAUTH_APP_CLIENT_SECRET"), os.Getenv("TUYA_OAUTH_IDENTIFIER")
+	oauthAuthorizeURL, oauthCallbackURL := os.Getenv("TUYA_OAUTH_AUTHORIZE_URL"), os.Getenv("TUYA_OAUTH_CALLBACK_URL")
+	if oauthClientID != "" && oauthSecret != "" && oauthIdentifier != "" && oauthAuthorizeURL != "" && oauthCallbackURL != "" && srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
+		oauthBaseURL := os.Getenv("TUYA_OAUTH_BASE_URL")
+		if oauthBaseURL == "" { oauthBaseURL = os.Getenv("TUYA_CLOUD_BASE_URL") }
+		if oauthBaseURL == "" { oauthBaseURL = "https://openapi.tuyaeu.com" }
+		oauthClient, err := tuya_cloud.NewOAuthClient(tuya_cloud.OAuthConfig{ClientID: oauthClientID, Secret: oauthSecret, Identifier: oauthIdentifier, BaseURL: oauthBaseURL})
+		if err != nil { slog.Error("tuya user OAuth disabled: invalid configuration", "error", err) } else {
+			h, handlerErr := handlers.NewTuyaOAuthHandler(srv.repos.DB, srv.repos.Cipher, oauthClient, oauthClientID, oauthAuthorizeURL, oauthCallbackURL)
+			if handlerErr != nil { slog.Error("tuya user OAuth disabled: handler initialization failed", "error", handlerErr) } else { tuyaOAuthHandler = h }
+		}
+	} else if oauthClientID != "" || oauthSecret != "" || oauthIdentifier != "" || oauthAuthorizeURL != "" || oauthCallbackURL != "" {
+		slog.Warn("tuya user OAuth disabled: App Authorization credentials, HTTPS H5 URL, callback URL and encrypted database storage are all required")
+	}
+
 	r := chi.NewRouter()
 
 	// Global standard middlewares
@@ -216,6 +233,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// API v1 namespace
 	r.Route("/api/v1", func(api chi.Router) {
+		if tuyaOAuthHandler != nil { tuyaOAuthHandler.RegisterCallback(api) }
 		api.Use(domusmw.Idempotency(nil))
 
 		if srv.repos != nil && srv.repos.BannedIPs != nil {
@@ -357,6 +375,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/tuya-cloud", func(cloudRouter chi.Router) {
 						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						cloudH.RegisterRoutes(cloudRouter)
+					})
+				}
+				if tuyaOAuthHandler != nil {
+					domainRouter.Route("/integrations/tuya-oauth", func(oauthRouter chi.Router) {
+						oauthRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						tuyaOAuthHandler.RegisterRoutes(oauthRouter)
 					})
 				}
 
