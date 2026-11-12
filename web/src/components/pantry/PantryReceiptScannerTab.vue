@@ -28,6 +28,7 @@ const emit = defineEmits<{
     date: string
     items: ReceiptItem[]
     total_amount: number
+    document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
   }): void
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 }>()
 
 const rawReceiptText = ref('')
+const documentType = ref<'receipt' | 'invoice'>('receipt')
 const ocrStatus = ref('')
 const maxImageBytes = 10 * 1024 * 1024
 const autoAddToFinance = ref(true)
@@ -142,8 +144,9 @@ function handleConfirmImport() {
     date: props.parsedReceipt.date || new Date().toISOString().slice(0, 10),
     items: props.parsedReceipt.items,
     total_amount: props.parsedReceipt.total_amount,
+    document_type: documentType.value,
     auto_add_to_finance: autoAddToFinance.value,
-    auto_update_pantry: autoUpdatePantry.value
+    auto_update_pantry: documentType.value === 'receipt' && autoUpdatePantry.value
   })
 }
 </script>
@@ -152,14 +155,22 @@ function handleConfirmImport() {
   <div class="scanner-tab-content">
     <!-- Step 1: Input Raw Text / Paste Area -->
     <div v-if="!parsedReceipt" class="scanner-input-card glass-panel">
+      <div class="document-type-control">
+        <label for="document-type">Tipo documento</label>
+        <select id="document-type" v-model="documentType" class="table-select">
+          <option value="receipt">Scontrino</option>
+          <option value="invoice">Fattura</option>
+        </select>
+      </div>
+
       <div class="card-intro">
         <div class="intro-icon bg-primary-soft">
           <FileText :size="24" class="text-primary" />
         </div>
         <div>
-          <h3 class="intro-title">Lettura Intelligente Scontrino Spesa (OCR)</h3>
+          <h3 class="intro-title">Lettura intelligente di scontrini e fatture</h3>
           <p class="intro-desc">
-            Incolla il testo dello scontrino fotografato o inserisci le righe per riconoscere automaticamente prodotti, quantità, categorie e totale speso.
+            Carica una foto oppure incolla il testo di uno scontrino o di una fattura. Verifica sempre i dati estratti prima dell’importazione.
           </p>
         </div>
       </div>
@@ -215,7 +226,7 @@ function handleConfirmImport() {
           @click="handleParse"
         >
           <Sparkles :size="18" />
-          <span>{{ loading ? 'Analisi OCR in corso...' : 'Analizza Scontrino con AI Locale' }}</span>
+          <span>{{ loading ? 'Analisi in corso...' : 'Analizza documento' }}</span>
         </button>
       </div>
     </div>
@@ -332,11 +343,11 @@ function handleConfirmImport() {
 
       <!-- Auto Integration Switches -->
       <div class="integration-switches-box">
-        <label class="switch-row">
-          <input v-model="autoUpdatePantry" type="checkbox" />
+        <label class="switch-row" :class="{ 'switch-disabled': documentType === 'invoice' }">
+          <input v-model="autoUpdatePantry" type="checkbox" :disabled="documentType === 'invoice'" />
           <div class="switch-info">
             <span class="switch-title">📦 Incrementa automaticamente le scorte in Dispensa</span>
-            <span class="switch-desc">I prodotti riconosciuti vengono aggiunti o incrementati nel magazzino di casa.</span>
+            <span class="switch-desc">{{ documentType === 'invoice' ? 'Non disponibile per le fatture.' : 'I prodotti riconosciuti vengono aggiunti o incrementati nel magazzino di casa.' }}</span>
           </div>
         </label>
 
@@ -374,6 +385,9 @@ function handleConfirmImport() {
 </template>
 
 <style scoped>
+.document-type-control { display: flex; align-items: center; gap: 10px; }
+.document-type-control label { color: var(--text-muted, #94a3b8); font-size: 0.88rem; }
+.switch-disabled { opacity: 0.65; }
 .image-scan-controls {
   display: flex;
   flex-direction: column;
