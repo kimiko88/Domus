@@ -225,7 +225,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// WebSocket real-time route
 	if srv.wsHub != nil {
-		wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+		wsH := wstransport.NewHandler(srv.wsHub, srv.authService, srv.allowedOrigins...)
 		if srv.repos != nil {
 			wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
 		} else {
@@ -251,7 +251,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 
 		if srv.wsHub != nil {
-			wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+			wsH := wstransport.NewHandler(srv.wsHub, srv.authService, srv.allowedOrigins...)
 			if srv.repos != nil {
 				wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
 			} else {
