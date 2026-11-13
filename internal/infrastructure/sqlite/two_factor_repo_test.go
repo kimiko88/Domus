@@ -27,7 +27,7 @@ func TestConsumeBackupCodeIsOneTime(t *testing.T) {
 		UserID: "user-1", Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true,
 		BackupCodes: []string{"ABCD-EFGH", "JKLM-NPQR"},
 	}))
-	consumed, err := repo.ConsumeBackupCode(ctx, "user-1", "ABCD-EFGH")
+	consumed, err := repo.ConsumeBackupCode(ctx, "user-1", " abcd-efgh ")
 	require.NoError(t, err)
 	require.True(t, consumed)
 	consumed, err = repo.ConsumeBackupCode(ctx, "user-1", "ABCD-EFGH")
