@@ -96,12 +96,14 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
 
     public func restoreSession() async -> AuthSession {
         if let token = await keychainManager.getToken(), !token.isEmpty {
-            let endpoints = [
+            let candidates = [
                 UserDefaults.standard.string(forKey: "domus_local_endpoint"),
                 UserDefaults.standard.string(forKey: "domus_remote_endpoint"),
                 UserDefaults.standard.string(forKey: "domus_server_url")
             ].compactMap { $0 }.filter { !$0.isEmpty }
-            for endpoint in Array(NSOrderedSet(array: endpoints)) as? [String] ?? endpoints {
+            var seenEndpoints = Set<String>()
+            let endpoints = candidates.filter { seenEndpoints.insert($0).inserted }
+            for endpoint in endpoints {
                 do {
                     self.session = try await httpClient.validateSession(baseUrl: endpoint, token: token)
                     return self.session
