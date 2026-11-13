@@ -210,7 +210,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	}
 	// Enforce double-submit CSRF tokens after session authentication has
 	// populated the request context. Bearer-token clients remain unaffected.
-	r.Use(domusmw.CSRFProtection())
+	r.Use(domusmw.CSRFProtection(srv.allowedOrigins...))
 
 	healthHandler := handlers.NewHealthHandler(version, startedAt, pinger)
 	swaggerHandler := swagger.NewHandler()
