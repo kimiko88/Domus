@@ -122,6 +122,7 @@ dependencies {
   // Android Auto & Biometrics
   implementation(libs.androidx.car.app)
   implementation(libs.androidx.biometric)
+  implementation(libs.androidx.security.crypto)
 }
 
 tasks.register("unitTestClasses") {
