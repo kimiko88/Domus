@@ -184,6 +184,18 @@ class DomusApiClient(
         }
     }
 
+    suspend fun validateSession(baseUrl: String, token: String): Result<AuthSession> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url("$baseUrl/api/v1/auth/me")
+                .header("Authorization", "Bearer $token").get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Sessione non valida: HTTP ${response.code}"))
+                val user = json.decodeFromString<UserDto>(response.body?.string() ?: "{}")
+                Result.success(AuthSession(token = token, username = user.username, role = user.role, isAuthenticated = true))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun fetchEntities(baseUrl: String, token: String?): Result<List<Entity>> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder().url("$baseUrl/api/v1/entities")
@@ -233,18 +245,20 @@ class DomusApiClient(
         data: Map<String, Any> = emptyMap()
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = if (data.isEmpty()) {
-                """{"entity_id":"$entityId"}"""
-            } else {
-                val dataPairs = data.entries.joinToString(",") { (k, v) ->
-                    when (v) {
-                        is Number -> "\"$k\":$v"
-                        is Boolean -> "\"$k\":$v"
-                        else -> "\"$k\":\"$v\""
-                    }
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("entity_id", kotlinx.serialization.json.JsonPrimitive(entityId))
+                if (data.isNotEmpty()) {
+                    put("data", kotlinx.serialization.json.buildJsonObject {
+                        data.forEach { (key, value) ->
+                            put(key, when (value) {
+                                is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+                                is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+                                else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
+                            })
+                        }
+                    })
                 }
-                """{"entity_id":"$entityId","data":{$dataPairs}}"""
-            }
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/services/$domain/$service")
                 .post(payload.toRequestBody(jsonMediaType))
