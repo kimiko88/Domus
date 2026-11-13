@@ -46,6 +46,9 @@ func (b *BannedIP) IsBanned() bool {
 type TwoFactorRepository interface {
 	Get(ctx context.Context, userID string) (*TwoFactorConfig, error)
 	Save(ctx context.Context, cfg *TwoFactorConfig) error
+	// ConsumeBackupCode atomically removes a matching recovery code. It returns
+	// false when the code is absent or has already been consumed.
+	ConsumeBackupCode(ctx context.Context, userID, code string) (bool, error)
 	Delete(ctx context.Context, userID string) error
 }
 
