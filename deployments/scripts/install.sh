@@ -20,7 +20,7 @@
 # then run this script on the Pi: it will just install what it finds.
 #
 # Environment overrides:
-#   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_USER, DOMUS_GROUP
+#   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_COOKIE_SECURE, DOMUS_USER, DOMUS_GROUP
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
@@ -37,6 +37,12 @@ DOMUS_USER="${DOMUS_USER:-domus}"
 DOMUS_GROUP="${DOMUS_GROUP:-domus}"
 DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
+DOMUS_COOKIE_SECURE_EXPLICIT="${DOMUS_COOKIE_SECURE+x}"
+DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
+if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
+    printf '%s\\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
+    exit 1
+fi
 NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
@@ -331,6 +337,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
         sed -i -E \
             -e "s|^[[:space:]]*host[[:space:]]*=.*|host = \"${DOMUS_HOST}\"|" \
             -e "s|^port[[:space:]]*=.*|port = ${DOMUS_PORT}|" \
+            -e "s|^cookie_secure[[:space:]]*=.*|cookie_secure = ${DOMUS_COOKIE_SECURE}|" \
             -e "s|^path[[:space:]]*=.*|path = \"${DOMUS_DATA_DIR}/domus.db\"|" \
             -e "s|^web_dir[[:space:]]*=.*|web_dir = \"${DOMUS_WEB_DIR}\"|" \
             "${CONFIG_TARGET}"
@@ -342,7 +349,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
 [server]
 host = "${DOMUS_HOST}"
 port = ${DOMUS_PORT}
-cookie_secure = false
+cookie_secure = ${DOMUS_COOKIE_SECURE}
 web_dir = "${DOMUS_WEB_DIR}"
 
 [database]
@@ -359,6 +366,20 @@ EOF
     log_success "Created ${CONFIG_TARGET}"
 else
     log_info "Existing configuration preserved: ${CONFIG_TARGET}"
+    # An explicit DOMUS_COOKIE_SECURE override is intentional and may update
+    # this one security setting without disturbing other existing preferences.
+    if [[ "${DOMUS_COOKIE_SECURE_EXPLICIT}" == "x" ]]; then
+        if grep -Eq '^[[:space:]]*cookie_secure[[:space:]]*=' "${CONFIG_TARGET}"; then
+            sed -i -E "s|^[[:space:]]*cookie_secure[[:space:]]*=.*|cookie_secure = ${DOMUS_COOKIE_SECURE}|" "${CONFIG_TARGET}"
+        elif grep -q '^\[server\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\]/a cookie_secure = ${DOMUS_COOKIE_SECURE}" "${CONFIG_TARGET}"
+        else
+            log_error "Existing config has no [server] section; cannot apply DOMUS_COOKIE_SECURE safely"
+            exit 1
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+        chmod 0640 "${CONFIG_TARGET}"
+    fi
     # Upgrade missing installer-managed paths without overwriting user settings.
     if ! grep -Eq '^[[:space:]]*web_dir[[:space:]]*=' "${CONFIG_TARGET}"; then
         if grep -q '^\[server\]' "${CONFIG_TARGET}"; then
