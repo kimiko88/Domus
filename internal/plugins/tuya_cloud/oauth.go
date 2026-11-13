@@ -19,20 +19,25 @@ import (
 	"github.com/google/uuid"
 )
 
-type OAuthConfig struct {
-	ClientID, Secret, Identifier, BaseURL string
-	HTTPClient                            *http.Client
+type OAuthConfig struct { ClientID, Secret, Identifier, BaseURL string; HTTPClient *http.Client }
+type OAuthToken struct { UID string `json:"uid"`; AccessToken string `json:"access_token"`; RefreshToken string `json:"refresh_token"`; ExpireTime int64 `json:"expire_time"` }
+
+// OAuthAPIError contains provider diagnostics safe to expose to server logs. It never
+// includes request headers, signatures, authorization codes, or token values.
+type OAuthAPIError struct {
+ HTTPStatus int
+ Code string
+ Message string
 }
-type OAuthToken struct {
-	UID          string `json:"uid"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpireTime   int64  `json:"expire_time"`
+func (e *OAuthAPIError) Error() string {
+ if e == nil { return "tuya oauth: provider request failed" }
+ return fmt.Sprintf("tuya oauth: provider request failed (http=%d code=%s): %s", e.HTTPStatus, e.Code, safeMessage(e.Message))
 }
-type OAuthClient struct {
-	cfg  OAuthConfig
-	http *http.Client
+func providerCode(code any) string {
+ if code == nil { return "" }
+ return safeMessage(fmt.Sprint(code))
 }
+type OAuthClient struct { cfg OAuthConfig; http *http.Client }
 
 func NewOAuthClient(cfg OAuthConfig) (*OAuthClient, error) {
 	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.Secret) == "" || strings.TrimSpace(cfg.Identifier) == "" {
@@ -66,87 +71,47 @@ func (c *OAuthClient) Refresh(ctx context.Context, refresh string) (OAuthToken, 
 	}
 	return c.tokenRequest(ctx, "/v1.0/token/"+url.PathEscape(refresh), nil)
 }
-func (c *OAuthClient) tokenRequest(ctx context.Context, path string, q url.Values) (OAuthToken, error) {
-	requestPath := path
-	if len(q) > 0 {
-		requestPath += "?" + q.Encode()
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+requestPath, nil)
-	if err != nil {
-		return OAuthToken{}, err
-	}
-	c.signHeaders(req, requestPath, strconv.FormatInt(time.Now().UnixMilli(), 10), uuid.NewString(), "")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return OAuthToken{}, fmt.Errorf("tuya oauth token request: %w", err)
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, (2<<20)+1))
-	if err != nil {
-		return OAuthToken{}, err
-	}
-	if len(raw) > 2<<20 {
-		return OAuthToken{}, errors.New("tuya oauth: response too large")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return OAuthToken{}, fmt.Errorf("tuya oauth endpoint returned HTTP %d", resp.StatusCode)
-	}
-	var env struct {
-		Success bool       `json:"success"`
-		Msg     string     `json:"msg"`
-		Result  OAuthToken `json:"result"`
-	}
-	if err = json.Unmarshal(raw, &env); err != nil {
-		return OAuthToken{}, fmt.Errorf("tuya oauth: invalid token response: %w", err)
-	}
-	if !env.Success || env.Result.AccessToken == "" || env.Result.RefreshToken == "" || env.Result.UID == "" {
-		return OAuthToken{}, fmt.Errorf("tuya oauth: token request rejected: %s", safeMessage(env.Msg))
-	}
-	if env.Result.ExpireTime <= 0 || env.Result.ExpireTime > 86400 {
-		env.Result.ExpireTime = 7200
-	}
-	return env.Result, nil
+func (c *OAuthClient) tokenRequest(ctx context.Context,path string,q url.Values)(OAuthToken,error) {
+ requestPath:=path
+ if len(q)>0 { requestPath+="?"+q.Encode() }
+ req,err:=http.NewRequestWithContext(ctx,http.MethodGet,c.cfg.BaseURL+requestPath,nil); if err!=nil{return OAuthToken{},err}
+ c.signHeaders(req,requestPath,strconv.FormatInt(time.Now().UnixMilli(),10),uuid.NewString(),"")
+ resp,err:=c.http.Do(req); if err!=nil{return OAuthToken{},fmt.Errorf("tuya oauth token request: %w",err)}
+ defer resp.Body.Close()
+ raw,err:=io.ReadAll(io.LimitReader(resp.Body,(2<<20)+1)); if err!=nil{return OAuthToken{},err}
+ if len(raw)>2<<20{return OAuthToken{},errors.New("tuya oauth: response too large")}
+ var env struct { Success bool `json:"success"`; Code any `json:"code"`; Msg string `json:"msg"`; Result OAuthToken `json:"result"` }
+ if err=json.Unmarshal(raw,&env);err!=nil {
+  if resp.StatusCode!=http.StatusOK { return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Message:"non-JSON provider error response"} }
+  return OAuthToken{},fmt.Errorf("tuya oauth: invalid token response")
+ }
+ if resp.StatusCode!=http.StatusOK || !env.Success {
+  return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:safeMessage(env.Msg)}
+ }
+ if env.Result.AccessToken=="" || env.Result.RefreshToken=="" || env.Result.UID=="" {
+  return OAuthToken{}, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:"provider returned an incomplete token"}
+ }
+ if env.Result.ExpireTime<=0 || env.Result.ExpireTime>86400 { env.Result.ExpireTime=7200 }
+ return env.Result,nil
 }
-func (c *OAuthClient) Devices(ctx context.Context, token OAuthToken) ([]Device, error) {
-	if token.UID == "" || token.AccessToken == "" {
-		return nil, errors.New("tuya oauth: user token is incomplete")
-	}
-	path := "/v1.0/users/" + url.PathEscape(token.UID) + "/devices"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	c.signHeaders(req, path, strconv.FormatInt(time.Now().UnixMilli(), 10), uuid.NewString(), token.AccessToken)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("tuya oauth devices request: %w", err)
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, (2<<20)+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) > 2<<20 {
-		return nil, errors.New("tuya oauth: response too large")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tuya oauth devices endpoint returned HTTP %d", resp.StatusCode)
-	}
-	var env struct {
-		Success bool     `json:"success"`
-		Msg     string   `json:"msg"`
-		Result  []Device `json:"result"`
-	}
-	if err = json.Unmarshal(raw, &env); err != nil {
-		return nil, fmt.Errorf("tuya oauth: invalid devices response: %w", err)
-	}
-	if !env.Success {
-		return nil, fmt.Errorf("tuya oauth: devices request rejected: %s", safeMessage(env.Msg))
-	}
-	if env.Result == nil {
-		env.Result = []Device{}
-	}
-	return env.Result, nil
+func (c *OAuthClient) Devices(ctx context.Context,token OAuthToken)([]Device,error) {
+ if token.UID=="" || token.AccessToken=="" { return nil,errors.New("tuya oauth: user token is incomplete") }
+ path:="/v1.0/users/"+url.PathEscape(token.UID)+"/devices"
+ req,err:=http.NewRequestWithContext(ctx,http.MethodGet,c.cfg.BaseURL+path,nil); if err!=nil{return nil,err}
+ c.signHeaders(req,path,strconv.FormatInt(time.Now().UnixMilli(),10),uuid.NewString(),token.AccessToken)
+ resp,err:=c.http.Do(req); if err!=nil{return nil,fmt.Errorf("tuya oauth devices request: %w",err)}
+ defer resp.Body.Close()
+ raw,err:=io.ReadAll(io.LimitReader(resp.Body,(2<<20)+1)); if err!=nil{return nil,err}
+ if len(raw)>2<<20{return nil,errors.New("tuya oauth: response too large")}
+ var env struct { Success bool `json:"success"`; Code any `json:"code"`; Msg string `json:"msg"`; Result []Device `json:"result"` }
+ if err=json.Unmarshal(raw,&env);err!=nil {
+  if resp.StatusCode!=http.StatusOK { return nil, &OAuthAPIError{HTTPStatus:resp.StatusCode,Message:"non-JSON provider error response"} }
+  return nil,fmt.Errorf("tuya oauth: invalid devices response")
+ }
+ if resp.StatusCode!=http.StatusOK || !env.Success {
+  return nil, &OAuthAPIError{HTTPStatus:resp.StatusCode,Code:providerCode(env.Code),Message:env.Msg}
+ }
+ if env.Result==nil { env.Result=[]Device{} }; return env.Result,nil
 }
 func (c *OAuthClient) signHeaders(req *http.Request, path, ts, nonce, access string) {
 	emptyHash := sha256.Sum256(nil)

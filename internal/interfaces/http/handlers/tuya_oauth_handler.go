@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -105,10 +106,34 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 	u:=domusmw.GetUser(r.Context())
 	if u==nil || u.Role!=user.RoleAdmin { writeError(w,http.StatusForbidden,"FORBIDDEN","administrator role required");return }
 	token,err:=h.validToken(r.Context(),u.ID)
-	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","Smart Life account is not connected or token renewal failed");return }
+	if err!=nil {
+		logTuyaOAuthFailure("prepare_device_request",err)
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","Smart Life account is not connected or token renewal failed")
+		return
+	}
 	devices,err:=h.client.Devices(r.Context(),token)
-	if err!=nil { writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices");return }
+	if err!=nil {
+		logTuyaOAuthFailure("list_user_devices",err)
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices")
+		return
+	}
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
+}
+
+func logTuyaOAuthFailure(operation string, err error) {
+ var providerErr *tuya_cloud.OAuthAPIError
+ if errors.As(err,&providerErr) {
+  slog.Error("Tuya Smart Life OAuth provider request failed",
+   "operation",operation,
+   "upstream_status",providerErr.HTTPStatus,
+   "tuya_code",providerErr.Code,
+   "tuya_message",providerErr.Message)
+  return
+ }
+ // Do not log arbitrary transport errors: their URLs may contain refresh tokens.
+ slog.Error("Tuya Smart Life OAuth operation failed",
+  "operation",operation,
+  "error_type",fmt.Sprintf("%T",err))
 }
 
 func (h *TuyaOAuthHandler) Disconnect(w http.ResponseWriter,r *http.Request) {
