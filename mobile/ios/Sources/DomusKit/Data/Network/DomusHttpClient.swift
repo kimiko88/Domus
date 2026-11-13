@@ -684,13 +684,7 @@ public actor DomusHttpClient: Sendable {
         }
         if value == "." { return "%2E" }
         if value == ".." { return "%2E%2E" }
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!    private func makeURL(path: String) throws -> URL {
-        let base = !baseURL.isEmpty ? baseURL : (UserDefaults.standard.string(forKey: "domus_server_url") ?? "http://127.0.0.1:8080")
-        guard let url = URL(string: base + path) else {
-            throw DomusNetworkError.invalidURL(base + path)
-        }
-        return url
-    }'()*+,;=:@")
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!$&'()*+,;=:@")
         guard let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed) else {
             throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
         }
