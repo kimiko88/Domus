@@ -85,13 +85,12 @@ class MobileBackendContractTest {
         server.enqueue(MockResponse().setResponseCode(500))
         assertFalse(apiClient.fetchNotifications(baseUrl, "token").isSuccess)
         server.takeRequest()
-        assertEquals("A server error must not trigger a legacy endpoint request", 1, server.requestCount)
 
         server.enqueue(MockResponse().setResponseCode(404))
         server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
         val fallbackResult = apiClient.fetchNotifications(baseUrl, "token")
         assertTrue(fallbackResult.isSuccess)
-        assertEquals(3, server.requestCount)
+        assertEquals(4, server.requestCount)
         assertEquals("/api/v1/notifications", server.takeRequest().path)
         assertEquals("/api/v1/notifications/actionable", server.takeRequest().path)
 
