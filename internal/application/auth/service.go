@@ -163,6 +163,14 @@ func (s *Service) Login(ctx context.Context, username, password, ip, userAgent s
 	return sess, u, nil
 }
 
+// VerifyPassword re-checks a user's current password for sensitive actions.
+func (s *Service) VerifyPassword(ctx context.Context, userID, password string) (bool, error) {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil { return false, fmt.Errorf("auth service: load user for re-authentication: %w", err) }
+	if !u.Enabled || password == "" { return false, nil }
+	return s.hasher.VerifyPassword(password, u.PasswordHash)
+}
+
 // Logout terminates an active session and records the action.
 func (s *Service) Logout(ctx context.Context, sessionID string) error {
 	sess, err := s.sessionRepo.GetByID(ctx, sessionID)
