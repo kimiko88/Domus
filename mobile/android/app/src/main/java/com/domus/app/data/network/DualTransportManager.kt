@@ -218,7 +218,7 @@ class DualTransportManager(
         if (reconnectJob?.isActive == true) return
         val attempt = reconnectAttempts.coerceAtMost(5)
         reconnectAttempts = (reconnectAttempts + 1).coerceAtMost(6)
-        val delayMs = min(30_000L, 1_000L shl attempt)
+        val delayMs = min(30_000L, 1_000L * (1L shl attempt))
         reconnectJob = coroutineScope.launch {
             delay(delayMs)
             if (connectionGeneration.get() != generation || currentMode == TransportMode.DISCONNECTED) return@launch
