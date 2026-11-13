@@ -271,8 +271,9 @@ func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
 // Logout terminates the current user session and clears authentication cookies.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	sess := domusmw.GetSession(r.Context())
+	var logoutErr error
 	if sess != nil {
-		_ = h.authService.Logout(r.Context(), sess.ID)
+		logoutErr = h.authService.Logout(r.Context(), sess.ID)
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -295,6 +296,10 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 	})
 
+	if logoutErr != nil {
+		h.writeError(w, http.StatusInternalServerError, "LOGOUT_FAILED", "impossibile revocare la sessione sul server")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -308,7 +313,12 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	twoFactorActive := false
 	if h.twoFactorRepo != nil {
-		if cfg, _ := h.twoFactorRepo.Get(r.Context(), u.ID); cfg != nil && cfg.IsEnabled {
+		cfg, err := h.twoFactorRepo.Get(r.Context(), u.ID)
+		if err != nil && !errors.Is(err, domauth.ErrTwoFactorNotFound) {
+			h.writeError(w, http.StatusServiceUnavailable, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare lo stato della 2FA")
+			return
+		}
+		if cfg != nil && cfg.IsEnabled {
 			twoFactorActive = true
 		}
 	}
@@ -359,7 +369,7 @@ func (h *AuthHandler) Setup2FA(w http.ResponseWriter, r *http.Request) {
 		BackupCodes: backupCodes,
 	}
 	if err := h.twoFactorRepo.Save(r.Context(), cfg); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to save 2fa configuration")
 		return
 	}
 
@@ -407,7 +417,7 @@ func (h *AuthHandler) VerifyAndEnable2FA(w http.ResponseWriter, r *http.Request)
 
 	cfg.IsEnabled = true
 	if err := h.twoFactorRepo.Save(r.Context(), cfg); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to enable 2fa")
 		return
 	}
 
@@ -490,8 +500,13 @@ func (h *AuthHandler) ListBannedIPs(w http.ResponseWriter, r *http.Request) {
 // UnbanIP handles DELETE /api/v1/security/banned-ips/{ip}.
 func (h *AuthHandler) UnbanIP(w http.ResponseWriter, r *http.Request) {
 	ip := chi.URLParam(r, "ip")
-	if h.bannedRepo != nil {
-		_ = h.bannedRepo.Unban(r.Context(), ip)
+	if h.bannedRepo == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "BRUTE_FORCE_PROTECTION_UNAVAILABLE", "servizio di protezione accessi non disponibile")
+		return
+	}
+	if err := h.bannedRepo.Unban(r.Context(), ip); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "UNBAN_FAILED", "impossibile rimuovere il blocco IP")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
