@@ -132,34 +132,34 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Check Two-Factor Authentication
+	// 2. Check Two-Factor Authentication. Repository failures must never
+	// silently downgrade an account to password-only authentication.
 	if h.twoFactorRepo != nil {
-		twoFactorCfg, err := h.twoFactorRepo.Get(r.Context(), u.ID)
-		if err == nil && twoFactorCfg != nil && twoFactorCfg.IsEnabled {
+		twoFactorCfg, cfgErr := h.twoFactorRepo.Get(r.Context(), u.ID)
+		if cfgErr != nil && !errors.Is(cfgErr, domauth.ErrTwoFactorNotFound) {
+			_ = h.authService.Logout(r.Context(), sess.ID)
+			h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare la configurazione 2FA")
+			return
+		}
+		if cfgErr == nil && twoFactorCfg != nil && twoFactorCfg.IsEnabled {
 			if req.TwoFactorCode == "" {
-				h.writeJSON(w, http.StatusAccepted, map[string]any{
-					"requires_2fa": true,
-					"message":      "Codice di verifica 2FA richiesto",
-				})
+				_ = h.authService.Logout(r.Context(), sess.ID)
+				h.writeJSON(w, http.StatusAccepted, map[string]any{"requires_2fa": true, "message": "Codice di verifica 2FA richiesto"})
 				return
 			}
-
-			// Validate TOTP or backup code
-			isValidTOTP := auth.VerifyTOTP(twoFactorCfg.Secret, req.TwoFactorCode, time.Now().UTC())
-			isBackupCode := false
-			if !isValidTOTP {
-				for _, code := range twoFactorCfg.BackupCodes {
-					if code == req.TwoFactorCode {
-						isBackupCode = true
-						break
-					}
+			validSecondFactor := auth.VerifyTOTP(twoFactorCfg.Secret, req.TwoFactorCode, time.Now().UTC())
+			if !validSecondFactor {
+				consumed, consumeErr := h.twoFactorRepo.ConsumeBackupCode(r.Context(), u.ID, req.TwoFactorCode)
+				if consumeErr != nil {
+					_ = h.authService.Logout(r.Context(), sess.ID)
+					h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare il codice di recupero")
+					return
 				}
+				validSecondFactor = consumed
 			}
-
-			if !isValidTOTP && !isBackupCode {
-				if h.bannedRepo != nil {
-					_, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute)
-				}
+			if !validSecondFactor {
+				_ = h.authService.Logout(r.Context(), sess.ID)
+				if h.bannedRepo != nil { _, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute) }
 				h.writeError(w, http.StatusUnauthorized, "INVALID_2FA_CODE", "Codice di verifica 2FA non valido")
 				return
 			}
@@ -193,6 +193,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   maxAge,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: domusmw.CSRFCookieName, Value: generateRandomToken(), Path: "/",
+		HttpOnly: false, Secure: h.cookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge,
 	})
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
@@ -382,23 +386,60 @@ func (h *AuthHandler) VerifyAndEnable2FA(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// Disable2FA handles POST /api/v1/auth/2fa/disable.
+// Disable2FA handles POST /api/v1/auth/2fa/disable. It requires the
+// current password and, when enabled, a fresh TOTP or one-time recovery code.
 func (h *AuthHandler) Disable2FA(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil {
 		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
-
-	if err := h.twoFactorRepo.Delete(r.Context(), u.ID); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+	if h.twoFactorRepo == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "TWO_FACTOR_UNAVAILABLE", "servizio 2FA non disponibile")
 		return
 	}
-
-	h.writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "success",
-		"message": "Autenticazione a due fattori disattivata",
-	})
+	var req struct {
+		Password string `json:"password"`
+		TwoFactorCode string `json:"two_factor_code"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+		return
+	}
+	validPassword, err := h.authService.VerifyPassword(r.Context(), u.ID, req.Password)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "REAUTHENTICATION_FAILED", "impossibile verificare la password")
+		return
+	}
+	if !validPassword {
+		h.writeError(w, http.StatusUnauthorized, "INVALID_PASSWORD", "password attuale non valida")
+		return
+	}
+	cfg, cfgErr := h.twoFactorRepo.Get(r.Context(), u.ID)
+	if cfgErr != nil && !errors.Is(cfgErr, domauth.ErrTwoFactorNotFound) {
+		h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare la configurazione 2FA")
+		return
+	}
+	if cfgErr == nil && cfg != nil && cfg.IsEnabled {
+		validSecondFactor := auth.VerifyTOTP(cfg.Secret, req.TwoFactorCode, time.Now().UTC())
+		if !validSecondFactor {
+			consumed, consumeErr := h.twoFactorRepo.ConsumeBackupCode(r.Context(), u.ID, req.TwoFactorCode)
+			if consumeErr != nil {
+				h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare il codice di recupero")
+				return
+			}
+			validSecondFactor = consumed
+		}
+		if !validSecondFactor {
+			h.writeError(w, http.StatusUnauthorized, "INVALID_2FA_CODE", "codice 2FA attuale non valido")
+			return
+		}
+	}
+	if err := h.twoFactorRepo.Delete(r.Context(), u.ID); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "impossibile disattivare la 2FA")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"status":"success", "message":"Autenticazione a due fattori disattivata"})
 }
 
 // ListBannedIPs handles GET /api/v1/security/banned-ips.
