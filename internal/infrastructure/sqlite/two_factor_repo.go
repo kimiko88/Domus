@@ -53,7 +53,9 @@ func (r *TwoFactorRepository) Get(ctx context.Context, userID string) (*domauth.
 	}
 
 	cfg.IsEnabled = isEnabled == 1
-	_ = json.Unmarshal([]byte(codesJSON), &cfg.BackupCodes)
+	if err := json.Unmarshal([]byte(codesJSON), &cfg.BackupCodes); err != nil {
+		return nil, fmt.Errorf("sqlite: failed to decode 2fa backup codes: %w", err)
+	}
 	cfg.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
 	cfg.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
 	return &cfg, nil
@@ -63,7 +65,7 @@ func (r *TwoFactorRepository) Get(ctx context.Context, userID string) (*domauth.
 func (r *TwoFactorRepository) Save(ctx context.Context, cfg *domauth.TwoFactorConfig) error {
 	codesJSON, err := json.Marshal(cfg.BackupCodes)
 	if err != nil {
-		codesJSON = []byte("[]")
+		return fmt.Errorf("sqlite: failed to encode 2fa backup codes: %w", err)
 	}
 
 	now := time.Now().UTC()
