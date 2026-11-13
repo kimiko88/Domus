@@ -37,6 +37,7 @@ DOMUS_USER="${DOMUS_USER:-domus}"
 DOMUS_GROUP="${DOMUS_GROUP:-domus}"
 DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
+DOMUS_COOKIE_SECURE_EXPLICIT="${DOMUS_COOKIE_SECURE+x}"
 DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
 if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
     printf '%s\\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
@@ -365,6 +366,20 @@ EOF
     log_success "Created ${CONFIG_TARGET}"
 else
     log_info "Existing configuration preserved: ${CONFIG_TARGET}"
+    # An explicit DOMUS_COOKIE_SECURE override is intentional and may update
+    # this one security setting without disturbing other existing preferences.
+    if [[ "${DOMUS_COOKIE_SECURE_EXPLICIT}" == "x" ]]; then
+        if grep -Eq '^[[:space:]]*cookie_secure[[:space:]]*=' "${CONFIG_TARGET}"; then
+            sed -i -E "s|^[[:space:]]*cookie_secure[[:space:]]*=.*|cookie_secure = ${DOMUS_COOKIE_SECURE}|" "${CONFIG_TARGET}"
+        elif grep -q '^\[server\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\]/a cookie_secure = ${DOMUS_COOKIE_SECURE}" "${CONFIG_TARGET}"
+        else
+            log_error "Existing config has no [server] section; cannot apply DOMUS_COOKIE_SECURE safely"
+            exit 1
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+        chmod 0640 "${CONFIG_TARGET}"
+    fi
     # Upgrade missing installer-managed paths without overwriting user settings.
     if ! grep -Eq '^[[:space:]]*web_dir[[:space:]]*=' "${CONFIG_TARGET}"; then
         if grep -q '^\[server\]' "${CONFIG_TARGET}"; then
