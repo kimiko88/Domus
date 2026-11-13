@@ -11,35 +11,9 @@ import (
 )
 
 var (
-	appIDRegex       = regexp.MustCompile(`^[a-z0-9][a-z0-9-_]{1,63}package supervisor
-
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"regexp"
-	"strings"
-
-	"gopkg.in/yaml.v3"
-)
-
-var (
-	)
-	volumeNameRegex  = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}package supervisor
-
-import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"regexp"
-	"strings"
-
-	"gopkg.in/yaml.v3"
-)
-
-var (
-	)
-	validDeviceReg = regexp.MustCompile(`^/dev/(ttyUSB[0-9]+|ttyACM[0-9]+|serial[0-9]*|gpiochip[0-9]*)$`)
+	appIDRegex      = regexp.MustCompile(`^[a-z0-9][a-z0-9-_]{1,63}$`)
+	volumeNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	validDeviceReg  = regexp.MustCompile(`^/dev/(ttyUSB[0-9]+|ttyACM[0-9]+|serial[0-9]*|gpiochip[0-9]*)$`)
 )
 
 // AppManifest represents a verified Domus App configuration.
