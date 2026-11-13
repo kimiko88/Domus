@@ -114,8 +114,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	})
 
-	// Writer loop (goroutine)
+	// All writes must go through one goroutine: gorilla/websocket permits
+	// one concurrent reader and one concurrent writer, not multiple writers.
+	writerStop := make(chan struct{})
 	done := make(chan struct{})
+	queueMessage := func(msg websocket.Message) {
+		select {
+		case sendCh <- msg:
+		case <-writerStop:
+		}
+	}
 	go func() {
 		defer close(done)
 		ticker := time.NewTicker(30 * time.Second)
@@ -123,6 +131,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		for {
 			select {
+			case <-writerStop:
+				return
 			case msg, ok := <-sendCh:
 				if !ok {
 					_ = conn.WriteMessage(gorilla.CloseMessage, []byte{})
@@ -160,7 +170,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			msgType, _ := clientMsg["type"].(string)
 			switch msgType {
 			case "ping":
-				_ = conn.WriteJSON(websocket.Message{
+				queueMessage(websocket.Message{
 					Type:      "pong",
 					Timestamp: time.Now().UTC().Format(time.RFC3339),
 				})
@@ -219,7 +229,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						result["success"] = true
 					}
 				}
-				_ = conn.WriteJSON(websocket.Message{
+				queueMessage(websocket.Message{
 					Type: "result", Payload: result,
 					Timestamp: time.Now().UTC().Format(time.RFC3339),
 				})
@@ -227,5 +237,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	close(writerStop)
+	_ = conn.Close()
 	<-done
 }
