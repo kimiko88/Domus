@@ -18,18 +18,15 @@ public actor DomusHttpClient: Sendable {
         if let savedBase = UserDefaults.standard.string(forKey: "domus_server_url"), !savedBase.isEmpty {
             self.baseURL = savedBase
         }
-        if let savedToken = UserDefaults.standard.string(forKey: "domus_auth_token"), !savedToken.isEmpty {
-            self.token = savedToken
-        }
+        // Remove credentials written by older versions; tokens now live only in Keychain.
+        UserDefaults.standard.removeObject(forKey: "domus_auth_token")
     }
 
     public func configure(baseURL: String, token: String?) {
         self.baseURL = baseURL
         self.token = token
         UserDefaults.standard.set(baseURL, forKey: "domus_server_url")
-        if let token {
-            UserDefaults.standard.set(token, forKey: "domus_auth_token")
-        }
+        // Never persist authentication tokens in UserDefaults.
     }
 
     /// GET generico
@@ -134,7 +131,6 @@ public actor DomusHttpClient: Sendable {
             as: LoginResponseDTO.self
         )
         self.token = res.token
-        UserDefaults.standard.set(res.token, forKey: "domus_auth_token")
         return AuthSession(
             token: res.token,
             username: res.user?.username ?? username,
@@ -147,6 +143,13 @@ public actor DomusHttpClient: Sendable {
 
     public struct EmptyBodyDTO: Encodable, Sendable {
         public init() {}
+    }
+
+    public func validateSession(baseUrl: String, token: String) async throws -> AuthSession {
+        self.baseURL = baseUrl
+        self.token = token
+        let identity = try await get(path: "/api/v1/auth/me", as: UserResponseDTO.self)
+        return AuthSession(token: token, username: identity.username ?? "", role: identity.role ?? "user", isAuthenticated: true)
     }
 
     public func sendAssistantPrompt(prompt: String) async throws -> AssistantChatResponseDTO {
@@ -670,7 +673,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     private func addAuth(to request: inout URLRequest) {
-        let effectiveToken = token ?? UserDefaults.standard.string(forKey: "domus_auth_token")
+        let effectiveToken = token
         if let effectiveToken, !effectiveToken.isEmpty {
             request.setValue("Bearer \(effectiveToken)", forHTTPHeaderField: "Authorization")
         }
