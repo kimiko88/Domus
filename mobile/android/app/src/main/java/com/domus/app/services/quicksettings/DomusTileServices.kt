@@ -57,41 +57,24 @@ class DomusGateTileService : TileService() {
  */
 @RequiresApi(Build.VERSION_CODES.N)
 class DomusAlarmTileService : TileService() {
-
-    private var isArmed = false
-    private val scope = CoroutineScope(Dispatchers.IO)
-
     override fun onStartListening() {
         super.onStartListening()
-        updateTileState()
+        val tile = qsTile ?: return
+        tile.label = "Allarme Domus"
+        tile.state = Tile.STATE_INACTIVE
+        tile.subtitle = "Apri Domus per gestire"
+        tile.updateTile()
     }
 
     override fun onClick() {
         super.onClick()
-        if (isLocked) {
-            unlockAndRun { toggleAlarm() }
-        } else {
-            toggleAlarm()
-        }
-    }
-
-    private fun toggleAlarm() {
-        // Route every alarm change through the foreground app. Never disarm
-        // directly from a tile before PIN/biometric confirmation.
+        // Alarm state and disarm confirmation are owned by the foreground app.
+        // This tile intentionally does not issue an arm/disarm request.
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("action", "alarm_toggle_prompt")
         }
         @Suppress("DEPRECATION")
         startActivityAndCollapse(intent)
-    }
-
-    private fun updateTileState() {
-        val tile = qsTile ?: return
-        tile.label = "Allarme Domus"
-        tile.state = if (isArmed) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.subtitle = if (isArmed) "Armato (Totale)" else "Disarmato"
-        tile.updateTile()
     }
 }
 
