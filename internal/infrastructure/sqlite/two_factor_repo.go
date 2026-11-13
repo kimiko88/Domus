@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	domauth "github.com/domus-hub/domus/internal/domain/auth"
@@ -98,6 +99,7 @@ func (r *TwoFactorRepository) Save(ctx context.Context, cfg *domauth.TwoFactorCo
 // ConsumeBackupCode atomically removes one recovery code. The conditional
 // UPDATE prevents two concurrent logins from consuming the same code.
 func (r *TwoFactorRepository) ConsumeBackupCode(ctx context.Context, userID, code string) (bool, error) {
+	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" { return false, nil }
 	for attempt := 0; attempt < 8; attempt++ {
 		var raw string
@@ -110,7 +112,7 @@ func (r *TwoFactorRepository) ConsumeBackupCode(ctx context.Context, userID, cod
 			return false, fmt.Errorf("sqlite: failed to decode backup codes: %w", err)
 		}
 		found := -1
-		for i, candidate := range codes { if candidate == code { found = i; break } }
+		for i, candidate := range codes { if strings.ToUpper(strings.TrimSpace(candidate)) == code { found = i; break } }
 		if found < 0 { return false, nil }
 		codes = append(codes[:found], codes[found+1:]...)
 		updated, err := json.Marshal(codes)
