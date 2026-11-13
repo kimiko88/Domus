@@ -203,10 +203,10 @@ func TestMQTT_To_EventBus_To_WebSocket_EndToEnd(t *testing.T) {
 	})
 	httpReq, err := http.NewRequest(http.MethodPost, cmdURL, bytes.NewReader(cmdBody))
 	require.NoError(t, err)
-	httpReq.AddCookie(&http.Cookie{
-		Name:  domusmw.SessionCookieName,
-		Value: sess.ID,
-	})
+	const csrfToken = "0123456789abcdef0123456789abcdef"
+	httpReq.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sess.ID})
+	httpReq.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+	httpReq.Header.Set("X-CSRF-Token", csrfToken)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 3 * time.Second}
