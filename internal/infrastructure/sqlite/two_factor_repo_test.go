@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,4 +45,40 @@ func TestConsumeBackupCodeIsOneTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"JKLM-NPQR"}, cfg.BackupCodes)
 	require.WithinDuration(t, time.Now(), cfg.UpdatedAt, time.Minute)
+}
+
+
+func TestBannedIPCountsConcurrentFailuresAtomically(t *testing.T) {
+	ctx := context.Background()
+	db, err := sqlite.Open(config.DatabaseConfig{
+		Path: filepath.Join(t.TempDir(), "banned_ip.db"), WALMode: true,
+		BusyTimeoutMs: 10000, MaxOpenConns: 16,
+	})
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, sqlite.Migrate(ctx, db))
+
+	repo := sqlite.NewBannedIPRepository(db)
+	const attempts = 32
+	var wg sync.WaitGroup
+	errCh := make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, callErr := repo.RecordFailedAttempt(ctx, "192.0.2.10", 5, 15*time.Minute)
+			errCh <- callErr
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for callErr := range errCh {
+		require.NoError(t, callErr)
+	}
+
+	record, err := repo.Get(ctx, "192.0.2.10")
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, attempts, record.FailedAttempts)
+	require.True(t, record.IsBanned())
 }
