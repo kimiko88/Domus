@@ -35,6 +35,9 @@ func NewAppManager(dataDir string, runtime ContainerRuntime) *AppManager {
 	appsDir := filepath.Join(dataDir, "apps")
 	_ = os.MkdirAll(manifestDir, 0700)
 	_ = os.MkdirAll(appsDir, 0700)
+	// Existing installations may have manifests created with broader modes.
+	_ = os.Chmod(manifestDir, 0700)
+	_ = os.Chmod(appsDir, 0700)
 
 	mgr := &AppManager{
 		manifestDir: manifestDir,
@@ -57,7 +60,11 @@ func (m *AppManager) loadStoredManifests() error {
 
 	for _, e := range entries {
 		if !e.IsDir() && filepath.Ext(e.Name()) == ".yaml" {
-			data, err := os.ReadFile(filepath.Join(m.manifestDir, e.Name()))
+			manifestPath := filepath.Join(m.manifestDir, e.Name())
+			if err := os.Chmod(manifestPath, 0600); err != nil {
+				continue
+			}
+			data, err := os.ReadFile(manifestPath)
 			if err != nil {
 				continue
 			}
