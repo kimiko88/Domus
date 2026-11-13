@@ -144,6 +144,9 @@ func TestAdvancedFeatures_EndToEnd(t *testing.T) {
 	}
 	require.NotNil(t, sessionCookie, "Session cookie must be returned upon login")
 
+	// Test CSRF token: 16 random bytes encoded as 32 hexadecimal characters.
+	const csrfToken = "0123456789abcdef0123456789abcdef"
+
 	// Helper to send HTTP requests with session cookie
 	doReq := func(method, path string, body []byte) *responseRecorder {
 		var req *http.Request
@@ -154,6 +157,8 @@ func TestAdvancedFeatures_EndToEnd(t *testing.T) {
 			req, _ = http.NewRequest(method, path, nil)
 		}
 		req.AddCookie(sessionCookie)
+		req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		rec := &responseRecorder{headers: make(http.Header)}
 		router.ServeHTTP(rec, req)
 		return rec
