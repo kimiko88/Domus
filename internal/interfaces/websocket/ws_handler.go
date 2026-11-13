@@ -73,6 +73,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sessionID = cookie.Value
 	} else if q := r.URL.Query().Get("session"); q != "" {
 		sessionID = q
+	} else if authHeader := strings.TrimSpace(r.Header.Get("Authorization")); strings.HasPrefix(authHeader, "Bearer ") {
+		sessionID = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	}
 
 	var authenticatedUser *user.User
