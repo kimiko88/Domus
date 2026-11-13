@@ -93,7 +93,7 @@ public actor DualTransportWebSocketClient: Sendable {
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
-                        continuation.resume()
+                        continuation.resume(returning: ())
                     }
                 }
             }
