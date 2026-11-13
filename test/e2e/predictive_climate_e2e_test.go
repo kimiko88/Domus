@@ -81,7 +81,10 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 
 	client := ts.Client()
 	doRequest := func(req *http.Request) (*http.Response, error) {
+		const csrfToken = "0123456789abcdef0123456789abcdef"
 		req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: session.ID})
+		req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		return client.Do(req)
 	}
 	post := func(url string, body []byte) (*http.Response, error) {
