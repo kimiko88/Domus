@@ -182,6 +182,9 @@ public actor DualTransportWebSocketClient: Sendable {
         guard generation == connectionGeneration, webSocketTask === task else { return }
         webSocketTask = nil
         isConnected = false
+        // Release the failed transport before creating a replacement session.
+        session?.invalidateAndCancel()
+        session = nil
         await scheduleReconnect(generation: generation)
     }
 
