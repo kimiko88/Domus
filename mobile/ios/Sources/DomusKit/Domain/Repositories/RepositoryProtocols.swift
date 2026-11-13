@@ -32,4 +32,9 @@ public extension AuthRepositoryProtocol {
     func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?) async throws -> AuthSession {
         try await login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint, twoFactorCode: nil)
     }
+
+    // Compatibility default for test doubles and third-party conformers.
+    func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?, twoFactorCode: String?) async throws -> AuthSession {
+        try await login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint)
+    }
 }
