@@ -232,14 +232,14 @@ class DomusApiClient(
 
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.success(emptyList())
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch aree: HTTP ${response.code}"))
                 }
                 val bodyStr = response.body?.string() ?: "[]"
                 val areas = json.decodeFromString<List<Area>>(bodyStr)
                 Result.success(areas)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
@@ -532,7 +532,7 @@ class DomusApiClient(
                     }
                     client.newCall(fallbackReq.build()).execute().use { fbResponse ->
                         if (!fbResponse.isSuccessful) {
-                            return@withContext Result.success(emptyList())
+                            return@withContext Result.failure(ApiHttpException(fbResponse.code, "Errore fetch notifiche: HTTP ${fbResponse.code}"))
                         }
                         val bodyStr = fbResponse.body?.string() ?: "[]"
                         val notifs = json.decodeFromString<List<NotificationDto>>(bodyStr)
@@ -544,7 +544,7 @@ class DomusApiClient(
                 Result.success(notifs)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
@@ -704,7 +704,7 @@ class DomusApiClient(
             val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/members")
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch membri famiglia: HTTP ${response.code}"))
                 val bodyStr = response.body?.string() ?: "{}"
                 val res = try {
                     json.decodeFromString<FamilyMembersResponseDto>(bodyStr).members
@@ -714,7 +714,7 @@ class DomusApiClient(
                 Result.success(res)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
@@ -723,7 +723,7 @@ class DomusApiClient(
             val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/invites")
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch inviti famiglia: HTTP ${response.code}"))
                 val bodyStr = response.body?.string() ?: "{}"
                 val res = try {
                     json.decodeFromString<FamilyInvitesResponseDto>(bodyStr).invites
@@ -733,7 +733,7 @@ class DomusApiClient(
                 Result.success(res)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
