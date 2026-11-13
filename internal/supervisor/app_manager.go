@@ -191,16 +191,21 @@ func (m *AppManager) Uninstall(ctx context.Context, id string, purgeData bool) e
 		return fmt.Errorf("app %s not found", id)
 	}
 
-	// Stop container
-	_ = m.runtime.StopContainer(ctx, "domus-app-"+id, 5*time.Second)
-
-	// Remove manifest file
-	_ = os.Remove(filepath.Join(m.manifestDir, id+".yaml"))
-	delete(m.apps, id)
+	// Do not remove registration or app data if the runtime could not stop
+	// the process: a still-running container may continue writing to its mounts.
+	if err := m.runtime.StopContainer(ctx, "domus-app-"+id, 5*time.Second); err != nil {
+		return fmt.Errorf("failed to stop app %s before uninstall: %w", id, err)
+	}
 
 	if purgeData {
-		_ = os.RemoveAll(filepath.Join(m.appsDir, id))
+		if err := os.RemoveAll(filepath.Join(m.appsDir, id)); err != nil {
+			return fmt.Errorf("failed to purge app data for %s: %w", id, err)
+		}
 	}
+	if err := os.Remove(filepath.Join(m.manifestDir, id+".yaml")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove manifest for app %s: %w", id, err)
+	}
+	delete(m.apps, id)
 	_ = manifest
 	return nil
 }
