@@ -31,24 +31,13 @@ class DomusGateTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        val tile = qsTile ?: return
-
-        // Instant visual feedback
-        tile.state = Tile.STATE_ACTIVE
-        tile.subtitle = "Apertura in corso..."
-        tile.updateTile()
-
-        scope.launch {
-            val storage = SharedPreferencesTokenStorage(applicationContext)
-            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
-            val token = storage.getToken()
-            val result = DomusApiClient().callService(baseUrl, token, "cover", "open_cover", "cover.cancello")
-            Handler(Looper.getMainLooper()).post {
-                tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = if (result.isSuccess) "Comando inviato" else "Errore: riprova"
-                tile.updateTile()
-            }
+        // Opening a gate is a sensitive physical action. Route through the
+        // foreground app so its biometric authorization gate can run.
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
+        @Suppress("DEPRECATION")
+        startActivityAndCollapse(intent)
     }
 }
 
