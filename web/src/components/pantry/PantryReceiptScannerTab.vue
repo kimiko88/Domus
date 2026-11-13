@@ -23,11 +23,13 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'parse-receipt', rawText: string): void
+  (e: 'parse-pdf', file: File): void
   (e: 'import-receipt', data: {
     store_name: string
     date: string
     items: ReceiptItem[]
     total_amount: number
+    document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
   }): void
@@ -35,6 +37,10 @@ const emit = defineEmits<{
 }>()
 
 const rawReceiptText = ref('')
+const documentType = ref<'receipt' | 'invoice'>('receipt')
+const ocrStatus = ref('')
+const maxImageBytes = 10 * 1024 * 1024
+const maxPDFBytes = 3 * 1024 * 1024
 const autoAddToFinance = ref(true)
 const autoUpdatePantry = ref(true)
 
@@ -77,6 +83,58 @@ function loadSample(sample: string) {
   rawReceiptText.value = sample
 }
 
+async function handleImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (file.size > maxPDFBytes) {
+      ocrStatus.value = 'PDF troppo grande: il limite è 3 MB.'
+      return
+    }
+    ocrStatus.value = 'Invio del PDF al server Domus per estrarre il testo (massimo 20 pagine)…'
+    emit('parse-pdf', file)
+    return
+  }
+  if (!file.type.startsWith('image/')) {
+    ocrStatus.value = 'Seleziona un’immagine JPG/PNG/WEBP oppure un PDF.'
+    return
+  }
+  if (file.size > maxImageBytes) {
+    ocrStatus.value = 'Immagine troppo grande: il limite è 10 MB.'
+    return
+  }
+
+  const detectorWindow = window as unknown as {
+    TextDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue?: string }>> }
+  }
+  if (!detectorWindow.TextDetector || typeof createImageBitmap !== 'function') {
+    ocrStatus.value = 'OCR locale non supportato da questo browser. Puoi incollare il testo estratto manualmente.'
+    return
+  }
+
+  let bitmap: ImageBitmap | undefined
+  try {
+    ocrStatus.value = 'Lettura locale dell’immagine in corso…'
+    bitmap = await createImageBitmap(file)
+    const detector = new detectorWindow.TextDetector()
+    const blocks = await detector.detect(bitmap)
+    const extracted = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join('\n')
+    if (!extracted) {
+      ocrStatus.value = 'Nessun testo riconosciuto. Prova con una foto più nitida o incolla il testo.'
+      return
+    }
+    rawReceiptText.value = extracted
+    ocrStatus.value = 'Testo estratto sul dispositivo. Controllalo e avvia l’analisi.'
+  } catch {
+    ocrStatus.value = 'Impossibile leggere questa immagine con l’OCR del browser.'
+  } finally {
+    bitmap?.close()
+  }
+}
+
 function handleParse() {
   if (!rawReceiptText.value.trim()) return
   emit('parse-receipt', rawReceiptText.value.trim())
@@ -97,8 +155,9 @@ function handleConfirmImport() {
     date: props.parsedReceipt.date || new Date().toISOString().slice(0, 10),
     items: props.parsedReceipt.items,
     total_amount: props.parsedReceipt.total_amount,
+    document_type: documentType.value,
     auto_add_to_finance: autoAddToFinance.value,
-    auto_update_pantry: autoUpdatePantry.value
+    auto_update_pantry: documentType.value === 'receipt' && autoUpdatePantry.value
   })
 }
 </script>
@@ -107,16 +166,39 @@ function handleConfirmImport() {
   <div class="scanner-tab-content">
     <!-- Step 1: Input Raw Text / Paste Area -->
     <div v-if="!parsedReceipt" class="scanner-input-card glass-panel">
+      <div class="document-type-control">
+        <label for="document-type">Tipo documento</label>
+        <select id="document-type" v-model="documentType" class="table-select">
+          <option value="receipt">Scontrino</option>
+          <option value="invoice">Fattura</option>
+        </select>
+      </div>
+
       <div class="card-intro">
         <div class="intro-icon bg-primary-soft">
           <FileText :size="24" class="text-primary" />
         </div>
         <div>
-          <h3 class="intro-title">Lettura Intelligente Scontrino Spesa (OCR)</h3>
+          <h3 class="intro-title">Lettura intelligente di scontrini e fatture</h3>
           <p class="intro-desc">
-            Incolla il testo dello scontrino fotografato o inserisci le righe per riconoscere automaticamente prodotti, quantità, categorie e totale speso.
+            Carica una foto oppure incolla il testo di uno scontrino o di una fattura. Verifica sempre i dati estratti prima dell’importazione.
           </p>
         </div>
+      </div>
+
+      <div class="image-scan-controls">
+        <label class="btn btn-secondary" for="receipt-image-input">Scatta o carica immagine / PDF</label>
+        <input
+          id="receipt-image-input"
+          class="visually-hidden"
+          type="file"
+          accept="image/*,.pdf,application/pdf"
+          capture="environment"
+          aria-label="Scatta o seleziona un'immagine di scontrino o fattura"
+          @change="handleImageSelected"
+        />
+        <p v-if="ocrStatus" class="ocr-status" role="status" aria-live="polite">{{ ocrStatus }}</p>
+        <p class="ocr-privacy-note">Le immagini vengono lette localmente quando il browser supporta TextDetector. I PDF vengono inviati al server Domus per estrarre il testo: non sono salvati e vengono elaborati solo le prime 20 pagine.</p>
       </div>
 
       <div class="quick-samples">
@@ -155,7 +237,7 @@ function handleConfirmImport() {
           @click="handleParse"
         >
           <Sparkles :size="18" />
-          <span>{{ loading ? 'Analisi OCR in corso...' : 'Analizza Scontrino con AI Locale' }}</span>
+          <span>{{ loading ? 'Analisi in corso...' : 'Analizza documento' }}</span>
         </button>
       </div>
     </div>
@@ -272,11 +354,11 @@ function handleConfirmImport() {
 
       <!-- Auto Integration Switches -->
       <div class="integration-switches-box">
-        <label class="switch-row">
-          <input v-model="autoUpdatePantry" type="checkbox" />
+        <label class="switch-row" :class="{ 'switch-disabled': documentType === 'invoice' }">
+          <input v-model="autoUpdatePantry" type="checkbox" :disabled="documentType === 'invoice'" />
           <div class="switch-info">
             <span class="switch-title">📦 Incrementa automaticamente le scorte in Dispensa</span>
-            <span class="switch-desc">I prodotti riconosciuti vengono aggiunti o incrementati nel magazzino di casa.</span>
+            <span class="switch-desc">{{ documentType === 'invoice' ? 'Non disponibile per le fatture.' : 'I prodotti riconosciuti vengono aggiunti o incrementati nel magazzino di casa.' }}</span>
           </div>
         </label>
 
@@ -314,6 +396,33 @@ function handleConfirmImport() {
 </template>
 
 <style scoped>
+.document-type-control { display: flex; align-items: center; gap: 10px; }
+.document-type-control label { color: var(--text-muted, #94a3b8); font-size: 0.88rem; }
+.switch-disabled { opacity: 0.65; }
+.image-scan-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.ocr-status, .ocr-privacy-note {
+  margin: 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.82rem;
+}
+.ocr-status { color: var(--text-main, #f8fafc); }
+
 .scanner-tab-content {
   display: flex;
   flex-direction: column;

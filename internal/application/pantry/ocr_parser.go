@@ -62,6 +62,12 @@ var (
 
 // ParseText analyzes receipt plain text and extracts a structured Receipt.
 func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("receipt text is empty")
+	}
+	if len(text) > 64*1024 {
+		return nil, fmt.Errorf("receipt text exceeds the 64 KiB limit")
+	}
 	lines := strings.Split(text, "\n")
 	receipt := &domain.Receipt{
 		StoreName: "Supermercato",
@@ -98,9 +104,12 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 			if year < 100 {
 				year += 2000
 			}
-			if day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2000 {
-				receipt.Date = fmt.Sprintf("%04d-%02d-%02d", year, month, day)
-				break
+			if year >= 2000 {
+				candidate := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+				if int(candidate.Day()) == day && int(candidate.Month()) == month && candidate.Year() == year {
+					receipt.Date = candidate.Format("2006-01-02")
+					break
+				}
 			}
 		}
 	}

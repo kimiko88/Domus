@@ -183,6 +183,15 @@ async function handleParseReceipt(rawText: string) {
   }
 }
 
+async function handleParseReceiptPDF(file: File) {
+  try {
+    const res = await pantryStore.parseReceiptPDF(file)
+    showToast(`PDF analizzato: ${res.items.length} prodotti riconosciuti. Verifica i dati prima dell’importazione.`)
+  } catch (err: any) {
+    showToast(err.message || 'Errore durante la lettura del PDF')
+  }
+}
+
 async function handleImportReceipt(data: any) {
   try {
     const res = await pantryStore.importReceipt(data)
@@ -323,6 +332,7 @@ async function handleImportReceipt(data: any) {
         :parsed-receipt="pantryStore.parsedReceipt"
         :loading="pantryStore.loading"
         @parse-receipt="handleParseReceipt"
+        @parse-pdf="handleParseReceiptPDF"
         @import-receipt="handleImportReceipt"
         @clear-parsed="pantryStore.clearParsedReceipt"
       />

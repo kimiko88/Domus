@@ -2,6 +2,7 @@ package pantry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -532,6 +533,7 @@ func (s *Service) ParseReceipt(ctx context.Context, rawText string) (*domain.Rec
 }
 
 type ImportReceiptRequest struct {
+	DocumentType     string               `json:"document_type"`
 	StoreName        string               `json:"store_name"`
 	Date             string               `json:"date"`
 	Items            []domain.ReceiptItem `json:"items"`
@@ -542,6 +544,42 @@ type ImportReceiptRequest struct {
 
 // ImportReceipt persists recognized items into the pantry and automatically records the expense in Home Finance!
 func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (*domain.ReceiptImportResult, error) {
+	documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
+	if documentType == "" {
+		documentType = "receipt"
+	}
+	if documentType != "receipt" && documentType != "invoice" {
+		return nil, fmt.Errorf("unsupported financial document type %q", documentType)
+	}
+	if documentType == "invoice" {
+		req.AutoUpdatePantry = false
+	}
+	if len(req.Items) > 500 {
+		return nil, fmt.Errorf("receipt contains too many items")
+	}
+	if math.IsNaN(req.TotalAmount) || math.IsInf(req.TotalAmount, 0) || req.TotalAmount < 0 || req.TotalAmount > 1_000_000 {
+		return nil, fmt.Errorf("receipt total amount is invalid")
+	}
+	if strings.TrimSpace(req.StoreName) == "" {
+		req.StoreName = "Supermercato"
+	}
+	if req.Date != "" {
+		if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+			return nil, fmt.Errorf("receipt date must use YYYY-MM-DD: %w", err)
+		}
+	}
+	for i, item := range req.Items {
+		if strings.TrimSpace(item.Name) == "" || len(item.Name) > 200 {
+			return nil, fmt.Errorf("receipt item %d has an invalid name", i+1)
+		}
+		if math.IsNaN(item.Quantity) || math.IsInf(item.Quantity, 0) || item.Quantity <= 0 || item.Quantity > 1_000_000 {
+			return nil, fmt.Errorf("receipt item %d has an invalid quantity", i+1)
+		}
+		if math.IsNaN(item.TotalPrice) || math.IsInf(item.TotalPrice, 0) || item.TotalPrice < 0 || item.TotalPrice > 1_000_000 {
+			return nil, fmt.Errorf("receipt item %d has an invalid price", i+1)
+		}
+	}
+
 	result := &domain.ReceiptImportResult{
 		ExpenseAmount: req.TotalAmount,
 	}
@@ -558,16 +596,23 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 			}
 			itemNames = append(itemNames, fmt.Sprintf("%s (%.1f %s)", trimmedName, item.Quantity, item.Unit))
 
-			existing, err := s.repo.GetPantryItemByName(ctx, trimmedName)
-			if err == nil && existing != nil {
-				// Increment existing item quantity
+			existing, lookupErr := s.repo.GetPantryItemByName(ctx, trimmedName)
+			if lookupErr == nil && existing != nil {
+				// Never merge quantities expressed in different units (e.g. g and kg).
+				if existing.Unit != item.Unit {
+					return nil, fmt.Errorf("pantry: cannot merge receipt item %q: existing unit %q differs from receipt unit %q", trimmedName, existing.Unit, item.Unit)
+				}
 				existing.Quantity += item.Quantity
 				existing.Cost = item.TotalPrice
 				existing.UpdatedAt = now
-				_ = s.repo.UpdatePantryItem(ctx, existing)
+				if err := existing.Validate(); err != nil {
+					return nil, fmt.Errorf("pantry: invalid merged receipt item %q: %w", trimmedName, err)
+				}
+				if err := s.repo.UpdatePantryItem(ctx, existing); err != nil {
+					return nil, fmt.Errorf("pantry: failed to update receipt item %q: %w", trimmedName, err)
+				}
 				result.ItemsUpdated++
-			} else {
-				// Create new pantry item
+			} else if errors.Is(lookupErr, domain.ErrItemNotFound) || (lookupErr == nil && existing == nil) {
 				newItem := &domain.PantryItem{
 					ID:           uuid.NewString(),
 					Name:         trimmedName,
@@ -580,9 +625,15 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 					CreatedAt:    now,
 					UpdatedAt:    now,
 				}
-				if err := s.repo.CreatePantryItem(ctx, newItem); err == nil {
-					result.ItemsAdded++
+				if err := newItem.Validate(); err != nil {
+					return nil, fmt.Errorf("pantry: invalid receipt item %q: %w", trimmedName, err)
 				}
+				if err := s.repo.CreatePantryItem(ctx, newItem); err != nil {
+					return nil, fmt.Errorf("pantry: failed to create receipt item %q: %w", trimmedName, err)
+				}
+				result.ItemsAdded++
+			} else {
+				return nil, fmt.Errorf("pantry: failed to find existing receipt item %q: %w", trimmedName, lookupErr)
 			}
 		}
 	} else {
@@ -599,23 +650,32 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 		}
 
 		store := req.StoreName
-		if store == "" {
-			store = "Supermercato"
-		}
+		category := domainFinance.CategoryFood
+		subcategory := domainFinance.SubcategoryGroceries
 		title := fmt.Sprintf("Spesa %s", store)
-		notes := fmt.Sprintf("Import da scontrino: %s", strings.Join(itemNames, ", "))
+		documentLabel := "scontrino"
+		if documentType == "invoice" {
+			category = domainFinance.CategoryOther
+			subcategory = ""
+			title = fmt.Sprintf("Fattura %s", store)
+			documentLabel = "fattura"
+		}
+		notes := fmt.Sprintf("Import da %s: %s", documentLabel, strings.Join(itemNames, ", "))
 
 		exp, err := s.financeApp.RecordExpense(
 			ctx,
 			title,
 			req.TotalAmount,
-			domainFinance.CategoryFood,
-			domainFinance.SubcategoryGroceries,
+			category,
+			subcategory,
 			expDate,
 			false,
 			notes,
 		)
-		if err == nil && exp != nil {
+		if err != nil {
+			return nil, fmt.Errorf("pantry: failed to record receipt expense: %w", err)
+		}
+		if exp != nil {
 			result.ExpenseID = &exp.ID
 		}
 	}

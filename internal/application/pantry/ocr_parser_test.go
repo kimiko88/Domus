@@ -2,6 +2,7 @@ package pantry_test
 
 import (
 	"testing"
+	"strings"
 
 	appPantry "github.com/domus-hub/domus/internal/application/pantry"
 	domainPantry "github.com/domus-hub/domus/internal/domain/pantry"
@@ -116,5 +117,27 @@ PASSATA POMODORO 700G 0.99
 
 	if len(res.Items) != 3 {
 		t.Fatalf("expected 3 items, got %d", len(res.Items))
+	}
+}
+
+
+func TestReceiptParserRejectsEmptyAndOversizedInput(t *testing.T) {
+	parser := appPantry.NewReceiptParser()
+	if _, err := parser.ParseText("  \n "); err == nil {
+		t.Fatal("expected empty receipt text to be rejected")
+	}
+	if _, err := parser.ParseText(strings.Repeat("x", 64*1024+1)); err == nil {
+		t.Fatal("expected oversized receipt text to be rejected")
+	}
+}
+
+func TestReceiptParserRejectsImpossibleCalendarDate(t *testing.T) {
+	parser := appPantry.NewReceiptParser()
+	res, err := parser.ParseText("COOP\nDATA 31/02/2026\nPASTA 1.20")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	if res.Date == "2026-02-31" {
+		t.Fatalf("parser accepted impossible date %q", res.Date)
 	}
 }

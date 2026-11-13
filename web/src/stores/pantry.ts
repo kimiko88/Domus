@@ -370,11 +370,33 @@ export const usePantryStore = defineStore('pantry', () => {
     }
   }
 
+  async function parseReceiptPDF(file: File): Promise<Receipt> {
+    try {
+      loading.value = true
+      error.value = null
+      if (file.size > 3 * 1024 * 1024) throw new Error('Il PDF supera il limite di 3 MB')
+      const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-pdf', {
+        method: 'POST',
+        body: file,
+        headers: { 'Content-Type': 'application/pdf' },
+        timeoutMs: 30_000
+      })
+      parsedReceipt.value = result
+      return result
+    } catch (err: any) {
+      error.value = err?.message || 'Errore durante la lettura del PDF'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function importReceipt(data: {
     store_name: string
     date: string
     items: Receipt['items']
     total_amount: number
+    document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
   }): Promise<ReceiptImportResult> {
@@ -436,6 +458,7 @@ export const usePantryStore = defineStore('pantry', () => {
     deleteMealPlan,
     consumeMealPlan,
     parseReceipt,
+    parseReceiptPDF,
     importReceipt,
     clearParsedReceipt
   }

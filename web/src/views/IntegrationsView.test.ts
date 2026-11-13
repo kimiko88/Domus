@@ -106,7 +106,7 @@ describe('IntegrationsView.vue', () => {
 
     // Switch to discovery tab
     const tabs = wrapper.findAll('.tab-btn')
-    expect(tabs.length).toBe(4)
+    expect(tabs.length).toBe(5)
     await tabs[1].trigger('click')
     await wrapper.vm.$nextTick()
 
@@ -222,5 +222,38 @@ describe('IntegrationsView.vue', () => {
       ip: '192.168.1.55'
     }))
   })
+  it('loads Smart Life Cloud devices and toggles boolean datapoints', async () => {
+    const cloudDevices = [{
+      id: 'tuya-device-1',
+      name: 'Lampada soggiorno',
+      product_name: 'Wi-Fi Smart Bulb',
+      online: true,
+      status: [{ code: 'switch_led', value: false }]
+    }]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+    const tabs = wrapper.findAll('.tab-btn')
+    await tabs[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(wrapper.text()).toContain('Lampada soggiorno')
+    expect(wrapper.text()).toContain('switch_led')
+    const toggle = wrapper.find('.btn-host-probe')
+    expect(toggle.exists()).toBe(true)
+    await toggle.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-device-1/commands',
+      { commands: [{ code: 'switch_led', value: true }] }
+    )
+  })
+
 })
 
