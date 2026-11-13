@@ -129,14 +129,26 @@ class DashboardViewModel(
         viewModelScope.launch {
             val token = tokenStorage?.getToken()
             if (!token.isNullOrBlank()) {
-                val endpoint = tokenStorage.getRemoteEndpoint()
-                    ?: tokenStorage.getLocalEndpoint()
-                    ?: "https://domus.local.myhome.net"
-                val restored = apiClient.validateSession(endpoint, token)
-                if (restored.isSuccess) {
-                    _authSession.value = restored.getOrThrow()
+                val endpoints = listOfNotNull(tokenStorage.getLocalEndpoint(), tokenStorage.getRemoteEndpoint())
+                    .distinct()
+                var validated: AuthSession? = null
+                var definitivelyRejected = false
+                for (endpoint in endpoints) {
+                    val result = apiClient.validateSession(endpoint, token)
+                    if (result.isSuccess) {
+                        validated = result.getOrThrow()
+                        break
+                    }
+                    val message = result.exceptionOrNull()?.message.orEmpty()
+                    if (message.contains("HTTP 401") || message.contains("HTTP 403")) {
+                        definitivelyRejected = true
+                        break
+                    }
+                }
+                if (validated != null) {
+                    _authSession.value = validated
                 } else {
-                    tokenStorage.saveToken(null)
+                    if (definitivelyRejected) tokenStorage.saveToken(null)
                     _authSession.value = AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
                 }
             }
@@ -374,7 +386,7 @@ class DashboardViewModel(
                 initialConnectAndSync()
                 onResult(true, null)
             } else {
-                onResult(false, res.exceptionOrNull()?.message ?: "Errore di autenticazione")
+                onResult(false, if (res.exceptionOrNull()?.message?.contains("TWO_FACTOR_REQUIRED") == true) "È richiesto il codice 2FA" else res.exceptionOrNull()?.message ?: "Errore di autenticazione")
             }
         }
     }
