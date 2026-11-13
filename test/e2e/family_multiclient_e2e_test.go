@@ -109,6 +109,16 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	adminSess, _, err := authService.Login(ctx, "creator_admin", "AdminPass123!", "127.0.0.1", "CreatorBrowser")
 	require.NoError(t, err)
 
+	// A browser from another origin must not be able to hijack the session
+	// through the WebSocket handshake, even when it knows the session URL.
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/ws?session=%s", testPort, url.QueryEscape(adminSess.ID))
+	attackerHeaders := http.Header{}
+	attackerHeaders.Set("Origin", "https://attacker.example")
+	_, rejectedResp, dialErr := gorilla.DefaultDialer.Dial(wsURL, attackerHeaders)
+	require.Error(t, dialErr)
+	require.NotNil(t, rejectedResp)
+	require.Equal(t, http.StatusForbidden, rejectedResp.StatusCode)
+
 	// Create a controllable entity
 	now := time.Now().UTC()
 	testEnt := &entity.Entity{
@@ -244,6 +254,20 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 		"service": "turn_off",
 	}, kidCookie)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	// The same viewer must also be denied when attempting to bypass REST RBAC
+	// by sending a command directly over the authenticated WebSocket.
+	require.NoError(t, wsKid.WriteJSON(map[string]any{
+		"type": "call_service", "domain": "light", "service": "turn_off",
+		"entity_id": testEnt.ID,
+	}))
+	var wsDenied wsinfra.Message
+	require.NoError(t, wsKid.ReadJSON(&wsDenied))
+	assert.Equal(t, "result", wsDenied.Type)
+	deniedPayload, ok := wsDenied.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, deniedPayload["success"])
+	assert.Equal(t, "forbidden", deniedPayload["code"])
 
 	// 9. Mom (Operator) tries to create another invite -> blocked (403 Forbidden)
 	resp, _ = postJSON("/api/v1/family/invites", map[string]any{
