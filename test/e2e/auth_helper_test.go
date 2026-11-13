@@ -33,12 +33,33 @@ func configureE2EAuth(t *testing.T, repos *sqlite.Repositories) (serverpkg.Serve
 	return serverpkg.WithAuth(authSvc, appauth.NewRateLimiter(100, time.Minute)), session.ID
 }
 
-// newAuthenticatedE2EClient attaches the test session cookie to every request.
+type csrfTestRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (t csrfTestRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	if cookie, err := clone.Cookie(domusmw.CSRFCookieName); err == nil {
+		clone.Header.Set("X-CSRF-Token", cookie.Value)
+	}
+	return t.base.RoundTrip(clone)
+}
+
+// newAuthenticatedE2EClient attaches both session and CSRF cookies to every request.
 func newAuthenticatedE2EClient(ts *httptest.Server, sessionID string) *http.Client {
 	jar, _ := cookiejar.New(nil)
 	baseURL, _ := url.Parse(ts.URL)
-	jar.SetCookies(baseURL, []*http.Cookie{{Name: domusmw.SessionCookieName, Value: sessionID}})
+	const csrfToken = "0123456789abcdef0123456789abcdef"
+	jar.SetCookies(baseURL, []*http.Cookie{
+		{Name: domusmw.SessionCookieName, Value: sessionID},
+		{Name: domusmw.CSRFCookieName, Value: csrfToken},
+	})
 	client := ts.Client()
+	baseTransport := client.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+	client.Transport = csrfTestRoundTripper{base: baseTransport}
 	client.Jar = jar
 	return client
 }
