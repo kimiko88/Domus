@@ -3,6 +3,14 @@ import XCTest
 
 final class MobileBackendContractTests: XCTestCase {
 
+    func testDynamicAPIPathSegmentsAreEncodedAsSingleSegments() throws {
+        let encoded = try DomusHttpClient.encodePathSegment("tag/../../family/invites?admin=true")
+        XCTAssertEqual(encoded, "tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin%3Dtrue")
+        XCTAssertThrowsError(try DomusHttpClient.encodePathSegment(""))
+        XCTAssertEqual(try DomusHttpClient.encodePathSegment("."), "%2E")
+        XCTAssertEqual(try DomusHttpClient.encodePathSegment(".."), "%2E%2E")
+    }
+
     func testWebSocketEventContractDecoding() throws {
         let jsonString = """
         {
