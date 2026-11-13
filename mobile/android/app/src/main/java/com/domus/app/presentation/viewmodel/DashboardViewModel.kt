@@ -63,12 +63,7 @@ class DashboardViewModel(
 
     // Auth state
     private val _authSession = MutableStateFlow(
-        AuthSession(
-            token = tokenStorage?.getToken(),
-            username = "admin",
-            role = "admin",
-            isAuthenticated = tokenStorage?.getToken()?.isNotBlank() == true
-        )
+        AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
     )
     val authSession: StateFlow<AuthSession> = _authSession.asStateFlow()
 
@@ -111,7 +106,7 @@ class DashboardViewModel(
     val kioskSmartPlugId: StateFlow<String> = _kioskSmartPlugId.asStateFlow()
 
     init {
-        initialConnectAndSync()
+        restoreSessionAndConnect()
         beaconManager.startMonitoring()
         setupKioskListeners()
     }
@@ -127,6 +122,25 @@ class DashboardViewModel(
             controller.onBatteryProtectionAction = { entityId, turnOn ->
                 callService("switch", if (turnOn) "turn_on" else "turn_off", entityId)
             }
+        }
+    }
+
+    private fun restoreSessionAndConnect() {
+        viewModelScope.launch {
+            val token = tokenStorage?.getToken()
+            if (!token.isNullOrBlank()) {
+                val endpoint = tokenStorage.getRemoteEndpoint()
+                    ?: tokenStorage.getLocalEndpoint()
+                    ?: "https://domus.local.myhome.net"
+                val restored = apiClient.validateSession(endpoint, token)
+                if (restored.isSuccess) {
+                    _authSession.value = restored.getOrThrow()
+                } else {
+                    tokenStorage.saveToken(null)
+                    _authSession.value = AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
+                }
+            }
+            initialConnectAndSync()
         }
     }
 
@@ -349,9 +363,9 @@ class DashboardViewModel(
     }
 
     // --- AUTH ---
-    fun login(hubUrl: String, user: String, pass: String, onResult: (Boolean, String?) -> Unit) {
+    fun login(hubUrl: String, user: String, pass: String, twoFactorCode: String? = null, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val res = apiClient.login(hubUrl, user, pass)
+            val res = apiClient.login(hubUrl, user, pass, twoFactorCode)
             if (res.isSuccess) {
                 val sess = res.getOrThrow()
                 tokenStorage?.saveToken(sess.token ?: "")
