@@ -108,6 +108,44 @@ class MobileBackendContractTest {
     }
 
     @Test
+    fun apiClientEncodesDynamicPathSegmentsAndQueryParameters() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        val scanResult = apiClient.scanTag(baseUrl, "token", "tag/../../family/invites?admin=true")
+        assertTrue(scanResult.isSuccess)
+        val scanPath = server.takeRequest().path
+        assertEquals(
+            "/api/v1/tags/tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin%3Dtrue/scan",
+            scanPath
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val meshResult = apiClient.fetchMeshTopology(baseUrl, "token", "zha&admin=true")
+        assertTrue(meshResult.isSuccess)
+        assertEquals(
+            "/api/v1/mesh/topology?protocol=zha%26admin%3Dtrue",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val serviceResult = apiClient.callService(
+            baseUrl,
+            "token",
+            "light/../../auth",
+            "login?admin=true",
+            "light.kitchen"
+        )
+        assertTrue(serviceResult.isSuccess)
+        assertEquals(
+            "/api/v1/services/light%2F..%2F..%2Fauth/login%3Fadmin%3Dtrue",
+            server.takeRequest().path
+        )
+    }
+
+    @Test
     fun testCompleteMobileLifecycleE2E() = runTest {
         val wsEvent = """
             {
