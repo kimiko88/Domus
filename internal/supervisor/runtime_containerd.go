@@ -38,7 +38,7 @@ func (c *ContainerdRuntime) EnsureContainer(ctx context.Context, name string, cf
 	// Check if container already exists
 	checkCmd := exec.CommandContext(ctx, c.ctrBin, c.args("container", "info", name)...)
 	if err := checkCmd.Run(); err == nil {
-		return nil // Container already registered
+		return fmt.Errorf("container %s already exists; uninstall it before reinstalling so runtime settings cannot remain stale", name)
 	}
 
 	// Pull image if necessary
