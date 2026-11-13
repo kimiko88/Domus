@@ -679,6 +679,9 @@ public actor DomusHttpClient: Sendable {
     // MARK: - Private helpers
 
     private func pathSegment(_ value: String) throws -> String {
+        guard !value.isEmpty else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso vuoto")
+        }
         if value == "." { return "%2E" }
         if value == ".." { return "%2E%2E" }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!    private func makeURL(path: String) throws -> URL {
