@@ -179,10 +179,8 @@ class DualTransportManager(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                if (connectionGeneration.get() != generation) return
-                if (this@DualTransportManager.webSocket === webSocket) {
-                    this@DualTransportManager.webSocket = null
-                }
+                if (connectionGeneration.get() != generation || this@DualTransportManager.webSocket !== webSocket) return
+                this@DualTransportManager.webSocket = null
                 _connectionFlow.value = ServerConnection(
                     mode = TransportMode.DISCONNECTED,
                     targetMode = currentMode,
