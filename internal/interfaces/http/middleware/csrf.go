@@ -18,8 +18,8 @@ func CSRFProtection() func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			_, hasSessionCookie := r.Cookie(SessionCookieName)
-			if !hasSessionCookie || GetUser(r.Context()) == nil {
+			_, cookieErr := r.Cookie(SessionCookieName)
+			if cookieErr != nil || GetUser(r.Context()) == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
