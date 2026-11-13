@@ -101,6 +101,8 @@ fun DashboardScreen(
     var showKioskSettingsSheet by remember { mutableStateOf(false) }
     var showFinanceSheet by remember { mutableStateOf(false) }
     var showLoginSheet by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+    var requiresTwoFactor by remember { mutableStateOf(false) }
 
     // Selected Entity Detailed Inspectors
     var selectedLightEntity by remember { mutableStateOf<Entity?>(null) }
@@ -602,15 +604,23 @@ fun DashboardScreen(
     if (showLoginSheet) {
         Dialog(onDismissRequest = { showLoginSheet = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             LoginScreen(
-                onLogin = { url, user, pass ->
-                    viewModel.login(url, user, pass) { success, _ ->
-                        if (success) showLoginSheet = false
+                onLogin = { url, user, pass, twoFactorCode ->
+                    viewModel.login(url, user, pass, twoFactorCode) { success, error ->
+                        if (success) {
+                            showLoginSheet = false
+                            loginError = null
+                            requiresTwoFactor = false
+                        } else {
+                            loginError = error
+                            requiresTwoFactor = error?.contains("TWO_FACTOR_REQUIRED") == true
+                        }
                     }
                 },
                 onDiscoverLan = { viewModel.reconnect() },
                 discoveredHubUrl = connection.activeUrl,
                 isLoading = isRefreshing,
-                errorMessage = null
+                errorMessage = loginError,
+                requiresTwoFactor = requiresTwoFactor
             )
         }
     }
