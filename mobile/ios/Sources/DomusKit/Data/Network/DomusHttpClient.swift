@@ -682,8 +682,9 @@ public actor DomusHttpClient: Sendable {
         guard !value.isEmpty else {
             throw DomusNetworkError.invalidURL("Segmento di percorso vuoto")
         }
-        if value == "." { return "%2E" }
-        if value == ".." { return "%2E%2E" }
+        guard value != "." && value != ".." else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
+        }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!$&'()*+,;=:@")
         guard let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed) else {
             throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
