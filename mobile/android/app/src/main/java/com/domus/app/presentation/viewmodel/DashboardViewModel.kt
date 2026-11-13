@@ -129,7 +129,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             val token = tokenStorage?.getToken()
             if (!token.isNullOrBlank()) {
-                val endpoints = listOfNotNull(tokenStorage.getLocalEndpoint(), tokenStorage.getRemoteEndpoint())
+                val endpoints = listOfNotNull(tokenStorage?.getLocalEndpoint(), tokenStorage?.getRemoteEndpoint())
                     .distinct()
                 var validated: AuthSession? = null
                 var definitivelyRejected = false
@@ -148,7 +148,7 @@ class DashboardViewModel(
                 if (validated != null) {
                     _authSession.value = validated
                 } else {
-                    if (definitivelyRejected) tokenStorage.saveToken(null)
+                    if (definitivelyRejected) tokenStorage?.saveToken(null)
                     _authSession.value = AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
                 }
             }
