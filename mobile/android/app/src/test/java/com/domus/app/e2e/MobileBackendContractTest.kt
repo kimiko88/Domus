@@ -24,6 +24,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -44,6 +45,29 @@ class MobileBackendContractTest {
         try {
             server.shutdown()
         } catch (e: Exception) {}
+    }
+
+
+    @Test
+    fun apiClientSafelyEncodesUserStringsAndReportsHttpFailures() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+        val injectedValue = """device", "admin": true, "extra":"owned"""
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        val scanResult = apiClient.scanTag(baseUrl, "test-token", "tag-1", injectedValue)
+        assertTrue(scanResult.isSuccess)
+        val scanRequest = server.takeRequest()
+        val scanJson = kotlinx.serialization.json.Json.parseToJsonElement(scanRequest.body.readUtf8()).jsonObject
+        assertEquals(setOf("scanned_by"), scanJson.keys)
+        assertEquals(injectedValue, scanJson["scanned_by"]?.jsonPrimitive?.content)
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.scanTag(baseUrl, "test-token", "tag-1").isSuccess)
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.registerPushToken(baseUrl, "test-token", "push-token", "test-device").isSuccess)
     }
 
     @Test
