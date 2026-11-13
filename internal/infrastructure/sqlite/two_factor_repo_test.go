@@ -9,6 +9,7 @@ import (
 	domauth "github.com/domus-hub/domus/internal/domain/auth"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,6 +23,12 @@ func TestConsumeBackupCodeIsOneTime(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, sqlite.Migrate(ctx, db))
 
+	repos := sqlite.NewRepositories(db)
+	now := time.Now().UTC()
+	require.NoError(t, repos.Users.Create(ctx, &user.User{
+		ID: "user-1", Username: "two_factor_user", PasswordHash: "test-hash",
+		Role: user.RoleAdmin, Enabled: true, CreatedAt: now, UpdatedAt: now,
+	}))
 	repo := sqlite.NewTwoFactorRepository(db)
 	require.NoError(t, repo.Save(ctx, &domauth.TwoFactorConfig{
 		UserID: "user-1", Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true,
