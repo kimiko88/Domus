@@ -160,6 +160,21 @@ class DomusApiClient(
 ) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * Builds API URLs without allowing caller-controlled identifiers to become
+     * additional path segments or query components.
+     */
+    private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl {
+        val base = baseUrl.toHttpUrlOrNull()
+            ?: throw IOException("URL base non valida")
+        return base.newBuilder().apply {
+            segments.forEach { segment ->
+                require(segment.isNotEmpty()) { "Segmento URL vuoto" }
+                addPathSegment(segment)
+            }
+        }.build()
+    }
+
     suspend fun login(baseUrl: String, username: String, password: String, twoFactorCode: String? = null): Result<AuthSession> = withContext(Dispatchers.IO) {
         try {
             val reqBody = json.encodeToString(LoginRequest.serializer(), LoginRequest(username, password, twoFactorCode))
@@ -642,7 +657,7 @@ class DomusApiClient(
 
     suspend fun fetchLogbook(baseUrl: String, token: String?, limit: Int = 100): Result<List<TimelineEvent>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/logbook?limit=$limit")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "logbook").newBuilder().addQueryParameter("limit", limit.toString()).build())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -667,8 +682,10 @@ class DomusApiClient(
 
     suspend fun fetchMeshTopology(baseUrl: String, token: String?, protocol: String? = null): Result<MeshTopologyDto> = withContext(Dispatchers.IO) {
         try {
-            val query = if (protocol != null) "?protocol=$protocol" else ""
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/mesh/topology$query")
+            val meshUrl = apiUrl(baseUrl, "api", "v1", "mesh", "topology").newBuilder().apply {
+                if (protocol != null) addQueryParameter("protocol", protocol)
+            }.build()
+            val reqBuilder = Request.Builder().url(meshUrl)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -812,7 +829,8 @@ class DomusApiClient(
 
     suspend fun fetchFinancialSummary(baseUrl: String, token: String?, period: String = "month"): Result<com.domus.app.domain.model.FinancialSummaryDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/finance/summary?period=$period").get()
+            val summaryUrl = apiUrl(baseUrl, "api", "v1", "finance", "summary").newBuilder().addQueryParameter("period", period).build()
+            val reqBuilder = Request.Builder().url(summaryUrl).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore riepilogo spese: HTTP ${response.code}"))
