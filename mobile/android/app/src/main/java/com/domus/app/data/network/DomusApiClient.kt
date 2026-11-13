@@ -524,8 +524,11 @@ class DomusApiClient(
             }
 
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful && response.code != 404 && response.code != 405) {
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch notifiche: HTTP ${response.code}"))
+                }
                 if (!response.isSuccessful) {
-                    // Fallback to /api/v1/notifications/actionable
+                    // Older servers may expose only the actionable notifications endpoint.
                     val fallbackReq = Request.Builder().url("$baseUrl/api/v1/notifications/actionable")
                     if (!token.isNullOrBlank()) {
                         fallbackReq.addHeader("Authorization", "Bearer $token")
@@ -688,14 +691,14 @@ class DomusApiClient(
             client.newCall(reqBuilder.build()).execute().use { response ->
                 val latency = maxOf(1, (System.currentTimeMillis() - start).toInt())
                 if (!response.isSuccessful) {
-                    return@withContext Result.success(Pair(SystemHealthDto(), latency))
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore health check: HTTP ${response.code}"))
                 }
                 val bodyStr = response.body?.string() ?: "{}"
                 val health = json.decodeFromString<SystemHealthDto>(bodyStr)
                 Result.success(Pair(health, latency))
             }
         } catch (e: Exception) {
-            Result.success(Pair(SystemHealthDto(), 12))
+            Result.failure(e)
         }
     }
 
