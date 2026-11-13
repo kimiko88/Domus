@@ -95,6 +95,37 @@ func (r *TwoFactorRepository) Save(ctx context.Context, cfg *domauth.TwoFactorCo
 	return nil
 }
 
+// ConsumeBackupCode atomically removes one recovery code. The conditional
+// UPDATE prevents two concurrent logins from consuming the same code.
+func (r *TwoFactorRepository) ConsumeBackupCode(ctx context.Context, userID, code string) (bool, error) {
+	if code == "" { return false, nil }
+	for attempt := 0; attempt < 8; attempt++ {
+		var raw string
+		if err := r.db.QueryRowContext(ctx, "SELECT backup_codes FROM user_two_factor WHERE user_id = ?", userID).Scan(&raw); err != nil {
+			if errors.Is(err, sql.ErrNoRows) { return false, nil }
+			return false, fmt.Errorf("sqlite: failed to load backup codes: %w", err)
+		}
+		var codes []string
+		if err := json.Unmarshal([]byte(raw), &codes); err != nil {
+			return false, fmt.Errorf("sqlite: failed to decode backup codes: %w", err)
+		}
+		found := -1
+		for i, candidate := range codes { if candidate == code { found = i; break } }
+		if found < 0 { return false, nil }
+		codes = append(codes[:found], codes[found+1:]...)
+		updated, err := json.Marshal(codes)
+		if err != nil { return false, fmt.Errorf("sqlite: failed to encode backup codes: %w", err) }
+		res, err := r.db.ExecContext(ctx,
+			"UPDATE user_two_factor SET backup_codes = ?, updated_at = ? WHERE user_id = ? AND backup_codes = ?",
+			string(updated), time.Now().UTC().Format(time.RFC3339), userID, raw)
+		if err != nil { return false, fmt.Errorf("sqlite: failed to consume backup code: %w", err) }
+		n, err := res.RowsAffected()
+		if err != nil { return false, fmt.Errorf("sqlite: failed to verify backup-code consumption: %w", err) }
+		if n == 1 { return true, nil }
+	}
+	return false, errors.New("sqlite: backup codes changed too frequently; retry authentication")
+}
+
 // Delete removes 2FA configuration for a user.
 func (r *TwoFactorRepository) Delete(ctx context.Context, userID string) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM user_two_factor WHERE user_id = ?", userID)
