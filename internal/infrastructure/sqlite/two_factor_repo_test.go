@@ -52,7 +52,7 @@ func TestBannedIPCountsConcurrentFailuresAtomically(t *testing.T) {
 	ctx := context.Background()
 	db, err := sqlite.Open(config.DatabaseConfig{
 		Path: filepath.Join(t.TempDir(), "banned_ip.db"), WALMode: true,
-		BusyTimeoutMs: 10000, MaxOpenConns: 16,
+		BusyTimeoutMs: 10000, MaxOpenConns: 1,
 	})
 	require.NoError(t, err)
 	defer db.Close()
