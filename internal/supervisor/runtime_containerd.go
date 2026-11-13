@@ -87,16 +87,70 @@ func (c *ContainerdRuntime) StartContainer(ctx context.Context, name string) err
 
 // StopContainer terminates the running container task.
 func (c *ContainerdRuntime) StopContainer(ctx context.Context, name string, timeout time.Duration) error {
-	cmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGTERM", name)...)
-	_ = cmd.Run()
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
 
-	// Wait or force kill
-	time.Sleep(timeout)
-	killCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGKILL", name)...)
-	_ = killCmd.Run()
+	termCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGTERM", name)...)
+	termErr := termCmd.Run()
+	status, statusErr := c.GetContainerStatus(ctx, name)
+	if statusErr != nil {
+		return fmt.Errorf("failed to inspect task %s after SIGTERM: %w", name, statusErr)
+	}
+	if termErr != nil && status.State == ContainerStateRunning {
+		return fmt.Errorf("failed to send SIGTERM to task %s: %w", name, termErr)
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for status.State == ContainerStateRunning {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("stopping task %s: %w", name, ctx.Err())
+		case <-deadline.C:
+			killCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGKILL", name)...)
+			if out, err := killCmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to force-kill task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
+			}
+			// Give containerd a bounded period to report task termination.
+			forceDeadline := time.NewTimer(2 * time.Second)
+			defer forceDeadline.Stop()
+			for {
+				status, statusErr = c.GetContainerStatus(ctx, name)
+				if statusErr != nil {
+					return fmt.Errorf("failed to inspect task %s after SIGKILL: %w", name, statusErr)
+				}
+				if status.State != ContainerStateRunning {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("waiting for task %s termination: %w", name, ctx.Err())
+				case <-forceDeadline.C:
+					return fmt.Errorf("task %s is still running after SIGKILL", name)
+				case <-ticker.C:
+				}
+			}
+		case <-ticker.C:
+			status, statusErr = c.GetContainerStatus(ctx, name)
+			if statusErr != nil {
+				return fmt.Errorf("failed to inspect task %s while stopping: %w", name, statusErr)
+			}
+		}
+	}
 
 	deleteCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "delete", name)...)
-	_ = deleteCmd.Run()
+	if out, err := deleteCmd.CombinedOutput(); err != nil {
+		// A task that was already absent is stopped; otherwise surface the
+		// runtime failure instead of claiming that cleanup succeeded.
+		status, statusErr = c.GetContainerStatus(ctx, name)
+		if statusErr != nil || status.State == ContainerStateRunning {
+			return fmt.Errorf("failed to delete task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
+		}
+	}
 	return nil
 }
 
