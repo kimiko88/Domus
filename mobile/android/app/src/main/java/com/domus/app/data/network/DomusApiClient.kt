@@ -20,7 +20,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 
 class ApiHttpException(val statusCode: Int, message: String) : IOException(message)
@@ -167,6 +166,9 @@ class DomusApiClient(
     private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl {
         val base = baseUrl.toHttpUrlOrNull()
             ?: throw IOException("URL base non valida")
+        require(base.isHttp || base.isHttps) { "Schema URL base non supportato" }
+        require(base.username.isEmpty() && base.password.isEmpty()) { "Credenziali nella URL base non consentite" }
+        require(base.query == null && base.fragment == null) { "Query o fragment nella URL base non consentiti" }
         return base.newBuilder().apply {
             segments.forEach { segment ->
                 require(segment.isNotEmpty()) { "Segmento URL vuoto" }
