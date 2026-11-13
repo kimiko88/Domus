@@ -122,6 +122,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		select {
 		case sendCh <- msg:
 		case <-writerStop:
+		case <-done:
 		}
 	}
 	go func() {
