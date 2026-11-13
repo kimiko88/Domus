@@ -306,7 +306,10 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 			req = httptest.NewRequest(method, path, nil)
 		}
 		if sessID != "" {
+			const csrfToken = "0123456789abcdef0123456789abcdef"
 			req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sessID})
+			req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+			req.Header.Set("X-CSRF-Token", csrfToken)
 		}
 		rr := httptest.NewRecorder()
 		srv.Router().ServeHTTP(rr, req)
