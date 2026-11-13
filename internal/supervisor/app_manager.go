@@ -86,6 +86,9 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, exists := m.apps[manifest.ID]; exists {
+		return nil, fmt.Errorf("app %s is already installed; uninstall it before reinstalling", manifest.ID)
+	}
 
 	// 1. Create app isolated data root
 	appStorageRoot := filepath.Join(m.appsDir, manifest.ID)
