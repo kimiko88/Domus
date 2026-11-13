@@ -122,6 +122,10 @@ class MobileBackendContractTest {
             scanPath
         )
 
+        val requestCountBeforeInvalidId = server.requestCount
+        assertFalse(apiClient.scanTag(baseUrl, "token", "..").isSuccess)
+        assertEquals(requestCountBeforeInvalidId, server.requestCount)
+
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val meshResult = apiClient.fetchMeshTopology(baseUrl, "token", "zha&admin=true")
         assertTrue(meshResult.isSuccess)
