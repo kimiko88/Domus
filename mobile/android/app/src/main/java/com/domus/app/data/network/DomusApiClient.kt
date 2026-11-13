@@ -1008,13 +1008,11 @@ class DomusApiClient(
 
     suspend fun fetchMealPlans(baseUrl: String, token: String?, startDate: String? = null, endDate: String? = null): Result<List<MealPlanDto>> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/v1/pantry/meals"
-            val params = mutableListOf<String>()
-            if (!startDate.isNullOrBlank()) params.add("start_date=$startDate")
-            if (!endDate.isNullOrBlank()) params.add("end_date=$endDate")
-            if (params.isNotEmpty()) url += "?" + params.joinToString("&")
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "pantry", "meals").newBuilder()
+            if (!startDate.isNullOrBlank()) urlBuilder.addQueryParameter("start_date", startDate)
+            if (!endDate.isNullOrBlank()) urlBuilder.addQueryParameter("end_date", endDate)
 
-            val reqBuilder = Request.Builder().url(url).get()
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch pasti: HTTP ${response.code}"))
@@ -1125,8 +1123,7 @@ class DomusApiClient(
         query: String? = null
     ): Result<List<MedicineDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/medicines".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines").newBuilder()
             if (!location.isNullOrBlank()) urlBuilder.addQueryParameter("location", location)
             if (!status.isNullOrBlank()) urlBuilder.addQueryParameter("status", status)
             if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
@@ -1247,11 +1244,12 @@ class DomusApiClient(
 
     suspend fun getMedicineAlerts(baseUrl: String, token: String?, fridgeTemp: Double? = null): Result<List<MedicineAlertDto>> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/v1/medicines/alerts"
-            if (fridgeTemp != null) {
-                url += "?fridge_temp=$fridgeTemp"
+            if (fridgeTemp != null && !fridgeTemp.isFinite()) {
+                return@withContext Result.failure(IllegalArgumentException("Temperatura frigorifero non valida"))
             }
-            val reqBuilder = Request.Builder().url(url).get()
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines", "alerts").newBuilder()
+            if (fridgeTemp != null) urlBuilder.addQueryParameter("fridge_temp", fridgeTemp.toString())
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore avvisi medicinali: HTTP ${response.code}"))
@@ -1285,8 +1283,7 @@ class DomusApiClient(
 
     suspend fun lookupAIFA(baseUrl: String, token: String?, query: String? = null, aic: String? = null): Result<List<AIFARecordDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/medicines/lookup".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines", "lookup").newBuilder()
             if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
             if (!aic.isNullOrBlank()) urlBuilder.addQueryParameter("aic", aic)
 
@@ -1440,8 +1437,7 @@ class DomusApiClient(
         targetTime: String? = null
     ): Result<PreheatRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-start".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "optimal-start").newBuilder()
             if (targetTemp != null) urlBuilder.addQueryParameter("target_temp", targetTemp.toString())
             if (!targetTime.isNullOrBlank()) urlBuilder.addQueryParameter("target_time", targetTime)
 
@@ -1465,8 +1461,7 @@ class DomusApiClient(
         departureTime: String? = null
     ): Result<CoastDownRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-stop".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "optimal-stop").newBuilder()
             if (!departureTime.isNullOrBlank()) urlBuilder.addQueryParameter("departure_time", departureTime)
 
             val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
