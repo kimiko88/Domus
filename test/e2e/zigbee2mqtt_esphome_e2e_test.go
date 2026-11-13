@@ -245,6 +245,8 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		})
 		req, _ := http.NewRequest(http.MethodPost, cmdURL, bytes.NewReader(cmdBody))
 		req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sess.ID})
+		req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := httpClient.Do(req)
@@ -313,6 +315,8 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		})
 		req, _ := http.NewRequest(http.MethodPost, cmdURL, bytes.NewReader(cmdBody))
 		req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sess.ID})
+		req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := httpClient.Do(req)
