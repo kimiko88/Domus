@@ -11,7 +11,34 @@ import (
 )
 
 var (
-	appIDRegex     = regexp.MustCompile(`^[a-z0-9][a-z0-9-_]{1,63}$`)
+	appIDRegex       = regexp.MustCompile(`^[a-z0-9][a-z0-9-_]{1,63}package supervisor
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+var (
+	)
+	volumeNameRegex  = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}package supervisor
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+var (
+	)
 	validDeviceReg = regexp.MustCompile(`^/dev/(ttyUSB[0-9]+|ttyACM[0-9]+|serial[0-9]*|gpiochip[0-9]*)$`)
 )
 
@@ -144,6 +171,11 @@ func ParseAndValidateManifest(data []byte) (*AppManifest, error) {
 	for _, vol := range m.Permissions.Storage {
 		if strings.TrimSpace(vol.Path) == "" || strings.TrimSpace(vol.VolumeName) == "" {
 			return nil, errors.New("storage volume must specify both path and volume_name")
+		}
+		// VolumeName becomes a host-side directory component. Reject path
+		// separators, dot segments and hidden names to keep mounts under appsDir.
+		if !volumeNameRegex.MatchString(vol.VolumeName) {
+			return nil, fmt.Errorf("invalid storage volume_name %q: use 1-64 lowercase letters, digits, underscore or hyphen", vol.VolumeName)
 		}
 		if vol.Path == "/" || vol.Path == "/etc" || vol.Path == "/bin" || vol.Path == "/sbin" {
 			return nil, fmt.Errorf("forbidden storage mount path: %s", vol.Path)
