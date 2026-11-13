@@ -170,6 +170,7 @@ class DomusApiClient(
         return base.newBuilder().apply {
             segments.forEach { segment ->
                 require(segment.isNotEmpty()) { "Segmento URL vuoto" }
+                require(segment != "." && segment != "..") { "Segmento URL non valido" }
                 addPathSegment(segment)
             }
         }.build()
