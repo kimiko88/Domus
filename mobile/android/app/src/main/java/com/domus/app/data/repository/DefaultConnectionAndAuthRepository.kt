@@ -68,12 +68,12 @@ class DefaultAuthRepository(
     private val _sessionFlow = MutableStateFlow(AuthSession())
     override val sessionFlow: Flow<AuthSession> = _sessionFlow.asStateFlow()
 
-    override suspend fun login(username: String, password: String): Result<AuthSession> {
+    override suspend fun login(username: String, password: String, twoFactorCode: String?): Result<AuthSession> {
         val activeUrl = connectionRepository.getCurrentConnection().activeUrl
             ?: tokenStorage.getLocalEndpoint()
             ?: "http://192.168.1.100:8080"
 
-        val res = apiClient.login(activeUrl, username, password)
+        val res = apiClient.login(activeUrl, username, password, twoFactorCode)
         if (res.isSuccess) {
             val session = res.getOrThrow()
             tokenStorage.saveToken(session.token)
