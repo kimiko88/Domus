@@ -14,6 +14,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.min
 
 class DualTransportManager(
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -25,6 +26,7 @@ class DualTransportManager(
 ) {
     private var webSocket: WebSocket? = null
     private val messageIdCounter = AtomicLong(1)
+    private val connectionGeneration = AtomicLong(0)
 
     private val _connectionFlow = MutableStateFlow(ServerConnection())
     val connectionFlow: StateFlow<ServerConnection> = _connectionFlow.asStateFlow()
@@ -32,49 +34,42 @@ class DualTransportManager(
     private val _eventFlow = MutableSharedFlow<EntityStateChangedEvent>(replay = 1, extraBufferCapacity = 64)
     val eventFlow: SharedFlow<EntityStateChangedEvent> = _eventFlow.asSharedFlow()
 
-    private var currentMode: TransportMode = TransportMode.DISCONNECTED
-    private var currentUrl: String? = null
-    private var authToken: String? = null
+    @Volatile private var currentMode: TransportMode = TransportMode.DISCONNECTED
+    @Volatile private var currentUrl: String? = null
+    @Volatile private var authToken: String? = null
+    @Volatile private var reconnectAttempts: Int = 0
     private var reconnectJob: Job? = null
     private var heartbeatJob: Job? = null
 
+    @Synchronized
     fun connect(mode: TransportMode, endpointUrl: String, token: String? = null) {
         disconnect()
-
         currentMode = mode
         currentUrl = endpointUrl
         authToken = token
-
+        reconnectAttempts = 0
         _connectionFlow.value = ServerConnection(
             mode = TransportMode.CONNECTING,
             targetMode = mode,
             activeUrl = endpointUrl,
             isConnected = false
         )
-
-        val wsUrl = endpointUrl
-            .replace("http://", "ws://")
-            .replace("https://", "wss://")
-            .let { base -> base.trimEnd('/') + "/ws" }
-
-        val request = Request.Builder()
-            .url(wsUrl)
-            .apply {
-                if (!token.isNullOrBlank()) {
-                    addHeader("Authorization", "Bearer $token")
-                }
-            }
-            .build()
-
-        webSocket = client.newWebSocket(request, createWebSocketListener())
+        openWebSocket(connectionGeneration.get())
     }
 
+    @Synchronized
     fun disconnect() {
+        connectionGeneration.incrementAndGet()
         reconnectJob?.cancel()
+        reconnectJob = null
         heartbeatJob?.cancel()
+        heartbeatJob = null
         webSocket?.close(1000, "Normal Closure")
         webSocket = null
         currentMode = TransportMode.DISCONNECTED
+        currentUrl = null
+        authToken = null
+        reconnectAttempts = 0
         _connectionFlow.value = ServerConnection(
             mode = TransportMode.DISCONNECTED,
             targetMode = TransportMode.DISCONNECTED,
@@ -104,11 +99,34 @@ class DualTransportManager(
         return id
     }
 
-    private fun createWebSocketListener(): WebSocketListener {
-        val connectStartTime = System.currentTimeMillis()
+    private fun openWebSocket(generation: Long) {
+        val endpoint = currentUrl ?: return
+        val token = authToken
+        val wsUrl = endpoint
+            .replace("http://", "ws://")
+            .replace("https://", "wss://")
+            .let { base -> base.trimEnd('/') + "/ws" }
 
+        val request = Request.Builder()
+            .url(wsUrl)
+            .apply {
+                if (!token.isNullOrBlank()) addHeader("Authorization", "Bearer $token")
+            }
+            .build()
+
+        val connectStartTime = System.currentTimeMillis()
+        val socket = client.newWebSocket(request, createWebSocketListener(generation, connectStartTime))
+        webSocket = socket
+    }
+
+    private fun createWebSocketListener(generation: Long, connectStartTime: Long): WebSocketListener {
         return object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (connectionGeneration.get() != generation) {
+                    webSocket.close(1000, "Superseded connection")
+                    return
+                }
+                reconnectAttempts = 0
                 val latency = System.currentTimeMillis() - connectStartTime
                 _connectionFlow.value = ServerConnection(
                     mode = currentMode,
@@ -117,15 +135,13 @@ class DualTransportManager(
                     latencyMs = latency,
                     isConnected = true
                 )
-
-                // Subscribe to state change events
                 val subMsg = """{"id":${messageIdCounter.getAndIncrement()},"type":"subscribe_events","event_type":"entity_state_changed"}"""
                 webSocket.send(subMsg)
-
-                startHeartbeat()
+                startHeartbeat(webSocket, generation)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                if (connectionGeneration.get() != generation) return
                 try {
                     val msg = json.decodeFromString<DomusWsMessage>(text)
                     when (msg.type) {
@@ -133,7 +149,7 @@ class DualTransportManager(
                             msg.event?.let { evtObj ->
                                 val evt = json.decodeFromJsonElement<EntityStateChangedEvent>(evtObj)
                                 coroutineScope.launch {
-                                    _eventFlow.emit(evt)
+                                    if (connectionGeneration.get() == generation) _eventFlow.emit(evt)
                                 }
                             }
                         }
@@ -144,47 +160,77 @@ class DualTransportManager(
                             )
                         }
                     }
-                } catch (e: Exception) {
-                    // Ignore non-json or unparseable debug frames
+                } catch (_: Exception) {
+                    // Ignore non-json or unparseable debug frames.
                 }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (connectionGeneration.get() != generation) return
+                if (this@DualTransportManager.webSocket === webSocket) {
+                    this@DualTransportManager.webSocket = null
+                }
                 _connectionFlow.value = ServerConnection(
                     mode = TransportMode.DISCONNECTED,
+                    targetMode = currentMode,
+                    activeUrl = currentUrl,
                     isConnected = false,
-                    lastError = t.message
+                    lastError = t.message ?: response?.message
                 )
-                scheduleReconnect()
+                scheduleReconnect(generation)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (connectionGeneration.get() != generation) return
+                if (this@DualTransportManager.webSocket === webSocket) {
+                    this@DualTransportManager.webSocket = null
+                }
                 _connectionFlow.value = ServerConnection(
                     mode = TransportMode.DISCONNECTED,
-                    isConnected = false
+                    targetMode = currentMode,
+                    activeUrl = currentUrl,
+                    isConnected = false,
+                    lastError = "WebSocket closed ($code)"
                 )
+                // Unexpected clean closes (e.g. server restart) must reconnect too.
+                scheduleReconnect(generation)
             }
         }
     }
 
-    private fun startHeartbeat() {
+    private fun startHeartbeat(socket: WebSocket, generation: Long) {
         heartbeatJob?.cancel()
         heartbeatJob = coroutineScope.launch {
-            while (isActive && _connectionFlow.value.isConnected) {
+            while (isActive && connectionGeneration.get() == generation && _connectionFlow.value.isConnected) {
                 delay(30_000L)
-                webSocket?.send("""{"type":"ping"}""")
+                if (connectionGeneration.get() != generation) break
+                if (!socket.send("""{"type":"ping"}""")) {
+                    scheduleReconnect(generation)
+                    break
+                }
             }
         }
     }
 
-    private fun scheduleReconnect() {
-        if (currentMode == TransportMode.DISCONNECTED) return
-        reconnectJob?.cancel()
+    @Synchronized
+    private fun scheduleReconnect(generation: Long) {
+        if (connectionGeneration.get() != generation || currentMode == TransportMode.DISCONNECTED) return
+        if (reconnectJob?.isActive == true) return
+        val attempt = reconnectAttempts.coerceAtMost(5)
+        reconnectAttempts = (reconnectAttempts + 1).coerceAtMost(6)
+        val delayMs = min(30_000L, 1_000L shl attempt)
         reconnectJob = coroutineScope.launch {
-            delay(3000L)
-            currentUrl?.let { url ->
-                connect(currentMode, url, authToken)
-            }
+            delay(delayMs)
+            if (connectionGeneration.get() != generation || currentMode == TransportMode.DISCONNECTED) return@launch
+            val endpoint = currentUrl
+            if (endpoint == null) return@launch
+            _connectionFlow.value = ServerConnection(
+                mode = TransportMode.CONNECTING,
+                targetMode = currentMode,
+                activeUrl = endpoint,
+                isConnected = false
+            )
+            openWebSocket(generation)
         }
     }
 }
