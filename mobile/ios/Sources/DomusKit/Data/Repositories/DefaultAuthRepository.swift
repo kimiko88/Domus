@@ -85,7 +85,9 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
     }
 
     public func logout() async {
-        await keychainManager.deleteToken()
+        // Do not report a completed logout while the persisted credential
+        // could not be removed from Keychain.
+        guard await keychainManager.deleteToken() else { return }
         self.session = AuthSession()
         await connectionRepository.disconnect()
     }
