@@ -430,7 +430,7 @@ func (h *PantryHandler) ParseReceiptPDF(w http.ResponseWriter, r *http.Request) 
 	r.Body = http.MaxBytesReader(w, r.Body, maxReceiptPDFBytes)
 	pdf, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "PDF_TOO_LARGE", "PDF must be 10 MB or smaller")
+		writeError(w, http.StatusRequestEntityTooLarge, "PDF_TOO_LARGE", "PDF must be 3 MiB or smaller")
 		return
 	}
 	rawText, err := extractPDFText(r.Context(), pdf)
