@@ -179,9 +179,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Reset failed attempts on success
+	// Reset failed attempts before issuing the session cookie. If persistence
+	// fails, revoke the just-created session rather than returning a login that
+	// the global IP-ban middleware may immediately reject.
 	if h.bannedRepo != nil {
-		_ = h.bannedRepo.ResetAttempts(r.Context(), ip)
+		if resetErr := h.bannedRepo.ResetAttempts(r.Context(), ip); resetErr != nil {
+			_ = h.authService.Logout(r.Context(), sess.ID)
+			h.writeError(w, http.StatusServiceUnavailable, "BRUTE_FORCE_PROTECTION_UNAVAILABLE", "impossibile azzerare i tentativi di accesso")
+			return
+		}
 	}
 
 	// Set session cookie
