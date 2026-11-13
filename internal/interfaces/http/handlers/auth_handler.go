@@ -101,7 +101,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Check IP Ban
 	if h.bannedRepo != nil {
-		if banned, _ := h.bannedRepo.Get(r.Context(), ip); banned != nil && banned.IsBanned() {
+		banned, banErr := h.bannedRepo.Get(r.Context(), ip)
+		if banErr != nil {
+			h.writeError(w, http.StatusServiceUnavailable, "BRUTE_FORCE_PROTECTION_UNAVAILABLE", "impossibile verificare lo stato di protezione accessi")
+			return
+		}
+		if banned != nil && banned.IsBanned() {
 			h.writeError(w, http.StatusForbidden, "IP_BANNED", "Indirizzo IP bloccato per troppi tentativi falliti")
 			return
 		}
@@ -118,7 +123,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	sess, u, err := h.authService.Login(r.Context(), req.Username, req.Password, ip, ua)
 	if err != nil {
 		if h.bannedRepo != nil {
-			_, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute)
+			if _, recordErr := h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute); recordErr != nil {
+				h.writeError(w, http.StatusServiceUnavailable, "BRUTE_FORCE_PROTECTION_UNAVAILABLE", "impossibile registrare il tentativo di accesso")
+				return
+			}
 		}
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			h.writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
@@ -159,7 +167,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			}
 			if !validSecondFactor {
 				_ = h.authService.Logout(r.Context(), sess.ID)
-				if h.bannedRepo != nil { _, _ = h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute) }
+				if h.bannedRepo != nil {
+					if _, recordErr := h.bannedRepo.RecordFailedAttempt(r.Context(), ip, 5, 15*time.Minute); recordErr != nil {
+						h.writeError(w, http.StatusServiceUnavailable, "BRUTE_FORCE_PROTECTION_UNAVAILABLE", "impossibile registrare il tentativo di accesso")
+						return
+					}
+				}
 				h.writeError(w, http.StatusUnauthorized, "INVALID_2FA_CODE", "Codice di verifica 2FA non valido")
 				return
 			}
