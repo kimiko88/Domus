@@ -57,8 +57,14 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
                 connection.isConnected = false
                 throw DomusNetworkError.notConnected
             }
-            let wsUrl = toWebSocketUrl(httpUrl: remote)
-            try await openWebSocket(url: wsUrl, token: token)
+            do {
+                let wsUrl = try toWebSocketUrl(httpUrl: remote, requireTLS: true)
+                try await openWebSocket(url: wsUrl, token: token)
+            } catch {
+                connection.mode = .disconnected
+                connection.isConnected = false
+                throw error
+            }
             connection.mode = .remoteTls
             connection.remoteAddress = remote
             connection.activeUrl = remote
@@ -99,8 +105,14 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
 
         // 3. Fallback automatico su endpoint remoto se fuori casa
         if let remote = remoteAddress ?? UserDefaults.standard.string(forKey: "domus_remote_endpoint"), !remote.isEmpty {
-            let wsUrl = toWebSocketUrl(httpUrl: remote)
-            try await openWebSocket(url: wsUrl, token: token)
+            do {
+                let wsUrl = try toWebSocketUrl(httpUrl: remote, requireTLS: true)
+                try await openWebSocket(url: wsUrl, token: token)
+            } catch {
+                connection.mode = .disconnected
+                connection.isConnected = false
+                throw error
+            }
             connection.mode = .remoteTls
             connection.remoteAddress = remote
             connection.activeUrl = remote
@@ -135,19 +147,38 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
 
     // MARK: - Private
 
-    private func toWebSocketUrl(httpUrl: String) -> String {
-        var base = httpUrl.trimmingCharacters(in: .whitespaces)
-        if base.hasPrefix("https://") {
-            base = "wss://" + base.dropFirst("https://".count)
-        } else if base.hasPrefix("http://") {
-            base = "ws://" + base.dropFirst("http://".count)
-        } else if !base.hasPrefix("ws://") && !base.hasPrefix("wss://") {
-            base = "ws://" + base
+    private func toWebSocketUrl(httpUrl: String, requireTLS: Bool = false) throws -> String {
+        let trimmed = httpUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              components.host != nil,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil else {
+            throw DomusNetworkError.invalidURL(httpUrl)
         }
-        if base.hasSuffix("/") {
-            base = String(base.dropLast())
+
+        switch scheme {
+        case "https":
+            components.scheme = "wss"
+        case "http":
+            guard !requireTLS else {
+                throw DomusNetworkError.invalidURL("L'endpoint remoto deve usare HTTPS")
+            }
+            components.scheme = "ws"
+        default:
+            throw DomusNetworkError.invalidURL(httpUrl)
         }
-        return base + "/ws"
+
+        let basePath = components.path.hasSuffix("/")
+            ? String(components.path.dropLast())
+            : components.path
+        components.path = basePath + "/ws"
+        guard let url = components.url else {
+            throw DomusNetworkError.invalidURL(httpUrl)
+        }
+        return url.absoluteString
     }
 
     private func openWebSocket(url: String, token: String?) async throws {
