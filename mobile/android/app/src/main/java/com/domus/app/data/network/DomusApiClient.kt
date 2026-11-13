@@ -167,7 +167,7 @@ class DomusApiClient(
     private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl {
         val base = baseUrl.toHttpUrlOrNull()
             ?: throw IOException("URL base non valida")
-        require(base.isHttp || base.isHttps) { "Schema URL base non supportato" }
+        require(base.scheme == "http" || base.isHttps) { "Schema URL base non supportato" }
         require(base.username.isEmpty() && base.password.isEmpty()) { "Credenziali nella URL base non consentite" }
         require(base.query == null && base.fragment == null) { "Query o fragment nella URL base non consentiti" }
         return base.newBuilder().apply {
