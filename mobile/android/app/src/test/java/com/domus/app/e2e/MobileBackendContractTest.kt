@@ -150,6 +150,53 @@ class MobileBackendContractTest {
     }
 
     @Test
+    fun apiClientEncodesRemainingMealAndMedicinePathsAndQueries() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.fetchMealPlans(
+            baseUrl, "token", "2026-01-01&admin=true", "2026-02-01?role=admin"
+        ).isSuccess)
+        assertEquals(
+            "/api/v1/pantry/meals?start_date=2026-01-01%26admin%3Dtrue&end_date=2026-02-01%3Frole%3Dadmin",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.getMedicines(
+            baseUrl, "token", "home&admin=true", "active?role=admin", "aspirin&limit=999"
+        ).isSuccess)
+        assertEquals(
+            "/api/v1/medicines?location=home%26admin%3Dtrue&status=active%3Frole%3Dadmin&q=aspirin%26limit%3D999",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.getMedicineAlerts(baseUrl, "token", 2.5).isSuccess)
+        assertEquals("/api/v1/medicines/alerts?fridge_temp=2.5", server.takeRequest().path)
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.lookupAIFA(baseUrl, "token", "aspirin&admin=true", "123?x=1").isSuccess)
+        assertEquals(
+            "/api/v1/medicines/lookup?q=aspirin%26admin%3Dtrue&aic=123%3Fx%3D1",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        assertTrue(apiClient.deleteMealPlan(baseUrl, "token", "meal/../../family?admin=true").isSuccess)
+        assertEquals(
+            "/api/v1/pantry/meals/meal%2F..%2F..%2Ffamily%3Fadmin%3Dtrue",
+            server.takeRequest().path
+        )
+
+        val requestCount = server.requestCount
+        assertFalse(apiClient.fetchAreas("$baseUrl?admin=true", "token").isSuccess)
+        assertEquals(requestCount, server.requestCount)
+    }
+
+    @Test
     fun testCompleteMobileLifecycleE2E() = runTest {
         val wsEvent = """
             {
