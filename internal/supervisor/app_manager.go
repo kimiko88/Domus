@@ -33,8 +33,8 @@ type AppManager struct {
 func NewAppManager(dataDir string, runtime ContainerRuntime) *AppManager {
 	manifestDir := filepath.Join(dataDir, "supervisor", "manifests")
 	appsDir := filepath.Join(dataDir, "apps")
-	_ = os.MkdirAll(manifestDir, 0755)
-	_ = os.MkdirAll(appsDir, 0755)
+	_ = os.MkdirAll(manifestDir, 0700)
+	_ = os.MkdirAll(appsDir, 0700)
 
 	mgr := &AppManager{
 		manifestDir: manifestDir,
@@ -82,7 +82,7 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 
 	// 1. Create app isolated data root
 	appStorageRoot := filepath.Join(m.appsDir, manifest.ID)
-	if err := os.MkdirAll(appStorageRoot, 0755); err != nil {
+	if err := os.MkdirAll(appStorageRoot, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory for app %s: %w", manifest.ID, err)
 	}
 
@@ -90,7 +90,14 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 	var containerMounts []MountConfig
 	for _, vol := range manifest.Permissions.Storage {
 		volDir := filepath.Join(appStorageRoot, vol.VolumeName)
-		_ = os.MkdirAll(volDir, 0750)
+		if info, statErr := os.Lstat(volDir); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("storage volume %q must not be a symbolic link", vol.VolumeName)
+		} else if statErr != nil && !os.IsNotExist(statErr) {
+			return nil, fmt.Errorf("failed to inspect storage volume %q: %w", vol.VolumeName, statErr)
+		}
+		if err := os.MkdirAll(volDir, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create storage volume %q: %w", vol.VolumeName, err)
+		}
 		containerMounts = append(containerMounts, MountConfig{
 			Source:   volDir,
 			Target:   vol.Path,
@@ -111,15 +118,41 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 		ReadOnlyRoot:  true,
 	}
 
-	if err := m.runtime.EnsureContainer(ctx, containerName, cfg); err != nil {
-		return nil, fmt.Errorf("failed to register container with runtime: %w", err)
-	}
-
-	// 4. Persist manifest
+	// Persist the manifest with owner-only permissions before registering the
+	// container. Environment entries may contain credentials.
 	manifestFile := filepath.Join(m.manifestDir, manifest.ID+".yaml")
 	outData, err := yaml.Marshal(manifest)
-	if err == nil {
-		_ = os.WriteFile(manifestFile, outData, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode app manifest: %w", err)
+	}
+	tmp, err := os.CreateTemp(m.manifestDir, ".manifest-*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create manifest file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to secure manifest file: %w", err)
+	}
+	if _, err := tmp.Write(outData); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to write manifest file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to sync manifest file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close manifest file: %w", err)
+	}
+	if err := os.Rename(tmpName, manifestFile); err != nil {
+		return nil, fmt.Errorf("failed to persist manifest: %w", err)
+	}
+
+	if err := m.runtime.EnsureContainer(ctx, containerName, cfg); err != nil {
+		_ = os.Remove(manifestFile)
+		return nil, fmt.Errorf("failed to register container with runtime: %w", err)
 	}
 
 	m.apps[manifest.ID] = manifest
