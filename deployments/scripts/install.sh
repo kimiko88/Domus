@@ -41,6 +41,7 @@ NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
 GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
+DOMUS_GO_CACHE_DIR="${DOMUS_GO_CACHE_DIR:-/var/cache/domus/go}"
 
 BOLD=$'\033[1m'; GREEN=$'\033[0;32m'; CYAN=$'\033[0;36m'
 YELLOW=$'\033[1;33m'; RED=$'\033[0;31m'; NC=$'\033[0m'
@@ -227,8 +228,12 @@ else
         [[ -n "${have_go}" ]] && log_warn "Installed Go ${have_go} is older than required ${need_go}"
         install_go
     fi
-    # Caches live in the temp dir (no SD-card clutter); GOTOOLCHAIN=local = never auto-download another Go.
-    export GOCACHE="${WORK_DIR}/gocache" GOPATH="${WORK_DIR}/gopath" GOTOOLCHAIN=local
+    # Keep Go module and build caches across installer runs. The cache is separate
+    # from WORK_DIR because that directory is removed by cleanup() on exit.
+    mkdir -p "${DOMUS_GO_CACHE_DIR}/pkg/mod" "${DOMUS_GO_CACHE_DIR}/build-cache"
+    chmod 0755 "${DOMUS_GO_CACHE_DIR}" "${DOMUS_GO_CACHE_DIR}/pkg" "${DOMUS_GO_CACHE_DIR}/pkg/mod" "${DOMUS_GO_CACHE_DIR}/build-cache"
+    export GOPATH="${DOMUS_GO_CACHE_DIR}" GOMODCACHE="${DOMUS_GO_CACHE_DIR}/pkg/mod" GOCACHE="${DOMUS_GO_CACHE_DIR}/build-cache" GOTOOLCHAIN=local
+    log_info "Using persistent Go module/build cache in ${DOMUS_GO_CACHE_DIR}"
     log_info "Compiling backend ($(go version | awk '{print $3}'))..."
     (
         cd "${PROJECT_ROOT}"

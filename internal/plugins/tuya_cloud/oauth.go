@@ -2,20 +2,21 @@
 package tuya_cloud
 
 import (
- "context"
- "crypto/hmac"
- "crypto/sha256"
- "encoding/hex"
- "encoding/json"
- "errors"
- "fmt"
- "io"
- "net/http"
- "net/url"
- "strconv"
- "strings"
- "time"
- "github.com/google/uuid"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type OAuthConfig struct { ClientID, Secret, Identifier, BaseURL string; HTTPClient *http.Client }
@@ -38,25 +39,37 @@ func providerCode(code any) string {
 }
 type OAuthClient struct { cfg OAuthConfig; http *http.Client }
 
-func NewOAuthClient(cfg OAuthConfig) (*OAuthClient,error) {
- if strings.TrimSpace(cfg.ClientID)=="" || strings.TrimSpace(cfg.Secret)=="" || strings.TrimSpace(cfg.Identifier)=="" { return nil,errors.New("tuya oauth: app authorization client ID, secret and identifier are required") }
- u,err:=url.Parse(cfg.BaseURL)
- if err!=nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || (u.Port()!="" && u.Port()!="443") || (u.Path!="" && u.Path!="/") || u.RawQuery!="" || u.Fragment!="" { return nil,errors.New("tuya oauth: base URL must be an HTTPS regional endpoint") }
- allowed:=map[string]bool{"openapi.tuyaeu.com":true,"openapi.tuyaus.com":true,"openapi.tuyacn.com":true,"openapi.tuyain.com":true,"openapi-ueaz.tuyaus.com":true,"openapi-weaz.tuyaeu.com":true}
- if !allowed[strings.ToLower(u.Hostname())] { return nil,errors.New("tuya oauth: unsupported regional API host") }
- if cfg.HTTPClient==nil { cfg.HTTPClient=&http.Client{Timeout:12*time.Second} }
- client:=*cfg.HTTPClient
- client.CheckRedirect=func(*http.Request,[]*http.Request)error{return http.ErrUseLastResponse}
- cfg.BaseURL=strings.TrimRight(cfg.BaseURL,"/")
- return &OAuthClient{cfg:cfg,http:&client},nil
+func NewOAuthClient(cfg OAuthConfig) (*OAuthClient, error) {
+	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.Secret) == "" || strings.TrimSpace(cfg.Identifier) == "" {
+		return nil, errors.New("tuya oauth: app authorization client ID, secret and identifier are required")
+	}
+	u, err := url.Parse(cfg.BaseURL)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || (u.Port() != "" && u.Port() != "443") || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return nil, errors.New("tuya oauth: base URL must be an HTTPS regional endpoint")
+	}
+	allowed := map[string]bool{"openapi.tuyaeu.com": true, "openapi.tuyaus.com": true, "openapi.tuyacn.com": true, "openapi.tuyain.com": true, "openapi-ueaz.tuyaus.com": true, "openapi-weaz.tuyaeu.com": true}
+	if !allowed[strings.ToLower(u.Hostname())] {
+		return nil, errors.New("tuya oauth: unsupported regional API host")
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{Timeout: 12 * time.Second}
+	}
+	client := *cfg.HTTPClient
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
+	return &OAuthClient{cfg: cfg, http: &client}, nil
 }
-func (c *OAuthClient) ExchangeCode(ctx context.Context,code string)(OAuthToken,error) {
- if code=="" || len(code)>2048 { return OAuthToken{},errors.New("tuya oauth: invalid authorization code") }
- return c.tokenRequest(ctx,"/v1.0/token",url.Values{"grant_type":[]string{"2"},"code":[]string{code}})
+func (c *OAuthClient) ExchangeCode(ctx context.Context, code string) (OAuthToken, error) {
+	if code == "" || len(code) > 2048 {
+		return OAuthToken{}, errors.New("tuya oauth: invalid authorization code")
+	}
+	return c.tokenRequest(ctx, "/v1.0/token", url.Values{"grant_type": []string{"2"}, "code": []string{code}})
 }
-func (c *OAuthClient) Refresh(ctx context.Context,refresh string)(OAuthToken,error) {
- if refresh=="" || len(refresh)>4096 || strings.ContainsAny(refresh,"/?#") { return OAuthToken{},errors.New("tuya oauth: invalid refresh token") }
- return c.tokenRequest(ctx,"/v1.0/token/"+url.PathEscape(refresh),nil)
+func (c *OAuthClient) Refresh(ctx context.Context, refresh string) (OAuthToken, error) {
+	if refresh == "" || len(refresh) > 4096 || strings.ContainsAny(refresh, "/?#") {
+		return OAuthToken{}, errors.New("tuya oauth: invalid refresh token")
+	}
+	return c.tokenRequest(ctx, "/v1.0/token/"+url.PathEscape(refresh), nil)
 }
 func (c *OAuthClient) tokenRequest(ctx context.Context,path string,q url.Values)(OAuthToken,error) {
  requestPath:=path
@@ -100,11 +113,21 @@ func (c *OAuthClient) Devices(ctx context.Context,token OAuthToken)([]Device,err
  }
  if env.Result==nil { env.Result=[]Device{} }; return env.Result,nil
 }
-func (c *OAuthClient) signHeaders(req *http.Request,path,ts,nonce,access string) {
- emptyHash:=sha256.Sum256(nil)
- stringToSign:=req.Method+"\n"+hex.EncodeToString(emptyHash[:])+"\n\n"+path
- prefix:=c.cfg.ClientID+ts+nonce+c.cfg.Identifier
- if access!="" { prefix=c.cfg.ClientID+access+ts+nonce+c.cfg.Identifier }
- mac:=hmac.New(sha256.New,[]byte(c.cfg.Secret)); _,_=mac.Write([]byte(prefix+stringToSign))
- req.Header.Set("client_id",c.cfg.ClientID); req.Header.Set("identifier",c.cfg.Identifier); req.Header.Set("t",ts); req.Header.Set("nonce",nonce); req.Header.Set("sign_method","HMAC-SHA256"); req.Header.Set("sign",strings.ToUpper(hex.EncodeToString(mac.Sum(nil)))); req.Header.Set("Content-Type","application/json")
+func (c *OAuthClient) signHeaders(req *http.Request, path, ts, nonce, access string) {
+	emptyHash := sha256.Sum256(nil)
+	stringToSign := req.Method + "\n" + hex.EncodeToString(emptyHash[:]) + "\n\n" + path
+	prefix := c.cfg.ClientID + ts + nonce + c.cfg.Identifier
+	if access != "" {
+		prefix = c.cfg.ClientID + access + ts + nonce + c.cfg.Identifier
+		req.Header.Set("access_token", access)
+	}
+	mac := hmac.New(sha256.New, []byte(c.cfg.Secret))
+	_, _ = mac.Write([]byte(prefix + stringToSign))
+	req.Header.Set("client_id", c.cfg.ClientID)
+	req.Header.Set("identifier", c.cfg.Identifier)
+	req.Header.Set("t", ts)
+	req.Header.Set("nonce", nonce)
+	req.Header.Set("sign_method", "HMAC-SHA256")
+	req.Header.Set("sign", strings.ToUpper(hex.EncodeToString(mac.Sum(nil))))
+	req.Header.Set("Content-Type", "application/json")
 }
