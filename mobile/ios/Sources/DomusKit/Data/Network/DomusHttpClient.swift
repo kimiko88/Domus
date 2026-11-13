@@ -30,8 +30,8 @@ public actor DomusHttpClient: Sendable {
     }
 
     /// GET generico
-    public func get<T: Decodable>(path: String, as type: T.Type) async throws -> T {
-        let url = try makeURL(path: path)
+    public func get<T: Decodable>(path: String, queryItems: [URLQueryItem] = [], as type: T.Type) async throws -> T {
+        let url = try makeURL(path: path, queryItems: queryItems)
         var request = URLRequest(url: url)
         addAuth(to: &request)
 
@@ -680,9 +680,43 @@ public actor DomusHttpClient: Sendable {
 
     // MARK: - Private helpers
 
-    private func makeURL(path: String) throws -> URL {
+    private func pathSegment(_ value: String) throws -> String {
+        if value == "." { return "%2E" }
+        if value == ".." { return "%2E%2E" }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!    private func makeURL(path: String) throws -> URL {
         let base = !baseURL.isEmpty ? baseURL : (UserDefaults.standard.string(forKey: "domus_server_url") ?? "http://127.0.0.1:8080")
         guard let url = URL(string: base + path) else {
+            throw DomusNetworkError.invalidURL(base + path)
+        }
+        return url
+    }'()*+,;=:@")
+        guard let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
+        }
+        return encoded
+    }
+
+    private func makeURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
+        let base = !baseURL.isEmpty ? baseURL : (UserDefaults.standard.string(forKey: "domus_server_url") ?? "http://127.0.0.1:8080")
+        guard var components = URLComponents(string: base),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host != nil,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil,
+              path.hasPrefix("/"),
+              !path.contains("?"),
+              !path.contains("#") else {
+            throw DomusNetworkError.invalidURL(base + path)
+        }
+
+        let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let routePath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.percentEncodedPath = "/" + [basePath, routePath].filter { !$0.isEmpty }.joined(separator: "/")
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else {
             throw DomusNetworkError.invalidURL(base + path)
         }
         return url
