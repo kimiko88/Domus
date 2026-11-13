@@ -612,7 +612,7 @@ fun DashboardScreen(
                             requiresTwoFactor = false
                         } else {
                             loginError = error
-                            requiresTwoFactor = error?.contains("TWO_FACTOR_REQUIRED") == true
+                            requiresTwoFactor = requiresTwoFactor || error?.contains("TWO_FACTOR_REQUIRED") == true
                         }
                     }
                 },
