@@ -99,8 +99,15 @@ class DefaultAuthRepository(
         val token = tokenStorage.getToken()
         val session = if (!token.isNullOrBlank()) {
             val endpoint = tokenStorage.getLocalEndpoint() ?: tokenStorage.getRemoteEndpoint() ?: "https://domus.local.myhome.net"
-            apiClient.validateSession(endpoint, token).getOrElse {
-                tokenStorage.saveToken(null)
+            val validation = apiClient.validateSession(endpoint, token)
+            validation.getOrElse { error ->
+                val statusCode = (error as? com.domus.app.data.network.ApiHttpException)?.statusCode
+                if (statusCode == 401 || statusCode == 403) {
+                    // Only an explicit authentication/authorization rejection
+                    // invalidates the persisted credential. Network and server
+                    // errors are transient and must not force a new login.
+                    tokenStorage.saveToken(null)
+                }
                 AuthSession()
             }
         } else AuthSession()
