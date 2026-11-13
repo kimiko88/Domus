@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Gestore del token di autenticazione nel Keychain di iOS.
-/// I token sono cifrati dall'hardware Secure Enclave.
+/// I token sono conservati nel Keychain con protezione Data Protection di iOS.
 public actor KeychainManager: Sendable {
 
     private let service = "com.fabriziochimienti.domus"
