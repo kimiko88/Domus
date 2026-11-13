@@ -71,8 +71,8 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
             throw DomusNetworkError.notConnected
         }
 
-        if let token = loggedSession.token {
-            await keychainManager.saveToken(token)
+        if let token = loggedSession.token, !(await keychainManager.saveToken(token)) {
+            throw DomusNetworkError.invalidResponse
         }
         await keychainManager.saveUsername(username)
         self.session = loggedSession
@@ -92,8 +92,14 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
 
     public func restoreSession() async -> AuthSession {
         if let token = await keychainManager.getToken(), !token.isEmpty {
-            let username = await keychainManager.getUsername() ?? "admin"
-            self.session = AuthSession(token: token, username: username, role: "admin", isAuthenticated: true)
+            do {
+                let endpoint = UserDefaults.standard.string(forKey: "domus_server_url") ?? ""
+                let validated = try await httpClient.validateSession(baseUrl: endpoint, token: token)
+                self.session = validated
+            } catch {
+                _ = await keychainManager.deleteToken()
+                self.session = AuthSession()
+            }
         } else {
             self.session = AuthSession()
         }
