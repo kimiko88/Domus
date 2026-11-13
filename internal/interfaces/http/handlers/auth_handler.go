@@ -194,11 +194,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   maxAge,
 	})
-	http.SetCookie(w, &http.Cookie{
-		Name: domusmw.CSRFCookieName, Value: generateRandomToken(), Path: "/",
-		HttpOnly: false, Secure: h.cookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge,
-	})
-
 	h.writeJSON(w, http.StatusOK, map[string]any{
 		"token": sess.ID,
 		"user": map[string]any{
@@ -243,6 +238,10 @@ func (h *AuthHandler) KioskLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   maxAge,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: domusmw.CSRFCookieName, Value: generateRandomToken(), Path: "/",
+		HttpOnly: false, Secure: h.cookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge,
 	})
 
 	h.writeJSON(w, http.StatusOK, map[string]any{
