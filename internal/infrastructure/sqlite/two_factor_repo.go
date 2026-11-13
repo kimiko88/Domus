@@ -191,49 +191,48 @@ func (r *BannedIPRepository) RecordFailedAttempt(ctx context.Context, ip string,
 		banDuration = 15 * time.Minute
 	}
 
-	existing, err := r.Get(ctx, ip)
-	if err != nil {
-		return false, err
-	}
-
 	now := time.Now().UTC()
-	attempts := 1
-	var bannedUntil *time.Time
-	reason := "Brute-force protection trigger"
-
-	if existing != nil {
-		attempts = existing.FailedAttempts + 1
+	nowStr := now.Format(time.RFC3339)
+	banUntilStr := sql.NullString{
+		String: now.Add(banDuration).Format(time.RFC3339),
+		Valid:  true,
+	}
+	initialBanUntil := sql.NullString{}
+	if maxAttempts <= 1 {
+		initialBanUntil = banUntilStr
 	}
 
-	isBanned := attempts >= maxAttempts
-	if isBanned {
-		until := now.Add(banDuration)
-		bannedUntil = &until
-	}
-
-	var bannedUntilStr sql.NullString
-	if bannedUntil != nil {
-		bannedUntilStr = sql.NullString{String: bannedUntil.Format(time.RFC3339), Valid: true}
-	}
-
+	// Keep the increment and threshold decision in one SQLite UPSERT. The
+	// previous read/modify/write sequence could lose concurrent failures and
+	// let parallel password guesses evade the IP ban threshold.
 	query := `
 		INSERT INTO banned_ips (ip_address, failed_attempts, banned_until, reason, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (?, 1, ?, ?, ?, ?)
 		ON CONFLICT(ip_address) DO UPDATE SET
-			failed_attempts = excluded.failed_attempts,
-			banned_until = excluded.banned_until,
-			reason = excluded.reason,
+			failed_attempts = banned_ips.failed_attempts + 1,
+			banned_until = CASE
+				WHEN banned_ips.failed_attempts + 1 >= ? THEN ?
+				ELSE banned_ips.banned_until
+			END,
+			reason = CASE
+				WHEN banned_ips.failed_attempts + 1 >= ? THEN excluded.reason
+				ELSE banned_ips.reason
+			END,
 			updated_at = excluded.updated_at
 	`
-	_, err = r.db.ExecContext(ctx, query,
-		ip, attempts, bannedUntilStr, reason,
-		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	_, err := r.db.ExecContext(ctx, query,
+		ip, initialBanUntil, "Brute-force protection trigger", nowStr, nowStr,
+		maxAttempts, banUntilStr, maxAttempts,
 	)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: failed to record failed attempt: %w", err)
 	}
 
-	return isBanned, nil
+	current, err := r.Get(ctx, ip)
+	if err != nil {
+		return false, err
+	}
+	return current != nil && current.IsBanned(), nil
 }
 
 // ResetAttempts clears failure count after a successful login.
