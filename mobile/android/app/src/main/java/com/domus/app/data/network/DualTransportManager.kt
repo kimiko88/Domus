@@ -77,7 +77,9 @@ class DualTransportManager(
         )
     }
 
-    fun sendCommand(domain: String, service: String, entityId: String, data: Map<String, Any> = emptyMap()): Long {
+    fun sendCommand(domain: String, service: String, entityId: String, data: Map<String, Any> = emptyMap()): Boolean {
+        val socket = webSocket ?: return false
+        if (!_connectionFlow.value.isConnected) return false
         val id = messageIdCounter.getAndIncrement()
         val payload = kotlinx.serialization.json.buildJsonObject {
             put("id", kotlinx.serialization.json.JsonPrimitive(id))
@@ -95,8 +97,7 @@ class DualTransportManager(
                 }
             })
         }
-        webSocket?.send(payload.toString())
-        return id
+        return socket.send(payload.toString())
     }
 
     private fun openWebSocket(generation: Long) {
