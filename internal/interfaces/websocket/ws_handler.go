@@ -170,12 +170,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				entityID, _ := clientMsg["entity_id"].(string)
 				data, _ := clientMsg["data"].(map[string]any)
 				result := map[string]any{"success": false, "entity_id": entityID, "service": service}
+				// Refresh identity on every command so role changes and session
+				// revocations take effect without waiting for a reconnect.
+				currentUser := authenticatedUser
+				if h.authService != nil {
+					var authErr error
+					currentUser, _, authErr = h.authService.ValidateSession(r.Context(), sessionID)
+					if authErr != nil {
+						currentUser = nil
+					}
+				}
 
 				switch {
-				case h.authService == nil || authenticatedUser == nil:
+				case h.authService == nil || currentUser == nil:
 					result["code"] = "unauthorized"
 					result["message"] = "authentication required"
-				case authenticatedUser.Role != user.RoleAdmin && authenticatedUser.Role != user.RoleOperator:
+				case currentUser.Role != user.RoleAdmin && currentUser.Role != user.RoleOperator:
 					result["code"] = "forbidden"
 					result["message"] = "operator or admin role required"
 				case entityID == "" || service == "":
@@ -197,7 +207,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						result["message"] = "entity is read-only"
 					} else if publishErr := h.bus.Publish(r.Context(), events.Event{
 						ID: uuid.NewString(), Type: events.CommandRequested,
-						OccurredAt: time.Now().UTC(), Source: "user:" + authenticatedUser.Username,
+						OccurredAt: time.Now().UTC(), Source: "user:" + currentUser.Username,
 						Payload: map[string]any{
 							"entity_id": ent.ID, "entity_key": ent.EntityKey,
 							"service": service, "domain": domain, "params": data,
