@@ -73,6 +73,42 @@ class MobileBackendContractTest {
     }
 
     @Test
+    fun apiClientPropagatesReadFailuresAndUsesNotificationFallbackOnlyForMissingRoute() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(apiClient.fetchAreas(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.fetchNotifications(baseUrl, "token").isSuccess)
+        server.takeRequest()
+        assertEquals("A server error must not trigger a legacy endpoint request", 1, server.requestCount)
+
+        server.enqueue(MockResponse().setResponseCode(404))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        val fallbackResult = apiClient.fetchNotifications(baseUrl, "token")
+        assertTrue(fallbackResult.isSuccess)
+        assertEquals(3, server.requestCount)
+        assertEquals("/api/v1/notifications", server.takeRequest().path)
+        assertEquals("/api/v1/notifications/actionable", server.takeRequest().path)
+
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(apiClient.fetchSystemHealth(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertFalse(apiClient.fetchFamilyMembers(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.fetchFamilyInvites(baseUrl, "token").isSuccess)
+        server.takeRequest()
+    }
+
+    @Test
     fun testCompleteMobileLifecycleE2E() = runTest {
         val wsEvent = """
             {
