@@ -96,14 +96,26 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
 
     public func restoreSession() async -> AuthSession {
         if let token = await keychainManager.getToken(), !token.isEmpty {
-            do {
-                let endpoint = UserDefaults.standard.string(forKey: "domus_server_url") ?? ""
-                let validated = try await httpClient.validateSession(baseUrl: endpoint, token: token)
-                self.session = validated
-            } catch {
-                _ = await keychainManager.deleteToken()
-                self.session = AuthSession()
+            let endpoints = [
+                UserDefaults.standard.string(forKey: "domus_local_endpoint"),
+                UserDefaults.standard.string(forKey: "domus_remote_endpoint"),
+                UserDefaults.standard.string(forKey: "domus_server_url")
+            ].compactMap { $0 }.filter { !$0.isEmpty }
+            for endpoint in Array(NSOrderedSet(array: endpoints)) as? [String] ?? endpoints {
+                do {
+                    self.session = try await httpClient.validateSession(baseUrl: endpoint, token: token)
+                    return self.session
+                } catch DomusNetworkError.httpError(let code) where code == 401 || code == 403 {
+                    _ = await keychainManager.deleteToken()
+                    self.session = AuthSession()
+                    return self.session
+                } catch {
+                    continue
+                }
             }
+            // Keep the Keychain token on transient network errors; it may work
+            // again when the device reaches the hub or remote endpoint.
+            self.session = AuthSession()
         } else {
             self.session = AuthSession()
         }
