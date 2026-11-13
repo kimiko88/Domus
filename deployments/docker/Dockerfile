@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ─── Stage 1: Build Web Frontend Assets ───────────────────────────────────────
-FROM --platform=$BUILDPLATFORM node:20-alpine AS web-builder
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web-builder
 
 WORKDIR /web
-COPY web/package.json ./
-RUN npm install --ignore-scripts
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY web/ ./
 RUN npm run build
 
@@ -40,7 +40,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
     -o /bin/domus-cli ./cmd/domus-cli
 
 # ─── Stage 3: Minimal Distroless / Hardened Runtime ───────────────────────────
-FROM alpine:3.20 AS runtime
+FROM alpine:3.23 AS runtime
 
 RUN apk add --no-cache ca-certificates tzdata poppler-utils tesseract-ocr tesseract-ocr-data-ita tesseract-ocr-data-eng \
     && addgroup -g 1000 domus \
