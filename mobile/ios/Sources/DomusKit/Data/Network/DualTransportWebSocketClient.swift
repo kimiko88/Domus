@@ -11,6 +11,7 @@ public actor DualTransportWebSocketClient: Sendable {
     private var currentURL: URL?
     private var isConnected: Bool = false
     private var reconnectAttempts: Int = 0
+    private var authToken: String?
     private let maxReconnectAttempts: Int = 5
     private var eventHandlers: [(String) -> Void] = []
 
@@ -24,8 +25,9 @@ public actor DualTransportWebSocketClient: Sendable {
             throw DomusNetworkError.invalidURL(urlString)
         }
         self.currentURL = url
+        self.authToken = token
         self.reconnectAttempts = 0
-        try await openConnection(url: url)
+        try await openConnection(url: url, token: token)
     }
 
     /// Disconnette il WebSocket.
@@ -55,7 +57,7 @@ public actor DualTransportWebSocketClient: Sendable {
 
     // MARK: - Private
 
-    private func openConnection(url: URL) async throws {
+    private func openConnection(url: URL, token: String? = nil) async throws {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         let urlSession = URLSession(configuration: config)
@@ -63,6 +65,7 @@ public actor DualTransportWebSocketClient: Sendable {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        if let token, !token.isEmpty { request.setValue("Bearer \\(token)", forHTTPHeaderField: "Authorization") }
 
         let task = urlSession.webSocketTask(with: request)
         self.webSocketTask = task
@@ -113,6 +116,6 @@ public actor DualTransportWebSocketClient: Sendable {
         let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // backoff esponenziale, max 30s
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
-        try? await openConnection(url: url)
+        try? await openConnection(url: url, token: authToken)
     }
 }
