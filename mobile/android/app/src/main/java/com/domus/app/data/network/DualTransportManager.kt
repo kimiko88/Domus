@@ -122,7 +122,7 @@ class DualTransportManager(
     private fun createWebSocketListener(generation: Long, connectStartTime: Long): WebSocketListener {
         return object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                if (connectionGeneration.get() != generation) {
+                if (connectionGeneration.get() != generation || this@DualTransportManager.webSocket !== webSocket) {
                     webSocket.close(1000, "Superseded connection")
                     return
                 }
@@ -141,7 +141,7 @@ class DualTransportManager(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                if (connectionGeneration.get() != generation) return
+                if (connectionGeneration.get() != generation || this@DualTransportManager.webSocket !== webSocket) return
                 try {
                     val msg = json.decodeFromString<DomusWsMessage>(text)
                     when (msg.type) {
@@ -166,10 +166,8 @@ class DualTransportManager(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                if (connectionGeneration.get() != generation) return
-                if (this@DualTransportManager.webSocket === webSocket) {
-                    this@DualTransportManager.webSocket = null
-                }
+                if (connectionGeneration.get() != generation || this@DualTransportManager.webSocket !== webSocket) return
+                this@DualTransportManager.webSocket = null
                 _connectionFlow.value = ServerConnection(
                     mode = TransportMode.DISCONNECTED,
                     targetMode = currentMode,
