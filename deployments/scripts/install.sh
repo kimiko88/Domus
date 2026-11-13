@@ -37,6 +37,11 @@ DOMUS_USER="${DOMUS_USER:-domus}"
 DOMUS_GROUP="${DOMUS_GROUP:-domus}"
 DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
+DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
+if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
+    log_error "DOMUS_COOKIE_SECURE must be true or false"
+    exit 1
+fi
 NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
@@ -331,6 +336,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
         sed -i -E \
             -e "s|^[[:space:]]*host[[:space:]]*=.*|host = \"${DOMUS_HOST}\"|" \
             -e "s|^port[[:space:]]*=.*|port = ${DOMUS_PORT}|" \
+            -e "s|^cookie_secure[[:space:]]*=.*|cookie_secure = ${DOMUS_COOKIE_SECURE}|" \
             -e "s|^path[[:space:]]*=.*|path = \"${DOMUS_DATA_DIR}/domus.db\"|" \
             -e "s|^web_dir[[:space:]]*=.*|web_dir = \"${DOMUS_WEB_DIR}\"|" \
             "${CONFIG_TARGET}"
