@@ -86,7 +86,7 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
 
         if let local = localCandidate, !local.isEmpty {
             do {
-                let wsUrl = toWebSocketUrl(httpUrl: local)
+                let wsUrl = try toWebSocketUrl(httpUrl: local)
                 try await openWebSocket(url: wsUrl, token: token)
                 connection.mode = .localLan
                 connection.localAddress = local
