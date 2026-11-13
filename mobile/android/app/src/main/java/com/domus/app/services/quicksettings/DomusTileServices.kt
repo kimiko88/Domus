@@ -1,7 +1,6 @@
 package com.domus.app.services.quicksettings
 
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -43,11 +42,10 @@ class DomusGateTileService : TileService() {
             val storage = SharedPreferencesTokenStorage(applicationContext)
             val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
             val token = storage.getToken()
-            DomusApiClient().callService(baseUrl, token, "cover", "open_cover", "cover.cancello")
-
+            val result = DomusApiClient().callService(baseUrl, token, "cover", "open_cover", "cover.cancello")
             Handler(Looper.getMainLooper()).post {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = "Aperto"
+                tile.subtitle = if (result.isSuccess) "Comando inviato" else "Errore: riprova"
                 tile.updateTile()
             }
         }
@@ -78,26 +76,14 @@ class DomusAlarmTileService : TileService() {
     }
 
     private fun toggleAlarm() {
-        isArmed = !isArmed
-        updateTileState()
-
-        scope.launch {
-            val storage = SharedPreferencesTokenStorage(applicationContext)
-            val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
-            val token = storage.getToken()
-            val service = if (isArmed) "alarm_arm_home" else "alarm_disarm"
-            DomusApiClient().callService(baseUrl, token, "alarm_control_panel", service, "alarm.home")
+        // Route every alarm change through the foreground app. Never disarm
+        // directly from a tile before PIN/biometric confirmation.
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("action", "alarm_toggle_prompt")
         }
-
-        if (!isArmed) {
-            // If disarming, prompt for PIN or Biometrics by launching Domus app
-            val intent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("action", "disarm_prompt")
-            }
-            @Suppress("DEPRECATION")
-            startActivityAndCollapse(intent)
-        }
+        @Suppress("DEPRECATION")
+        startActivityAndCollapse(intent)
     }
 
     private fun updateTileState() {
@@ -137,11 +123,10 @@ class DomusLightTileService : TileService() {
             val storage = SharedPreferencesTokenStorage(applicationContext)
             val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
             val token = storage.getToken()
-            DomusApiClient().callService(baseUrl, token, "light", "turn_off", "light.all")
-
+            val result = DomusApiClient().callService(baseUrl, token, "light", "turn_off", "light.all")
             Handler(Looper.getMainLooper()).post {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = "Luci Spente ✓"
+                tile.subtitle = if (result.isSuccess) "Comando inviato" else "Errore: riprova"
                 tile.updateTile()
             }
         }
@@ -179,12 +164,11 @@ class DomusSceneTileService : TileService() {
             val baseUrl = storage.getLocalEndpoint() ?: "http://192.168.1.100:8080"
             val token = storage.getToken()
             val sceneId = if (currentScene == "Buonanotte") "scene.buonanotte" else "scene.rientro"
-            DomusApiClient().callService(baseUrl, token, "scene", "turn_on", sceneId)
-
+            val result = DomusApiClient().callService(baseUrl, token, "scene", "turn_on", sceneId)
             Handler(Looper.getMainLooper()).post {
-                currentScene = if (currentScene == "Buonanotte") "Rientro Casa" else "Buonanotte"
+                if (result.isSuccess) currentScene = if (currentScene == "Buonanotte") "Rientro Casa" else "Buonanotte"
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = currentScene
+                tile.subtitle = if (result.isSuccess) currentScene else "Errore: riprova"
                 tile.updateTile()
             }
         }
