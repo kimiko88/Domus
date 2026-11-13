@@ -43,3 +43,19 @@ func TestCSRFProtectionDoesNotBlockBearerOnlyRequests(t *testing.T) {
 	domusmw.CSRFProtection()(http.HandlerFunc(nextOK)).ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 }
+
+func TestCSRFProtectionRejectsCrossOriginLoginRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "http://domus.example/api/v1/auth/login", nil)
+	req.Header.Set("Origin", "https://attacker.example")
+	rr := httptest.NewRecorder()
+	domusmw.CSRFProtection()(http.HandlerFunc(nextOK)).ServeHTTP(rr, req)
+	require.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+func TestCSRFProtectionAllowsConfiguredDevelopmentOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/auth/login", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	rr := httptest.NewRecorder()
+	domusmw.CSRFProtection("http://localhost:5173")(http.HandlerFunc(nextOK)).ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+}
