@@ -25,7 +25,7 @@ fun LoginScreen(
 ) {
     var hubUrl by remember { mutableStateOf(discoveredHubUrl ?: "http://192.168.1.100:8080") }
     var username by remember { mutableStateOf("admin") }
-    var password by remember { mutableStateOf("")
+    var password by remember { mutableStateOf("") }
     var twoFactorCode by remember { mutableStateOf("") }
 
     LaunchedEffect(discoveredHubUrl) {
