@@ -151,10 +151,6 @@ public actor DefaultConnectionRepository: ConnectionRepositoryProtocol {
     }
 
     private func openWebSocket(url: String, token: String?) async throws {
-        var urlString = url
-        if let token {
-            urlString += (url.contains("?") ? "&" : "?") + "token=\(token)"
-        }
-        try await webSocketClient.connect(to: urlString)
+        try await webSocketClient.connect(to: url, token: token)
     }
 }
