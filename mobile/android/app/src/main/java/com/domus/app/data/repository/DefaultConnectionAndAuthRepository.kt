@@ -98,15 +98,12 @@ class DefaultAuthRepository(
     override suspend fun restoreSession(): AuthSession {
         val token = tokenStorage.getToken()
         val session = if (!token.isNullOrBlank()) {
-            AuthSession(
-                token = token,
-                username = "admin",
-                role = "admin",
-                isAuthenticated = true
-            )
-        } else {
-            AuthSession()
-        }
+            val endpoint = tokenStorage.getLocalEndpoint() ?: tokenStorage.getRemoteEndpoint() ?: "https://domus.local.myhome.net"
+            apiClient.validateSession(endpoint, token).getOrElse {
+                tokenStorage.saveToken(null)
+                AuthSession()
+            }
+        } else AuthSession()
         _sessionFlow.value = session
         return session
     }
