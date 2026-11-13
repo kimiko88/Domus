@@ -174,9 +174,11 @@ func (r *BannedIPRepository) Get(ctx context.Context, ip string) (*domauth.Banne
 	}
 
 	if untilNull.Valid && untilNull.String != "" {
-		if t, err := time.Parse(time.RFC3339, untilNull.String); err == nil {
-			b.BannedUntil = &t
+		t, err := time.Parse(time.RFC3339, untilNull.String)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: invalid banned-until timestamp for %s: %w", ip, err)
 		}
+		b.BannedUntil = &t
 	}
 	b.Reason = reasonNull.String
 	b.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
