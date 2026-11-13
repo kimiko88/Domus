@@ -14,6 +14,8 @@ import com.domus.app.domain.usecase.AuthenticateUseCase
 import com.domus.app.domain.usecase.DiscoverAndConnectUseCase
 import com.domus.app.domain.usecase.SyncEntitiesUseCase
 import com.domus.app.domain.usecase.ToggleEntityUseCase
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import okhttp3.Response
