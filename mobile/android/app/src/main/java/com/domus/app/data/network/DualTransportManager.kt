@@ -55,7 +55,7 @@ class DualTransportManager(
         val wsUrl = endpointUrl
             .replace("http://", "ws://")
             .replace("https://", "wss://")
-            .let { if (it.endsWith("/api/v1/ws")) it else "$it/api/v1/ws" }
+            .let { base -> base.trimEnd('/') + "/ws" }
 
         val request = Request.Builder()
             .url(wsUrl)
@@ -84,8 +84,23 @@ class DualTransportManager(
 
     fun sendCommand(domain: String, service: String, entityId: String, data: Map<String, Any> = emptyMap()): Long {
         val id = messageIdCounter.getAndIncrement()
-        val payload = """{"id":$id,"type":"call_service","domain":"$domain","service":"$service","target":{"entity_id":"$entityId"}}"""
-        webSocket?.send(payload)
+        val payload = kotlinx.serialization.json.buildJsonObject {
+            put("id", kotlinx.serialization.json.JsonPrimitive(id))
+            put("type", kotlinx.serialization.json.JsonPrimitive("call_service"))
+            put("domain", kotlinx.serialization.json.JsonPrimitive(domain))
+            put("service", kotlinx.serialization.json.JsonPrimitive(service))
+            put("entity_id", kotlinx.serialization.json.JsonPrimitive(entityId))
+            put("data", kotlinx.serialization.json.buildJsonObject {
+                data.forEach { (key, value) ->
+                    put(key, when (value) {
+                        is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+                        is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+                        else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
+                    })
+                }
+            })
+        }
+        webSocket?.send(payload.toString())
         return id
     }
 
@@ -102,12 +117,6 @@ class DualTransportManager(
                     latencyMs = latency,
                     isConnected = true
                 )
-
-                // If auth token provided and server demands auth, send auth message
-                authToken?.let { token ->
-                    val authMsg = """{"type":"auth","access_token":"$token"}"""
-                    webSocket.send(authMsg)
-                }
 
                 // Subscribe to state change events
                 val subMsg = """{"id":${messageIdCounter.getAndIncrement()},"type":"subscribe_events","event_type":"entity_state_changed"}"""
