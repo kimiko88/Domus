@@ -110,7 +110,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = twoFactorCode,
-                        onValueChange = { twoFactorCode = it.filter(Char::isDigit).take(8) },
+                        onValueChange = { twoFactorCode = it.trim().take(32) },
                         label = { Text("Codice 2FA / recupero") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
