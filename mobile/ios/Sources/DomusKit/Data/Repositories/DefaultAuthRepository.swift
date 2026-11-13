@@ -23,10 +23,14 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
     }
 
     public func login(username: String, password: String) async throws -> AuthSession {
-        try await login(username: username, password: password, localEndpoint: nil, remoteEndpoint: nil)
+        try await login(username: username, password: password, localEndpoint: nil, remoteEndpoint: nil, twoFactorCode: nil)
     }
 
     public func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?) async throws -> AuthSession {
+        try await login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint, twoFactorCode: nil)
+    }
+
+    public func login(username: String, password: String, localEndpoint: String?, remoteEndpoint: String?, twoFactorCode: String?) async throws -> AuthSession {
         if localEndpoint != nil || remoteEndpoint != nil {
             await connectionRepository.setEndpoints(local: localEndpoint, remote: remoteEndpoint)
         }
@@ -40,7 +44,7 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
         // 1. Prova prima l'endpoint locale se configurato (LAN)
         if let local = localCandidate, !local.trimmingCharacters(in: .whitespaces).isEmpty {
             do {
-                sessionResult = try await httpClient.login(baseUrl: local, username: username, password: password)
+                sessionResult = try await httpClient.login(baseUrl: local, username: username, password: password, twoFactorCode: twoFactorCode)
             } catch {
                 lastError = error
             }
@@ -49,7 +53,7 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
         // 2. Se l'endpoint locale fallisce o non c'è, prova l'endpoint remoto TLS (accesso fuori casa / 4G / 5G)
         if sessionResult == nil, let remote = remoteCandidate, !remote.trimmingCharacters(in: .whitespaces).isEmpty {
             do {
-                sessionResult = try await httpClient.login(baseUrl: remote, username: username, password: password)
+                sessionResult = try await httpClient.login(baseUrl: remote, username: username, password: password, twoFactorCode: twoFactorCode)
             } catch {
                 lastError = error
             }
@@ -58,12 +62,12 @@ public actor DefaultAuthRepository: AuthRepositoryProtocol {
         // 3. Fallback su activeUrl o default
         if sessionResult == nil {
             if let active = conn.activeUrl, active != localCandidate && active != remoteCandidate {
-                sessionResult = try await httpClient.login(baseUrl: active, username: username, password: password)
+                sessionResult = try await httpClient.login(baseUrl: active, username: username, password: password, twoFactorCode: twoFactorCode)
             } else if let err = lastError {
                 throw err
             } else {
                 let defaultUrl = "http://192.168.1.100:8080"
-                sessionResult = try await httpClient.login(baseUrl: defaultUrl, username: username, password: password)
+                sessionResult = try await httpClient.login(baseUrl: defaultUrl, username: username, password: password, twoFactorCode: twoFactorCode)
             }
         }
 
