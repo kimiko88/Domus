@@ -186,11 +186,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func completeChore(id: String) async throws {
-        try await postVoid(path: "/api/v1/chores/\(id)/complete", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/chores/\(try pathSegment(id))/complete", body: EmptyBodyDTO())
     }
 
     public func deleteChore(id: String) async throws {
-        try await delete(path: "/api/v1/chores/\(id)")
+        try await delete(path: "/api/v1/chores/\(try pathSegment(id))")
     }
 
     public func fetchShopping() async throws -> [ShoppingItemDTO] {
@@ -203,11 +203,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func toggleShopping(id: String) async throws -> ShoppingItemDTO {
-        try await post(path: "/api/v1/shopping/\(id)/toggle", body: EmptyBodyDTO(), as: ShoppingItemDTO.self)
+        try await post(path: "/api/v1/shopping/\(try pathSegment(id))/toggle", body: EmptyBodyDTO(), as: ShoppingItemDTO.self)
     }
 
     public func deleteShopping(id: String) async throws {
-        try await delete(path: "/api/v1/shopping/\(id)")
+        try await delete(path: "/api/v1/shopping/\(try pathSegment(id))")
     }
 
     public func clearCompletedShopping() async throws {
@@ -231,11 +231,11 @@ public actor DomusHttpClient: Sendable {
                 case user
             }
         }
-        try await postVoid(path: "/api/v1/notifications/actionable/actions/\(actionId)", body: ActionBody(notificationId: notificationId, user: user))
+        try await postVoid(path: "/api/v1/notifications/actionable/actions/\(try pathSegment(actionId))", body: ActionBody(notificationId: notificationId, user: user))
     }
 
     public func applyScene(id: String) async throws {
-        try await postVoid(path: "/api/v1/scenes/\(id)/apply", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/scenes/\(try pathSegment(id))/apply", body: EmptyBodyDTO())
     }
 
     // MARK: - Home Finance API
@@ -271,7 +271,7 @@ public actor DomusHttpClient: Sendable {
                 case scannedBy = "scanned_by"
             }
         }
-        try await postVoid(path: "/api/v1/tags/\(id)/scan", body: TagScanBody(scannedBy: scannedBy))
+        try await postVoid(path: "/api/v1/tags/\(try pathSegment(id))/scan", body: TagScanBody(scannedBy: scannedBy))
     }
 
     public func registerPushToken(deviceToken: String, deviceName: String = "Apple Device") async throws {
@@ -302,7 +302,7 @@ public actor DomusHttpClient: Sendable {
                 case domain
             }
         }
-        try await postVoid(path: "/api/v1/entities/\(id)/toggle", body: ToggleBody(entityId: id, domain: domain))
+        try await postVoid(path: "/api/v1/entities/\(try pathSegment(id))/toggle", body: ToggleBody(entityId: id, domain: domain))
     }
 
     public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:]) async throws {
@@ -315,7 +315,7 @@ public actor DomusHttpClient: Sendable {
             }
         }
         let codableData = data.mapValues { AnyCodable($0) }
-        try await postVoid(path: "/api/v1/services/\(domain)/\(service)", body: ServiceBody(entityId: entityId, data: codableData))
+        try await postVoid(path: "/api/v1/services/\(try pathSegment(domain))/\(try pathSegment(service))", body: ServiceBody(entityId: entityId, data: codableData))
     }
 
     public func callService(domain: String, service: String, entityId: String, data: [String: String]) async throws {
@@ -359,15 +359,15 @@ public actor DomusHttpClient: Sendable {
                 case sortOrder = "sort_order"
             }
         }
-        return try await put(path: "/api/v1/floors/\(id)", body: UpdateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
+        return try await put(path: "/api/v1/floors/\(try pathSegment(id))", body: UpdateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
     }
 
     public func deleteFloor(id: String) async throws {
-        try await delete(path: "/api/v1/floors/\(id)")
+        try await delete(path: "/api/v1/floors/\(try pathSegment(id))")
     }
 
     public func fetchFloorMarkers(floorId: String) async throws -> [FloorMarkerDTO] {
-        try await get(path: "/api/v1/floors/\(floorId)/markers", as: [FloorMarkerDTO].self)
+        try await get(path: "/api/v1/floors/\(try pathSegment(floorId))/markers", as: [FloorMarkerDTO].self)
     }
 
     public func saveFloorMarker(floorId: String, markerId: String? = nil, entityKey: String, xPercent: Double, yPercent: Double, iconOverride: String? = nil, showBadge: Bool = true) async throws -> FloorMarkerDTO {
@@ -387,11 +387,11 @@ public actor DomusHttpClient: Sendable {
                 case showBadge = "show_badge"
             }
         }
-        return try await put(path: "/api/v1/floors/\(floorId)/markers", body: SaveMarkerReq(id: markerId, entityKey: entityKey, xPercent: xPercent, yPercent: yPercent, iconOverride: iconOverride, showBadge: showBadge), as: FloorMarkerDTO.self)
+        return try await put(path: "/api/v1/floors/\(try pathSegment(floorId))/markers", body: SaveMarkerReq(id: markerId, entityKey: entityKey, xPercent: xPercent, yPercent: yPercent, iconOverride: iconOverride, showBadge: showBadge), as: FloorMarkerDTO.self)
     }
 
     public func deleteFloorMarker(floorId: String, markerId: String) async throws {
-        try await delete(path: "/api/v1/floors/\(floorId)/markers/\(markerId)")
+        try await delete(path: "/api/v1/floors/\(try pathSegment(floorId))/markers/\(try pathSegment(markerId))")
     }
 
     // MARK: - Automations API
@@ -406,15 +406,15 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updateAutomation(id: String, rule: AutomationRule) async throws -> AutomationRule {
-        try await put(path: "/api/v1/automations/\(id)", body: rule, as: AutomationRule.self)
+        try await put(path: "/api/v1/automations/\(try pathSegment(id))", body: rule, as: AutomationRule.self)
     }
 
     public func deleteAutomation(id: String) async throws {
-        try await delete(path: "/api/v1/automations/\(id)")
+        try await delete(path: "/api/v1/automations/\(try pathSegment(id))")
     }
 
     public func triggerAutomation(id: String) async throws {
-        try await postVoid(path: "/api/v1/automations/\(id)/trigger", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/automations/\(try pathSegment(id))/trigger", body: EmptyBodyDTO())
     }
 
     // MARK: - Timeline & Logbook API
@@ -461,7 +461,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func revokeFamilyInvite(id: String) async throws {
-        try await delete(path: "/api/v1/family/invites/\(id)")
+        try await delete(path: "/api/v1/family/invites/\(try pathSegment(id))")
     }
 
     public func fetchAreas() async throws -> [Area] {
@@ -493,7 +493,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchMedicine(id: String) async throws -> Medicine {
-        try await get(path: "/api/v1/medicines/\(id)", as: Medicine.self)
+        try await get(path: "/api/v1/medicines/\(try pathSegment(id))", as: Medicine.self)
     }
 
     public func createMedicine(_ medicine: Medicine) async throws -> Medicine {
@@ -501,25 +501,25 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updateMedicine(id: String, medicine: Medicine) async throws -> Medicine {
-        try await put(path: "/api/v1/medicines/\(id)", body: medicine, as: Medicine.self)
+        try await put(path: "/api/v1/medicines/\(try pathSegment(id))", body: medicine, as: Medicine.self)
     }
 
     public func deleteMedicine(id: String) async throws {
-        try await delete(path: "/api/v1/medicines/\(id)")
+        try await delete(path: "/api/v1/medicines/\(try pathSegment(id))")
     }
 
     public func openMedicine(id: String, openedAt: String? = nil) async throws -> Medicine {
         struct OpenPayload: Encodable {
             let opened_at: String?
         }
-        return try await post(path: "/api/v1/medicines/\(id)/open", body: OpenPayload(opened_at: openedAt), as: Medicine.self)
+        return try await post(path: "/api/v1/medicines/\(try pathSegment(id))/open", body: OpenPayload(opened_at: openedAt), as: Medicine.self)
     }
 
     public func consumeMedicine(id: String, amount: Double = 1.0) async throws -> Medicine {
         struct ConsumePayload: Encodable {
             let amount: Double
         }
-        return try await post(path: "/api/v1/medicines/\(id)/consume", body: ConsumePayload(amount: amount), as: Medicine.self)
+        return try await post(path: "/api/v1/medicines/\(try pathSegment(id))/consume", body: ConsumePayload(amount: amount), as: Medicine.self)
     }
 
     public func fetchMedicineAlerts(fridgeTemp: Double? = nil) async throws -> [MedicineAlert] {
@@ -551,7 +551,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchPredictiveZone(id: String) async throws -> PredictiveZoneConfig {
-        try await get(path: "/api/v1/climate/predictive/zones/\(id)", as: PredictiveZoneConfig.self)
+        try await get(path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))", as: PredictiveZoneConfig.self)
     }
 
     public func createPredictiveZone(_ config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
@@ -559,16 +559,16 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updatePredictiveZone(id: String, config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
-        try await put(path: "/api/v1/climate/predictive/zones/\(id)", body: config, as: PredictiveZoneConfig.self)
+        try await put(path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))", body: config, as: PredictiveZoneConfig.self)
     }
 
     public func deletePredictiveZone(id: String) async throws {
-        try await delete(path: "/api/v1/climate/predictive/zones/\(id)")
+        try await delete(path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))")
     }
 
     public func evaluatePredictiveZone(id: String) async throws -> PredictiveEvaluation {
         struct EmptyBody: Encodable {}
-        return try await post(path: "/api/v1/climate/predictive/zones/\(id)/evaluate", body: EmptyBody(), as: PredictiveEvaluation.self)
+        return try await post(path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))/evaluate", body: EmptyBody(), as: PredictiveEvaluation.self)
     }
 
     public func evaluateAllPredictiveZones() async throws -> [PredictiveEvaluation] {
@@ -577,7 +577,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchZoneThermalProfile(id: String) async throws -> ThermalProfile {
-        try await get(path: "/api/v1/climate/predictive/zones/\(id)/profile", as: ThermalProfile.self)
+        try await get(path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))/profile", as: ThermalProfile.self)
     }
 
     public func fetchOptimalStart(id: String, targetTemp: Double? = nil, targetTime: String? = nil) async throws -> PreheatRecommendation {
@@ -632,7 +632,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchCommuteStatus(userId: String) async throws -> CommuteStatusDTO {
-        try await get(path: "/api/v1/presence/commute/\(userId)", as: CommuteStatusDTO.self)
+        try await get(path: "/api/v1/presence/commute/\(try pathSegment(userId))", as: CommuteStatusDTO.self)
     }
 
     // MARK: - Vacation Presence Simulator & Habit Replay
