@@ -241,11 +241,19 @@ public actor DomusHttpClient: Sendable {
     // MARK: - Home Finance API
 
     public func fetchFinancialSummary(period: String = "month") async throws -> FinancialSummaryDTO {
-        try await get(path: "/api/v1/finance/summary?period=\(period)", as: FinancialSummaryDTO.self)
+        try await get(
+            path: "/api/v1/finance/summary",
+            queryItems: [URLQueryItem(name: "period", value: period)],
+            as: FinancialSummaryDTO.self
+        )
     }
 
     public func fetchExpenses(limit: Int = 100) async throws -> [ExpenseDTO] {
-        try await get(path: "/api/v1/finance/expenses?limit=\(limit)", as: [ExpenseDTO].self)
+        try await get(
+            path: "/api/v1/finance/expenses",
+            queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+            as: [ExpenseDTO].self
+        )
     }
 
     public func createExpense(req: CreateExpenseRequestDTO) async throws -> ExpenseDTO {
@@ -412,15 +420,17 @@ public actor DomusHttpClient: Sendable {
     // MARK: - Timeline & Logbook API
 
     public func fetchLogbook(limit: Int = 100) async throws -> [TimelineEvent] {
-        let res = try await get(path: "/api/v1/logbook?limit=\(limit)", as: LogbookResponseDTO.self)
+        let res = try await get(
+            path: "/api/v1/logbook",
+            queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+            as: LogbookResponseDTO.self
+        )
         return res.entries
     }
 
-    // MARK: - RF Mesh & Hardware Diagnostics API
-
     public func fetchMeshTopology(protocol: String? = nil) async throws -> MeshTopologyDTO {
-        let query = `protocol`.flatMap { "?protocol=\($0)" } ?? ""
-        return try await get(path: "/api/v1/mesh/topology\(query)", as: MeshTopologyDTO.self)
+        let queryItems = `protocol`.map { [URLQueryItem(name: "protocol", value: $0)] } ?? []
+        return try await get(path: "/api/v1/mesh/topology", queryItems: queryItems, as: MeshTopologyDTO.self)
     }
 
     public func fetchSystemHealth() async throws -> (health: SystemHealthDTO, latencyMs: Int) {
@@ -475,14 +485,11 @@ public actor DomusHttpClient: Sendable {
     // MARK: - Medicine Cabinet & Expiration API
 
     public func fetchMedicines(location: String? = nil, status: String? = nil, query: String? = nil) async throws -> [Medicine] {
-        var queryItems: [String] = []
-        if let location, !location.isEmpty { queryItems.append("location=\(location)") }
-        if let status, !status.isEmpty { queryItems.append("status=\(status)") }
-        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("q=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/medicines\(queryString)", as: [Medicine].self)
+        var queryItems: [URLQueryItem] = []
+        if let location, !location.isEmpty { queryItems.append(URLQueryItem(name: "location", value: location)) }
+        if let status, !status.isEmpty { queryItems.append(URLQueryItem(name: "status", value: status)) }
+        if let query, !query.isEmpty { queryItems.append(URLQueryItem(name: "q", value: query)) }
+        return try await get(path: "/api/v1/medicines", queryItems: queryItems, as: [Medicine].self)
     }
 
     public func fetchMedicine(id: String) async throws -> Medicine {
@@ -516,11 +523,8 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchMedicineAlerts(fridgeTemp: Double? = nil) async throws -> [MedicineAlert] {
-        var path = "/api/v1/medicines/alerts"
-        if let fridgeTemp {
-            path += "?fridge_temp=\(fridgeTemp)"
-        }
-        return try await get(path: path, as: [MedicineAlert].self)
+        let queryItems = fridgeTemp.map { [URLQueryItem(name: "fridge_temp", value: String($0))] } ?? []
+        return try await get(path: "/api/v1/medicines/alerts", queryItems: queryItems, as: [MedicineAlert].self)
     }
 
     public func parseMedicineCode(code: String) async throws -> DatamatrixParseResult {
@@ -531,16 +535,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func lookupAIFA(query: String? = nil, aic: String? = nil) async throws -> [AIFARecord] {
-        var queryItems: [String] = []
-        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("q=\(encoded)")
-        }
-        if let aic, !aic.isEmpty { queryItems.append("aic=\(aic)") }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/medicines/lookup\(queryString)", as: [AIFARecord].self)
+        var queryItems: [URLQueryItem] = []
+        if let query, !query.isEmpty { queryItems.append(URLQueryItem(name: "q", value: query)) }
+        if let aic, !aic.isEmpty { queryItems.append(URLQueryItem(name: "aic", value: aic)) }
+        return try await get(path: "/api/v1/medicines/lookup", queryItems: queryItems, as: [AIFARecord].self)
     }
-
-    // MARK: - Predictive Climate API
 
     public func fetchPredictiveStatus() async throws -> SystemPredictiveStatus {
         try await get(path: "/api/v1/climate/predictive/status", as: SystemPredictiveStatus.self)
@@ -582,25 +581,24 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchOptimalStart(id: String, targetTemp: Double? = nil, targetTime: String? = nil) async throws -> PreheatRecommendation {
-        var queryItems: [String] = []
-        if let targetTemp { queryItems.append("target_temp=\(targetTemp)") }
-        if let targetTime, !targetTime.isEmpty, let encoded = targetTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("target_time=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-start\(queryString)", as: PreheatRecommendation.self)
+        var queryItems: [URLQueryItem] = []
+        if let targetTemp { queryItems.append(URLQueryItem(name: "target_temp", value: String(targetTemp))) }
+        if let targetTime, !targetTime.isEmpty { queryItems.append(URLQueryItem(name: "target_time", value: targetTime)) }
+        return try await get(
+            path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))/optimal-start",
+            queryItems: queryItems,
+            as: PreheatRecommendation.self
+        )
     }
 
     public func fetchOptimalStop(id: String, departureTime: String? = nil) async throws -> CoastDownRecommendation {
-        var queryItems: [String] = []
-        if let departureTime, !departureTime.isEmpty, let encoded = departureTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("departure_time=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-stop\(queryString)", as: CoastDownRecommendation.self)
+        let queryItems = departureTime.map { [URLQueryItem(name: "departure_time", value: $0)] } ?? []
+        return try await get(
+            path: "/api/v1/climate/predictive/zones/\(try pathSegment(id))/optimal-stop",
+            queryItems: queryItems,
+            as: CoastDownRecommendation.self
+        )
     }
-
-    // MARK: - EV Wallbox OCPP API
 
     public func fetchWallboxStatus() async throws -> WallboxStatusDTO {
         try await get(path: "/api/v1/energy/wallbox", as: WallboxStatusDTO.self)
