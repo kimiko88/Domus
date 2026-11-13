@@ -134,11 +134,11 @@ public final class DashboardViewModel: ObservableObject {
         guard let authRepository else { return false }
         isLoggingIn = true
         loginError = nil
-        requiresTwoFactor = false
         defer { isLoggingIn = false }
         do {
             let session = try await authRepository.login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint, twoFactorCode: twoFactorCode)
             self.authSession = session
+            self.requiresTwoFactor = false
             self.connection = await connectionRepository.getCurrentConnection()
             self.showLoginSheet = false
             self.entities = (try? await syncEntitiesUseCase.execute()) ?? []
