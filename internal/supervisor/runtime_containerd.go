@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -60,6 +61,26 @@ func (c *ContainerdRuntime) EnsureContainer(ctx context.Context, name string, cf
 
 	if cfg.ReadOnlyRoot {
 		createArgs = append(createArgs, "--read-only")
+	}
+	if cfg.MemoryLimitMB > 0 {
+		memoryBytes := cfg.MemoryLimitMB * 1024 * 1024
+		createArgs = append(createArgs, "--memory-limit", strconv.FormatInt(memoryBytes, 10))
+	}
+	if cfg.CPULimit > 0 {
+		const cpuPeriod = int64(100000) // 100 ms, expressed in microseconds.
+		cpuQuota := int64(cfg.CPULimit * float64(cpuPeriod))
+		if cpuQuota < 1 {
+			return fmt.Errorf("invalid CPU limit %.2f: computed quota is below one microsecond", cfg.CPULimit)
+		}
+		createArgs = append(createArgs,
+			"--cpu-period", strconv.FormatInt(cpuPeriod, 10),
+			"--cpu-quota", strconv.FormatInt(cpuQuota, 10),
+		)
+	}
+	// Use the runtime's default seccomp profile for app containers.
+	createArgs = append(createArgs, "--seccomp")
+	if cfg.NetworkMode == "host" {
+		createArgs = append(createArgs, "--net-host")
 	}
 
 	createArgs = append(createArgs, cfg.Image, name)
