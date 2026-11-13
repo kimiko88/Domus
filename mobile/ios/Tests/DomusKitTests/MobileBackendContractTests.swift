@@ -7,8 +7,8 @@ final class MobileBackendContractTests: XCTestCase {
         let encoded = try DomusHttpClient.encodePathSegment("tag/../../family/invites?admin=true")
         XCTAssertEqual(encoded, "tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin%3Dtrue")
         XCTAssertThrowsError(try DomusHttpClient.encodePathSegment(""))
-        XCTAssertEqual(try DomusHttpClient.encodePathSegment("."), "%2E")
-        XCTAssertEqual(try DomusHttpClient.encodePathSegment(".."), "%2E%2E")
+        XCTAssertThrowsError(try DomusHttpClient.encodePathSegment("."))
+        XCTAssertThrowsError(try DomusHttpClient.encodePathSegment(".."))
     }
 
     func testWebSocketEventContractDecoding() throws {
