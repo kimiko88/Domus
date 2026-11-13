@@ -170,6 +170,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 
 	sess, _, err := authService.Login(ctx, adminUser.Username, "AdminPassword123!", "127.0.0.1", "test-agent")
 	require.NoError(t, err)
+	const csrfToken = "0123456789abcdef0123456789abcdef"
 
 	wsURL := fmt.Sprintf("ws://127.0.0.1:8901/ws?session=%s", url.QueryEscape(sess.ID))
 	wsConn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
