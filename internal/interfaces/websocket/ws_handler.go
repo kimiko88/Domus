@@ -145,6 +145,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 
 			case <-ticker.C:
+				if h.authService != nil {
+					if _, _, authErr := h.authService.ValidateSession(r.Context(), sessionID); authErr != nil {
+						_ = conn.WriteMessage(gorilla.CloseMessage, gorilla.FormatCloseMessage(gorilla.ClosePolicyViolation, "session expired"))
+						return
+					}
+				}
 				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				if err := conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 					return
@@ -165,6 +171,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		if h.authService != nil {
+			if _, _, authErr := h.authService.ValidateSession(r.Context(), sessionID); authErr != nil {
+				break
+			}
 		}
 		var clientMsg map[string]any
 		if err := json.Unmarshal(message, &clientMsg); err == nil {
