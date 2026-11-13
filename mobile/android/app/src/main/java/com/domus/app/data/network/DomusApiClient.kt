@@ -38,13 +38,15 @@ data class LogbookResponseDto(
 @Serializable
 data class LoginRequest(
     val username: String,
-    val password: String
+    val password: String,
+    @kotlinx.serialization.SerialName("two_factor_code") val twoFactorCode: String? = null
 )
 
 @Serializable
 data class LoginResponse(
-    val token: String,
-    val user: UserDto? = null
+    val token: String = "",
+    val user: UserDto? = null,
+    @kotlinx.serialization.SerialName("requires_2fa") val requiresTwoFactor: Boolean = false
 )
 
 @Serializable
@@ -156,9 +158,9 @@ class DomusApiClient(
 ) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    suspend fun login(baseUrl: String, username: String, password: String): Result<AuthSession> = withContext(Dispatchers.IO) {
+    suspend fun login(baseUrl: String, username: String, password: String, twoFactorCode: String? = null): Result<AuthSession> = withContext(Dispatchers.IO) {
         try {
-            val reqBody = json.encodeToString(LoginRequest.serializer(), LoginRequest(username, password))
+            val reqBody = json.encodeToString(LoginRequest.serializer(), LoginRequest(username, password, twoFactorCode))
             val request = Request.Builder()
                 .url("$baseUrl/api/v1/auth/login")
                 .post(reqBody.toRequestBody(jsonMediaType))
@@ -170,6 +172,9 @@ class DomusApiClient(
                 }
                 val bodyStr = response.body?.string() ?: ""
                 val resp = json.decodeFromString<LoginResponse>(bodyStr)
+                if (resp.requiresTwoFactor || resp.token.isBlank()) {
+                    return@withContext Result.failure(IOException("TWO_FACTOR_REQUIRED: inserire il codice di verifica"))
+                }
                 Result.success(
                     AuthSession(
                         token = resp.token,
