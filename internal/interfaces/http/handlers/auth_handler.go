@@ -317,6 +317,17 @@ func (h *AuthHandler) Setup2FA(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
+	if h.twoFactorRepo == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "TWO_FACTOR_UNAVAILABLE", "servizio 2FA non disponibile")
+		return
+	}
+	if existing, err := h.twoFactorRepo.Get(r.Context(), u.ID); err == nil && existing != nil && existing.IsEnabled {
+		h.writeError(w, http.StatusConflict, "TWO_FACTOR_ALREADY_ENABLED", "disattivare la 2FA con password e secondo fattore prima di configurarla nuovamente")
+		return
+	} else if err != nil && !errors.Is(err, domauth.ErrTwoFactorNotFound) {
+		h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile verificare la configurazione 2FA")
+		return
+	}
 
 	secret, err := auth.GenerateTOTPSecret()
 	if err != nil {
@@ -353,18 +364,26 @@ func (h *AuthHandler) VerifyAndEnable2FA(w http.ResponseWriter, r *http.Request)
 		h.writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
+	if h.twoFactorRepo == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "TWO_FACTOR_UNAVAILABLE", "servizio 2FA non disponibile")
+		return
+	}
 
 	var req struct {
 		Passcode string `json:"passcode"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
 		return
 	}
 
 	cfg, err := h.twoFactorRepo.Get(r.Context(), u.ID)
-	if err != nil {
+	if errors.Is(err, domauth.ErrTwoFactorNotFound) {
 		h.writeError(w, http.StatusBadRequest, "2FA_NOT_INITIALIZED", "run 2fa setup first")
+		return
+	}
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "TWO_FACTOR_UNAVAILABLE", "impossibile leggere la configurazione 2FA")
 		return
 	}
 
