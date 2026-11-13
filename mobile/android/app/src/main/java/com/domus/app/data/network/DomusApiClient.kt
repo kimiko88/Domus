@@ -23,6 +23,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 
+class ApiHttpException(val statusCode: Int, message: String) : IOException(message)
+
 @Serializable
 data class AutomationsResponseDto(
     val automations: List<AutomationRule> = emptyList(),
@@ -194,7 +196,7 @@ class DomusApiClient(
             val request = Request.Builder().url("$baseUrl/api/v1/auth/me")
                 .header("Authorization", "Bearer $token").get().build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.failure(IOException("Sessione non valida: HTTP ${response.code}"))
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Sessione non valida: HTTP ${response.code}"))
                 val user = json.decodeFromString<UserDto>(response.body?.string() ?: "{}")
                 Result.success(AuthSession(token = token, username = user.username, role = user.role, isAuthenticated = true))
             }
