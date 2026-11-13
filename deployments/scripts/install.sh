@@ -20,7 +20,7 @@
 # then run this script on the Pi: it will just install what it finds.
 #
 # Environment overrides:
-#   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_USER, DOMUS_GROUP
+#   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_COOKIE_SECURE, DOMUS_USER, DOMUS_GROUP
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
@@ -39,7 +39,7 @@ DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
 DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
 if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
-    log_error "DOMUS_COOKIE_SECURE must be true or false"
+    printf '%s\\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
     exit 1
 fi
 NODE_MAJOR="${NODE_MAJOR:-22}"
@@ -348,7 +348,7 @@ if [[ ! -f "${CONFIG_TARGET}" ]]; then
 [server]
 host = "${DOMUS_HOST}"
 port = ${DOMUS_PORT}
-cookie_secure = false
+cookie_secure = ${DOMUS_COOKIE_SECURE}
 web_dir = "${DOMUS_WEB_DIR}"
 
 [database]
