@@ -69,7 +69,7 @@ class MobileBackendContractTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path ?: ""
                 return when {
-                    path.startsWith("/api/v1/ws") -> {
+                    path == "/ws" -> {
                         MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
                                 activeWs = webSocket
