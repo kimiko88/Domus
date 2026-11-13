@@ -163,16 +163,33 @@ func (c *ContainerdRuntime) StopContainer(ctx context.Context, name string, time
 		}
 	}
 
+	exists, err := c.taskExists(ctx, name)
+	if err != nil {
+		return fmt.Errorf("failed to check task %s before deletion: %w", name, err)
+	}
+	if !exists {
+		return nil
+	}
 	deleteCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "delete", name)...)
 	if out, err := deleteCmd.CombinedOutput(); err != nil {
-		// A task that was already absent is stopped; otherwise surface the
-		// runtime failure instead of claiming that cleanup succeeded.
-		status, statusErr = c.GetContainerStatus(ctx, name)
-		if statusErr != nil || status.State == ContainerStateRunning {
-			return fmt.Errorf("failed to delete task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
-		}
+		return fmt.Errorf("failed to delete task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func (c *ContainerdRuntime) taskExists(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "ls")...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GetContainerStatus queries the state of the container and task.
