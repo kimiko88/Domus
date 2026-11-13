@@ -78,7 +78,7 @@ public actor DualTransportWebSocketClient: Sendable {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         if let token, !token.isEmpty {
-            request.setValue("Bearer \\(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
         let task = urlSession.webSocketTask(with: request)
