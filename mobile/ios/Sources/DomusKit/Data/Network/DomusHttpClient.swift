@@ -110,6 +110,11 @@ public actor DomusHttpClient: Sendable {
     private struct LoginRequestDTO: Encodable {
         let username: String
         let password: String
+        let twoFactorCode: String?
+        enum CodingKeys: String, CodingKey {
+            case username, password
+            case twoFactorCode = "two_factor_code"
+        }
     }
 
     private struct UserResponseDTO: Decodable {
@@ -118,23 +123,34 @@ public actor DomusHttpClient: Sendable {
     }
 
     private struct LoginResponseDTO: Decodable {
-        let token: String
+        let token: String?
         let user: UserResponseDTO?
+        let requiresTwoFactor: Bool?
+        enum CodingKeys: String, CodingKey {
+            case token, user
+            case requiresTwoFactor = "requires_2fa"
+        }
     }
 
-    public func login(baseUrl: String, username: String, password: String) async throws -> AuthSession {
+    public func login(baseUrl: String, username: String, password: String, twoFactorCode: String? = nil) async throws -> AuthSession {
         self.baseURL = baseUrl
         UserDefaults.standard.set(baseUrl, forKey: "domus_server_url")
-        let res = try await post(
-            path: "/api/v1/auth/login",
-            body: LoginRequestDTO(username: username, password: password),
-            as: LoginResponseDTO.self
-        )
-        self.token = res.token
+        let url = try makeURL(path: "/api/v1/auth/login")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(LoginRequestDTO(username: username, password: password, twoFactorCode: twoFactorCode))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw DomusNetworkError.invalidResponse }
+        if http.statusCode == 202 { throw DomusNetworkError.twoFactorRequired }
+        try validateResponse(response)
+        let res = try JSONDecoder().decode(LoginResponseDTO.self, from: data)
+        guard let sessionToken = res.token, !sessionToken.isEmpty else { throw DomusNetworkError.invalidResponse }
+        self.token = sessionToken
         return AuthSession(
-            token: res.token,
+            token: sessionToken,
             username: res.user?.username ?? username,
-            role: res.user?.role ?? "admin",
+            role: res.user?.role ?? "user",
             isAuthenticated: true
         )
     }
@@ -1342,6 +1358,7 @@ public enum DomusNetworkError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int)
     case notConnected
+    case twoFactorRequired
 
     public var errorDescription: String? {
         switch self {
@@ -1349,6 +1366,7 @@ public enum DomusNetworkError: Error, LocalizedError {
         case .invalidResponse: return "Risposta HTTP non valida"
         case .httpError(let code): return "Errore HTTP \(code)"
         case .notConnected: return "Non connesso al server Domus"
+        case .twoFactorRequired: return "È richiesto il codice di verifica a due fattori"
         }
     }
 }
