@@ -770,12 +770,15 @@ class DomusApiClient(
 
     suspend fun scanTag(baseUrl: String, token: String?, tagId: String, scannedBy: String = "Android_Companion"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"scanned_by":"$scannedBy"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("scanned_by", kotlinx.serialization.json.JsonPrimitive(scannedBy))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/tags/$tagId/scan")
                 .post(payload.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Tag scan error: HTTP ${response.code}"))
                 Result.success(Unit)
             }
         } catch (e: Exception) {
@@ -785,12 +788,18 @@ class DomusApiClient(
 
     suspend fun registerPushToken(baseUrl: String, token: String?, deviceToken: String, deviceName: String = "Android Device"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"platform":"fcm","device_token":"$deviceToken","device_name":"$deviceName","app_version":"1.0.0"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("platform", kotlinx.serialization.json.JsonPrimitive("fcm"))
+                put("device_token", kotlinx.serialization.json.JsonPrimitive(deviceToken))
+                put("device_name", kotlinx.serialization.json.JsonPrimitive(deviceName))
+                put("app_version", kotlinx.serialization.json.JsonPrimitive("1.0.0"))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/notifications/push/tokens")
                 .post(payload.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Push token registration error: HTTP ${response.code}"))
                 Result.success(Unit)
             }
         } catch (e: Exception) {
@@ -1473,7 +1482,9 @@ class DomusApiClient(
     /** Sets the wallbox charging mode (SOLAR_ONLY, SOLAR_OPTIMIZED, FAST, NIGHT). */
     suspend fun setWallboxMode(baseUrl: String, token: String?, mode: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mode":"$mode"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mode", kotlinx.serialization.json.JsonPrimitive(mode))
+            }.toString()
             val body = payload.toRequestBody("application/json".toMediaType())
             val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/wallbox/mode").post(body)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -1502,7 +1513,14 @@ class DomusApiClient(
         longitude: Double
     ): Result<CommuteStatusDto> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"user_id":"$userId","latitude":$latitude,"longitude":$longitude}"""
+            if (!latitude.isFinite() || latitude !in -90.0..90.0 || !longitude.isFinite() || longitude !in -180.0..180.0) {
+                return@withContext Result.failure(IllegalArgumentException("Coordinate fuori intervallo"))
+            }
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("user_id", kotlinx.serialization.json.JsonPrimitive(userId))
+                put("latitude", kotlinx.serialization.json.JsonPrimitive(latitude))
+                put("longitude", kotlinx.serialization.json.JsonPrimitive(longitude))
+            }.toString()
             val body = payload.toRequestBody("application/json".toMediaType())
             val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/commute").post(body)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -1551,7 +1569,9 @@ class DomusApiClient(
 
     suspend fun setVacationMode(baseUrl: String, token: String?, enabled: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"enabled":$enabled}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("enabled", kotlinx.serialization.json.JsonPrimitive(enabled))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/presence/vacation")
                 .post(payload.toRequestBody(jsonMediaType))
@@ -1574,7 +1594,11 @@ class DomusApiClient(
         typicalTime: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"entity_id":"$entityId","command":"$command","typical_time":"$typicalTime"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("entity_id", kotlinx.serialization.json.JsonPrimitive(entityId))
+                put("command", kotlinx.serialization.json.JsonPrimitive(command))
+                put("typical_time", kotlinx.serialization.json.JsonPrimitive(typicalTime))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/presence/vacation/actions")
                 .post(payload.toRequestBody(jsonMediaType))
@@ -1609,7 +1633,11 @@ class DomusApiClient(
 
     suspend fun quarantineDevice(baseUrl: String, token: String?, mac: String, ip: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mac":"$mac","ip":"$ip","reason":"$reason"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mac", kotlinx.serialization.json.JsonPrimitive(mac))
+                put("ip", kotlinx.serialization.json.JsonPrimitive(ip))
+                put("reason", kotlinx.serialization.json.JsonPrimitive(reason))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/network/quarantine")
                 .post(payload.toRequestBody(jsonMediaType))
@@ -1626,7 +1654,10 @@ class DomusApiClient(
 
     suspend fun unblockDevice(baseUrl: String, token: String?, mac: String, ip: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mac":"$mac","ip":"$ip"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mac", kotlinx.serialization.json.JsonPrimitive(mac))
+                put("ip", kotlinx.serialization.json.JsonPrimitive(ip))
+            }.toString()
             val reqBuilder = Request.Builder()
                 .url("$baseUrl/api/v1/network/unblock")
                 .post(payload.toRequestBody(jsonMediaType))
