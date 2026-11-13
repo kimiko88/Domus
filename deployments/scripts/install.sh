@@ -40,7 +40,7 @@ DOMUS_PORT="${DOMUS_PORT:-8080}"
 DOMUS_COOKIE_SECURE_EXPLICIT="${DOMUS_COOKIE_SECURE+x}"
 DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
 if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
-    printf '%s\\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
+    printf '%s\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
     exit 1
 fi
 NODE_MAJOR="${NODE_MAJOR:-22}"
