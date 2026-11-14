@@ -450,7 +450,7 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 	selected := make(map[string]struct{}, len(req.DeviceIDs))
 	for _, id := range req.DeviceIDs {
 		id = strings.TrimSpace(id)
-		if id == "" || len(id) > 128 || strings.ContainsAny(id, \"/?#\") {
+		if id == "" || len(id) > 128 || strings.ContainsAny(id, "/?#") {
 			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "invalid device ID in LocalTuya selection")
 			return
 		}
