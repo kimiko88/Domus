@@ -93,6 +93,13 @@ func TestAdapter_RegisterAndPersistDevice(t *testing.T) {
 	bus := &mockBus{}
 	adapter := NewAdapter("tuya_test", bus)
 
+	// Discovery records the sender address, which is the actual LAN address.
+	adapter.discovery.handleDiscovered(DiscoveredDevice{
+		DeviceID: "dev_test_99",
+		IP:       "192.168.1.77",
+		Version:  "3.4",
+	})
+
 	ctx := context.Background()
 	cfg := DeviceConfig{
 		DeviceID: "dev_test_99",
@@ -115,6 +122,9 @@ func TestAdapter_RegisterAndPersistDevice(t *testing.T) {
 	}
 	if devices[0].Name != "Smart Ceiling Lamp" || devices[0].Category != CategoryLight {
 		t.Errorf("unexpected device in configs: %+v", devices[0])
+	}
+	if devices[0].IP != "192.168.1.77" || devices[0].Version != "3.4" {
+		t.Fatalf("expected LAN discovery IP/version, got IP=%q version=%q", devices[0].IP, devices[0].Version)
 	}
 }
 

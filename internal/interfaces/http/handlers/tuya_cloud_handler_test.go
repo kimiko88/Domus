@@ -28,7 +28,7 @@ func TestTuyaCloudHandler_SyncLocalAndLanDispatch(t *testing.T) {
 	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
 		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
 		if strings.HasPrefix(r.URL.Path, "/v1.0/devices") {
-			body = `{"success":true,"result":{"devices":[{"id":"dev-sync-1","name":"Balcony Light","local_key":"key1234567890abc","ip":"192.168.1.188","category":"dj","online":true}]}}`
+			body = `{"success":true,"result":{"devices":[{"id":"dev-sync-1","name":"Balcony Light","local_key":"key1234567890abc","ip":"203.0.113.188","category":"dj","online":true}]}}`
 		}
 		return &http.Response{
 			StatusCode: 200,
@@ -50,6 +50,14 @@ func TestTuyaCloudHandler_SyncLocalAndLanDispatch(t *testing.T) {
 
 	bus := &mockBusForTest{}
 	localAdapter := tuya_local.NewAdapter("tuya_local", bus)
+	// A previous sync may have persisted Tuya Cloud's WAN address as if it
+	// were the device LAN address. A new sync must clear that stale value.
+	localAdapter.RegisterDevice(tuya_local.DeviceConfig{
+		DeviceID: "dev-sync-1",
+		IP:       "198.51.100.44",
+		LocalKey: "old-local-key-123",
+		Category: tuya_local.CategoryLight,
+	})
 
 	handler := NewTuyaCloudHandler(cloudClient).WithLocalAdapter(localAdapter)
 
@@ -100,8 +108,14 @@ func TestTuyaCloudHandler_SyncLocalAndLanDispatch(t *testing.T) {
 	if err := json.Unmarshal(listRec.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("failed to parse list response: %v", err)
 	}
-	if len(listResp.Devices) != 1 || !listResp.Devices[0].LocalConfigured || listResp.Devices[0].LocalIP != "192.168.1.188" {
-		t.Fatalf("device listing did not enrich local status properly: %+v", listResp)
+	if len(listResp.Devices) != 1 || !listResp.Devices[0].LocalConfigured || listResp.Devices[0].LocalIP != "" {
+		t.Fatalf("cloud-reported WAN IP must not be used as LocalTuya IP: %+v", listResp)
+	}
+	if got := localAdapter.GetDeviceIP("dev-sync-1"); got != "" {
+		t.Fatalf("stale Cloud/WAN IP must be cleared until LAN discovery, got %q", got)
+	}
+	if len(syncResp.Devices) != 1 || syncResp.Devices[0].IP != "" {
+		t.Fatalf("SyncLocal must not return Cloud IP as a LAN address: %+v", syncResp.Devices)
 	}
 }
 

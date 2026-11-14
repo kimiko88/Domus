@@ -41,6 +41,8 @@ type Device struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	LocalKey    string   `json:"local_key"`
+	// IP is reported by Tuya Cloud and may be the home's public WAN address.
+	// It must not be used as the device's local LAN address.
 	IP          string   `json:"ip"`
 	ProductID   string   `json:"product_id"`
 	ProductName string   `json:"product_name"`
