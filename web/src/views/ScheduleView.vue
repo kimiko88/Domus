@@ -1459,4 +1459,53 @@ onMounted(async () => {
   border-radius: 0.375rem;
   cursor: pointer;
 }
+
+/* Keep schedule tabs reachable on narrow screens and prevent flex overflow. */
+.schedule-view-container {
+  width: 100%;
+  min-width: 0;
+}
+
+.tab-selector {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+}
+
+.tab-selector .tab-btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .schedule-header {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .header-title-box {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .tab-selector {
+    width: 100%;
+  }
+
+  .live-thermostat-card {
+    padding: 16px;
+  }
+
+  .thermostat-dial-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 </style>

@@ -118,7 +118,7 @@ class MobileBackendContractTest {
         assertTrue(scanResult.isSuccess)
         val scanPath = server.takeRequest().path
         assertEquals(
-            "/api/v1/tags/tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin%3Dtrue/scan",
+            "/api/v1/tags/tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin=true/scan",
             scanPath
         )
 
@@ -187,7 +187,7 @@ class MobileBackendContractTest {
         server.enqueue(MockResponse().setResponseCode(200))
         assertTrue(apiClient.deleteMealPlan(baseUrl, "token", "meal/../../family?admin=true").isSuccess)
         assertEquals(
-            "/api/v1/pantry/meals/meal%2F..%2F..%2Ffamily%3Fadmin%3Dtrue",
+            "/api/v1/pantry/meals/meal%2F..%2F..%2Ffamily%3Fadmin=true",
             server.takeRequest().path
         )
 
