@@ -117,6 +117,21 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 				result.Attributes["current_temperature"] = num / 10.0
 			}
 		}
+		// Local thermostat mode: DPS 4 (0 = automatic, 1 = manual).
+		if mode, exists := dps["4"]; exists {
+			if num, ok := toFloat(mode); ok {
+				switch num {
+				case 0:
+					result.Attributes["hvac_mode"] = "auto"
+				case 1:
+					result.Attributes["hvac_mode"] = "manual"
+				default:
+					result.Attributes["dp_4"] = mode
+				}
+			} else {
+				result.Attributes["dp_4"] = mode
+			}
+		}
 
 	default: // CategorySensor
 		result.Domain = "sensor"
