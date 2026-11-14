@@ -204,11 +204,22 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 		}
 	}
 
-	// 1. Store in memory
+	// Replace a stale LAN socket whenever the address or connection credentials
+	// change. In particular, a previous Cloud-reported WAN address must not survive
+	// a re-sync that has not yet observed a fresh LAN discovery packet.
+	var staleClient *DeviceClient
 	a.mu.Lock()
+	previous, previouslyConfigured := a.configs[cfg.DeviceID]
+	if previouslyConfigured && (previous.IP != cfg.IP || previous.LocalKey != cfg.LocalKey || previous.Version != cfg.Version) {
+		staleClient = a.devices[cfg.DeviceID]
+		delete(a.devices, cfg.DeviceID)
+	}
 	a.configs[cfg.DeviceID] = cfg
 	isActive := a.active
 	a.mu.Unlock()
+	if staleClient != nil {
+		_ = staleClient.Close()
+	}
 
 	// 2. Persist in database
 	if a.db != nil {
