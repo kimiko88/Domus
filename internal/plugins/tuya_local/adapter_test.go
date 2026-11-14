@@ -146,3 +146,45 @@ func TestAdapter_UnregisterDevice(t *testing.T) {
 		t.Fatal("device should no longer be configured")
 	}
 }
+
+func TestTrustedLANIP(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"192.168.1.42", "192.168.1.42"},
+		{"10.0.0.8", "10.0.0.8"},
+		{"172.16.0.9", "172.16.0.9"},
+		{"87.123.45.67", ""},
+		{"8.8.8.8", ""},
+		{"", ""},
+		{"not-an-ip", ""},
+	}
+	for _, tt := range tests {
+		if got := trustedLANIP(tt.input); got != tt.want {
+			t.Errorf("trustedLANIP(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestAdapter_RejectsPublicIPOnRegistrationAndDiscovery(t *testing.T) {
+	adapter := NewAdapter("tuya_test", &mockBus{})
+	adapter.RegisterDevice(DeviceConfig{
+		DeviceID: "dev_public_ip",
+		IP: "87.123.45.67",
+		LocalKey: "0123456789abcdef",
+		Category: CategorySwitch,
+	})
+	if got := adapter.GetDeviceIP("dev_public_ip"); got != "" {
+		t.Fatalf("public IP must not be registered as LAN address, got %q", got)
+	}
+
+	adapter.handleDiscoveredDevice(DiscoveredDevice{
+		DeviceID: "dev_public_ip",
+		IP: "87.123.45.67",
+		Version: "3.5",
+	})
+	if got := adapter.GetDeviceIP("dev_public_ip"); got != "" {
+		t.Fatalf("public IP must not be accepted from discovery, got %q", got)
+	}
+}

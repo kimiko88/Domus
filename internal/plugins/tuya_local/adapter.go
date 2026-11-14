@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"log/slog"
 	"strings"
 	"sync"
@@ -157,8 +158,19 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// trustedLANIP rejects public, malformed, and unspecified addresses. Tuya Cloud's
+// IP field may contain a WAN address and must never become a LocalTuya target.
+func trustedLANIP(raw string) string {
+	ip := net.ParseIP(strings.TrimSpace(raw))
+	if ip == nil || !ip.IsPrivate() {
+		return ""
+	}
+	return ip.String()
+}
+
 // RegisterDevice registers or updates a device configuration in memory.
 func (a *Adapter) RegisterDevice(cfg DeviceConfig) {
+	cfg.IP = trustedLANIP(cfg.IP)
 	a.mu.Lock()
 	a.configs[cfg.DeviceID] = cfg
 	isActive := a.active
@@ -172,6 +184,7 @@ func (a *Adapter) RegisterDevice(cfg DeviceConfig) {
 // RegisterAndPersistDevice persists the device with an encrypted local_key, provisions
 // it in Domus repositories, and connects locally.
 func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig, name string) error {
+	cfg.IP = trustedLANIP(cfg.IP)
 	if cfg.DeviceID == "" || cfg.LocalKey == "" {
 		return errors.New("tuya_local: device_id and local_key are required")
 	}
@@ -333,6 +346,16 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 		}
 		cfg.Name = name
 		cfg.Category = DeviceCategory(catStr)
+		// Purge legacy public WAN addresses saved by older releases. The device
+		// remains configured but waits for a fresh private LAN discovery packet.
+		if cfg.IP != "" && trustedLANIP(cfg.IP) == "" {
+			cfg.IP = ""
+			if _, err := a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET ip = '' WHERE device_id = ?", cfg.DeviceID); err != nil {
+				slog.Warn("tuya_local: could not clear untrusted stored IP", "device_id", cfg.DeviceID, "error", err)
+			}
+		} else {
+			cfg.IP = trustedLANIP(cfg.IP)
+		}
 
 		// Decrypt local_key
 		localKey := keyEnc
@@ -421,6 +444,10 @@ func (a *Adapter) handleDeviceStatus(cfg DeviceConfig, dps map[string]any) {
 }
 
 func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
+	dev.IP = trustedLANIP(dev.IP)
+	if dev.IP == "" || !validDeviceID(dev.DeviceID) {
+		return
+	}
 	if a.bus != nil {
 		_ = a.bus.Publish(context.Background(), events.Event{
 			ID:         uuid.NewString(),
