@@ -425,11 +425,11 @@ onMounted(() => {
           <div class="icon-box text-cyan">
             <Palette :size="20" />
           </div>
-          <h3 class="card-title">Aspetto & Tema</h3>
+          <h3 class="card-title">{{ t('settings.appearance') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Personalizza lo stile visivo e il contrasto dell'interfaccia Domus</p>
+          <p class="theme-desc">{{ t('settings.appearanceDescription') }}</p>
 
           <div class="theme-selector-grid">
             <button
@@ -447,8 +447,8 @@ onMounted(() => {
                 <Monitor v-else :size="15" style="color: #a855f7;" />
               </div>
               <div class="theme-btn-info">
-                <span class="theme-btn-title">{{ opt.label }}</span>
-                <span class="theme-btn-desc">{{ opt.description }}</span>
+                <span class="theme-btn-title">{{ t(opt.nameKey) }}</span>
+                <span class="theme-btn-desc">{{ t(opt.descriptionKey) }}</span>
               </div>
               <Check v-if="currentTheme === opt.id" :size="16" class="theme-check-icon" />
             </button>
