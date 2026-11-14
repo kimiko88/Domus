@@ -63,3 +63,57 @@ func TestAdapter_Lifecycle(t *testing.T) {
 		t.Errorf("expected health check failure after stop")
 	}
 }
+
+func TestParseCategory(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected DeviceCategory
+	}{
+		{"kg", CategorySwitch},
+		{"switch", CategorySwitch},
+		{"cz", CategoryPlug},
+		{"plug", CategoryPlug},
+		{"socket", CategoryPlug},
+		{"dj", CategoryLight},
+		{"light", CategoryLight},
+		{"dd", CategoryLight},
+		{"wk", CategoryClimate},
+		{"climate", CategoryClimate},
+		{"unknown_xyz", CategorySwitch},
+	}
+
+	for _, tc := range tests {
+		if got := ParseCategory(tc.input); got != tc.expected {
+			t.Errorf("ParseCategory(%q) = %v, want %v", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestAdapter_RegisterAndPersistDevice(t *testing.T) {
+	bus := &mockBus{}
+	adapter := NewAdapter("tuya_test", bus)
+
+	ctx := context.Background()
+	cfg := DeviceConfig{
+		DeviceID: "dev_test_99",
+		LocalKey: "localkey12345678",
+		Category: CategoryLight,
+	}
+
+	err := adapter.RegisterAndPersistDevice(ctx, cfg, "Smart Ceiling Lamp")
+	if err != nil {
+		t.Fatalf("RegisterAndPersistDevice failed: %v", err)
+	}
+
+	if !adapter.IsDeviceConfigured("dev_test_99") {
+		t.Errorf("device should be configured")
+	}
+
+	devices := adapter.GetConfiguredDevices()
+	if len(devices) != 1 {
+		t.Fatalf("expected 1 configured device, got %d", len(devices))
+	}
+	if devices[0].Name != "Smart Ceiling Lamp" || devices[0].Category != CategoryLight {
+		t.Errorf("unexpected device in configs: %+v", devices[0])
+	}
+}

@@ -57,6 +57,7 @@ import (
 	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
+	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -144,6 +145,7 @@ type Server struct {
 	presenceSvc    *presence.Service
 	sunEngine      *appauto.SunEngine
 	commuteTracker *presence.CommuteTracker
+	tuyaLocalAdapter *tuya_local.Adapter
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -157,13 +159,31 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		opt(srv)
 	}
 
-	// Tuya Cloud credentials stay server-side and are never exposed to the browser.
+	// Tuya Cloud & Smart Life direct integration (grant_type=1 + QR Code UID Link)
 	var tuyaCloudClient *tuya_cloud.Client
-	if clientID, secret := os.Getenv("TUYA_CLOUD_CLIENT_ID"), os.Getenv("TUYA_CLOUD_CLIENT_SECRET"); clientID != "" && secret != "" {
-		baseURL := os.Getenv("TUYA_CLOUD_BASE_URL")
-		if baseURL == "" { baseURL = "https://openapi.tuyaeu.com" }
-		cloudClient, err := tuya_cloud.New(tuya_cloud.Config{ClientID: clientID, Secret: secret, BaseURL: baseURL, Schema: os.Getenv("TUYA_CLOUD_SCHEMA")})
-		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = cloudClient }
+	clientID := os.Getenv("TUYA_CLIENT_ID")
+	if clientID == "" { clientID = os.Getenv("TUYA_CLOUD_CLIENT_ID") }
+	secret := os.Getenv("TUYA_CLIENT_SECRET")
+	if secret == "" { secret = os.Getenv("TUYA_CLOUD_CLIENT_SECRET") }
+	baseURL := os.Getenv("TUYA_ENDPOINT")
+	if baseURL == "" { baseURL = os.Getenv("TUYA_CLOUD_BASE_URL") }
+	if baseURL == "" { baseURL = "https://openapi.tuyaeu.com" }
+	uid := os.Getenv("TUYA_UID")
+	if uid == "" { uid = os.Getenv("TUYA_CLOUD_UID") }
+
+	if clientID != "" && secret != "" {
+		cloudClient, err := tuya_cloud.New(tuya_cloud.Config{
+			ClientID: clientID,
+			Secret:   secret,
+			BaseURL:  baseURL,
+			UID:      uid,
+			Schema:   os.Getenv("TUYA_CLOUD_SCHEMA"),
+		})
+		if err != nil {
+			slog.Error("tuya cloud integration disabled: invalid configuration", "error", err)
+		} else {
+			tuyaCloudClient = cloudClient
+		}
 	}
 
 	// End-user Smart Life OAuth uses a separate Tuya App Authorization key pair.
@@ -181,6 +201,23 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 	} else if oauthClientID != "" || oauthSecret != "" || oauthIdentifier != "" || oauthAuthorizeURL != "" || oauthCallbackURL != "" {
 		slog.Warn("tuya user OAuth disabled: App Authorization credentials, HTTPS H5 URL, callback URL and encrypted database storage are all required")
+	}
+
+	// Initialize Tuya Local LAN adapter for direct local-first control via local_key
+	if srv.bus != nil {
+		srv.tuyaLocalAdapter = tuya_local.NewAdapter("tuya_local", srv.bus)
+		if srv.repos != nil {
+			if srv.repos.DB != nil {
+				srv.tuyaLocalAdapter.WithPersistence(srv.repos.DB, srv.repos.Cipher)
+			}
+			srv.tuyaLocalAdapter.WithRepositories(srv.repos.Devices, srv.repos.Entities)
+		}
+		if err := srv.tuyaLocalAdapter.Start(context.Background()); err != nil {
+			slog.Warn("tuya_local: adapter background start failed", "error", err)
+		}
+	}
+	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
+		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)
 	}
 
 	r := chi.NewRouter()
@@ -380,17 +417,34 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					intRouter.Get("/{id}", integrationH.GetByID)
 					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
 				})
-				if tuyaCloudClient != nil {
-					cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
-					domainRouter.Route("/integrations/tuya-cloud", func(cloudRouter chi.Router) {
-						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
-						cloudH.RegisterRoutes(cloudRouter)
-					})
+				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
+				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
+					cloudH.WithStorage(srv.repos.DB, srv.repos.Cipher)
 				}
-				if tuyaOAuthHandler != nil {
-					domainRouter.Route("/integrations/tuya-oauth", func(oauthRouter chi.Router) {
-						oauthRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+				if srv.tuyaLocalAdapter != nil {
+					cloudH.WithLocalAdapter(srv.tuyaLocalAdapter)
+				}
+				domainRouter.Route("/integrations/tuya-cloud", func(cloudRouter chi.Router) {
+					cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+					cloudH.RegisterRoutes(cloudRouter)
+				})
+
+				domainRouter.Route("/integrations/tuya-oauth", func(oauthRouter chi.Router) {
+					oauthRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+					if tuyaOAuthHandler != nil {
 						tuyaOAuthHandler.RegisterRoutes(oauthRouter)
+					} else {
+						oauthRouter.Get("/status", func(w http.ResponseWriter, r *http.Request) {
+							w.Header().Set("Content-Type", "application/json")
+							_, _ = w.Write([]byte(`{"connected":false,"direct_uid_mode":true}`))
+						})
+					}
+				})
+				if srv.tuyaLocalAdapter != nil {
+					localH := handlers.NewTuyaLocalHandler(srv.tuyaLocalAdapter)
+					domainRouter.Route("/integrations/tuya-local", func(localRouter chi.Router) {
+						localRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						localH.RegisterRoutes(localRouter)
 					})
 				}
 
@@ -1114,6 +1168,9 @@ func (s *Server) Start() error {
 
 // Shutdown gracefully stops the HTTP server without interrupting active connections.
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.tuyaLocalAdapter != nil {
+		_ = s.tuyaLocalAdapter.Stop(ctx)
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 

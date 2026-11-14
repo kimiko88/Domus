@@ -290,6 +290,25 @@ func (s *Service) SendCommand(ctx context.Context, entityKey string, service str
 		return s.sendSonoffCommand(ctx, runtime, turnOn)
 	case BrandHue:
 		return s.sendHueCommand(ctx, runtime, turnOn, params)
+	case BrandTuyaLocal:
+		if s.bus != nil {
+			cmd := "turn_off"
+			if turnOn {
+				cmd = "turn_on"
+			}
+			return s.bus.Publish(ctx, events.Event{
+				ID:         uuid.NewString(),
+				Type:       events.CommandRequested,
+				OccurredAt: time.Now(),
+				Source:     "brand_service",
+				Payload: map[string]any{
+					"entity_key": entityKey,
+					"command":    cmd,
+					"params":     params,
+				},
+			})
+		}
+		return nil
 	default:
 		return fmt.Errorf("brand: unsupported brand command %s", runtime.Brand)
 	}

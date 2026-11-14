@@ -58,3 +58,24 @@ func TestSafeMessageNormalizesProviderDiagnostics(t *testing.T) {
 		t.Fatalf("provider message length = %d, want at most 180 runes", len([]rune(got)))
 	}
 }
+
+func TestOAuthGetDeviceRetrievesLocalKey(t *testing.T) {
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if strings.HasPrefix(r.URL.Path, "/v1.0/devices/dev-oauth-1") {
+			body := `{"success":true,"result":{"id":"dev-oauth-1","name":"Smart Switch","local_key":"oauth_local_key16","ip":"192.168.1.130","category":"kg","online":true}}`
+			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+		}
+		return &http.Response{StatusCode: 404, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"success":false}`)), Request: r}, nil
+	})
+	client, err := NewOAuthClient(OAuthConfig{ClientID: "cid", Secret: "sec", Identifier: "ident", BaseURL: "https://openapi.tuyaeu.com", HTTPClient: &http.Client{Transport: transport}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, err := client.GetDevice(context.Background(), OAuthToken{UID: "uid1", AccessToken: "acc"}, "dev-oauth-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dev.LocalKey != "oauth_local_key16" || dev.IP != "192.168.1.130" || dev.Category != "kg" {
+		t.Fatalf("unexpected dev: %+v", dev)
+	}
+}

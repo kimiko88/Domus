@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiClient } from '../api/client'
 import { useNotificationsStore } from '../stores/notifications'
@@ -8,6 +8,7 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
+  Wifi,
   WifiOff,
   Zap,
   Radio,
@@ -23,7 +24,10 @@ import {
   Unlock,
   AlertTriangle,
   Globe,
-  Activity
+  Activity,
+  QrCode,
+  Key,
+  ExternalLink
 } from '@lucide/vue'
 import { soundEffects } from '../utils/audioSynthesizer'
 import type { NetworkDiscoveredHost, NetworkLeakAlert, NetworkGuardianLeaksResponse } from '../api/types'
@@ -98,60 +102,131 @@ const probingIp = ref<string | null>(null)
 const quarantiningMac = ref<string | null>(null)
 const guardianLoading = ref(false)
 
-// --- Official Tuya Cloud OpenAPI ---
+// --- Official Tuya Cloud OpenAPI & Local Handover ---
 interface TuyaCloudDevice {
   id: string
   name: string
+  local_key?: string
+  ip?: string
   product_name?: string
   category?: string
   online: boolean
   status: { code: string; value: unknown }[]
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
 }
 const tuyaCloudDevices = ref<TuyaCloudDevice[]>([])
 const tuyaCloudLoading = ref(false)
 const tuyaCloudError = ref('')
 const tuyaCloudCommanding = ref<string | null>(null)
+const tuyaSyncing = ref(false)
 
+interface TuyaCloudConfig {
+  configured: boolean
+  client_id: string
+  client_id_masked: string
+  uid: string
+  endpoint: string
+  source: string
+}
+
+const tuyaConfig = ref<TuyaCloudConfig>({
+  configured: false,
+  client_id: '',
+  client_id_masked: '',
+  uid: '',
+  endpoint: 'https://openapi.tuyaeu.com',
+  source: 'none'
+})
+
+const tuyaConfigForm = reactive({
+  client_id: '',
+  client_secret: '',
+  uid: '',
+  endpoint: 'https://openapi.tuyaeu.com'
+})
+
+const isEditingTuyaConfig = ref(false)
+const tuyaConfigSaving = ref(false)
+
+// Maintained for backward compatibility with mock tests
 interface TuyaOAuthStatus { connected: boolean; expires_at?: string }
 const tuyaOAuthStatus = ref<TuyaOAuthStatus>({ connected: false })
 const tuyaOAuthDevices = ref<TuyaCloudDevice[]>([])
 const tuyaOAuthLoading = ref(false)
-async function fetchTuyaOAuthStatus() {
+
+async function fetchTuyaConfig() {
   try {
-    tuyaOAuthStatus.value = await apiClient.get<TuyaOAuthStatus>('/api/v1/integrations/tuya-oauth/status')
-    if (tuyaOAuthStatus.value.connected) await fetchTuyaOAuthDevices()
-  } catch {
-    tuyaOAuthStatus.value = { connected: false }
-    tuyaOAuthDevices.value = []
+    const res = await apiClient.get<TuyaCloudConfig>('/api/v1/integrations/tuya-cloud/config')
+    if (res) {
+      tuyaConfig.value = res
+      if (res.configured) {
+        tuyaConfigForm.client_id = res.client_id
+        tuyaConfigForm.uid = res.uid
+        tuyaConfigForm.endpoint = res.endpoint || 'https://openapi.tuyaeu.com'
+        await fetchTuyaCloudDevices()
+      }
+    }
+  } catch (err: any) {
+    console.warn('Failed to load Tuya config:', err)
   }
+}
+
+async function saveTuyaConfig() {
+  tuyaConfigSaving.value = true
+  try {
+    const res = await apiClient.post<{ success: boolean; message: string }>('/api/v1/integrations/tuya-cloud/config', {
+      client_id: tuyaConfigForm.client_id,
+      client_secret: tuyaConfigForm.client_secret,
+      uid: tuyaConfigForm.uid,
+      endpoint: tuyaConfigForm.endpoint
+    })
+    notificationsStore.success('Smart Life Collegato!', res.message || 'Configurazione salvata con successo.')
+    soundEffects.playSuccessChime()
+    isEditingTuyaConfig.value = false
+    await fetchTuyaConfig()
+  } catch (err: any) {
+    notificationsStore.error('Errore Configurazione Tuya', err?.message || 'Impossibile salvare le credenziali.')
+  } finally {
+    tuyaConfigSaving.value = false
+  }
+}
+
+async function disconnectTuyaConfig() {
+  try {
+    await apiClient.delete('/api/v1/integrations/tuya-cloud/config')
+    notificationsStore.success('Integrazione Rimossa', 'Configurazione Smart Life scollegata.')
+    tuyaConfig.value = {
+      configured: false,
+      client_id: '',
+      client_id_masked: '',
+      uid: '',
+      endpoint: 'https://openapi.tuyaeu.com',
+      source: 'none'
+    }
+    tuyaConfigForm.client_secret = ''
+    tuyaCloudDevices.value = []
+    isEditingTuyaConfig.value = false
+  } catch (err: any) {
+    notificationsStore.error('Errore Disconnessione', err?.message || 'Impossibile scollegare Tuya.')
+  }
+}
+
+async function fetchTuyaOAuthStatus() {
+  await fetchTuyaConfig()
 }
 async function fetchTuyaOAuthDevices() {
-  tuyaOAuthLoading.value = true
-  try {
-    const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
-    tuyaOAuthDevices.value = result.devices || []
-  } catch (err: any) {
-    notificationsStore.error('Smart Life OAuth', err?.message || 'Impossibile caricare i dispositivi autorizzati.')
-  } finally { tuyaOAuthLoading.value = false }
+  await fetchTuyaCloudDevices()
+}
+async function syncTuyaOAuthToLocal() {
+  await syncTuyaCloudToLocal()
 }
 async function connectTuyaAccount() {
-  try {
-    const result = await apiClient.post<{ authorization_url: string }>('/api/v1/integrations/tuya-oauth/authorize', {})
-    if (!result.authorization_url || !result.authorization_url.startsWith('https://')) throw new Error('URL di autorizzazione Tuya non valido.')
-    window.location.assign(result.authorization_url)
-  } catch (err: any) {
-    notificationsStore.error('Autorizzazione Smart Life', err?.message || 'Impossibile avviare OAuth.')
-  }
+  isEditingTuyaConfig.value = true
 }
 async function disconnectTuyaAccount() {
-  try {
-    await apiClient.post('/api/v1/integrations/tuya-oauth/disconnect', {})
-    tuyaOAuthStatus.value = { connected: false }
-    tuyaOAuthDevices.value = []
-    notificationsStore.success('Smart Life scollegato', 'I token OAuth cifrati sono stati eliminati da Domus.')
-  } catch (err: any) {
-    notificationsStore.error('Disconnessione Smart Life', err?.message || 'Impossibile scollegare l’account.')
-  }
+  await disconnectTuyaConfig()
 }
 
 async function fetchTuyaCloudDevices() {
@@ -167,21 +242,47 @@ async function fetchTuyaCloudDevices() {
   }
 }
 
-async function toggleTuyaCloudStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
+async function syncTuyaCloudToLocal() {
+  tuyaSyncing.value = true
+  try {
+    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>('/api/v1/integrations/tuya-cloud/sync-local', {})
+    notificationsStore.success('Controllo LAN Attivato', res.message || `${res.synced_count} dispositivi sincronizzati per il controllo locale LAN con Local Key.`)
+    await fetchTuyaCloudDevices()
+  } catch (err: any) {
+    notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
+  } finally {
+    tuyaSyncing.value = false
+  }
+}
+
+async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
   if (typeof point.value !== 'boolean') return
   const key = `${device.id}:${point.code}`
   tuyaCloudCommanding.value = key
   try {
-    await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
-      commands: [{ code: point.code, value: !point.value }]
-    })
-    notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
-    await fetchTuyaCloudDevices()
+    if (device.local_configured) {
+      await apiClient.post(`/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`, {
+        command: point.value ? 'turn_off' : 'turn_on'
+      })
+      point.value = !point.value
+      notificationsStore.success('Comando LAN Diretto', `${device.name}: eseguito al 100% in locale sulla LAN via Local Key`)
+    } else {
+      await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
+        commands: [{ code: point.code, value: !point.value }]
+      })
+      point.value = !point.value
+      notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
+      await fetchTuyaCloudDevices()
+    }
   } catch (err: any) {
-    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore Tuya Cloud')
+    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore di comunicazione')
   } finally {
     tuyaCloudCommanding.value = null
   }
+}
+
+async function toggleTuyaCloudStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
+  await toggleTuyaStatus(device, point)
 }
 
 
@@ -367,6 +468,7 @@ onMounted(() => {
   fetchCatalog()
   fetchDiscovered()
   fetchGuardianData()
+  fetchTuyaConfig()
 })
 </script>
 
@@ -424,7 +526,7 @@ onMounted(() => {
 
         <button
           :class="['tab-btn', { active: activeTab === 'cloud' }]"
-          @click="activeTab = 'cloud'; fetchTuyaOAuthStatus()"
+          @click="activeTab = 'cloud'; fetchTuyaConfig()"
         >
           <Globe :size="16" />
           <span>Smart Life Cloud</span>
@@ -855,51 +957,141 @@ onMounted(() => {
     <div v-if="activeTab === 'cloud'" class="tab-content">
       <div class="discovery-toolbar glass-card">
         <div class="discovery-intro">
-          <div class="icon-chip"><Lock :size="20" /></div>
+          <div class="icon-chip"><Zap :size="20" /></div>
           <div>
-            <h3 class="disc-title">Account Smart Life autorizzato</h3>
-            <p class="disc-sub">Collega il tuo account tramite la pagina ufficiale Tuya. Domus non richiede né memorizza la password Smart Life.</p>
-            <p class="disc-sub">{{ tuyaOAuthStatus.connected ? 'Account collegato: token cifrati sul server.' : 'Nessun account utente collegato.' }}</p>
+            <h3 class="disc-title">Smart Life & Tuya (Modalità Semplice UID + LAN)</h3>
+            <p class="disc-sub">Collega Smart Life tramite associazione QR Code su iot.tuya.com (grant_type=1): zero popup, zero app OEM e zero OAuth 2.0. Domus recupera le Local Key la prima volta per operare al 100% in locale sulla LAN.</p>
           </div>
         </div>
         <div class="discovery-inputs">
-          <button v-if="!tuyaOAuthStatus.connected" class="btn-scan" @click="connectTuyaAccount"><Lock :size="16" /><span>Collega account Smart Life</span></button>
-          <template v-else>
-            <button class="btn-action glass-panel" :disabled="tuyaOAuthLoading" @click="fetchTuyaOAuthDevices"><RefreshCw :size="15" :class="{ 'animate-spin': tuyaOAuthLoading }" /><span>Aggiorna account</span></button>
-            <button class="btn-action glass-panel" @click="disconnectTuyaAccount"><Unlock :size="15" /><span>Disconnetti</span></button>
-          </template>
-        </div>
-      </div>
-      <div v-if="tuyaOAuthStatus.connected" class="hosts-grid">
-        <div v-for="device in tuyaOAuthDevices" :key="device.id" class="host-card glass-card">
-          <div class="host-top">
-            <div class="host-brand-icon"><Zap :size="20" /></div>
-            <div class="host-meta"><span class="host-vendor">{{ device.name }}</span><span class="host-ip">{{ device.product_name || device.category || device.id }}</span></div>
-            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
-          </div>
-          <div class="host-specs"><div v-for="point in device.status || []" :key="point.code" class="spec-line"><span class="spec-key">{{ point.code }}</span><span class="spec-code">{{ String(point.value) }}</span></div></div>
+          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="fetchTuyaCloudDevices">
+            <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
+            <span>Aggiorna dispositivi</span>
+          </button>
+          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || !tuyaConfig.configured" @click="syncTuyaCloudToLocal">
+            <Wifi :size="15" />
+            <span>{{ tuyaSyncing ? 'Sincronizzazione LAN…' : 'Attiva LAN Locale (Local Key)' }}</span>
+          </button>
+          <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
+            <Key :size="15" />
+            <span>{{ isEditingTuyaConfig ? 'Chiudi Config' : 'Modifica Config' }}</span>
+          </button>
+          <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="disconnectTuyaConfig">
+            <Unlock :size="15" />
+            <span>Scollega</span>
+          </button>
         </div>
       </div>
 
-      <div class="discovery-toolbar glass-card">
-        <div class="discovery-intro">
-          <div class="icon-chip"><Globe :size="20" /></div>
-          <div>
-            <h3 class="disc-title">Tuya / Smart Life Cloud</h3>
-            <p class="disc-sub">Dispositivi collegati al progetto Tuya Cloud configurato sul server Domus. Le credenziali non vengono mai inviate al browser.</p>
+      <!-- STATUS BANNER WHEN CONFIGURED -->
+      <div v-if="tuyaConfig.configured && !isEditingTuyaConfig" class="tuya-status-banner glass-card">
+        <div class="tuya-status-left">
+          <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>Server-to-Server (grant_type=1) Attivo</span></div>
+          <div class="tuya-meta-chips">
+            <span class="meta-chip"><strong>Client ID:</strong> {{ tuyaConfig.client_id_masked || tuyaConfig.client_id }}</span>
+            <span class="meta-chip"><strong>Smart Life UID:</strong> {{ tuyaConfig.uid }}</span>
+            <span class="meta-chip"><strong>Endpoint:</strong> {{ tuyaConfig.endpoint }}</span>
           </div>
         </div>
-        <button class="btn-scan" :disabled="tuyaCloudLoading" @click="fetchTuyaCloudDevices">
-          <RefreshCw :size="16" :class="{ 'animate-spin': tuyaCloudLoading }" />
-          <span>Aggiorna dispositivi</span>
-        </button>
       </div>
 
-      <div v-if="tuyaCloudError" class="empty-guardian-state glass-card">
+      <!-- SETUP GUIDE & CONFIG FORM (WHEN NOT CONFIGURED OR EDITING) -->
+      <div v-if="!tuyaConfig.configured || isEditingTuyaConfig" class="tuya-config-panel glass-card">
+        <div class="tuya-guide-box">
+          <h4 class="guide-title"><QrCode :size="18" /> Come collegare Smart Life a Domus (Senza OAuth 2.0)</h4>
+          <ol class="guide-steps">
+            <li>
+              Entra nel tuo progetto su 
+              <a href="https://iot.tuya.com" target="_blank" rel="noopener noreferrer" class="link-external">
+                iot.tuya.com <ExternalLink :size="12" />
+              </a>
+              (Cloud → Development → apri il progetto Domus).
+            </li>
+            <li>Assicurati che in alto a destra sopra la tabella il Data Center sia impostato su <strong>Central Europe Data Center</strong>.</li>
+            <li>Vai nella scheda <strong>Devices</strong> e poi nella sottoscheda <strong>Link Tuya App Account</strong>.</li>
+            <li>Ignora <em>Configure OAuth 2.0 Authorization</em> e clicca sul pulsante blu <strong>Add App Account</strong> per visualizzare il QR Code.</li>
+            <li>
+              Apri l'app <strong>Smart Life</strong> sullo smartphone → vai su <strong>Io</strong> (in basso a destra) → tocca l'icona dello scanner QR <code>[ - ]</code> in alto a destra → inquadra il QR Code → tocca <strong>Conferma login</strong> → seleziona <strong>Automatic Link</strong>, scegli <strong>Read and Write</strong> e salva.
+            </li>
+            <li>Copia il valore della colonna <strong>UID</strong> (inizia con <code>eu...</code>) e i parametri <strong>Access ID</strong> e <strong>Access Secret</strong> della scheda Overview e inseriscili qui sotto:</li>
+          </ol>
+        </div>
+
+        <form class="tuya-form-grid" @submit.prevent="saveTuyaConfig">
+          <div class="form-group">
+            <label for="tuya-client-id">Access ID / Client ID *</label>
+            <input
+              id="tuya-client-id"
+              v-model="tuyaConfigForm.client_id"
+              type="text"
+              class="form-control glass-panel"
+              placeholder="es. 3xt9q5..."
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="tuya-client-secret">Access Secret / Client Secret *</label>
+            <input
+              id="tuya-client-secret"
+              v-model="tuyaConfigForm.client_secret"
+              type="password"
+              class="form-control glass-panel"
+              placeholder="es. 8a4b6c..."
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="tuya-uid">Smart Life UID (da Link App Account) *</label>
+            <input
+              id="tuya-uid"
+              v-model="tuyaConfigForm.uid"
+              type="text"
+              class="form-control glass-panel"
+              placeholder="es. eu167890123456abcdef"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="tuya-endpoint">API Regional Endpoint</label>
+            <select
+              id="tuya-endpoint"
+              v-model="tuyaConfigForm.endpoint"
+              class="form-control glass-panel"
+            >
+              <option value="https://openapi.tuyaeu.com">Central Europe (openapi.tuyaeu.com) [Consigliato]</option>
+              <option value="https://openapi-weaz.tuyaeu.com">Western Europe (openapi-weaz.tuyaeu.com)</option>
+              <option value="https://openapi.tuyaus.com">Western America (openapi.tuyaus.com)</option>
+              <option value="https://openapi-ueaz.tuyaus.com">Eastern America (openapi-ueaz.tuyaus.com)</option>
+              <option value="https://openapi.tuyacn.com">China Data Center (openapi.tuyacn.com)</option>
+              <option value="https://openapi.tuyain.com">India Data Center (openapi.tuyain.com)</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-scan" :disabled="tuyaConfigSaving">
+              <CheckCircle :size="16" />
+              <span>{{ tuyaConfigSaving ? 'Connessione e verifica…' : 'Salva e Collega Smart Life' }}</span>
+            </button>
+            <button
+              v-if="tuyaConfig.configured"
+              type="button"
+              class="btn-action glass-panel"
+              @click="isEditingTuyaConfig = false"
+            >
+              Annulla
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div v-if="tuyaCloudError && tuyaConfig.configured" class="empty-guardian-state glass-card">
         <AlertCircle :size="30" />
-        <h4>Cloud Tuya non disponibile</h4>
+        <h4>Cloud Tuya non raggiungibile</h4>
         <p>{{ tuyaCloudError }}</p>
-        <p>Configura TUYA_CLOUD_CLIENT_ID, TUYA_CLOUD_CLIENT_SECRET e, se necessario, TUYA_CLOUD_BASE_URL / TUYA_CLOUD_SCHEMA sul server. Consulta docs/integrations/tuya-cloud-and-pdf-scanning.md.</p>
+        <p>Verifica che il tuo IP sia autorizzato su Tuya IoT o che le credenziali inserite siano corrette.</p>
       </div>
 
       <div v-else-if="tuyaCloudLoading && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
@@ -907,21 +1099,25 @@ onMounted(() => {
         <p>Caricamento dispositivi Smart Life…</p>
       </div>
 
-      <div v-else-if="tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
+      <div v-else-if="tuyaConfig.configured && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
         <Globe :size="32" />
-        <h4>Nessun dispositivo visibile al progetto</h4>
-        <p>Verifica regione, autorizzazioni API e collegamento dell’app Smart Life/OEM al progetto Tuya Cloud.</p>
+        <h4>Nessun dispositivo visibile per l'UID specificato</h4>
+        <p>Verifica di aver inquadrato il QR Code su Tuya IoT (Devices → Link Tuya App Account) con l'account Smart Life corretto e che il Data Center coincida.</p>
       </div>
 
-      <div v-else class="hosts-grid">
+      <div v-if="tuyaCloudDevices.length > 0" class="hosts-grid">
         <div v-for="device in tuyaCloudDevices" :key="device.id" class="host-card glass-card">
           <div class="host-top">
             <div class="host-brand-icon"><Zap :size="20" /></div>
             <div class="host-meta">
               <span class="host-vendor">{{ device.name }}</span>
               <span class="host-ip">{{ device.product_name || device.category || device.id }}</span>
+              <span v-if="device.local_ip" class="spec-lan-ip">LAN: {{ device.local_ip }}</span>
             </div>
-            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span v-if="device.local_configured" class="badge-lan" title="Controllo 100% locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
+              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            </div>
           </div>
           <div class="host-specs">
             <div v-for="point in device.status || []" :key="point.code" class="spec-line">
@@ -931,7 +1127,7 @@ onMounted(() => {
                 v-if="typeof point.value === 'boolean'"
                 class="btn-host-probe"
                 :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || !device.online"
-                @click="toggleTuyaCloudStatus(device, point)"
+                @click="toggleTuyaStatus(device, point)"
               >
                 {{ point.value ? 'Spegni' : 'Accendi' }}
               </button>
@@ -1946,6 +2142,25 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.badge-lan {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.spec-lan-ip {
+  font-size: 11px;
+  color: #10b981;
+  font-family: var(--font-mono, monospace);
+  margin-top: 2px;
+}
+
 .host-specs {
   display: flex;
   flex-direction: column;
@@ -2050,6 +2265,145 @@ onMounted(() => {
   background: #ef4444 !important;
   color: white;
   animation: pulse-ring 1.8s infinite;
+}
+
+/* SMART LIFE DIRECT SERVER-TO-SERVER STYLES */
+.tuya-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.badge-direct-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.tuya-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.meta-chip {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.meta-chip strong {
+  color: var(--text-main);
+  margin-right: 4px;
+}
+
+.tuya-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: var(--radius-xl);
+}
+
+.tuya-guide-box {
+  background: rgba(14, 165, 233, 0.06);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+}
+
+.guide-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.guide-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.guide-steps strong {
+  color: #fff;
+}
+
+.guide-steps code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.link-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tuya-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.form-control {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-main);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.form-control:focus {
+  border-color: var(--primary);
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
 }
 </style>
 

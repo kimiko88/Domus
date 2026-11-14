@@ -49,6 +49,15 @@ func (c *DeviceClient) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.IP == "" {
+		return errors.New("tuya: cannot connect without device IP")
+	}
+
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+	}
+
 	addr := net.JoinHostPort(c.IP, "6668")
 	dialer := net.Dialer{Timeout: 5 * time.Second}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
@@ -58,6 +67,12 @@ func (c *DeviceClient) Connect(ctx context.Context) error {
 
 	c.conn = conn
 	c.closed.Store(false)
+
+	select {
+	case <-c.stopCh:
+		c.stopCh = make(chan struct{})
+	default:
+	}
 
 	go c.readLoop()
 	go c.heartbeatLoop()
@@ -81,11 +96,8 @@ func (c *DeviceClient) Close() error {
 }
 
 // SendCommand encodes and transmits a DPS update to the device.
+// Automatically reconnects if the connection was dropped or idle.
 func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) error {
-	if c.closed.Load() {
-		return errors.New("tuya: client is closed")
-	}
-
 	payload, err := BuildControlPayload(c.DeviceID, dps)
 	if err != nil {
 		return err
@@ -98,14 +110,38 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) erro
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	if c.conn == nil || c.closed.Load() {
+		c.mu.Unlock()
+		if err := c.Connect(ctx); err != nil {
+			return fmt.Errorf("tuya: failed to reconnect before command: %w", err)
+		}
+		c.mu.Lock()
+	}
+
 	if c.conn == nil {
+		c.mu.Unlock()
 		return errors.New("tuya: connection is nil")
 	}
 
 	_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	_, err = c.conn.Write(frame)
-	return err
+	if err != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+		c.mu.Unlock()
+
+		if recErr := c.Connect(ctx); recErr == nil {
+			c.mu.Lock()
+			if c.conn != nil {
+				_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				_, err = c.conn.Write(frame)
+			}
+			c.mu.Unlock()
+		}
+		return err
+	}
+	c.mu.Unlock()
+	return nil
 }
 
 func (c *DeviceClient) heartbeatLoop() {
