@@ -386,6 +386,29 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A present device_ids array is an explicit allow-list. An omitted array keeps
+	// the legacy behaviour of syncing every device with a Local Key.
+	var req struct {
+		DeviceIDs []string `json:"device_ids"`
+	}
+	hasSelection := false
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid LocalTuya selection payload")
+			return
+		}
+		hasSelection = req.DeviceIDs != nil
+	}
+	selected := make(map[string]struct{}, len(req.DeviceIDs))
+	for _, id := range req.DeviceIDs {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 128 || strings.ContainsAny(id, \"/?#\") {
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "invalid device ID in LocalTuya selection")
+			return
+		}
+		selected[id] = struct{}{}
+	}
+
 	client := h.getClient()
 	if client == nil || client.Config().ClientID == "" {
 		writeError(w, http.StatusBadRequest, "TUYA_NOT_CONFIGURED", "Tuya Cloud non configurato. Inserisci le credenziali del progetto e l'UID Smart Life.")
@@ -398,12 +421,38 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if hasSelection {
+		known := make(map[string]struct{}, len(devices))
+		for _, dev := range devices {
+			known[dev.ID] = struct{}{}
+		}
+		for id := range selected {
+			if _, ok := known[id]; !ok {
+				writeError(w, http.StatusBadRequest, "UNKNOWN_DEVICE", fmt.Sprintf("device %q does not belong to the configured Tuya account", id))
+				return
+			}
+		}
+		for _, cfg := range h.tuyaLocal.GetConfiguredDevices() {
+			if _, keep := selected[cfg.DeviceID]; !keep {
+				if err := h.tuyaLocal.UnregisterDevice(r.Context(), cfg.DeviceID); err != nil {
+					writeError(w, http.StatusInternalServerError, "LOCAL_DEVICE_REMOVE_FAILED", "failed to remove a deselected LocalTuya device")
+					return
+				}
+			}
+		}
+	}
+
 	synced := make([]tuya_local.DeviceConfig, 0, len(devices))
 	for _, dev := range devices {
+		if hasSelection {
+			if _, keep := selected[dev.ID]; !keep {
+				continue
+			}
+		}
 		localKey := dev.LocalKey
 		ip := dev.IP
 
-		// If local_key was not returned in list endpoint, query single-device endpoint
+		// If local_key was not returned in list endpoint, query single-device endpoint.
 		if localKey == "" {
 			if detailed, err := client.GetDevice(r.Context(), dev.ID); err == nil && detailed != nil {
 				localKey = detailed.LocalKey
@@ -412,19 +461,18 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-
 		if localKey == "" {
-			continue // cannot pair locally without encryption key
+			continue // cannot pair locally without the encryption key
 		}
 
 		cat := tuya_local.ParseCategory(dev.Category)
 		cfg := tuya_local.DeviceConfig{
-			DeviceID:  dev.ID,
-			Name:      dev.Name,
-			IP:        ip,
-			LocalKey:  localKey,
-			Version:   "3.3",
-			Category:  cat,
+			DeviceID: dev.ID,
+			Name: dev.Name,
+			IP: ip,
+			LocalKey: localKey,
+			Version: "3.3",
+			Category: cat,
 			EntityKey: fmt.Sprintf("switch.tuya_%s", dev.ID),
 		}
 		switch cat {
@@ -433,17 +481,20 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		case tuya_local.CategoryClimate:
 			cfg.EntityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
 		}
-
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
 			continue
 		}
 		synced = append(synced, cfg)
 	}
 
+	message := fmt.Sprintf("%d dispositivi trasferiti al controllo locale LAN con Local Key", len(synced))
+	if hasSelection {
+		message = fmt.Sprintf("%d dispositivi selezionati abilitati per il controllo LocalTuya", len(synced))
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":      true,
+		"success": true,
 		"synced_count": len(synced),
-		"message":      fmt.Sprintf("%d dispositivi trasferiti al controllo locale LAN con Local Key", len(synced)),
-		"devices":      synced,
+		"message": message,
+		"devices": synced,
 	})
 }
