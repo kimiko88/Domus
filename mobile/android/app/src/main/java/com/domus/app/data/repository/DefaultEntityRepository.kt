@@ -97,8 +97,9 @@ class DefaultEntityRepository(
         entityCache.upsertEntity(optimisticEntity)
 
         // Try WebSocket first
-        if (transportManager.connectionFlow.value.isConnected) {
+        if (transportManager.connectionFlow.value.isConnected &&
             transportManager.sendCommand(domain, service, entityId)
+        ) {
             return Result.success(optimisticEntity)
         }
 
@@ -119,8 +120,9 @@ class DefaultEntityRepository(
     }
 
     override suspend fun callService(domain: String, service: String, entityId: String, data: Map<String, Any>): Result<Unit> {
-        if (transportManager.connectionFlow.value.isConnected) {
+        if (transportManager.connectionFlow.value.isConnected &&
             transportManager.sendCommand(domain, service, entityId, data)
+        ) {
             return Result.success(Unit)
         }
 

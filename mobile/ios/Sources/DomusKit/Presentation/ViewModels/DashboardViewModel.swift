@@ -21,6 +21,7 @@ public final class DashboardViewModel: ObservableObject {
     @Published public var showLoginSheet: Bool = false
     @Published public var isLoggingIn: Bool = false
     @Published public var loginError: String? = nil
+    @Published public var requiresTwoFactor: Bool = false
     @Published public var financeSummary: FinancialSummaryDTO? = nil
     @Published public var financeExpenses: [ExpenseDTO] = []
     @Published public var showFinanceSheet: Bool = false
@@ -129,20 +130,24 @@ public final class DashboardViewModel: ObservableObject {
         }
     }
 
-    public func login(username: String, password: String, localEndpoint: String? = nil, remoteEndpoint: String? = nil) async -> Bool {
+    public func login(username: String, password: String, localEndpoint: String? = nil, remoteEndpoint: String? = nil, twoFactorCode: String? = nil) async -> Bool {
         guard let authRepository else { return false }
         isLoggingIn = true
         loginError = nil
         defer { isLoggingIn = false }
         do {
-            let session = try await authRepository.login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint)
+            let session = try await authRepository.login(username: username, password: password, localEndpoint: localEndpoint, remoteEndpoint: remoteEndpoint, twoFactorCode: twoFactorCode)
             self.authSession = session
+            self.requiresTwoFactor = false
             self.connection = await connectionRepository.getCurrentConnection()
             self.showLoginSheet = false
             self.entities = (try? await syncEntitiesUseCase.execute()) ?? []
             self.areas = await entityRepository.getAreas()
             return true
         } catch {
+            if let networkError = error as? DomusNetworkError, case .twoFactorRequired = networkError {
+                self.requiresTwoFactor = true
+            }
             self.loginError = error.localizedDescription
             return false
         }

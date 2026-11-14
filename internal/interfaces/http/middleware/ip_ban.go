@@ -20,7 +20,16 @@ func IPBanMiddleware(bannedRepo domauth.BannedIPRepository) func(http.Handler) h
 
 			clientIP := ExtractClientIP(r)
 			bannedRecord, err := bannedRepo.Get(r.Context(), clientIP)
-			if err == nil && bannedRecord != nil && bannedRecord.IsBanned() {
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": "BRUTE_FORCE_PROTECTION_UNAVAILABLE",
+					"message": "impossibile verificare lo stato di protezione accessi",
+				})
+				return
+			}
+			if bannedRecord != nil && bannedRecord.IsBanned() {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]any{

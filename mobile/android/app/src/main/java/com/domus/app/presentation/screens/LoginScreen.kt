@@ -15,16 +15,18 @@ import com.domus.app.presentation.theme.IndigoPrimary
 
 @Composable
 fun LoginScreen(
-    onLogin: (String, String, String) -> Unit,
+    onLogin: (String, String, String, String?) -> Unit,
     onDiscoverLan: () -> Unit,
     discoveredHubUrl: String?,
     isLoading: Boolean,
     errorMessage: String?,
+    requiresTwoFactor: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var hubUrl by remember { mutableStateOf(discoveredHubUrl ?: "http://192.168.1.100:8080") }
     var username by remember { mutableStateOf("admin") }
     var password by remember { mutableStateOf("") }
+    var twoFactorCode by remember { mutableStateOf("") }
 
     LaunchedEffect(discoveredHubUrl) {
         if (!discoveredHubUrl.isNullOrBlank()) {
@@ -104,6 +106,18 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                if (requiresTwoFactor) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = twoFactorCode,
+                        onValueChange = { twoFactorCode = it.trim().take(32) },
+                        label = { Text("Codice 2FA / recupero") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 if (!errorMessage.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -117,7 +131,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = { onLogin(hubUrl, username, password) },
+                    onClick = { onLogin(hubUrl, username, password, twoFactorCode.takeIf { requiresTwoFactor }) },
                     enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),

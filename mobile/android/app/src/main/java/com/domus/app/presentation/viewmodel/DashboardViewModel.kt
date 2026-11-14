@@ -63,12 +63,7 @@ class DashboardViewModel(
 
     // Auth state
     private val _authSession = MutableStateFlow(
-        AuthSession(
-            token = tokenStorage?.getToken(),
-            username = "admin",
-            role = "admin",
-            isAuthenticated = tokenStorage?.getToken()?.isNotBlank() == true
-        )
+        AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
     )
     val authSession: StateFlow<AuthSession> = _authSession.asStateFlow()
 
@@ -111,7 +106,7 @@ class DashboardViewModel(
     val kioskSmartPlugId: StateFlow<String> = _kioskSmartPlugId.asStateFlow()
 
     init {
-        initialConnectAndSync()
+        restoreSessionAndConnect()
         beaconManager.startMonitoring()
         setupKioskListeners()
     }
@@ -127,6 +122,37 @@ class DashboardViewModel(
             controller.onBatteryProtectionAction = { entityId, turnOn ->
                 callService("switch", if (turnOn) "turn_on" else "turn_off", entityId)
             }
+        }
+    }
+
+    private fun restoreSessionAndConnect() {
+        viewModelScope.launch {
+            val token = tokenStorage?.getToken()
+            if (!token.isNullOrBlank()) {
+                val endpoints = listOfNotNull(tokenStorage?.getLocalEndpoint(), tokenStorage?.getRemoteEndpoint())
+                    .distinct()
+                var validated: AuthSession? = null
+                var definitivelyRejected = false
+                for (endpoint in endpoints) {
+                    val result = apiClient.validateSession(endpoint, token)
+                    if (result.isSuccess) {
+                        validated = result.getOrThrow()
+                        break
+                    }
+                    val message = result.exceptionOrNull()?.message.orEmpty()
+                    if (message.contains("HTTP 401") || message.contains("HTTP 403")) {
+                        definitivelyRejected = true
+                        break
+                    }
+                }
+                if (validated != null) {
+                    _authSession.value = validated
+                } else {
+                    if (definitivelyRejected) tokenStorage?.saveToken(null)
+                    _authSession.value = AuthSession(token = null, username = null, role = "user", isAuthenticated = false)
+                }
+            }
+            initialConnectAndSync()
         }
     }
 
@@ -349,9 +375,9 @@ class DashboardViewModel(
     }
 
     // --- AUTH ---
-    fun login(hubUrl: String, user: String, pass: String, onResult: (Boolean, String?) -> Unit) {
+    fun login(hubUrl: String, user: String, pass: String, twoFactorCode: String? = null, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val res = apiClient.login(hubUrl, user, pass)
+            val res = apiClient.login(hubUrl, user, pass, twoFactorCode)
             if (res.isSuccess) {
                 val sess = res.getOrThrow()
                 tokenStorage?.saveToken(sess.token ?: "")
@@ -360,7 +386,7 @@ class DashboardViewModel(
                 initialConnectAndSync()
                 onResult(true, null)
             } else {
-                onResult(false, res.exceptionOrNull()?.message ?: "Errore di autenticazione")
+                onResult(false, if (res.exceptionOrNull()?.message?.contains("TWO_FACTOR_REQUIRED") == true) "È richiesto il codice 2FA" else res.exceptionOrNull()?.message ?: "Errore di autenticazione")
             }
         }
     }

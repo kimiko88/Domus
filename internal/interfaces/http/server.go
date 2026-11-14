@@ -208,6 +208,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	if srv.authService != nil {
 		r.Use(domusmw.Authenticate(srv.authService))
 	}
+	// Enforce double-submit CSRF tokens after session authentication has
+	// populated the request context. Bearer-token clients remain unaffected.
+	r.Use(domusmw.CSRFProtection(srv.allowedOrigins...))
 
 	healthHandler := handlers.NewHealthHandler(version, startedAt, pinger)
 	swaggerHandler := swagger.NewHandler()
@@ -222,7 +225,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// WebSocket real-time route
 	if srv.wsHub != nil {
-		wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+		wsH := wstransport.NewHandler(srv.wsHub, srv.authService, srv.allowedOrigins...)
 		if srv.repos != nil {
 			wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
 		} else {
@@ -248,7 +251,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 
 		if srv.wsHub != nil {
-			wsH := wstransport.NewHandler(srv.wsHub, srv.authService)
+			wsH := wstransport.NewHandler(srv.wsHub, srv.authService, srv.allowedOrigins...)
 			if srv.repos != nil {
 				wsH.WithBusAndRepo(srv.bus, srv.repos.Entities)
 			} else {

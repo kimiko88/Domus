@@ -18,7 +18,7 @@ interface ConnectionRepository {
 interface AuthRepository {
     val sessionFlow: Flow<AuthSession>
 
-    suspend fun login(username: String, password: String): Result<AuthSession>
+    suspend fun login(username: String, password: String, twoFactorCode: String? = null): Result<AuthSession>
     suspend fun logout()
     suspend fun getSavedToken(): String?
     suspend fun restoreSession(): AuthSession

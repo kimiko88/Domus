@@ -23,6 +23,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.IOException
 
+class ApiHttpException(val statusCode: Int, message: String) : IOException(message)
+
 @Serializable
 data class AutomationsResponseDto(
     val automations: List<AutomationRule> = emptyList(),
@@ -38,13 +40,15 @@ data class LogbookResponseDto(
 @Serializable
 data class LoginRequest(
     val username: String,
-    val password: String
+    val password: String,
+    @kotlinx.serialization.SerialName("two_factor_code") val twoFactorCode: String? = null
 )
 
 @Serializable
 data class LoginResponse(
-    val token: String,
-    val user: UserDto? = null
+    val token: String = "",
+    val user: UserDto? = null,
+    @kotlinx.serialization.SerialName("requires_2fa") val requiresTwoFactor: Boolean = false
 )
 
 @Serializable
@@ -156,11 +160,30 @@ class DomusApiClient(
 ) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    suspend fun login(baseUrl: String, username: String, password: String): Result<AuthSession> = withContext(Dispatchers.IO) {
+    /**
+     * Builds API URLs without allowing caller-controlled identifiers to become
+     * additional path segments or query components.
+     */
+    private fun apiUrl(baseUrl: String, vararg segments: String): HttpUrl {
+        val base = baseUrl.toHttpUrlOrNull()
+            ?: throw IOException("URL base non valida")
+        require(base.scheme == "http" || base.isHttps) { "Schema URL base non supportato" }
+        require(base.username.isEmpty() && base.password.isEmpty()) { "Credenziali nella URL base non consentite" }
+        require(base.query == null && base.fragment == null) { "Query o fragment nella URL base non consentiti" }
+        return base.newBuilder().apply {
+            segments.forEach { segment ->
+                require(segment.isNotEmpty()) { "Segmento URL vuoto" }
+                require(segment != "." && segment != "..") { "Segmento URL non valido" }
+                addPathSegment(segment)
+            }
+        }.build()
+    }
+
+    suspend fun login(baseUrl: String, username: String, password: String, twoFactorCode: String? = null): Result<AuthSession> = withContext(Dispatchers.IO) {
         try {
-            val reqBody = json.encodeToString(LoginRequest.serializer(), LoginRequest(username, password))
+            val reqBody = json.encodeToString(LoginRequest.serializer(), LoginRequest(username, password, twoFactorCode))
             val request = Request.Builder()
-                .url("$baseUrl/api/v1/auth/login")
+                .url(apiUrl(baseUrl, "api", "v1", "auth", "login"))
                 .post(reqBody.toRequestBody(jsonMediaType))
                 .build()
 
@@ -170,6 +193,9 @@ class DomusApiClient(
                 }
                 val bodyStr = response.body?.string() ?: ""
                 val resp = json.decodeFromString<LoginResponse>(bodyStr)
+                if (resp.requiresTwoFactor || resp.token.isBlank()) {
+                    return@withContext Result.failure(IOException("TWO_FACTOR_REQUIRED: inserire il codice di verifica"))
+                }
                 Result.success(
                     AuthSession(
                         token = resp.token,
@@ -184,9 +210,21 @@ class DomusApiClient(
         }
     }
 
+    suspend fun validateSession(baseUrl: String, token: String): Result<AuthSession> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "auth", "me"))
+                .header("Authorization", "Bearer $token").get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Sessione non valida: HTTP ${response.code}"))
+                val user = json.decodeFromString<UserDto>(response.body?.string() ?: "{}")
+                Result.success(AuthSession(token = token, username = user.username, role = user.role, isAuthenticated = true))
+            }
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun fetchEntities(baseUrl: String, token: String?): Result<List<Entity>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/entities")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "entities"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
@@ -206,21 +244,21 @@ class DomusApiClient(
 
     suspend fun fetchAreas(baseUrl: String, token: String?): Result<List<Area>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/areas")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "areas"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
 
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.success(emptyList())
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch aree: HTTP ${response.code}"))
                 }
                 val bodyStr = response.body?.string() ?: "[]"
                 val areas = json.decodeFromString<List<Area>>(bodyStr)
                 Result.success(areas)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
@@ -233,20 +271,22 @@ class DomusApiClient(
         data: Map<String, Any> = emptyMap()
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = if (data.isEmpty()) {
-                """{"entity_id":"$entityId"}"""
-            } else {
-                val dataPairs = data.entries.joinToString(",") { (k, v) ->
-                    when (v) {
-                        is Number -> "\"$k\":$v"
-                        is Boolean -> "\"$k\":$v"
-                        else -> "\"$k\":\"$v\""
-                    }
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("entity_id", kotlinx.serialization.json.JsonPrimitive(entityId))
+                if (data.isNotEmpty()) {
+                    put("data", kotlinx.serialization.json.buildJsonObject {
+                        data.forEach { (key, value) ->
+                            put(key, when (value) {
+                                is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+                                is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+                                else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
+                            })
+                        }
+                    })
                 }
-                """{"entity_id":"$entityId","data":{$dataPairs}}"""
-            }
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/services/$domain/$service")
+                .url(apiUrl(baseUrl, "api", "v1", "services", domain, service))
                 .post(payload.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -268,7 +308,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(AssistantChatRequestDto.serializer(), AssistantChatRequestDto(prompt))
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/assistant/chat")
+                .url(apiUrl(baseUrl, "api", "v1", "assistant", "chat"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -289,7 +329,7 @@ class DomusApiClient(
 
     suspend fun fetchChores(baseUrl: String, token: String?): Result<List<ChoreDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/chores")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "chores"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
@@ -311,7 +351,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateChoreRequestDto.serializer(), chore)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/chores")
+                .url(apiUrl(baseUrl, "api", "v1", "chores"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -333,7 +373,7 @@ class DomusApiClient(
     suspend fun completeChore(baseUrl: String, token: String?, choreId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/chores/$choreId/complete")
+                .url(apiUrl(baseUrl, "api", "v1", "chores", choreId, "complete"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -353,7 +393,7 @@ class DomusApiClient(
     suspend fun deleteChore(baseUrl: String, token: String?, choreId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/chores/$choreId")
+                .url(apiUrl(baseUrl, "api", "v1", "chores", choreId))
                 .delete()
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -372,7 +412,7 @@ class DomusApiClient(
 
     suspend fun fetchShopping(baseUrl: String, token: String?): Result<List<ShoppingItemDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/shopping")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "shopping"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
@@ -394,7 +434,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateShoppingItemDto.serializer(), item)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/shopping")
+                .url(apiUrl(baseUrl, "api", "v1", "shopping"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -416,7 +456,7 @@ class DomusApiClient(
     suspend fun toggleShopping(baseUrl: String, token: String?, itemId: String): Result<ShoppingItemDto> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/shopping/$itemId/toggle")
+                .url(apiUrl(baseUrl, "api", "v1", "shopping", itemId, "toggle"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -438,7 +478,7 @@ class DomusApiClient(
     suspend fun deleteShopping(baseUrl: String, token: String?, itemId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/shopping/$itemId")
+                .url(apiUrl(baseUrl, "api", "v1", "shopping", itemId))
                 .delete()
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -458,7 +498,7 @@ class DomusApiClient(
     suspend fun clearCompletedShopping(baseUrl: String, token: String?): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/shopping/clear-completed")
+                .url(apiUrl(baseUrl, "api", "v1", "shopping", "clear-completed"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -477,7 +517,7 @@ class DomusApiClient(
 
     suspend fun fetchEnergyFlow(baseUrl: String, token: String?): Result<EnergyFlowDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/flow")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "energy", "flow"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
@@ -497,21 +537,24 @@ class DomusApiClient(
 
     suspend fun fetchNotifications(baseUrl: String, token: String?): Result<List<NotificationDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/notifications")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "notifications"))
             if (!token.isNullOrBlank()) {
                 reqBuilder.addHeader("Authorization", "Bearer $token")
             }
 
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful && response.code != 404 && response.code != 405) {
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch notifiche: HTTP ${response.code}"))
+                }
                 if (!response.isSuccessful) {
-                    // Fallback to /api/v1/notifications/actionable
-                    val fallbackReq = Request.Builder().url("$baseUrl/api/v1/notifications/actionable")
+                    // Older servers may expose only the actionable notifications endpoint.
+                    val fallbackReq = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "notifications", "actionable"))
                     if (!token.isNullOrBlank()) {
                         fallbackReq.addHeader("Authorization", "Bearer $token")
                     }
                     client.newCall(fallbackReq.build()).execute().use { fbResponse ->
                         if (!fbResponse.isSuccessful) {
-                            return@withContext Result.success(emptyList())
+                            return@withContext Result.failure(ApiHttpException(fbResponse.code, "Errore fetch notifiche: HTTP ${fbResponse.code}"))
                         }
                         val bodyStr = fbResponse.body?.string() ?: "[]"
                         val notifs = json.decodeFromString<List<NotificationDto>>(bodyStr)
@@ -523,13 +566,13 @@ class DomusApiClient(
                 Result.success(notifs)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
     suspend fun fetchAutomations(baseUrl: String, token: String?): Result<List<AutomationRule>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/automations")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "automations"))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -556,7 +599,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(AutomationRule.serializer(), rule)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/automations")
+                .url(apiUrl(baseUrl, "api", "v1", "automations"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -574,7 +617,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(AutomationRule.serializer(), rule)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/automations/$ruleId")
+                .url(apiUrl(baseUrl, "api", "v1", "automations", ruleId))
                 .put(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -590,7 +633,7 @@ class DomusApiClient(
 
     suspend fun deleteAutomation(baseUrl: String, token: String?, ruleId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/automations/$ruleId").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "automations", ruleId)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore cancellazione regola: HTTP ${response.code}"))
@@ -604,7 +647,7 @@ class DomusApiClient(
     suspend fun triggerAutomation(baseUrl: String, token: String?, ruleId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/automations/$ruleId/trigger")
+                .url(apiUrl(baseUrl, "api", "v1", "automations", ruleId, "trigger"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -618,7 +661,7 @@ class DomusApiClient(
 
     suspend fun fetchLogbook(baseUrl: String, token: String?, limit: Int = 100): Result<List<TimelineEvent>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/logbook?limit=$limit")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "logbook").newBuilder().addQueryParameter("limit", limit.toString()).build())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -643,8 +686,10 @@ class DomusApiClient(
 
     suspend fun fetchMeshTopology(baseUrl: String, token: String?, protocol: String? = null): Result<MeshTopologyDto> = withContext(Dispatchers.IO) {
         try {
-            val query = if (protocol != null) "?protocol=$protocol" else ""
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/mesh/topology$query")
+            val meshUrl = apiUrl(baseUrl, "api", "v1", "mesh", "topology").newBuilder().apply {
+                if (protocol != null) addQueryParameter("protocol", protocol)
+            }.build()
+            val reqBuilder = Request.Builder().url(meshUrl)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -662,28 +707,28 @@ class DomusApiClient(
     suspend fun fetchSystemHealth(baseUrl: String, token: String?): Result<Pair<SystemHealthDto, Int>> = withContext(Dispatchers.IO) {
         try {
             val start = System.currentTimeMillis()
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/system/health")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "system", "health"))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 val latency = maxOf(1, (System.currentTimeMillis() - start).toInt())
                 if (!response.isSuccessful) {
-                    return@withContext Result.success(Pair(SystemHealthDto(), latency))
+                    return@withContext Result.failure(ApiHttpException(response.code, "Errore health check: HTTP ${response.code}"))
                 }
                 val bodyStr = response.body?.string() ?: "{}"
                 val health = json.decodeFromString<SystemHealthDto>(bodyStr)
                 Result.success(Pair(health, latency))
             }
         } catch (e: Exception) {
-            Result.success(Pair(SystemHealthDto(), 12))
+            Result.failure(e)
         }
     }
 
     suspend fun fetchFamilyMembers(baseUrl: String, token: String?): Result<List<FamilyMemberDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/members")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "family", "members"))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch membri famiglia: HTTP ${response.code}"))
                 val bodyStr = response.body?.string() ?: "{}"
                 val res = try {
                     json.decodeFromString<FamilyMembersResponseDto>(bodyStr).members
@@ -693,16 +738,16 @@ class DomusApiClient(
                 Result.success(res)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
     suspend fun fetchFamilyInvites(baseUrl: String, token: String?): Result<List<FamilyInviteDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/invites")
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "family", "invites"))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.success(emptyList())
+                if (!response.isSuccessful) return@withContext Result.failure(ApiHttpException(response.code, "Errore fetch inviti famiglia: HTTP ${response.code}"))
                 val bodyStr = response.body?.string() ?: "{}"
                 val res = try {
                     json.decodeFromString<FamilyInvitesResponseDto>(bodyStr).invites
@@ -712,7 +757,7 @@ class DomusApiClient(
                 Result.success(res)
             }
         } catch (e: Exception) {
-            Result.success(emptyList())
+            Result.failure(e)
         }
     }
 
@@ -720,7 +765,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateInviteRequestDto.serializer(), CreateInviteRequestDto(role, expiresInHours))
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/family/invites")
+                .url(apiUrl(baseUrl, "api", "v1", "family", "invites"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -736,7 +781,7 @@ class DomusApiClient(
 
     suspend fun revokeFamilyInvite(baseUrl: String, token: String?, inviteId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/family/invites/$inviteId").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "family", "invites", inviteId)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore revoca invito: HTTP ${response.code}"))
@@ -749,12 +794,15 @@ class DomusApiClient(
 
     suspend fun scanTag(baseUrl: String, token: String?, tagId: String, scannedBy: String = "Android_Companion"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"scanned_by":"$scannedBy"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("scanned_by", kotlinx.serialization.json.JsonPrimitive(scannedBy))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/tags/$tagId/scan")
+                .url(apiUrl(baseUrl, "api", "v1", "tags", tagId, "scan"))
                 .post(payload.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Tag scan error: HTTP ${response.code}"))
                 Result.success(Unit)
             }
         } catch (e: Exception) {
@@ -764,12 +812,18 @@ class DomusApiClient(
 
     suspend fun registerPushToken(baseUrl: String, token: String?, deviceToken: String, deviceName: String = "Android Device"): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"platform":"fcm","device_token":"$deviceToken","device_name":"$deviceName","app_version":"1.0.0"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("platform", kotlinx.serialization.json.JsonPrimitive("fcm"))
+                put("device_token", kotlinx.serialization.json.JsonPrimitive(deviceToken))
+                put("device_name", kotlinx.serialization.json.JsonPrimitive(deviceName))
+                put("app_version", kotlinx.serialization.json.JsonPrimitive("1.0.0"))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/notifications/push/tokens")
+                .url(apiUrl(baseUrl, "api", "v1", "notifications", "push", "tokens"))
                 .post(payload.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("Push token registration error: HTTP ${response.code}"))
                 Result.success(Unit)
             }
         } catch (e: Exception) {
@@ -779,7 +833,8 @@ class DomusApiClient(
 
     suspend fun fetchFinancialSummary(baseUrl: String, token: String?, period: String = "month"): Result<com.domus.app.domain.model.FinancialSummaryDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/finance/summary?period=$period").get()
+            val summaryUrl = apiUrl(baseUrl, "api", "v1", "finance", "summary").newBuilder().addQueryParameter("period", period).build()
+            val reqBuilder = Request.Builder().url(summaryUrl).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore riepilogo spese: HTTP ${response.code}"))
@@ -794,7 +849,7 @@ class DomusApiClient(
 
     suspend fun fetchExpenses(baseUrl: String, token: String?): Result<List<com.domus.app.domain.model.ExpenseDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/finance/expenses").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "finance", "expenses")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore lista spese: HTTP ${response.code}"))
@@ -811,7 +866,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(com.domus.app.domain.model.CreateExpenseRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/finance/expenses")
+                .url(apiUrl(baseUrl, "api", "v1", "finance", "expenses"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -829,7 +884,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(com.domus.app.domain.model.SetBudgetRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/finance/budgets")
+                .url(apiUrl(baseUrl, "api", "v1", "finance", "budgets"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -847,7 +902,7 @@ class DomusApiClient(
 
     suspend fun fetchPantryItems(baseUrl: String, token: String?): Result<List<PantryItemDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/items").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "pantry", "items")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch dispensa: HTTP ${response.code}"))
@@ -864,7 +919,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreatePantryItemRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/items")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "items"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -883,7 +938,7 @@ class DomusApiClient(
             val req = UpdatePantryStockRequestDto(delta = delta, quantity = quantity)
             val reqBody = json.encodeToString(UpdatePantryStockRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/items/$id/stock")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "items", id, "stock"))
                 .patch(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -899,7 +954,7 @@ class DomusApiClient(
 
     suspend fun deletePantryItem(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/items/$id").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "pantry", "items", id)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 Result.success(response.isSuccessful)
@@ -911,7 +966,7 @@ class DomusApiClient(
 
     suspend fun fetchRecipes(baseUrl: String, token: String?): Result<List<RecipeDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/recipes").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "pantry", "recipes")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch ricette: HTTP ${response.code}"))
@@ -928,7 +983,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateRecipeRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/recipes")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "recipes"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -944,7 +999,7 @@ class DomusApiClient(
 
     suspend fun deleteRecipe(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/recipes/$id").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "pantry", "recipes", id)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 Result.success(response.isSuccessful)
@@ -956,13 +1011,11 @@ class DomusApiClient(
 
     suspend fun fetchMealPlans(baseUrl: String, token: String?, startDate: String? = null, endDate: String? = null): Result<List<MealPlanDto>> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/v1/pantry/meals"
-            val params = mutableListOf<String>()
-            if (!startDate.isNullOrBlank()) params.add("start_date=$startDate")
-            if (!endDate.isNullOrBlank()) params.add("end_date=$endDate")
-            if (params.isNotEmpty()) url += "?" + params.joinToString("&")
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "pantry", "meals").newBuilder()
+            if (!startDate.isNullOrBlank()) urlBuilder.addQueryParameter("start_date", startDate)
+            if (!endDate.isNullOrBlank()) urlBuilder.addQueryParameter("end_date", endDate)
 
-            val reqBuilder = Request.Builder().url(url).get()
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore fetch pasti: HTTP ${response.code}"))
@@ -979,7 +1032,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateMealPlanRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/meals")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "meals"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -998,7 +1051,7 @@ class DomusApiClient(
             val req = ConsumeMealPlanRequestDto(persons_count = personsCount)
             val reqBody = json.encodeToString(ConsumeMealPlanRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/meals/$planId/consume")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "meals", planId, "consume"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1014,7 +1067,7 @@ class DomusApiClient(
 
     suspend fun deleteMealPlan(baseUrl: String, token: String?, id: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/pantry/meals/$id").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "pantry", "meals", id)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 Result.success(response.isSuccessful)
@@ -1029,7 +1082,7 @@ class DomusApiClient(
             val req = ReceiptParseRequestDto(raw_text = rawText)
             val reqBody = json.encodeToString(ReceiptParseRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/receipts/parse")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "receipts", "parse"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1047,7 +1100,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(ReceiptImportRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/pantry/receipts/import")
+                .url(apiUrl(baseUrl, "api", "v1", "pantry", "receipts", "import"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1073,8 +1126,7 @@ class DomusApiClient(
         query: String? = null
     ): Result<List<MedicineDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/medicines".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines").newBuilder()
             if (!location.isNullOrBlank()) urlBuilder.addQueryParameter("location", location)
             if (!status.isNullOrBlank()) urlBuilder.addQueryParameter("status", status)
             if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
@@ -1095,7 +1147,7 @@ class DomusApiClient(
 
     suspend fun getMedicine(baseUrl: String, token: String?, id: String): Result<MedicineDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/medicines/$id").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "medicines", id)).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore HTTP ${response.code}"))
@@ -1112,7 +1164,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreateMedicineRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/medicines")
+                .url(apiUrl(baseUrl, "api", "v1", "medicines"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1130,7 +1182,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(UpdateMedicineRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/medicines/$id")
+                .url(apiUrl(baseUrl, "api", "v1", "medicines", id))
                 .put(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1146,7 +1198,7 @@ class DomusApiClient(
 
     suspend fun deleteMedicine(baseUrl: String, token: String?, id: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/medicines/$id").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "medicines", id)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore eliminazione farmaco: HTTP ${response.code}"))
@@ -1161,7 +1213,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(OpenMedicineRequestDto.serializer(), OpenMedicineRequestDto(opened_at = openedAt))
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/medicines/$id/open")
+                .url(apiUrl(baseUrl, "api", "v1", "medicines", id, "open"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1179,7 +1231,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(ConsumeMedicineRequestDto.serializer(), ConsumeMedicineRequestDto(amount = amount))
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/medicines/$id/consume")
+                .url(apiUrl(baseUrl, "api", "v1", "medicines", id, "consume"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1195,11 +1247,12 @@ class DomusApiClient(
 
     suspend fun getMedicineAlerts(baseUrl: String, token: String?, fridgeTemp: Double? = null): Result<List<MedicineAlertDto>> = withContext(Dispatchers.IO) {
         try {
-            var url = "$baseUrl/api/v1/medicines/alerts"
-            if (fridgeTemp != null) {
-                url += "?fridge_temp=$fridgeTemp"
+            if (fridgeTemp != null && !fridgeTemp.isFinite()) {
+                return@withContext Result.failure(IllegalArgumentException("Temperatura frigorifero non valida"))
             }
-            val reqBuilder = Request.Builder().url(url).get()
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines", "alerts").newBuilder()
+            if (fridgeTemp != null) urlBuilder.addQueryParameter("fridge_temp", fridgeTemp.toString())
+            val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore avvisi medicinali: HTTP ${response.code}"))
@@ -1217,7 +1270,7 @@ class DomusApiClient(
             @Serializable data class CodePayload(val code: String)
             val reqBody = json.encodeToString(CodePayload.serializer(), CodePayload(code = code))
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/medicines/parse-code")
+                .url(apiUrl(baseUrl, "api", "v1", "medicines", "parse-code"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1233,8 +1286,7 @@ class DomusApiClient(
 
     suspend fun lookupAIFA(baseUrl: String, token: String?, query: String? = null, aic: String? = null): Result<List<AIFARecordDto>> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/medicines/lookup".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "medicines", "lookup").newBuilder()
             if (!query.isNullOrBlank()) urlBuilder.addQueryParameter("q", query)
             if (!aic.isNullOrBlank()) urlBuilder.addQueryParameter("aic", aic)
 
@@ -1257,7 +1309,7 @@ class DomusApiClient(
 
     suspend fun getPredictiveStatus(baseUrl: String, token: String?): Result<SystemPredictiveStatusDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/status").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "status")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore stato predittivo: HTTP ${response.code}"))
@@ -1272,7 +1324,7 @@ class DomusApiClient(
 
     suspend fun getPredictiveZones(baseUrl: String, token: String?): Result<List<PredictiveZoneConfigDto>> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore elenco zone: HTTP ${response.code}"))
@@ -1287,7 +1339,7 @@ class DomusApiClient(
 
     suspend fun getPredictiveZone(baseUrl: String, token: String?, id: String): Result<PredictiveZoneConfigDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id)).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore zona predittiva: HTTP ${response.code}"))
@@ -1304,7 +1356,7 @@ class DomusApiClient(
         try {
             val reqBody = json.encodeToString(CreatePredictiveZoneRequestDto.serializer(), req)
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/climate/predictive/zones")
+                .url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones"))
                 .post(reqBody.toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1320,7 +1372,7 @@ class DomusApiClient(
 
     suspend fun deletePredictiveZone(baseUrl: String, token: String?, id: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id").delete()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id)).delete()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore eliminazione zona: HTTP ${response.code}"))
@@ -1334,7 +1386,7 @@ class DomusApiClient(
     suspend fun evaluatePredictiveZone(baseUrl: String, token: String?, id: String): Result<PredictiveEvaluationDto> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/climate/predictive/zones/$id/evaluate")
+                .url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "evaluate"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1351,7 +1403,7 @@ class DomusApiClient(
     suspend fun evaluateAllPredictiveZones(baseUrl: String, token: String?): Result<List<PredictiveEvaluationDto>> = withContext(Dispatchers.IO) {
         try {
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/climate/predictive/evaluate-all")
+                .url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "evaluate-all"))
                 .post("{}".toRequestBody(jsonMediaType))
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
@@ -1367,7 +1419,7 @@ class DomusApiClient(
 
     suspend fun getZoneThermalProfile(baseUrl: String, token: String?, id: String): Result<ThermalProfileDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/climate/predictive/zones/$id/profile").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "profile")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Errore profilo termico: HTTP ${response.code}"))
@@ -1388,8 +1440,7 @@ class DomusApiClient(
         targetTime: String? = null
     ): Result<PreheatRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-start".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "optimal-start").newBuilder()
             if (targetTemp != null) urlBuilder.addQueryParameter("target_temp", targetTemp.toString())
             if (!targetTime.isNullOrBlank()) urlBuilder.addQueryParameter("target_time", targetTime)
 
@@ -1413,8 +1464,7 @@ class DomusApiClient(
         departureTime: String? = null
     ): Result<CoastDownRecommendationDto> = withContext(Dispatchers.IO) {
         try {
-            val urlBuilder = "$baseUrl/api/v1/climate/predictive/zones/$id/optimal-stop".toHttpUrlOrNull()?.newBuilder()
-                ?: return@withContext Result.failure(IOException("URL non valido"))
+            val urlBuilder = apiUrl(baseUrl, "api", "v1", "climate", "predictive", "zones", id, "optimal-stop").newBuilder()
             if (!departureTime.isNullOrBlank()) urlBuilder.addQueryParameter("departure_time", departureTime)
 
             val reqBuilder = Request.Builder().url(urlBuilder.build()).get()
@@ -1437,7 +1487,7 @@ class DomusApiClient(
     /** Fetches live wallbox telemetry from the OCPP backend. */
     suspend fun getWallboxStatus(baseUrl: String, token: String?): Result<WallboxStatusDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/wallbox").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "energy", "wallbox")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Wallbox status error: HTTP ${response.code}"))
@@ -1452,9 +1502,11 @@ class DomusApiClient(
     /** Sets the wallbox charging mode (SOLAR_ONLY, SOLAR_OPTIMIZED, FAST, NIGHT). */
     suspend fun setWallboxMode(baseUrl: String, token: String?, mode: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mode":"$mode"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mode", kotlinx.serialization.json.JsonPrimitive(mode))
+            }.toString()
             val body = payload.toRequestBody("application/json".toMediaType())
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/energy/wallbox/mode").post(body)
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "energy", "wallbox", "mode")).post(body)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Wallbox mode error: HTTP ${response.code}"))
@@ -1481,9 +1533,16 @@ class DomusApiClient(
         longitude: Double
     ): Result<CommuteStatusDto> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"user_id":"$userId","latitude":$latitude,"longitude":$longitude}"""
+            if (!latitude.isFinite() || latitude !in -90.0..90.0 || !longitude.isFinite() || longitude !in -180.0..180.0) {
+                return@withContext Result.failure(IllegalArgumentException("Coordinate fuori intervallo"))
+            }
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("user_id", kotlinx.serialization.json.JsonPrimitive(userId))
+                put("latitude", kotlinx.serialization.json.JsonPrimitive(latitude))
+                put("longitude", kotlinx.serialization.json.JsonPrimitive(longitude))
+            }.toString()
             val body = payload.toRequestBody("application/json".toMediaType())
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/commute").post(body)
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "presence", "commute")).post(body)
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Commute update error: HTTP ${response.code}"))
@@ -1498,7 +1557,7 @@ class DomusApiClient(
     /** Gets the current commute status (ETA, distance, phase) for the given user. */
     suspend fun getCommuteStatus(baseUrl: String, token: String?, userId: String): Result<CommuteStatusDto> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/commute/$userId").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "presence", "commute", userId)).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Commute status error: HTTP ${response.code}"))
@@ -1516,7 +1575,7 @@ class DomusApiClient(
 
     suspend fun fetchVacationMode(baseUrl: String, token: String?): Result<VacationModeResponse> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/presence/vacation").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "presence", "vacation")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Vacation mode error: HTTP ${response.code}"))
@@ -1530,9 +1589,11 @@ class DomusApiClient(
 
     suspend fun setVacationMode(baseUrl: String, token: String?, enabled: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"enabled":$enabled}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("enabled", kotlinx.serialization.json.JsonPrimitive(enabled))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/presence/vacation")
+                .url(apiUrl(baseUrl, "api", "v1", "presence", "vacation"))
                 .post(payload.toRequestBody(jsonMediaType))
                 .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -1553,9 +1614,13 @@ class DomusApiClient(
         typicalTime: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"entity_id":"$entityId","command":"$command","typical_time":"$typicalTime"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("entity_id", kotlinx.serialization.json.JsonPrimitive(entityId))
+                put("command", kotlinx.serialization.json.JsonPrimitive(command))
+                put("typical_time", kotlinx.serialization.json.JsonPrimitive(typicalTime))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/presence/vacation/actions")
+                .url(apiUrl(baseUrl, "api", "v1", "presence", "vacation", "actions"))
                 .post(payload.toRequestBody(jsonMediaType))
                 .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -1574,7 +1639,7 @@ class DomusApiClient(
 
     suspend fun fetchNetworkLeaks(baseUrl: String, token: String?): Result<NetworkLeaksResponse> = withContext(Dispatchers.IO) {
         try {
-            val reqBuilder = Request.Builder().url("$baseUrl/api/v1/network/leaks").get()
+            val reqBuilder = Request.Builder().url(apiUrl(baseUrl, "api", "v1", "network", "leaks")).get()
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
             client.newCall(reqBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("Network leaks error: HTTP ${response.code}"))
@@ -1588,9 +1653,13 @@ class DomusApiClient(
 
     suspend fun quarantineDevice(baseUrl: String, token: String?, mac: String, ip: String, reason: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mac":"$mac","ip":"$ip","reason":"$reason"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mac", kotlinx.serialization.json.JsonPrimitive(mac))
+                put("ip", kotlinx.serialization.json.JsonPrimitive(ip))
+                put("reason", kotlinx.serialization.json.JsonPrimitive(reason))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/network/quarantine")
+                .url(apiUrl(baseUrl, "api", "v1", "network", "quarantine"))
                 .post(payload.toRequestBody(jsonMediaType))
                 .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
@@ -1605,9 +1674,12 @@ class DomusApiClient(
 
     suspend fun unblockDevice(baseUrl: String, token: String?, mac: String, ip: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val payload = """{"mac":"$mac","ip":"$ip"}"""
+            val payload = kotlinx.serialization.json.buildJsonObject {
+                put("mac", kotlinx.serialization.json.JsonPrimitive(mac))
+                put("ip", kotlinx.serialization.json.JsonPrimitive(ip))
+            }.toString()
             val reqBuilder = Request.Builder()
-                .url("$baseUrl/api/v1/network/unblock")
+                .url(apiUrl(baseUrl, "api", "v1", "network", "unblock"))
                 .post(payload.toRequestBody(jsonMediaType))
                 .addHeader("X-Idempotency-Key", java.util.UUID.randomUUID().toString())
             if (!token.isNullOrBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")

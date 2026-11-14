@@ -168,6 +168,20 @@ resources: { memory_limit_mb: 128 }
 			errSub: "forbidden storage mount path",
 		},
 		{
+			name: "Storage volume path traversal",
+			manifest: `
+id: evil-volume
+name: Evil Volume
+version: "1.0.0"
+image: "evil/app:latest"
+permissions:
+  network: { mode: "bridge" }
+  storage: [{ path: "/data", volume_name: "../../outside" }]
+resources: { memory_limit_mb: 128 }
+`,
+			errSub: "invalid storage volume_name",
+		},
+		{
 			name: "Excessive memory limit exceeding 3GB limit",
 			manifest: `
 id: greedy-app

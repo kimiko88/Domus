@@ -14,6 +14,8 @@ import com.domus.app.domain.usecase.AuthenticateUseCase
 import com.domus.app.domain.usecase.DiscoverAndConnectUseCase
 import com.domus.app.domain.usecase.SyncEntitiesUseCase
 import com.domus.app.domain.usecase.ToggleEntityUseCase
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import okhttp3.Response
@@ -24,6 +26,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -44,6 +47,153 @@ class MobileBackendContractTest {
         try {
             server.shutdown()
         } catch (e: Exception) {}
+    }
+
+
+    @Test
+    fun apiClientSafelyEncodesUserStringsAndReportsHttpFailures() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+        val injectedValue = """device", "admin": true, "extra":"owned"""
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        val scanResult = apiClient.scanTag(baseUrl, "test-token", "tag-1", injectedValue)
+        assertTrue(scanResult.isSuccess)
+        val scanRequest = server.takeRequest()
+        val scanJson = kotlinx.serialization.json.Json.parseToJsonElement(scanRequest.body.readUtf8()).jsonObject
+        assertEquals(setOf("scanned_by"), scanJson.keys)
+        assertEquals(injectedValue, scanJson["scanned_by"]?.jsonPrimitive?.content)
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.scanTag(baseUrl, "test-token", "tag-1").isSuccess)
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.registerPushToken(baseUrl, "test-token", "push-token", "test-device").isSuccess)
+    }
+
+    @Test
+    fun apiClientPropagatesReadFailuresAndUsesNotificationFallbackOnlyForMissingRoute() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(apiClient.fetchAreas(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.fetchNotifications(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(404))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        val fallbackResult = apiClient.fetchNotifications(baseUrl, "token")
+        assertTrue(fallbackResult.isSuccess)
+        assertEquals(4, server.requestCount)
+        assertEquals("/api/v1/notifications", server.takeRequest().path)
+        assertEquals("/api/v1/notifications/actionable", server.takeRequest().path)
+
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertFalse(apiClient.fetchSystemHealth(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(403))
+        assertFalse(apiClient.fetchFamilyMembers(baseUrl, "token").isSuccess)
+        server.takeRequest()
+
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertFalse(apiClient.fetchFamilyInvites(baseUrl, "token").isSuccess)
+        server.takeRequest()
+    }
+
+    @Test
+    fun apiClientEncodesDynamicPathSegmentsAndQueryParameters() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        val scanResult = apiClient.scanTag(baseUrl, "token", "tag/../../family/invites?admin=true")
+        assertTrue(scanResult.isSuccess)
+        val scanPath = server.takeRequest().path
+        assertEquals(
+            "/api/v1/tags/tag%2F..%2F..%2Ffamily%2Finvites%3Fadmin%3Dtrue/scan",
+            scanPath
+        )
+
+        val requestCountBeforeInvalidId = server.requestCount
+        assertFalse(apiClient.scanTag(baseUrl, "token", "..").isSuccess)
+        assertEquals(requestCountBeforeInvalidId, server.requestCount)
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val meshResult = apiClient.fetchMeshTopology(baseUrl, "token", "zha&admin=true")
+        assertTrue(meshResult.isSuccess)
+        assertEquals(
+            "/api/v1/mesh/topology?protocol=zha%26admin%3Dtrue",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val serviceResult = apiClient.callService(
+            baseUrl,
+            "token",
+            "light/../../auth",
+            "login?admin=true",
+            "light.kitchen"
+        )
+        assertTrue(serviceResult.isSuccess)
+        assertEquals(
+            "/api/v1/services/light%2F..%2F..%2Fauth/login%3Fadmin%3Dtrue",
+            server.takeRequest().path
+        )
+    }
+
+    @Test
+    fun apiClientEncodesRemainingMealAndMedicinePathsAndQueries() = runTest {
+        server.start()
+        val baseUrl = server.url("/").toString().removeSuffix("/")
+        val apiClient = DomusApiClient()
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.fetchMealPlans(
+            baseUrl, "token", "2026-01-01&admin=true", "2026-02-01?role=admin"
+        ).isSuccess)
+        assertEquals(
+            "/api/v1/pantry/meals?start_date=2026-01-01%26admin%3Dtrue&end_date=2026-02-01%3Frole%3Dadmin",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.getMedicines(
+            baseUrl, "token", "home&admin=true", "active?role=admin", "aspirin&limit=999"
+        ).isSuccess)
+        assertEquals(
+            "/api/v1/medicines?location=home%26admin%3Dtrue&status=active%3Frole%3Dadmin&q=aspirin%26limit%3D999",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.getMedicineAlerts(baseUrl, "token", 2.5).isSuccess)
+        assertEquals("/api/v1/medicines/alerts?fridge_temp=2.5", server.takeRequest().path)
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        assertTrue(apiClient.lookupAIFA(baseUrl, "token", "aspirin&admin=true", "123?x=1").isSuccess)
+        assertEquals(
+            "/api/v1/medicines/lookup?q=aspirin%26admin%3Dtrue&aic=123%3Fx%3D1",
+            server.takeRequest().path
+        )
+
+        server.enqueue(MockResponse().setResponseCode(200))
+        assertTrue(apiClient.deleteMealPlan(baseUrl, "token", "meal/../../family?admin=true").isSuccess)
+        assertEquals(
+            "/api/v1/pantry/meals/meal%2F..%2F..%2Ffamily%3Fadmin%3Dtrue",
+            server.takeRequest().path
+        )
+
+        val requestCount = server.requestCount
+        assertFalse(apiClient.fetchAreas("$baseUrl?admin=true", "token").isSuccess)
+        assertEquals(requestCount, server.requestCount)
     }
 
     @Test
@@ -69,7 +219,7 @@ class MobileBackendContractTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path ?: ""
                 return when {
-                    path.startsWith("/api/v1/ws") -> {
+                    path == "/ws" -> {
                         MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
                                 activeWs = webSocket

@@ -72,6 +72,33 @@ func TestIsTuyaTokenRejection(t *testing.T) {
 	}
 }
 
+func TestTuyaOAuthDeviceErrorMessageExplainsMissingScope(t *testing.T) {
+	got := tuyaOAuthDeviceErrorMessage(&tuya_cloud.OAuthAPIError{
+		HTTPStatus: http.StatusOK,
+		Code:       "1010",
+		Message:    "token scope not allow",
+	})
+	for _, want := range []string{"User Permission Package", "Get User's Device List", "scollega e ricollega"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("guidance %q does not contain %q", got, want)
+		}
+	}
+}
+
+func TestTuyaOAuthDeviceErrorMessageDoesNotExposeUnknownProviderText(t *testing.T) {
+	got := tuyaOAuthDeviceErrorMessage(&tuya_cloud.OAuthAPIError{
+		HTTPStatus: http.StatusOK,
+		Code:       "9999",
+		Message:    "internal details with secret-looking-value",
+	})
+	if strings.Contains(got, "secret-looking-value") {
+		t.Fatal("provider diagnostic leaked to the API response")
+	}
+	if !strings.Contains(got, "Impossibile recuperare") {
+		t.Fatalf("unexpected fallback guidance: %q", got)
+	}
+}
+
 func TestRefreshRejectedTokenRotatesRefreshTokenOnlyOnce(t *testing.T) {
 	db,err:=sql.Open("sqlite",":memory:")
 	if err!=nil { t.Fatal(err) }

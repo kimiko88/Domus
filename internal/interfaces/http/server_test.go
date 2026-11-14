@@ -306,7 +306,10 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 			req = httptest.NewRequest(method, path, nil)
 		}
 		if sessID != "" {
+			const csrfToken = "0123456789abcdef0123456789abcdef"
 			req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sessID})
+			req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+			req.Header.Set("X-CSRF-Token", csrfToken)
 		}
 		rr := httptest.NewRecorder()
 		srv.Router().ServeHTTP(rr, req)
@@ -390,15 +393,19 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 
 	// Session cookie should be set
 	cookies := rr.Result().Cookies()
-	var newSessCookie *http.Cookie
+	var newSessCookie, newCSRFCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == domusmw.SessionCookieName {
 			newSessCookie = c
-			break
+		}
+		if c.Name == domusmw.CSRFCookieName {
+			newCSRFCookie = c
 		}
 	}
 	require.NotNil(t, newSessCookie)
+	require.NotNil(t, newCSRFCookie, "registration must issue the CSRF cookie")
 	assert.NotEmpty(t, newSessCookie.Value)
+	assert.NotEmpty(t, newCSRFCookie.Value)
 
 	// 12. Newly registered user is an operator, can control entities
 	rr = doReq(http.MethodPost, "/api/v1/entities/"+ent.ID+"/command", newSessCookie.Value, cmdBody)

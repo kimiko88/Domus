@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	domauth "github.com/domus-hub/domus/internal/domain/auth"
@@ -52,7 +53,9 @@ func (r *TwoFactorRepository) Get(ctx context.Context, userID string) (*domauth.
 	}
 
 	cfg.IsEnabled = isEnabled == 1
-	_ = json.Unmarshal([]byte(codesJSON), &cfg.BackupCodes)
+	if err := json.Unmarshal([]byte(codesJSON), &cfg.BackupCodes); err != nil {
+		return nil, fmt.Errorf("sqlite: failed to decode 2fa backup codes: %w", err)
+	}
 	cfg.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
 	cfg.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr)
 	return &cfg, nil
@@ -62,7 +65,7 @@ func (r *TwoFactorRepository) Get(ctx context.Context, userID string) (*domauth.
 func (r *TwoFactorRepository) Save(ctx context.Context, cfg *domauth.TwoFactorConfig) error {
 	codesJSON, err := json.Marshal(cfg.BackupCodes)
 	if err != nil {
-		codesJSON = []byte("[]")
+		return fmt.Errorf("sqlite: failed to encode 2fa backup codes: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -93,6 +96,38 @@ func (r *TwoFactorRepository) Save(ctx context.Context, cfg *domauth.TwoFactorCo
 		return fmt.Errorf("sqlite: failed to save 2fa config: %w", err)
 	}
 	return nil
+}
+
+// ConsumeBackupCode atomically removes one recovery code. The conditional
+// UPDATE prevents two concurrent logins from consuming the same code.
+func (r *TwoFactorRepository) ConsumeBackupCode(ctx context.Context, userID, code string) (bool, error) {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if code == "" { return false, nil }
+	for attempt := 0; attempt < 8; attempt++ {
+		var raw string
+		if err := r.db.QueryRowContext(ctx, "SELECT backup_codes FROM user_two_factor WHERE user_id = ?", userID).Scan(&raw); err != nil {
+			if errors.Is(err, sql.ErrNoRows) { return false, nil }
+			return false, fmt.Errorf("sqlite: failed to load backup codes: %w", err)
+		}
+		var codes []string
+		if err := json.Unmarshal([]byte(raw), &codes); err != nil {
+			return false, fmt.Errorf("sqlite: failed to decode backup codes: %w", err)
+		}
+		found := -1
+		for i, candidate := range codes { if strings.ToUpper(strings.TrimSpace(candidate)) == code { found = i; break } }
+		if found < 0 { return false, nil }
+		codes = append(codes[:found], codes[found+1:]...)
+		updated, err := json.Marshal(codes)
+		if err != nil { return false, fmt.Errorf("sqlite: failed to encode backup codes: %w", err) }
+		res, err := r.db.ExecContext(ctx,
+			"UPDATE user_two_factor SET backup_codes = ?, updated_at = ? WHERE user_id = ? AND backup_codes = ?",
+			string(updated), time.Now().UTC().Format(time.RFC3339), userID, raw)
+		if err != nil { return false, fmt.Errorf("sqlite: failed to consume backup code: %w", err) }
+		n, err := res.RowsAffected()
+		if err != nil { return false, fmt.Errorf("sqlite: failed to verify backup-code consumption: %w", err) }
+		if n == 1 { return true, nil }
+	}
+	return false, errors.New("sqlite: backup codes changed too frequently; retry authentication")
 }
 
 // Delete removes 2FA configuration for a user.
@@ -139,9 +174,11 @@ func (r *BannedIPRepository) Get(ctx context.Context, ip string) (*domauth.Banne
 	}
 
 	if untilNull.Valid && untilNull.String != "" {
-		if t, err := time.Parse(time.RFC3339, untilNull.String); err == nil {
-			b.BannedUntil = &t
+		t, err := time.Parse(time.RFC3339, untilNull.String)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: invalid banned-until timestamp for %s: %w", ip, err)
 		}
+		b.BannedUntil = &t
 	}
 	b.Reason = reasonNull.String
 	b.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
@@ -158,49 +195,48 @@ func (r *BannedIPRepository) RecordFailedAttempt(ctx context.Context, ip string,
 		banDuration = 15 * time.Minute
 	}
 
-	existing, err := r.Get(ctx, ip)
-	if err != nil {
-		return false, err
-	}
-
 	now := time.Now().UTC()
-	attempts := 1
-	var bannedUntil *time.Time
-	reason := "Brute-force protection trigger"
-
-	if existing != nil {
-		attempts = existing.FailedAttempts + 1
+	nowStr := now.Format(time.RFC3339)
+	banUntilStr := sql.NullString{
+		String: now.Add(banDuration).Format(time.RFC3339),
+		Valid:  true,
+	}
+	initialBanUntil := sql.NullString{}
+	if maxAttempts <= 1 {
+		initialBanUntil = banUntilStr
 	}
 
-	isBanned := attempts >= maxAttempts
-	if isBanned {
-		until := now.Add(banDuration)
-		bannedUntil = &until
-	}
-
-	var bannedUntilStr sql.NullString
-	if bannedUntil != nil {
-		bannedUntilStr = sql.NullString{String: bannedUntil.Format(time.RFC3339), Valid: true}
-	}
-
+	// Keep the increment and threshold decision in one SQLite UPSERT. The
+	// previous read/modify/write sequence could lose concurrent failures and
+	// let parallel password guesses evade the IP ban threshold.
 	query := `
 		INSERT INTO banned_ips (ip_address, failed_attempts, banned_until, reason, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES (?, 1, ?, ?, ?, ?)
 		ON CONFLICT(ip_address) DO UPDATE SET
-			failed_attempts = excluded.failed_attempts,
-			banned_until = excluded.banned_until,
-			reason = excluded.reason,
+			failed_attempts = banned_ips.failed_attempts + 1,
+			banned_until = CASE
+				WHEN banned_ips.failed_attempts + 1 >= ? THEN ?
+				ELSE banned_ips.banned_until
+			END,
+			reason = CASE
+				WHEN banned_ips.failed_attempts + 1 >= ? THEN excluded.reason
+				ELSE banned_ips.reason
+			END,
 			updated_at = excluded.updated_at
 	`
-	_, err = r.db.ExecContext(ctx, query,
-		ip, attempts, bannedUntilStr, reason,
-		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	_, err := r.db.ExecContext(ctx, query,
+		ip, initialBanUntil, "Brute-force protection trigger", nowStr, nowStr,
+		maxAttempts, banUntilStr, maxAttempts,
 	)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: failed to record failed attempt: %w", err)
 	}
 
-	return isBanned, nil
+	current, err := r.Get(ctx, ip)
+	if err != nil {
+		return false, err
+	}
+	return current != nil && current.IsBanned(), nil
 }
 
 // ResetAttempts clears failure count after a successful login.

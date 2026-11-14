@@ -33,8 +33,11 @@ type AppManager struct {
 func NewAppManager(dataDir string, runtime ContainerRuntime) *AppManager {
 	manifestDir := filepath.Join(dataDir, "supervisor", "manifests")
 	appsDir := filepath.Join(dataDir, "apps")
-	_ = os.MkdirAll(manifestDir, 0755)
-	_ = os.MkdirAll(appsDir, 0755)
+	_ = os.MkdirAll(manifestDir, 0700)
+	_ = os.MkdirAll(appsDir, 0700)
+	// Existing installations may have manifests created with broader modes.
+	_ = os.Chmod(manifestDir, 0700)
+	_ = os.Chmod(appsDir, 0700)
 
 	mgr := &AppManager{
 		manifestDir: manifestDir,
@@ -57,7 +60,11 @@ func (m *AppManager) loadStoredManifests() error {
 
 	for _, e := range entries {
 		if !e.IsDir() && filepath.Ext(e.Name()) == ".yaml" {
-			data, err := os.ReadFile(filepath.Join(m.manifestDir, e.Name()))
+			manifestPath := filepath.Join(m.manifestDir, e.Name())
+			if err := os.Chmod(manifestPath, 0600); err != nil {
+				continue
+			}
+			data, err := os.ReadFile(manifestPath)
 			if err != nil {
 				continue
 			}
@@ -79,10 +86,13 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, exists := m.apps[manifest.ID]; exists {
+		return nil, fmt.Errorf("app %s is already installed; uninstall it before reinstalling", manifest.ID)
+	}
 
 	// 1. Create app isolated data root
 	appStorageRoot := filepath.Join(m.appsDir, manifest.ID)
-	if err := os.MkdirAll(appStorageRoot, 0755); err != nil {
+	if err := os.MkdirAll(appStorageRoot, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory for app %s: %w", manifest.ID, err)
 	}
 
@@ -90,7 +100,14 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 	var containerMounts []MountConfig
 	for _, vol := range manifest.Permissions.Storage {
 		volDir := filepath.Join(appStorageRoot, vol.VolumeName)
-		_ = os.MkdirAll(volDir, 0750)
+		if info, statErr := os.Lstat(volDir); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("storage volume %q must not be a symbolic link", vol.VolumeName)
+		} else if statErr != nil && !os.IsNotExist(statErr) {
+			return nil, fmt.Errorf("failed to inspect storage volume %q: %w", vol.VolumeName, statErr)
+		}
+		if err := os.MkdirAll(volDir, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create storage volume %q: %w", vol.VolumeName, err)
+		}
 		containerMounts = append(containerMounts, MountConfig{
 			Source:   volDir,
 			Target:   vol.Path,
@@ -111,15 +128,41 @@ func (m *AppManager) Install(ctx context.Context, manifestBytes []byte) (*AppMan
 		ReadOnlyRoot:  true,
 	}
 
-	if err := m.runtime.EnsureContainer(ctx, containerName, cfg); err != nil {
-		return nil, fmt.Errorf("failed to register container with runtime: %w", err)
-	}
-
-	// 4. Persist manifest
+	// Persist the manifest with owner-only permissions before registering the
+	// container. Environment entries may contain credentials.
 	manifestFile := filepath.Join(m.manifestDir, manifest.ID+".yaml")
 	outData, err := yaml.Marshal(manifest)
-	if err == nil {
-		_ = os.WriteFile(manifestFile, outData, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode app manifest: %w", err)
+	}
+	tmp, err := os.CreateTemp(m.manifestDir, ".manifest-*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create manifest file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to secure manifest file: %w", err)
+	}
+	if _, err := tmp.Write(outData); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to write manifest file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("failed to sync manifest file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close manifest file: %w", err)
+	}
+	if err := os.Rename(tmpName, manifestFile); err != nil {
+		return nil, fmt.Errorf("failed to persist manifest: %w", err)
+	}
+
+	if err := m.runtime.EnsureContainer(ctx, containerName, cfg); err != nil {
+		_ = os.Remove(manifestFile)
+		return nil, fmt.Errorf("failed to register container with runtime: %w", err)
 	}
 
 	m.apps[manifest.ID] = manifest
@@ -158,16 +201,21 @@ func (m *AppManager) Uninstall(ctx context.Context, id string, purgeData bool) e
 		return fmt.Errorf("app %s not found", id)
 	}
 
-	// Stop container
-	_ = m.runtime.StopContainer(ctx, "domus-app-"+id, 5*time.Second)
-
-	// Remove manifest file
-	_ = os.Remove(filepath.Join(m.manifestDir, id+".yaml"))
-	delete(m.apps, id)
+	// Do not remove registration or app data if the runtime could not stop
+	// the process: a still-running container may continue writing to its mounts.
+	if err := m.runtime.StopContainer(ctx, "domus-app-"+id, 5*time.Second); err != nil {
+		return fmt.Errorf("failed to stop app %s before uninstall: %w", id, err)
+	}
 
 	if purgeData {
-		_ = os.RemoveAll(filepath.Join(m.appsDir, id))
+		if err := os.RemoveAll(filepath.Join(m.appsDir, id)); err != nil {
+			return fmt.Errorf("failed to purge app data for %s: %w", id, err)
+		}
 	}
+	if err := os.Remove(filepath.Join(m.manifestDir, id+".yaml")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove manifest for app %s: %w", id, err)
+	}
+	delete(m.apps, id)
 	_ = manifest
 	return nil
 }

@@ -2,6 +2,7 @@
 package auth_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,4 +27,13 @@ func TestRateLimiter_AllowsWithinLimit(t *testing.T) {
 	// Wait for window to expire
 	time.Sleep(120 * time.Millisecond)
 	assert.True(t, limiter.Allow(ip), "Attempt should be allowed after window expires")
+}
+
+
+func TestRateLimiterBoundsTrackedClientMemory(t *testing.T) {
+	limiter := auth.NewRateLimiter(1, time.Hour)
+	for i := 0; i < 10_000; i++ {
+		assert.True(t, limiter.Allow(fmt.Sprintf("192.0.2.%d", i)), "initial unique key %d should be allowed", i)
+	}
+	assert.False(t, limiter.Allow("198.51.100.250"), "new keys must be rejected rather than evicting active limits")
 }

@@ -109,6 +109,16 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	adminSess, _, err := authService.Login(ctx, "creator_admin", "AdminPass123!", "127.0.0.1", "CreatorBrowser")
 	require.NoError(t, err)
 
+	// A browser from another origin must not be able to hijack the session
+	// through the WebSocket handshake, even when it knows the session URL.
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/ws?session=%s", testPort, url.QueryEscape(adminSess.ID))
+	attackerHeaders := http.Header{}
+	attackerHeaders.Set("Origin", "https://attacker.example")
+	_, rejectedResp, dialErr := gorilla.DefaultDialer.Dial(wsURL, attackerHeaders)
+	require.Error(t, dialErr)
+	require.NotNil(t, rejectedResp)
+	require.Equal(t, http.StatusForbidden, rejectedResp.StatusCode)
+
 	// Create a controllable entity
 	now := time.Now().UTC()
 	testEnt := &entity.Entity{
@@ -127,6 +137,9 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", testPort)
 	client := &http.Client{Timeout: 3 * time.Second}
 
+	// Test CSRF token: 16 random bytes encoded as 32 hexadecimal characters.
+	const csrfToken = "0123456789abcdef0123456789abcdef"
+
 	// Helper for HTTP requests
 	postJSON := func(endpoint string, body any, sessionCookie string) (*http.Response, map[string]any) {
 		b, _ := json.Marshal(body)
@@ -134,6 +147,8 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		if sessionCookie != "" {
 			req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sessionCookie})
+			req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+			req.Header.Set("X-CSRF-Token", csrfToken)
 		}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -148,16 +163,20 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 		"role":             "operator",
 		"expires_in_hours": 48,
 	}, adminSess.ID)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	opToken := inviteOpData["token"].(string)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	opToken, ok := inviteOpData["token"].(string)
+	require.True(t, ok, "invite response must contain a token")
+	require.NotEmpty(t, opToken)
 
 	// 3. Creator invites family member 2 as 'viewer'
 	resp, inviteViewData := postJSON("/api/v1/family/invites", map[string]any{
 		"role":             "viewer",
 		"expires_in_hours": 48,
 	}, adminSess.ID)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-	viewToken := inviteViewData["token"].(string)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	viewToken, ok := inviteViewData["token"].(string)
+	require.True(t, ok, "invite response must contain a token")
+	require.NotEmpty(t, viewToken)
 
 	// 4. Family Member 1 registers via invite link
 	bOp, _ := json.Marshal(map[string]any{
@@ -236,6 +255,20 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	}, kidCookie)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 
+	// The same viewer must also be denied when attempting to bypass REST RBAC
+	// by sending a command directly over the authenticated WebSocket.
+	require.NoError(t, wsKid.WriteJSON(map[string]any{
+		"type": "call_service", "domain": "light", "service": "turn_off",
+		"entity_id": testEnt.ID,
+	}))
+	var wsDenied wsinfra.Message
+	require.NoError(t, wsKid.ReadJSON(&wsDenied))
+	assert.Equal(t, "result", wsDenied.Type)
+	deniedPayload, ok := wsDenied.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, deniedPayload["success"])
+	assert.Equal(t, "forbidden", deniedPayload["code"])
+
 	// 9. Mom (Operator) tries to create another invite -> blocked (403 Forbidden)
 	resp, _ = postJSON("/api/v1/family/invites", map[string]any{
 		"role": "admin",
@@ -278,6 +311,8 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	reqRole, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/v1/family/members/%s/role", baseURL, kidUser.ID), bytes.NewReader(bRole))
 	reqRole.Header.Set("Content-Type", "application/json")
 	reqRole.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: adminSess.ID})
+	reqRole.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+	reqRole.Header.Set("X-CSRF-Token", csrfToken)
 	respRole, err := client.Do(reqRole)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, respRole.StatusCode)

@@ -68,12 +68,12 @@ class DefaultAuthRepository(
     private val _sessionFlow = MutableStateFlow(AuthSession())
     override val sessionFlow: Flow<AuthSession> = _sessionFlow.asStateFlow()
 
-    override suspend fun login(username: String, password: String): Result<AuthSession> {
+    override suspend fun login(username: String, password: String, twoFactorCode: String?): Result<AuthSession> {
         val activeUrl = connectionRepository.getCurrentConnection().activeUrl
             ?: tokenStorage.getLocalEndpoint()
             ?: "http://192.168.1.100:8080"
 
-        val res = apiClient.login(activeUrl, username, password)
+        val res = apiClient.login(activeUrl, username, password, twoFactorCode)
         if (res.isSuccess) {
             val session = res.getOrThrow()
             tokenStorage.saveToken(session.token)
@@ -98,15 +98,19 @@ class DefaultAuthRepository(
     override suspend fun restoreSession(): AuthSession {
         val token = tokenStorage.getToken()
         val session = if (!token.isNullOrBlank()) {
-            AuthSession(
-                token = token,
-                username = "admin",
-                role = "admin",
-                isAuthenticated = true
-            )
-        } else {
-            AuthSession()
-        }
+            val endpoint = tokenStorage.getLocalEndpoint() ?: tokenStorage.getRemoteEndpoint() ?: "https://domus.local.myhome.net"
+            val validation = apiClient.validateSession(endpoint, token)
+            validation.getOrElse { error ->
+                val statusCode = (error as? com.domus.app.data.network.ApiHttpException)?.statusCode
+                if (statusCode == 401 || statusCode == 403) {
+                    // Only an explicit authentication/authorization rejection
+                    // invalidates the persisted credential. Network and server
+                    // errors are transient and must not force a new login.
+                    tokenStorage.saveToken(null)
+                }
+                AuthSession()
+            }
+        } else AuthSession()
         _sessionFlow.value = session
         return session
     }

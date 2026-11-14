@@ -125,10 +125,26 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 	}
 	if err!=nil {
 		logTuyaOAuthFailure("list_user_devices",err)
-		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices; reconnect Smart Life if the token was revoked")
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR",tuyaOAuthDeviceErrorMessage(err))
 		return
 	}
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
+}
+
+// tuyaOAuthDeviceErrorMessage translates known provider authorization failures into
+// actionable guidance without exposing credentials or signed request data.
+func tuyaOAuthDeviceErrorMessage(err error) string {
+	var providerErr *tuya_cloud.OAuthAPIError
+	if errors.As(err, &providerErr) {
+		message := strings.ToLower(strings.TrimSpace(providerErr.Message))
+		if providerErr.Code == "1010" && (strings.Contains(message, "scope") || strings.Contains(message, "not allow")) {
+			return "Tuya ha completato il collegamento OAuth, ma il progetto non è autorizzato a leggere i dispositivi. Nel progetto Tuya verifica il pacchetto User Permission Package e l'abilitazione dell'API Get User's Device List per l'app autorizzata; poi scollega e ricollega Smart Life."
+		}
+		if strings.Contains(message, "permission") || strings.Contains(message, "not authorized") {
+			return "Tuya ha negato l'accesso ai dispositivi. Verifica le autorizzazioni del progetto e dell'account Smart Life nella console Tuya, poi ripeti l'autorizzazione."
+		}
+	}
+	return "Impossibile recuperare i dispositivi Smart Life. Verifica l'autorizzazione Tuya; se il token è stato revocato, scollega e ricollega l'account."
 }
 
 func isTuyaTokenRejection(err error) bool {

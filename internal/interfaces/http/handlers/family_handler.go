@@ -188,13 +188,23 @@ func (h *FamilyHandler) RegisterWithInvite(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Issue session cookie
+	// Issue the session and matching double-submit CSRF cookies so the new
+	// account can immediately use authenticated browser API requests.
 	http.SetCookie(w, &http.Cookie{
 		Name:     domusmw.SessionCookieName,
 		Value:    sess.ID,
 		Path:     "/",
 		Expires:  sess.ExpiresAt,
 		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     domusmw.CSRFCookieName,
+		Value:    generateRandomToken(),
+		Path:     "/",
+		Expires:  sess.ExpiresAt,
+		HttpOnly: false,
 		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 	})
