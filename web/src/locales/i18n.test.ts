@@ -4,6 +4,7 @@ import enLocale from './en.json'
 import frLocale from './fr.json'
 import esLocale from './es.json'
 import deLocale from './de.json'
+import ruLocale from './ru'
 import { i18n, setLanguage, getAvailableLanguages, type SupportedLanguage } from './index'
 
 describe('Localization (i18n)', () => {
@@ -12,13 +13,14 @@ describe('Localization (i18n)', () => {
     setLanguage('it')
   })
 
-  it('contains consistent top-level and nested translation keys across all 5 locales', () => {
+  it('contains consistent top-level and nested translation keys across all 6 locales', () => {
     const locales: Record<string, Record<string, any>> = {
       it: itLocale,
       en: enLocale,
       fr: frLocale,
       es: esLocale,
-      de: deLocale
+      de: deLocale,
+      ru: ruLocale
     }
 
     const baselineKeys = Object.keys(itLocale).sort()
@@ -39,8 +41,8 @@ describe('Localization (i18n)', () => {
     expect(i18n.global.locale.value).toBe('it')
   })
 
-  it('switches between all 5 languages and persists to localStorage', () => {
-    const languages: SupportedLanguage[] = ['en', 'fr', 'es', 'de', 'it']
+  it('switches between all 6 languages and persists to localStorage', () => {
+    const languages: SupportedLanguage[] = ['en', 'fr', 'es', 'de', 'ru', 'it']
 
     for (const lang of languages) {
       setLanguage(lang)
@@ -49,14 +51,15 @@ describe('Localization (i18n)', () => {
     }
   })
 
-  it('exposes all 5 available languages metadata with codes, names, and flags', () => {
+  it('exposes all 6 available languages metadata with codes, names, and flags', () => {
     const langs = getAvailableLanguages()
     expect(langs).toEqual([
       { code: 'it', name: 'Italiano', flag: '🇮🇹' },
       { code: 'en', name: 'English', flag: '🇬🇧' },
       { code: 'fr', name: 'Français', flag: '🇫🇷' },
       { code: 'es', name: 'Español', flag: '🇪🇸' },
-      { code: 'de', name: 'Deutsch', flag: '🇩🇪' }
+      { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+      { code: 'ru', name: 'Русский', flag: '🇷🇺' }
     ])
   })
 })
