@@ -4,8 +4,9 @@ import en from './en.json'
 import fr from './fr.json'
 import es from './es.json'
 import de from './de.json'
+import ru from './ru'
 
-export type SupportedLanguage = 'it' | 'en' | 'fr' | 'es' | 'de'
+export type SupportedLanguage = 'it' | 'en' | 'fr' | 'es' | 'de' | 'ru'
 
 export interface LanguageMeta {
   code: SupportedLanguage
@@ -18,7 +19,8 @@ export const supportedLanguages: LanguageMeta[] = [
   { code: 'en', name: 'English', flag: '🇬🇧' },
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
   { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' }
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' }
 ]
 
 const STORAGE_KEY = 'domus_language'
@@ -26,7 +28,7 @@ const STORAGE_KEY = 'domus_language'
 export function getSavedLanguage(): SupportedLanguage {
   try {
     const saved = localStorage.getItem(STORAGE_KEY) as SupportedLanguage | null
-    if (saved && ['it', 'en', 'fr', 'es', 'de'].includes(saved)) {
+    if (saved && ['it', 'en', 'fr', 'es', 'de', 'ru'].includes(saved)) {
       return saved
     }
   } catch {
@@ -44,7 +46,8 @@ export const i18n = createI18n({
     en,
     fr,
     es,
-    de
+    de,
+    ru
   }
 })
 
