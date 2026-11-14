@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 	"sync"
 	"time"
 )
@@ -169,4 +170,18 @@ func (c *Client) signature(method,path string,body []byte,ts,token string,isToke
 	mac:=hmac.New(sha256.New,[]byte(c.cfg.Secret)); _,_=mac.Write([]byte(prefix+ts+toSign))
 	return strings.ToUpper(hex.EncodeToString(mac.Sum(nil)))
 }
-func safeMessage(s string) string { s=strings.TrimSpace(s); if len(s)>180{s=s[:180]}; return s }
+func safeMessage(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			r = ' '
+		}
+		b.WriteRune(r)
+	}
+	normalized := strings.Join(strings.Fields(b.String()), " ")
+	runes := []rune(normalized)
+	if len(runes) > 180 {
+		normalized = string(runes[:180])
+	}
+	return normalized
+}

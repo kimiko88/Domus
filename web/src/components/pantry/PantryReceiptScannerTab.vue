@@ -24,6 +24,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'parse-receipt', rawText: string): void
   (e: 'parse-pdf', file: File): void
+  (e: 'parse-image', file: File): void
   (e: 'import-receipt', data: {
     store_name: string
     date: string
@@ -39,7 +40,7 @@ const emit = defineEmits<{
 const rawReceiptText = ref('')
 const documentType = ref<'receipt' | 'invoice'>('receipt')
 const ocrStatus = ref('')
-const maxImageBytes = 10 * 1024 * 1024
+const maxImageBytes = 4 * 1024 * 1024
 const maxPDFBytes = 3 * 1024 * 1024
 const autoAddToFinance = ref(true)
 const autoUpdatePantry = ref(true)
@@ -98,12 +99,12 @@ async function handleImageSelected(event: Event) {
     emit('parse-pdf', file)
     return
   }
-  if (!file.type.startsWith('image/')) {
-    ocrStatus.value = 'Seleziona un’immagine JPG/PNG/WEBP oppure un PDF.'
+  if (!['image/jpeg', 'image/png'].includes(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) {
+    ocrStatus.value = 'Seleziona un’immagine JPG/PNG oppure un PDF.'
     return
   }
   if (file.size > maxImageBytes) {
-    ocrStatus.value = 'Immagine troppo grande: il limite è 10 MB.'
+    ocrStatus.value = 'Immagine troppo grande: il limite è 4 MB.'
     return
   }
 
@@ -111,7 +112,8 @@ async function handleImageSelected(event: Event) {
     TextDetector?: new () => { detect: (image: ImageBitmap) => Promise<Array<{ rawValue?: string }>> }
   }
   if (!detectorWindow.TextDetector || typeof createImageBitmap !== 'function') {
-    ocrStatus.value = 'OCR locale non supportato da questo browser. Puoi incollare il testo estratto manualmente.'
+    ocrStatus.value = 'OCR locale non supportato: invio della fotografia al server Domus…'
+    emit('parse-image', file)
     return
   }
 
@@ -123,13 +125,15 @@ async function handleImageSelected(event: Event) {
     const blocks = await detector.detect(bitmap)
     const extracted = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join('\n')
     if (!extracted) {
-      ocrStatus.value = 'Nessun testo riconosciuto. Prova con una foto più nitida o incolla il testo.'
+      ocrStatus.value = 'Nessun testo riconosciuto localmente: provo con l’OCR del server Domus…'
+      emit('parse-image', file)
       return
     }
     rawReceiptText.value = extracted
     ocrStatus.value = 'Testo estratto sul dispositivo. Controllalo e avvia l’analisi.'
   } catch {
-    ocrStatus.value = 'Impossibile leggere questa immagine con l’OCR del browser.'
+    ocrStatus.value = 'OCR locale non riuscito: invio della fotografia al server Domus…'
+    emit('parse-image', file)
   } finally {
     bitmap?.close()
   }
@@ -192,13 +196,13 @@ function handleConfirmImport() {
           id="receipt-image-input"
           class="visually-hidden"
           type="file"
-          accept="image/*,.pdf,application/pdf"
+          accept="image/jpeg,image/png,.jpg,.jpeg,.png,.pdf,application/pdf"
           capture="environment"
           aria-label="Scatta o seleziona un'immagine di scontrino o fattura"
           @change="handleImageSelected"
         />
         <p v-if="ocrStatus" class="ocr-status" role="status" aria-live="polite">{{ ocrStatus }}</p>
-        <p class="ocr-privacy-note">Le immagini vengono lette localmente quando il browser supporta TextDetector. I PDF vengono inviati al server Domus per estrarre il testo: non sono salvati e vengono elaborati solo le prime 20 pagine.</p>
+        <p class="ocr-privacy-note">Le immagini vengono lette localmente quando possibile; sui browser non compatibili vengono inviate al server Domus per l’OCR. PDF e immagini vengono elaborati temporaneamente e non salvati.</p>
       </div>
 
       <div class="quick-samples">
@@ -754,5 +758,43 @@ function handleConfirmImport() {
   color: var(--text-muted, #94a3b8);
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .scanner-input-card,
+  .scanner-preview-card { padding: 12px; border-radius: 14px; }
+  .card-intro { align-items: flex-start; gap: 10px; }
+  .intro-icon { width: 42px; height: 42px; flex: 0 0 42px; }
+  .intro-title { font-size: 1rem; }
+  .image-scan-controls,
+  .image-scan-controls .btn { width: 100%; }
+  .image-scan-controls .btn { justify-content: center; min-height: 44px; text-align: center; }
+  .input-actions,
+  .input-actions .btn { width: 100%; }
+  .input-actions .btn { justify-content: center; min-height: 44px; }
+  .preview-header,
+  .header-left,
+  .header-right { width: 100%; align-items: stretch; flex-direction: column; }
+  .store-badge,
+  .date-badge,
+  .total-badge { width: 100%; min-width: 0; }
+  .store-name-input,
+  .date-input { min-width: 0; max-width: 100%; }
+  .items-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .receipt-table { min-width: 700px; }
+  .integration-switches-box { padding: 10px; }
+  .confirm-bar { flex-direction: column-reverse; align-items: stretch; }
+  .confirm-bar .btn { width: 100%; justify-content: center; min-height: 44px; }
+  .modal-footer-actions { flex-direction: column-reverse; }
+  .modal-footer-actions > button { width: 100%; min-height: 44px; }
+}
+
+@media (max-width: 420px) {
+  .scanner-input-card,
+  .scanner-preview-card { padding: 10px; }
+  .quick-samples { align-items: stretch; }
+  .sample-btn { min-height: 40px; }
+  .receipt-textarea { font-size: 16px; }
+  .preview-header { gap: 8px; }
 }
 </style>

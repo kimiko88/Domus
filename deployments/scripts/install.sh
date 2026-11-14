@@ -108,6 +108,23 @@ done
 if [[ "${INSTALL_MOSQUITTO}" == "1" ]]; then
     command -v mosquitto >/dev/null 2>&1 || need_pkgs+=(mosquitto)
 fi
+
+# Receipt OCR uses Poppler for PDF text/raster extraction and Tesseract for
+# scanned PDFs and camera images. Keep the runtime dependencies aligned with
+# the Docker image so the feature also works on native Raspberry Pi installs.
+if ! command -v pdftotext >/dev/null 2>&1 || ! command -v pdftoppm >/dev/null 2>&1 || ! command -v pdfinfo >/dev/null 2>&1; then
+    need_pkgs+=(poppler-utils)
+fi
+if ! command -v tesseract >/dev/null 2>&1; then
+    need_pkgs+=(tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng)
+else
+    if ! tesseract --list-langs 2>/dev/null | grep -qx ita; then
+        need_pkgs+=(tesseract-ocr-ita)
+    fi
+    if ! tesseract --list-langs 2>/dev/null | grep -qx eng; then
+        need_pkgs+=(tesseract-ocr-eng)
+    fi
+fi
 if (( ${#need_pkgs[@]} > 0 )); then
     if command -v apt-get >/dev/null 2>&1; then
         log_info "Installing packages: ${need_pkgs[*]}"

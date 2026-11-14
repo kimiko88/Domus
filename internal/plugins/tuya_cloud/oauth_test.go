@@ -48,3 +48,13 @@ func TestOAuthDevicesPreservesProviderErrorDetails(t *testing.T) {
   t.Fatalf("unexpected provider diagnostics: %#v",providerErr)
  }
 }
+
+func TestSafeMessageNormalizesProviderDiagnostics(t *testing.T) {
+	got := safeMessage(" permission\n deny\t" + strings.Repeat("x", 200))
+	if strings.ContainsAny(got, "\n\r\t") {
+		t.Fatalf("provider message contains control characters: %q", got)
+	}
+	if len([]rune(got)) > 180 {
+		t.Fatalf("provider message length = %d, want at most 180 runes", len([]rune(got)))
+	}
+}

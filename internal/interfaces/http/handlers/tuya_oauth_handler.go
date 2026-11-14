@@ -112,12 +112,68 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter,r *http.Request) {
 		return
 	}
 	devices,err:=h.client.Devices(r.Context(),token)
+	if err!=nil && isTuyaTokenRejection(err) {
+		// Tuya may invalidate an access token before its locally stored expiry.
+		// Refresh once, then retry the device request once; never loop.
+		if refreshed,refreshErr:=h.refreshRejectedToken(r.Context(),u.ID,token);refreshErr==nil {
+			token=refreshed
+			devices,err=h.client.Devices(r.Context(),token)
+		} else {
+			logTuyaOAuthFailure("refresh_rejected_device_token",refreshErr)
+			err=refreshErr
+		}
+	}
 	if err!=nil {
 		logTuyaOAuthFailure("list_user_devices",err)
-		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices")
+		writeError(w,http.StatusBadGateway,"TUYA_OAUTH_ERROR","could not retrieve authorized Smart Life devices; reconnect Smart Life if the token was revoked")
 		return
 	}
 	writeJSON(w,http.StatusOK,map[string]any{"devices":devices})
+}
+
+func isTuyaTokenRejection(err error) bool {
+	var providerErr *tuya_cloud.OAuthAPIError
+	if !errors.As(err,&providerErr) { return false }
+	message:=strings.ToLower(strings.TrimSpace(providerErr.Message))
+	// Tuya's numeric code 1010 is overloaded/inconsistent across API
+	// responses: "token scope not allow" is an authorization failure, not
+	// an expired token. The provider message must take precedence.
+	if strings.Contains(message,"scope") || strings.Contains(message,"permission") ||
+		strings.Contains(message,"not allow") || strings.Contains(message,"not authorized") {
+		return false
+	}
+	if strings.Contains(message,"token invalid") ||
+		strings.Contains(message,"invalid token") ||
+		strings.Contains(message,"token expired") ||
+		strings.Contains(message,"token has expired") {
+		return true
+	}
+	return providerErr.Code=="1011" || providerErr.Code=="1012"
+}
+
+// refreshRejectedToken serializes refresh-token rotation. If another request has
+// already refreshed the rejected access token, it reuses the newly stored token
+// instead of consuming the one-time refresh token a second time.
+func (h *TuyaOAuthHandler) refreshRejectedToken(ctx context.Context,userID string,rejected tuya_cloud.OAuthToken)(tuya_cloud.OAuthToken,error) {
+	h.refreshMu.Lock()
+	defer h.refreshMu.Unlock()
+
+	var uid,accessEnc,refreshEnc string
+	var expires int64
+	if err:=h.db.QueryRowContext(ctx,`SELECT tuya_uid,access_token_enc,refresh_token_enc,expires_at FROM tuya_user_oauth_connections WHERE user_id=?`,userID).Scan(&uid,&accessEnc,&refreshEnc,&expires);err!=nil {
+		return tuya_cloud.OAuthToken{},err
+	}
+	access,err:=h.cipher.Decrypt(accessEnc);if err!=nil{return tuya_cloud.OAuthToken{},err}
+	refresh,err:=h.cipher.Decrypt(refreshEnc);if err!=nil{return tuya_cloud.OAuthToken{},err}
+
+	if access!=rejected.AccessToken {
+		return tuya_cloud.OAuthToken{UID:uid,AccessToken:access,RefreshToken:refresh,ExpireTime:int64(time.Until(time.Unix(expires,0)).Seconds())},nil
+	}
+	next,err:=h.client.Refresh(ctx,refresh)
+	if err!=nil{return tuya_cloud.OAuthToken{},err}
+	if next.UID!=uid{return tuya_cloud.OAuthToken{},errors.New("tuya oauth: refreshed token UID mismatch")}
+	if err=h.storeToken(ctx,userID,next);err!=nil{return tuya_cloud.OAuthToken{},err}
+	return next,nil
 }
 
 func logTuyaOAuthFailure(operation string, err error) {

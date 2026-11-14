@@ -4,7 +4,6 @@ import {
   Package,
   ChefHat,
   Calendar,
-  Receipt,
   Sparkles,
   AlertTriangle
 } from '@lucide/vue'
@@ -13,7 +12,6 @@ import PantryKpiCards from '../components/pantry/PantryKpiCards.vue'
 import PantryInventoryTab from '../components/pantry/PantryInventoryTab.vue'
 import PantryRecipeTab from '../components/pantry/PantryRecipeTab.vue'
 import PantryMealCalendarTab from '../components/pantry/PantryMealCalendarTab.vue'
-import PantryReceiptScannerTab from '../components/pantry/PantryReceiptScannerTab.vue'
 import PantryItemModal from '../components/pantry/PantryItemModal.vue'
 import RecipeModal from '../components/pantry/RecipeModal.vue'
 import MealPlanModal from '../components/pantry/MealPlanModal.vue'
@@ -21,7 +19,7 @@ import type { PantryItem, Recipe, MealPlan, MealType } from '../api/types'
 
 const pantryStore = usePantryStore()
 
-type TabKey = 'inventory' | 'recipes' | 'calendar' | 'scanner'
+type TabKey = 'inventory' | 'recipes' | 'calendar'
 const activeTab = ref<TabKey>('inventory')
 
 // Modals
@@ -173,36 +171,7 @@ async function handleDeleteMeal(id: string) {
   }
 }
 
-// Receipt OCR
-async function handleParseReceipt(rawText: string) {
-  try {
-    const res = await pantryStore.parseReceipt(rawText)
-    showToast(`Scontrino analizzato con successo: ${res.items.length} prodotti riconosciuti!`)
-  } catch (err: any) {
-    showToast(err.message || 'Errore analisi scontrino')
-  }
-}
 
-async function handleParseReceiptPDF(file: File) {
-  try {
-    const res = await pantryStore.parseReceiptPDF(file)
-    showToast(`PDF analizzato: ${res.items.length} prodotti riconosciuti. Verifica i dati prima dell’importazione.`)
-  } catch (err: any) {
-    showToast(err.message || 'Errore durante la lettura del PDF')
-  }
-}
-
-async function handleImportReceipt(data: any) {
-  try {
-    const res = await pantryStore.importReceipt(data)
-    showToast(
-      `Scontrino importato! ${res.items_added} alimenti aggiunti, ${res.items_updated} aggiornati, spesa registrata nel bilancio casa.`
-    )
-    activeTab.value = 'inventory'
-  } catch (err: any) {
-    showToast(err.message || 'Errore importazione scontrino')
-  }
-}
 </script>
 
 <template>
@@ -278,16 +247,6 @@ async function handleImportReceipt(data: any) {
         <span>Calendario Pasti</span>
       </button>
 
-      <button
-        type="button"
-        :class="['tab-nav-btn', { active: activeTab === 'scanner' }]"
-        role="tab"
-        :aria-selected="activeTab === 'scanner'"
-        @click="activeTab = 'scanner'"
-      >
-        <Receipt :size="18" />
-        <span>Scanner Scontrino</span>
-      </button>
     </div>
 
     <!-- Active Tab Component -->
@@ -326,16 +285,6 @@ async function handleImportReceipt(data: any) {
         @delete-meal="handleDeleteMeal"
       />
 
-      <!-- 4. Receipt Scanner -->
-      <PantryReceiptScannerTab
-        v-else-if="activeTab === 'scanner'"
-        :parsed-receipt="pantryStore.parsedReceipt"
-        :loading="pantryStore.loading"
-        @parse-receipt="handleParseReceipt"
-        @parse-pdf="handleParseReceiptPDF"
-        @import-receipt="handleImportReceipt"
-        @clear-parsed="pantryStore.clearParsedReceipt"
-      />
     </section>
 
     <!-- Modals -->
@@ -367,6 +316,8 @@ async function handleImportReceipt(data: any) {
 
 <style scoped>
 .pantry-view-container {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-5, 20px);
@@ -488,6 +439,24 @@ async function handleImportReceipt(data: any) {
   }
   .page-title {
     font-size: 1.4rem;
+    overflow-wrap: anywhere;
+  }
+
+  .main-tabs-bar {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-nav-btn {
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  .tab-body,
+  .pantry-header,
+  .pantry-header > div {
+    min-width: 0;
   }
 }
 </style>
