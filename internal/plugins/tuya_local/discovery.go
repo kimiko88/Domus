@@ -398,25 +398,27 @@ func decodeTuya55AADiscovery(data []byte) ([]byte, error) {
 
 	// Device-to-client 55AA frames carry a four-byte return code. Accept both
 	// layouts because some older discovery firmware omits it.
-	candidates := [][]byte{data[20:bodyEnd], data[16:bodyEnd]}
+	var candidates [][]byte
+	if bodyEnd >= 20 {
+		candidates = append(candidates, data[20:bodyEnd])
+	}
+	if bodyEnd >= 16 {
+		candidates = append(candidates, data[16:bodyEnd])
+	}
 	for _, candidate := range candidates {
-		if dev, ok := parseTuyaDiscoveryJSON(candidate); ok {
-			_ = dev
+		if _, ok := parseTuyaDiscoveryJSON(candidate); ok {
 			return candidate, nil
 		}
 		if normalized := stripTuyaVersionHeader(candidate); !bytes.Equal(normalized, candidate) {
-			if dev, ok := parseTuyaDiscoveryJSON(normalized); ok {
-				_ = dev
+			if _, ok := parseTuyaDiscoveryJSON(normalized); ok {
 				return normalized, nil
 			}
 		}
 		decrypted, err := decryptAES_ECB(candidate, tuyaDiscoveryKey[:])
 		if err == nil {
-			if normalized := stripTuyaVersionHeader(decrypted); len(normalized) > 0 {
-				if dev, ok := parseTuyaDiscoveryJSON(normalized); ok {
-					_ = dev
-					return normalized, nil
-				}
+			normalized := stripTuyaVersionHeader(decrypted)
+			if _, ok := parseTuyaDiscoveryJSON(normalized); ok {
+				return normalized, nil
 			}
 		}
 	}
