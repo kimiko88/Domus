@@ -45,7 +45,6 @@ if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" 
 fi
 NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
-KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
 GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
 DOMUS_BUILD_CACHE_DIR="${DOMUS_BUILD_CACHE_DIR:-/var/cache/domus/build}"
 
@@ -208,7 +207,9 @@ install_node() {
         if [[ -x "${candidate}" ]]; then
             cached_major="$("${candidate}" -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
             if [[ "${cached_major}" == "${NODE_MAJOR}" ]]; then
-                log_info "Using cached Node.js $(" ${candidate}" -v) from $(dirname "${candidate}")"
+                local cached_version
+                cached_version="$("${candidate}" -v)"
+                log_info "Using cached Node.js ${cached_version} from $(dirname "${candidate}")"
                 export PATH="$(dirname "${candidate}"):${PATH}"
                 return
             fi
