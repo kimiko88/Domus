@@ -1,0 +1,11 @@
+{
+  "name": "deepmerge",
+  "version": "4.3.2+domus.1",
+  "description": "Domus-vendored deepmerge 4.3.1 with prototype-poisoning fix",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  }
+}
