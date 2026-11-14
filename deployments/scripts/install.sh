@@ -145,7 +145,7 @@ fi
 # ── helpers ────────────────────────────────────────────────────────────────────
 ensure_workdir() {
     if [[ -z "${WORK_DIR}" ]]; then
-        # /var/tmp = disk, not RAM-backed tmpfs: toolchains + caches are large.
+        # /var/tmp = disk, not RAM-backed tmpfs: temporary build staging can be large.
         WORK_DIR="$(mktemp -d /var/tmp/domus-build.XXXXXX)"
     fi
 }
