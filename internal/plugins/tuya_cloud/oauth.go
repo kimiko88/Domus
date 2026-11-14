@@ -175,6 +175,50 @@ func (c *OAuthClient) Devices(ctx context.Context, token OAuthToken) ([]Device, 
 	}
 	return env.Result, nil
 }
+
+// GetDevice fetches detailed device metadata including local_key for a single device via user token.
+func (c *OAuthClient) GetDevice(ctx context.Context, token OAuthToken, deviceID string) (*Device, error) {
+	if token.UID == "" || token.AccessToken == "" {
+		return nil, errors.New("tuya oauth: user token is incomplete")
+	}
+	if deviceID == "" || len(deviceID) > 128 || strings.ContainsAny(deviceID, "/?#") {
+		return nil, errors.New("tuya oauth: invalid device ID")
+	}
+	path := "/v1.0/devices/" + url.PathEscape(deviceID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.BaseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	c.signHeaders(req, path, strconv.FormatInt(time.Now().UnixMilli(), 10), uuid.NewString(), token.AccessToken)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("tuya oauth device request: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, (2<<20)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > 2<<20 {
+		return nil, errors.New("tuya oauth: response too large")
+	}
+	var env struct {
+		Success bool    `json:"success"`
+		Code    any     `json:"code"`
+		Msg     string  `json:"msg"`
+		Result  *Device `json:"result"`
+	}
+	if err = json.Unmarshal(raw, &env); err != nil {
+		if resp.StatusCode != http.StatusOK {
+			return nil, &OAuthAPIError{HTTPStatus: resp.StatusCode, Message: "non-JSON provider error response"}
+		}
+		return nil, fmt.Errorf("tuya oauth: invalid device response")
+	}
+	if resp.StatusCode != http.StatusOK || !env.Success {
+		return nil, &OAuthAPIError{HTTPStatus: resp.StatusCode, Code: providerCode(env.Code), Message: safeMessage(env.Msg)}
+	}
+	return env.Result, nil
+}
 func (c *OAuthClient) signHeaders(req *http.Request, path, ts, nonce, access string) {
 	emptyHash := sha256.Sum256(nil)
 	stringToSign := req.Method + "\n" + hex.EncodeToString(emptyHash[:]) + "\n\n" + path

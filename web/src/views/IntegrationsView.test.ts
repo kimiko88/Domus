@@ -264,5 +264,48 @@ describe('IntegrationsView.vue', () => {
     )
   })
 
+  it('triggers local LAN sync and sends commands directly via local LAN when local_configured is true', async () => {
+    const cloudDevices = [{
+      id: 'tuya-local-dev-1',
+      name: 'Presa Studio',
+      product_name: 'Smart Socket',
+      online: true,
+      local_configured: true,
+      local_active: true,
+      local_ip: '192.168.1.120',
+      status: [{ code: 'switch_1', value: false }]
+    }]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true, synced_count: 1 })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    const tabs = wrapper.findAll('.tab-btn')
+    await tabs[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Find and click sync button
+    const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Attiva LAN Locale'))
+    expect(syncBtn).toBeDefined()
+    await syncBtn!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', {})
+
+    // Now click the toggle on the locally configured device
+    const toggle = wrapper.find('.btn-host-probe')
+    expect(toggle.exists()).toBe(true)
+    await toggle.trigger('click')
+    // Must route to LAN adapter endpoint
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-local-dev-1/command',
+      { command: 'turn_on' }
+    )
+    expect(wrapper.text()).toContain('LAN: 192.168.1.120')
+    expect(wrapper.text()).toContain('LAN Locale')
+  })
+
 })
 

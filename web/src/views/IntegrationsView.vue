@@ -8,6 +8,7 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
+  Wifi,
   WifiOff,
   Zap,
   Radio,
@@ -98,19 +99,25 @@ const probingIp = ref<string | null>(null)
 const quarantiningMac = ref<string | null>(null)
 const guardianLoading = ref(false)
 
-// --- Official Tuya Cloud OpenAPI ---
+// --- Official Tuya Cloud OpenAPI & Local Handover ---
 interface TuyaCloudDevice {
   id: string
   name: string
+  local_key?: string
+  ip?: string
   product_name?: string
   category?: string
   online: boolean
   status: { code: string; value: unknown }[]
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
 }
 const tuyaCloudDevices = ref<TuyaCloudDevice[]>([])
 const tuyaCloudLoading = ref(false)
 const tuyaCloudError = ref('')
 const tuyaCloudCommanding = ref<string | null>(null)
+const tuyaSyncing = ref(false)
 
 interface TuyaOAuthStatus { connected: boolean; expires_at?: string }
 const tuyaOAuthStatus = ref<TuyaOAuthStatus>({ connected: false })
@@ -133,6 +140,18 @@ async function fetchTuyaOAuthDevices() {
   } catch (err: any) {
     notificationsStore.error('Smart Life OAuth', err?.message || 'Impossibile caricare i dispositivi autorizzati.')
   } finally { tuyaOAuthLoading.value = false }
+}
+async function syncTuyaOAuthToLocal() {
+  tuyaSyncing.value = true
+  try {
+    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>('/api/v1/integrations/tuya-oauth/sync-local', {})
+    notificationsStore.success('Controllo LAN Attivato', res.message || `${res.synced_count} dispositivi sincronizzati per il controllo locale LAN con Local Key.`)
+    await fetchTuyaOAuthDevices()
+  } catch (err: any) {
+    notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
+  } finally {
+    tuyaSyncing.value = false
+  }
 }
 async function connectTuyaAccount() {
   try {
@@ -167,21 +186,47 @@ async function fetchTuyaCloudDevices() {
   }
 }
 
-async function toggleTuyaCloudStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
+async function syncTuyaCloudToLocal() {
+  tuyaSyncing.value = true
+  try {
+    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>('/api/v1/integrations/tuya-cloud/sync-local', {})
+    notificationsStore.success('Controllo LAN Attivato', res.message || `${res.synced_count} dispositivi sincronizzati per il controllo locale LAN con Local Key.`)
+    await fetchTuyaCloudDevices()
+  } catch (err: any) {
+    notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
+  } finally {
+    tuyaSyncing.value = false
+  }
+}
+
+async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
   if (typeof point.value !== 'boolean') return
   const key = `${device.id}:${point.code}`
   tuyaCloudCommanding.value = key
   try {
-    await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
-      commands: [{ code: point.code, value: !point.value }]
-    })
-    notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
-    await fetchTuyaCloudDevices()
+    if (device.local_configured) {
+      await apiClient.post(`/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`, {
+        command: point.value ? 'turn_off' : 'turn_on'
+      })
+      point.value = !point.value
+      notificationsStore.success('Comando LAN Diretto', `${device.name}: eseguito al 100% in locale sulla LAN via Local Key`)
+    } else {
+      await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
+        commands: [{ code: point.code, value: !point.value }]
+      })
+      point.value = !point.value
+      notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
+      await fetchTuyaCloudDevices()
+    }
   } catch (err: any) {
-    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore Tuya Cloud')
+    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore di comunicazione')
   } finally {
     tuyaCloudCommanding.value = null
   }
+}
+
+async function toggleTuyaCloudStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
+  await toggleTuyaStatus(device, point)
 }
 
 
@@ -858,13 +903,17 @@ onMounted(() => {
           <div class="icon-chip"><Lock :size="20" /></div>
           <div>
             <h3 class="disc-title">Account Smart Life autorizzato</h3>
-            <p class="disc-sub">Collega il tuo account tramite la pagina ufficiale Tuya. Domus non richiede né memorizza la password Smart Life.</p>
+            <p class="disc-sub">Collega il tuo account tramite la pagina ufficiale Tuya. Domus recupera le Local Key la prima volta per poi operare al 100% in locale sulla LAN senza dipendenze cloud.</p>
             <p class="disc-sub">{{ tuyaOAuthStatus.connected ? 'Account collegato: token cifrati sul server.' : 'Nessun account utente collegato.' }}</p>
           </div>
         </div>
         <div class="discovery-inputs">
           <button v-if="!tuyaOAuthStatus.connected" class="btn-scan" @click="connectTuyaAccount"><Lock :size="16" /><span>Collega account Smart Life</span></button>
           <template v-else>
+            <button class="btn-scan" :disabled="tuyaSyncing || tuyaOAuthLoading" @click="syncTuyaOAuthToLocal">
+              <Wifi :size="15" />
+              <span>{{ tuyaSyncing ? 'Sincronizzazione LAN…' : 'Attiva LAN Locale (Local Key)' }}</span>
+            </button>
             <button class="btn-action glass-panel" :disabled="tuyaOAuthLoading" @click="fetchTuyaOAuthDevices"><RefreshCw :size="15" :class="{ 'animate-spin': tuyaOAuthLoading }" /><span>Aggiorna account</span></button>
             <button class="btn-action glass-panel" @click="disconnectTuyaAccount"><Unlock :size="15" /><span>Disconnetti</span></button>
           </template>
@@ -874,10 +923,30 @@ onMounted(() => {
         <div v-for="device in tuyaOAuthDevices" :key="device.id" class="host-card glass-card">
           <div class="host-top">
             <div class="host-brand-icon"><Zap :size="20" /></div>
-            <div class="host-meta"><span class="host-vendor">{{ device.name }}</span><span class="host-ip">{{ device.product_name || device.category || device.id }}</span></div>
-            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            <div class="host-meta">
+              <span class="host-vendor">{{ device.name }}</span>
+              <span class="host-ip">{{ device.product_name || device.category || device.id }}</span>
+              <span v-if="device.local_ip" class="spec-lan-ip">LAN: {{ device.local_ip }}</span>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span v-if="device.local_configured" class="badge-lan" title="Controllo 100% locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
+              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            </div>
           </div>
-          <div class="host-specs"><div v-for="point in device.status || []" :key="point.code" class="spec-line"><span class="spec-key">{{ point.code }}</span><span class="spec-code">{{ String(point.value) }}</span></div></div>
+          <div class="host-specs">
+            <div v-for="point in device.status || []" :key="point.code" class="spec-line">
+              <span class="spec-key">{{ point.code }}</span>
+              <span class="spec-code">{{ String(point.value) }}</span>
+              <button
+                v-if="typeof point.value === 'boolean'"
+                class="btn-host-probe"
+                :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || !device.online"
+                @click="toggleTuyaStatus(device, point)"
+              >
+                {{ point.value ? 'Spegni' : 'Accendi' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -885,14 +954,20 @@ onMounted(() => {
         <div class="discovery-intro">
           <div class="icon-chip"><Globe :size="20" /></div>
           <div>
-            <h3 class="disc-title">Tuya / Smart Life Cloud</h3>
-            <p class="disc-sub">Dispositivi collegati al progetto Tuya Cloud configurato sul server Domus. Le credenziali non vengono mai inviate al browser.</p>
+            <h3 class="disc-title">Tuya / Smart Life Cloud (OpenAPI)</h3>
+            <p class="disc-sub">Dispositivi collegati al progetto Tuya Cloud configurato sul server Domus. Sfrutta le API per importare i dispositivi e poi controllali esclusivamente via LAN con Local Key.</p>
           </div>
         </div>
-        <button class="btn-scan" :disabled="tuyaCloudLoading" @click="fetchTuyaCloudDevices">
-          <RefreshCw :size="16" :class="{ 'animate-spin': tuyaCloudLoading }" />
-          <span>Aggiorna dispositivi</span>
-        </button>
+        <div class="discovery-inputs">
+          <button class="btn-scan" :disabled="tuyaCloudLoading" @click="fetchTuyaCloudDevices">
+            <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
+            <span>Aggiorna dispositivi</span>
+          </button>
+          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading" @click="syncTuyaCloudToLocal">
+            <Wifi :size="15" />
+            <span>{{ tuyaSyncing ? 'Sincronizzazione LAN…' : 'Attiva LAN Locale (Local Key)' }}</span>
+          </button>
+        </div>
       </div>
 
       <div v-if="tuyaCloudError" class="empty-guardian-state glass-card">
@@ -920,8 +995,12 @@ onMounted(() => {
             <div class="host-meta">
               <span class="host-vendor">{{ device.name }}</span>
               <span class="host-ip">{{ device.product_name || device.category || device.id }}</span>
+              <span v-if="device.local_ip" class="spec-lan-ip">LAN: {{ device.local_ip }}</span>
             </div>
-            <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span v-if="device.local_configured" class="badge-lan" title="Controllo 100% locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
+              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+            </div>
           </div>
           <div class="host-specs">
             <div v-for="point in device.status || []" :key="point.code" class="spec-line">
@@ -931,7 +1010,7 @@ onMounted(() => {
                 v-if="typeof point.value === 'boolean'"
                 class="btn-host-probe"
                 :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || !device.online"
-                @click="toggleTuyaCloudStatus(device, point)"
+                @click="toggleTuyaStatus(device, point)"
               >
                 {{ point.value ? 'Spegni' : 'Accendi' }}
               </button>
@@ -1944,6 +2023,25 @@ onMounted(() => {
   color: var(--primary);
   font-size: 11px;
   font-weight: 600;
+}
+
+.badge-lan {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.spec-lan-ip {
+  font-size: 11px;
+  color: #10b981;
+  font-family: var(--font-mono, monospace);
+  margin-top: 2px;
 }
 
 .host-specs {

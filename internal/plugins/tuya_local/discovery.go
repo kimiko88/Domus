@@ -183,3 +183,11 @@ func (l *DiscoveryListener) GetDiscovered() []DiscoveredDevice {
 	}
 	return result
 }
+
+// GetDevice returns a discovered device by device ID if found on the local network.
+func (l *DiscoveryListener) GetDevice(deviceID string) (DiscoveredDevice, bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	d, ok := l.devices[deviceID]
+	return d, ok
+}

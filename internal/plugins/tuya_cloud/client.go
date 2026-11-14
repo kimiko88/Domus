@@ -37,12 +37,15 @@ type Client struct {
 	tokenExpiry time.Time
 }
 type Device struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	ProductName string `json:"product_name"`
-	Category string `json:"category"`
-	Online bool `json:"online"`
-	Status []Status `json:"status"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	LocalKey    string   `json:"local_key"`
+	IP          string   `json:"ip"`
+	ProductID   string   `json:"product_id"`
+	ProductName string   `json:"product_name"`
+	Category    string   `json:"category"`
+	Online      bool     `json:"online"`
+	Status      []Status `json:"status"`
 }
 type Status struct { Code string `json:"code"`; Value any `json:"value"` }
 type Command struct { Code string `json:"code"`; Value any `json:"value"` }
@@ -88,6 +91,19 @@ func (c *Client) Devices(ctx context.Context) ([]Device, error) {
 	}
 	if total > int64(len(devices)) { return nil, errors.New("tuya cloud: device count exceeds the safe 2,000-device listing limit") }
 	return devices, nil
+}
+
+// GetDevice retrieves full details for a single device, including its LAN local_key.
+func (c *Client) GetDevice(ctx context.Context, deviceID string) (*Device, error) {
+	if deviceID == "" || len(deviceID) > 128 || strings.ContainsAny(deviceID, "/?#") {
+		return nil, errors.New("tuya cloud: invalid device ID")
+	}
+	var dev Device
+	path := "/v1.0/devices/" + url.PathEscape(deviceID)
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &dev); err != nil {
+		return nil, err
+	}
+	return &dev, nil
 }
 func (c *Client) Functions(ctx context.Context, deviceID string) ([]Function, error) {
 	if deviceID == "" || len(deviceID) > 128 || strings.ContainsAny(deviceID, "/?#") {
