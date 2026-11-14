@@ -535,6 +535,8 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
 			continue
 		}
+		// Report the address resolved from LAN discovery, not the Cloud API response.
+		cfg.IP = h.tuyaLocal.GetDeviceIP(dev.ID)
 		synced = append(synced, cfg)
 	}
 
