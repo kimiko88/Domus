@@ -209,12 +209,17 @@ func TestAdapter_LoadStoredDevicesClearsUntrustedIPWithSingleConnection(t *testi
 			category TEXT NOT NULL,
 			entity_key TEXT NOT NULL,
 			updated_at INTEGER NOT NULL
-		);
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create Tuya table: %v", err)
+	}
+	_, err = db.Exec(`
 		INSERT INTO tuya_local_devices
 			(device_id, name, ip, local_key_enc, version, category, entity_key, updated_at)
 		VALUES
 			('dev_legacy_wan', 'Legacy Tuya device', '87.123.45.67',
-			 '0123456789abcdef', '3.3', 'switch', 'switch.tuya_legacy', 1);
+			 '0123456789abcdef', '3.3', 'switch', 'switch.tuya_legacy', 1)
 	`)
 	if err != nil {
 		t.Fatalf("seed Tuya device: %v", err)
