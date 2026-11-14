@@ -151,3 +151,52 @@ func TestTuyaCloudHandler_SmartLifeUIDDevices(t *testing.T) {
 		t.Fatalf("unexpected devices: %+v", resp.Devices)
 	}
 }
+
+func TestTuyaCloudHandler_SyncLocalAppliesExplicitEmptySelection(t *testing.T) {
+	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
+		if r.URL.Path == "/v1.0/users/eu_user_999/devices" {
+			body = `{"success":true,"result":[{"id":"dev-keep-out","name":"Plug","local_key":"key1234567890123","ip":"192.168.1.21","category":"cz","online":true}]}`
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	client, err := tuya_cloud.New(tuya_cloud.Config{ClientID:"cid", Secret:"secret", BaseURL:"https://openapi.tuyaeu.com", UID:"eu_user_999", HTTPClient:&http.Client{Transport:transport}})
+	if err != nil { t.Fatal(err) }
+	adapter := tuya_local.NewAdapter("tuya_local", &mockBusForTest{})
+	adapter.RegisterDevice(tuya_local.DeviceConfig{DeviceID:"dev-keep-out", LocalKey:"key1234567890123", Category:tuya_local.CategoryPlug, EntityKey:"switch.tuya_dev-keep-out"})
+	handler := NewTuyaCloudHandler(client).WithLocalAdapter(adapter)
+	r := chi.NewRouter()
+	handler.RegisterRoutes(r)
+	req := httptest.NewRequest(http.MethodPost, "/sync-local", strings.NewReader(`{"device_ids":[]}`))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("SyncLocal returned %d: %s", rec.Code, rec.Body.String()) }
+	if adapter.IsDeviceConfigured("dev-keep-out") { t.Fatal("explicit empty selection must remove previously configured LocalTuya devices") }
+	var body struct { SyncedCount int `json:"synced_count"` }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil { t.Fatal(err) }
+	if body.SyncedCount != 0 { t.Fatalf("expected no selected devices, got %d", body.SyncedCount) }
+}
+
+func TestTuyaCloudHandler_ListFunctionsUsesDeviceFunctionAPI(t *testing.T) {
+	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
+		if r.URL.Path == "/v1.0/iot-03/devices/dev-functions-1/functions" {
+			body = `{"success":true,"result":{"category":"wk","functions":[{"code":"temp_set","name":"Target temperature","desc":"Set target temperature","type":"Integer","values":"{\\"min\\":5,\\"max\\":35,\\"scale\\":1}"}]}}`
+		}
+		return &http.Response{StatusCode:200, Header:make(http.Header), Body:io.NopCloser(strings.NewReader(body)), Request:r}, nil
+	})
+	client, err := tuya_cloud.New(tuya_cloud.Config{ClientID:"cid", Secret:"secret", BaseURL:"https://openapi.tuyaeu.com", HTTPClient:&http.Client{Transport:transport}})
+	if err != nil { t.Fatal(err) }
+	handler := NewTuyaCloudHandler(client)
+	r := chi.NewRouter()
+	handler.RegisterRoutes(r)
+	req := httptest.NewRequest(http.MethodGet, "/devices/dev-functions-1/functions", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK { t.Fatalf("ListFunctions returned %d: %s", rec.Code, rec.Body.String()) }
+	var response struct { Functions []tuya_cloud.Function `json:"functions"` }
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil { t.Fatal(err) }
+	if len(response.Functions) != 1 || response.Functions[0].Code != "temp_set" || response.Functions[0].Type != "Integer" || response.Functions[0].Desc != "Set target temperature" {
+		t.Fatalf("unexpected Tuya function metadata: %+v", response.Functions)
+	}
+}
