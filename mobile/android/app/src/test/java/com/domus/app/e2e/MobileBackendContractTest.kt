@@ -143,8 +143,10 @@ class MobileBackendContractTest {
             "light.kitchen"
         )
         assertTrue(serviceResult.isSuccess)
+        // '=' is a legal path-segment character and OkHttp leaves it unescaped.
+        // The '?' must remain encoded so the caller value cannot start a query string.
         assertEquals(
-            "/api/v1/services/light%2F..%2F..%2Fauth/login%3Fadmin%3Dtrue",
+            "/api/v1/services/light%2F..%2F..%2Fauth/login%3Fadmin=true",
             server.takeRequest().path
         )
     }
