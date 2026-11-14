@@ -397,6 +397,51 @@ describe('IntegrationsView.vue', () => {
     expect(wrapper.text()).toContain('switch_led')
   })
 
+  it('filters Smart Life devices by selected and unselected LocalTuya state', async () => {
+    const cloudDevices = [
+      {
+        id: 'tuya-selected-1',
+        name: 'Presa già selezionata',
+        online: true,
+        local_configured: true,
+        status: []
+      },
+      {
+        id: 'tuya-unselected-1',
+        name: 'Lampada non selezionata',
+        online: false,
+        local_configured: false,
+        status: []
+      }
+    ]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      return []
+    })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-filter="selected"]').trigger('click')
+    expect(wrapper.text()).toContain('Presa già selezionata')
+    expect(wrapper.text()).not.toContain('Lampada non selezionata')
+
+    await wrapper.find('[data-filter="unselected"]').trigger('click')
+    expect(wrapper.text()).toContain('Lampada non selezionata')
+    expect(wrapper.text()).not.toContain('Presa già selezionata')
+
+    await wrapper.find('[data-filter="all"]').trigger('click')
+    await wrapper.find('#tuya-device-search').setValue('Presa')
+    expect(wrapper.text()).toContain('Presa già selezionata')
+    expect(wrapper.text()).not.toContain('Lampada non selezionata')
+  })
+
   it('exposes LocalTuya thermostat DP4 automatic/manual and target temperature controls', async () => {
     const cloudDevices = [{
       id: 'tuya-thermostat-1',
