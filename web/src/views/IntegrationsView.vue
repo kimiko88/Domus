@@ -1238,7 +1238,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="discovery-inputs">
-          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="fetchTuyaCloudDevices">
+          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="() => fetchTuyaCloudDevices()">
             <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
             <span>Aggiorna dispositivi</span>
           </button>
