@@ -237,6 +237,10 @@ async function handleLogout() {
 <style scoped>
 .app-topbar {
   height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  flex: 0 0 var(--topbar-height);
+  width: 100%;
+  min-width: 0;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -638,5 +642,54 @@ async function handleLogout() {
 [data-theme="light"] .intercom-toggle-btn:hover {
   background: rgba(16, 185, 129, 0.2);
   color: #065f46;
+}
+
+@media (max-width: 768px) {
+  .app-topbar { padding: 0 14px; gap: 10px; }
+  .topbar-left { min-width: 0; flex: 1 1 auto; gap: 10px; }
+  .page-title {
+    min-width: 0;
+    max-width: 34vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 17px;
+  }
+  .topbar-right { min-width: 0; flex: 0 0 auto; gap: 8px; }
+  .user-profile { gap: 6px; padding-left: 8px; }
+}
+
+@media (max-width: 480px) {
+  .app-topbar { padding: 0 8px; gap: 6px; }
+  .topbar-left { gap: 6px; }
+  .page-title { max-width: 16vw; font-size: 14px; }
+  .topbar-right { gap: 5px; }
+  .guide-toggle-btn { display: none; }
+  .assistant-toggle-btn,
+  .intercom-toggle-btn {
+    width: 34px; height: 34px; min-width: 34px; padding: 0; justify-content: center;
+  }
+  .assistant-label,
+  .intercom-label,
+  .ws-status .status-text,
+  .user-meta { display: none; }
+  .ws-status {
+    width: 10px; height: 10px; padding: 0; border: 0; background: transparent !important;
+  }
+  .ws-status .status-indicator { width: 8px; height: 8px; }
+  .user-profile { padding-left: 5px; gap: 4px; }
+  .avatar-box { display: none; }
+  .btn-menu-toggle { width: 34px; height: 34px; padding: 6px; }
+  .notif-toggle-btn { width: 34px; height: 34px; flex: 0 0 34px; }
+  .lang-dropdown-btn { min-width: 34px; height: 34px; padding: 4px 6px; }
+  .lang-chevron { display: none; }
+  .theme-toggle { width: 34px; height: 34px; flex: 0 0 34px; }
+  .btn-logout { width: 30px; height: 34px; padding: 5px; }
+}
+
+@media (max-width: 360px) {
+  .page-title { display: none; }
+  .app-topbar { padding: 0 6px; }
+  .topbar-right { gap: 3px; }
 }
 </style>

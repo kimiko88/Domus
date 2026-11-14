@@ -231,6 +231,7 @@ describe('IntegrationsView.vue', () => {
       status: [{ code: 'switch_led', value: false }]
     }]
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
       if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
       return []
     })
@@ -241,6 +242,14 @@ describe('IntegrationsView.vue', () => {
     await new Promise((r) => setTimeout(r, 10))
     const tabs = wrapper.findAll('.tab-btn')
     await tabs[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 10))
+
+    // The current Cloud tab exposes project devices behind an explicit refresh
+    // action; opening the tab only checks the separate user OAuth connection.
+    const refreshDevices = wrapper.findAll('.btn-scan').find((button) => button.text().includes('Aggiorna dispositivi'))
+    expect(refreshDevices).toBeDefined()
+    await refreshDevices!.trigger('click')
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 

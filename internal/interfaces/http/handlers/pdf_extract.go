@@ -20,6 +20,18 @@ const (
 
 var errPDFTextTooLarge = errors.New("PDF text exceeds the 64 KiB extraction limit")
 
+// Serialize OCR workloads to keep CPU and memory use bounded on Raspberry Pi.
+var receiptOCRSlots = make(chan struct{}, 1)
+
+func acquireReceiptOCR(ctx context.Context) (func(), error) {
+	select {
+	case receiptOCRSlots <- struct{}{}:
+		return func() { <-receiptOCRSlots }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 type cappedBuffer struct { bytes.Buffer; limit int }
 func (b *cappedBuffer) Write(p []byte)(int,error) {
 	if b.Len()+len(p)>b.limit { remaining:=b.limit-b.Len(); if remaining>0 { _,_=b.Buffer.Write(p[:remaining]) }; return remaining,errPDFTextTooLarge }
@@ -34,6 +46,9 @@ func extractPDFText(ctx context.Context, pdf []byte) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
+	release, err := acquireReceiptOCR(ctx)
+	if err != nil { return "", err }
+	defer release()
 
 	// Prefer the embedded text layer; this is more accurate than OCR.
 	cmd := exec.CommandContext(ctx, "pdftotext", "-layout", "-enc", "UTF-8", "-f", "1", "-l", "20", "-", "-")

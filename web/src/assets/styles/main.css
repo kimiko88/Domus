@@ -8,8 +8,9 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
+  min-width: 320px;
   background-color: var(--bg-primary);
   color: var(--text-main);
   font-family: var(--font-family);
@@ -17,7 +18,7 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: clip;
   user-select: text;
   -webkit-user-select: text;
   -webkit-tap-highlight-color: transparent;
@@ -25,6 +26,8 @@ html, body {
 
 #app {
   min-height: 100vh;
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
@@ -41,6 +44,23 @@ html, body {
 
 :root[data-theme="oled"] #app {
   background: #000000;
+}
+
+/* Prevent flex/grid children from forcing the viewport wider than the device. */
+#app,
+#app > *,
+main,
+section,
+article,
+.glass-panel {
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
 }
 
 /* Scrollbars */
