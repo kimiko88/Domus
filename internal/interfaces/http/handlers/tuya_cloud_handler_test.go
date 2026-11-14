@@ -104,3 +104,50 @@ func TestTuyaCloudHandler_SyncLocalAndLanDispatch(t *testing.T) {
 		t.Fatalf("device listing did not enrich local status properly: %+v", listResp)
 	}
 }
+
+func TestTuyaCloudHandler_SmartLifeUIDDevices(t *testing.T) {
+	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
+		if r.URL.Path == "/v1.0/users/eu_user_999/devices" {
+			body = `{"success":true,"result":[{"id":"dev-qr-1","name":"Smart Life Switch","local_key":"key999888777666","ip":"192.168.1.99","category":"kg","online":true}]}`
+		}
+		return &http.Response{
+			StatusCode: 200,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})
+
+	cloudClient, err := tuya_cloud.New(tuya_cloud.Config{
+		ClientID:   "cid",
+		Secret:     "secret",
+		BaseURL:    "https://openapi.tuyaeu.com",
+		UID:        "eu_user_999",
+		HTTPClient: &http.Client{Transport: transport},
+	})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	handler := NewTuyaCloudHandler(cloudClient)
+	r := chi.NewRouter()
+	handler.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodGet, "/devices", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ListDevices status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Devices []tuya_cloud.Device `json:"devices"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if len(resp.Devices) != 1 || resp.Devices[0].ID != "dev-qr-1" || resp.Devices[0].LocalKey != "key999888777666" {
+		t.Fatalf("unexpected devices: %+v", resp.Devices)
+	}
+}

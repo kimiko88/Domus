@@ -231,6 +231,9 @@ describe('IntegrationsView.vue', () => {
       status: [{ code: 'switch_led', value: false }]
     }]
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
       if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
       if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
       return []
@@ -245,8 +248,7 @@ describe('IntegrationsView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    // The current Cloud tab exposes project devices behind an explicit refresh
-    // action; opening the tab only checks the separate user OAuth connection.
+    // The Cloud tab exposes devices behind the direct server-to-server connection
     const refreshDevices = wrapper.findAll('.btn-scan').find((button) => button.text().includes('Aggiorna dispositivi'))
     expect(refreshDevices).toBeDefined()
     await refreshDevices!.trigger('click')
@@ -276,6 +278,9 @@ describe('IntegrationsView.vue', () => {
       status: [{ code: 'switch_1', value: false }]
     }]
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
       if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
       if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
       return []
@@ -305,6 +310,43 @@ describe('IntegrationsView.vue', () => {
     )
     expect(wrapper.text()).toContain('LAN: 192.168.1.120')
     expect(wrapper.text()).toContain('LAN Locale')
+  })
+
+  it('allows saving Tuya configuration directly from the UI without OAuth redirect', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: false, client_id: '', uid: '', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({
+      success: true,
+      message: 'Configurazione Tuya Smart Life salvata con successo'
+    })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    const tabs = wrapper.findAll('.tab-btn')
+    await tabs[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Form must be visible when not configured
+    expect(wrapper.text()).toContain('Come collegare Smart Life a Domus (Senza OAuth 2.0)')
+    expect(wrapper.find('#tuya-client-id').exists()).toBe(true)
+    expect(wrapper.find('#tuya-client-secret').exists()).toBe(true)
+    expect(wrapper.find('#tuya-uid').exists()).toBe(true)
+
+    await wrapper.find('#tuya-client-id').setValue('my-access-id')
+    await wrapper.find('#tuya-client-secret').setValue('my-secret-key')
+    await wrapper.find('#tuya-uid').setValue('eu123456789')
+    await wrapper.find('form.tuya-form-grid').trigger('submit')
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/config', {
+      client_id: 'my-access-id',
+      client_secret: 'my-secret-key',
+      uid: 'eu123456789',
+      endpoint: 'https://openapi.tuyaeu.com'
+    })
   })
 
 })

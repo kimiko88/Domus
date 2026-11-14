@@ -117,3 +117,34 @@ func TestGetDeviceRetrievesLocalKey(t *testing.T) {
 		t.Fatalf("unexpected device details: %+v", dev)
 	}
 }
+
+func TestDevicesByUID_RetrievesSmartLifeDevicesAndLocalKey(t *testing.T) {
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"token","expire_time":3600}}`
+		if r.URL.Path == "/v1.0/users/eu_user_12345/devices" {
+			body = `{"success":true,"result":[{"id":"dev-smartlife-1","name":"Smart Life Bulb","local_key":"localkey12345678","ip":"192.168.1.42","category":"dj","online":true}]}`
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	client, err := New(Config{
+		ClientID:   "client-id",
+		Secret:     "secret",
+		BaseURL:    "https://openapi.tuyaeu.com",
+		UID:        "eu_user_12345",
+		HTTPClient: &http.Client{Transport: transport},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	devices, err := client.Devices(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("expected 1 device, got %d", len(devices))
+	}
+	if devices[0].ID != "dev-smartlife-1" || devices[0].LocalKey != "localkey12345678" || devices[0].IP != "192.168.1.42" {
+		t.Fatalf("unexpected device data: %+v", devices[0])
+	}
+}

@@ -49,40 +49,45 @@ Only use datapoint codes and value types exposed by the specific device's Tuya p
 This implementation uses the Tuya Developer Cloud project's server-side authorization and the linked app/schema permissions. It is **not** an interactive end-user OAuth consent screen for arbitrary Smart Life accounts. Device visibility depends on Tuya's project/app linkage, subscribed API products, region, and account permissions. Do not paste a Smart Life password into Domus.
 
 
-## Interactive Smart Life account authorization (OAuth 2.0)
+## Collegamento Diretto Smart Life (QR Code + Token Server-to-Server)
 
-This is separate from the project-level `TUYA_CLOUD_CLIENT_ID` / `TUYA_CLOUD_CLIENT_SECRET` flow. It uses a Tuya **App Authorization** key pair and the authorization-code flow (`grant_type=2`) to grant Domus access to one Smart Life user account.
+Per gli utenti dell'app ufficiale **Smart Life** (o Tuya Smart), non è necessario (né supportato) il flusso OAuth 2.0 Web Redirect H5: Tuya riserva infatti l'OAuth 2.0 unicamente alle aziende che hanno pubblicato una propria app OEM proprietaria.
 
-Before enabling it in Domus:
+Il collegamento corretto, rapido e senza dipendenze cloud secondarie avviene tramite la funzione **Link Tuya App Account (QR Code)** combinata con il token Server-to-Server (`grant_type=1`):
 
-1. In the Tuya Developer Platform, open the Cloud project, then **Devices → Link App Account → Configure OAuth 2.0 Authorization**.
-2. Enable authorization for the target Smart Life/OEM app and select the matching data center.
-3. Register the exact public HTTPS callback URL, for example `https://domus.example.com/api/v1/integrations/tuya-oauth/callback`.
-4. Create/use the **App Authorization** client ID and secret for this OAuth flow. Do not reuse the project simple-mode credentials unless Tuya explicitly issued the pair for App Authorization.
-5. Configure the H5 authorization URL generated/provided for the app in `TUYA_OAUTH_AUTHORIZE_URL`. Domus adds `client_id`, `callback_url`, and a one-time `state` value to that URL.
+### 1. Associazione su Tuya IoT Platform
+1. Accedi al tuo progetto su [iot.tuya.com](https://iot.tuya.com/) (Cloud → Development → apri il progetto Domus).
+2. Assicurati che in alto a destra sopra la tabella il Data Center sia impostato su **Central Europe Data Center** (`https://openapi.tuyaeu.com`).
+3. Vai nella scheda **Devices** e poi nella sottoscheda **Link Tuya App Account**.
+4. Clicca sul pulsante blu **Add App Account**: comparirà un QR Code.
+5. Apri l'app **Smart Life** sullo smartphone: vai su **Io** (in basso a destra) → tocca l'icona dello scanner QR `[ - ]` in alto a destra → inquadra il QR Code → tocca **Conferma login** → seleziona **Automatic Link**, scegli permessi **Read and Write** e salva.
+6. Nella tabella comparirà il tuo account Smart Life con il relativo **UID** (inizia solitamente con `eu...`).
 
-Server environment:
+### 2. Parametri di Configurazione in Domus
+I 4 parametri possono essere inseriti comodamente dall'interfaccia web di Domus (scheda *Smart Life Cloud*) oppure configurati nel file `.env`:
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `TUYA_OAUTH_APP_CLIENT_ID` | yes | App Authorization client ID |
-| `TUYA_OAUTH_APP_CLIENT_SECRET` | yes | App Authorization secret; server-only |
-| `TUYA_OAUTH_IDENTIFIER` | yes | App authorization identifier / configured bundle identifier |
-| `TUYA_OAUTH_AUTHORIZE_URL` | yes | Tuya H5 authorization URL for the linked app |
-| `TUYA_OAUTH_CALLBACK_URL` | yes | Exact HTTPS callback registered in the Tuya console |
-| `TUYA_OAUTH_BASE_URL` | no | Regional Tuya OpenAPI endpoint; defaults to EU |
+| Variabile | Alias | Obbligatorio | Descrizione |
+| --- | --- | --- | --- |
+| `TUYA_CLIENT_ID` | `TUYA_CLOUD_CLIENT_ID` | Sì | Access ID della scheda Overview del progetto Tuya |
+| `TUYA_CLIENT_SECRET` | `TUYA_CLOUD_CLIENT_SECRET` | Sì | Access Secret della scheda Overview (cifrato in SQLite) |
+| `TUYA_UID` | `TUYA_CLOUD_UID` | Sì | L'UID generato in Link Tuya App Account dopo aver scansionato il QR |
+| `TUYA_ENDPOINT` | `TUYA_CLOUD_BASE_URL` | No | Default: `https://openapi.tuyaeu.com` |
 
-The callback is intentionally unauthenticated because Tuya calls it directly. It accepts only a short-lived, single-use random state created by an authenticated administrator and bound to that Domus user. The authorization code is exchanged server-side. The database stores access and refresh tokens only after AES-256-GCM envelope encryption using Domus' existing master key. Token values are never returned by status APIs. Refresh is serialized in-process and the newly rotated refresh token is persisted together with the access token before a request uses it. Disconnect deletes the encrypted token record.
+### 3. Flusso Server-to-Server & Local Key Handover
+1. **Richiesta Token**: Domus chiama `GET /v1.0/token?grant_type=1` usando firma HMAC-SHA256, senza richiedere popup di redirect all'utente.
+2. **Importazione Dispositivi**: Con il token e il `TUYA_UID`, Domus interroga `GET /v1.0/users/{TUYA_UID}/devices`, ottenendo l'elenco istantaneo dei dispositivi con le relative `local_key`.
+3. **Passaggio alla LAN**: Cliccando su *"Attiva LAN Locale (Local Key)"*, le credenziali vengono salvate cifrate in `tuya_local_devices`. Da quel momento in poi, ogni comando e lettura di stato opera **esclusivamente su rete locale via LAN (TCP 6668 / UDP broadcast)** senza contattare i server Tuya.
 
-The OAuth endpoints are administrator-only except for the provider callback:
+### Endpoints REST Domus API
 
-- `POST /api/v1/integrations/tuya-oauth/authorize` — create a 10-minute state and return the Tuya authorization URL.
-- `GET /api/v1/integrations/tuya-oauth/callback` — exchange the provider code and store the encrypted user tokens.
-- `GET /api/v1/integrations/tuya-oauth/status` — report whether the current administrator has a linked account.
-- `GET /api/v1/integrations/tuya-oauth/devices` — refresh tokens when needed and list devices belonging to that authorized Tuya UID.
-- `POST /api/v1/integrations/tuya-oauth/disconnect` — remove the current administrator's connection.
+Tutte le rotte richiedono ruolo amministratore:
 
-Use HTTPS end-to-end and keep the Domus master key backed up securely. Losing the master key makes encrypted OAuth credentials unrecoverable. Tuya requires the callback URL and H5 authorization configuration to match the app and data center; OAuth cannot be activated until those values are configured in the Tuya console.
+- `GET /api/v1/integrations/tuya-cloud/config` — stato della configurazione attuale.
+- `POST /api/v1/integrations/tuya-cloud/config` — salva e valida le credenziali Server-to-Server con cifratura master key.
+- `DELETE /api/v1/integrations/tuya-cloud/config` — rimuove la configurazione attiva.
+- `GET /api/v1/integrations/tuya-cloud/devices` — elenca i dispositivi associati all'UID con flag di stato locale (`local_configured`, `local_active`, `local_ip`).
+- `POST /api/v1/integrations/tuya-cloud/sync-local` — trasferisce automaticamente tutti i dispositivi e le `local_key` al runtime locale `tuya_local`.
+- `POST /api/v1/integrations/tuya-cloud/devices/{deviceID}/commands` — invia comandi; se il dispositivo è configurato localmente, l'invio avviene in LAN a latenza zero.
 
 ## PDF receipt and invoice scanning
 

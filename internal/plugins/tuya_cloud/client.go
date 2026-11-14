@@ -23,17 +23,18 @@ import (
 const maxResponseBytes = 2 << 20
 
 type Config struct {
-	ClientID string
-	Secret string
-	BaseURL string
-	Schema string
+	ClientID   string
+	Secret     string
+	BaseURL    string
+	UID        string
+	Schema     string
 	HTTPClient *http.Client
 }
 type Client struct {
-	cfg Config
-	http *http.Client
-	mu sync.Mutex
-	token string
+	cfg         Config
+	http        *http.Client
+	mu          sync.Mutex
+	token       string
 	tokenExpiry time.Time
 }
 type Device struct {
@@ -60,6 +61,9 @@ type tokenResult struct { AccessToken string `json:"access_token"`; ExpireTime i
 
 func New(cfg Config) (*Client,error) {
 	if strings.TrimSpace(cfg.ClientID)=="" || strings.TrimSpace(cfg.Secret)=="" { return nil,errors.New("tuya cloud: client ID and secret are required") }
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "https://openapi.tuyaeu.com"
+	}
 	u,err:=url.Parse(cfg.BaseURL)
 	if err!=nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || (u.Port()!="" && u.Port()!="443") || (u.Path!="" && u.Path!="/") || u.RawQuery!="" || u.Fragment!="" { return nil,errors.New("tuya cloud: base URL must be an HTTPS regional endpoint") }
 	allowed:=map[string]bool{"openapi.tuyaeu.com":true,"openapi.tuyaus.com":true,"openapi.tuyacn.com":true,"openapi.tuyain.com":true,"openapi-ueaz.tuyaus.com":true,"openapi-weaz.tuyaeu.com":true}
@@ -69,17 +73,73 @@ func New(cfg Config) (*Client,error) {
 	httpClient:=*cfg.HTTPClient
 	httpClient.CheckRedirect=func(_ *http.Request,_ []*http.Request) error { return http.ErrUseLastResponse }
 	cfg.BaseURL=strings.TrimRight(cfg.BaseURL,"/")
+	cfg.UID = strings.TrimSpace(cfg.UID)
 	return &Client{cfg:cfg,http:&httpClient},nil
 }
 
+// UID returns the configured Smart Life user UID (linked via QR Code / Add App Account).
+func (c *Client) UID() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cfg.UID
+}
+
+// Config returns a copy of the current client configuration.
+func (c *Client) Config() Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cfg
+}
+
+// SetCredentials dynamically updates client credentials and invalidates cached tokens.
+func (c *Client) SetCredentials(clientID, secret, baseURL, uid string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cfg.ClientID = strings.TrimSpace(clientID)
+	c.cfg.Secret = strings.TrimSpace(secret)
+	if baseURL != "" {
+		c.cfg.BaseURL = strings.TrimRight(baseURL, "/")
+	}
+	c.cfg.UID = strings.TrimSpace(uid)
+	c.token = ""
+	c.tokenExpiry = time.Time{}
+}
+
+// DevicesByUID retrieves all Smart Life devices linked to the specified user UID
+// (obtained from iot.tuya.com -> Devices -> Link Tuya App Account after QR scanning).
+func (c *Client) DevicesByUID(ctx context.Context, uid string) ([]Device, error) {
+	if uid == "" || len(uid) > 128 || strings.ContainsAny(uid, "/?#") {
+		return nil, errors.New("tuya cloud: invalid user UID")
+	}
+	var devices []Device
+	path := "/v1.0/users/" + url.PathEscape(uid) + "/devices"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &devices); err != nil {
+		return nil, err
+	}
+	if devices == nil {
+		devices = []Device{}
+	}
+	return devices, nil
+}
+
 func (c *Client) Devices(ctx context.Context) ([]Device, error) {
+	c.mu.Lock()
+	uid := c.cfg.UID
+	schema := c.cfg.Schema
+	c.mu.Unlock()
+
+	// When a Smart Life user UID is configured, retrieve the user's linked devices directly.
+	if uid != "" {
+		return c.DevicesByUID(ctx, uid)
+	}
+
 	const pageSize = 100
 	const maxPages = 20
 	devices := make([]Device, 0)
 	var total int64
 	for page := 1; page <= maxPages; page++ {
 		q := url.Values{"page_no": []string{strconv.Itoa(page)}, "page_size": []string{strconv.Itoa(pageSize)}}
-		if c.cfg.Schema != "" { q.Set("schema", c.cfg.Schema) }
+		if schema != "" { q.Set("schema", schema) }
 		var result struct {
 			Devices []Device `json:"devices"`
 			Total int64 `json:"total"`
