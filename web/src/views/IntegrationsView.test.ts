@@ -450,5 +450,62 @@ describe('IntegrationsView.vue', () => {
     )
   })
 
+
+  it('sends discovered supported thermostat commands through LocalTuya when cloud reports the device offline', async () => {
+    const cloudDevices = [{
+      id: 'tuya-offline-thermostat',
+      name: 'Termostato locale',
+      category: 'wk',
+      online: false,
+      local_configured: true,
+      local_active: true,
+      local_ip: '192.168.1.90',
+      status: [{ code: 'temp_set', value: 215 }]
+    }]
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-offline-thermostat/functions')) {
+        return {
+          functions: [{
+            code: 'temp_set',
+            name: 'Temperatura obiettivo',
+            type: 'Integer',
+            values: '{"min":50,"max":350,"scale":1}'
+          }]
+        }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-offline-thermostat/functions')
+
+    const temperatureInput = wrapper.find('input[aria-label="Valore per Temperatura obiettivo"]')
+    await temperatureInput.setValue('22.5')
+    const executeButton = wrapper.findAll('button').find(button => button.text().includes('Invia'))
+    expect(executeButton).toBeDefined()
+    await executeButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-offline-thermostat/command',
+      { command: 'set_temperature', params: { temperature: 22.5 } }
+    )
+    expect(postSpy).not.toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-offline-thermostat/commands',
+      expect.anything()
+    )
+  })
+
 })
 
