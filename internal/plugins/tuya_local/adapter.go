@@ -333,11 +333,13 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
+	// The write pool intentionally allows only one open connection. Do not issue
+	// UPDATE statements while this result set is open: doing so would wait forever
+	// for the connection held by rows. Collect the sanitized configs first, close
+	// the cursor, and only then persist any IP cleanup.
+	configs := make([]DeviceConfig, 0)
+	untrustedDeviceIDs := make([]string, 0)
 	for rows.Next() {
 		var cfg DeviceConfig
 		var name, keyEnc, catStr string
@@ -346,15 +348,16 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 		}
 		cfg.Name = name
 		cfg.Category = DeviceCategory(catStr)
+
 		// Purge legacy public WAN addresses saved by older releases. The device
 		// remains configured but waits for a fresh private LAN discovery packet.
-		if cfg.IP != "" && trustedLANIP(cfg.IP) == "" {
-			cfg.IP = ""
-			if _, err := a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET ip = '' WHERE device_id = ?", cfg.DeviceID); err != nil {
-				slog.Warn("tuya_local: could not clear untrusted stored IP", "device_id", cfg.DeviceID, "error", err)
+		if cfg.IP != "" {
+			if trustedIP := trustedLANIP(cfg.IP); trustedIP == "" {
+				cfg.IP = ""
+				untrustedDeviceIDs = append(untrustedDeviceIDs, cfg.DeviceID)
+			} else {
+				cfg.IP = trustedIP
 			}
-		} else {
-			cfg.IP = trustedLANIP(cfg.IP)
 		}
 
 		// Decrypt local_key
@@ -365,9 +368,33 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 			}
 		}
 		cfg.LocalKey = localKey
+		configs = append(configs, cfg)
+	}
+
+	rowsErr := rows.Err()
+	closeErr := rows.Close()
+	if rowsErr != nil {
+		return fmt.Errorf("read stored Tuya devices: %w", rowsErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close stored Tuya devices query: %w", closeErr)
+	}
+
+	a.mu.Lock()
+	for _, cfg := range configs {
 		a.configs[cfg.DeviceID] = cfg
 	}
-	return rows.Err()
+	a.mu.Unlock()
+
+	// Persist sanitized addresses only after releasing the read cursor so the
+	// update can acquire the single connection in the SQLite write pool.
+	for _, deviceID := range untrustedDeviceIDs {
+		if _, err := a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET ip = '' WHERE device_id = ?", deviceID); err != nil {
+			slog.Warn("tuya_local: could not clear untrusted stored IP", "device_id", deviceID, "error", err)
+		}
+	}
+
+	return nil
 }
 
 func (a *Adapter) connectDevice(cfg DeviceConfig) {
