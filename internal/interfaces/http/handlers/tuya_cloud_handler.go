@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -332,36 +333,85 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 
 	deviceID := chi.URLParam(r, "deviceID")
 
-	// If device is configured in Tuya Local, dispatch locally via LAN!
-	if h.tuyaLocal != nil && h.tuyaLocal.IsDeviceConfigured(deviceID) {
+	client := h.getClient()
+	if h.tuyaLocal != nil && h.tuyaLocal.IsDeviceConfigured(deviceID) && client != nil && client.Config().ClientID != "" {
+		functions, err := client.Functions(r.Context(), deviceID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "TUYA_CLOUD_ERROR", err.Error())
+			return
+		}
+		functionByCode := make(map[string]tuya_cloud.Function, len(functions))
+		for _, fn := range functions {
+			functionByCode[fn.Code] = fn
+		}
+
+		localCommands := make([]struct {
+			command string
+			params map[string]any
+		}, 0, len(req.Commands))
+		localSupported := true
 		for _, cmd := range req.Commands {
-			codeLower := strings.ToLower(cmd.Code)
-			var localCmd string
-			params := make(map[string]any)
-
-			if valBool, ok := cmd.Value.(bool); ok {
-				if valBool {
-					localCmd = "turn_on"
-				} else {
-					localCmd = "turn_off"
-				}
-			} else if strings.Contains(codeLower, "bright") {
-				localCmd = "set_brightness"
-				params["brightness"] = cmd.Value
-			} else if strings.Contains(codeLower, "temp") {
-				localCmd = "set_temperature"
-				params["temperature"] = cmd.Value
-			} else {
-				localCmd = "turn_on"
-			}
-
-			if err := h.tuyaLocal.SendCommand(r.Context(), deviceID, localCmd, params); err != nil {
-				writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", fmt.Sprintf("local LAN command failed: %v", err))
+			fn, allowed := functionByCode[cmd.Code]
+			if !allowed {
+				writeError(w, http.StatusBadRequest, "UNSUPPORTED_COMMAND", fmt.Sprintf("Tuya function %q is not declared for this device", cmd.Code))
 				return
 			}
+			code := strings.ToLower(cmd.Code)
+			localCmd := ""
+			params := make(map[string]any)
+			switch {
+			case (strings.Contains(code, "switch") || strings.Contains(code, "power")):
+				if value, ok := cmd.Value.(bool); ok {
+					if value { localCmd = "turn_on" } else { localCmd = "turn_off" }
+				}
+			case strings.Contains(code, "temp") && !strings.Contains(code, "current") && !strings.Contains(code, "cur_"):
+				if value, ok := tuyaNumericValue(cmd.Value); ok {
+					var spec struct { Scale int `json:"scale"` }
+					_ = json.Unmarshal([]byte(fn.Values), &spec)
+					if spec.Scale < 0 || spec.Scale > 4 {
+						writeError(w, http.StatusBadRequest, "INVALID_COMMAND_VALUE", "unsupported temperature scale")
+						return
+					}
+					temperature := value / math.Pow10(spec.Scale)
+					localCmd = "set_temperature"
+					params["temperature"] = temperature
+				}
+			case code == "mode" || code == "work_mode" || strings.HasSuffix(code, "_mode"):
+				switch value := cmd.Value.(type) {
+				case string:
+					if strings.EqualFold(value, "auto") || strings.EqualFold(value, "automatic") || strings.EqualFold(value, "manual") {
+						localCmd = "set_mode"
+						params["mode"] = value
+					}
+				case float64:
+					if value == 0 || value == 1 {
+						localCmd = "set_dp"
+						params["dp_id"], params["value"] = 4, value
+					}
+				}
+			}
+			if localCmd == "" {
+				localSupported = false
+				break
+			}
+			localCommands = append(localCommands, struct {
+				command string
+				params map[string]any
+			}{command: localCmd, params: params})
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"success": true, "transport": "lan_local"})
-		return
+
+		// Only use the local adapter when every requested function has a safe,
+		// known DPS mapping. Unknown device functions remain available through Cloud API.
+		if localSupported {
+			for _, localCmd := range localCommands {
+				if err := h.tuyaLocal.SendCommand(r.Context(), deviceID, localCmd.command, localCmd.params); err != nil {
+					writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", fmt.Sprintf("local LAN command failed: %v", err))
+					return
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"success": true, "transport": "lan_local"})
+			return
+		}
 	}
 
 	client := h.getClient()
@@ -497,4 +547,21 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		"message": message,
 		"devices": synced,
 	})
+}
+func tuyaNumericValue(value any) (float64, bool) {
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case json.Number:
+		parsed, err := number.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
