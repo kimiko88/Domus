@@ -502,15 +502,14 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		localKey := dev.LocalKey
-		ip := dev.IP
 
-		// If local_key was not returned in list endpoint, query single-device endpoint.
+		// Tuya Cloud's "ip" field is not a reliable LAN address: depending on the
+		// API it can contain the home's public WAN address. Only the UDP discovery
+		// packet's source IP is safe to use for direct LocalTuya connections.
+		// RegisterAndPersistDevice fills cfg.IP from its trusted discovery cache.
 		if localKey == "" {
 			if detailed, err := client.GetDevice(r.Context(), dev.ID); err == nil && detailed != nil {
 				localKey = detailed.LocalKey
-				if ip == "" {
-					ip = detailed.IP
-				}
 			}
 		}
 		if localKey == "" {
@@ -521,7 +520,7 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		cfg := tuya_local.DeviceConfig{
 			DeviceID: dev.ID,
 			Name: dev.Name,
-			IP: ip,
+			IP: "", // populated only from trusted LAN UDP discovery
 			LocalKey: localKey,
 			Version: "3.3",
 			Category: cat,
