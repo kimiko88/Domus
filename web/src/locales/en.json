@@ -183,7 +183,21 @@
     "authorizedKey": "SSH Public Key (Optional)",
     "remainingTime": "Remaining Time",
     "exportDiagnostics": "Export Diagnostic Report",
-    "exportDesc": "Download a comprehensive JSON report containing telemetry and sanitized configuration (secrets scrubbed)."
+    "exportDesc": "Download a comprehensive JSON report containing telemetry and sanitized configuration (secrets scrubbed).",
+    "appearance": "Appearance & Theme",
+    "appearanceDescription": "Customize the visual style and contrast of the Domus interface.",
+    "themes": {
+      "dark": "Dark",
+      "light": "Light",
+      "oled": "Midnight OLED",
+      "system": "Automatic (System)"
+    },
+    "themeDescriptions": {
+      "dark": "Night-blue and slate tones, suitable for most rooms.",
+      "light": "Crisp, high-contrast interface for brightly lit environments.",
+      "oled": "Pure black, ideal for OLED wall displays and lower power consumption.",
+      "system": "Automatically follows the device or browser color preference."
+    }
   },
   "automations": {
     "title": "Automation Rules",
