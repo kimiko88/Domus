@@ -301,6 +301,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TuyaCloudHandler) ListFunctions(w http.ResponseWriter, r *http.Request) {
+	client := h.getClient()
 	if client == nil || client.Config().ClientID == "" {
 		writeError(w, http.StatusBadRequest, "TUYA_NOT_CONFIGURED", "Tuya Cloud non configurato")
 		return
