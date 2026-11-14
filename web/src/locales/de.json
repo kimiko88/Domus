@@ -183,7 +183,21 @@
     "authorizedKey": "Öffentlicher SSH-Schlüssel (Optional)",
     "remainingTime": "Verbleibende Zeit",
     "exportDiagnostics": "Diagnosebericht Exportieren",
-    "exportDesc": "Vollständigen JSON-Bericht mit Telemetriedaten und bereinigter Konfiguration (ohne Passwörter) herunterladen."
+    "exportDesc": "Vollständigen JSON-Bericht mit Telemetriedaten und bereinigter Konfiguration (ohne Passwörter) herunterladen.",
+    "appearance": "Erscheinungsbild und Design",
+    "appearanceDescription": "Passen Sie den visuellen Stil und Kontrast der Domus-Oberfläche an.",
+    "themes": {
+      "dark": "Dunkles Design",
+      "light": "Helles Design",
+      "oled": "Midnight OLED",
+      "system": "Automatisch (System)"
+    },
+    "themeDescriptions": {
+      "dark": "Nachtblaue und schiefergraue Töne, passend für die meisten Räume.",
+      "light": "Klare Oberfläche mit hohem Kontrast für helle Umgebungen.",
+      "oled": "Tiefschwarz, ideal für OLED-Displays und geringeren Stromverbrauch.",
+      "system": "Übernimmt automatisch die Farbeinstellung des Geräts oder Browsers."
+    }
   },
   "automations": {
     "title": "Automatisierungsregeln",
