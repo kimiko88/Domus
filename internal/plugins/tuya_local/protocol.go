@@ -42,7 +42,8 @@ const (
 	CmdEnableWifi uint32 = 0x0E
 	CmdDpQueryNew uint32 = 0x10
 	CmdSceneExec  uint32 = 0x11
-	CmdUpdateDPS  uint32 = 0x12
+	CmdUpdateDPS    uint32 = 0x12
+	CmdReqDevInfo  uint32 = 0x25 // v3.5 UDP discovery solicitation (UDP/7000)
 )
 
 // Packet represents a decoded Tuya protocol frame.
