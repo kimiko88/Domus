@@ -55,16 +55,16 @@ async function startTwoFactorSetup() {
     }
     showTwoFactorModal.value = true
   } catch (err: any) {
-    alert('Errore inizializzazione 2FA: ' + (err?.message || 'Riprova'))
+    alert(t('settings.twoFactorInitError', { message: err?.message || t('common.error') }))
   }
 }
 
 async function disableTwoFactor() {
-  if (!confirm('Per disattivare la 2FA dovrai confermare la password e il codice del secondo fattore. Continuare?')) return
-  const password = window.prompt('Inserisci la password attuale')
+  if (!confirm(t('settings.confirmDisableTwoFactor'))) return
+  const password = window.prompt(t('settings.promptPassword'))
   if (password === null || !password.trim()) return
   const twoFactorCode = isTwoFactorEnabled.value
-    ? window.prompt('Inserisci il codice TOTP corrente o un codice di recupero')
+    ? window.prompt(t('settings.promptTwoFactorCode'))
     : ''
   if (twoFactorCode === null) return
   try {
@@ -73,9 +73,9 @@ async function disableTwoFactor() {
       two_factor_code: twoFactorCode.trim()
     })
     isTwoFactorEnabled.value = false
-    alert('2FA disattivata con successo.')
+    alert(t('settings.twoFactorDisabled'))
   } catch (err: any) {
-    alert('Errore disattivazione 2FA: ' + (err?.message || 'Riprova'))
+    alert(t('settings.twoFactorDisableError', { message: err?.message || t('common.error') }))
   }
 }
 
@@ -169,7 +169,7 @@ async function loadTags() {
 async function testScanTag(t: any) {
   try {
     await apiClient.post(`/api/v1/tags/${t.tag_id}/scan`, { scanned_by: 'settings_ui' })
-    alert(`Tag "${t.name}" scansionato con successo! Azione eseguita.`)
+    alert(t('settings.tagScanned', { name: t.name }))
   } catch {}
 }
 
@@ -213,9 +213,9 @@ async function triggerPromote() {
   try {
     const res = await apiClient.post<FailoverStatus>('/api/v1/system/failover/promote', {})
     if (res) failoverStatus.value = res
-    alert('Promozione a Leader eseguita con successo!')
+    alert(t('settings.promoteLeaderSuccess'))
   } catch {
-    alert('Promozione del nodo eseguita con successo!')
+    alert(t('settings.promoteNodeSuccess'))
   } finally {
     isPromoting.value = false
   }
@@ -243,22 +243,22 @@ async function triggerCreateBackup() {
       passphrase: backupPassphrase.value || undefined,
       encrypted: true
     })
-    alert('Backup Cifrato generato con successo! Archivio salvato su cloud/NAS locale.')
+    alert(t('settings.backupSuccess'))
     await loadBackupRecords()
   } catch (err: any) {
-    alert('Errore generazione backup: ' + (err?.message || 'Riprova'))
+    alert(t('settings.backupError', { message: err?.message || t('common.error') }))
   } finally {
     isBackingUp.value = false
   }
 }
 
 async function triggerRestoreBackup() {
-  if (!confirm('Sei sicuro di voler avviare il ripristino di emergenza del sistema?')) return
+  if (!confirm(t('settings.confirmRestore'))) return
   isRestoring.value = true
   try {
-    alert('Ripristino dal file di backup completato con successo. Il sistema è ora integro.')
+    alert(t('settings.restoreSuccess'))
   } catch (err: any) {
-    alert('Errore ripristino: ' + (err?.message || 'Riprova'))
+    alert(t('settings.restoreError', { message: err?.message || t('common.error') }))
   } finally {
     isRestoring.value = false
   }
@@ -330,7 +330,7 @@ async function toggleWaterValve() {
   try {
     waterAnomaly.value.main_valve_open = !waterAnomaly.value.main_valve_open
     waterAnomaly.value.leak_detected = false
-    alert(waterAnomaly.value.main_valve_open ? 'Elettrovalvola principale APERTA' : 'Elettrovalvola principale CHIUSA per sicurezza')
+    alert(waterAnomaly.value.main_valve_open ? t('settings.valveOpen') : t('settings.valveClosed'))
   } finally {
     isTogglingValve.value = false
   }
@@ -374,18 +374,18 @@ onMounted(() => {
             <span class="detail-value font-mono">{{ currentUser.username }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Ruolo</span>
+            <span class="detail-label">{{ t('settings.role') }}</span>
             <span class="role-badge">{{ currentUser.role }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">ID Utente</span>
+            <span class="detail-label">{{ t('settings.userId') }}</span>
             <span class="detail-value font-mono text-dim">{{ currentUser.id }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Autenticazione 2FA</span>
+            <span class="detail-label">{{ t('settings.twoFactor') }}</span>
             <div class="two-factor-controls">
               <span class="two-factor-pill" :class="{ enabled: isTwoFactorEnabled }">
-                {{ isTwoFactorEnabled ? 'Attiva' : 'Non Attiva' }}
+                {{ isTwoFactorEnabled ? t('settings.enabled') : t('settings.notEnabled') }}
               </span>
               <button
                 v-if="!isTwoFactorEnabled"
