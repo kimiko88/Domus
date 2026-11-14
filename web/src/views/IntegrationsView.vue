@@ -2405,5 +2405,120 @@ onMounted(() => {
   gap: 12px;
   margin-top: 8px;
 }
+
+/* Mobile and narrow-screen layout: keep every integration tab reachable. */
+.integrations-view,
+.tab-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.header-row { align-items: flex-start; }
+.header-right-tools { min-width: 0; max-width: 100%; }
+
+.tab-switcher {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+}
+
+.tab-btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.actions-bar { gap: 12px; min-width: 0; }
+.bar-info { min-width: 0; }
+
+.integration-card,
+.discovered-card,
+.brand-card,
+.host-card,
+.discovery-toolbar,
+.guardian-banner,
+.leak-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .header-right-tools {
+    width: 100%;
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-flasher-trigger { align-self: flex-start; }
+  .tab-switcher { width: 100%; }
+  .tab-btn { padding-inline: 12px; }
+  .actions-bar { flex-wrap: wrap; align-items: flex-start; }
+
+  .integrations-grid,
+  .discovered-grid,
+  .catalog-grid,
+  .hosts-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+
+  .discovery-inputs { width: 100%; min-width: 0; }
+  .manual-probe-box { min-width: 0; max-width: 100%; }
+  .ip-input { min-width: 0; flex: 1 1 auto; }
+  .leak-left { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  .header-row { gap: 12px; }
+  .header-right-tools { gap: 8px; }
+  .tab-switcher { border-radius: var(--radius-md); }
+  .tab-btn { gap: 6px; padding: 9px 11px; font-size: 12px; }
+  .tab-btn svg { flex: 0 0 auto; }
+
+  .actions-bar { align-items: stretch; }
+  .bar-info { flex: 1 1 100%; }
+  .btn-action { width: 100%; justify-content: center; min-height: 44px; }
+
+  .integration-card,
+  .discovered-card,
+  .brand-card,
+  .host-card { padding: 14px; }
+
+  .card-top { flex-wrap: wrap; }
+  .status-badge { margin-left: auto; }
+
+  .discovery-toolbar,
+  .guardian-banner,
+  .leak-card { padding: 14px; }
+
+  .discovery-intro { align-items: flex-start; min-width: 0; }
+  .discovery-inputs { flex-direction: column; align-items: stretch; }
+  .manual-probe-box { width: 100%; }
+  .btn-scan { width: 100%; min-height: 44px; justify-content: center; }
+
+  .discovered-grid,
+  .catalog-grid,
+  .hosts-grid,
+  .integrations-grid { grid-template-columns: minmax(0, 1fr); }
+
+  .disc-card-header,
+  .leak-header-row,
+  .spec-line { flex-wrap: wrap; }
+
+  .leak-left { flex: 1 1 100%; }
+  .btn-quarantine { width: 100%; min-height: 44px; justify-content: center; }
+
+  .host-footer { flex-direction: column; }
+  .btn-host-probe,
+  .btn-host-quarantine { width: 100%; min-height: 44px; }
+}
+
 </style>
 
