@@ -83,12 +83,15 @@ export interface Entity {
 
 export interface Device {
   id: string
+  external_id?: string
   name: string
   area_id?: string | null
   integration_id: string
   manufacturer?: string
   model?: string
   sw_version?: string
+  online?: boolean
+  metadata?: string
   status: 'online' | 'offline' | 'unknown'
   created_at: string
   updated_at: string

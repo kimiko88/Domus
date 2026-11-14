@@ -51,6 +51,21 @@ describe('Devices Store', () => {
     expect(store.onlineDevices[0].id).toBe('dev-1')
   })
 
+
+  it('normalizes the backend online boolean into the frontend status field', async () => {
+    const store = useDevicesStore()
+    vi.mocked(apiClient.get).mockResolvedValueOnce([
+      { id: 'dev-online', name: 'Online Tuya', integration_id: 'tuya_local', online: true, created_at: '', updated_at: '' },
+      { id: 'dev-offline', name: 'Offline Tuya', integration_id: 'tuya_local', online: false, created_at: '', updated_at: '' }
+    ])
+
+    await store.fetchDevices()
+
+    expect(store.devices.map(device => device.status)).toEqual(['online', 'offline'])
+    expect(store.onlineDevices).toHaveLength(1)
+    expect(store.offlineDevices).toHaveLength(1)
+  })
+
   it('handles null API response gracefully without crashing', async () => {
     const store = useDevicesStore()
     vi.mocked(apiClient.get).mockResolvedValueOnce(null)

@@ -130,8 +130,10 @@ const tuyaCloudLoading = ref(false)
 const tuyaCloudError = ref('')
 const tuyaCloudCommanding = ref<string | null>(null)
 const tuyaSyncing = ref(false)
-const tuyaDeviceFilter = ref<'all' | 'online' | 'offline'>('all')
+const tuyaDeviceFilter = ref<'all' | 'online' | 'offline' | 'selected' | 'unselected'>('all')
+const tuyaSearchQuery = ref('')
 const selectedTuyaDeviceIds = ref<string[]>([])
+const tuyaSelectionInitialized = ref(false)
 const tuyaDeviceFunctions = ref<Record<string, TuyaDeviceFunction[]>>({})
 const tuyaFunctionPanels = ref<Record<string, boolean>>({})
 const tuyaFunctionsLoading = ref<string | null>(null)
@@ -139,14 +141,42 @@ const tuyaFunctionInputs = reactive<Record<string, string>>({})
 const tuyaFunctionBusy = ref<string | null>(null)
 const tuyaTemperatureInputs = reactive<Record<string, string>>({})
 
-const filteredTuyaCloudDevices = computed(() => {
-  if (tuyaDeviceFilter.value === 'online') return tuyaCloudDevices.value.filter(device => device.online)
-  if (tuyaDeviceFilter.value === 'offline') return tuyaCloudDevices.value.filter(device => !device.online)
-  return tuyaCloudDevices.value
-})
-
+const tuyaSelectedCount = computed(() =>
+  tuyaCloudDevices.value.filter(device => selectedTuyaDeviceIds.value.includes(device.id)).length
+)
+const tuyaUnselectedCount = computed(() => tuyaCloudDevices.value.length - tuyaSelectedCount.value)
 const tuyaOnlineCount = computed(() => tuyaCloudDevices.value.filter(device => device.online).length)
 const tuyaOfflineCount = computed(() => tuyaCloudDevices.value.length - tuyaOnlineCount.value)
+
+const filteredTuyaCloudDevices = computed(() => {
+  const query = tuyaSearchQuery.value.trim().toLocaleLowerCase()
+  return tuyaCloudDevices.value.filter(device => {
+    const selected = selectedTuyaDeviceIds.value.includes(device.id)
+    if (tuyaDeviceFilter.value === 'online' && !device.online) return false
+    if (tuyaDeviceFilter.value === 'offline' && device.online) return false
+    if (tuyaDeviceFilter.value === 'selected' && !selected) return false
+    if (tuyaDeviceFilter.value === 'unselected' && selected) return false
+    if (!query) return true
+    return [
+      device.name,
+      device.id,
+      device.product_name,
+      device.category,
+      device.local_ip
+    ].some(value => String(value || '').toLocaleLowerCase().includes(query))
+  })
+})
+
+function selectVisibleTuyaDevices() {
+  const next = new Set(selectedTuyaDeviceIds.value)
+  for (const device of filteredTuyaCloudDevices.value) next.add(device.id)
+  selectedTuyaDeviceIds.value = [...next]
+}
+
+function deselectVisibleTuyaDevices() {
+  const visible = new Set(filteredTuyaCloudDevices.value.map(device => device.id))
+  selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => !visible.has(id))
+}
 
 function tuyaFunctionKey(deviceId: string, code: string) {
   return `${deviceId}:${code}`
@@ -274,6 +304,9 @@ async function disconnectTuyaConfig() {
     }
     tuyaConfigForm.client_secret = ''
     tuyaCloudDevices.value = []
+    selectedTuyaDeviceIds.value = []
+    tuyaSelectionInitialized.value = false
+    tuyaSearchQuery.value = ''
     isEditingTuyaConfig.value = false
   } catch (err: any) {
     notificationsStore.error('Errore Disconnessione', err?.message || 'Impossibile scollegare Tuya.')
@@ -296,15 +329,23 @@ async function disconnectTuyaAccount() {
   await disconnectTuyaConfig()
 }
 
-async function fetchTuyaCloudDevices() {
+async function fetchTuyaCloudDevices(reconcileSelection = false) {
   tuyaCloudLoading.value = true
   tuyaCloudError.value = ''
   try {
     const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
     tuyaCloudDevices.value = result.devices || []
-    selectedTuyaDeviceIds.value = tuyaCloudDevices.value
-      .filter(device => device.local_configured)
-      .map(device => device.id)
+    // Keep unsaved checkbox changes while refreshing status. Reconcile from the
+    // server on the first load and immediately after applying the selection.
+    if (!tuyaSelectionInitialized.value || reconcileSelection) {
+      selectedTuyaDeviceIds.value = tuyaCloudDevices.value
+        .filter(device => device.local_configured)
+        .map(device => device.id)
+      tuyaSelectionInitialized.value = true
+    } else {
+      const knownIds = new Set(tuyaCloudDevices.value.map(device => device.id))
+      selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
+    }
     for (const device of tuyaCloudDevices.value) {
       if (isTuyaClimateDevice(device) && tuyaTemperatureInputs[device.id] === undefined) {
         const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
@@ -329,7 +370,7 @@ async function syncTuyaCloudToLocal() {
       { device_ids: selectedTuyaDeviceIds.value }
     )
     notificationsStore.success('Selezione LocalTuya aggiornata', res.message || `${res.synced_count} dispositivi abilitati per il controllo LAN.`)
-    await fetchTuyaCloudDevices()
+    await fetchTuyaCloudDevices(true)
   } catch (err: any) {
     notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
   } finally {
@@ -1197,7 +1238,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="discovery-inputs">
-          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="fetchTuyaCloudDevices">
+          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="() => fetchTuyaCloudDevices()">
             <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
             <span>Aggiorna dispositivi</span>
           </button>
@@ -1339,14 +1380,32 @@ onMounted(() => {
       </div>
 
       <div v-if="tuyaCloudDevices.length > 0" class="tuya-device-toolbar glass-card">
-        <div>
-          <strong>Dispositivi Smart Life</strong>
-          <span class="tuya-device-count">{{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline · {{ selectedTuyaDeviceIds.length }} selezionati</span>
+        <div class="tuya-device-toolbar-summary">
+          <div>
+            <strong>Dispositivi Smart Life</strong>
+            <span class="tuya-device-count">{{ tuyaCloudDevices.length }} totali · {{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline</span>
+          </div>
+          <span class="tuya-device-count">{{ tuyaSelectedCount }} selezionati per LocalTuya</span>
         </div>
-        <div class="tuya-device-filters" role="group" aria-label="Filtra dispositivi per stato">
-          <button type="button" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">Tutti ({{ tuyaCloudDevices.length }})</button>
-          <button type="button" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">Online ({{ tuyaOnlineCount }})</button>
-          <button type="button" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">Offline ({{ tuyaOfflineCount }})</button>
+        <div class="tuya-device-filter-row">
+          <label class="tuya-device-search">
+            <Search :size="15" />
+            <input id="tuya-device-search" v-model="tuyaSearchQuery" type="search" placeholder="Cerca per nome, modello o ID…" />
+          </label>
+          <div class="tuya-device-filters" role="group" aria-label="Filtra dispositivi Tuya">
+            <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">Tutti ({{ tuyaCloudDevices.length }})</button>
+            <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">Online ({{ tuyaOnlineCount }})</button>
+            <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">Offline ({{ tuyaOfflineCount }})</button>
+            <button type="button" data-filter="selected" :aria-pressed="tuyaDeviceFilter === 'selected'" :class="{ active: tuyaDeviceFilter === 'selected' }" @click="tuyaDeviceFilter = 'selected'">Selezionati ({{ tuyaSelectedCount }})</button>
+            <button type="button" data-filter="unselected" :aria-pressed="tuyaDeviceFilter === 'unselected'" :class="{ active: tuyaDeviceFilter === 'unselected' }" @click="tuyaDeviceFilter = 'unselected'">Non selezionati ({{ tuyaUnselectedCount }})</button>
+          </div>
+        </div>
+        <div class="tuya-device-bulk-actions">
+          <span>{{ filteredTuyaCloudDevices.length }} visualizzati</span>
+          <div>
+            <button type="button" @click="selectVisibleTuyaDevices" :disabled="filteredTuyaCloudDevices.length === 0">Seleziona visibili</button>
+            <button type="button" @click="deselectVisibleTuyaDevices" :disabled="!filteredTuyaCloudDevices.some(device => selectedTuyaDeviceIds.includes(device.id))">Deseleziona visibili</button>
+          </div>
         </div>
       </div>
 
@@ -1440,7 +1499,9 @@ onMounted(() => {
       </div>
       <div v-else-if="tuyaCloudDevices.length > 0" class="empty-guardian-state glass-card">
         <WifiOff :size="28" />
-        <p>Nessun dispositivo corrisponde al filtro selezionato.</p>
+        <h4>Nessun dispositivo corrisponde ai filtri</h4>
+        <p>Modifica la ricerca o prova un altro filtro. La selezione già effettuata viene mantenuta.</p>
+        <button type="button" class="btn-action glass-panel" @click="tuyaDeviceFilter = 'all'; tuyaSearchQuery = ''">Azzera filtri</button>
       </div>
     </div>
 
@@ -2831,12 +2892,60 @@ onMounted(() => {
 /* Tuya device selection, discovery filters and thermostat controls */
 .tuya-device-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
   padding: 14px 18px;
   margin-bottom: 14px;
+}
+.tuya-device-toolbar-summary,
+.tuya-device-filter-row,
+.tuya-device-bulk-actions,
+.tuya-device-bulk-actions > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tuya-device-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(100%, 250px);
+  flex: 1;
+  padding: 8px 11px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+.tuya-device-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+}
+.tuya-device-bulk-actions {
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tuya-device-bulk-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font: inherit;
+  cursor: pointer;
+}
+.tuya-device-bulk-actions button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
 }
 .tuya-device-count {
   display: block;
@@ -2927,6 +3036,25 @@ onMounted(() => {
 .tuya-function-values { grid-column: 1 / -1; white-space: pre-wrap; }
 .tuya-no-functions { color: var(--text-muted); font-size: 12px; }
 @media (max-width: 620px) {
+  .tuya-device-toolbar-summary,
+  .tuya-device-filter-row,
+  .tuya-device-bulk-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tuya-device-search {
+    width: 100%;
+    min-width: 0;
+  }
+  .tuya-device-filters button {
+    flex: 1 1 calc(50% - 6px);
+  }
+  .tuya-device-bulk-actions > div {
+    width: 100%;
+  }
+  .tuya-device-bulk-actions button {
+    flex: 1;
+  }
   .tuya-function-row { grid-template-columns: 1fr; }
   .tuya-function-input input { flex: 1; width: min(100%, 180px); }
 }

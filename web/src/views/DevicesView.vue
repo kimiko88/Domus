@@ -5,8 +5,8 @@ import { useDevicesStore } from '../stores/devices'
 import { useAreasStore } from '../stores/areas'
 import { useNotificationsStore } from '../stores/notifications'
 import { apiClient } from '../api/client'
-import type { DiscoveredHost } from '../api/types'
-import { Cpu, Wifi, WifiOff, RefreshCw, QrCode, Plus, Sparkles, Check, CheckCircle, ShieldCheck, X } from '@lucide/vue'
+import type { Device, DiscoveredHost } from '../api/types'
+import { Cpu, Wifi, WifiOff, RefreshCw, QrCode, Plus, Sparkles, Check, CheckCircle, ShieldCheck, X, Search } from '@lucide/vue'
 
 const { t } = useI18n()
 const devicesStore = useDevicesStore()
@@ -14,6 +14,10 @@ const areasStore = useAreasStore()
 const notifStore = useNotificationsStore()
 
 const filterStatus = ref<'all' | 'online' | 'offline'>('all')
+const searchQuery = ref('')
+const filterIntegration = ref('all')
+const isRefreshing = ref(false)
+const tuyaCloudDevices = ref<TuyaCloudDeviceSummary[]>([])
 const isScanning = ref(false)
 const discoveredHosts = ref<DiscoveredHost[]>([])
 const selectedHostForSetup = ref<DiscoveredHost | null>(null)
@@ -28,16 +32,31 @@ const matterPairingCode = ref('')
 const matterCommissionStep = ref<1 | 2 | 3>(1)
 const matterCommissioning = ref(false)
 
+interface TuyaCloudDeviceSummary {
+  id: string
+  name: string
+  product_name?: string
+  category?: string
+  online: boolean
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
+}
+
+interface UnifiedDevice extends Device {
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
+  source_label?: string
+}
+
 onMounted(async () => {
-  try {
-    await Promise.all([
-      devicesStore.fetchDevices(),
-      areasStore.fetchAreas(),
-      loadDiscoveredHosts()
-    ])
-  } catch (err) {
-    console.warn('DevicesView fetch warning:', err)
-  }
+  await Promise.allSettled([
+    devicesStore.fetchDevices(),
+    areasStore.fetchAreas(),
+    loadDiscoveredHosts(),
+    loadTuyaCloudDevices()
+  ])
 })
 
 async function loadDiscoveredHosts() {
@@ -115,19 +134,108 @@ function closeMatterWizard() {
   matterPairingCode.value = ''
 }
 
-const filteredDevices = computed(() => {
-  if (filterStatus.value === 'online') {
-    return devicesStore.onlineDevices || []
+async function loadTuyaCloudDevices() {
+  try {
+    const config = await apiClient.get<{ configured?: boolean }>('/api/v1/integrations/tuya-cloud/config')
+    if (!config?.configured) {
+      tuyaCloudDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: TuyaCloudDeviceSummary[] }>('/api/v1/integrations/tuya-cloud/devices')
+    tuyaCloudDevices.value = result?.devices || []
+  } catch {
+    // Tuya Cloud is optional. Keep all devices already loaded from the central registry.
+    tuyaCloudDevices.value = []
   }
-  if (filterStatus.value === 'offline') {
-    return devicesStore.offlineDevices || []
+}
+
+async function refreshAllDevices() {
+  isRefreshing.value = true
+  try {
+    const results = await Promise.allSettled([
+      devicesStore.fetchDevices(),
+      loadTuyaCloudDevices(),
+      loadDiscoveredHosts()
+    ])
+    if (results[0].status === 'rejected') {
+      throw results[0].reason
+    }
+    notifStore.success('Dispositivi aggiornati', 'Elenco dispositivi e stato delle integrazioni aggiornati.')
+  } catch (err: any) {
+    notifStore.error('Aggiornamento non riuscito', err?.message || 'Impossibile aggiornare i dispositivi.')
+  } finally {
+    isRefreshing.value = false
   }
-  return devicesStore.devices || []
+}
+
+const allDevices = computed<UnifiedDevice[]>(() => {
+  const merged: UnifiedDevice[] = (devicesStore.devices || []).map(device => ({
+    ...device,
+    source_label: device.integration_id
+  }))
+
+  for (const cloudDevice of tuyaCloudDevices.value) {
+    const existingIndex = merged.findIndex(device =>
+      device.external_id === cloudDevice.id ||
+      device.id === cloudDevice.id ||
+      (device.integration_id === 'tuya_local' && device.id === `tuya_${cloudDevice.id}`)
+    )
+    const existing = existingIndex >= 0 ? merged[existingIndex] : undefined
+    const cloudFields = {
+      manufacturer: existing?.manufacturer || 'Tuya',
+      model: existing?.model || cloudDevice.product_name || cloudDevice.category,
+      status: (cloudDevice.online ? 'online' : 'offline') as Device['status'],
+      local_configured: Boolean(cloudDevice.local_configured || existing?.integration_id === 'tuya_local'),
+      local_active: Boolean(cloudDevice.local_active),
+      local_ip: cloudDevice.local_ip,
+      source_label: cloudDevice.local_configured || existing?.integration_id === 'tuya_local'
+        ? 'Tuya Cloud · LocalTuya'
+        : 'Tuya Cloud'
+    }
+    if (existingIndex >= 0) {
+      merged[existingIndex] = { ...existing!, ...cloudFields }
+    } else {
+      merged.push({
+        id: `tuya-cloud:${cloudDevice.id}`,
+        external_id: cloudDevice.id,
+        name: cloudDevice.name,
+        integration_id: 'tuya_cloud',
+        created_at: '',
+        updated_at: '',
+        ...cloudFields
+      })
+    }
+  }
+
+  return merged
 })
 
-const totalDevicesCount = computed(() => (devicesStore.devices || []).length)
-const onlineDevicesCount = computed(() => (devicesStore.onlineDevices || []).length)
-const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).length)
+const integrationOptions = computed(() =>
+  [...new Set(allDevices.value.map(device => device.integration_id).filter(Boolean))].sort()
+)
+
+const filteredDevices = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase()
+  return allDevices.value.filter(device => {
+    if (filterStatus.value === 'online' && device.status !== 'online') return false
+    if (filterStatus.value === 'offline' && device.status !== 'offline') return false
+    if (filterIntegration.value !== 'all' && device.integration_id !== filterIntegration.value) return false
+    if (!query) return true
+    return [
+      device.name,
+      device.id,
+      device.external_id,
+      device.manufacturer,
+      device.model,
+      device.integration_id,
+      device.local_ip
+    ].some(value => String(value || '').toLocaleLowerCase().includes(query))
+  })
+})
+
+const totalDevicesCount = computed(() => allDevices.value.length)
+const onlineDevicesCount = computed(() => allDevices.value.filter(device => device.status === 'online').length)
+const offlineDevicesCount = computed(() => allDevices.value.filter(device => device.status === 'offline').length)
 </script>
 
 <template>
@@ -138,6 +246,14 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
         <p class="section-subtitle">{{ t('devices.subtitle') }}</p>
       </div>
       <div class="header-actions">
+        <button
+          class="btn-action-outline"
+          :disabled="isRefreshing"
+          @click="refreshAllDevices"
+        >
+          <RefreshCw :size="16" :class="{ 'spin-icon': isRefreshing }" />
+          <span>{{ isRefreshing ? 'Aggiornamento…' : 'Aggiorna' }}</span>
+        </button>
         <button
           class="btn-action-outline"
           :disabled="isScanning"
@@ -198,12 +314,14 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
     <div class="filters-row">
       <button
         :class="['filter-pill', { active: filterStatus === 'all' }]"
+        :aria-pressed="filterStatus === 'all'"
         @click="filterStatus = 'all'"
       >
         {{ t('devices.filterAll') }} ({{ totalDevicesCount }})
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'online' }]"
+        :aria-pressed="filterStatus === 'online'"
         @click="filterStatus = 'online'"
       >
         <Wifi :size="15" />
@@ -211,11 +329,27 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'offline' }]"
+        :aria-pressed="filterStatus === 'offline'"
         @click="filterStatus = 'offline'"
       >
         <WifiOff :size="15" />
         {{ t('devices.filterOffline') }} ({{ offlineDevicesCount }})
       </button>
+    </div>
+
+    <div class="device-filter-tools">
+      <label class="device-search">
+        <Search :size="16" />
+        <input id="devices-search" v-model="searchQuery" type="search" placeholder="Cerca per nome, produttore, modello o IP…" />
+      </label>
+      <label class="integration-filter">
+        <span>Integrazione</span>
+        <select id="devices-integration-filter" v-model="filterIntegration">
+          <option value="all">Tutte le integrazioni</option>
+          <option v-for="integration in integrationOptions" :key="integration" :value="integration">{{ integration }}</option>
+        </select>
+      </label>
+      <span class="device-result-count">{{ filteredDevices.length }} di {{ totalDevicesCount }} dispositivi</span>
     </div>
 
     <!-- Devices Grid -->
@@ -234,12 +368,14 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
             <div class="device-meta">
               <span v-if="device.manufacturer" class="meta-tag">{{ device.manufacturer }}</span>
               <span v-if="device.model" class="meta-tag">{{ device.model }}</span>
+              <span v-if="device.local_configured" class="meta-tag meta-tag-local">LocalTuya</span>
+              <span v-if="device.local_ip" class="meta-tag">{{ device.local_ip }}</span>
             </div>
           </div>
         </div>
 
         <div class="device-card-footer">
-          <span class="integration-badge">{{ device.integration_id }}</span>
+          <span class="integration-badge">{{ device.source_label || device.integration_id }}</span>
           <div class="status-indicator">
             <span class="status-dot" :class="{ online: device.status === 'online' }" />
             <span class="status-text">{{ device.status }}</span>
@@ -251,10 +387,11 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
     <!-- Empty State -->
     <div v-else class="empty-state glass-card">
       <Cpu :size="36" class="empty-icon" />
-      <h3 class="empty-title">{{ t('devices.emptyTitle') }}</h3>
+      <h3 class="empty-title">{{ totalDevicesCount > 0 ? 'Nessun dispositivo corrisponde ai filtri' : t('devices.emptyTitle') }}</h3>
       <p class="empty-desc">
-        {{ t('devices.emptyDesc') }}
+        {{ totalDevicesCount > 0 ? 'Prova a modificare la ricerca o il filtro per integrazione.' : t('devices.emptyDesc') }}
       </p>
+      <button v-if="totalDevicesCount > 0" class="btn-secondary" @click="searchQuery = ''; filterIntegration = 'all'; filterStatus = 'all'">Azzera filtri</button>
     </div>
 
     <!-- Setup Modal for Discovered Host -->
@@ -430,6 +567,60 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.device-filter-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.device-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  min-width: 220px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+.device-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+}
+.integration-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.integration-filter select {
+  min-height: 38px;
+  max-width: 220px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-main);
+}
+.device-result-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.meta-tag-local {
+  color: var(--color-success);
+  border-color: rgba(16, 185, 129, .35);
 }
 
 .filter-pill {
@@ -1100,5 +1291,59 @@ const offlineDevicesCount = computed(() => (devicesStore.offlineDevices || []).l
   background: #ffffff;
   border-color: #cbd5e1;
   color: #0f172a;
+}
+
+@media (max-width: 768px) {
+  .header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .header-actions > button {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .device-filter-tools {
+    align-items: stretch;
+  }
+  .device-search {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .integration-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .integration-filter select {
+    flex: 1;
+    max-width: none;
+  }
+  .device-result-count {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .filters-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filter-pill {
+    justify-content: center;
+    padding: 8px 10px;
+  }
+  .devices-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .device-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 </style>

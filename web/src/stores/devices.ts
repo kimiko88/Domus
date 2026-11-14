@@ -18,8 +18,21 @@ export const useDevicesStore = defineStore('devices', () => {
     try {
       loading.value = true
       error.value = null
-      const data = await apiClient.get<Device[] | null>('/api/v1/devices')
-      devices.value = data ?? []
+      type ApiDevice = Omit<Device, 'status'> & {
+        status?: Device['status']
+        online?: boolean
+      }
+      const data = await apiClient.get<ApiDevice[] | null>('/api/v1/devices')
+      devices.value = (data ?? []).map((device) => ({
+        ...device,
+        status: device.status === 'online' || device.status === 'offline' || device.status === 'unknown'
+          ? device.status
+          : device.online === true
+            ? 'online'
+            : device.online === false
+              ? 'offline'
+              : 'unknown'
+      }))
       return devices.value
     } catch (err: any) {
       error.value = err?.message || 'Failed to fetch devices'
