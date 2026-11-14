@@ -16,7 +16,9 @@
     "disabled": "Desactivados",
     "name": "Nombre",
     "description": "Descripción",
-    "no_data": "No hay datos disponibles"
+    "no_data": "No hay datos disponibles",
+    "skipToContent": "Saltar al contenido principal",
+    "offlineReconnecting": "Se ha perdido la conexión con el hub local. Reconectando automáticamente..."
   },
   "nav": {
     "sectionOverview": "Resumen",
