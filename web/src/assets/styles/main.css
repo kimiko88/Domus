@@ -337,3 +337,33 @@ a:hover {
 }
 
 
+
+
+/* Horizontally scrollable navigation groups on touch devices.
+   Child controls keep their intrinsic width instead of being clipped. */
+:where([role="tablist"], .tab-switcher, .view-tabs, .tabs-row, .filter-tabs) {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+}
+
+:where([role="tablist"], .tab-switcher, .view-tabs, .tabs-row, .filter-tabs) > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .content-wrapper,
+  .page-content,
+  .main-layout {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
