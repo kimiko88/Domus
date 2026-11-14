@@ -16,7 +16,9 @@
     "disabled": "Disabilitati",
     "name": "Nome",
     "description": "Descrizione",
-    "no_data": "Nessun dato disponibile"
+    "no_data": "Nessun dato disponibile",
+    "skipToContent": "Salta al contenuto principale",
+    "offlineReconnecting": "Connessione all'hub locale interrotta. Riconnessione automatica in corso..."
   },
   "nav": {
     "sectionOverview": "Panoramica",
