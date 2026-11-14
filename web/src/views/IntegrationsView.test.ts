@@ -294,7 +294,7 @@ describe('IntegrationsView.vue', () => {
     await wrapper.vm.$nextTick()
 
     // Find and click sync button
-    const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Attiva LAN Locale'))
+    const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Applica selezione'))
     expect(syncBtn).toBeDefined()
     await syncBtn!.trigger('click')
     expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', { device_ids: ['tuya-local-dev-1'] })
