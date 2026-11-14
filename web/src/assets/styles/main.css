@@ -341,7 +341,17 @@ a:hover {
 
 /* Horizontally scrollable navigation groups on touch devices.
    Child controls keep their intrinsic width instead of being clipped. */
-:where([role="tablist"], .tab-switcher, .view-tabs, .tabs-row, .filter-tabs) {
+:where(
+  [role="tablist"],
+  .tab-switcher,
+  .view-tabs,
+  .tabs-row,
+  .filter-tabs,
+  .tab-selector,
+  .login-tabs,
+  .assistant-tabs,
+  .main-tabs-bar
+) {
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -353,7 +363,17 @@ a:hover {
   touch-action: pan-x;
 }
 
-:where([role="tablist"], .tab-switcher, .view-tabs, .tabs-row, .filter-tabs) > * {
+:where(
+  [role="tablist"],
+  .tab-switcher,
+  .view-tabs,
+  .tabs-row,
+  .filter-tabs,
+  .tab-selector,
+  .login-tabs,
+  .assistant-tabs,
+  .main-tabs-bar
+) > * {
   flex: 0 0 auto;
   white-space: nowrap;
 }
