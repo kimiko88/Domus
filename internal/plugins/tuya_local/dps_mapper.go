@@ -2,8 +2,10 @@ package tuya_local
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // DeviceCategory identifies the device profile for DPS mappings.
@@ -115,6 +117,21 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 				result.Attributes["current_temperature"] = num / 10.0
 			}
 		}
+		// Local thermostat mode: DPS 4 (0 = automatic, 1 = manual).
+		if mode, exists := dps["4"]; exists {
+			if num, ok := toFloat(mode); ok {
+				switch num {
+				case 0:
+					result.Attributes["hvac_mode"] = "auto"
+				case 1:
+					result.Attributes["hvac_mode"] = "manual"
+				default:
+					result.Attributes["dp_4"] = mode
+				}
+			} else {
+				result.Attributes["dp_4"] = mode
+			}
+		}
 
 	default: // CategorySensor
 		result.Domain = "sensor"
@@ -187,11 +204,31 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 		case "turn_off":
 			dps["1"] = false
 		case "set_temperature":
-			if temp, ok := params["temperature"]; ok {
-				if f, ok := toFloat(temp); ok {
-					dps["2"] = int(f * 10.0)
-				}
+			temp, ok := toFloat(params["temperature"])
+			if !ok || math.IsNaN(temp) || math.IsInf(temp, 0) {
+				return nil, errors.New("climate temperature must be a finite number")
 			}
+			dps["2"] = int(math.Round(temp * 10.0))
+		case "set_mode":
+			mode, ok := params["mode"].(string)
+			if !ok {
+				return nil, errors.New("climate mode must be 'auto' or 'manual'")
+			}
+			switch strings.ToLower(strings.TrimSpace(mode)) {
+			case "auto", "automatic", "automatico":
+				dps["4"] = 0
+			case "manual":
+				dps["4"] = 1
+			default:
+				return nil, fmt.Errorf("unsupported climate mode: %s", mode)
+			}
+		case "set_dp":
+			dpID, ok := toFloat(params["dp_id"])
+			value, valueOK := toFloat(params["value"])
+			if !ok || dpID != 4 || !valueOK || (value != 0 && value != 1) {
+				return nil, errors.New("LocalTuya climate set_dp only accepts dp_id=4 and value 0 (automatic) or 1 (manual)")
+			}
+			dps["4"] = int(value)
 		default:
 			return nil, fmt.Errorf("unsupported climate command: %s", command)
 		}

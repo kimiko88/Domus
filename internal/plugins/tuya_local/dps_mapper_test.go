@@ -67,3 +67,49 @@ func TestDPSMapper_MapCommandToDPS(t *testing.T) {
 		t.Errorf("expected DPS 20: true, 22: 1000, got %v", lightDPS)
 	}
 }
+
+func TestDPSMapper_MapClimateModeAndSetDP4(t *testing.T) {
+	mapper := NewDPSMapper()
+
+	auto, err := mapper.MapCommandToDPS(CategoryClimate, "set_mode", map[string]any{"mode": "auto"})
+	if err != nil || auto["4"] != 0 {
+		t.Fatalf("auto mode must write DP4=0, got %v, err=%v", auto, err)
+	}
+	manual, err := mapper.MapCommandToDPS(CategoryClimate, "set_mode", map[string]any{"mode": "manual"})
+	if err != nil || manual["4"] != 1 {
+		t.Fatalf("manual mode must write DP4=1, got %v, err=%v", manual, err)
+	}
+	direct, err := mapper.MapCommandToDPS(CategoryClimate, "set_dp", map[string]any{"dp_id": 4, "value": 0})
+	if err != nil || direct["4"] != 0 {
+		t.Fatalf("device.set_dp(4, 0) must write DP4=0, got %v, err=%v", direct, err)
+	}
+	if _, err := mapper.MapCommandToDPS(CategoryClimate, "set_dp", map[string]any{"dp_id": 2, "value": 1}); err == nil {
+		t.Fatal("raw LocalTuya mode writes must reject datapoints other than DP4")
+	}
+}
+
+func TestDPSMapper_MapClimateTemperature(t *testing.T) {
+	mapper := NewDPSMapper()
+	dps, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{"temperature": 21.5})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dps["2"] != 215 {
+		t.Fatalf("expected temperature 21.5°C to write DP2=215, got %v", dps["2"])
+	}
+}
+
+func TestDPSMapper_MapClimateModeState(t *testing.T) {
+	mapper := NewDPSMapper()
+	parsed := mapper.MapDPSToEntity(CategoryClimate, map[string]any{"2": 215, "3": 205, "4": 0})
+	if parsed.Attributes["target_temperature"] != 21.5 || parsed.Attributes["current_temperature"] != 20.5 {
+		t.Fatalf("unexpected mapped temperatures: %+v", parsed.Attributes)
+	}
+	if parsed.Attributes["hvac_mode"] != "auto" {
+		t.Fatalf("expected DP4=0 to map to auto, got %+v", parsed.Attributes)
+	}
+	manual := mapper.MapDPSToEntity(CategoryClimate, map[string]any{"4": 1})
+	if manual.Attributes["hvac_mode"] != "manual" {
+		t.Fatalf("expected DP4=1 to map to manual, got %+v", manual.Attributes)
+	}
+}

@@ -117,3 +117,22 @@ func TestAdapter_RegisterAndPersistDevice(t *testing.T) {
 		t.Errorf("unexpected device in configs: %+v", devices[0])
 	}
 }
+
+func TestAdapter_UnregisterDevice(t *testing.T) {
+	adapter := NewAdapter("tuya_test", &mockBus{})
+	adapter.RegisterDevice(DeviceConfig{
+		DeviceID: "dev_remove_1",
+		LocalKey: "0123456789abcdef",
+		Category: CategoryClimate,
+		EntityKey: "climate.tuya_dev_remove_1",
+	})
+	if !adapter.IsDeviceConfigured("dev_remove_1") {
+		t.Fatal("device should be configured before removal")
+	}
+	if err := adapter.UnregisterDevice(context.Background(), "dev_remove_1"); err != nil {
+		t.Fatalf("UnregisterDevice failed: %v", err)
+	}
+	if adapter.IsDeviceConfigured("dev_remove_1") {
+		t.Fatal("device should no longer be configured")
+	}
+}

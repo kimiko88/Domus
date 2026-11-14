@@ -50,7 +50,7 @@ type Device struct {
 }
 type Status struct { Code string `json:"code"`; Value any `json:"value"` }
 type Command struct { Code string `json:"code"`; Value any `json:"value"` }
-type Function struct { Code string `json:"code"`; Name string `json:"name"`; Type string `json:"type"`; Values string `json:"values"` }
+type Function struct { Code string `json:"code"`; Name string `json:"name"`; Desc string `json:"desc"`; Type string `json:"type"`; Values string `json:"values"` }
 type envelope struct {
 	Success bool `json:"success"`
 	Code any `json:"code"`

@@ -455,6 +455,50 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 	a.mu.Unlock()
 }
 
+// UnregisterDevice removes a device from the LocalTuya allow-list and releases its LAN connection.
+// Domus entities created for this LocalTuya device are removed as well, so a deselected device
+// is no longer exposed as an active integration entity.
+func (a *Adapter) UnregisterDevice(ctx context.Context, deviceID string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return errors.New("tuya_local: device ID is required")
+	}
+
+	a.mu.Lock()
+	cfg, exists := a.configs[deviceID]
+	client := a.devices[deviceID]
+	delete(a.configs, deviceID)
+	delete(a.devices, deviceID)
+	a.mu.Unlock()
+
+	if !exists {
+		return nil
+	}
+	if client != nil {
+		_ = client.Close()
+	}
+	if a.db != nil {
+		if _, err := a.db.ExecContext(ctx, "DELETE FROM tuya_local_devices WHERE device_id = ?", deviceID); err != nil {
+			return fmt.Errorf("tuya_local: remove persisted device: %w", err)
+		}
+	}
+	if a.entRepo != nil && cfg.EntityKey != "" {
+		if ent, err := a.entRepo.GetByKey(ctx, cfg.EntityKey); err == nil && ent != nil {
+			if err := a.entRepo.Delete(ctx, ent.ID); err != nil {
+				return fmt.Errorf("tuya_local: remove Domus entity: %w", err)
+			}
+		}
+	}
+	if a.devRepo != nil {
+		if dev, err := a.devRepo.GetByID(ctx, fmt.Sprintf("tuya_%s", deviceID)); err == nil && dev != nil {
+			if err := a.devRepo.Delete(ctx, dev.ID); err != nil {
+				return fmt.Errorf("tuya_local: remove Domus device: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 // SendCommand executes a LAN command directly to a device using its local_key.
 func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) error {
 	a.mu.RLock()

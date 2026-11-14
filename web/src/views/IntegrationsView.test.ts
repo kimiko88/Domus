@@ -294,10 +294,10 @@ describe('IntegrationsView.vue', () => {
     await wrapper.vm.$nextTick()
 
     // Find and click sync button
-    const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Attiva LAN Locale'))
+    const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Applica selezione'))
     expect(syncBtn).toBeDefined()
     await syncBtn!.trigger('click')
-    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', {})
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', { device_ids: ['tuya-local-dev-1'] })
 
     // Now click the toggle on the locally configured device
     const toggle = wrapper.find('.btn-host-probe')
@@ -347,6 +347,164 @@ describe('IntegrationsView.vue', () => {
       uid: 'eu123456789',
       endpoint: 'https://openapi.tuyaeu.com'
     })
+  })
+
+
+  it('filters online and offline Tuya devices, selects devices and loads the API function set', async () => {
+    const cloudDevices = [
+      { id: 'tuya-online-1', name: 'Presa online', category: 'cz', online: true, status: [] },
+      { id: 'tuya-offline-1', name: 'Presa offline', category: 'cz', online: false, status: [] }
+    ]
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-online-1/functions')) {
+        return { functions: [{ code: 'switch_led', name: 'Interruttore', desc: 'Accensione luce', type: 'Boolean', values: '{}' }] }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true, synced_count: 1 })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(wrapper.text()).toContain('Presa online')
+    expect(wrapper.text()).toContain('Presa offline')
+    await wrapper.find('.tuya-device-filters button:nth-child(3)').trigger('click')
+    expect(wrapper.text()).toContain('Presa offline')
+    expect(wrapper.text()).not.toContain('Presa online')
+    await wrapper.find('.tuya-device-filters button:nth-child(1)').trigger('click')
+
+    const checkbox = wrapper.find('.tuya-device-selection input[type="checkbox"]')
+    await checkbox.setValue(true)
+    const syncButton = wrapper.findAll('button').find(button => button.text().includes('Applica selezione'))
+    expect(syncButton).toBeDefined()
+    await syncButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', { device_ids: ['tuya-online-1'] })
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    expect(functionsButton).toBeDefined()
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-online-1/functions')
+    expect(wrapper.text()).toContain('Accensione luce')
+    expect(wrapper.text()).toContain('switch_led')
+  })
+
+  it('exposes LocalTuya thermostat DP4 automatic/manual and target temperature controls', async () => {
+    const cloudDevices = [{
+      id: 'tuya-thermostat-1',
+      name: 'Termostato camera',
+      product_name: 'Wi-Fi Thermostat',
+      category: 'wk',
+      online: true,
+      local_configured: true,
+      local_active: true,
+      local_ip: '192.168.1.88',
+      status: [{ code: 'temp_set', value: 215 }, { code: 'temp_current', value: 205 }]
+    }]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Automatico · DP4 = 0')
+    expect(wrapper.text()).toContain('Manuale · DP4 = 1')
+    const autoButton = wrapper.findAll('button').find(button => button.text().includes('Automatico · DP4 = 0'))
+    const manualButton = wrapper.findAll('button').find(button => button.text().includes('Manuale · DP4 = 1'))
+    expect(autoButton).toBeDefined()
+    expect(manualButton).toBeDefined()
+    await autoButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
+      { command: 'set_dp', params: { dp_id: 4, value: 0 } }
+    )
+    await manualButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
+      { command: 'set_dp', params: { dp_id: 4, value: 1 } }
+    )
+
+    const temperature = wrapper.find('#tuya-temp-tuya-thermostat-1')
+    await temperature.setValue('22.5')
+    const setTemperature = wrapper.findAll('button').find(button => button.text().includes('Imposta temperatura'))
+    await setTemperature!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
+      { command: 'set_temperature', params: { temperature: 22.5 } }
+    )
+  })
+
+
+  it('sends discovered supported thermostat commands through LocalTuya when cloud reports the device offline', async () => {
+    const cloudDevices = [{
+      id: 'tuya-offline-thermostat',
+      name: 'Termostato locale',
+      category: 'wk',
+      online: false,
+      local_configured: true,
+      local_active: true,
+      local_ip: '192.168.1.90',
+      status: [{ code: 'temp_set', value: 215 }]
+    }]
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-offline-thermostat/functions')) {
+        return {
+          functions: [{
+            code: 'temp_set',
+            name: 'Temperatura obiettivo',
+            type: 'Integer',
+            values: '{"min":50,"max":350,"scale":1}'
+          }]
+        }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-offline-thermostat/functions')
+
+    const temperatureInput = wrapper.find('input[aria-label="Valore per Temperatura obiettivo"]')
+    await temperatureInput.setValue('22.5')
+    const executeButton = wrapper.findAll('button').find(button => button.text().includes('Invia'))
+    expect(executeButton).toBeDefined()
+    await executeButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-offline-thermostat/command',
+      { command: 'set_temperature', params: { temperature: 22.5 } }
+    )
+    expect(postSpy).not.toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-offline-thermostat/commands',
+      expect.anything()
+    )
   })
 
 })

@@ -116,11 +116,78 @@ interface TuyaCloudDevice {
   local_active?: boolean
   local_ip?: string
 }
+
+interface TuyaDeviceFunction {
+  code: string
+  name: string
+  desc?: string
+  type: string
+  values: string
+}
+
 const tuyaCloudDevices = ref<TuyaCloudDevice[]>([])
 const tuyaCloudLoading = ref(false)
 const tuyaCloudError = ref('')
 const tuyaCloudCommanding = ref<string | null>(null)
 const tuyaSyncing = ref(false)
+const tuyaDeviceFilter = ref<'all' | 'online' | 'offline'>('all')
+const selectedTuyaDeviceIds = ref<string[]>([])
+const tuyaDeviceFunctions = ref<Record<string, TuyaDeviceFunction[]>>({})
+const tuyaFunctionPanels = ref<Record<string, boolean>>({})
+const tuyaFunctionsLoading = ref<string | null>(null)
+const tuyaFunctionInputs = reactive<Record<string, string>>({})
+const tuyaFunctionBusy = ref<string | null>(null)
+const tuyaTemperatureInputs = reactive<Record<string, string>>({})
+
+const filteredTuyaCloudDevices = computed(() => {
+  if (tuyaDeviceFilter.value === 'online') return tuyaCloudDevices.value.filter(device => device.online)
+  if (tuyaDeviceFilter.value === 'offline') return tuyaCloudDevices.value.filter(device => !device.online)
+  return tuyaCloudDevices.value
+})
+
+const tuyaOnlineCount = computed(() => tuyaCloudDevices.value.filter(device => device.online).length)
+const tuyaOfflineCount = computed(() => tuyaCloudDevices.value.length - tuyaOnlineCount.value)
+
+function tuyaFunctionKey(deviceId: string, code: string) {
+  return `${deviceId}:${code}`
+}
+
+function tuyaFunctionValues(fn: TuyaDeviceFunction): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(fn.values || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function isNumericTuyaFunction(fn: TuyaDeviceFunction) {
+  return ['integer', 'number', 'float', 'double'].includes(fn.type.toLowerCase())
+}
+
+function tuyaFunctionScale(fn: TuyaDeviceFunction) {
+  const scale = Number(tuyaFunctionValues(fn).scale ?? 0)
+  return Number.isInteger(scale) && scale >= 0 && scale <= 4 ? scale : 0
+}
+
+function tuyaTemperatureFunction(deviceId: string) {
+  return (tuyaDeviceFunctions.value[deviceId] || []).find(fn =>
+    /temp/i.test(fn.code) && !/current|cur_|indoor/i.test(fn.code)
+  )
+}
+
+function isTuyaClimateDevice(device: TuyaCloudDevice) {
+  const category = (device.category || '').toLowerCase()
+  const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
+  return category === 'wk' || category.includes('climate') || category.includes('thermostat') ||
+    label.includes('thermostat') || label.includes('termostato')
+}
+
+function canControlLocalTuya(device: TuyaCloudDevice) {
+  return Boolean(device.local_configured)
+}
 
 interface TuyaCloudConfig {
   configured: boolean
@@ -235,6 +302,18 @@ async function fetchTuyaCloudDevices() {
   try {
     const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
     tuyaCloudDevices.value = result.devices || []
+    selectedTuyaDeviceIds.value = tuyaCloudDevices.value
+      .filter(device => device.local_configured)
+      .map(device => device.id)
+    for (const device of tuyaCloudDevices.value) {
+      if (isTuyaClimateDevice(device) && tuyaTemperatureInputs[device.id] === undefined) {
+        const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
+        const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
+        tuyaTemperatureInputs[device.id] = Number.isFinite(raw) && target
+          ? String(raw > 60 ? raw / 10 : raw)
+          : '20'
+      }
+    }
   } catch (err: any) {
     tuyaCloudError.value = err?.message || 'Cloud Tuya non configurato o non raggiungibile.'
   } finally {
@@ -245,13 +324,167 @@ async function fetchTuyaCloudDevices() {
 async function syncTuyaCloudToLocal() {
   tuyaSyncing.value = true
   try {
-    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>('/api/v1/integrations/tuya-cloud/sync-local', {})
-    notificationsStore.success('Controllo LAN Attivato', res.message || `${res.synced_count} dispositivi sincronizzati per il controllo locale LAN con Local Key.`)
+    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>(
+      '/api/v1/integrations/tuya-cloud/sync-local',
+      { device_ids: selectedTuyaDeviceIds.value }
+    )
+    notificationsStore.success('Selezione LocalTuya aggiornata', res.message || `${res.synced_count} dispositivi abilitati per il controllo LAN.`)
     await fetchTuyaCloudDevices()
   } catch (err: any) {
     notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
   } finally {
     tuyaSyncing.value = false
+  }
+}
+
+async function toggleTuyaDeviceFunctions(device: TuyaCloudDevice) {
+  if (tuyaFunctionPanels.value[device.id]) {
+    tuyaFunctionPanels.value[device.id] = false
+    return
+  }
+  tuyaFunctionPanels.value[device.id] = true
+  if (tuyaDeviceFunctions.value[device.id]) return
+
+  tuyaFunctionsLoading.value = device.id
+  try {
+    const result = await apiClient.get<{ functions: TuyaDeviceFunction[] }>(
+      `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/functions`
+    )
+    tuyaDeviceFunctions.value[device.id] = result.functions || []
+    for (const fn of tuyaDeviceFunctions.value[device.id]) {
+      const key = tuyaFunctionKey(device.id, fn.code)
+      const status = (device.status || []).find(point => point.code === fn.code)
+      const values = tuyaFunctionValues(fn)
+      const current = status?.value
+      if (current !== undefined) {
+        const numeric = Number(current)
+        tuyaFunctionInputs[key] = isNumericTuyaFunction(fn) && Number.isFinite(numeric) && /temp/i.test(fn.code)
+          ? String(numeric / Math.pow(10, tuyaFunctionScale(fn)))
+          : String(current)
+      } else {
+        tuyaFunctionInputs[key] = String(values.min ?? '')
+      }
+    }
+  } catch (err: any) {
+    notificationsStore.error('Comandi Tuya non disponibili', err?.message || 'Impossibile leggere le funzioni del dispositivo.')
+    tuyaFunctionPanels.value[device.id] = false
+  } finally {
+    tuyaFunctionsLoading.value = null
+  }
+}
+
+async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFunction) {
+  const key = tuyaFunctionKey(device.id, fn.code)
+  tuyaFunctionBusy.value = key
+  try {
+    const current = (device.status || []).find(point => point.code === fn.code)?.value
+    let value: unknown
+    const type = fn.type.toLowerCase()
+    if (type === 'boolean') {
+      value = current === true ? false : true
+    } else if (isNumericTuyaFunction(fn)) {
+      const parsed = Number(tuyaFunctionInputs[key])
+      if (!Number.isFinite(parsed)) {
+        notificationsStore.warning('Valore non valido', 'Inserisci un valore numerico valido per il comando.')
+        return
+      }
+      value = /temp/i.test(fn.code)
+        ? Math.round(parsed * Math.pow(10, tuyaFunctionScale(fn)))
+        : parsed
+    } else {
+      value = tuyaFunctionInputs[key] ?? ''
+    }
+
+    const code = fn.code.toLowerCase()
+    let sentLocally = false
+    if (device.local_configured) {
+      const localPath = `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`
+      if ((code.includes('switch') || code.includes('power')) && typeof value === 'boolean') {
+        await apiClient.post(localPath, { command: value ? 'turn_on' : 'turn_off' })
+        sentLocally = true
+      } else if (code.includes('temp') && !code.includes('current') && !code.includes('cur_') && typeof value === 'number') {
+        await apiClient.post(localPath, {
+          command: 'set_temperature',
+          params: { temperature: value / Math.pow(10, tuyaFunctionScale(fn)) }
+        })
+        sentLocally = true
+      } else if (code === 'mode' || code === 'work_mode' || code.endsWith('_mode')) {
+        if (typeof value === 'string' && ['auto', 'automatic', 'manual'].includes(value.toLowerCase())) {
+          await apiClient.post(localPath, { command: 'set_mode', params: { mode: value } })
+          sentLocally = true
+        } else if (typeof value === 'number' && (value === 0 || value === 1)) {
+          await apiClient.post(localPath, { command: 'set_dp', params: { dp_id: 4, value } })
+          sentLocally = true
+        }
+      }
+    }
+    if (!sentLocally) {
+      await apiClient.post(
+        `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
+        { commands: [{ code: fn.code, value }] }
+      )
+    }
+    notificationsStore.success(sentLocally ? 'Comando inviato via LAN' : 'Comando inviato', `${device.name}: ${fn.name || fn.code}`)
+    await fetchTuyaCloudDevices()
+  } catch (err: any) {
+    notificationsStore.error('Comando Tuya non riuscito', err?.message || 'Errore di comunicazione')
+  } finally {
+    tuyaFunctionBusy.value = null
+  }
+}
+
+async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manual') {
+  if (!device.local_configured) return
+  tuyaCloudCommanding.value = `${device.id}:dp4`
+  try {
+    await apiClient.post(
+      `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
+      { command: 'set_dp', params: { dp_id: 4, value: mode === 'auto' ? 0 : 1 } }
+    )
+    notificationsStore.success('Modalità termostato aggiornata', mode === 'auto'
+      ? 'LocalTuya: device.set_dp(4, 0) — automatico'
+      : 'LocalTuya: device.set_dp(4, 1) — manuale')
+  } catch (err: any) {
+    notificationsStore.error('Comando termostato non riuscito', err?.message || 'Errore di comunicazione LAN')
+  } finally {
+    tuyaCloudCommanding.value = null
+  }
+}
+
+async function setTuyaTemperature(device: TuyaCloudDevice) {
+  const temperature = Number(tuyaTemperatureInputs[device.id])
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 50) {
+    notificationsStore.warning('Temperatura non valida', 'Inserisci una temperatura compresa tra 0 e 50 °C.')
+    return
+  }
+  tuyaCloudCommanding.value = `${device.id}:temperature`
+  try {
+    if (device.local_configured) {
+      await apiClient.post(
+        `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
+        { command: 'set_temperature', params: { temperature } }
+      )
+    } else {
+      const fn = tuyaTemperatureFunction(device.id)
+      if (!fn) {
+        notificationsStore.warning('Comando temperatura non trovato', 'Carica prima i comandi del dispositivo per verificare la funzione di setpoint supportata.')
+        return
+      }
+      if (!device.online) {
+        notificationsStore.warning('Dispositivo offline', 'Il termostato è offline e non può ricevere il comando Cloud.')
+        return
+      }
+      await apiClient.post(
+        `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
+        { commands: [{ code: fn.code, value: Math.round(temperature * Math.pow(10, tuyaFunctionScale(fn))) }] }
+      )
+    }
+    notificationsStore.success('Setpoint aggiornato', `${device.name}: ${temperature.toFixed(1)} °C`)
+    await fetchTuyaCloudDevices()
+  } catch (err: any) {
+    notificationsStore.error('Impostazione temperatura non riuscita', err?.message || 'Errore di comunicazione')
+  } finally {
+    tuyaCloudCommanding.value = null
   }
 }
 
@@ -970,7 +1203,7 @@ onMounted(() => {
           </button>
           <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || !tuyaConfig.configured" @click="syncTuyaCloudToLocal">
             <Wifi :size="15" />
-            <span>{{ tuyaSyncing ? 'Sincronizzazione LAN…' : 'Attiva LAN Locale (Local Key)' }}</span>
+            <span>{{ tuyaSyncing ? 'Aggiornamento LocalTuya…' : `Applica selezione LAN (${selectedTuyaDeviceIds.length})` }}</span>
           </button>
           <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
             <Key :size="15" />
@@ -1105,8 +1338,27 @@ onMounted(() => {
         <p>Verifica di aver inquadrato il QR Code su Tuya IoT (Devices → Link Tuya App Account) con l'account Smart Life corretto e che il Data Center coincida.</p>
       </div>
 
-      <div v-if="tuyaCloudDevices.length > 0" class="hosts-grid">
-        <div v-for="device in tuyaCloudDevices" :key="device.id" class="host-card glass-card">
+      <div v-if="tuyaCloudDevices.length > 0" class="tuya-device-toolbar glass-card">
+        <div>
+          <strong>Dispositivi Smart Life</strong>
+          <span class="tuya-device-count">{{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline · {{ selectedTuyaDeviceIds.length }} selezionati</span>
+        </div>
+        <div class="tuya-device-filters" role="group" aria-label="Filtra dispositivi per stato">
+          <button type="button" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">Tutti ({{ tuyaCloudDevices.length }})</button>
+          <button type="button" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">Online ({{ tuyaOnlineCount }})</button>
+          <button type="button" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">Offline ({{ tuyaOfflineCount }})</button>
+        </div>
+      </div>
+
+      <div v-if="filteredTuyaCloudDevices.length > 0" class="hosts-grid">
+        <div v-for="device in filteredTuyaCloudDevices" :key="device.id" :class="['host-card glass-card', { 'tuya-device-offline': !device.online }]">
+          <div class="tuya-device-selection">
+            <label>
+              <input v-model="selectedTuyaDeviceIds" type="checkbox" :value="device.id" />
+              <span>Usa questo dispositivo in Domus / LocalTuya</span>
+            </label>
+            <span v-if="device.local_configured" class="tuya-selected-note">Abilitato</span>
+          </div>
           <div class="host-top">
             <div class="host-brand-icon"><Zap :size="20" /></div>
             <div class="host-meta">
@@ -1115,7 +1367,7 @@ onMounted(() => {
               <span v-if="device.local_ip" class="spec-lan-ip">LAN: {{ device.local_ip }}</span>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
-              <span v-if="device.local_configured" class="badge-lan" title="Controllo 100% locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
+              <span v-if="device.local_configured" class="badge-lan" title="Controllo locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
               <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
             </div>
           </div>
@@ -1124,16 +1376,71 @@ onMounted(() => {
               <span class="spec-key">{{ point.code }}</span>
               <span class="spec-code">{{ String(point.value) }}</span>
               <button
-                v-if="typeof point.value === 'boolean'"
+                v-if="typeof point.value === 'boolean' && (point.code.toLowerCase().includes('switch') || point.code.toLowerCase().includes('power'))"
                 class="btn-host-probe"
-                :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || !device.online"
+                :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || (!device.online && !device.local_active)"
                 @click="toggleTuyaStatus(device, point)"
               >
                 {{ point.value ? 'Spegni' : 'Accendi' }}
               </button>
             </div>
           </div>
+
+          <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
+            <div class="tuya-temperature-control">
+              <label :for="`tuya-temp-${device.id}`">Temperatura obiettivo (°C)</label>
+              <input :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]" type="number" min="0" max="50" step="0.5" />
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">Imposta temperatura</button>
+            </div>
+            <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">
+              <span>Modalità LocalTuya · DP 4</span>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'auto')">Automatico · DP4 = 0</button>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'manual')">Manuale · DP4 = 1</button>
+            </div>
+          </div>
+
+          <div class="tuya-functions-toggle">
+            <button type="button" class="btn-action glass-panel" :disabled="tuyaFunctionsLoading === device.id" @click="toggleTuyaDeviceFunctions(device)">
+              <RefreshCw v-if="tuyaFunctionsLoading === device.id" :size="14" class="animate-spin" />
+              <Cpu v-else :size="14" />
+              <span>{{ tuyaFunctionPanels[device.id] ? 'Nascondi comandi' : 'Comandi disponibili via API' }}</span>
+            </button>
+          </div>
+          <div v-if="tuyaFunctionPanels[device.id]" class="tuya-functions-panel">
+            <div v-if="(tuyaDeviceFunctions[device.id] || []).length === 0 && tuyaFunctionsLoading !== device.id" class="tuya-no-functions">
+              Nessuna funzione scrivibile restituita dall'API per questo dispositivo.
+            </div>
+            <div v-for="fn in tuyaDeviceFunctions[device.id] || []" :key="fn.code" class="tuya-function-row">
+              <div class="tuya-function-meta">
+                <strong>{{ fn.name || fn.code }}</strong>
+                <span>{{ fn.code }} · {{ fn.type }}</span>
+                <small>{{ fn.desc || fn.values || 'Parametri non specificati' }}</small>
+              </div>
+              <div class="tuya-function-input">
+                <input
+                  v-if="isNumericTuyaFunction(fn)"
+                  v-model="tuyaFunctionInputs[tuyaFunctionKey(device.id, fn.code)]"
+                  type="number"
+                  :aria-label="`Valore per ${fn.name || fn.code}`"
+                />
+                <input
+                  v-else-if="fn.type.toLowerCase() !== 'boolean'"
+                  v-model="tuyaFunctionInputs[tuyaFunctionKey(device.id, fn.code)]"
+                  type="text"
+                  :aria-label="`Valore per ${fn.name || fn.code}`"
+                />
+                <button type="button" class="btn-host-probe" :disabled="tuyaFunctionBusy === tuyaFunctionKey(device.id, fn.code) || (!device.online && !device.local_active)" @click="executeTuyaFunction(device, fn)">
+                  {{ tuyaFunctionBusy === tuyaFunctionKey(device.id, fn.code) ? 'Invio…' : fn.type.toLowerCase() === 'boolean' ? 'Inverti' : 'Invia' }}
+                </button>
+              </div>
+              <code class="tuya-function-values">{{ fn.values }}</code>
+            </div>
+          </div>
         </div>
+      </div>
+      <div v-else-if="tuyaCloudDevices.length > 0" class="empty-guardian-state glass-card">
+        <WifiOff :size="28" />
+        <p>Nessun dispositivo corrisponde al filtro selezionato.</p>
       </div>
     </div>
 
@@ -2518,6 +2825,110 @@ onMounted(() => {
   .host-footer { flex-direction: column; }
   .btn-host-probe,
   .btn-host-quarantine { width: 100%; min-height: 44px; }
+}
+
+
+/* Tuya device selection, discovery filters and thermostat controls */
+.tuya-device-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.tuya-device-count {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tuya-device-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tuya-device-filters button {
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,.035);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.tuya-device-filters button.active {
+  border-color: var(--primary);
+  color: var(--text-main);
+  background: rgba(14,165,233,.12);
+}
+.tuya-device-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-main);
+  font-size: 12px;
+}
+.tuya-device-selection label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.tuya-device-selection input { width: 18px; height: 18px; accent-color: var(--primary); }
+.tuya-selected-note { color: var(--success); font-size: 11px; font-weight: 700; }
+.tuya-device-offline { opacity: .82; }
+.tuya-climate-controls, .tuya-functions-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,.025);
+}
+.tuya-temperature-control, .tuya-mode-control, .tuya-function-input {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tuya-temperature-control label, .tuya-mode-control > span {
+  flex: 1 1 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tuya-temperature-control input, .tuya-function-input input {
+  min-height: 40px;
+  width: 110px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,.2);
+  color: var(--text-main);
+}
+.tuya-functions-toggle { margin-top: 12px; }
+.tuya-function-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.tuya-function-row:last-child { border-bottom: 0; }
+.tuya-function-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tuya-function-meta strong { font-size: 13px; color: var(--text-main); }
+.tuya-function-meta span, .tuya-function-meta small, .tuya-function-values { font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
+.tuya-function-values { grid-column: 1 / -1; white-space: pre-wrap; }
+.tuya-no-functions { color: var(--text-muted); font-size: 12px; }
+@media (max-width: 620px) {
+  .tuya-function-row { grid-template-columns: 1fr; }
+  .tuya-function-input input { flex: 1; width: min(100%, 180px); }
 }
 
 </style>
