@@ -12,7 +12,11 @@ describe('DevicesView.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     devicesStore = useDevicesStore()
-    vi.spyOn(apiClient, 'get').mockResolvedValue([])
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/network/discovered') return []
+      throw new Error(`No API fixture for ${url}`)
+    })
   })
 
   it('renders device list with status and integration info', async () => {
