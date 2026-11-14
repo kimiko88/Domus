@@ -393,7 +393,7 @@ onMounted(() => {
                 class="btn-2fa-action"
                 @click="startTwoFactorSetup"
               >
-                Configura
+                {{ t('settings.configure') }}
               </button>
               <button
                 v-else
@@ -401,7 +401,7 @@ onMounted(() => {
                 class="btn-2fa-action disable"
                 @click="disableTwoFactor"
               >
-                Disattiva
+                {{ t('settings.disable') }}
               </button>
             </div>
           </div>
