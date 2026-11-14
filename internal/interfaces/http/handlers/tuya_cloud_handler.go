@@ -413,7 +413,6 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	client := h.getClient()
 	if client == nil || client.Config().ClientID == "" {
 		writeError(w, http.StatusBadRequest, "TUYA_NOT_CONFIGURED", "Tuya Cloud non configurato")
 		return
@@ -486,7 +485,7 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			if _, belongsToAccount := known[cfg.DeviceID]; belongsToAccount {
 				if _, keep := selected[cfg.DeviceID]; !keep {
 					if err := h.tuyaLocal.UnregisterDevice(r.Context(), cfg.DeviceID); err != nil {
-					writeError(w, http.StatusInternalServerError, "LOCAL_DEVICE_REMOVE_FAILED", "failed to remove a deselected LocalTuya device")
+						writeError(w, http.StatusInternalServerError, "LOCAL_DEVICE_REMOVE_FAILED", "failed to remove a deselected LocalTuya device")
 						return
 					}
 				}
