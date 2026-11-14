@@ -1,11 +1,13 @@
 package tuya_local
 
 import (
+	"database/sql"
 	"context"
 	"testing"
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
+	_ "modernc.org/sqlite"
 )
 
 type mockBus struct {
@@ -186,5 +188,66 @@ func TestAdapter_RejectsPublicIPOnRegistrationAndDiscovery(t *testing.T) {
 	})
 	if got := adapter.GetDeviceIP("dev_public_ip"); got != "" {
 		t.Fatalf("public IP must not be accepted from discovery, got %q", got)
+	}
+}
+
+func TestAdapter_LoadStoredDevicesClearsUntrustedIPWithSingleConnection(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	db.SetMaxOpenConns(1)
+
+	_, err = db.Exec(`
+		CREATE TABLE tuya_local_devices (
+			device_id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			ip TEXT NOT NULL,
+			local_key_enc TEXT NOT NULL,
+			version TEXT NOT NULL,
+			category TEXT NOT NULL,
+			entity_key TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+		INSERT INTO tuya_local_devices
+			(device_id, name, ip, local_key_enc, version, category, entity_key, updated_at)
+		VALUES
+			('dev_legacy_wan', 'Legacy Tuya device', '87.123.45.67',
+			 '0123456789abcdef', '3.3', 'switch', 'switch.tuya_legacy', 1);
+	`)
+	if err != nil {
+		t.Fatalf("seed Tuya device: %v", err)
+	}
+
+	adapter := NewAdapter("tuya_test", &mockBus{}).WithPersistence(db, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := adapter.loadStoredDevices(ctx); err != nil {
+		t.Fatalf("load stored devices: %v", err)
+	}
+
+	var storedIP string
+	if err := db.QueryRowContext(context.Background(),
+		"SELECT ip FROM tuya_local_devices WHERE device_id = ?", "dev_legacy_wan",
+	).Scan(&storedIP); err != nil {
+		t.Fatalf("read sanitized device IP: %v", err)
+	}
+	if storedIP != "" {
+		t.Fatalf("expected persisted public IP to be cleared, got %q", storedIP)
+	}
+
+	if !adapter.IsDeviceConfigured("dev_legacy_wan") {
+		t.Fatal("device configuration should be retained after IP cleanup")
+	}
+	deviceIP := adapter.GetDeviceIP("dev_legacy_wan")
+	if deviceIP != "" {
+		t.Fatalf("expected configured IP to be empty until LAN discovery, got %q", deviceIP)
+	}
+
+	devices := adapter.GetConfiguredDevices()
+	if len(devices) != 1 || devices[0].LocalKey != "0123456789abcdef" {
+		t.Fatalf("device credentials should be retained after IP cleanup, got %+v", devices)
 	}
 }
