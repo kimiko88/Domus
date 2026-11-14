@@ -160,6 +160,7 @@ func TestAuthFlow_EndToEnd(t *testing.T) {
 
 	// Step F: POST /api/v1/auth/login with correct password -> 200 OK + domus_session cookie
 	var sessionCookie *http.Cookie
+	var csrfCookie *http.Cookie
 	{
 		goodLogin, _ := json.Marshal(map[string]string{
 			"username": "admin",
@@ -174,10 +175,13 @@ func TestAuthFlow_EndToEnd(t *testing.T) {
 		for _, c := range fakeResp.Cookies() {
 			if c.Name == domusmw.SessionCookieName {
 				sessionCookie = c
-				break
+			}
+			if c.Name == domusmw.CSRFCookieName {
+				csrfCookie = c
 			}
 		}
 		require.NotNil(t, sessionCookie, "domus_session cookie must be present")
+		require.NotNil(t, csrfCookie, "domus_csrf cookie must be present")
 		assert.True(t, sessionCookie.HttpOnly)
 		assert.NotEmpty(t, sessionCookie.Value)
 	}
@@ -200,6 +204,8 @@ func TestAuthFlow_EndToEnd(t *testing.T) {
 	{
 		req, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
 		req.AddCookie(sessionCookie)
+		req.AddCookie(csrfCookie)
+		req.Header.Set("X-CSRF-Token", csrfCookie.Value)
 		rr := &responseRecorder{headers: make(http.Header)}
 		router.ServeHTTP(rr, req)
 

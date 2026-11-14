@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Gestore del token di autenticazione nel Keychain di iOS.
-/// I token sono cifrati dall'hardware Secure Enclave.
+/// I token sono conservati nel Keychain con protezione Data Protection di iOS.
 public actor KeychainManager: Sendable {
 
     private let service = "com.fabriziochimienti.domus"
@@ -13,17 +13,15 @@ public actor KeychainManager: Sendable {
 
     // MARK: - Token
 
-    public func saveToken(_ token: String) {
-        save(value: token, forKey: tokenKey)
-    }
+    @discardableResult
+    public func saveToken(_ token: String) -> Bool { save(value: token, forKey: tokenKey) }
 
     public func getToken() -> String? {
         load(forKey: tokenKey)
     }
 
-    public func deleteToken() {
-        delete(forKey: tokenKey)
-    }
+    @discardableResult
+    public func deleteToken() -> Bool { delete(forKey: tokenKey) }
 
     // MARK: - Username
 
@@ -37,8 +35,9 @@ public actor KeychainManager: Sendable {
 
     // MARK: - Private Keychain helpers
 
-    private func save(value: String, forKey key: String) {
-        guard let data = value.data(using: .utf8) else { return }
+    @discardableResult
+    private func save(value: String, forKey key: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -53,13 +52,16 @@ public actor KeychainManager: Sendable {
 
         // Prima prova ad aggiornare
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecItemNotFound {
-            // Non esiste ancora: aggiunge
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
-            SecItemAdd(addQuery as CFDictionary, nil)
+        if updateStatus == errSecSuccess { return true }
+        guard updateStatus == errSecItemNotFound else { return false }
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecDuplicateItem {
+            return SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecSuccess
         }
+        return addStatus == errSecSuccess
     }
 
     private func load(forKey key: String) -> String? {
@@ -77,12 +79,14 @@ public actor KeychainManager: Sendable {
         return String(data: data, encoding: .utf8)
     }
 
-    private func delete(forKey key: String) {
+    @discardableResult
+    private func delete(forKey key: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

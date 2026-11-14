@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,7 +38,7 @@ func (c *ContainerdRuntime) EnsureContainer(ctx context.Context, name string, cf
 	// Check if container already exists
 	checkCmd := exec.CommandContext(ctx, c.ctrBin, c.args("container", "info", name)...)
 	if err := checkCmd.Run(); err == nil {
-		return nil // Container already registered
+		return fmt.Errorf("container %s already exists; uninstall it before reinstalling so runtime settings cannot remain stale", name)
 	}
 
 	// Pull image if necessary
@@ -60,6 +61,26 @@ func (c *ContainerdRuntime) EnsureContainer(ctx context.Context, name string, cf
 
 	if cfg.ReadOnlyRoot {
 		createArgs = append(createArgs, "--read-only")
+	}
+	if cfg.MemoryLimitMB > 0 {
+		memoryBytes := cfg.MemoryLimitMB * 1024 * 1024
+		createArgs = append(createArgs, "--memory-limit", strconv.FormatInt(memoryBytes, 10))
+	}
+	if cfg.CPULimit > 0 {
+		const cpuPeriod = int64(100000) // 100 ms, expressed in microseconds.
+		cpuQuota := int64(cfg.CPULimit * float64(cpuPeriod))
+		if cpuQuota < 1 {
+			return fmt.Errorf("invalid CPU limit %.2f: computed quota is below one microsecond", cfg.CPULimit)
+		}
+		createArgs = append(createArgs,
+			"--cpu-period", strconv.FormatInt(cpuPeriod, 10),
+			"--cpu-quota", strconv.FormatInt(cpuQuota, 10),
+		)
+	}
+	// Use the runtime's default seccomp profile for app containers.
+	createArgs = append(createArgs, "--seccomp")
+	if cfg.NetworkMode == "host" {
+		createArgs = append(createArgs, "--net-host")
 	}
 
 	createArgs = append(createArgs, cfg.Image, name)
@@ -87,17 +108,88 @@ func (c *ContainerdRuntime) StartContainer(ctx context.Context, name string) err
 
 // StopContainer terminates the running container task.
 func (c *ContainerdRuntime) StopContainer(ctx context.Context, name string, timeout time.Duration) error {
-	cmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGTERM", name)...)
-	_ = cmd.Run()
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
 
-	// Wait or force kill
-	time.Sleep(timeout)
-	killCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGKILL", name)...)
-	_ = killCmd.Run()
+	termCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGTERM", name)...)
+	termErr := termCmd.Run()
+	status, statusErr := c.GetContainerStatus(ctx, name)
+	if statusErr != nil {
+		return fmt.Errorf("failed to inspect task %s after SIGTERM: %w", name, statusErr)
+	}
+	if termErr != nil && status.State == ContainerStateRunning {
+		return fmt.Errorf("failed to send SIGTERM to task %s: %w", name, termErr)
+	}
 
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for status.State == ContainerStateRunning {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("stopping task %s: %w", name, ctx.Err())
+		case <-deadline.C:
+			killCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "kill", "-s", "SIGKILL", name)...)
+			if out, err := killCmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to force-kill task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
+			}
+			// Give containerd a bounded period to report task termination.
+			forceDeadline := time.NewTimer(2 * time.Second)
+			defer forceDeadline.Stop()
+			for {
+				status, statusErr = c.GetContainerStatus(ctx, name)
+				if statusErr != nil {
+					return fmt.Errorf("failed to inspect task %s after SIGKILL: %w", name, statusErr)
+				}
+				if status.State != ContainerStateRunning {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("waiting for task %s termination: %w", name, ctx.Err())
+				case <-forceDeadline.C:
+					return fmt.Errorf("task %s is still running after SIGKILL", name)
+				case <-ticker.C:
+				}
+			}
+		case <-ticker.C:
+			status, statusErr = c.GetContainerStatus(ctx, name)
+			if statusErr != nil {
+				return fmt.Errorf("failed to inspect task %s while stopping: %w", name, statusErr)
+			}
+		}
+	}
+
+	exists, err := c.taskExists(ctx, name)
+	if err != nil {
+		return fmt.Errorf("failed to check task %s before deletion: %w", name, err)
+	}
+	if !exists {
+		return nil
+	}
 	deleteCmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "delete", name)...)
-	_ = deleteCmd.Run()
+	if out, err := deleteCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to delete task %s (%w): %s", name, err, strings.TrimSpace(string(out)))
+	}
 	return nil
+}
+
+func (c *ContainerdRuntime) taskExists(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, c.ctrBin, c.args("task", "ls")...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GetContainerStatus queries the state of the container and task.

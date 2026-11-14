@@ -11,6 +11,8 @@ type rateLimitEntry struct {
 }
 
 // RateLimiter tracks and enforces rate limits in memory per key (e.g. remote IP).
+const maxTrackedRateLimitClients = 10_000
+
 type RateLimiter struct {
 	mu          sync.Mutex
 	maxAttempts int
@@ -42,27 +44,47 @@ func (r *RateLimiter) Allow(key string) bool {
 	cutoff := now.Add(-r.window)
 
 	entry, exists := r.clients[key]
-	if !exists {
-		r.clients[key] = &rateLimitEntry{
-			attempts: []time.Time{now},
+	if exists {
+		// Filter out attempts older than window.
+		validAttempts := make([]time.Time, 0, len(entry.attempts)+1)
+		for _, t := range entry.attempts {
+			if t.After(cutoff) {
+				validAttempts = append(validAttempts, t)
+			}
 		}
-		return true
+		if len(validAttempts) >= r.maxAttempts {
+			entry.attempts = validAttempts
+			return false
+		}
+		if len(validAttempts) > 0 {
+			entry.attempts = append(validAttempts, now)
+			return true
+		}
+		// Drop idle keys so the map does not grow forever.
+		delete(r.clients, key)
 	}
 
-	// Filter out attempts older than window
-	validAttempts := make([]time.Time, 0, len(entry.attempts)+1)
-	for _, t := range entry.attempts {
-		if t.After(cutoff) {
-			validAttempts = append(validAttempts, t)
+	if len(r.clients) >= maxTrackedRateLimitClients {
+		// Sweep expired entries only when the bounded table is full.
+		for clientKey, client := range r.clients {
+			active := false
+			for _, attempt := range client.attempts {
+				if attempt.After(cutoff) {
+					active = true
+					break
+				}
+			}
+			if !active {
+				delete(r.clients, clientKey)
+			}
+		}
+		// Do not evict active entries: doing so would let an attacker reset
+		// their own limit by exhausting the key table with spoofed clients.
+		if len(r.clients) >= maxTrackedRateLimitClients {
+			return false
 		}
 	}
 
-	if len(validAttempts) >= r.maxAttempts {
-		entry.attempts = validAttempts
-		return false
-	}
-
-	validAttempts = append(validAttempts, now)
-	entry.attempts = validAttempts
+	r.clients[key] = &rateLimitEntry{attempts: []time.Time{now}}
 	return true
 }

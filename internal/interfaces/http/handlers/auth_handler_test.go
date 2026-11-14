@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
+	domauth "github.com/domus-hub/domus/internal/domain/auth"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
@@ -151,4 +152,66 @@ func TestAuthHandler_LoginAndLogout(t *testing.T) {
 	}
 	require.NotNil(t, clearedCookie)
 	assert.Equal(t, -1, clearedCookie.MaxAge)
+}
+
+func TestDisable2FARequiresPasswordAndCurrentSecondFactor(t *testing.T) {
+	handler, svc, repos := setupAuthHandler(t)
+	ctx := context.Background()
+	admin, err := svc.SetupInitialAdmin(ctx, "secure_admin", "Password123!")
+	require.NoError(t, err)
+
+	secret, err := auth.GenerateTOTPSecret()
+	require.NoError(t, err)
+	require.NoError(t, repos.TwoFactor.Save(ctx, &domauth.TwoFactorConfig{
+		UserID: admin.ID, Secret: secret, IsEnabled: true,
+		BackupCodes: []string{"ABCD-EFGH"},
+	}))
+	handler.WithSecurity(repos.TwoFactor, nil)
+
+	call := func(password, code string) *httptest.ResponseRecorder {
+		body, marshalErr := json.Marshal(map[string]string{"password": password, "two_factor_code": code})
+		require.NoError(t, marshalErr)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/2fa/disable", bytes.NewReader(body))
+		req = req.WithContext(domusmw.WithUser(req.Context(), admin))
+		rr := httptest.NewRecorder()
+		handler.Disable2FA(rr, req)
+		return rr
+	}
+
+	require.Equal(t, http.StatusUnauthorized, call("WrongPassword!", auth.GenerateTOTPPasscode(secret, time.Now().UTC())).Code)
+	require.Equal(t, http.StatusUnauthorized, call("Password123!", "").Code)
+	cfg, err := repos.TwoFactor.Get(ctx, admin.ID)
+	require.NoError(t, err)
+	require.True(t, cfg.IsEnabled, "failed re-authentication must not disable 2FA")
+
+	code := auth.GenerateTOTPPasscode(secret, time.Now().UTC())
+	require.Equal(t, http.StatusOK, call("Password123!", code).Code)
+	_, err = repos.TwoFactor.Get(ctx, admin.ID)
+	require.ErrorIs(t, err, domauth.ErrTwoFactorNotFound)
+}
+
+
+func TestSetup2FADoesNotReplaceEnabledConfiguration(t *testing.T) {
+	handler, svc, repos := setupAuthHandler(t)
+	ctx := context.Background()
+	admin, err := svc.SetupInitialAdmin(ctx, "two_factor_admin", "Password123!")
+	require.NoError(t, err)
+	original := &domauth.TwoFactorConfig{
+		UserID: admin.ID, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true,
+		BackupCodes: []string{"ABCD-EFGH"},
+	}
+	require.NoError(t, repos.TwoFactor.Save(ctx, original))
+	handler.WithSecurity(repos.TwoFactor, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/2fa/setup", nil)
+	req = req.WithContext(domusmw.WithUser(req.Context(), admin))
+	rr := httptest.NewRecorder()
+	handler.Setup2FA(rr, req)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	persisted, err := repos.TwoFactor.Get(ctx, admin.ID)
+	require.NoError(t, err)
+	require.True(t, persisted.IsEnabled)
+	require.Equal(t, original.Secret, persisted.Secret)
+	require.Equal(t, original.BackupCodes, persisted.BackupCodes)
 }

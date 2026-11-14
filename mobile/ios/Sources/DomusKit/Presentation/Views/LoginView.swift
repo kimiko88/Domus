@@ -10,6 +10,7 @@ public struct LoginView: View {
     @State private var remoteUrl: String = ""
     @State private var username: String = "admin"
     @State private var password: String = ""
+    @State private var twoFactorCode: String = ""
     @State private var isDiscoveringMdns: Bool = false
     @State private var discoveryMessage: String? = nil
 
@@ -256,6 +257,22 @@ public struct LoginView: View {
                                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                         )
                 }
+
+                if viewModel.requiresTwoFactor {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Codice di verifica 2FA", systemImage: "lock.shield")
+                            .font(.caption.bold())
+                            .foregroundColor(.primary)
+                        TextField("Codice TOTP o di recupero", text: $twoFactorCode)
+                            .textFieldStyle(.plain)
+                            .textContentType(.oneTimeCode)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .padding(12)
+                            .background(Color.domusSecondarySystemGroupedBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
             .padding(16)
             .background(Color.domusSystemBackground)
@@ -320,7 +337,8 @@ public struct LoginView: View {
                 username: username,
                 password: password,
                 localEndpoint: localCandidate,
-                remoteEndpoint: remoteCandidate
+                remoteEndpoint: remoteCandidate,
+                twoFactorCode: viewModel.requiresTwoFactor ? twoFactorCode : nil
             )
             if success {
                 Haptics.success()

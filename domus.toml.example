@@ -16,7 +16,8 @@ host = "0.0.0.0"
 # Port number for HTTP traffic.
 port = 8080
 
-# Set to true if running behind a reverse proxy terminating HTTPS/TLS.
+# Set to true whenever users access Domus over HTTPS (including a TLS reverse proxy).
+# Keep false only for direct plain-HTTP LAN access; never expose that mode to untrusted networks.
 cookie_secure = false
 
 [database]

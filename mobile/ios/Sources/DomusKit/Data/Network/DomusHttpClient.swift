@@ -18,23 +18,20 @@ public actor DomusHttpClient: Sendable {
         if let savedBase = UserDefaults.standard.string(forKey: "domus_server_url"), !savedBase.isEmpty {
             self.baseURL = savedBase
         }
-        if let savedToken = UserDefaults.standard.string(forKey: "domus_auth_token"), !savedToken.isEmpty {
-            self.token = savedToken
-        }
+        // Remove credentials written by older versions; tokens now live only in Keychain.
+        UserDefaults.standard.removeObject(forKey: "domus_auth_token")
     }
 
     public func configure(baseURL: String, token: String?) {
         self.baseURL = baseURL
         self.token = token
         UserDefaults.standard.set(baseURL, forKey: "domus_server_url")
-        if let token {
-            UserDefaults.standard.set(token, forKey: "domus_auth_token")
-        }
+        // Never persist authentication tokens in UserDefaults.
     }
 
     /// GET generico
-    public func get<T: Decodable>(path: String, as type: T.Type) async throws -> T {
-        let url = try makeURL(path: path)
+    public func get<T: Decodable>(path: String, queryItems: [URLQueryItem] = [], as type: T.Type) async throws -> T {
+        let url = try makeURL(path: path, queryItems: queryItems)
         var request = URLRequest(url: url)
         addAuth(to: &request)
 
@@ -113,6 +110,11 @@ public actor DomusHttpClient: Sendable {
     private struct LoginRequestDTO: Encodable {
         let username: String
         let password: String
+        let twoFactorCode: String?
+        enum CodingKeys: String, CodingKey {
+            case username, password
+            case twoFactorCode = "two_factor_code"
+        }
     }
 
     private struct UserResponseDTO: Decodable {
@@ -121,24 +123,34 @@ public actor DomusHttpClient: Sendable {
     }
 
     private struct LoginResponseDTO: Decodable {
-        let token: String
+        let token: String?
         let user: UserResponseDTO?
+        let requiresTwoFactor: Bool?
+        enum CodingKeys: String, CodingKey {
+            case token, user
+            case requiresTwoFactor = "requires_2fa"
+        }
     }
 
-    public func login(baseUrl: String, username: String, password: String) async throws -> AuthSession {
+    public func login(baseUrl: String, username: String, password: String, twoFactorCode: String? = nil) async throws -> AuthSession {
         self.baseURL = baseUrl
         UserDefaults.standard.set(baseUrl, forKey: "domus_server_url")
-        let res = try await post(
-            path: "/api/v1/auth/login",
-            body: LoginRequestDTO(username: username, password: password),
-            as: LoginResponseDTO.self
-        )
-        self.token = res.token
-        UserDefaults.standard.set(res.token, forKey: "domus_auth_token")
+        let url = try makeURL(path: "/api/v1/auth/login")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(LoginRequestDTO(username: username, password: password, twoFactorCode: twoFactorCode))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw DomusNetworkError.invalidResponse }
+        if http.statusCode == 202 { throw DomusNetworkError.twoFactorRequired }
+        try validateResponse(response)
+        let res = try JSONDecoder().decode(LoginResponseDTO.self, from: data)
+        guard let sessionToken = res.token, !sessionToken.isEmpty else { throw DomusNetworkError.invalidResponse }
+        self.token = sessionToken
         return AuthSession(
-            token: res.token,
+            token: sessionToken,
             username: res.user?.username ?? username,
-            role: res.user?.role ?? "admin",
+            role: res.user?.role ?? "user",
             isAuthenticated: true
         )
     }
@@ -147,6 +159,13 @@ public actor DomusHttpClient: Sendable {
 
     public struct EmptyBodyDTO: Encodable, Sendable {
         public init() {}
+    }
+
+    public func validateSession(baseUrl: String, token: String) async throws -> AuthSession {
+        self.baseURL = baseUrl
+        self.token = token
+        let identity = try await get(path: "/api/v1/auth/me", as: UserResponseDTO.self)
+        return AuthSession(token: token, username: identity.username ?? "", role: identity.role ?? "user", isAuthenticated: true)
     }
 
     public func sendAssistantPrompt(prompt: String) async throws -> AssistantChatResponseDTO {
@@ -167,11 +186,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func completeChore(id: String) async throws {
-        try await postVoid(path: "/api/v1/chores/\(id)/complete", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/chores/\(try Self.encodePathSegment(id))/complete", body: EmptyBodyDTO())
     }
 
     public func deleteChore(id: String) async throws {
-        try await delete(path: "/api/v1/chores/\(id)")
+        try await delete(path: "/api/v1/chores/\(try Self.encodePathSegment(id))")
     }
 
     public func fetchShopping() async throws -> [ShoppingItemDTO] {
@@ -184,11 +203,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func toggleShopping(id: String) async throws -> ShoppingItemDTO {
-        try await post(path: "/api/v1/shopping/\(id)/toggle", body: EmptyBodyDTO(), as: ShoppingItemDTO.self)
+        try await post(path: "/api/v1/shopping/\(try Self.encodePathSegment(id))/toggle", body: EmptyBodyDTO(), as: ShoppingItemDTO.self)
     }
 
     public func deleteShopping(id: String) async throws {
-        try await delete(path: "/api/v1/shopping/\(id)")
+        try await delete(path: "/api/v1/shopping/\(try Self.encodePathSegment(id))")
     }
 
     public func clearCompletedShopping() async throws {
@@ -212,21 +231,29 @@ public actor DomusHttpClient: Sendable {
                 case user
             }
         }
-        try await postVoid(path: "/api/v1/notifications/actionable/actions/\(actionId)", body: ActionBody(notificationId: notificationId, user: user))
+        try await postVoid(path: "/api/v1/notifications/actionable/actions/\(try Self.encodePathSegment(actionId))", body: ActionBody(notificationId: notificationId, user: user))
     }
 
     public func applyScene(id: String) async throws {
-        try await postVoid(path: "/api/v1/scenes/\(id)/apply", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/scenes/\(try Self.encodePathSegment(id))/apply", body: EmptyBodyDTO())
     }
 
     // MARK: - Home Finance API
 
     public func fetchFinancialSummary(period: String = "month") async throws -> FinancialSummaryDTO {
-        try await get(path: "/api/v1/finance/summary?period=\(period)", as: FinancialSummaryDTO.self)
+        try await get(
+            path: "/api/v1/finance/summary",
+            queryItems: [URLQueryItem(name: "period", value: period)],
+            as: FinancialSummaryDTO.self
+        )
     }
 
     public func fetchExpenses(limit: Int = 100) async throws -> [ExpenseDTO] {
-        try await get(path: "/api/v1/finance/expenses?limit=\(limit)", as: [ExpenseDTO].self)
+        try await get(
+            path: "/api/v1/finance/expenses",
+            queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+            as: [ExpenseDTO].self
+        )
     }
 
     public func createExpense(req: CreateExpenseRequestDTO) async throws -> ExpenseDTO {
@@ -244,7 +271,7 @@ public actor DomusHttpClient: Sendable {
                 case scannedBy = "scanned_by"
             }
         }
-        try await postVoid(path: "/api/v1/tags/\(id)/scan", body: TagScanBody(scannedBy: scannedBy))
+        try await postVoid(path: "/api/v1/tags/\(try Self.encodePathSegment(id))/scan", body: TagScanBody(scannedBy: scannedBy))
     }
 
     public func registerPushToken(deviceToken: String, deviceName: String = "Apple Device") async throws {
@@ -275,7 +302,7 @@ public actor DomusHttpClient: Sendable {
                 case domain
             }
         }
-        try await postVoid(path: "/api/v1/entities/\(id)/toggle", body: ToggleBody(entityId: id, domain: domain))
+        try await postVoid(path: "/api/v1/entities/\(try Self.encodePathSegment(id))/toggle", body: ToggleBody(entityId: id, domain: domain))
     }
 
     public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:]) async throws {
@@ -288,7 +315,7 @@ public actor DomusHttpClient: Sendable {
             }
         }
         let codableData = data.mapValues { AnyCodable($0) }
-        try await postVoid(path: "/api/v1/services/\(domain)/\(service)", body: ServiceBody(entityId: entityId, data: codableData))
+        try await postVoid(path: "/api/v1/services/\(try Self.encodePathSegment(domain))/\(try Self.encodePathSegment(service))", body: ServiceBody(entityId: entityId, data: codableData))
     }
 
     public func callService(domain: String, service: String, entityId: String, data: [String: String]) async throws {
@@ -332,15 +359,15 @@ public actor DomusHttpClient: Sendable {
                 case sortOrder = "sort_order"
             }
         }
-        return try await put(path: "/api/v1/floors/\(id)", body: UpdateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
+        return try await put(path: "/api/v1/floors/\(try Self.encodePathSegment(id))", body: UpdateFloorReq(name: name, level: level, planSvg: planSvg, planImage: planImage, sortOrder: sortOrder), as: FloorDTO.self)
     }
 
     public func deleteFloor(id: String) async throws {
-        try await delete(path: "/api/v1/floors/\(id)")
+        try await delete(path: "/api/v1/floors/\(try Self.encodePathSegment(id))")
     }
 
     public func fetchFloorMarkers(floorId: String) async throws -> [FloorMarkerDTO] {
-        try await get(path: "/api/v1/floors/\(floorId)/markers", as: [FloorMarkerDTO].self)
+        try await get(path: "/api/v1/floors/\(try Self.encodePathSegment(floorId))/markers", as: [FloorMarkerDTO].self)
     }
 
     public func saveFloorMarker(floorId: String, markerId: String? = nil, entityKey: String, xPercent: Double, yPercent: Double, iconOverride: String? = nil, showBadge: Bool = true) async throws -> FloorMarkerDTO {
@@ -360,11 +387,11 @@ public actor DomusHttpClient: Sendable {
                 case showBadge = "show_badge"
             }
         }
-        return try await put(path: "/api/v1/floors/\(floorId)/markers", body: SaveMarkerReq(id: markerId, entityKey: entityKey, xPercent: xPercent, yPercent: yPercent, iconOverride: iconOverride, showBadge: showBadge), as: FloorMarkerDTO.self)
+        return try await put(path: "/api/v1/floors/\(try Self.encodePathSegment(floorId))/markers", body: SaveMarkerReq(id: markerId, entityKey: entityKey, xPercent: xPercent, yPercent: yPercent, iconOverride: iconOverride, showBadge: showBadge), as: FloorMarkerDTO.self)
     }
 
     public func deleteFloorMarker(floorId: String, markerId: String) async throws {
-        try await delete(path: "/api/v1/floors/\(floorId)/markers/\(markerId)")
+        try await delete(path: "/api/v1/floors/\(try Self.encodePathSegment(floorId))/markers/\(try Self.encodePathSegment(markerId))")
     }
 
     // MARK: - Automations API
@@ -379,29 +406,31 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updateAutomation(id: String, rule: AutomationRule) async throws -> AutomationRule {
-        try await put(path: "/api/v1/automations/\(id)", body: rule, as: AutomationRule.self)
+        try await put(path: "/api/v1/automations/\(try Self.encodePathSegment(id))", body: rule, as: AutomationRule.self)
     }
 
     public func deleteAutomation(id: String) async throws {
-        try await delete(path: "/api/v1/automations/\(id)")
+        try await delete(path: "/api/v1/automations/\(try Self.encodePathSegment(id))")
     }
 
     public func triggerAutomation(id: String) async throws {
-        try await postVoid(path: "/api/v1/automations/\(id)/trigger", body: EmptyBodyDTO())
+        try await postVoid(path: "/api/v1/automations/\(try Self.encodePathSegment(id))/trigger", body: EmptyBodyDTO())
     }
 
     // MARK: - Timeline & Logbook API
 
     public func fetchLogbook(limit: Int = 100) async throws -> [TimelineEvent] {
-        let res = try await get(path: "/api/v1/logbook?limit=\(limit)", as: LogbookResponseDTO.self)
+        let res = try await get(
+            path: "/api/v1/logbook",
+            queryItems: [URLQueryItem(name: "limit", value: String(limit))],
+            as: LogbookResponseDTO.self
+        )
         return res.entries
     }
 
-    // MARK: - RF Mesh & Hardware Diagnostics API
-
     public func fetchMeshTopology(protocol: String? = nil) async throws -> MeshTopologyDTO {
-        let query = `protocol`.flatMap { "?protocol=\($0)" } ?? ""
-        return try await get(path: "/api/v1/mesh/topology\(query)", as: MeshTopologyDTO.self)
+        let queryItems = `protocol`.map { [URLQueryItem(name: "protocol", value: $0)] } ?? []
+        return try await get(path: "/api/v1/mesh/topology", queryItems: queryItems, as: MeshTopologyDTO.self)
     }
 
     public func fetchSystemHealth() async throws -> (health: SystemHealthDTO, latencyMs: Int) {
@@ -432,7 +461,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func revokeFamilyInvite(id: String) async throws {
-        try await delete(path: "/api/v1/family/invites/\(id)")
+        try await delete(path: "/api/v1/family/invites/\(try Self.encodePathSegment(id))")
     }
 
     public func fetchAreas() async throws -> [Area] {
@@ -456,18 +485,15 @@ public actor DomusHttpClient: Sendable {
     // MARK: - Medicine Cabinet & Expiration API
 
     public func fetchMedicines(location: String? = nil, status: String? = nil, query: String? = nil) async throws -> [Medicine] {
-        var queryItems: [String] = []
-        if let location, !location.isEmpty { queryItems.append("location=\(location)") }
-        if let status, !status.isEmpty { queryItems.append("status=\(status)") }
-        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("q=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/medicines\(queryString)", as: [Medicine].self)
+        var queryItems: [URLQueryItem] = []
+        if let location, !location.isEmpty { queryItems.append(URLQueryItem(name: "location", value: location)) }
+        if let status, !status.isEmpty { queryItems.append(URLQueryItem(name: "status", value: status)) }
+        if let query, !query.isEmpty { queryItems.append(URLQueryItem(name: "q", value: query)) }
+        return try await get(path: "/api/v1/medicines", queryItems: queryItems, as: [Medicine].self)
     }
 
     public func fetchMedicine(id: String) async throws -> Medicine {
-        try await get(path: "/api/v1/medicines/\(id)", as: Medicine.self)
+        try await get(path: "/api/v1/medicines/\(try Self.encodePathSegment(id))", as: Medicine.self)
     }
 
     public func createMedicine(_ medicine: Medicine) async throws -> Medicine {
@@ -475,33 +501,30 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updateMedicine(id: String, medicine: Medicine) async throws -> Medicine {
-        try await put(path: "/api/v1/medicines/\(id)", body: medicine, as: Medicine.self)
+        try await put(path: "/api/v1/medicines/\(try Self.encodePathSegment(id))", body: medicine, as: Medicine.self)
     }
 
     public func deleteMedicine(id: String) async throws {
-        try await delete(path: "/api/v1/medicines/\(id)")
+        try await delete(path: "/api/v1/medicines/\(try Self.encodePathSegment(id))")
     }
 
     public func openMedicine(id: String, openedAt: String? = nil) async throws -> Medicine {
         struct OpenPayload: Encodable {
             let opened_at: String?
         }
-        return try await post(path: "/api/v1/medicines/\(id)/open", body: OpenPayload(opened_at: openedAt), as: Medicine.self)
+        return try await post(path: "/api/v1/medicines/\(try Self.encodePathSegment(id))/open", body: OpenPayload(opened_at: openedAt), as: Medicine.self)
     }
 
     public func consumeMedicine(id: String, amount: Double = 1.0) async throws -> Medicine {
         struct ConsumePayload: Encodable {
             let amount: Double
         }
-        return try await post(path: "/api/v1/medicines/\(id)/consume", body: ConsumePayload(amount: amount), as: Medicine.self)
+        return try await post(path: "/api/v1/medicines/\(try Self.encodePathSegment(id))/consume", body: ConsumePayload(amount: amount), as: Medicine.self)
     }
 
     public func fetchMedicineAlerts(fridgeTemp: Double? = nil) async throws -> [MedicineAlert] {
-        var path = "/api/v1/medicines/alerts"
-        if let fridgeTemp {
-            path += "?fridge_temp=\(fridgeTemp)"
-        }
-        return try await get(path: path, as: [MedicineAlert].self)
+        let queryItems = fridgeTemp.map { [URLQueryItem(name: "fridge_temp", value: String($0))] } ?? []
+        return try await get(path: "/api/v1/medicines/alerts", queryItems: queryItems, as: [MedicineAlert].self)
     }
 
     public func parseMedicineCode(code: String) async throws -> DatamatrixParseResult {
@@ -512,16 +535,11 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func lookupAIFA(query: String? = nil, aic: String? = nil) async throws -> [AIFARecord] {
-        var queryItems: [String] = []
-        if let query, !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("q=\(encoded)")
-        }
-        if let aic, !aic.isEmpty { queryItems.append("aic=\(aic)") }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/medicines/lookup\(queryString)", as: [AIFARecord].self)
+        var queryItems: [URLQueryItem] = []
+        if let query, !query.isEmpty { queryItems.append(URLQueryItem(name: "q", value: query)) }
+        if let aic, !aic.isEmpty { queryItems.append(URLQueryItem(name: "aic", value: aic)) }
+        return try await get(path: "/api/v1/medicines/lookup", queryItems: queryItems, as: [AIFARecord].self)
     }
-
-    // MARK: - Predictive Climate API
 
     public func fetchPredictiveStatus() async throws -> SystemPredictiveStatus {
         try await get(path: "/api/v1/climate/predictive/status", as: SystemPredictiveStatus.self)
@@ -533,7 +551,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchPredictiveZone(id: String) async throws -> PredictiveZoneConfig {
-        try await get(path: "/api/v1/climate/predictive/zones/\(id)", as: PredictiveZoneConfig.self)
+        try await get(path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))", as: PredictiveZoneConfig.self)
     }
 
     public func createPredictiveZone(_ config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
@@ -541,16 +559,16 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func updatePredictiveZone(id: String, config: PredictiveZoneConfig) async throws -> PredictiveZoneConfig {
-        try await put(path: "/api/v1/climate/predictive/zones/\(id)", body: config, as: PredictiveZoneConfig.self)
+        try await put(path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))", body: config, as: PredictiveZoneConfig.self)
     }
 
     public func deletePredictiveZone(id: String) async throws {
-        try await delete(path: "/api/v1/climate/predictive/zones/\(id)")
+        try await delete(path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))")
     }
 
     public func evaluatePredictiveZone(id: String) async throws -> PredictiveEvaluation {
         struct EmptyBody: Encodable {}
-        return try await post(path: "/api/v1/climate/predictive/zones/\(id)/evaluate", body: EmptyBody(), as: PredictiveEvaluation.self)
+        return try await post(path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))/evaluate", body: EmptyBody(), as: PredictiveEvaluation.self)
     }
 
     public func evaluateAllPredictiveZones() async throws -> [PredictiveEvaluation] {
@@ -559,29 +577,28 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchZoneThermalProfile(id: String) async throws -> ThermalProfile {
-        try await get(path: "/api/v1/climate/predictive/zones/\(id)/profile", as: ThermalProfile.self)
+        try await get(path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))/profile", as: ThermalProfile.self)
     }
 
     public func fetchOptimalStart(id: String, targetTemp: Double? = nil, targetTime: String? = nil) async throws -> PreheatRecommendation {
-        var queryItems: [String] = []
-        if let targetTemp { queryItems.append("target_temp=\(targetTemp)") }
-        if let targetTime, !targetTime.isEmpty, let encoded = targetTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("target_time=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-start\(queryString)", as: PreheatRecommendation.self)
+        var queryItems: [URLQueryItem] = []
+        if let targetTemp { queryItems.append(URLQueryItem(name: "target_temp", value: String(targetTemp))) }
+        if let targetTime, !targetTime.isEmpty { queryItems.append(URLQueryItem(name: "target_time", value: targetTime)) }
+        return try await get(
+            path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))/optimal-start",
+            queryItems: queryItems,
+            as: PreheatRecommendation.self
+        )
     }
 
     public func fetchOptimalStop(id: String, departureTime: String? = nil) async throws -> CoastDownRecommendation {
-        var queryItems: [String] = []
-        if let departureTime, !departureTime.isEmpty, let encoded = departureTime.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            queryItems.append("departure_time=\(encoded)")
-        }
-        let queryString = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
-        return try await get(path: "/api/v1/climate/predictive/zones/\(id)/optimal-stop\(queryString)", as: CoastDownRecommendation.self)
+        let queryItems = departureTime.map { [URLQueryItem(name: "departure_time", value: $0)] } ?? []
+        return try await get(
+            path: "/api/v1/climate/predictive/zones/\(try Self.encodePathSegment(id))/optimal-stop",
+            queryItems: queryItems,
+            as: CoastDownRecommendation.self
+        )
     }
-
-    // MARK: - EV Wallbox OCPP API
 
     public func fetchWallboxStatus() async throws -> WallboxStatusDTO {
         try await get(path: "/api/v1/energy/wallbox", as: WallboxStatusDTO.self)
@@ -615,7 +632,7 @@ public actor DomusHttpClient: Sendable {
     }
 
     public func fetchCommuteStatus(userId: String) async throws -> CommuteStatusDTO {
-        try await get(path: "/api/v1/presence/commute/\(userId)", as: CommuteStatusDTO.self)
+        try await get(path: "/api/v1/presence/commute/\(try Self.encodePathSegment(userId))", as: CommuteStatusDTO.self)
     }
 
     // MARK: - Vacation Presence Simulator & Habit Replay
@@ -661,16 +678,48 @@ public actor DomusHttpClient: Sendable {
 
     // MARK: - Private helpers
 
-    private func makeURL(path: String) throws -> URL {
+    static func encodePathSegment(_ value: String) throws -> String {
+        guard !value.isEmpty else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso vuoto")
+        }
+        guard value != "." && value != ".." else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!$&'()*+,;=:@")
+        guard let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            throw DomusNetworkError.invalidURL("Segmento di percorso non valido")
+        }
+        return encoded
+    }
+
+    private func makeURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
         let base = !baseURL.isEmpty ? baseURL : (UserDefaults.standard.string(forKey: "domus_server_url") ?? "http://127.0.0.1:8080")
-        guard let url = URL(string: base + path) else {
+        guard var components = URLComponents(string: base),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host != nil,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil,
+              path.hasPrefix("/"),
+              !path.contains("?"),
+              !path.contains("#") else {
+            throw DomusNetworkError.invalidURL(base + path)
+        }
+
+        let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let routePath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.percentEncodedPath = "/" + [basePath, routePath].filter { !$0.isEmpty }.joined(separator: "/")
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else {
             throw DomusNetworkError.invalidURL(base + path)
         }
         return url
     }
 
     private func addAuth(to request: inout URLRequest) {
-        let effectiveToken = token ?? UserDefaults.standard.string(forKey: "domus_auth_token")
+        let effectiveToken = token
         if let effectiveToken, !effectiveToken.isEmpty {
             request.setValue("Bearer \(effectiveToken)", forHTTPHeaderField: "Authorization")
         }
@@ -1339,6 +1388,7 @@ public enum DomusNetworkError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int)
     case notConnected
+    case twoFactorRequired
 
     public var errorDescription: String? {
         switch self {
@@ -1346,6 +1396,7 @@ public enum DomusNetworkError: Error, LocalizedError {
         case .invalidResponse: return "Risposta HTTP non valida"
         case .httpError(let code): return "Errore HTTP \(code)"
         case .notConnected: return "Non connesso al server Domus"
+        case .twoFactorRequired: return "È richiesto il codice di verifica a due fattori"
         }
     }
 }

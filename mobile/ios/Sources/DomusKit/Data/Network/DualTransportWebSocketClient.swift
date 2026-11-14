@@ -1,37 +1,70 @@
 import Foundation
 
 /// Client WebSocket bidirezionale con supporto dual-transport (LAN locale / Remoto TLS).
-/// Usa `URLSessionWebSocketTask` con riconnessione automatica ad esponenziale backoff.
+/// La connessione è considerata attiva solo dopo il completamento dell'handshake ping.
 public actor DualTransportWebSocketClient: Sendable {
-
-    // MARK: - State
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var session: URLSession?
     private var currentURL: URL?
     private var isConnected: Bool = false
     private var reconnectAttempts: Int = 0
+    private var authToken: String?
+    private var shouldReconnect: Bool = false
+    private var connectionGeneration: UInt64 = 0
     private let maxReconnectAttempts: Int = 5
     private var eventHandlers: [(String) -> Void] = []
 
     public init() {}
 
-    // MARK: - Public API
-
-    /// Connette al WebSocket all'URL specificato.
-    public func connect(to urlString: String) async throws {
-        guard let url = URL(string: urlString) else {
+    /// Connette al WebSocket all'URL specificato con autenticazione Bearer opzionale.
+    public func connect(to urlString: String, token: String? = nil) async throws {
+        disconnect()
+        guard let url = URL(string: urlString),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "ws" || scheme == "wss",
+              url.host != nil,
+              url.user == nil,
+              url.password == nil,
+              url.query == nil,
+              url.fragment == nil else {
             throw DomusNetworkError.invalidURL(urlString)
         }
-        self.currentURL = url
-        self.reconnectAttempts = 0
-        try await openConnection(url: url)
+
+        let generation = connectionGeneration
+        currentURL = url
+        authToken = token
+        shouldReconnect = true
+        reconnectAttempts = 0
+        do {
+            try await openConnection(url: url, token: token, generation: generation)
+        } catch {
+            // Un tentativo più vecchio non deve invalidare una connessione più recente.
+            if generation == connectionGeneration {
+                shouldReconnect = false
+                currentURL = nil
+                authToken = nil
+                webSocketTask?.cancel(with: .goingAway, reason: nil)
+                webSocketTask = nil
+                session?.invalidateAndCancel()
+                session = nil
+                isConnected = false
+            }
+            throw error
+        }
     }
 
-    /// Disconnette il WebSocket.
+    /// Disconnette il WebSocket e impedisce qualsiasi riconnessione automatica.
     public func disconnect() {
+        // Invalida anche callback e tentativi di connessione già sospesi.
+        connectionGeneration &+= 1
+        shouldReconnect = false
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
+        session?.invalidateAndCancel()
+        session = nil
+        currentURL = nil
+        authToken = nil
         isConnected = false
         reconnectAttempts = 0
     }
@@ -53,66 +86,127 @@ public actor DualTransportWebSocketClient: Sendable {
 
     public var connected: Bool { isConnected }
 
-    // MARK: - Private
+    private func openConnection(url: URL, token: String?, generation: UInt64) async throws {
+        guard generation == connectionGeneration, shouldReconnect else {
+            throw DomusNetworkError.notConnected
+        }
 
-    private func openConnection(url: URL) async throws {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         let urlSession = URLSession(configuration: config)
-        self.session = urlSession
+        session = urlSession
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        if let token, !token.isEmpty {
+            request.setValue("Bearer \\(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let task = urlSession.webSocketTask(with: request)
-        self.webSocketTask = task
+        webSocketTask = task
         task.resume()
-        self.isConnected = true
-        self.reconnectAttempts = 0
 
-        // Avvia il loop di ricezione messaggi
-        receiveMessage()
+        do {
+            // URLSessionWebSocketTask.resume() non prova che l'handshake sia riuscito.
+            // Un ping completato conferma che il server ha accettato la connessione.
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                task.sendPing { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
+        } catch {
+            if generation == connectionGeneration, webSocketTask === task {
+                webSocketTask = nil
+                isConnected = false
+                if session === urlSession {
+                    session = nil
+                }
+            }
+            urlSession.invalidateAndCancel()
+            throw error
+        }
+
+        guard generation == connectionGeneration,
+              shouldReconnect,
+              webSocketTask === task else {
+            task.cancel(with: .goingAway, reason: nil)
+            throw DomusNetworkError.notConnected
+        }
+        isConnected = true
+        reconnectAttempts = 0
+        receiveMessage(from: task, generation: generation)
     }
 
-    private func receiveMessage() {
-        webSocketTask?.receive { [weak self] result in
+    private func receiveMessage(from task: URLSessionWebSocketTask, generation: UInt64) {
+        guard generation == connectionGeneration, webSocketTask === task else { return }
+        task.receive { [weak self] result in
             guard let self else { return }
             Task {
                 switch result {
                 case .success(let message):
                     switch message {
                     case .string(let text):
-                        await self.dispatchMessage(text)
+                        await self.dispatchMessage(text, from: task, generation: generation)
                     case .data(let data):
                         if let text = String(data: data, encoding: .utf8) {
-                            await self.dispatchMessage(text)
+                            await self.dispatchMessage(text, from: task, generation: generation)
                         }
                     @unknown default:
                         break
                     }
-                    await self.receiveMessage() // ricevi il prossimo messaggio
+                    await self.receiveMessage(from: task, generation: generation)
 
                 case .failure:
-                    await self.handleDisconnect()
+                    await self.handleDisconnect(from: task, generation: generation)
                 }
             }
         }
     }
 
-    private func dispatchMessage(_ text: String) {
+    private func dispatchMessage(
+        _ text: String,
+        from task: URLSessionWebSocketTask,
+        generation: UInt64
+    ) {
+        guard generation == connectionGeneration, webSocketTask === task else { return }
         for handler in eventHandlers {
             handler(text)
         }
     }
 
-    private func handleDisconnect() async {
+    private func handleDisconnect(from task: URLSessionWebSocketTask, generation: UInt64) async {
+        guard generation == connectionGeneration, webSocketTask === task else { return }
+        webSocketTask = nil
         isConnected = false
-        guard reconnectAttempts < maxReconnectAttempts, let url = currentURL else { return }
+        // Release the failed transport before creating a replacement session.
+        session?.invalidateAndCancel()
+        session = nil
+        await scheduleReconnect(generation: generation)
+    }
+
+    private func scheduleReconnect(generation: UInt64) async {
+        guard generation == connectionGeneration,
+              shouldReconnect,
+              let url = currentURL,
+              reconnectAttempts < maxReconnectAttempts else { return }
 
         reconnectAttempts += 1
-        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // backoff esponenziale, max 30s
+        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0)
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
-        try? await openConnection(url: url)
+        guard generation == connectionGeneration,
+              shouldReconnect,
+              currentURL == url,
+              webSocketTask == nil else { return }
+        do {
+            try await openConnection(url: url, token: authToken, generation: generation)
+        } catch {
+            guard generation == connectionGeneration, shouldReconnect else { return }
+            await scheduleReconnect(generation: generation)
+        }
     }
 }

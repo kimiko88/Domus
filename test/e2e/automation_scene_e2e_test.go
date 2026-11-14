@@ -298,6 +298,9 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 	t.Run("Scene Creation and Activation via REST API", func(t *testing.T) {
 		httpClient := &http.Client{Timeout: 3 * time.Second}
 
+		// Test CSRF token: 16 random bytes encoded as 32 hexadecimal characters.
+		const csrfToken = "0123456789abcdef0123456789abcdef"
+
 		// 1. Create Scene via REST
 		sceneURL := "http://127.0.0.1:8903/api/v1/scenes"
 		sceneBody, _ := json.Marshal(map[string]any{
@@ -312,6 +315,8 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		})
 		req, _ := http.NewRequest(http.MethodPost, sceneURL, bytes.NewReader(sceneBody))
 		req.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sess.ID})
+		req.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		req.Header.Set("X-CSRF-Token", csrfToken)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := httpClient.Do(req)
@@ -327,6 +332,8 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		applyURL := fmt.Sprintf("http://127.0.0.1:8903/api/v1/scenes/%s/apply", createdScene.ID)
 		applyReq, _ := http.NewRequest(http.MethodPost, applyURL, nil)
 		applyReq.AddCookie(&http.Cookie{Name: domusmw.SessionCookieName, Value: sess.ID})
+		applyReq.AddCookie(&http.Cookie{Name: domusmw.CSRFCookieName, Value: csrfToken})
+		applyReq.Header.Set("X-CSRF-Token", csrfToken)
 
 		applyResp, err := httpClient.Do(applyReq)
 		require.NoError(t, err)

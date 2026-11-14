@@ -60,14 +60,22 @@ async function startTwoFactorSetup() {
 }
 
 async function disableTwoFactor() {
-  if (confirm('Sei sicuro di voler disattivare l\'autenticazione a due fattori?')) {
-    try {
-      await apiClient.post('/api/v1/auth/2fa/disable', {})
-      isTwoFactorEnabled.value = false
-      alert('2FA disattivata con successo.')
-    } catch (err: any) {
-      alert('Errore disattivazione 2FA: ' + (err?.message || 'Riprova'))
-    }
+  if (!confirm('Per disattivare la 2FA dovrai confermare la password e il codice del secondo fattore. Continuare?')) return
+  const password = window.prompt('Inserisci la password attuale')
+  if (password === null || !password.trim()) return
+  const twoFactorCode = isTwoFactorEnabled.value
+    ? window.prompt('Inserisci il codice TOTP corrente o un codice di recupero')
+    : ''
+  if (twoFactorCode === null) return
+  try {
+    await apiClient.post('/api/v1/auth/2fa/disable', {
+      password,
+      two_factor_code: twoFactorCode.trim()
+    })
+    isTwoFactorEnabled.value = false
+    alert('2FA disattivata con successo.')
+  } catch (err: any) {
+    alert('Errore disattivazione 2FA: ' + (err?.message || 'Riprova'))
   }
 }
 
