@@ -205,3 +205,30 @@ func make6699DiscoveryTestFrame(t *testing.T, plaintext []byte) []byte {
 	frame = append(frame, 0x00, 0x00, 0x99, 0x66)
 	return frame
 }
+
+func TestDecodeTuyaDiscoveryPacket_RejectsTruncated55AAWithoutPanic(t *testing.T) {
+	frame := make([]byte, 24)
+	copy(frame[:4], []byte{0x00, 0x00, 0x55, 0xaa})
+	binary.BigEndian.PutUint32(frame[12:16], 8)
+	copy(frame[20:24], []byte{0x00, 0x00, 0xaa, 0x55})
+
+	if _, err := decodeTuyaDiscoveryPacket(frame); err == nil {
+		t.Fatal("expected truncated 55AA discovery frame to be rejected")
+	}
+}
+
+func TestDecodeTuyaDiscoveryPacket_RawEncryptedJSON(t *testing.T) {
+	rawJSON := []byte(`{"gwId":"device_raw_udp","version":"3.3"}`)
+	encrypted, err := encryptAES_ECB(rawJSON, tuyaDiscoveryKey[:])
+	if err != nil {
+		t.Fatalf("encrypt raw discovery payload: %v", err)
+	}
+
+	dev, err := decodeTuyaDiscoveryPacket(encrypted)
+	if err != nil {
+		t.Fatalf("decode raw encrypted discovery payload: %v", err)
+	}
+	if dev.DeviceID != "device_raw_udp" {
+		t.Fatalf("unexpected decoded device: %+v", dev)
+	}
+}
