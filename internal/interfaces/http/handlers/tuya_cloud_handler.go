@@ -482,10 +482,13 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		for _, cfg := range h.tuyaLocal.GetConfiguredDevices() {
-			if _, keep := selected[cfg.DeviceID]; !keep {
-				if err := h.tuyaLocal.UnregisterDevice(r.Context(), cfg.DeviceID); err != nil {
+			// Do not touch LocalTuya devices that are not part of this Smart Life account.
+			if _, belongsToAccount := known[cfg.DeviceID]; belongsToAccount {
+				if _, keep := selected[cfg.DeviceID]; !keep {
+					if err := h.tuyaLocal.UnregisterDevice(r.Context(), cfg.DeviceID); err != nil {
 					writeError(w, http.StatusInternalServerError, "LOCAL_DEVICE_REMOVE_FAILED", "failed to remove a deselected LocalTuya device")
-					return
+						return
+					}
 				}
 			}
 		}
