@@ -9,8 +9,8 @@
 # What it does:
 #   1. Gets the binaries:  prebuilt (./domus, ./domus-cli)  ->  or builds them
 #   2. Gets the frontend:  prebuilt (./web/dist)            ->  or builds it
-#      Missing Go / Node toolchains are downloaded into a temporary directory
-#      and removed afterwards, so the Pi stays clean.
+#      Go / Node toolchains and Go / npm download caches are kept between runs
+#      under /opt/domus-toolchains and /var/cache/domus/build by default.
 #   3. Installs binaries, web assets, config, systemd unit; starts the service.
 #
 # Tip: on a Pi with < 2 GB RAM, build on your PC and copy the results:
@@ -24,8 +24,8 @@
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
+#   DOMUS_BUILD_CACHE_DIR (/var/cache/domus/build)   persistent Go and npm caches
 #   INSTALL_MOSQUITTO=1   install the Mosquitto MQTT broker via apt
-#   KEEP_TOOLCHAINS=1     keep downloaded Node under /opt/domus-toolchains
 # ==============================================================================
 set -euo pipefail
 
@@ -47,6 +47,7 @@ NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 KEEP_TOOLCHAINS="${KEEP_TOOLCHAINS:-0}"
 GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
+DOMUS_BUILD_CACHE_DIR="${DOMUS_BUILD_CACHE_DIR:-/var/cache/domus/build}"
 
 BOLD=$'\033[1m'; GREEN=$'\033[0;32m'; CYAN=$'\033[0;36m'
 YELLOW=$'\033[1;33m'; RED=$'\033[0;31m'; NC=$'\033[0m'
@@ -157,13 +158,10 @@ sha256_check() { # <file> <expected-hash>
     fi
 }
 
-# Prints the toolchain directory. Callers must run ensure_workdir first
-# (it cannot be called here: $(...) would lose the WORK_DIR assignment).
+# Toolchains are intentionally persistent: reinstalling Domus must not redownload Node/Go.
 toolchain_dir() {
-    local d="${WORK_DIR}/toolchains"
-    [[ "${KEEP_TOOLCHAINS}" == "1" ]] && d="/opt/domus-toolchains"
-    mkdir -p "${d}"
-    echo "${d}"
+    mkdir -p "${GO_INSTALL_DIR}"
+    echo "${GO_INSTALL_DIR}"
 }
 
 install_go() {
@@ -203,8 +201,21 @@ install_go() {
 }
 
 install_node() {
-    ensure_workdir
     local tdir; tdir="$(toolchain_dir)"
+    local candidate cached_major
+    local candidates=( "${tdir}"/node-v"${NODE_MAJOR}".*-linux-"${NODE_ARCH}"/bin/node )
+    for candidate in "${candidates[@]}"; do
+        if [[ -x "${candidate}" ]]; then
+            cached_major="$("${candidate}" -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
+            if [[ "${cached_major}" == "${NODE_MAJOR}" ]]; then
+                log_info "Using cached Node.js $(" ${candidate}" -v) from $(dirname "${candidate}")"
+                export PATH="$(dirname "${candidate}"):${PATH}"
+                return
+            fi
+        fi
+    done
+
+    ensure_workdir
     local base="https://nodejs.org/dist/latest-v${NODE_MAJOR}.x"
     log_info "Resolving Node.js ${NODE_MAJOR}.x (${NODE_ARCH})..."
     curl -fsSL "${base}/SHASUMS256.txt" -o "${WORK_DIR}/SHASUMS256.txt"
@@ -250,8 +261,15 @@ else
         [[ -n "${have_go}" ]] && log_warn "Installed Go ${have_go} is older than required ${need_go}"
         install_go
     fi
-    # Caches live in the temp dir (no SD-card clutter); GOTOOLCHAIN=local = never auto-download another Go.
-    export GOCACHE="${WORK_DIR}/gocache" GOPATH="${WORK_DIR}/gopath" GOTOOLCHAIN=local
+    # Keep module downloads and compiled package objects across installer runs.
+    # Go verifies module checksums and downloads only modules absent from GOMODCACHE.
+    export GOPATH="${DOMUS_BUILD_CACHE_DIR}/go"
+    export GOMODCACHE="${GOPATH}/pkg/mod"
+    export GOCACHE="${GOPATH}/build-cache"
+    export GOTOOLCHAIN=local
+    mkdir -p "${GOMODCACHE}" "${GOCACHE}"
+    log_info "Go module cache : ${GOMODCACHE}"
+    log_info "Go build cache  : ${GOCACHE}"
     log_info "Compiling backend ($(go version | awk '{print $3}'))..."
     (
         cd "${PROJECT_ROOT}"
@@ -283,8 +301,16 @@ else
     tar -C "${PROJECT_ROOT}/web" --exclude=node_modules --exclude=dist -cf - . | tar -C "${WORK_DIR}/web" -xf -
     (
         cd "${WORK_DIR}/web"
-        export npm_config_cache="${WORK_DIR}/npm-cache" npm_config_update_notifier=false
-        npm ci --ignore-scripts --no-audit --no-fund
+        # npm's content-addressed cache is persistent. Prefer a fully offline
+        # install first; contact the registry only if this lockfile needs uncached packages.
+        export npm_config_cache="${DOMUS_BUILD_CACHE_DIR}/npm" npm_config_update_notifier=false
+        mkdir -p "${npm_config_cache}"
+        if npm ci --offline --ignore-scripts --no-audit --no-fund; then
+            log_success "Frontend dependencies restored entirely from the local npm cache"
+        else
+            log_warn "npm cache is incomplete for this lockfile; downloading only missing packages"
+            npm ci --prefer-offline --ignore-scripts --no-audit --no-fund
+        fi
         npm run build
     )
     [[ -f "${WORK_DIR}/web/dist/index.html" ]] || { log_error "Frontend build produced no dist/index.html"; exit 1; }
