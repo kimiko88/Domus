@@ -301,7 +301,6 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TuyaCloudHandler) ListFunctions(w http.ResponseWriter, r *http.Request) {
-	client := h.getClient()
 	if client == nil || client.Config().ClientID == "" {
 		writeError(w, http.StatusBadRequest, "TUYA_NOT_CONFIGURED", "Tuya Cloud non configurato")
 		return
@@ -420,7 +419,7 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Fallback to cloud only if not registered locally
+	// Use the Cloud API for declared functions without a safe LocalTuya DPS mapping.
 	if err := client.SendCommands(r.Context(), deviceID, req.Commands); err != nil {
 		writeError(w, http.StatusBadGateway, "TUYA_CLOUD_ERROR", err.Error())
 		return
