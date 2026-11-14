@@ -7,6 +7,10 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+      # Tuya LAN discovery broadcasts. TCP 6668 is outbound from Domus to devices
+      # and intentionally does not need to be published.
+      - "6666:6666/udp"
+      - "6667:6667/udp"
     environment:
       - DOMUS_SERVER_HOST=0.0.0.0
       - DOMUS_SERVER_PORT=8080
