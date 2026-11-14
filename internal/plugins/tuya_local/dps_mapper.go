@@ -2,6 +2,7 @@ package tuya_local
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
