@@ -395,11 +395,36 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       value = tuyaFunctionInputs[key] ?? ''
     }
 
-    await apiClient.post(
-      `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
-      { commands: [{ code: fn.code, value }] }
-    )
-    notificationsStore.success('Comando inviato', `${device.name}: ${fn.name || fn.code}`)
+    const code = fn.code.toLowerCase()
+    let sentLocally = false
+    if (device.local_configured) {
+      const localPath = `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`
+      if ((code.includes('switch') || code.includes('power')) && typeof value === 'boolean') {
+        await apiClient.post(localPath, { command: value ? 'turn_on' : 'turn_off' })
+        sentLocally = true
+      } else if (code.includes('temp') && !code.includes('current') && !code.includes('cur_') && typeof value === 'number') {
+        await apiClient.post(localPath, {
+          command: 'set_temperature',
+          params: { temperature: value / Math.pow(10, tuyaFunctionScale(fn)) }
+        })
+        sentLocally = true
+      } else if (code === 'mode' || code === 'work_mode' || code.endsWith('_mode')) {
+        if (typeof value === 'string' && ['auto', 'automatic', 'manual'].includes(value.toLowerCase())) {
+          await apiClient.post(localPath, { command: 'set_mode', params: { mode: value } })
+          sentLocally = true
+        } else if (typeof value === 'number' && (value === 0 || value === 1)) {
+          await apiClient.post(localPath, { command: 'set_dp', params: { dp_id: 4, value } })
+          sentLocally = true
+        }
+      }
+    }
+    if (!sentLocally) {
+      await apiClient.post(
+        `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
+        { commands: [{ code: fn.code, value }] }
+      )
+    }
+    notificationsStore.success(sentLocally ? 'Comando inviato via LAN' : 'Comando inviato', `${device.name}: ${fn.name || fn.code}`)
     await fetchTuyaCloudDevices()
   } catch (err: any) {
     notificationsStore.error('Comando Tuya non riuscito', err?.message || 'Errore di comunicazione')
