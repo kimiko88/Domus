@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 interface Props {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   size?: 'sm' | 'md' | 'lg'
@@ -38,7 +40,7 @@ function handleClick(event: MouseEvent) {
     @click="handleClick"
   >
     <span v-if="loading" class="btn-spinner" aria-hidden="true" />
-    <span v-if="loading" class="sr-only">Caricamento in corso...</span>
+    <span v-if="loading" class="sr-only">{{ t('common.loading') }}</span>
     <span :class="['btn-content', { 'opacity-0': loading }]">
       <slot />
     </span>
