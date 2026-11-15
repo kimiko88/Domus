@@ -252,24 +252,24 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           @click="refreshAllDevices"
         >
           <RefreshCw :size="16" :class="{ 'spin-icon': isRefreshing }" />
-          <span>{{ isRefreshing ? 'Aggiornamento…' : 'Aggiorna' }}</span>
+          <span>{{ isRefreshing ? t('devices.view.refreshing') : t('devices.view.refresh') }}</span>
         </button>
         <button
           class="btn-action-outline"
           :disabled="isScanning"
           @click="triggerNetworkScan"
-          title="Scansiona la rete LAN per nuovi dispositivi IoT"
+          :title="t('devices.view.scanLanTitle')"
         >
           <RefreshCw :size="16" :class="{ 'spin-icon': isScanning }" />
-          <span>{{ isScanning ? 'Scansione in corso...' : 'Scansiona Rete LAN' }}</span>
+          <span>{{ isScanning ? t('devices.view.scanning') : t('devices.view.scanLan') }}</span>
         </button>
         <button
           class="btn-action-primary"
           @click="isMatterWizardOpen = true"
-          title="Associa dispositivo Matter tramite QR code o codice di pairing"
+          :title="t('devices.view.pairMatterTitle')"
         >
           <QrCode :size="16" />
-          <span>Associa Matter / Thread</span>
+          <span>{{ t('devices.view.pairMatter') }}</span>
         </button>
       </div>
     </div>
@@ -282,7 +282,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             <Sparkles :size="20" class="sparkle-icon" />
           </div>
           <div>
-            <h3 class="discovered-title">Dispositivi Rilevati nella Rete Locale (Zero-Config)</h3>
+            <h3 class="discovered-title">{{ t('devices.view.discoveredTitle') }}</h3>
             <p class="discovered-subtitle">
               {{ discoveredHosts.length }} dispositivo{{ discoveredHosts.length > 1 ? 'i' : '' }} rilevato{{ discoveredHosts.length > 1 ? 'i' : '' }} via mDNS / SSDP / UPnP pronto per l'onboarding immediato.
             </p>
@@ -304,7 +304,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           </div>
           <button class="btn-setup-now" @click="openSetupModal(host)">
             <Plus :size="15" />
-            <span>Configura</span>
+            <span>{{ t('devices.view.configure') }}</span>
           </button>
         </div>
       </div>
@@ -340,12 +340,12 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
     <div class="device-filter-tools">
       <label class="device-search">
         <Search :size="16" />
-        <input id="devices-search" v-model="searchQuery" type="search" placeholder="Cerca per nome, produttore, modello o IP…" />
+        <input id="devices-search" v-model="searchQuery" type="search" :placeholder="t('devices.view.searchPlaceholder')" />
       </label>
       <label class="integration-filter">
-        <span>Integrazione</span>
+        <span>{{ t('devices.view.integration') }}</span>
         <select id="devices-integration-filter" v-model="filterIntegration">
-          <option value="all">Tutte le integrazioni</option>
+          <option value="all">{{ t('devices.view.allIntegrations') }}</option>
           <option v-for="integration in integrationOptions" :key="integration" :value="integration">{{ integration }}</option>
         </select>
       </label>
@@ -387,11 +387,11 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
     <!-- Empty State -->
     <div v-else class="empty-state glass-card">
       <Cpu :size="36" class="empty-icon" />
-      <h3 class="empty-title">{{ totalDevicesCount > 0 ? 'Nessun dispositivo corrisponde ai filtri' : t('devices.emptyTitle') }}</h3>
+      <h3 class="empty-title">{{ totalDevicesCount > 0 ? t('devices.view.noFilteredDevices') : t('devices.emptyTitle') }}</h3>
       <p class="empty-desc">
-        {{ totalDevicesCount > 0 ? 'Prova a modificare la ricerca o il filtro per integrazione.' : t('devices.emptyDesc') }}
+        {{ totalDevicesCount > 0 ? t('devices.view.adjustFilters') : t('devices.emptyDesc') }}
       </p>
-      <button v-if="totalDevicesCount > 0" class="btn-secondary" @click="searchQuery = ''; filterIntegration = 'all'; filterStatus = 'all'">Azzera filtri</button>
+      <button v-if="totalDevicesCount > 0" class="btn-secondary" @click="searchQuery = ''; filterIntegration = 'all'; filterStatus = 'all'">{{ t('devices.view.resetFilters') }}</button>
     </div>
 
     <!-- Setup Modal for Discovered Host -->
@@ -400,9 +400,9 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         <div class="modal-header">
           <div class="modal-title-wrap">
             <Sparkles :size="20" class="sparkle-icon" />
-            <h3 class="modal-title">Configura Dispositivo Rilevato</h3>
+            <h3 class="modal-title">{{ t('devices.view.configureDiscovered') }}</h3>
           </div>
-          <button class="btn-close-modal" @click="isSetupModalOpen = false" aria-label="Chiudi">
+          <button class="btn-close-modal" @click="isSetupModalOpen = false" :aria-label="t('devices.view.close')">
             <X :size="18" />
           </button>
         </div>
@@ -411,16 +411,16 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             Aggiungi <strong>{{ selectedHostForSetup?.hostname || selectedHostForSetup?.ip }}</strong> alla tua smart home Domus.
           </p>
           <div class="form-group">
-            <label class="form-label">Nome Dispositivo</label>
+            <label class="form-label">{{ t('devices.view.deviceName') }}</label>
             <input
               v-model="newDeviceName"
               type="text"
               class="form-input"
-              placeholder="Es. Luce Salotto, Presa Lavatrice"
+              :placeholder="t('devices.view.deviceNamePlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Stanza / Area</label>
+            <label class="form-label">{{ t('devices.view.roomArea') }}</label>
             <select v-model="selectedAreaId" class="form-select">
               <option v-for="area in areasStore.areas" :key="area.id" :value="area.id">
                 {{ area.name }}
@@ -429,21 +429,21 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           </div>
           <div class="discovery-details-box">
             <div class="detail-row">
-              <span class="detail-label">Produttore:</span>
+              <span class="detail-label">{{ t('devices.view.manufacturer') }}:</span>
               <span class="detail-val">{{ selectedHostForSetup?.vendor || 'Sconosciuto' }}</span>
             </div>
             <div class="detail-row">
-              <span class="detail-label">Indirizzo IP:</span>
+              <span class="detail-label">{{ t('devices.view.ipAddress') }}:</span>
               <span class="detail-val font-mono">{{ selectedHostForSetup?.ip }}</span>
             </div>
             <div class="detail-row">
-              <span class="detail-label">Integrazione raccomandata:</span>
+              <span class="detail-label">{{ t('devices.view.recommendedIntegration') }}:</span>
               <span class="detail-val badge-tag">{{ selectedHostForSetup?.suggested_plugin || 'mDNS Zero-Config' }}</span>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" @click="isSetupModalOpen = false">Annulla</button>
+          <button class="btn-secondary" @click="isSetupModalOpen = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="isAddingDevice" @click="confirmAddDiscoveredDevice">
             <Check :size="16" />
             <span>{{ isAddingDevice ? 'Aggiunta...' : 'Aggiungi a Domus' }}</span>
@@ -458,7 +458,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         <div class="modal-header">
           <div class="modal-title-wrap">
             <ShieldCheck :size="20" class="matter-shield-icon" />
-            <h3 class="modal-title">Commissioning Matter & Thread</h3>
+            <h3 class="modal-title">{{ t('devices.view.matterCommissioning') }}</h3>
           </div>
           <button class="btn-close-modal" @click="closeMatterWizard" aria-label="Chiudi">
             <X :size="18" />
@@ -469,19 +469,19 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <!-- Step 1: Input Code -->
           <div v-if="matterCommissionStep === 1" class="matter-step">
             <p class="modal-intro">
-              Associa un nuovo dispositivo compatibile Matter (presa, lampadina, serratura o termostato) alla rete Thread locale Domus.
+              {{ t('devices.view.matterIntro') }}
             </p>
             <div class="form-group">
-              <label class="form-label">Codice di Pairing Matter (11 o 21 cifre)</label>
+              <label class="form-label">{{ t('devices.view.matterPairingCode') }}</label>
               <input
                 v-model="matterPairingCode"
                 type="text"
                 class="form-input font-mono"
-                placeholder="Es. 34970-112233445"
+                :placeholder="t('devices.view.matterCodePlaceholder')"
                 maxlength="25"
               />
               <span class="form-hint">
-                Trovi il codice sul retro del dispositivo o accanto al QR code sulla confezione.
+                {{ t('devices.view.matterCodeHint') }}
               </span>
             </div>
           </div>
@@ -491,9 +491,9 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             <div class="commissioning-spinner-box">
               <RefreshCw :size="36" class="spin-icon text-primary" />
             </div>
-            <h4 class="commissioning-heading">Negoziazione Credenziali Matter...</h4>
+            <h4 class="commissioning-heading">{{ t('devices.view.matterNegotiating') }}</h4>
             <p class="commissioning-subtext">
-              Scambio chiavi PASE, verifica certificato DAC ed espansione sul Fabric Thread Domus.
+              {{ t('devices.view.matterNegotiatingDesc') }}
             </p>
             <div class="progress-bar-container">
               <div class="progress-bar-fill animated-progress"></div>
@@ -505,9 +505,9 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             <div class="success-icon-box">
               <CheckCircle :size="42" class="text-success" />
             </div>
-            <h4 class="commissioning-heading">Dispositivo Matter Associato!</h4>
+            <h4 class="commissioning-heading">{{ t('devices.view.matterPaired') }}</h4>
             <p class="commissioning-subtext">
-              Il nodo è ora autenticato ed è operativo con latenza sub-millisecondo sulla maglia Thread locale.
+              {{ t('devices.view.matterPairedDesc') }}
             </p>
           </div>
         </div>
@@ -522,14 +522,14 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             :disabled="!matterPairingCode || matterPairingCode.trim().length < 6"
             @click="startMatterCommissioning"
           >
-            Avvia Accoppiamento
+            {{ t('devices.view.startPairing') }}
           </button>
           <button
             v-if="matterCommissionStep === 3"
             class="btn-primary"
             @click="closeMatterWizard"
           >
-            Fatto
+            {{ t('common.done') }}
           </button>
         </div>
       </div>
