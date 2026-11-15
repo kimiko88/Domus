@@ -512,10 +512,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					autoRouter.Get("/", autoH.List)
 					autoRouter.Get("/blueprints", autoH.ListBlueprints)
 					if srv.authService != nil {
-						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
-						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/", autoH.Create)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
-						autoRouter.With(domusmw.RequireAutomationManagement()).Put("/{id}", autoH.Update)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Put("/{id}", autoH.Update)
 						autoRouter.With(domusmw.RequireAutomationManagement()).Delete("/{id}", autoH.Delete)
 						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/{id}/trigger", autoH.Trigger)
 						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
