@@ -83,7 +83,7 @@ async function handleLogout() {
     <div class="topbar-left">
       <button
         class="btn-menu-toggle"
-        aria-label="Toggle Navigation Menu"
+        :aria-label="t('common.appTopbar.toggleNavigation')"
         @click="emit('toggle-menu')"
       >
         <Menu :size="20" />
@@ -106,8 +106,8 @@ async function handleLogout() {
       <!-- Actionable Notifications Bell -->
       <button
         class="notif-toggle-btn"
-        title="Notifiche Azionabili della Casa"
-        aria-label="Apri Notifiche Azionabili"
+        :title="t('common.appTopbar.actionableNotifications')"
+        :aria-label="t('common.appTopbar.openNotifications')"
         @click="isNotifDrawerOpen = true"
       >
         <Bell :size="16" />
@@ -119,23 +119,23 @@ async function handleLogout() {
       <!-- Domus AI Assistant Button -->
       <button
         class="assistant-toggle-btn"
-        title="Apri Assistente AI Domus"
-        aria-label="Apri Assistente AI Domus"
+        :title="t('common.appTopbar.openAssistant')"
+        :aria-label="t('common.appTopbar.openAssistant')"
         @click="isAssistantOpen = true"
       >
         <Sparkles :size="16" />
-        <span class="assistant-label">Assistant</span>
+        <span class="assistant-label">{{ t('common.appTopbar.assistant') }}</span>
       </button>
 
       <!-- Video Intercom & Doorbell Button -->
       <button
         class="intercom-toggle-btn"
-        title="Citofonia & Campanelli Video (WebRTC Live Intercom)"
-        aria-label="Apri Video Citofono"
+        :title="t('common.appTopbar.intercomTitle')"
+        :aria-label="t('common.appTopbar.openIntercom')"
         @click="isIntercomOpen = true"
       >
         <Video :size="16" />
-        <span class="intercom-label">Citofono</span>
+        <span class="intercom-label">{{ t('common.appTopbar.intercom') }}</span>
       </button>
 
       <!-- Language Selector Dropdown -->
@@ -160,7 +160,7 @@ async function handleLogout() {
             v-if="isLangMenuOpen"
             class="lang-menu glass-panel"
             role="menu"
-            aria-label="Seleziona Lingua"
+            :aria-label="t('settings.language')"
           >
             <div class="lang-menu-header">
               <span>{{ t('settings.chooseLanguage') }}</span>
@@ -186,8 +186,8 @@ async function handleLogout() {
       <!-- Theme Toggle -->
       <button
         class="theme-toggle"
-        :title="isDark ? 'Passa al tema chiaro' : 'Switch to dark mode'"
-        :aria-label="isDark ? 'Attiva tema chiaro' : 'Attiva tema scuro'"
+        :title="isDark ? t('common.appTopbar.switchToLight') : t('common.appTopbar.switchToDark')"
+        :aria-label="isDark ? t('common.appTopbar.activateLight') : t('common.appTopbar.activateDark')"
         @click="toggleTheme"
       >
         <Sun v-if="isDark" :size="16" />
@@ -197,10 +197,10 @@ async function handleLogout() {
       <!-- WS Live Status Badge -->
       <div
         :class="['ws-status', { 'is-connected': isWsConnected, 'is-disconnected': !isWsConnected }]"
-        :title="isWsConnected ? 'WebSocket Connected' : 'WebSocket Disconnected'"
+        :title="isWsConnected ? t('common.appTopbar.wsConnected') : t('common.appTopbar.wsDisconnected')"
       >
         <span class="status-indicator" />
-        <span class="status-text">{{ isWsConnected ? 'Live' : 'Offline' }}</span>
+        <span class="status-text">{{ isWsConnected ? t('common.appTopbar.live') : t('common.appTopbar.offline') }}</span>
       </div>
 
       <!-- User Info & Logout -->
@@ -214,8 +214,8 @@ async function handleLogout() {
         </div>
         <button
           class="btn-logout"
-          title="Logout"
-          aria-label="Logout"
+          :title="t('common.appTopbar.logout')"
+          :aria-label="t('common.appTopbar.logout')"
           @click="handleLogout"
         >
           <LogOut :size="16" />
