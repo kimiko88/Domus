@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import FamilyView from './FamilyView.vue'
 import { useAuthStore } from '../stores/auth'
 import { useFamilyStore } from '../stores/family'
-import { i18n } from '../locales'
+import { i18n, setLanguage } from '../locales'
 import { apiClient } from '../api/client'
 
 describe('FamilyView.vue', () => {
@@ -71,7 +71,7 @@ describe('FamilyView.vue', () => {
 
   it('renders family permission controls in Russian', async () => {
     const previousLocale = i18n.global.locale.value
-    i18n.global.locale.value = 'ru'
+    setLanguage('ru')
     try {
       const authStore = useAuthStore()
       authStore.user = {
@@ -127,7 +127,7 @@ describe('FamilyView.vue', () => {
         expect.objectContaining({ can_manage_settings: true })
       )
     } finally {
-      i18n.global.locale.value = previousLocale
+      setLanguage(previousLocale)
     }
   })
 
