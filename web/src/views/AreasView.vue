@@ -159,8 +159,8 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           <div class="card-actions">
             <button
               class="btn-card-action"
-              title="Modifica area"
-              aria-label="Modifica area"
+               :title="t('areas.editArea')"
+               :aria-label="t('areas.editArea')"
               @click="openEditModal(area)"
             >
               <Pencil :size="15" />
