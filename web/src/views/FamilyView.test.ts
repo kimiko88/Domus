@@ -137,4 +137,37 @@ describe('FamilyView.vue', () => {
 
     expect(familyStore.createInvite).toHaveBeenCalledWith('operator', 48)
   })
+  it('allows administrators to invite a child account with restricted permissions', async () => {
+    const authStore = useAuthStore()
+    authStore.user = {
+      id: 'admin-1',
+      username: 'admin',
+      role: 'admin',
+      created_at: '2026-10-04T00:00:00Z',
+      updated_at: '2026-10-04T00:00:00Z'
+    }
+
+    const familyStore = useFamilyStore()
+    vi.spyOn(familyStore, 'fetchMembers').mockResolvedValue()
+    vi.spyOn(familyStore, 'fetchInvites').mockResolvedValue()
+    const createInvite = vi.spyOn(familyStore, 'createInvite').mockResolvedValue({
+      id: 'inv-kid',
+      token: 'kid-token',
+      role: 'kid',
+      expires_at: '2026-10-06T00:00:00Z',
+      invite_url: '/register?token=kid-token'
+    })
+
+    const wrapper = mount(FamilyView, {
+      global: { plugins: [pinia, i18n] }
+    })
+
+    await wrapper.find('.invite-btn').trigger('click')
+    await wrapper.find('input[value="kid"]').setValue()
+    const genBtn = wrapper.findAll('button').find(button => button.text().includes('Genera Link'))
+    expect(genBtn).toBeDefined()
+    await genBtn!.trigger('click')
+
+    expect(createInvite).toHaveBeenCalledWith('kid', 48)
+  })
 })
