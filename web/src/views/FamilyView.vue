@@ -188,7 +188,7 @@ function openPermissions(member: { id: string; username: string; permissions?: U
   selectedDashboardIDs.value = [...(permissions?.allowed_dashboard_ids || [])]
   selectedViews.value = [...(permissions?.allowed_views || [])]
   canControlDevices.value = permissions?.can_control_devices ?? false
-  canManageAutomations.value = permissions?.can_manage_automations ?? false
+  canManageAutomations.value = (permissions?.can_manage_automations ?? false) && allAreas.value && allEntities.value
   canViewCameras.value = permissions?.can_view_cameras ?? false
   isPermissionsModalOpen.value = true
 }
@@ -209,7 +209,7 @@ async function savePermissions() {
     allowed_dashboard_ids: allDashboards.value ? null : [...selectedDashboardIDs.value],
     allowed_views: allViews.value ? null : [...selectedViews.value],
     can_control_devices: canControlDevices.value,
-    can_manage_automations: canManageAutomations.value,
+    can_manage_automations: canManageAutomations.value && allAreas.value && allEntities.value,
     can_manage_settings: false,
     can_view_cameras: canViewCameras.value
   }
@@ -828,9 +828,10 @@ onMounted(() => {
               <span>{{ t('family.permissions.controlDevices') }}</span>
             </label>
             <label class="permission-check">
-              <input v-model="canManageAutomations" type="checkbox" />
+              <input v-model="canManageAutomations" type="checkbox" :disabled="!allAreas || !allEntities" />
               <span>{{ t('family.permissions.manageAutomations') }}</span>
             </label>
+            <p v-if="!allAreas || !allEntities" class="permission-hint">{{ t('family.permissions.automationScopeHint') }}</p>
             <label class="permission-check">
               <input v-model="canViewCameras" type="checkbox" />
               <span>{{ t('family.permissions.viewCameras') }}</span>
