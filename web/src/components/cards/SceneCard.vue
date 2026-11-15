@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
 import type { Scene } from '../../api/types'
 import { useScenesStore } from '../../stores/scenes'
 import { useNotificationsStore } from '../../stores/notifications'
 import BaseButton from '../ui/BaseButton.vue'
 import {
+const { t } = useI18n()
   Clapperboard,
   Play,
   Pencil,
