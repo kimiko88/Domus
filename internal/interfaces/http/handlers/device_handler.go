@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/domus-hub/domus/internal/domain/device"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -39,7 +40,18 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list devices")
 		return
 	}
-
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions != nil && permissions.AllowedAreaIDs != nil {
+			visible := make([]*device.Device, 0, len(devices))
+			for _, item := range devices {
+				if permissions.CanAccessArea(item.AreaID) {
+					visible = append(visible, item)
+				}
+			}
+			devices = visible
+		}
+	}
 	writeJSON(w, http.StatusOK, devices)
 }
 
@@ -56,5 +68,12 @@ func (h *DeviceHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions == nil || !permissions.CanAccessArea(dev.AreaID) {
+			writeError(w, http.StatusForbidden, "forbidden", "device is outside the member's allowed areas")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, dev)
 }
