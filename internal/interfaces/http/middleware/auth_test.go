@@ -222,3 +222,27 @@ func TestRequireUnrestrictedDeviceControlBlocksScopedBulkActions(t *testing.T) {
 	handler.ServeHTTP(scopedRecorder, scopedRequest)
 	assert.Equal(t, http.StatusForbidden, scopedRecorder.Code)
 }
+
+
+func TestRequireViewAccessMapsAlarmAndAssistantRoutes(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := domusmw.RequireViewAccess()(next)
+	request := func(path string, member *user.User) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req = req.WithContext(domusmw.WithUser(req.Context(), member))
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	viewer := &user.User{ID: "viewer-1", Role: user.RoleViewer, Permissions: user.DefaultPermissions("viewer-1", user.RoleViewer)}
+	assert.Equal(t, http.StatusNoContent, request("/api/v1/alarm", viewer))
+	assert.Equal(t, http.StatusNoContent, request("/api/v1/assistant/chat", viewer))
+	assert.Equal(t, http.StatusForbidden, request("/api/v1/assistant/config", viewer))
+	assert.Equal(t, http.StatusForbidden, request("/api/v1/assistant/satellites", viewer))
+
+	kid := &user.User{ID: "kid-1", Role: user.RoleKid, Permissions: user.DefaultPermissions("kid-1", user.RoleKid)}
+	assert.Equal(t, http.StatusNoContent, request("/api/v1/assistant/satellites", kid))
+}
