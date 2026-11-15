@@ -18,16 +18,17 @@ export const useAuthStore = defineStore('auth', () => {
   function canAccessRoute(routePath: string): boolean {
     if (!user.value) return false
     if (user.value.role === 'admin') return true
+    const configuredViews = user.value.permissions?.allowed_views ?? user.value.allowed_views
+    if (configuredViews !== undefined && configuredViews !== null) {
+      return configuredViews.includes(routePath) || configuredViews.some(p => p !== '/' && routePath.startsWith(p))
+    }
     if (user.value.role === 'kid') {
-      const allowed = ['/', '/media', '/chores', '/family', '/custom-dashboards']
+      const allowed = ['/', '/media', '/chores', '/custom-dashboards']
       return allowed.includes(routePath) || allowed.some(p => p !== '/' && routePath.startsWith(p))
     }
     if (user.value.role === 'guest' || user.value.is_guest) {
       const allowed = ['/', '/custom-dashboards', '/media']
       return allowed.includes(routePath) || allowed.some(p => p !== '/' && routePath.startsWith(p))
-    }
-    if (user.value.allowed_views && user.value.allowed_views.length > 0) {
-      return user.value.allowed_views.includes(routePath) || user.value.allowed_views.some(p => p !== '/' && routePath.startsWith(p))
     }
     return true
   }
