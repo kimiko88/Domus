@@ -11,6 +11,7 @@ import (
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/history"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -59,6 +60,11 @@ func (h *HistoryHandler) GetEntityHistory(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "internal_error", "failed to lookup entity")
 			return
 		}
+	}
+
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil && !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+		writeError(w, http.StatusForbidden, "forbidden", "entity history is outside the member's allowed resources")
+		return
 	}
 
 	// 2. Parse query parameters
@@ -114,6 +120,37 @@ func (h *HistoryHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 	period := q.Get("period")
 	if period == "" {
 		period = "hourly"
+	}
+
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions != nil && (permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil) {
+			entities, err := h.entityRepo.List(r.Context(), entity.ListFilter{})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "internal_error", "failed to resolve permitted entities")
+				return
+			}
+			allowed := make(map[string]bool, len(entities))
+			for _, item := range entities {
+				if currentUser.CanAccessEntityInArea(item.ID, item.AreaID) {
+					allowed[item.ID] = true
+				}
+			}
+			if len(entityIDs) == 0 {
+				entityIDs = make([]string, 0, len(allowed))
+				for id := range allowed {
+					entityIDs = append(entityIDs, id)
+				}
+			} else {
+				filtered := make([]string, 0, len(entityIDs))
+				for _, id := range entityIDs {
+					if allowed[id] {
+						filtered = append(filtered, id)
+					}
+				}
+				entityIDs = filtered
+			}
+		}
 	}
 
 	filter := history.StatisticsFilter{
