@@ -12,7 +12,7 @@ describe('TwoFactorModal.vue', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Autenticazione a Due Fattori (2FA / TOTP)')
+    expect(wrapper.text()).toContain('Autenticazione a due fattori (2FA / TOTP)')
     expect(wrapper.text()).toContain('JBSWY3DPEHPK3PXP')
     expect(wrapper.find('svg.qr-svg').exists()).toBe(true)
     expect(wrapper.find('input#totp-code').exists()).toBe(true)
@@ -39,7 +39,7 @@ describe('TwoFactorModal.vue', () => {
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('2FA Attivata con Successo!')
+    expect(wrapper.text()).toContain('2FA attivata con successo!')
     expect(wrapper.text()).toContain('1234-5678')
     expect(wrapper.text()).toContain('8765-4321')
     expect(wrapper.emitted('enabled')).toBeTruthy()
