@@ -114,9 +114,10 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
 			deviceCommand := strings.Contains(path, "/entities/") && strings.HasSuffix(path, "/command")
 			serviceCall := strings.Contains(path, "/services/")
+			sceneExecution := strings.Contains(path, "/scenes/") && strings.HasSuffix(path, "/apply")
 			automationMutation := strings.Contains(path, "/automations/")
 				|| strings.HasSuffix(path, "/automations")
-			if deviceCommand || serviceCall {
+			if deviceCommand || serviceCall || sceneExecution {
 				permissions := u.EffectivePermissions()
 				if permissions != nil && permissions.CanControlDevices {
 					next.ServeHTTP(w, r)
