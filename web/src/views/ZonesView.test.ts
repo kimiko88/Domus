@@ -64,7 +64,7 @@ describe('ZonesView.vue', () => {
     const wrapper = mount(ZonesView)
     await flushPromises()
 
-    const btn = wrapper.find('button[aria-label="Crea nuova zona"]')
+    const btn = wrapper.find('button[aria-label="Crea una nuova zona"]')
     await btn.trigger('click')
 
     expect(wrapper.text()).toContain('Crea Nuova Zona Geografica')
@@ -111,7 +111,7 @@ describe('ZonesView.vue', () => {
     const wrapper = mount(ZonesView)
     await flushPromises()
 
-    const addBtn = wrapper.find('button[aria-label="Aggiungi azione simulata"]')
+    const addBtn = wrapper.find('button[aria-label="Aggiungi un'azione simulata"]')
     expect(addBtn.exists()).toBe(true)
     await addBtn.trigger('click')
 
