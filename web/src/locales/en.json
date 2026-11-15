@@ -589,7 +589,8 @@
       "googleStep3": "Paste the copied address and confirm with “Add calendar”.",
       "importFromGoogleCalendar": "Import events / tasks from Google Calendar",
       "googleIcalAddress": "Google Calendar iCal address (.ics)"
-    }
+    },
+    "newChore": "New chore"
   },
   "helpers": {
     "title": "Virtual Entities & Helpers",
