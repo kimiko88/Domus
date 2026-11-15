@@ -108,7 +108,7 @@ async function loadData() {
       } catch {}
     }
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to load family data'
+    errorMsg.value = err?.message || t('family.errors.load')
   }
 }
 
@@ -126,7 +126,7 @@ function closeGuestModal() {
 
 async function handleCreateGuest() {
   if (!guestUsername.value || !guestPin.value) {
-    errorMsg.value = 'Inserisci nome ospite e PIN'
+    errorMsg.value = t('family.errors.guestRequired')
     return
   }
   try {
@@ -134,7 +134,7 @@ async function handleCreateGuest() {
     await familyStore.createGuest(guestUsername.value, guestPin.value, guestHours.value, guestKiosk.value)
     closeGuestModal()
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Impossibile creare profilo ospite'
+    errorMsg.value = err?.message || t('family.errors.createGuest')
   }
 }
 
@@ -158,7 +158,7 @@ async function handleGenerateInvite() {
     const base = typeof window !== 'undefined' ? window.location.origin : ''
     createdInviteUrl.value = `${base}${res.invite_url}`
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to generate invite'
+    errorMsg.value = err?.message || t('family.errors.generateInvite')
   }
 }
 
@@ -217,7 +217,7 @@ async function savePermissions() {
     await familyStore.updateMemberPermissions(permissionsMember.value.id, payload)
     closePermissions()
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Impossibile aggiornare i permessi'
+    errorMsg.value = err?.message || t('family.errors.updatePermissions')
   } finally {
     isSavingPermissions.value = false
   }
@@ -233,7 +233,7 @@ async function handleRoleChange(memberId: string, newRole: UserRole) {
       roleChangeSuccess.value = null
     }, 2500)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to update member role'
+    errorMsg.value = err?.message || t('family.errors.updateRole')
   }
 }
 
@@ -245,7 +245,7 @@ async function handleRemoveMember(memberId: string, username: string) {
     errorMsg.value = null
     await familyStore.removeMember(memberId)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to remove member'
+    errorMsg.value = err?.message || t('family.errors.removeMember')
   }
 }
 
@@ -254,7 +254,7 @@ async function handleRevokeInvite(inviteId: string) {
     errorMsg.value = null
     await familyStore.revokeInvite(inviteId)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to revoke invite'
+    errorMsg.value = err?.message || t('family.errors.revokeInvite')
   }
 }
 
@@ -433,7 +433,7 @@ onMounted(() => {
               <span>{{ t(`family.roles.${inv.role}`) }}</span>
             </div>
             <div class="invite-details">
-              <span class="invite-token">Token: {{ inv.token.slice(0, 12) }}...</span>
+              <span class="invite-token">{{ t('family.tokenLabel') }}: {{ inv.token.slice(0, 12) }}...</span>
               <span class="invite-expiry">
                 {{ t('family.expiresAt') }}: {{ formatDate(inv.expires_at) }}
               </span>
@@ -477,7 +477,7 @@ onMounted(() => {
           @click="openGuestModal"
         >
           <UserPlus :size="16" />
-          Nuovo Ospite / PIN Kiosk
+          {{ t('family.view.createGuestButton') }}
         </BaseButton>
       </div>
 
@@ -495,13 +495,13 @@ onMounted(() => {
           <div class="invite-info">
             <div class="invite-role-badge role-viewer">
               <KeyRound :size="14" />
-              <span>Ospite {{ guest.kiosk_mode ? '(Kiosk)' : '' }}</span>
+              <span>{{ t(guest.kiosk_mode ? 'family.view.guestKioskLabel' : 'family.view.guestLabel') }}</span>
             </div>
             <div class="invite-meta">
               <span class="invite-user"><strong>{{ guest.username }}</strong></span>
-              <span v-if="guest.pin_code" class="invite-pin">PIN: <code>{{ guest.pin_code }}</code></span>
+              <span v-if="guest.pin_code" class="invite-pin">{{ t('family.view.pinLabel') }}: <code>{{ guest.pin_code }}</code></span>
               <span v-if="guest.guest_expires_at" class="invite-expires">
-                Scadenza: {{ formatDate(guest.guest_expires_at) }}
+                {{ t('family.view.expiresLabel') }}: {{ formatDate(guest.guest_expires_at) }}
               </span>
             </div>
           </div>
