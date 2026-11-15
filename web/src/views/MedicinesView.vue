@@ -61,7 +61,7 @@ const formNotes = ref('')
 const aifaSearchInput = ref('')
 const showAifaSuggestions = ref(false)
 
-const locations: { key: MedicineLocation; label: string }[] = [
+const locations: { key: MedicineLocation; labelKey: string }[] = [
   { key: 'armadietto_bagno', labelKey: 'medicines.locations.cabinet' },
   { key: 'cassetto_notte', labelKey: 'medicines.locations.nightstand' },
   { key: 'borsa_viaggio', labelKey: 'medicines.locations.travel' },
@@ -69,7 +69,7 @@ const locations: { key: MedicineLocation; label: string }[] = [
   { key: 'altro', labelKey: 'medicines.locations.other' }
 ]
 
-const units: { key: MedicineUnit; label: string }[] = [
+const units: { key: MedicineUnit; labelKey: string }[] = [
   { key: 'compresse', labelKey: 'medicines.units.tablets' },
   { key: 'bustine', labelKey: 'medicines.units.sachets' },
   { key: 'gocce', labelKey: 'medicines.units.drops' },
