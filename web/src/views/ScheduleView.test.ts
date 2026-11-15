@@ -57,7 +57,7 @@ describe('ScheduleView.vue', () => {
     await calTabBtn.trigger('click')
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Eventi Sincronizzati & Trigger Automazioni')
+    expect(wrapper.text()).toContain('Eventi sincronizzati e trigger delle automazioni')
     expect(wrapper.text()).toContain('Smart Working da Casa')
   })
 })

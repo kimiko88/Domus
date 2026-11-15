@@ -74,7 +74,7 @@ describe('PredictiveClimateView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    expect(wrapper.text()).toContain('Termostato Predittivo Multizona')
+    expect(wrapper.text()).toContain('Termostato predittivo multizona')
     expect(wrapper.text()).toContain('Fronte Freddo Rilevato')
     expect(wrapper.text()).toContain('Salone Sud')
     expect(wrapper.text()).toContain('22.5 °C')
@@ -92,7 +92,7 @@ describe('PredictiveClimateView.vue', () => {
     await createBtn!.trigger('click')
 
     expect(wrapper.find('.modal-card').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Nome Zona / Stanza')
+    expect(wrapper.text()).toContain('Nome zona / stanza')
   })
 
   it('triggers manual evaluate zone action', async () => {

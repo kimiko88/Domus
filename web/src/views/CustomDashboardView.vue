@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   LayoutDashboard,
   Maximize2,
   Minimize2,
-  Plus,
   Flame,
   Sun,
   Battery,
   Zap,
   Home,
-  Clock,
   CloudSun,
   TrendingUp,
   Settings2,
@@ -19,15 +18,7 @@ import {
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
 
-interface Widget {
-  id: string
-  type: 'thermostat' | 'sparkline' | 'sankey' | 'entity_card'
-  title: string
-  entityKey?: string
-  value?: any
-  colSpan: number
-  rowSpan: number
-}
+const { t, locale } = useI18n()
 
 interface KioskConfig {
   enabled: boolean
@@ -81,8 +72,8 @@ const activeRoomName = ref('Salotto')
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
-const currentTime = ref(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))
-const currentDate = ref(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))
+const currentTime = ref(new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }))
+const currentDate = ref(new Date().toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
 
 // Kiosk Configurator State
 const isKioskConfigModalOpen = ref(false)
@@ -102,7 +93,6 @@ const kioskConfig = ref<KioskConfig>({
 // Circular Thermostat State
 const currentTemp = ref(20.0)
 const targetTemp = ref(20.0)
-const isHeating = ref(false)
 
 function adjustTargetTemp(delta: number) {
   targetTemp.value = Math.round((targetTemp.value + delta) * 10) / 10
@@ -272,7 +262,7 @@ let clockInterval: any = null
 
 onMounted(async () => {
   clockInterval = setInterval(() => {
-    currentTime.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    currentTime.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   }, 1000)
 
   window.addEventListener('mousemove', resetInactivity)
@@ -317,7 +307,6 @@ onMounted(async () => {
         if (!isNaN(tVal)) {
           currentTemp.value = tVal
           targetTemp.value = climate.attributes?.temperature || tVal
-          isHeating.value = climate.attributes?.hvac_action === 'heating'
         }
       }
     }

@@ -207,7 +207,7 @@ describe('IntegrationsView.vue', () => {
     await tabs[3].trigger('click')
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('IoT Network Guardian & Confinamento LAN')
+    expect(wrapper.text()).toContain('IoT Network Guardian e isolamento LAN')
     expect(wrapper.text()).toContain('Shelly Plug Infiltrato')
     expect(wrapper.text()).toContain('104.26.4.12:1883')
     expect(wrapper.text()).toContain('34:94:54:11:22:33')
@@ -309,7 +309,7 @@ describe('IntegrationsView.vue', () => {
       { command: 'turn_on' }
     )
     expect(wrapper.text()).toContain('LAN: 192.168.1.120')
-    expect(wrapper.text()).toContain('LAN Locale')
+    expect(wrapper.text()).toContain('LAN locale')
   })
 
   it('allows saving Tuya configuration directly from the UI without OAuth redirect', async () => {
@@ -331,7 +331,7 @@ describe('IntegrationsView.vue', () => {
     await wrapper.vm.$nextTick()
 
     // Form must be visible when not configured
-    expect(wrapper.text()).toContain('Come collegare Smart Life a Domus (Senza OAuth 2.0)')
+    expect(wrapper.text()).toContain('Come collegare Smart Life a Domus (senza OAuth 2.0)')
     expect(wrapper.find('#tuya-client-id').exists()).toBe(true)
     expect(wrapper.find('#tuya-client-secret').exists()).toBe(true)
     expect(wrapper.find('#tuya-uid').exists()).toBe(true)

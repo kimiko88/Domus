@@ -690,7 +690,7 @@
     "success": "Registration successful! Welcome to Domus.",
     "backToLogin": "Back to Login",
     "usernamePlaceholder": "e.g. alex_smith",
-    "emailPlaceholder": "e.g. alex@example.com"
+    "emailPlaceholder": "e.g. alex{'@'}example.com"
   },
   "energy": {
     "title": "Energy Monitoring & Solar Flow",
