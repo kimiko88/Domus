@@ -42,7 +42,7 @@ describe('StoreView.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Domus Store & Marketplace Estensioni')
-    expect(wrapper.text()).toContain('WASM Plugins')
+    expect(wrapper.text()).toContain('Plugin WASM')
     expect(wrapper.text()).toContain('Blueprints')
   })
 
@@ -109,7 +109,7 @@ describe('StoreView.vue', () => {
     await proposeBtn.trigger('click')
 
     expect(wrapper.find('.modal-card.modal-lg').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Proponi un Plugin Open Source')
+    expect(wrapper.text()).toContain('Proponi un plugin open source')
 
     // Fill form
     await wrapper.find('input#pkg-name').setValue('LoRa Emergency Beacon')
