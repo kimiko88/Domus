@@ -179,7 +179,8 @@
     "onlineSensors": "Online Sensoren",
     "activeCount": "Aktiv",
     "detectedCount": "Erkannt",
-    "filterAll": "Alle", "filterAlarm": "Alarm",
+    "filterAll": "Alle",
+    "filterAlarm": "Alarm",
     "filterLights": "Lichter",
     "filterSwitches": "Schalter",
     "filterSensors": "Sensoren",
@@ -699,7 +700,23 @@
       "dayOne": "24 Stunden (1 Tag)",
       "days": "{value} Tage",
       "oneWeek": "7 Tage (1 Woche)",
-      "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren"
+      "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren",
+      "createGuestButton": "Neuer Gast / Kiosk-PIN",
+      "guestLabel": "Gast",
+      "guestKioskLabel": "Gast (Kiosk)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Läuft ab"
+    },
+    "tokenLabel": "Token",
+    "errors": {
+      "load": "Familiendaten konnten nicht geladen werden.",
+      "guestRequired": "Geben Sie den Gastnamen und die PIN ein.",
+      "createGuest": "Gastprofil konnte nicht erstellt werden.",
+      "generateInvite": "Einladung konnte nicht erstellt werden.",
+      "updatePermissions": "Berechtigungen konnten nicht aktualisiert werden.",
+      "updateRole": "Mitgliedsrolle konnte nicht geändert werden.",
+      "removeMember": "Mitglied konnte nicht entfernt werden.",
+      "revokeInvite": "Einladung konnte nicht widerrufen werden."
     }
   },
   "register": {
