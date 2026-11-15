@@ -80,4 +80,5 @@ func TestViewerDefaultsAreReadOnlyAndHideCameras(t *testing.T) {
 	assert.True(t, permissions.CanAccessView("/"))
 	assert.False(t, permissions.CanAccessView("/family"))
 	assert.False(t, permissions.CanAccessView("/automations"))
+	assert.False(t, permissions.CanAccessDashboard("dashboard-1"))
 }
