@@ -308,7 +308,27 @@
     "deleteError": "No se pudo eliminar la automatización",
     "emptyTitle": "Ninguna automatización encontrada",
     "emptyDesc": "Cree su primera automatización para controlar luces o enviar comandos cuando ocurran eventos.",
-    "noResults": "Ningún resultado coincide con su búsqueda."
+    "noResults": "Ningún resultado coincide con su búsqueda.",
+    "view": {
+      "confirmDeleteWebhook": "¿Seguro que quieres eliminar el webhook «{name}»?",
+      "nodeEditorTitle": "Abrir editor visual de nodos",
+      "nodeEditorButton": "Editor de nodos",
+      "webhookTitle": "Webhooks entrantes",
+      "webhookSubtitle": "Recibe solicitudes HTTP protegidas con HMAC desde IFTTT, n8n, OwnTracks o sensores externos para activar eventos.",
+      "newWebhook": "Nuevo webhook",
+      "webhookEmpty": "No hay webhooks configurados. Crea un endpoint para recibir solicitudes externas de forma segura.",
+      "webhookCopied": "¡Copiado!",
+      "copyWebhookUrl": "Copiar URL del webhook",
+      "newWebhookTitle": "Nuevo webhook entrante",
+      "webhookName": "Nombre del webhook",
+      "webhookNamePlaceholder": "Ej.: IFTTT Llegada a casa, OwnTracks GPS",
+      "secretToken": "Token secreto HMAC (opcional, para la firma X-Domus-Signature)",
+      "secretPlaceholder": "Ej.: secret_my_token_123",
+      "allowedHttpMethod": "Método HTTP permitido",
+      "postStandard": "POST (carga JSON estándar)",
+      "getQuery": "GET (parámetros en la cadena de consulta)",
+      "createWebhook": "Crear webhook"
+    }
   },
   "scenes": {
     "title": "Escenas y Ambientes",
