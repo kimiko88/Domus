@@ -18,6 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
   function canAccessRoute(routePath: string): boolean {
     if (!user.value) return false
     if (user.value.role === 'admin') return true
+    const permissions = user.value.permissions
+    if (permissions && routePath.startsWith('/cameras') && !permissions.can_view_cameras) return false
+    if (permissions && routePath.startsWith('/automations') && !permissions.can_manage_automations) return false
+    if (permissions && routePath.startsWith('/settings') && !permissions.can_manage_settings) return false
     const configuredViews = user.value.permissions?.allowed_views ?? user.value.allowed_views
     if (configuredViews !== undefined && configuredViews !== null) {
       return configuredViews.includes(routePath) || configuredViews.some(p => p !== '/' && routePath.startsWith(p))
