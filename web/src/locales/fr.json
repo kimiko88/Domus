@@ -179,7 +179,8 @@
     "onlineSensors": "Capteurs En Ligne",
     "activeCount": "Actifs",
     "detectedCount": "Détectés",
-    "filterAll": "Tous", "filterAlarm": "Alarme",
+    "filterAll": "Tous",
+    "filterAlarm": "Alarme",
     "filterLights": "Lumières",
     "filterSwitches": "Interrupteurs",
     "filterSensors": "Capteurs",
@@ -699,7 +700,23 @@
       "dayOne": "24 heures (1 jour)",
       "days": "{value} jours",
       "oneWeek": "7 jours (1 semaine)",
-      "enableKiosk": "Activer le mode borne plein écran pour ce code PIN"
+      "enableKiosk": "Activer le mode borne plein écran pour ce code PIN",
+      "createGuestButton": "Nouvel invité / code PIN de borne",
+      "guestLabel": "Invité",
+      "guestKioskLabel": "Invité (borne)",
+      "pinLabel": "Code PIN",
+      "expiresLabel": "Expire"
+    },
+    "tokenLabel": "Jeton",
+    "errors": {
+      "load": "Impossible de charger les données de la famille.",
+      "guestRequired": "Saisissez le nom de l’invité et le code PIN.",
+      "createGuest": "Impossible de créer le profil invité.",
+      "generateInvite": "Impossible de générer l’invitation.",
+      "updatePermissions": "Impossible de mettre à jour les autorisations.",
+      "updateRole": "Impossible de modifier le rôle du membre.",
+      "removeMember": "Impossible de supprimer le membre.",
+      "revokeInvite": "Impossible de révoquer l’invitation."
     }
   },
   "register": {
