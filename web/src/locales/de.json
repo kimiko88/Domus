@@ -677,6 +677,7 @@
       "actionsTitle": "Erlaubte Aktionen",
       "controlDevices": "Geräte steuern",
       "manageAutomations": "Automatisierungen verwalten",
+      "automationScopeHint": "Für die Verwaltung von Automatisierungen ist Zugriff auf alle Räume und Geräte erforderlich.",
       "viewCameras": "Kameras ansehen",
       "manageSettings": "Systemeinstellungen verwalten",
       "hint": "Berechtigungen werden auch serverseitig geprüft.",
