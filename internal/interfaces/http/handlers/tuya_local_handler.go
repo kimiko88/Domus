@@ -76,6 +76,13 @@ func (h *TuyaLocalHandler) SendCommand(w http.ResponseWriter, r *http.Request) {
 
 	deviceResponse, err := h.adapter.SendCommand(r.Context(), deviceID, req.Command, req.Params)
 	if err != nil {
+		if deviceResponse != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{
+				"success": false, "confirmed": false, "transport": "lan_local",
+				"code": "TUYA_LOCAL_ERROR", "message": err.Error(), "device_response": deviceResponse,
+			})
+			return
+		}
 		writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", err.Error())
 		return
 	}
