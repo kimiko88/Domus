@@ -179,7 +179,8 @@
     "onlineSensors": "Sensori Online",
     "activeCount": "Attive",
     "detectedCount": "Rilevati",
-    "filterAll": "Tutte", "filterAlarm": "Allarme",
+    "filterAll": "Tutte",
+    "filterAlarm": "Allarme",
     "filterLights": "Luci",
     "filterSwitches": "Interruttori",
     "filterSensors": "Sensori",
@@ -699,8 +700,24 @@
       "dayOne": "24 ore (1 giorno)",
       "days": "{value} giorni",
       "oneWeek": "7 giorni (1 settimana)",
-      "enableKiosk": "Abilita la modalità kiosk a schermo intero per questo PIN"
-    }
+      "enableKiosk": "Abilita la modalità kiosk a schermo intero per questo PIN",
+      "createGuestButton": "Nuovo ospite / PIN kiosk",
+      "guestLabel": "Ospite",
+      "guestKioskLabel": "Ospite (kiosk)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Scadenza"
+    },
+    "errors": {
+      "load": "Impossibile caricare i dati della famiglia.",
+      "guestRequired": "Inserisci il nome dell'ospite e il PIN.",
+      "createGuest": "Impossibile creare il profilo ospite.",
+      "generateInvite": "Impossibile generare l'invito.",
+      "updatePermissions": "Impossibile aggiornare i permessi.",
+      "updateRole": "Impossibile aggiornare il ruolo del componente.",
+      "removeMember": "Impossibile rimuovere il componente.",
+      "revokeInvite": "Impossibile revocare l'invito."
+    },
+    "tokenLabel": "Token"
   },
   "register": {
     "title": "Unisciti alla Famiglia Domus",
