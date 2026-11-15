@@ -42,33 +42,33 @@ interface DashboardProfile {
 const defaultDashboards: DashboardProfile[] = [
   {
     id: 'tablet_living_room',
-    title: 'Tablet Salotto (Principale)',
+    title: t('dashboard.view.defaultProfileLivingRoom'),
     icon: 'layout',
     is_default: true,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 20.0, "room": "Salotto"}'
+    layout_json: JSON.stringify({ target_temp: 20.0, room: t('dashboard.view.roomLivingRoom') })
   },
   {
     id: 'tablet_kitchen',
-    title: 'Tablet Cucina & Ingresso',
+    title: t('dashboard.view.defaultProfileKitchen'),
     icon: 'utensils',
     is_default: false,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 19.5, "room": "Cucina"}'
+    layout_json: JSON.stringify({ target_temp: 19.5, room: t('dashboard.view.roomKitchen') })
   },
   {
     id: 'tablet_night',
-    title: 'Tablet Camera & Notte',
+    title: t('dashboard.view.defaultProfileNight'),
     icon: 'moon',
     is_default: false,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 18.0, "room": "Camera da Letto"}'
+    layout_json: JSON.stringify({ target_temp: 18.0, room: t('dashboard.view.roomBedroom') })
   }
 ]
 
 const dashboards = ref<DashboardProfile[]>([])
 const currentDashboardId = ref('')
-const activeRoomName = ref('Salotto')
+const activeRoomName = ref(t('dashboard.view.roomLivingRoom'))
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
@@ -106,7 +106,7 @@ function switchDashboardProfile() {
       if (cfg.target_temp) {
         targetTemp.value = cfg.target_temp
       }
-      activeRoomName.value = cfg.room || 'Salotto'
+      activeRoomName.value = cfg.room || t('dashboard.view.roomLivingRoom')
     } catch {}
 
     if (profile.kiosk_config_json) {
