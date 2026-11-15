@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { Bell, CheckCircle, AlertTriangle, X, ShieldAlert, Sparkles, Clock } from '@lucide/vue'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAuthStore } from '../../stores/auth'
@@ -65,11 +67,11 @@ function formatTime(isoStr: string) {
               </span>
             </div>
             <div>
-              <h2 id="notif-drawer-title" class="drawer-title">Notifiche Azionabili</h2>
-              <p class="drawer-sub">Comandi rapidi e avvisi interattivi della casa</p>
+              <h2 id="notif-drawer-title" class="drawer-title">{{ t('common.notificationsView.title') }}</h2>
+              <p class="drawer-sub">{{ t('common.notificationsView.subtitle') }}</p>
             </div>
           </div>
-          <button class="btn-close" aria-label="Chiudi notifiche" @click="emit('close')">
+          <button class="btn-close" :aria-label="t('common.notificationsView.close')" @click="emit('close')">
             <X :size="18" />
           </button>
         </div>
@@ -80,8 +82,8 @@ function formatTime(isoStr: string) {
             <div class="empty-icon-circle">
               <CheckCircle :size="32" class="text-success" />
             </div>
-            <h3>Nessuna notifica in sospeso</h3>
-            <p>Tutti gli eventi e gli allarmi della casa sono risolti o archiviati.</p>
+            <h3>{{ t('common.notificationsView.emptyTitle') }}</h3>
+            <p>{{ t('common.notificationsView.emptyDesc') }}</p>
           </div>
 
           <div v-else class="notif-list">
@@ -95,15 +97,15 @@ function formatTime(isoStr: string) {
                 <div class="notif-type-tag">
                   <ShieldAlert v-if="item.critical" :size="15" class="text-danger" />
                   <Sparkles v-else :size="15" class="text-primary" />
-                  <span class="type-text">{{ item.critical ? 'Critico / Urgente' : 'Notifica Intelligente' }}</span>
+                  <span class="type-text">{{ item.critical ? t('common.notificationsView.critical') : t('common.notificationsView.smart') }}</span>
                 </div>
                 <div class="time-meta">
                   <Clock :size="12" />
                   <span>{{ formatTime(item.created_at) }}</span>
                   <button
                     class="btn-dismiss"
-                    title="Archivia"
-                    :aria-label="`Archivia notifica: ${item.title}`"
+                    :title="t('common.notificationsView.archive')"
+                    :aria-label="t('common.notificationsView.archiveNotification', { title: item.title })"
                     @click="handleDismiss(item.id)"
                   >
                     <X :size="14" />
@@ -114,7 +116,7 @@ function formatTime(isoStr: string) {
               <div class="notif-card-body">
                 <h4 class="notif-title">{{ item.title }}</h4>
                 <p class="notif-msg">{{ item.message }}</p>
-                <img v-if="item.image_url" :src="item.image_url" alt="Anteprima evento" class="notif-preview-img" />
+                <img v-if="item.image_url" :src="item.image_url" :alt="t('common.notificationsView.eventPreview')" class="notif-preview-img" />
               </div>
 
               <!-- Actionable Buttons -->
