@@ -660,6 +660,7 @@
     "revoke": "Widerrufen",
     "noMembers": "Keine Mitglieder gefunden.",
     "permissions": {
+      "notifications": "Benachrichtigungen",
       "manage": "Berechtigungen verwalten",
       "title": "Berechtigungen für {name}",
       "areasTitle": "Zugängliche Räume",
