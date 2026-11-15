@@ -189,20 +189,20 @@ onMounted(() => {
     <!-- Visual Graph Card -->
     <div class="mesh-canvas-card glass-panel">
       <div class="canvas-legend-bar">
-        <div class="legend-item"><span class="dot coordinator" /> Coordinator (Gateway)</div>
-        <div class="legend-item"><span class="dot router" /> Router / Ripetitore (Alimentato)</div>
-        <div class="legend-item"><span class="dot end-device" /> End-Device (A batteria)</div>
+        <div class="legend-item"><span class="dot coordinator" /> {{ t('mesh.view.coordinator') }}</div>
+        <div class="legend-item"><span class="dot router" /> {{ t('mesh.view.router') }}</div>
+        <div class="legend-item"><span class="dot end-device" /> {{ t('mesh.view.endDevice') }}</div>
         <div class="legend-separator" />
-        <div class="legend-item"><span class="link-line excellent" /> LQI &gt; 180 (Ottimo)</div>
-        <div class="legend-item"><span class="link-line good" /> LQI 100-180 (Buono)</div>
-        <div class="legend-item"><span class="link-line weak" /> LQI &lt; 100 (Debole)</div>
+        <div class="legend-item"><span class="link-line excellent" /> LQI &gt; 180 ({{ t('mesh.view.excellent') }})</div>
+        <div class="legend-item"><span class="link-line good" /> LQI 100-180 ({{ t('mesh.view.good') }})</div>
+        <div class="legend-item"><span class="link-line weak" /> LQI &lt; 100 ({{ t('mesh.view.weak') }})</div>
       </div>
 
       <!-- Empty State when no nodes exist -->
       <div v-if="topology.nodes.length === 0" class="svg-graph-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 12px;">
         <Network :size="48" style="opacity: 0.4; color: var(--text-muted);" />
         <p style="font-weight: 600; font-size: 1.05rem; margin: 0;">Nessun dispositivo {{ currentProtocol.toUpperCase() }} rilevato nella rete mesh</p>
-        <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">I dispositivi configurati per questo protocollo verranno visualizzati qui con le loro metriche LQI reali.</p>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">{{ t('mesh.view.devicesProtocolHint') }}</p>
       </div>
 
       <!-- Graph Diagram SVG -->
@@ -268,15 +268,15 @@ onMounted(() => {
         </div>
         <div class="inspector-props">
           <div class="prop-row">
-            <span>Tipo Nodo:</span>
+            <span>{{ t('mesh.view.nodeType') }}:</span>
             <strong>{{ selectedNode.type.toUpperCase() }}</strong>
           </div>
           <div class="prop-row">
-            <span>Link Quality (LQI):</span>
+            <span>{{ t('mesh.view.linkQuality') }}:</span>
             <strong :class="selectedNode.lqi > 150 ? 'text-success' : 'text-warning'">{{ selectedNode.lqi }} / 255</strong>
           </div>
           <div v-if="selectedNode.battery" class="prop-row">
-            <span>Batteria Residua:</span>
+            <span>{{ t('mesh.view.remainingBattery') }}:</span>
             <strong>{{ selectedNode.battery }}%</strong>
           </div>
         </div>
@@ -291,8 +291,8 @@ onMounted(() => {
             <Radio :size="24" class="text-primary" />
           </div>
           <div>
-            <h2 class="binding-title">Zigbee Direct Binding (Associazione Diretta Senza Hub)</h2>
-            <p class="binding-desc">Associa direttamente un telecomando wireless o pulsante a una lampadina/gruppo. Continua a funzionare istantaneamente anche se il server Domus è spento!</p>
+            <h2 class="binding-title">{{ t('mesh.view.directBindingTitle') }}</h2>
+            <p class="binding-desc">{{ t('mesh.view.directBindingDesc') }}</p>
           </div>
         </div>
         <button class="proto-btn active" @click="isBindingModalOpen = true">
@@ -302,7 +302,7 @@ onMounted(() => {
 
       <div v-if="bindings.length === 0" class="binding-empty">
         <Radio :size="32" class="empty-icon" />
-        <p>Nessun legame diretto attivo. Crea una connessione diretta hardware tra un interruttore e un dispositivo attuatore.</p>
+        <p>{{ t('mesh.view.noBindings') }}</p>
       </div>
 
       <div v-else class="bindings-grid">
@@ -314,7 +314,7 @@ onMounted(() => {
           </div>
           <div class="binding-card-body">
             <span>Cluster: <code>{{ b.clusters?.join(', ') || 'genOnOff' }}</code></span>
-            <button class="unbind-btn" title="Rimuovi legame" @click="handleDeleteBinding(b.id)">
+            <button class="unbind-btn" :title="t('mesh.view.removeBinding')" @click="handleDeleteBinding(b.id)">
               Elimina
             </button>
           </div>
@@ -326,34 +326,34 @@ onMounted(() => {
     <div v-if="isBindingModalOpen" class="modal-backdrop" @click.self="isBindingModalOpen = false">
       <div class="modal-card glass-panel">
         <div class="modal-header">
-          <h3>Nuovo Binding Zigbee Diretto</h3>
+          <h3>{{ t('mesh.view.newBindingTitle') }}</h3>
           <button class="close-btn" @click="isBindingModalOpen = false">✕</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Dispositivo Sorgente (Telecomando/Interruttore)</label>
-            <input v-model="sourceDeviceName" type="text" placeholder="Nome (es. Telecomando Letto)" class="form-input" />
-            <input v-model="sourceDeviceID" type="text" placeholder="IEEE / ID Dispositivo" class="form-input" style="margin-top: 6px;" />
+            <label>{{ t('mesh.view.sourceDevice') }}</label>
+            <input v-model="sourceDeviceName" type="text" :placeholder="t('mesh.view.sourceNamePlaceholder')" class="form-input" />
+            <input v-model="sourceDeviceID" type="text" :placeholder="t('mesh.view.deviceIdPlaceholder')" class="form-input" style="margin-top: 6px;" />
           </div>
 
           <div class="form-group">
-            <label>Dispositivo Destinazione (Lampadina/Relè/Gruppo)</label>
-            <input v-model="targetDeviceName" type="text" placeholder="Nome (es. Luce Comodino)" class="form-input" />
+            <label>{{ t('mesh.view.destinationDevice') }}</label>
+            <input v-model="targetDeviceName" type="text" :placeholder="t('mesh.view.destinationNamePlaceholder')" class="form-input" />
             <input v-model="targetDeviceID" type="text" placeholder="IEEE / ID Dispositivo" class="form-input" style="margin-top: 6px;" />
           </div>
 
           <div class="form-group">
-            <label>Cluster Funzionale</label>
+            <label>{{ t('mesh.view.functionalCluster') }}</label>
             <select v-model="selectedClusters[0]" class="form-input">
-              <option value="genOnOff">Accensione/Spegnimento (genOnOff)</option>
-              <option value="genLevelCtrl">Dimming / Luminosità (genLevelCtrl)</option>
-              <option value="lightingColorCtrl">Colore / Temperatura (lightingColorCtrl)</option>
+              <option value="genOnOff">{{ t('mesh.view.onOffCluster') }}</option>
+              <option value="genLevelCtrl">{{ t('mesh.view.levelCluster') }}</option>
+              <option value="lightingColorCtrl">{{ t('mesh.view.colorCluster') }}</option>
             </select>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="cancel-btn" @click="isBindingModalOpen = false">Annulla</button>
-          <button class="submit-btn" @click="handleCreateBinding">Crea Legame Diretto</button>
+          <button class="cancel-btn" @click="isBindingModalOpen = false">{{ t('common.cancel') }}</button>
+          <button class="submit-btn" @click="handleCreateBinding">{{ t('mesh.view.createBinding') }}</button>
         </div>
       </div>
     </div>
