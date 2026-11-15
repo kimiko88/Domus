@@ -308,7 +308,27 @@
     "deleteError": "Automatisierung konnte nicht gelöscht werden",
     "emptyTitle": "Keine Automatisierungen gefunden",
     "emptyDesc": "Erstellen Sie Ihre erste Automatisierung, um Aktionen bei Ereignissen auszulösen.",
-    "noResults": "Keine Ergebnisse für Ihre Suche."
+    "noResults": "Keine Ergebnisse für Ihre Suche.",
+    "view": {
+      "confirmDeleteWebhook": "Möchtest du den Webhook „{name}“ wirklich löschen?",
+      "nodeEditorTitle": "Visuellen Node-Editor öffnen",
+      "nodeEditorButton": "Node-Editor",
+      "webhookTitle": "Eingehende Webhooks",
+      "webhookSubtitle": "Empfange HMAC-geschützte HTTP-Nutzdaten von IFTTT, n8n, OwnTracks oder externen Sensoren, um Ereignisse auszulösen.",
+      "newWebhook": "Neuer Webhook",
+      "webhookEmpty": "Keine Webhooks konfiguriert. Erstelle einen Endpunkt, um externe Anfragen sicher zu empfangen.",
+      "webhookCopied": "Kopiert!",
+      "copyWebhookUrl": "Webhook-URL kopieren",
+      "newWebhookTitle": "Neuer eingehender Webhook",
+      "webhookName": "Webhook-Name",
+      "webhookNamePlaceholder": "z. B. IFTTT Ankunft zu Hause, OwnTracks GPS",
+      "secretToken": "HMAC-Geheimschlüssel (optional, für X-Domus-Signature)",
+      "secretPlaceholder": "z. B. secret_my_token_123",
+      "allowedHttpMethod": "Erlaubte HTTP-Methode",
+      "postStandard": "POST (Standard-JSON-Nutzdaten)",
+      "getQuery": "GET (Abfrageparameter)",
+      "createWebhook": "Webhook erstellen"
+    }
   },
   "scenes": {
     "title": "Szenen & Stimmungen",
