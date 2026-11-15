@@ -137,7 +137,23 @@
       "unlockKioskTitle": "Déverrouiller le mode borne",
       "unlockKioskDesc": "Saisissez le code PIN pour quitter le mode tablette",
       "invalidPin": "Code PIN incorrect. Réessayez.",
-      "unlock": "Déverrouiller"
+      "unlock": "Déverrouiller",
+      "entityFilters": "Filtres des entités et des sections du tableau de bord",
+      "openStoreCatalog": "Ouvrir le catalogue complet Domus Store",
+      "searchExtensions": "Rechercher des extensions dans la marketplace",
+      "clearSearch": "Effacer la recherche",
+      "filterModuleType": "Filtrer par type de module",
+      "packageDetails": "Détails de {name}",
+      "uninstallPackage": "Désinstaller {name}",
+      "installPackage": "Installer {name}",
+      "viewAllExtensions": "Voir toutes les extensions du catalogue Domus Store",
+      "closeModuleDetails": "Fermer les détails du module",
+      "author": "Auteur",
+      "license": "Licence",
+      "installDate": "Date d’installation",
+      "wasiPermissions": "Autorisations du bac à sable WASI",
+      "viewSourceFor": "Voir le code open source de {name}",
+      "viewSource": "Voir le code source open source"
     }
   },
   "areas": {
@@ -450,7 +466,24 @@
     "noPendingInvites": "Aucune invitation d'inscription active pour le moment.",
     "expiresAt": "Expiration",
     "revoke": "Révoquer",
-    "noMembers": "Aucun membre trouvé."
+    "noMembers": "Aucun membre trouvé.",
+    "view": {
+      "you": "(Vous)",
+      "guestProfilesTitle": "Profils invités et code PIN temporaire du mode borne",
+      "guestProfilesDesc": "Créez des comptes à accès limité avec un code PIN ou un déverrouillage temporaire du mode borne (ex. : baby-sitter ou location de courte durée).",
+      "guestProfilesEmpty": "Aucun profil invité actif. Créez un code PIN temporaire pour vos visiteurs.",
+      "removeGuest": "Supprimer l’invité",
+      "createGuestProfileTitle": "Créer un profil invité / borne",
+      "profileName": "Nom du profil / visiteur",
+      "profileNamePlaceholder": "Ex. : baby-sitter, invité du salon",
+      "numericPin": "Code PIN numérique (4 à 8 chiffres)",
+      "temporaryValidity": "Durée de validité temporaire (heures)",
+      "hours": "{value} heures",
+      "dayOne": "24 heures (1 jour)",
+      "days": "{value} jours",
+      "oneWeek": "7 jours (1 semaine)",
+      "enableKiosk": "Activer le mode borne plein écran pour ce code PIN"
+    }
   },
   "register": {
     "title": "Rejoindre la Famille Domus",
