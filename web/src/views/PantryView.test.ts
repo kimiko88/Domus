@@ -79,9 +79,9 @@ describe('PantryView.vue', () => {
 
     expect(wrapper.find('h1.page-title').text()).toBe('Dispensa e ricettario intelligente')
     expect(wrapper.text()).toContain('Articoli in Dispensa')
-    expect(wrapper.text()).toContain('Dispensa & Scorte')
+    expect(wrapper.text()).toContain('Dispensa e scorte')
     expect(wrapper.text()).toContain('Ricettario')
-    expect(wrapper.text()).toContain('Calendario Pasti')
+    expect(wrapper.text()).toContain('Calendario pasti')
   })
 
   it('switches tabs properly between inventory, recipes, and calendar', async () => {
