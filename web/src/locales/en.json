@@ -264,7 +264,13 @@
       "viewSourceFor": "View open-source code for {name}",
       "viewSource": "View open-source source code",
       "climateThermostat": "Climate & Thermostat",
-      "batteryLabel": "Battery ({value}%)"
+      "batteryLabel": "Battery ({value}%)",
+      "defaultProfileLivingRoom": "Living room tablet (Main)",
+      "defaultProfileKitchen": "Kitchen & entry tablet",
+      "defaultProfileNight": "Bedroom & night tablet",
+      "roomLivingRoom": "Living room",
+      "roomKitchen": "Kitchen",
+      "roomBedroom": "Bedroom"
     }
   },
   "areas": {
