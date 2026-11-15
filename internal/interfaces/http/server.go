@@ -782,7 +782,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					cRouter.Get("/events/{id}/clip", ecoH.GetEventClip)
 				})
 
-				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
+				domainRouter.With(domusmw.RequireCameraView()).Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/tags", func(tRouter chi.Router) {
 					tRouter.Get("/", ecoH.ListTags)
