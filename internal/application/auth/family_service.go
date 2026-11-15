@@ -237,6 +237,10 @@ func (s *Service) UpdateFamilyMemberRole(ctx context.Context, adminID, targetUse
 		}
 	}
 
+	// Revoke active sessions so long-lived WebSocket connections cannot retain stale grants.
+	if err := s.sessionRepo.DeleteByUserID(ctx, targetUserID); err != nil {
+		return fmt.Errorf("auth: revoke member sessions before role update: %w", err)
+	}
 	if err := s.userRepo.UpdateRole(ctx, targetUserID, newRole); err != nil {
 		return fmt.Errorf("auth: update role: %w", err)
 	}
@@ -271,6 +275,10 @@ func (s *Service) UpdateFamilyMemberPermissions(ctx context.Context, adminID, ta
 	}
 	permissions.UserID = targetUserID
 	permissions.Role = target.Role
+	// Revoke existing sessions before changing grants; clients must reconnect with the new policy.
+	if err := s.sessionRepo.DeleteByUserID(ctx, targetUserID); err != nil {
+		return fmt.Errorf("auth: revoke member sessions before permission update: %w", err)
+	}
 	if err := s.userRepo.UpdatePermissions(ctx, targetUserID, permissions); err != nil {
 		return fmt.Errorf("auth: update member permissions: %w", err)
 	}
