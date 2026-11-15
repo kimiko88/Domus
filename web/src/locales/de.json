@@ -579,7 +579,9 @@
     "errorInvalidInvite": "Dieser Einladungslink ist ungültig oder abgelaufen. Bitte kontaktieren Sie den Administrator.",
     "errorPasswordMismatch": "Die Passwörter stimmen nicht überein.",
     "success": "Registrierung erfolgreich abgeschlossen! Willkommen bei Domus.",
-    "backToLogin": "Zurück zur Anmeldung"
+    "backToLogin": "Zurück zur Anmeldung",
+    "usernamePlaceholder": "z. B. anna_mueller",
+    "emailPlaceholder": "z. B. anna@beispiel.de"
   },
   "energy": {
     "title": "Energieüberwachung & Solarfluss",
@@ -986,7 +988,34 @@
     "coordinator": "Koordinator",
     "router": "Router / Repeater",
     "endDevice": "Batteriebetriebenes Endgerät",
-    "linkQuality": "Signalqualität"
+    "linkQuality": "Signalqualität",
+    "view": {
+      "coordinator": "Koordinator (Gateway)",
+      "router": "Router / Repeater (netzversorgt)",
+      "endDevice": "Endgerät (batteriebetrieben)",
+      "excellent": "Ausgezeichnet",
+      "good": "Gut",
+      "weak": "Schwach",
+      "devicesProtocolHint": "Für dieses Protokoll konfigurierte Geräte werden hier mit ihren tatsächlichen LQI-Messwerten angezeigt.",
+      "nodeType": "Knotentyp",
+      "linkQuality": "Verbindungsqualität (LQI)",
+      "remainingBattery": "Verbleibende Batterie",
+      "directBindingTitle": "Zigbee Direct Binding (direkte Verbindung ohne Hub)",
+      "directBindingDesc": "Kopple eine Funkfernbedienung oder Taste direkt mit einer Lampe oder Gruppe. Die Verbindung funktioniert sofort weiter, auch wenn der Domus-Server ausgeschaltet ist!",
+      "noBindings": "Keine direkte Bindung aktiv. Erstelle eine direkte Hardwareverbindung zwischen einem Schalter und einem Aktorgerät.",
+      "removeBinding": "Bindung entfernen",
+      "newBindingTitle": "Neue direkte Zigbee-Bindung",
+      "sourceDevice": "Quellgerät (Fernbedienung / Schalter)",
+      "sourceNamePlaceholder": "Name (z. B. Nachttischfernbedienung)",
+      "deviceIdPlaceholder": "IEEE / Geräte-ID",
+      "destinationDevice": "Zielgerät (Lampe / Relais / Gruppe)",
+      "destinationNamePlaceholder": "Name (z. B. Nachttischlampe)",
+      "functionalCluster": "Funktionscluster",
+      "onOffCluster": "Ein / Aus (genOnOff)",
+      "levelCluster": "Dimmen / Helligkeit (genLevelCtrl)",
+      "colorCluster": "Farbe / Temperatur (lightingColorCtrl)",
+      "createBinding": "Direkte Bindung erstellen"
+    }
   },
   "store": {
     "title": "Domus Store & Erweiterungs-Marketplace",
@@ -1011,7 +1040,8 @@
     "username": "Benutzername",
     "password": "Passwort",
     "submit": "Anmelden",
-    "error": "Ungültige Anmeldedaten oder Sitzung abgelaufen"
+    "error": "Ungültige Anmeldedaten oder Sitzung abgelaufen",
+    "kioskPin": "Kiosk-PIN"
   },
   "setup": {
     "title": "Ersteinrichtung von Domus",
@@ -1649,5 +1679,12 @@
       "fridge": "Kühlschrank (2–8°C)",
       "other": "Sonstiges"
     }
+  },
+  "pantry": {
+    "title": "Intelligenter Vorratsschrank und Rezeptbuch",
+    "sections": "Bereiche des Vorratsschranks",
+    "inventoryTab": "Vorrat und Bestände",
+    "recipesTab": "Rezeptbuch",
+    "mealCalendarTab": "Speiseplan"
   }
 }
