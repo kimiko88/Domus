@@ -89,3 +89,16 @@ func TestDecodeResponsePacketExtractsReturnCode(t *testing.T) {
 	if packet.Sequence != 7 || packet.Command != CmdControl { t.Fatalf("unexpected response header: seq=%d command=%d", packet.Sequence, packet.Command) }
 	if !bytes.Equal(packet.Payload, payload) { t.Fatalf("payload mismatch: got %q want %q", packet.Payload, payload) }
 }
+
+func TestDPSMatchRequiresRequestedValues(t *testing.T) {
+	want := map[string]any{"1": true, "2": 215}
+	if !dpsMatch(want, map[string]any{"1": true, "2": float64(215), "3": 198}) {
+		t.Fatal("matching device DPS values should confirm the command")
+	}
+	if dpsMatch(want, map[string]any{"1": true, "2": float64(210)}) {
+		t.Fatal("a different reported setpoint must not confirm the command")
+	}
+	if dpsMatch(want, map[string]any{"1": true}) {
+		t.Fatal("a partial status report must not confirm the command")
+	}
+}
