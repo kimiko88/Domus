@@ -128,7 +128,29 @@
       "eventPreview": "Event preview"
     },
     "notifications": "Notifications",
-    "dismissNotification": "Dismiss notification"
+    "dismissNotification": "Dismiss notification",
+    "wsNotifications": {
+      "alarmTitle": "Alarm",
+      "alarmState": "Alarm status: {state}",
+      "alarmTriggeredTitle": "ALARM TRIGGERED",
+      "alarmTriggeredMessage": "Intrusion alarm triggered! Reason: {reason}",
+      "defaultAlarmReason": "Perimeter sensor",
+      "alarmDisarmedTitle": "Alarm disarmed",
+      "alarmDisarmedMessage": "The alarm system was successfully disarmed.",
+      "tagScannedTitle": "Tag scanned",
+      "tagScannedMessage": "Tag \"{tag}\" processed successfully.",
+      "deviceOnlineTitle": "Device online",
+      "deviceOnlineMessage": "{name} is now online.",
+      "deviceOfflineTitle": "Device offline",
+      "deviceOfflineMessage": "{name} is offline.",
+      "deviceDiscoveredTitle": "Device discovered",
+      "deviceDiscoveredMessage": "New device discovered: {name}",
+      "sceneActivatedTitle": "Scene activated",
+      "sceneActivatedMessage": "{name} was activated.",
+      "automationFailedTitle": "Automation failed",
+      "automationFailedMessage": "Automation \"{name}\" failed: {error}",
+      "systemNotification": "System notification"
+    }
   },
   "nav": {
     "sectionOverview": "Overview",
