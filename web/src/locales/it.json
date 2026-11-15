@@ -308,7 +308,27 @@
     "deleteError": "Impossibile eliminare l'automazione",
     "emptyTitle": "Nessuna automazione trovata",
     "emptyDesc": "Crea la tua prima automazione per attivare luci o inviare comandi quando si verificano eventi.",
-    "noResults": "Nessun risultato corrisponde alla ricerca."
+    "noResults": "Nessun risultato corrisponde alla ricerca.",
+    "view": {
+      "confirmDeleteWebhook": "Vuoi davvero eliminare il webhook \"{name}\"?",
+      "nodeEditorTitle": "Apri editor visuale a nodi",
+      "nodeEditorButton": "Editor a nodi",
+      "webhookTitle": "Webhook in ingresso",
+      "webhookSubtitle": "Ricevi payload HTTP protetti da HMAC da IFTTT, n8n, OwnTracks o sensori esterni per attivare eventi.",
+      "newWebhook": "Nuovo webhook",
+      "webhookEmpty": "Nessun webhook configurato. Crea un endpoint per ricevere richieste esterne in sicurezza.",
+      "webhookCopied": "Copiato!",
+      "copyWebhookUrl": "Copia URL webhook",
+      "newWebhookTitle": "Nuovo webhook in ingresso",
+      "webhookName": "Nome webhook",
+      "webhookNamePlaceholder": "es. IFTTT Arrivo a casa, OwnTracks GPS",
+      "secretToken": "Token segreto HMAC (facoltativo, per la firma X-Domus-Signature)",
+      "secretPlaceholder": "es. secret_my_token_123",
+      "allowedHttpMethod": "Metodo HTTP consentito",
+      "postStandard": "POST (payload JSON standard)",
+      "getQuery": "GET (parametri nella query string)",
+      "createWebhook": "Crea webhook"
+    }
   },
   "scenes": {
     "title": "Scene & Atmosfere",
