@@ -102,7 +102,7 @@ describe('FamilyView.vue', () => {
       expect(wrapper.find('.section-title').text()).toContain('Управление семьёй и разрешениями')
       const permissionsButton = wrapper.find('.permissions-btn')
       expect(permissionsButton.exists()).toBe(true)
-      expect(permissionsButton.text()).toContain('Управление разрешениями')
+      expect(permissionsButton.attributes('title')).toBe('Управление разрешениями')
       await permissionsButton.trigger('click')
       await flushPromises()
       const permissionModal = wrapper.find('.permission-modal-card')
