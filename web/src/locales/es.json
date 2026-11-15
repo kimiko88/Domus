@@ -579,7 +579,9 @@
     "errorInvalidInvite": "Este enlace de invitación no es válido o ha expirado. Contacta al administrador.",
     "errorPasswordMismatch": "Las contraseñas no coinciden.",
     "success": "¡Registro completado con éxito! Bienvenido a Domus.",
-    "backToLogin": "Volver al Inicio de Sesión"
+    "backToLogin": "Volver al Inicio de Sesión",
+    "usernamePlaceholder": "p. ej., ana_garcia",
+    "emailPlaceholder": "p. ej., ana@ejemplo.es"
   },
   "energy": {
     "title": "Monitorización Energética y Flujo Solar",
@@ -986,7 +988,34 @@
     "coordinator": "Coordinador",
     "router": "Router / Repetidor",
     "endDevice": "Dispositivo a Batería",
-    "linkQuality": "Calidad de Señal"
+    "linkQuality": "Calidad de Señal",
+    "view": {
+      "coordinator": "Coordinador (gateway)",
+      "router": "Router / repetidor (alimentado)",
+      "endDevice": "Dispositivo final (con batería)",
+      "excellent": "Excelente",
+      "good": "Bueno",
+      "weak": "Débil",
+      "devicesProtocolHint": "Los dispositivos configurados para este protocolo aparecerán aquí con sus métricas LQI reales.",
+      "nodeType": "Tipo de nodo",
+      "linkQuality": "Calidad del enlace (LQI)",
+      "remainingBattery": "Batería restante",
+      "directBindingTitle": "Vinculación directa Zigbee (asociación sin hub)",
+      "directBindingDesc": "Vincula directamente un mando o botón inalámbrico con una bombilla o grupo. Seguirá funcionando al instante aunque el servidor Domus esté apagado.",
+      "noBindings": "No hay vinculaciones directas activas. Crea una conexión de hardware directa entre un interruptor y un dispositivo actuador.",
+      "removeBinding": "Eliminar vinculación",
+      "newBindingTitle": "Nueva vinculación Zigbee directa",
+      "sourceDevice": "Dispositivo de origen (mando / interruptor)",
+      "sourceNamePlaceholder": "Nombre (p. ej., mando de mesilla)",
+      "deviceIdPlaceholder": "IEEE / ID del dispositivo",
+      "destinationDevice": "Dispositivo de destino (bombilla / relé / grupo)",
+      "destinationNamePlaceholder": "Nombre (p. ej., luz de mesilla)",
+      "functionalCluster": "Clúster funcional",
+      "onOffCluster": "Encendido / apagado (genOnOff)",
+      "levelCluster": "Regulación / brillo (genLevelCtrl)",
+      "colorCluster": "Color / temperatura (lightingColorCtrl)",
+      "createBinding": "Crear vinculación directa"
+    }
   },
   "store": {
     "title": "Domus Store & Marketplace de Extensiones",
@@ -1011,7 +1040,8 @@
     "username": "Nombre de Usuario",
     "password": "Contraseña",
     "submit": "Entrar",
-    "error": "Credenciales no válidas o sesión caducada"
+    "error": "Credenciales no válidas o sesión caducada",
+    "kioskPin": "PIN del modo quiosco"
   },
   "setup": {
     "title": "Configuración Inicial de Domus",
@@ -1649,5 +1679,12 @@
       "fridge": "Frigorífico (2–8°C)",
       "other": "Otro"
     }
+  },
+  "pantry": {
+    "title": "Despensa y recetario inteligente",
+    "sections": "Secciones de la despensa",
+    "inventoryTab": "Despensa e inventario",
+    "recipesTab": "Recetario",
+    "mealCalendarTab": "Calendario de comidas"
   }
 }
