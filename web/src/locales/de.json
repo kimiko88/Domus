@@ -137,7 +137,23 @@
       "unlockKioskTitle": "Kioskmodus entsperren",
       "unlockKioskDesc": "PIN eingeben, um den Tabletmodus zu verlassen",
       "invalidPin": "Falsche PIN. Bitte erneut versuchen.",
-      "unlock": "Entsperren"
+      "unlock": "Entsperren",
+      "entityFilters": "Dashboard-Filter für Entitäten und Bereiche",
+      "openStoreCatalog": "Vollständigen Domus-Store-Katalog öffnen",
+      "searchExtensions": "Marketplace-Erweiterungen suchen",
+      "clearSearch": "Suche löschen",
+      "filterModuleType": "Nach Modultyp filtern",
+      "packageDetails": "Details zu {name}",
+      "uninstallPackage": "{name} deinstallieren",
+      "installPackage": "{name} installieren",
+      "viewAllExtensions": "Alle Erweiterungen im Domus-Store-Katalog anzeigen",
+      "closeModuleDetails": "Moduldetails schließen",
+      "author": "Autor",
+      "license": "Lizenz",
+      "installDate": "Installationsdatum",
+      "wasiPermissions": "WASI-Sandbox-Berechtigungen",
+      "viewSourceFor": "Open-Source-Code von {name} anzeigen",
+      "viewSource": "Open-Source-Quellcode anzeigen"
     }
   },
   "areas": {
@@ -450,7 +466,24 @@
     "noPendingInvites": "Derzeit liegen keine aktiven Registrierungseinladungen vor.",
     "expiresAt": "Ablaufdatum",
     "revoke": "Widerrufen",
-    "noMembers": "Keine Mitglieder gefunden."
+    "noMembers": "Keine Mitglieder gefunden.",
+    "view": {
+      "you": "(Du)",
+      "guestProfilesTitle": "Gastprofile und temporäre Kiosk-PIN",
+      "guestProfilesDesc": "Erstelle Konten mit eingeschränktem Zugriff per PIN oder temporärer Kiosk-Entsperrung (z. B. für Babysitter oder Kurzzeitgäste).",
+      "guestProfilesEmpty": "Keine aktiven Gastprofile. Erstelle eine temporäre PIN für Besucher.",
+      "removeGuest": "Gast entfernen",
+      "createGuestProfileTitle": "Gast- / Kioskprofil erstellen",
+      "profileName": "Profil- / Besuchername",
+      "profileNamePlaceholder": "z. B. Babysitter, Gast im Wohnzimmer",
+      "numericPin": "Numerische PIN (4–8 Ziffern)",
+      "temporaryValidity": "Temporäre Gültigkeit (Stunden)",
+      "hours": "{value} Stunden",
+      "dayOne": "24 Stunden (1 Tag)",
+      "days": "{value} Tage",
+      "oneWeek": "7 Tage (1 Woche)",
+      "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren"
+    }
   },
   "register": {
     "title": "Der Domus-Familie Beitreten",
