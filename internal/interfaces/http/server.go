@@ -881,10 +881,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
 					mRouter.Post("/players", ecoH.CreateMediaPlayer)
-					mRouter.Post("/players/{id}/volume", ecoH.SetPlayerVolume)
-					mRouter.Post("/players/{id}/state", ecoH.SetPlayerState)
+					mRouter.With(domusmw.RequireDeviceControl()).Post("/players/{id}/volume", ecoH.SetPlayerVolume)
+					mRouter.With(domusmw.RequireDeviceControl()).Post("/players/{id}/state", ecoH.SetPlayerState)
 					mRouter.Delete("/players/{id}", ecoH.DeleteMediaPlayer)
-					mRouter.Post("/broadcast", ecoH.BroadcastAnnouncement)
+					mRouter.With(domusmw.RequireDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 
 				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
