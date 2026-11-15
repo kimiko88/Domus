@@ -48,14 +48,17 @@ const guests = computed(() => familyStore.guests)
 
 const availableAreas = ref<Area[]>([])
 const availableEntities = ref<Entity[]>([])
+const availableDashboards = ref<Array<{ id: string; title: string }>>([])
 const isPermissionsModalOpen = ref(false)
 const isSavingPermissions = ref(false)
 const permissionsMember = ref<{ id: string; username: string } | null>(null)
 const allAreas = ref(true)
 const allEntities = ref(true)
+const allDashboards = ref(true)
 const allViews = ref(true)
 const selectedAreaIDs = ref<string[]>([])
 const selectedEntityIDs = ref<string[]>([])
+const selectedDashboardIDs = ref<string[]>([])
 const selectedViews = ref<string[]>([])
 const canControlDevices = ref(false)
 const canManageAutomations = ref(false)
@@ -91,12 +94,14 @@ async function loadData() {
   try {
     await familyStore.fetchMembers()
     if (isAdmin.value) {
-      const [areas, entities] = await Promise.all([
+      const [areas, entities, dashboards] = await Promise.all([
         apiClient.get<Area[]>('/api/v1/areas'),
-        apiClient.get<Entity[]>('/api/v1/entities')
+        apiClient.get<Entity[]>('/api/v1/entities'),
+        apiClient.get<Array<{ id: string; title: string }>>('/api/v1/dashboards')
       ])
       availableAreas.value = areas || []
       availableEntities.value = entities || []
+      availableDashboards.value = dashboards || []
     }
     if (isAdmin.value) {
       await familyStore.fetchInvites()
@@ -178,9 +183,11 @@ function openPermissions(member: { id: string; username: string; permissions?: U
   permissionsMember.value = { id: member.id, username: member.username }
   allAreas.value = permissions?.allowed_area_ids == null
   allEntities.value = permissions?.allowed_entity_ids == null
+  allDashboards.value = permissions?.allowed_dashboard_ids == null
   allViews.value = permissions?.allowed_views == null
   selectedAreaIDs.value = [...(permissions?.allowed_area_ids || [])]
   selectedEntityIDs.value = [...(permissions?.allowed_entity_ids || [])]
+  selectedDashboardIDs.value = [...(permissions?.allowed_dashboard_ids || [])]
   selectedViews.value = [...(permissions?.allowed_views || [])]
   canControlDevices.value = permissions?.can_control_devices ?? false
   canManageAutomations.value = permissions?.can_manage_automations ?? false
@@ -202,7 +209,7 @@ async function savePermissions() {
     role: familyStore.members.find(member => member.id === permissionsMember.value?.id)?.role || 'viewer',
     allowed_area_ids: allAreas.value ? null : [...selectedAreaIDs.value],
     allowed_entity_ids: allEntities.value ? null : [...selectedEntityIDs.value],
-    allowed_dashboard_ids: null,
+    allowed_dashboard_ids: allDashboards.value ? null : [...selectedDashboardIDs.value],
     allowed_views: allViews.value ? null : [...selectedViews.value],
     can_control_devices: canControlDevices.value,
     can_manage_automations: canManageAutomations.value,
@@ -784,6 +791,21 @@ onMounted(() => {
                 <small>{{ entity.domain }}</small>
               </label>
               <p v-if="availableEntities.length === 0" class="permission-hint">Nessuna entità disponibile.</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>Dashboard personalizzate</h4>
+            <label class="permission-check">
+              <input v-model="allDashboards" type="checkbox" />
+              <span>Tutte le dashboard</span>
+            </label>
+            <div v-if="!allDashboards" class="permission-options">
+              <label v-for="dashboard in availableDashboards" :key="dashboard.id" class="permission-check">
+                <input v-model="selectedDashboardIDs" type="checkbox" :value="dashboard.id" />
+                <span>{{ dashboard.title }}</span>
+              </label>
+              <p v-if="availableDashboards.length === 0" class="permission-hint">Nessuna dashboard personalizzata disponibile.</p>
             </div>
           </section>
 
