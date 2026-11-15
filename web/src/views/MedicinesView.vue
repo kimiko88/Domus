@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Pill,
   Plus,
@@ -23,6 +24,7 @@ import {
 import { useMedicineStore } from '../stores/medicine'
 import type { Medicine, MedicineLocation, MedicineUnit } from '../api/types'
 
+const { t } = useI18n()
 const medicineStore = useMedicineStore()
 
 // --- MODAL STATE ---
@@ -60,20 +62,20 @@ const aifaSearchInput = ref('')
 const showAifaSuggestions = ref(false)
 
 const locations: { key: MedicineLocation; label: string }[] = [
-  { key: 'armadietto_bagno', label: 'Armadietto Bagno' },
-  { key: 'cassetto_notte', label: 'Cassetto Notte' },
-  { key: 'borsa_viaggio', label: 'Borsa / Viaggio' },
-  { key: 'frigo', label: 'Frigorifero (2-8°C)' },
-  { key: 'altro', label: 'Altro' }
+  { key: 'armadietto_bagno', labelKey: 'medicines.locations.cabinet' },
+  { key: 'cassetto_notte', labelKey: 'medicines.locations.nightstand' },
+  { key: 'borsa_viaggio', labelKey: 'medicines.locations.travel' },
+  { key: 'frigo', labelKey: 'medicines.locations.fridge' },
+  { key: 'altro', labelKey: 'medicines.locations.other' }
 ]
 
 const units: { key: MedicineUnit; label: string }[] = [
-  { key: 'compresse', label: 'Compresse' },
-  { key: 'bustine', label: 'Bustine' },
-  { key: 'gocce', label: 'Gocce' },
-  { key: 'ml', label: 'ml' },
-  { key: 'pz', label: 'Pezzi' },
-  { key: 'confezione', label: 'Confezione' }
+  { key: 'compresse', labelKey: 'medicines.units.tablets' },
+  { key: 'bustine', labelKey: 'medicines.units.sachets' },
+  { key: 'gocce', labelKey: 'medicines.units.drops' },
+  { key: 'ml', labelKey: 'medicines.units.ml' },
+  { key: 'pz', labelKey: 'medicines.units.pieces' },
+  { key: 'confezione', labelKey: 'medicines.units.package' }
 ]
 
 // Sample Datamatrix codes for quick demo/testing
@@ -139,7 +141,7 @@ async function handleParseDatamatrix() {
       }
     }
   } catch (err: any) {
-    parseError.value = 'Codice non riconosciuto o non valido'
+    parseError.value = t('medicines.parseError')
   }
 }
 
@@ -231,7 +233,7 @@ function openEditModal(med: Medicine) {
 }
 
 async function handleDelete(med: Medicine) {
-  if (confirm(`Sei sicuro di voler rimuovere "${med.name}" dall'armadietto?`)) {
+  if (confirm(t('medicines.confirmDelete', { name: med.name }))) {
     await medicineStore.deleteMedicine(med.id)
   }
 }
@@ -257,13 +259,13 @@ function getExpirationStatus(med: Medicine): { label: string; class: string; isU
 
   const eff = med.effective_expiration_date
   if (eff < today) {
-    return { label: `Scaduto (${eff})`, class: 'badge-expired', isUrgent: true }
+    return { label: t('medicines.expiredStatus', { date: eff }), class: 'badge-expired', isUrgent: true }
   } else if (eff <= in7dStr) {
-    return { label: `Scade tra pochi giorni (${eff})`, class: 'badge-expiring-7d', isUrgent: true }
+    return { label: t('medicines.expiringSoon', { date: eff }), class: 'badge-expiring-7d', isUrgent: true }
   } else if (eff <= in30dStr) {
-    return { label: `In scadenza (${eff})`, class: 'badge-expiring-30d', isUrgent: false }
+    return { label: t('medicines.expiring', { date: eff }), class: 'badge-expiring-30d', isUrgent: false }
   }
-  return { label: `Scad. ${eff}`, class: 'badge-valid', isUrgent: false }
+  return { label: t('medicines.expiryShort', { date: eff }), class: 'badge-valid', isUrgent: false }
 }
 
 onMounted(async () => {
@@ -281,9 +283,9 @@ onMounted(async () => {
           <Pill :size="24" class="text-primary" />
         </div>
         <div>
-          <h1 class="page-title">Armadietto Farmaci & Scadenze</h1>
+          <h1 class="page-title">{{ t('medicines.title') }}</h1>
           <p class="page-subtitle">
-            Inventario medicinali, calcolo PAO post-apertura e allarmi catena del freddo.
+            {{ t('medicines.subtitle') }}
           </p>
         </div>
       </div>
@@ -291,7 +293,7 @@ onMounted(async () => {
       <div class="header-actions">
         <button class="btn-primary-add" @click="openAddModal">
           <Plus :size="16" />
-          <span>Inserimento Rapido</span>
+          <span>{{ t('medicines.quickEntry') }}</span>
         </button>
       </div>
     </header>
@@ -300,7 +302,7 @@ onMounted(async () => {
     <div class="kpi-grid">
       <div class="kpi-card glass-panel" @click="medicineStore.selectedStatus = 'all'">
         <div class="kpi-top">
-          <span class="kpi-label">Totale Farmaci</span>
+          <span class="kpi-label">{{ t('medicines.total') }}</span>
           <Package :size="18" class="text-muted" />
         </div>
         <div class="kpi-val">{{ medicineStore.totalCount }}</div>
@@ -312,7 +314,7 @@ onMounted(async () => {
         @click="medicineStore.selectedStatus = 'expiring_30d'"
       >
         <div class="kpi-top">
-          <span class="kpi-label">In Scadenza (&lt; 30 gg)</span>
+          <span class="kpi-label">{{ t('medicines.expiring30') }}</span>
           <Clock :size="18" class="text-warning" />
         </div>
         <div class="kpi-val text-warning">{{ medicineStore.expiringCount }}</div>
@@ -324,7 +326,7 @@ onMounted(async () => {
         @click="medicineStore.selectedStatus = 'expired'"
       >
         <div class="kpi-top">
-          <span class="kpi-label">Scaduti</span>
+          <span class="kpi-label">{{ t('medicines.expired') }}</span>
           <AlertCircle :size="18" class="text-danger" />
         </div>
         <div class="kpi-val text-danger">{{ medicineStore.expiredCount }}</div>
@@ -332,7 +334,7 @@ onMounted(async () => {
 
       <div class="kpi-card glass-panel" @click="medicineStore.selectedStatus = 'cold_chain'">
         <div class="kpi-top">
-          <span class="kpi-label">Frigorifero (2-8°C)</span>
+          <span class="kpi-label">{{ t('medicines.coldStorage') }}</span>
           <ThermometerSnowflake :size="18" class="text-cold" />
         </div>
         <div class="kpi-val text-cold">{{ medicineStore.coldChainCount }}</div>
@@ -340,7 +342,7 @@ onMounted(async () => {
 
       <div class="kpi-card glass-panel" @click="medicineStore.selectedStatus = 'low_stock'">
         <div class="kpi-top">
-          <span class="kpi-label">Scorte Basse</span>
+          <span class="kpi-label">{{ t('medicines.lowStock') }}</span>
           <MinusCircle :size="18" class="text-amber" />
         </div>
         <div class="kpi-val text-amber">{{ medicineStore.lowStockCount }}</div>
@@ -353,7 +355,7 @@ onMounted(async () => {
         <AlertTriangle :size="20" class="text-danger" />
       </div>
       <div class="alerts-banner-content">
-        <h4 class="alerts-banner-title">Avvisi Armadietto Farmaci ({{ medicineStore.alerts.length }})</h4>
+        <h4 class="alerts-banner-title">{{ t('medicines.alertsTitle', { count: medicineStore.alerts.length }) }}</h4>
         <ul class="alerts-list">
           <li v-for="(al, i) in medicineStore.alerts.slice(0, 3)" :key="i" class="alert-item">
             {{ al.message }}
@@ -369,15 +371,15 @@ onMounted(async () => {
         <input
           v-model="medicineStore.searchQuery"
           type="text"
-          placeholder="Cerca farmaco per nome, principio attivo o codice AIC..."
+           :placeholder="t('medicines.searchPlaceholder')"
           class="search-input"
-          aria-label="Cerca farmaci"
+           :aria-label="t('medicines.searchAria')"
         />
         <button
           v-if="medicineStore.searchQuery"
           class="btn-clear-search"
           @click="medicineStore.searchQuery = ''"
-          aria-label="Pulisci ricerca"
+           :aria-label="t('medicines.clearSearchAria')"
         >
           &times;
         </button>
@@ -385,22 +387,22 @@ onMounted(async () => {
 
       <div class="filters-row">
         <div class="filter-group">
-          <span class="filter-label">Posizione:</span>
-          <select v-model="medicineStore.selectedLocation" class="select-filter" aria-label="Filtro Posizione">
-            <option value="all">Tutte le posizioni</option>
-            <option v-for="loc in locations" :key="loc.key" :value="loc.key">{{ loc.label }}</option>
+          <span class="filter-label">{{ t('medicines.location') }}</span>
+          <select v-model="medicineStore.selectedLocation" class="select-filter"  :aria-label="t('medicines.locationFilter')">
+            <option value="all">{{ t('medicines.locations.all') }}</option>
+            <option v-for="loc in locations" :key="loc.key" :value="loc.key">{{ t(loc.labelKey) }}</option>
           </select>
         </div>
 
         <div class="filter-group">
-          <span class="filter-label">Stato:</span>
-          <select v-model="medicineStore.selectedStatus" class="select-filter" aria-label="Filtro Stato">
-            <option value="all">Tutti i farmaci</option>
-            <option value="expiring_30d">In scadenza (&lt; 30 gg)</option>
-            <option value="expiring_7d">In scadenza urgente (&lt; 7 gg)</option>
-            <option value="expired">Solo scaduti</option>
-            <option value="cold_chain">Solo Frigorifero (2-8°C)</option>
-            <option value="low_stock">Scorte basse</option>
+          <span class="filter-label">{{ t('medicines.status') }}</span>
+          <select v-model="medicineStore.selectedStatus" class="select-filter"  :aria-label="t('medicines.statusFilter')">
+            <option value="all">{{ t('medicines.statuses.all') }}</option>
+            <option value="expiring_30d">{{ t('medicines.statuses.expiring30') }}</option>
+            <option value="expiring_7d">{{ t('medicines.statuses.expiring7') }}</option>
+            <option value="expired">{{ t('medicines.statuses.expired') }}</option>
+            <option value="cold_chain">{{ t('medicines.statuses.fridge') }}</option>
+            <option value="low_stock">{{ t('medicines.statuses.lowStock') }}</option>
           </select>
         </div>
       </div>
@@ -409,11 +411,11 @@ onMounted(async () => {
     <!-- Empty State -->
     <div v-if="medicineStore.filteredMedicines.length === 0" class="empty-medicines glass-panel">
       <Pill :size="48" class="text-muted" />
-      <h3>Nessun medicinale trovato</h3>
-      <p>Aggiungi farmaci al tuo inventario tramite la scansione Datamatrix o la ricerca AIFA.</p>
+      <h3>{{ t('medicines.emptyTitle') }}</h3>
+      <p>{{ t('medicines.emptyDesc') }}</p>
       <button class="btn-primary-add" @click="openAddModal">
         <Plus :size="16" />
-        <span>Inserisci Primo Farmaco</span>
+        <span>{{ t('medicines.firstMedicine') }}</span>
       </button>
     </div>
 
@@ -436,26 +438,26 @@ onMounted(async () => {
             <span :class="['badge-status', getExpirationStatus(med).class]">
               {{ getExpirationStatus(med).label }}
             </span>
-            <span v-if="med.requires_cold_chain" class="badge-cold" title="Conservare in frigo a 2-8°C">
-              <ThermometerSnowflake :size="12" /> Frigo 2-8°C
+            <span v-if="med.requires_cold_chain" class="badge-cold"  :title="t('medicines.fridgeTitle')">
+              <ThermometerSnowflake :size="12" /> {{ t('medicines.fridgeShort') }}
             </span>
           </div>
         </header>
 
         <div class="med-card-body">
           <div class="info-row">
-            <span class="info-label">Posizione:</span>
+            <span class="info-label">{{ t('medicines.position') }}</span>
             <span class="info-val font-medium">
               {{ locations.find(l => l.key === med.location)?.label || med.location }}
             </span>
           </div>
 
           <div class="info-row">
-            <span class="info-label">Quantità:</span>
+            <span class="info-label">{{ t('medicines.quantity') }}</span>
             <span class="info-val">
               <strong>{{ med.quantity }}</strong> {{ med.unit }}
               <span v-if="med.min_threshold > 0 && med.quantity <= med.min_threshold" class="text-amber text-xs font-semibold">
-                (Scorta minima: {{ med.min_threshold }})
+                ({{ t('medicines.minimumStock', { count: med.min_threshold }) }})
               </span>
             </span>
           </div>
@@ -463,14 +465,14 @@ onMounted(async () => {
           <!-- PAO Section -->
           <div v-if="med.pao_days > 0" class="pao-card-section">
             <div v-if="med.opened_at" class="pao-opened">
-              <span class="text-xs text-muted">Aperto il {{ med.opened_at }} (PAO: {{ med.pao_days }} gg)</span>
-              <span class="pao-effective">Scadenza effettiva: <strong>{{ med.effective_expiration_date }}</strong></span>
+              <span class="text-xs text-muted">{{ t('medicines.openedOn', { date: med.opened_at, days: med.pao_days }) }}</span>
+              <span class="pao-effective">{{ t('medicines.effectiveExpiry') }} <strong>{{ med.effective_expiration_date }}</strong></span>
             </div>
             <div v-else class="pao-unopened">
-              <span class="text-xs text-muted">Sigillato (validità {{ med.pao_days }} giorni dall'apertura)</span>
-              <button class="btn-open-bottle" @click="handleOpenBottle(med)" title="Segna come aperto oggi">
+              <span class="text-xs text-muted">{{ t('medicines.sealed', { days: med.pao_days }) }}</span>
+              <button class="btn-open-bottle" @click="handleOpenBottle(med)"  :title="t('medicines.openToday')">
                 <CheckCircle2 :size="14" />
-                <span>Apri Oggi</span>
+                <span>{{ t('medicines.openToday') }}</span>
               </button>
             </div>
           </div>
@@ -488,18 +490,18 @@ onMounted(async () => {
               class="btn-consume-dose"
               @click="handleConsume(med)"
               :disabled="med.quantity <= 0"
-              title="Consuma 1 dose"
+               :title="t('medicines.consumeDose')"
             >
               <MinusCircle :size="14" />
-              <span>-1 dose</span>
+              <span>{{ t('medicines.consumeDose') }}</span>
             </button>
           </div>
 
           <div class="footer-manage-actions">
-            <button class="btn-icon" @click="openEditModal(med)" aria-label="Modifica farmaco">
+            <button class="btn-icon" @click="openEditModal(med)"  :aria-label="t('medicines.editMedicine')">
               <Edit2 :size="15" />
             </button>
-            <button class="btn-icon text-danger" @click="handleDelete(med)" aria-label="Rimuovi farmaco">
+            <button class="btn-icon text-danger" @click="handleDelete(med)"  :aria-label="t('medicines.removeMedicine')">
               <Trash2 :size="15" />
             </button>
           </div>
@@ -519,7 +521,7 @@ onMounted(async () => {
         <header class="modal-header">
           <div class="modal-title-box">
             <Pill :size="20" class="text-primary" />
-            <h2 class="modal-title">{{ editingId ? 'Modifica Farmaco' : 'Inserimento Rapido Farmaco' }}</h2>
+            <h2 class="modal-title">{{ editingId ? t('medicines.editTitle') : t('medicines.addTitle') }}</h2>
           </div>
           <button class="btn-close-modal" @click="showAddModal = false; showEditModal = false">
             <X :size="20" />
@@ -531,7 +533,7 @@ onMounted(async () => {
           <div v-if="!editingId" class="quick-scan-box glass-panel">
             <div class="quick-scan-title">
               <Sparkles :size="16" class="text-primary" />
-              <span>Scansione Datamatrix GS1 o Codice AIC</span>
+              <span>{{ t('medicines.scanTitle') }}</span>
             </div>
 
             <div class="quick-scan-input-row">
@@ -539,17 +541,17 @@ onMounted(async () => {
                 v-model="rawDatamatrixCode"
                 type="text"
                 class="input-code"
-                placeholder="Inquadra o incolla codice (es: (01)...(17)280430 o AIC 9 cifre)"
+                 :placeholder="t('medicines.datamatrixPlaceholder')"
                 @keyup.enter="handleParseDatamatrix"
               />
               <button class="btn-parse-code" type="button" @click="handleParseDatamatrix">
-                Decodifica
+                {{ t('medicines.decode') }}
               </button>
             </div>
 
             <!-- Sample buttons -->
             <div class="sample-codes-row">
-              <span class="sample-label">Esempi pronti:</span>
+              <span class="sample-label">{{ t('medicines.examples') }}</span>
               <button
                 v-for="s in sampleCodes"
                 :key="s.label"
@@ -565,13 +567,13 @@ onMounted(async () => {
 
           <!-- AIFA Search Autocomplete -->
           <div v-if="!editingId" class="aifa-search-box">
-            <label class="form-label">Ricerca Rapida Catalogo Farmaci AIFA:</label>
+            <label class="form-label">{{ t('medicines.aifaSearch') }}</label>
             <div class="aifa-input-wrap">
               <input
                 v-model="aifaSearchInput"
                 type="text"
                 class="form-input"
-                placeholder="Digita es: Tachipirina, Brufen, Oki, Tobral..."
+                 :placeholder="t('medicines.aifaPlaceholder')"
                 @input="onAifaInput"
               />
               <div v-if="showAifaSuggestions && medicineStore.aifaSearchResults.length > 0" class="aifa-suggestions-dropdown">
@@ -596,75 +598,75 @@ onMounted(async () => {
           <form class="med-form" @submit.prevent="submitMedicineForm">
             <div class="form-grid">
               <div class="form-group span-2">
-                <label class="form-label">Nome Farmaco *</label>
-                <input v-model="formName" type="text" class="form-input" required placeholder="Es. Tachipirina 1000 mg" />
+                <label class="form-label">{{ t('medicines.medicineName') }}</label>
+                <input v-model="formName" type="text" class="form-input" required  :placeholder="t('medicines.medicineNamePlaceholder')" />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Principio Attivo</label>
-                <input v-model="formActiveIngredient" type="text" class="form-input" placeholder="Es. Paracetamolo" />
+                <label class="form-label">{{ t('medicines.activeIngredient') }}</label>
+                <input v-model="formActiveIngredient" type="text" class="form-input"  :placeholder="t('medicines.activeIngredientPlaceholder')" />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Codice AIC (9 cifre)</label>
-                <input v-model="formAIC" type="text" class="form-input" placeholder="Es. 034234035" />
+                <label class="form-label">{{ t('medicines.aicCode') }}</label>
+                <input v-model="formAIC" type="text" class="form-input"  :placeholder="t('medicines.aicPlaceholder')" />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Data di Scadenza Confezione *</label>
+                <label class="form-label">{{ t('medicines.packageExpiry') }}</label>
                 <input v-model="formExpirationDate" type="date" class="form-input" required />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Numero di Lotto</label>
-                <input v-model="formLotNumber" type="text" class="form-input" placeholder="Es. LOT982" />
+                <label class="form-label">{{ t('medicines.lotNumber') }}</label>
+                <input v-model="formLotNumber" type="text" class="form-input"  :placeholder="t('medicines.lotPlaceholder')" />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Quantità Residua</label>
+                <label class="form-label">{{ t('medicines.remainingQuantity') }}</label>
                 <input v-model.number="formQuantity" type="number" step="0.5" class="form-input" required />
               </div>
 
               <div class="form-group">
-                <label class="form-label">Unità</label>
+                <label class="form-label">{{ t('medicines.unit') }}</label>
                 <select v-model="formUnit" class="form-input">
-                  <option v-for="u in units" :key="u.key" :value="u.key">{{ u.label }}</option>
+                  <option v-for="u in units" :key="u.key" :value="u.key">{{ t(u.labelKey) }}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <label class="form-label">Posizione Conservazione</label>
+                <label class="form-label">{{ t('medicines.storageLocation') }}</label>
                 <select v-model="formLocation" class="form-input">
                   <option v-for="loc in locations" :key="loc.key" :value="loc.key">{{ loc.label }}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <label class="form-label">Scorta Minima di Allarme</label>
-                <input v-model.number="formMinThreshold" type="number" step="1" class="form-input" placeholder="Es. 2" />
+                <label class="form-label">{{ t('medicines.minimumAlert') }}</label>
+                <input v-model.number="formMinThreshold" type="number" step="1" class="form-input"  :placeholder="t('medicines.minimumPlaceholder')" />
               </div>
             </div>
 
             <!-- PAO Config Section -->
             <div class="pao-config-box">
-              <h4 class="pao-title">Period After Opening (PAO)</h4>
-              <p class="pao-desc">Per colliri, sciroppi o pomate che scadono N giorni dopo la prima apertura.</p>
+              <h4 class="pao-title">{{ t('medicines.paoTitle') }}</h4>
+              <p class="pao-desc">{{ t('medicines.paoDesc') }}</p>
               <div class="form-grid">
                 <div class="form-group">
-                  <label class="form-label">Giorni Validità dall'Apertura (PAO)</label>
-                  <input v-model.number="formPaoDays" type="number" class="form-input" placeholder="0 = non applicabile (es. 28)" />
+                  <label class="form-label">{{ t('medicines.paoDays') }}</label>
+                  <input v-model.number="formPaoDays" type="number" class="form-input"  :placeholder="t('medicines.paoPlaceholder')" />
                 </div>
                 <div class="form-group flex-col justify-end">
                   <label class="checkbox-label">
                     <input type="checkbox" v-model="formIsOpened" />
-                    <span>Confezione già aperta</span>
+                    <span>{{ t('medicines.alreadyOpened') }}</span>
                   </label>
                   <input
                     v-if="formIsOpened"
                     v-model="formOpenedAt"
                     type="date"
                     class="form-input mt-2"
-                    placeholder="Data apertura"
+                     :placeholder="t('medicines.openedDate')"
                   />
                 </div>
               </div>
@@ -676,23 +678,23 @@ onMounted(async () => {
                 <input type="checkbox" v-model="formRequiresColdChain" />
                 <span class="flex items-center gap-1">
                   <ThermometerSnowflake :size="14" class="text-cold" />
-                  Richiede conservazione in Frigorifero (2-8°C)
+                  {{ t('medicines.coldChain') }}
                 </span>
               </label>
 
               <label class="checkbox-label">
                 <input type="checkbox" v-model="formPrescriptionRequired" />
-                <span>Richiede Ricetta Medica</span>
+                <span>{{ t('medicines.prescription') }}</span>
               </label>
             </div>
 
             <div class="modal-footer">
               <button type="button" class="btn-cancel" @click="showAddModal = false; showEditModal = false">
-                Annulla
+                {{ t('medicines.cancel') }}
               </button>
               <button type="submit" class="btn-save">
                 <Check :size="16" />
-                <span>{{ editingId ? 'Salva Modifiche' : 'Registra Farmaco' }}</span>
+                <span>{{ editingId ? t('medicines.saveChanges') : t('medicines.register') }}</span>
               </button>
             </div>
           </form>
