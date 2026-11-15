@@ -377,6 +377,7 @@ onMounted(() => {
                 <option value="admin">{{ t('family.roles.admin') }}</option>
                 <option value="operator">{{ t('family.roles.operator') }}</option>
                 <option value="viewer">{{ t('family.roles.viewer') }}</option>
+                <option value="guest">{{ t('family.roles.guest') }}</option>
                 <option value="kid">{{ t('family.roles.kid') }}</option>
               </select>
 
