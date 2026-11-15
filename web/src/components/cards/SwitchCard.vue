@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
 import type { Entity } from '../../api/types'
 import { useEntityCommand } from '../../composables/useEntityCommand'
 import { Power, Zap } from '@lucide/vue'
+const { t } = useI18n()
 
 interface Props {
   entity: Entity
