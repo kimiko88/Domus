@@ -579,7 +579,9 @@
     "errorInvalidInvite": "Ce lien d'invitation est invalide ou expiré. Contactez l'administrateur.",
     "errorPasswordMismatch": "Les mots de passe ne correspondent pas.",
     "success": "Inscription réussie ! Bienvenue sur Domus.",
-    "backToLogin": "Retour à la Connexion"
+    "backToLogin": "Retour à la Connexion",
+    "usernamePlaceholder": "ex. : jean_dupont",
+    "emailPlaceholder": "ex. : jean@exemple.fr"
   },
   "energy": {
     "title": "Surveillance Énergétique & Flux Solaire",
@@ -986,7 +988,34 @@
     "coordinator": "Coordinateur",
     "router": "Routeur / Répéteur",
     "endDevice": "Appareil sur Batterie",
-    "linkQuality": "Qualité du Signal"
+    "linkQuality": "Qualité du Signal",
+    "view": {
+      "coordinator": "Coordinateur (passerelle)",
+      "router": "Routeur / répéteur (alimenté sur secteur)",
+      "endDevice": "Appareil final (sur batterie)",
+      "excellent": "Excellent",
+      "good": "Bon",
+      "weak": "Faible",
+      "devicesProtocolHint": "Les appareils configurés pour ce protocole apparaîtront ici avec leurs métriques LQI réelles.",
+      "nodeType": "Type de nœud",
+      "linkQuality": "Qualité de liaison (LQI)",
+      "remainingBattery": "Batterie restante",
+      "directBindingTitle": "Association directe Zigbee (sans hub)",
+      "directBindingDesc": "Associez directement une télécommande ou un bouton sans fil à une ampoule ou un groupe. Cela fonctionne instantanément même lorsque le serveur Domus est arrêté !",
+      "noBindings": "Aucune association directe active. Créez une connexion matérielle directe entre un interrupteur et un appareil actionneur.",
+      "removeBinding": "Supprimer l’association",
+      "newBindingTitle": "Nouvelle association Zigbee directe",
+      "sourceDevice": "Appareil source (télécommande / interrupteur)",
+      "sourceNamePlaceholder": "Nom (ex. : télécommande de chevet)",
+      "deviceIdPlaceholder": "IEEE / ID de l’appareil",
+      "destinationDevice": "Appareil cible (ampoule / relais / groupe)",
+      "destinationNamePlaceholder": "Nom (ex. : lampe de chevet)",
+      "functionalCluster": "Cluster fonctionnel",
+      "onOffCluster": "Marche / arrêt (genOnOff)",
+      "levelCluster": "Variation / luminosité (genLevelCtrl)",
+      "colorCluster": "Couleur / température (lightingColorCtrl)",
+      "createBinding": "Créer l’association directe"
+    }
   },
   "store": {
     "title": "Domus Store & Marketplace d'Extensions",
@@ -1011,7 +1040,8 @@
     "username": "Nom d'utilisateur",
     "password": "Mot de passe",
     "submit": "Se Connecter",
-    "error": "Identifiants invalides ou session expirée"
+    "error": "Identifiants invalides ou session expirée",
+    "kioskPin": "Code PIN du mode borne"
   },
   "setup": {
     "title": "Configuration Initiale de Domus",
@@ -1649,5 +1679,12 @@
       "fridge": "Réfrigérateur (2–8°C)",
       "other": "Autre"
     }
+  },
+  "pantry": {
+    "title": "Garde-manger et livre de recettes intelligent",
+    "sections": "Sections du garde-manger",
+    "inventoryTab": "Garde-manger et stocks",
+    "recipesTab": "Livre de recettes",
+    "mealCalendarTab": "Calendrier des repas"
   }
 }
