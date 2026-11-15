@@ -971,7 +971,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					financeSvc := appfinance.NewService(srv.repos.Finance, srv.bus)
 					financeH := handlers.NewFinanceHandler(financeSvc)
 					domainRouter.Route("/finance", func(finRouter chi.Router) {
-						finRouter.Use(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin))
 						finRouter.Get("/expenses", financeH.List)
 						finRouter.Post("/expenses", financeH.Create)
 						finRouter.Get("/expenses/{id}", financeH.GetByID)
