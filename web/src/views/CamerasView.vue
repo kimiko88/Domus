@@ -737,14 +737,14 @@ onMounted(async () => {
           <div v-for="face in familyFaces" :key="face.id" class="face-card glass-panel">
             <div class="face-avatar-container">
               <img :src="face.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(face.name)}`" class="face-avatar-img" :alt="face.name" />
-              <span class="face-verified-badge" title="{{ t('cameras.view.embeddingActive') }}">
+              <span class="face-verified-badge" :title="t('cameras.view.embeddingActive')">
                 <ShieldCheck :size="12" />
               </span>
             </div>
             <div class="face-info-box">
               <div class="face-name-row">
                 <span class="face-name">{{ face.name }}</span>
-                <span class="face-role-pill">{{ face.role || 'Residente' }}</span>
+                <span class="face-role-pill">{{ face.role || t('cameras.view.resident') }}</span>
               </div>
               <span class="face-id-sub font-mono">{{ face.id }}</span>
               <div class="face-vector-status">
@@ -756,7 +756,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="btn-test-match"
-                title="{{ t('cameras.view.testSimilarity') }}"
+                :title="t('cameras.view.testSimilarity')"
                 @click="testFaceMatch(face)"
               >
                 Test Match
@@ -764,7 +764,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="btn-delete-card"
-                title="{{ t('cameras.view.deleteProfile') }}"
+                :title="t('cameras.view.deleteProfile')"
                 @click="handleDeleteFace(face)"
               >
                 <Trash2 :size="14" />
@@ -819,7 +819,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="btn-delete-card"
-                title="{{ t('cameras.view.removeAuthorizedPlate') }}"
+                :title="t('cameras.view.removeAuthorizedPlate')"
                 @click="handleDeletePlate(veh)"
               >
                 <Trash2 :size="14" />
@@ -889,7 +889,7 @@ onMounted(async () => {
             <span class="pulsing-dot" />
             <span>{{ t('cameras.live') }}</span>
           </div>
-          <button class="expand-btn" title="{{ t('cameras.view.expandFullscreen') }}">
+          <button class="expand-btn" :title="t('cameras.view.expandFullscreen')">
             <Maximize2 :size="16" />
           </button>
         </div>
@@ -904,13 +904,13 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-zone-cfg"
-              title="{{ t('cameras.view.configureAiZones') }}"
+              :title="t('cameras.view.configureAiZones')"
               @click.stop="openZonesEditor(cam)"
             >
               <Sliders :size="14" />
               <span>{{ t('cameras.zonesAi') }}</span>
             </button>
-            <div v-if="cam.detection_enabled" class="ai-shield-tag" title="{{ t('cameras.view.aiGuardActive') }}">
+            <div v-if="cam.detection_enabled" class="ai-shield-tag" :title="t('cameras.view.aiGuardActive')">
               <ShieldAlert :size="14" />
               <span>{{ t('cameras.aiGuard') }}</span>
             </div>
@@ -1002,7 +1002,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-clip-preview"
-              title="{{ t('cameras.view.viewAnimatedClip') }}"
+              :title="t('cameras.view.viewAnimatedClip')"
               @click="openClipPlayer(e)"
             >
               <Film :size="14" />
@@ -1142,15 +1142,15 @@ onMounted(async () => {
               v-model="newFaceName"
               type="text"
               class="form-input"
-              placeholder="es. Giulia Rossi"
+              :placeholder="t('cameras.view.memberPlaceholder')"
               required
             />
           </div>
           <div class="form-group">
             <label class="form-label">{{ t('cameras.view.householdRole') }}</label>
             <select v-model="newFaceRole" class="form-select">
-              <option value="Residente">Residente</option>
-              <option value="{{ t('cameras.view.administrator') }}">Amministratore</option>
+              <option value="Residente">{{ t('cameras.view.resident') }}</option>
+              <option value="Amministratore">{{ t('cameras.view.administrator') }}</option>
               <option value="Ospite">{{ t('cameras.view.frequentGuest') }}</option>
             </select>
           </div>
@@ -1193,7 +1193,7 @@ onMounted(async () => {
               v-model="newPlateNumber"
               type="text"
               class="form-input font-mono uppercase"
-              placeholder="es. AB123CD"
+              :placeholder="t('cameras.view.platePlaceholder')"
               required
             />
           </div>
@@ -1203,7 +1203,7 @@ onMounted(async () => {
               v-model="newPlateOwner"
               type="text"
               class="form-input"
-              placeholder="es. Marco Rossi"
+              :placeholder="t('cameras.view.ownerPlaceholder')"
             />
           </div>
           <div class="form-group">
@@ -1212,7 +1212,7 @@ onMounted(async () => {
               v-model="newPlateModel"
               type="text"
               class="form-input"
-              placeholder="es. Tesla Model Y, Fiat 500e..."
+              :placeholder="t('cameras.view.vehiclePlaceholder')"
             />
           </div>
           <div class="checkbox-option">
