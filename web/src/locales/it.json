@@ -179,7 +179,7 @@
     "onlineSensors": "Sensori Online",
     "activeCount": "Attive",
     "detectedCount": "Rilevati",
-    "filterAll": "Tutte",
+    "filterAll": "Tutte", "filterAlarm": "Allarme",
     "filterLights": "Luci",
     "filterSwitches": "Interruttori",
     "filterSensors": "Sensori",
