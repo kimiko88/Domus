@@ -660,6 +660,7 @@
     "revoke": "Revoca",
     "noMembers": "Nessun componente trovato.",
     "permissions": {
+      "notifications": "Notifiche",
       "manage": "Gestisci permessi",
       "title": "Permessi di {name}",
       "areasTitle": "Stanze accessibili",
