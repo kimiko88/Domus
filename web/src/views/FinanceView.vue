@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Wallet,
   Plus,
@@ -27,6 +28,7 @@ import ExpenseModal from '@/components/finance/ExpenseModal.vue'
 import BudgetModal from '@/components/finance/BudgetModal.vue'
 import type { Expense, ExpenseCategory } from '@/api/types'
 
+const { t, locale } = useI18n()
 const financeStore = useFinanceStore()
 
 const isExpenseModalOpen = ref(false)
@@ -96,7 +98,7 @@ async function handleSaveExpense(payload: Partial<Expense>) {
 }
 
 async function handleDeleteExpense(id: string) {
-  if (window.confirm('Sei sicuro di voler eliminare questa spesa?')) {
+  if (window.confirm(t('finance.confirmDelete'))) {
     await financeStore.deleteExpense(id)
   }
 }
@@ -106,7 +108,7 @@ async function handleSaveBudget(limit: number) {
 }
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2
@@ -115,7 +117,7 @@ function formatCurrency(val: number): string {
 
 function formatDate(iso: string): string {
   if (!iso) return ''
-  return new Intl.DateTimeFormat('it-IT', {
+  return new Intl.DateTimeFormat(locale.value, {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
