@@ -166,7 +166,7 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 		select {
 		case ackErr := <-waiter.ack:
 			if ackErr != nil {
-				return nil, ackErr
+				return reported, ackErr
 			}
 			ackReceived = true
 		case status := <-waiter.reported:
