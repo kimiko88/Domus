@@ -150,6 +150,14 @@ func (h *HistoryHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 				}
 				entityIDs = filtered
 			}
+			if len(entityIDs) == 0 {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"statistics": []*history.StatisticsRecord{},
+					"total": 0,
+					"period": period,
+				})
+				return
+			}
 		}
 	}
 
