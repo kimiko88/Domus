@@ -229,16 +229,20 @@ func (h *FamilyHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := make([]map[string]any, 0, len(members))
+	currentUser := domusmw.GetUser(r.Context())
 	for _, m := range members {
-		result = append(result, map[string]any{
+		member := map[string]any{
 			"id":         m.ID,
 			"username":   m.Username,
 			"email":      m.Email,
 			"role":       string(m.Role),
 			"enabled":    m.Enabled,
-			"permissions": m.Permissions,
 			"created_at": m.CreatedAt.Format(time.RFC3339),
-		})
+		}
+		if currentUser != nil && currentUser.Role == user.RoleAdmin {
+			member["permissions"] = m.Permissions
+		}
+		result = append(result, member)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
