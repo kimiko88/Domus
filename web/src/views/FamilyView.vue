@@ -83,13 +83,6 @@ const permissionViews = [
   { path: '/finance', label: 'Finanze' },
   { path: '/family', label: 'Famiglia' },
   { path: '/custom-dashboards', label: 'Dashboard personalizzate' },
-  { path: '/helpers', label: 'Assistenti' },
-  { path: '/templates', label: 'Entità template' },
-  { path: '/audit', label: 'Audit' },
-  { path: '/mesh', label: 'Rete mesh' },
-  { path: '/store', label: 'Store' },
-  { path: '/floorplan', label: 'Planimetria' },
-  { path: '/zones', label: 'Zone' },
   { path: '/guide', label: 'Guida' },
   { path: '/logbook', label: 'Registro eventi' }
 ]
