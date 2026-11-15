@@ -660,6 +660,7 @@
     "revoke": "Revocar",
     "noMembers": "No se encontraron miembros.",
     "permissions": {
+      "notifications": "Notificaciones",
       "manage": "Gestionar permisos",
       "title": "Permisos de {name}",
       "areasTitle": "Estancias accesibles",
