@@ -384,7 +384,7 @@ onMounted(() => {
               <button
                 v-if="member.id !== currentUserId && member.role !== 'admin'"
                 class="permissions-btn"
-                 :title="t('family.permissions.manage')"
+                :title="t('family.permissions.manage')"
                 @click="openPermissions(member)"
               >
                 <Sliders :size="16" />
