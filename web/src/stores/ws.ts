@@ -4,6 +4,9 @@ import { useEntitiesStore } from './entities'
 import { useNotificationsStore } from './notifications'
 import { useAlarmStore } from './alarm'
 import type { EntityStateEventPayload } from '../api/types'
+import i18n from '../locales'
+
+const t = i18n.global.t
 
 export const useWsStore = defineStore('ws', () => {
   const isConnected = ref(false)
@@ -35,46 +38,46 @@ export const useWsStore = defineStore('ws', () => {
       case 'alarm.state_changed':
       case 'alarm.pending_entry':
         alarmStore.handleAlarmEvent(eventType, payload)
-        notificationsStore.info('Allarme', `Stato allarme: ${payload.state || 'aggiornato'}`)
+        notificationsStore.info(t('common.wsNotifications.alarmTitle'), t('common.wsNotifications.alarmState', { state: payload.state || t('common.wsNotifications.updatedState') }))
         break
 
       case 'alarm.triggered':
         alarmStore.handleAlarmEvent(eventType, payload)
-        notificationsStore.error('ALLARME ATTIVATO', `Allarme intrusione attivato! Motivo: ${payload.reason || 'Sensore perimetrale'}`)
+        notificationsStore.error(t('common.wsNotifications.alarmTriggeredTitle'), t('common.wsNotifications.alarmTriggeredMessage', { reason: payload.reason || t('common.wsNotifications.defaultAlarmReason') }))
         break
 
       case 'alarm.disarmed':
         alarmStore.handleAlarmEvent(eventType, payload)
-        notificationsStore.success('Allarme Disarmato', 'Centrale allarme disarmata con successo.')
+        notificationsStore.success(t('common.wsNotifications.alarmDisarmedTitle'), t('common.wsNotifications.alarmDisarmedMessage'))
         break
 
       case 'tag.scanned':
-        notificationsStore.info('Tag Scansionato', `Tag "${payload.tag_name || payload.tag_id}" elaborato con successo.`)
+        notificationsStore.info(t('common.wsNotifications.tagScannedTitle'), t('common.wsNotifications.tagScannedMessage', { tag: payload.tag_name || payload.tag_id }))
         break
 
       case 'device.online':
-        notificationsStore.info('Device Online', `${payload.name || payload.device_id} is now online.`)
+        notificationsStore.info(t('common.wsNotifications.deviceOnlineTitle'), t('common.wsNotifications.deviceOnlineMessage', { name: payload.name || payload.device_id }))
         break
 
       case 'device.offline':
-        notificationsStore.warning('Device Offline', `${payload.name || payload.device_id} is offline.`)
+        notificationsStore.warning(t('common.wsNotifications.deviceOfflineTitle'), t('common.wsNotifications.deviceOfflineMessage', { name: payload.name || payload.device_id }))
         break
 
       case 'device.discovered':
-        notificationsStore.info('Device Discovered', `New device discovered: ${payload.name || payload.device_id}`)
+        notificationsStore.info(t('common.wsNotifications.deviceDiscoveredTitle'), t('common.wsNotifications.deviceDiscoveredMessage', { name: payload.name || payload.device_id }))
         break
 
       case 'scene.activated':
-        notificationsStore.success('Scene Activated', `${payload.name || payload.scene_id} was activated.`)
+        notificationsStore.success(t('common.wsNotifications.sceneActivatedTitle'), t('common.wsNotifications.sceneActivatedMessage', { name: payload.name || payload.scene_id }))
         break
 
       case 'automation.run_failed':
-        notificationsStore.error('Automation Failed', `Automation "${payload.name || payload.automation_id}" failed: ${payload.error}`)
+        notificationsStore.error(t('common.wsNotifications.automationFailedTitle'), t('common.wsNotifications.automationFailedMessage', { name: payload.name || payload.automation_id, error: payload.error }))
         break
 
       case 'notification.created':
         notificationsStore.addNotification({
-          title: payload.title || 'System Notification',
+          title: payload.title || t('common.wsNotifications.systemNotification'),
           message: payload.message,
           type: payload.severity === 'critical' || payload.severity === 'error' ? 'error' : (payload.severity || 'info')
         })
