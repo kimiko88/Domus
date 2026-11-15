@@ -579,7 +579,9 @@
     "errorInvalidInvite": "Questo link di invito non è valido o è scaduto. Contatta l'amministratore.",
     "errorPasswordMismatch": "Le password inserite non corrispondono.",
     "success": "Registrazione completata con successo! Benvenuto in Domus.",
-    "backToLogin": "Torna al Login"
+    "backToLogin": "Torna al Login",
+    "usernamePlaceholder": "es. mario_rossi",
+    "emailPlaceholder": "es. mario@email.it"
   },
   "energy": {
     "title": "Monitoraggio Energetico & Flusso Solare",
@@ -986,7 +988,34 @@
     "coordinator": "Coordinatore",
     "router": "Router / Ripetitore",
     "endDevice": "Dispositivo a Batteria",
-    "linkQuality": "Qualità Segnale"
+    "linkQuality": "Qualità Segnale",
+    "view": {
+      "coordinator": "Coordinatore (gateway)",
+      "router": "Router / ripetitore (alimentato)",
+      "endDevice": "End-device (a batteria)",
+      "excellent": "Ottimo",
+      "good": "Buono",
+      "weak": "Debole",
+      "devicesProtocolHint": "I dispositivi configurati per questo protocollo verranno visualizzati qui con le loro metriche LQI reali.",
+      "nodeType": "Tipo nodo",
+      "linkQuality": "Qualità collegamento (LQI)",
+      "remainingBattery": "Batteria residua",
+      "directBindingTitle": "Zigbee Direct Binding (associazione diretta senza hub)",
+      "directBindingDesc": "Associa direttamente un telecomando wireless o un pulsante a una lampadina o a un gruppo. Continua a funzionare anche quando il server Domus è spento!",
+      "noBindings": "Nessun legame diretto attivo. Crea una connessione hardware diretta tra un interruttore e un dispositivo attuatore.",
+      "removeBinding": "Rimuovi legame",
+      "newBindingTitle": "Nuovo binding Zigbee diretto",
+      "sourceDevice": "Dispositivo sorgente (telecomando / interruttore)",
+      "sourceNamePlaceholder": "Nome (es. telecomando comodino)",
+      "deviceIdPlaceholder": "IEEE / ID dispositivo",
+      "destinationDevice": "Dispositivo destinazione (lampadina / relè / gruppo)",
+      "destinationNamePlaceholder": "Nome (es. luce comodino)",
+      "functionalCluster": "Cluster funzionale",
+      "onOffCluster": "Accensione / spegnimento (genOnOff)",
+      "levelCluster": "Regolazione luminosità (genLevelCtrl)",
+      "colorCluster": "Colore / temperatura (lightingColorCtrl)",
+      "createBinding": "Crea legame diretto"
+    }
   },
   "store": {
     "title": "Domus Store & Marketplace Estensioni",
@@ -1011,7 +1040,8 @@
     "username": "Nome Utente",
     "password": "Password",
     "submit": "Accedi",
-    "error": "Credenziali non valide o sessione scaduta"
+    "error": "Credenziali non valide o sessione scaduta",
+    "kioskPin": "Codice PIN kiosk"
   },
   "setup": {
     "title": "Configurazione Iniziale Domus",
@@ -1649,5 +1679,12 @@
       "fridge": "Frigorifero (2–8°C)",
       "other": "Altro"
     }
+  },
+  "pantry": {
+    "title": "Dispensa e ricettario intelligente",
+    "sections": "Sezioni dispensa",
+    "inventoryTab": "Dispensa e scorte",
+    "recipesTab": "Ricettario",
+    "mealCalendarTab": "Calendario pasti"
   }
 }
