@@ -208,7 +208,7 @@ func RequireViewAccess() func(http.Handler) http.Handler {
 				required = "/devices"
 			case strings.HasPrefix(path, "/helpers"):
 				required = "/helpers"
-			case strings.HasPrefix(path, "/intercom"):
+			case strings.HasPrefix(path, "/intercom") || strings.HasPrefix(path, "/nvr"):
 				required = "/cameras"
 			case strings.HasPrefix(path, "/notifications"):
 				required = "/notifications"
