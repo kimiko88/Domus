@@ -48,9 +48,13 @@ export const themeOptions: ThemeOption[] = [
 
 const STORAGE_KEY = 'domus-theme'
 
-const mql = typeof window !== 'undefined' && window.matchMedia
+const mql = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
   ? window.matchMedia('(prefers-color-scheme: dark)')
   : null
+
+// Keep the operating-system preference reactive: MediaQueryList.matches is
+// not a Vue dependency by itself, even though the browser updates it live.
+const prefersDark = ref(mql?.matches ?? false)
 
 function getInitialTheme(): Theme {
   try {
@@ -69,7 +73,7 @@ const theme = ref<Theme>(getInitialTheme())
 
 function resolveActualTheme(t: Theme): 'dark' | 'light' | 'oled' {
   if (t === 'system') {
-    return mql && mql.matches ? 'dark' : 'light'
+    return prefersDark.value ? 'dark' : 'light'
   }
   return t
 }
@@ -107,8 +111,8 @@ watch(theme, (t) => {
 
 // Listen to system changes if in system mode
 if (mql) {
-  const handleSystemThemeChange = () => {
-    if (theme.value === 'system') applyTheme('system')
+  const handleSystemThemeChange = (event: MediaQueryListEvent | MediaQueryList) => {
+    prefersDark.value = event.matches
   }
   if (typeof mql.addEventListener === 'function') {
     mql.addEventListener('change', handleSystemThemeChange)
