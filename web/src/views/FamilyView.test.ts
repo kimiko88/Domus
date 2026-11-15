@@ -103,6 +103,7 @@ describe('FamilyView.vue', () => {
       expect(permissionModal.text()).toContain('Доступные помещения')
       expect(permissionModal.text()).toContain('Разрешённые действия')
       expect(permissionModal.text()).toContain('Управление автоматизациями')
+      expect(permissionModal.text()).toContain('Управление системными настройками')
     } finally {
       i18n.global.locale.value = previousLocale
     }
