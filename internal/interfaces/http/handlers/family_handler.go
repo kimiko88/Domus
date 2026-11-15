@@ -294,6 +294,7 @@ func (h *FamilyHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request)
 }
 
 type updatePermissionsRequest struct {
+	Role                 string   `json:"role,omitempty"`
 	AllowedAreaIDs       []string `json:"allowed_area_ids"`
 	AllowedEntityIDs     []string `json:"allowed_entity_ids"`
 	AllowedDashboardIDs  []string `json:"allowed_dashboard_ids"`
