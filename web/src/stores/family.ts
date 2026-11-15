@@ -74,10 +74,7 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = null
     try {
       await apiClient.put(`/api/v1/family/members/${encodeURIComponent(id)}/role`, { role })
-      const m = members.value.find(member => member.id === id)
-      if (m) {
-        m.role = role
-      }
+      await fetchMembers()
     } catch (err: any) {
       error.value = err?.message || 'Failed to update member role'
       throw err
