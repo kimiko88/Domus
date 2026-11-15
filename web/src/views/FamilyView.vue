@@ -74,6 +74,7 @@ const permissionViews = [
   { path: '/scenes', labelKey: 'nav.scenes' },
   { path: '/schedules', labelKey: 'nav.schedules' },
   { path: '/history', labelKey: 'nav.history' },
+  { path: '/notifications', labelKey: 'family.permissions.notifications' },
   { path: '/cameras', labelKey: 'nav.cameras' },
   { path: '/media', labelKey: 'nav.media' },
   { path: '/chores', labelKey: 'nav.chores' },
