@@ -69,6 +69,45 @@ describe('FamilyView.vue', () => {
     expect(wrapper.find('.invite-btn').exists()).toBe(true)
   })
 
+  it('renders family permission controls in Russian', async () => {
+    const previousLocale = i18n.global.locale.value
+    i18n.global.locale.value = 'ru'
+    try {
+      const authStore = useAuthStore()
+      authStore.user = {
+        id: 'admin-1',
+        username: 'admin',
+        role: 'admin',
+        created_at: '2026-10-04T00:00:00Z',
+        updated_at: '2026-10-04T00:00:00Z'
+      }
+
+      const familyStore = useFamilyStore()
+      familyStore.members = [
+        { id: 'admin-1', username: 'admin', role: 'admin', enabled: true, created_at: '2026-10-04T00:00:00Z' },
+        { id: 'member-2', username: 'member', role: 'operator', enabled: true, created_at: '2026-10-04T01:00:00Z' }
+      ]
+      vi.spyOn(familyStore, 'fetchMembers').mockResolvedValue()
+      vi.spyOn(familyStore, 'fetchInvites').mockResolvedValue()
+      vi.spyOn(familyStore, 'fetchGuests').mockResolvedValue()
+
+      const wrapper = mount(FamilyView, {
+        global: { plugins: [pinia, i18n] }
+      })
+
+      expect(wrapper.find('.section-title').text()).toContain('Управление семьёй и разрешениями')
+      const permissionsButton = wrapper.find('.permissions-btn')
+      expect(permissionsButton.text()).toContain('Управление разрешениями')
+      await permissionsButton.trigger('click')
+      const permissionModal = wrapper.find('.permission-modal-card')
+      expect(permissionModal.text()).toContain('Доступные помещения')
+      expect(permissionModal.text()).toContain('Разрешённые действия')
+      expect(permissionModal.text()).toContain('Управление автоматизациями')
+    } finally {
+      i18n.global.locale.value = previousLocale
+    }
+  })
+
   it('hides admin actions and invite button for viewers', async () => {
     const authStore = useAuthStore()
     authStore.user = {
