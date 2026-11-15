@@ -111,30 +111,43 @@ func (c *DeviceClient) Close() error {
 // SendCommand waits for the Tuya ACK and the reported DPS state. A successful
 // TCP write alone is not proof that the device executed the requested action.
 func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map[string]any, error) {
-	if len(dps) == 0 { return nil, errors.New("tuya: refusing to send an empty DPS command") }
+	if len(dps) == 0 {
+		return nil, errors.New("tuya: refusing to send an empty DPS command")
+	}
 	c.commandMu.Lock()
 	defer c.commandMu.Unlock()
 	payload, err := BuildControlPayload(c.DeviceID, dps)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	seq := c.seq.Add(1)
 	frame, err := EncodePacket(seq, CmdControl, payload, c.LocalKey, c.Version)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	waiter := &commandWaiter{sequence: seq, command: CmdControl, expected: cloneDPS(dps), ack: make(chan error, 1), confirmed: make(chan map[string]any, 1)}
 	c.pendingMu.Lock()
 	c.pending = waiter
 	c.pendingMu.Unlock()
 	defer func() {
 		c.pendingMu.Lock()
-		if c.pending == waiter { c.pending = nil }
+		if c.pending == waiter {
+			c.pending = nil
+		}
 		c.pendingMu.Unlock()
 	}()
 	c.mu.Lock()
 	if c.conn == nil || c.closed.Load() {
 		c.mu.Unlock()
-		if err := c.Connect(ctx); err != nil { return nil, fmt.Errorf("tuya: failed to reconnect before command: %w", err) }
+		if err := c.Connect(ctx); err != nil {
+			return nil, fmt.Errorf("tuya: failed to reconnect before command: %w", err)
+		}
 		c.mu.Lock()
 	}
-	if c.conn == nil { c.mu.Unlock(); return nil, errors.New("tuya: connection is nil") }
+	if c.conn == nil {
+		c.mu.Unlock()
+		return nil, errors.New("tuya: connection is nil")
+	}
 	_ = c.conn.SetWriteDeadline(time.Now().Add(5*time.Second))
 	_, err = c.conn.Write(frame)
 	if err != nil {
@@ -151,14 +164,18 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 	for !ackReceived || confirmed == nil {
 		select {
 		case ackErr := <-waiter.ack:
-			if ackErr != nil { return nil, ackErr }
+			if ackErr != nil {
+				return nil, ackErr
+			}
 			ackReceived = true
 		case status := <-waiter.confirmed:
 			confirmed = status
 		case <-ctx.Done():
 			return nil, fmt.Errorf("tuya: command outcome unconfirmed: %w", ctx.Err())
 		case <-timer.C:
-			if !ackReceived { return nil, errors.New("tuya: device acknowledgement timeout; command delivery is unconfirmed") }
+			if !ackReceived {
+				return nil, errors.New("tuya: device acknowledgement timeout; command delivery is unconfirmed")
+			}
 			return nil, errors.New("tuya: device acknowledged the command but did not report the requested DPS state")
 		}
 	}
@@ -167,32 +184,43 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 
 func cloneDPS(dps map[string]any) map[string]any {
 	copy := make(map[string]any, len(dps))
-	for key, value := range dps { copy[key] = value }
+	for key, value := range dps {
+		copy[key] = value
+	}
 	return copy
 }
 
 func dpsMatch(expected, actual map[string]any) bool {
 	for key, want := range expected {
 		got, ok := actual[key]
-		if !ok || !sameDPSValue(want, got) { return false }
+		if !ok || !sameDPSValue(want, got) {
+			return false
+		}
 	}
 	return true
 }
 
 func sameDPSValue(a, b any) bool {
 	if af, ok := numericDPSValue(a); ok {
-		if bf, ok := numericDPSValue(b); ok { return af == bf }
+		if bf, ok := numericDPSValue(b); ok {
+			return af == bf
+		}
 	}
 	return fmt.Sprint(a) == fmt.Sprint(b)
 }
 
 func numericDPSValue(value any) (float64, bool) {
 	switch number := value.(type) {
-	case int: return float64(number), true
-	case int64: return float64(number), true
-	case float64: return number, true
-	case float32: return float64(number), true
-	default: return 0, false
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	default:
+		return 0, false
 	}
 }
 
@@ -229,17 +257,25 @@ func (c *DeviceClient) readLoop() {
 	pending := make([]byte, 0, 8192)
 
 	for {
-		if c.closed.Load() { return }
+		if c.closed.Load() {
+			return
+		}
 		c.mu.Lock()
 		conn := c.conn
 		c.mu.Unlock()
-		if conn == nil { return }
+		if conn == nil {
+			return
+		}
 
 		_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		n, err := conn.Read(readBuf)
 		if err != nil {
-			if errors.Is(err, io.EOF) || c.closed.Load() { return }
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() { continue }
+			if errors.Is(err, io.EOF) || c.closed.Load() {
+				return
+			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue
+			}
 			return
 		}
 		pending = append(pending, readBuf[:n]...)
@@ -254,19 +290,27 @@ func (c *DeviceClient) readLoop() {
 				}
 				break
 			}
-			if prefixAt > 0 { pending = pending[prefixAt:] }
-			if len(pending) < 16 { break }
+			if prefixAt > 0 {
+				pending = pending[prefixAt:]
+			}
+			if len(pending) < 16 {
+				break
+			}
 			payloadLen := binary.BigEndian.Uint32(pending[12:16])
 			if payloadLen < 8 || payloadLen > 1<<20 {
 				pending = pending[1:]
 				continue
 			}
 			frameLen := 16 + int(payloadLen)
-			if len(pending) < frameLen { break }
+			if len(pending) < frameLen {
+				break
+			}
 			frame := append([]byte(nil), pending[:frameLen]...)
 			pending = pending[frameLen:]
 			packet, decodeErr := DecodeResponsePacket(frame, c.LocalKey)
-			if decodeErr != nil { continue }
+			if decodeErr != nil {
+				continue
+			}
 			c.handleResponsePacket(packet)
 		}
 	}
@@ -277,27 +321,42 @@ func (c *DeviceClient) handleResponsePacket(packet *Packet) {
 	if len(packet.Payload) > 0 {
 		var resp struct {
 			DPS map[string]any `json:"dps"`
-			Data struct { DPS map[string]any `json:"dps"` } `json:"data"`
+			Data struct {
+				DPS map[string]any `json:"dps"`
+			} `json:"data"`
 		}
 		if err := json.Unmarshal(packet.Payload, &resp); err == nil {
 			dps = resp.DPS
-			if len(dps) == 0 { dps = resp.Data.DPS }
+			if len(dps) == 0 {
+				dps = resp.Data.DPS
+			}
 		}
 	}
-	if len(dps) > 0 && c.onStatus != nil { c.onStatus(dps) }
+	if len(dps) > 0 && c.onStatus != nil {
+		c.onStatus(dps)
+	}
 
 	c.pendingMu.Lock()
 	waiter := c.pending
 	if waiter != nil {
 		if packet.Sequence == waiter.sequence && packet.Command == waiter.command {
 			if packet.ReturnCode != 0 {
-				select { case waiter.ack <- fmt.Errorf("tuya: device rejected command with return code %d", packet.ReturnCode): default: }
+				select {
+				case waiter.ack <- fmt.Errorf("tuya: device rejected command with return code %d", packet.ReturnCode):
+				default:
+				}
 			} else {
-				select { case waiter.ack <- nil: default: }
+				select {
+					case waiter.ack <- nil:
+					default:
+					}
 			}
 		}
 		if len(dps) > 0 && dpsMatch(waiter.expected, dps) {
-			select { case waiter.confirmed <- cloneDPS(dps): default: }
+			select {
+			case waiter.confirmed <- cloneDPS(dps):
+			default:
+			}
 		}
 	}
 	c.pendingMu.Unlock()
