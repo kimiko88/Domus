@@ -1,8 +1,8 @@
 package tuya_local
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -256,7 +256,6 @@ func TestAdapter_LoadStoredDevicesClearsUntrustedIPWithSingleConnection(t *testi
 		t.Fatalf("device credentials should be retained after IP cleanup, got %+v", devices)
 	}
 }
-
 
 func TestAdapter_WaitForDiscoveredLANIPUsesFreshAnnouncement(t *testing.T) {
 	adapter := NewAdapter("tuya_test", &mockBus{})
