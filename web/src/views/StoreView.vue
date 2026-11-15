@@ -219,8 +219,8 @@ onMounted(async () => {
             <ShoppingBag :size="24" class="text-primary" />
           </div>
           <div>
-            <h1 class="page-title">{{ t('store.title', 'Domus Store & Marketplace Estensioni') }}</h1>
-            <p class="page-subtitle">{{ t('store.subtitle', 'Estendi Domus con plugin WASI ad alta efficienza e blueprint open source verificati') }}</p>
+            <h1 class="page-title">{{ t('store.title') }}</h1>
+            <p class="page-subtitle">{{ t('store.subtitle') }}</p>
           </div>
         </div>
 
@@ -230,10 +230,10 @@ onMounted(async () => {
             type="button"
             class="btn-propose-community"
             @click="showSubmitModal = true"
-            aria-label="Proponi un plugin open source della community"
+            :aria-label="t('store.view.proposeCommunityPlugin')"
           >
             <PlusCircle :size="18" />
-            <span>Proponi Plugin Community</span>
+            <span>{{ t('store.view.proposeCommunityPlugin') }}</span>
           </button>
         </div>
       </div>
@@ -246,17 +246,17 @@ onMounted(async () => {
           name="store_search"
           v-model="searchQuery"
           type="search"
-          placeholder="Cerca per nome, autore, licenza o package ID..."
+          :placeholder="t('store.view.searchPlaceholder')"
           class="store-search-input"
           autocomplete="off"
-          aria-label="Cerca nel marketplace"
+          :aria-label="t('store.view.searchAria')"
         />
         <button
           v-if="searchQuery"
           type="button"
           class="clear-search-btn"
           @click="searchQuery = ''"
-          aria-label="Cancella ricerca"
+          :aria-label="t('store.view.clearSearch')"
         >
           ✕
         </button>
@@ -266,8 +266,8 @@ onMounted(async () => {
       <div class="filters-container">
         <!-- Tier / Source Filters -->
         <div class="filter-group">
-          <span class="filter-group-label">Origine & Verifica:</span>
-          <div class="filter-pills" role="tablist" aria-label="Filtro categoria verifica">
+          <span class="filter-group-label">{{ t('store.view.sourceVerification') }}</span>
+          <div class="filter-pills" role="tablist" :aria-label="t('store.view.verificationFilter')">
             <button
               type="button"
               :class="['pill-btn', { active: activeTier === '' }]"
@@ -281,7 +281,7 @@ onMounted(async () => {
               @click="activeTier = 'verified'"
             >
               <ShieldCheck :size="14" />
-              Domus Verified <span class="pill-badge">{{ countByTier('verified') }}</span>
+              {{ t('store.view.domusVerified') }} <span class="pill-badge">{{ countByTier('verified') }}</span>
             </button>
             <button
               type="button"
@@ -289,7 +289,7 @@ onMounted(async () => {
               @click="activeTier = 'community'"
             >
               <Globe :size="14" />
-              Community Open Source <span class="pill-badge">{{ countByTier('community') }}</span>
+              {{ t('store.view.communityOpenSource') }} <span class="pill-badge">{{ countByTier('community') }}</span>
             </button>
             <button
               v-if="countByTier('pending_review') > 0"
@@ -305,8 +305,8 @@ onMounted(async () => {
 
         <!-- Extension Type Filters -->
         <div class="filter-group">
-          <span class="filter-group-label">Tipo Modulo:</span>
-          <div class="filter-pills" role="tablist" aria-label="Filtro tipo estensioni">
+          <span class="filter-group-label">{{ t('store.view.moduleType') }}</span>
+          <div class="filter-pills" role="tablist" :aria-label="t('store.view.extensionTypeFilter')">
             <button
               type="button"
               :class="['pill-btn', { active: activeType === '' }]"
@@ -343,9 +343,9 @@ onMounted(async () => {
     <!-- Empty State -->
     <div v-if="filteredPackages.length === 0" class="empty-state glass-panel">
       <PackageCheck :size="48" class="empty-icon text-muted" />
-      <p class="empty-title">{{ searchQuery ? 'Nessun risultato per la ricerca' : 'Nessun pacchetto disponibile' }}</p>
+      <p class="empty-title">{{ searchQuery ? t('store.view.noSearchResults') : t('store.view.noPackages') }}</p>
       <p class="empty-desc">
-        {{ searchQuery ? 'Prova con parole chiave differenti come "sunspec", "wmbus", "radar", o "modem".' : 'I pacchetti del catalogo e proposti dalla community appariranno qui.' }}
+        {{ searchQuery ? t('store.view.searchHint') : t('store.view.packagesHint') }}
       </p>
     </div>
 
@@ -357,7 +357,7 @@ onMounted(async () => {
         class="package-card glass-panel"
         tabindex="0"
         role="button"
-        :aria-label="`Dettagli per ${pkg.name}`"
+        :aria-label="t('store.view.packageDetails', { name: pkg.name })"
         @click="openDetails(pkg)"
         @keydown.enter="openDetails(pkg)"
       >
@@ -400,7 +400,7 @@ onMounted(async () => {
         <div class="card-content">
           <h3 class="pkg-title">{{ pkg.name }}</h3>
           <div class="pkg-meta-row">
-            <span class="pkg-author">Autore: {{ pkg.author }}</span>
+            <span class="pkg-author">{{ t('store.view.author') }}: {{ pkg.author }}</span>
             <span v-if="pkg.license" class="pkg-license-tag">{{ pkg.license }}</span>
           </div>
           <p class="pkg-desc">{{ pkg.description }}</p>
@@ -423,10 +423,10 @@ onMounted(async () => {
               rel="noopener noreferrer"
               class="source-link"
               @click.stop
-              :aria-label="`Visualizza codice sorgente di ${pkg.name}`"
+              :aria-label="t('store.view.viewSourceFor', { name: pkg.name })"
             >
               <Code :size="14" />
-              <span>Codice Sorgente Open Source</span>
+              <span>{{ t('store.view.openSourceCode') }}</span>
               <ExternalLink :size="12" />
             </a>
           </div>
@@ -439,17 +439,17 @@ onMounted(async () => {
               type="button"
               class="btn-approve"
               @click="approvePackage(pkg, $event)"
-              aria-label="Approva e pubblica pacchetto"
+              :aria-label="t('store.view.approvePackage')"
             >
-              <Check :size="14" /> Approva
+              <Check :size="14" /> {{ t('store.view.approve') }}
             </button>
             <button
               type="button"
               class="btn-reject"
               @click="rejectPackage(pkg, $event)"
-              aria-label="Rifiuta pacchetto"
+              :aria-label="t('store.view.rejectPackage')"
             >
-              <X :size="14" /> Rifiuta
+              <X :size="14" /> {{ t('store.view.reject') }}
             </button>
           </div>
 
@@ -485,14 +485,14 @@ onMounted(async () => {
               <PlusCircle :size="24" />
             </div>
             <div>
-              <h2 id="submit-modal-title" class="modal-title">Proponi un Plugin Open Source</h2>
-              <span class="pkg-id-code">Invia un modulo WASI o blueprint per la revisione della community</span>
+              <h2 id="submit-modal-title" class="modal-title">{{ t('store.view.proposeTitle') }}</h2>
+              <span class="pkg-id-code">{{ t('store.view.proposeSubtitle') }}</span>
             </div>
           </div>
           <button
             type="button"
             class="btn-close"
-            aria-label="Chiudi finestra"
+            :aria-label="t('store.view.closeWindow')"
             @click="showSubmitModal = false"
           >
             <X :size="20" />
@@ -503,7 +503,7 @@ onMounted(async () => {
           <div class="open-source-alert">
             <ShieldCheck :size="20" class="text-primary" />
             <div>
-              <strong>Requisito Codice Sorgente Aperto:</strong> Tutti i plugin della community devono avere il codice sorgente pubblicato e consultabile pubblicamente con licenza libera (es. GitHub o GitLab) per consentire l'audit di sicurezza sandbox prima dell'approvazione.
+              <strong>{{ t('store.view.openSourceRequirementTitle') }}</strong> {{ t('store.view.openSourceRequirementDesc') }}
             </div>
           </div>
 
@@ -514,74 +514,74 @@ onMounted(async () => {
 
           <div class="form-grid">
             <div class="form-field">
-              <label for="pkg-name">Nome del Modulo *</label>
+              <label for="pkg-name">{{ t('store.view.packageName') }} *</label>
               <input
                 id="pkg-name"
                 v-model="submitForm.name"
                 type="text"
-                placeholder="es. M-Bus Smart Water Reader"
+                :placeholder="t('store.view.packageNamePlaceholder')"
                 required
                 class="form-input"
               />
             </div>
 
             <div class="form-field">
-              <label for="pkg-id">Package ID (univoco) *</label>
+              <label for="pkg-id">{{ t('store.view.packageId') }} *</label>
               <input
                 id="pkg-id"
                 v-model="submitForm.package_id"
                 type="text"
-                placeholder="es. domus.community.mbus-water"
+                :placeholder="t('store.view.packageIdPlaceholder')"
                 required
                 class="form-input font-mono"
               />
             </div>
 
             <div class="form-field">
-              <label for="pkg-type">Tipo di Estensione *</label>
+              <label for="pkg-type">{{ t('store.view.extensionType') }} *</label>
               <select id="pkg-type" v-model="submitForm.type" class="form-input">
-                <option value="wasm_plugin">WASM / WASI Plugin (Sandboxed)</option>
-                <option value="blueprint">Blueprint Automazione</option>
-                <option value="widget">Widget Dashboard UI</option>
+                <option value="wasm_plugin">{{ t('store.view.wasmPluginOption') }}</option>
+                <option value="blueprint">{{ t('store.view.blueprintOption') }}</option>
+                <option value="widget">{{ t('store.view.widgetOption') }}</option>
               </select>
             </div>
 
             <div class="form-field">
-              <label for="pkg-author">Autore / Community Team</label>
+              <label for="pkg-author">{{ t('store.view.authorCommunity') }}</label>
               <input
                 id="pkg-author"
                 v-model="submitForm.author"
                 type="text"
-                placeholder="es. GreenEnergy Labs"
+                :placeholder="t('store.view.authorPlaceholder')"
                 class="form-input"
               />
             </div>
 
             <div class="form-field full-width">
-              <label for="pkg-repo">URL Repository Open Source Pubblico (GitHub/GitLab) *</label>
+              <label for="pkg-repo">{{ t('store.view.publicRepository') }} *</label>
               <input
                 id="pkg-repo"
                 v-model="submitForm.repository_url"
                 type="url"
-                placeholder="https://github.com/tuo-team/domus-wasi-plugin"
+                :placeholder="t('store.view.repositoryPlaceholder')"
                 required
                 class="form-input font-mono"
               />
             </div>
 
             <div class="form-field">
-              <label for="pkg-license">Licenza Open Source *</label>
+              <label for="pkg-license">{{ t('store.view.openSourceLicense') }} *</label>
               <select id="pkg-license" v-model="submitForm.license" class="form-input">
                 <option value="Apache-2.0">Apache 2.0</option>
                 <option value="MIT">MIT</option>
-                <option value="GPL-3.0">GPL v3</option>
-                <option value="BSD-3-Clause">BSD 3-Clause</option>
-                <option value="MPL-2.0">Mozilla Public License 2.0</option>
+                <option value="GPL-3.0">{{ t('store.view.gplLicense') }}</option>
+                <option value="BSD-3-Clause">{{ t('store.view.bsdLicense') }}</option>
+                <option value="MPL-2.0">{{ t('store.view.mplLicense') }}</option>
               </select>
             </div>
 
             <div class="form-field">
-              <label for="pkg-caps">WASI Capabilities richieste</label>
+              <label for="pkg-caps">{{ t('store.view.requiredCapabilities') }}</label>
               <input
                 id="pkg-caps"
                 v-model="submitForm.capabilities"
@@ -592,12 +592,12 @@ onMounted(async () => {
             </div>
 
             <div class="form-field full-width">
-              <label for="pkg-desc">Descrizione e Funzionalità</label>
+              <label for="pkg-desc">{{ t('store.view.descriptionFeatures') }}</label>
               <textarea
                 id="pkg-desc"
                 v-model="submitForm.description"
                 rows="3"
-                placeholder="Descrivi cosa fa il modulo, l'hardware supportato e i casi d'uso..."
+                :placeholder="t('store.view.descriptionPlaceholder')"
                 class="form-input"
               ></textarea>
             </div>
@@ -617,7 +617,7 @@ onMounted(async () => {
               :disabled="isSubmitting"
             >
               <CheckCircle v-if="!isSubmitting" :size="16" />
-              <span>{{ isSubmitting ? 'Pubblicazione in corso...' : 'Invia per Revisione' }}</span>
+              <span>{{ isSubmitting ? t('store.view.publishing') : t('store.view.submitForReview') }}</span>
             </button>
           </footer>
         </form>
@@ -659,14 +659,14 @@ onMounted(async () => {
 
         <div class="modal-body">
           <div class="info-row">
-            <span class="info-label">Tipo Pacchetto:</span>
+            <span class="info-label">{{ t('store.view.packageType') }}:</span>
             <span class="type-pill" :class="selectedPackage.type">{{ selectedPackage.type.toUpperCase() }}</span>
           </div>
 
           <div class="info-row">
-            <span class="info-label">Verifica & Livello:</span>
+            <span class="info-label">{{ t('store.view.verificationTier') }}:</span>
             <span v-if="selectedPackage.review_status === 'pending_review'" class="badge-pending">
-              In Attesa di Revisione
+              {{ t('store.view.pendingReview') }}
             </span>
             <span v-else-if="selectedPackage.tier === 'community'" class="badge-community">
               Community Open Source
@@ -677,21 +677,21 @@ onMounted(async () => {
           </div>
 
           <div class="info-row">
-            <span class="info-label">Versione:</span>
+            <span class="info-label">{{ t('store.view.version') }}:</span>
             <span class="font-mono">v{{ selectedPackage.version }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Autore / Publisher:</span>
+            <span class="info-label">{{ t('store.view.authorPublisher') }}:</span>
             <span>{{ selectedPackage.author }}</span>
           </div>
           <div v-if="selectedPackage.license" class="info-row">
-            <span class="info-label">Licenza Software:</span>
+            <span class="info-label">{{ t('store.view.softwareLicense') }}:</span>
             <span class="pkg-license-tag">{{ selectedPackage.license }}</span>
           </div>
 
           <!-- Open Source Repository Link in Modal -->
           <div v-if="selectedPackage.repository_url" class="info-row">
-            <span class="info-label">Codice Sorgente:</span>
+            <span class="info-label">{{ t('store.view.sourceCode') }}:</span>
             <a
               :href="selectedPackage.repository_url"
               target="_blank"
@@ -699,21 +699,21 @@ onMounted(async () => {
               class="source-link"
             >
               <Code :size="14" />
-              <span>Visualizza Repository Pubblico</span>
+              <span>{{ t('store.view.viewPublicRepository') }}</span>
               <ExternalLink :size="12" />
             </a>
           </div>
 
           <div class="info-row">
-            <span class="info-label">Stato Installazione:</span>
+            <span class="info-label">{{ t('store.view.installationStatus') }}:</span>
             <span :class="selectedPackage.installed ? 'text-success' : 'text-muted'">
-              {{ selectedPackage.installed ? 'Installata e Attiva nel Sistema' : 'Non Installata' }}
+              {{ selectedPackage.installed ? t('store.view.installedActive') : t('store.view.notInstalled') }}
             </span>
           </div>
 
           <!-- Capabilities -->
           <div v-if="selectedPackage.capabilities && selectedPackage.capabilities.length > 0" class="desc-section">
-            <h4 class="section-title">Permessi Sandbox (WASI Capabilities)</h4>
+            <h4 class="section-title">{{ t('store.view.sandboxPermissions') }}</h4>
             <div class="caps-tags-row">
               <span v-for="cap in selectedPackage.capabilities" :key="cap" class="cap-tag">
                 {{ cap }}
@@ -722,14 +722,14 @@ onMounted(async () => {
           </div>
 
           <div class="desc-section">
-            <h4 class="section-title">Descrizione & Funzionalità</h4>
+            <h4 class="section-title">{{ t('store.view.descriptionFeatures') }}</h4>
             <p class="section-text">{{ selectedPackage.description }}</p>
           </div>
 
           <div class="security-box">
             <ShieldCheck :size="18" class="text-success" />
             <div class="security-text">
-              <strong>Sicurezza Domus Verified:</strong> Esecuzione in sandbox WebAssembly (WASI) con memoria lineare isolata, permessi rigorosamente controllati e zero chiamate cloud non autorizzate.
+              <strong>{{ t('store.view.verifiedSecurityTitle') }}</strong> {{ t('store.view.verifiedSecurityDesc') }}
             </div>
           </div>
         </div>
@@ -750,7 +750,7 @@ onMounted(async () => {
           >
             <CheckCircle v-if="selectedPackage.installed" :size="16" />
             <Download v-else :size="16" />
-            <span>{{ selectedPackage.installed ? 'Disinstalla' : 'Installa Subito con 1 Click' }}</span>
+            <span>{{ selectedPackage.installed ? t('store.view.uninstall') : t('store.view.installOneClick') }}</span>
           </button>
         </footer>
       </div>
