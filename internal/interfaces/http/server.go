@@ -758,8 +758,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					WithBus(srv.bus)
 
 				domainRouter.Route("/intercom", func(iRouter chi.Router) {
-					iRouter.Post("/ring", ecoH.RingIntercomDoorbell)
-					iRouter.Post("/{id}/unlock", ecoH.UnlockIntercomGate)
+					iRouter.Use(domusmw.RequireCameraView())
+					iRouter.With(domusmw.RequireDeviceControl()).Post("/ring", ecoH.RingIntercomDoorbell)
+					iRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/unlock", ecoH.UnlockIntercomGate)
 					iRouter.Post("/{id}/audio", ecoH.NegotiateIntercomAudio)
 				})
 
