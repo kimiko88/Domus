@@ -263,6 +263,7 @@ let clockInterval: any = null
 onMounted(async () => {
   clockInterval = setInterval(() => {
     currentTime.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
+    currentDate.value = new Date().toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
   }, 1000)
 
   window.addEventListener('mousemove', resetInactivity)
@@ -373,7 +374,7 @@ onUnmounted(() => {
         <div class="card-header">
           <div class="header-left">
             <Flame :size="20" class="text-warning animate-pulse" />
-            <span class="card-title">Clima & Termostato {{ activeRoomName }}</span>
+            <span class="card-title">{{ t('dashboard.view.climateThermostat') }} {{ activeRoomName }}</span>
           </div>
           <span class="badge heating-badge">{{ t('dashboard.view.heatingActive') }}</span>
         </div>
@@ -488,7 +489,7 @@ onUnmounted(() => {
           <div class="vector-node battery">
             <Battery :size="24" class="text-info" />
             <span class="v-val">{{ Math.abs(batteryWatts) }} W</span>
-            <span class="v-label">Batteria ({{ batterySoc }}%)</span>
+            <span class="v-label">{{ t('dashboard.view.batteryLabel', { value: batterySoc }) }}</span>
           </div>
 
           <div class="vector-node grid">
@@ -614,7 +615,7 @@ onUnmounted(() => {
         />
         <p v-if="pinError" class="pin-error">{{ t('dashboard.view.invalidPin') }}</p>
         <div class="pin-actions">
-          <button class="btn-cancel" @click="isPinModalOpen = false">Annulla</button>
+          <button class="btn-cancel" @click="isPinModalOpen = false">{{ t('common.cancel') }}</button>
           <button class="btn-save" @click="verifyPinAndExit">{{ t('dashboard.view.unlock') }}</button>
         </div>
       </div>
