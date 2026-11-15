@@ -92,8 +92,8 @@ async function loadData() {
     await familyStore.fetchMembers()
     if (isAdmin.value) {
       const [areas, entities] = await Promise.all([
-        apiClient.get<Area[]>('/api/v1/areas/'),
-        apiClient.get<Entity[]>('/api/v1/entities/')
+        apiClient.get<Area[]>('/api/v1/areas'),
+        apiClient.get<Entity[]>('/api/v1/entities')
       ])
       availableAreas.value = areas || []
       availableEntities.value = entities || []
@@ -376,7 +376,7 @@ onMounted(() => {
               </select>
 
               <button
-                v-if="member.id !== currentUserId"
+                v-if="member.id !== currentUserId && member.role !== 'admin'"
                 class="permissions-btn"
                 :title="'Gestisci permessi'"
                 @click="openPermissions(member)"
