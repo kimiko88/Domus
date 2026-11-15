@@ -132,7 +132,7 @@ const ru = {
     totalEntities: 'Всего объектов', onlineDevices: 'Устройства в сети', activeAutomations: 'Активные сценарии',
     systemLoad: 'Нагрузка хаба', activeLights: 'Включённые лампы', activeSwitches: 'Активные розетки',
     onlineSensors: 'Датчики в сети', activeCount: 'Активно', detectedCount: 'Обнаружено',
-    filterAll: 'Все', filterLights: 'Освещение', filterSwitches: 'Выключатели', filterSensors: 'Датчики',
+    filterAll: 'Все', filterAlarm: 'Сигнализация', filterLights: 'Освещение', filterSwitches: 'Выключатели', filterSensors: 'Датчики',
     filterClimate: 'Климат', filterMarketplace: 'Каталог расширений',
     marketplaceTitle: 'Каталог и расширения', marketplaceSubtitle: 'Изолированные модули WASI, проверенные сценарии и пользовательские виджеты',
     exploreStore: 'Открыть магазин Domus', installedExtensions: 'Установленные расширения', showcaseBadge: 'Рекомендуем',
