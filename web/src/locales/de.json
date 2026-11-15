@@ -1184,7 +1184,12 @@
     "adminPass": "Administrator-Passwort",
     "confirmPass": "Passwort bestätigen",
     "submit": "Konto erstellen & Hub starten",
-    "passMismatch": "Passwörter stimmen nicht überein"
+    "passMismatch": "Passwörter stimmen nicht überein",
+    "passwordMinLength": "Das Passwort muss mindestens 8 Zeichen enthalten",
+    "createAdminError": "Das Administratorkonto konnte nicht erstellt werden",
+    "usernamePlaceholder": "admin",
+    "passwordPlaceholder": "Mindestens 8 Zeichen",
+    "confirmPasswordPlaceholder": "Passwort wiederholen"
   },
   "alarm": {
     "title": "Integriertes Alarmsystem",
@@ -1891,6 +1896,19 @@
       "endTemperature": "Endtemperatur",
       "duration": "Dauer",
       "minutes": "Minuten"
+    }
+  },
+  "sharedDashboard": {
+    "view": {
+      "invalidToken": "Das Token des freigegebenen Dashboards ist ungültig oder abgelaufen.",
+      "loading": "Freigegebenes Dashboard wird geladen…",
+      "accessDenied": "Zugriff verweigert oder abgelaufen",
+      "loginToDomus": "Bei Domus anmelden",
+      "readOnly": "Nur lesen",
+      "guestAccess": "Gastzugriff",
+      "widgetsAria": "Dashboard-Widgets",
+      "active": "Aktiv",
+      "emptyWidgets": "In diesem Dashboard sind keine Widgets konfiguriert."
     }
   }
 }
