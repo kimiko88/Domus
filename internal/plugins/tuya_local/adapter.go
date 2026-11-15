@@ -645,7 +645,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 		if trustedLANIP(targetCfg.IP) == "" {
 			resolved, found := a.waitForDiscoveredLANIP(ctx, targetDevID)
 			if !found {
-				return fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
+				return nil, fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
 			}
 			targetCfg = resolved
 		}
