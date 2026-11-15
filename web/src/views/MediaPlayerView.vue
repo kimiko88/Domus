@@ -84,19 +84,19 @@ async function sendBroadcast() {
       volume: 0.85,
       audio_url: '/tts/bell_chime.wav'
     })
-    broadcastStatus.value = 'Annuncio diffuso con successo su tutti gli altoparlanti!'
+    broadcastStatus.value = t('media.view.broadcastSuccess')
     setTimeout(() => {
       broadcastStatus.value = ''
       isBroadcastModalOpen.value = false
     }, 2000)
   } catch {
-    broadcastStatus.value = 'Errore durante la diffusione audio'
+    broadcastStatus.value = t('media.view.broadcastError')
   }
 }
 
 async function createPlayer() {
   if (!newPlayerName.value.trim()) {
-    addError.value = 'Inserisci un nome per il media player'
+    addError.value = t('media.view.nameRequired')
     return
   }
   addError.value = ''
@@ -106,7 +106,7 @@ async function createPlayer() {
       platform: newPlayerPlatform.value,
       area_id: newPlayerArea.value ? newPlayerArea.value : undefined
     })
-    addSuccess.value = 'Altoparlante registrato con successo nel database!'
+    addSuccess.value = t('media.view.playerSuccess')
     newPlayerName.value = ''
     await fetchPlayers()
     setTimeout(() => {
@@ -114,19 +114,19 @@ async function createPlayer() {
       isAddModalOpen.value = false
     }, 1200)
   } catch (err: any) {
-    addError.value = err?.message || 'Errore nella registrazione del player'
+    addError.value = err?.message || t('media.view.playerError')
   }
 }
 
 async function deletePlayer(id: string, name: string) {
-  if (!confirm(`Sei sicuro di voler eliminare "${name}" dal database di Domus?`)) {
+  if (!confirm(t('media.view.confirmDelete', { name }))) {
     return
   }
   try {
     await apiClient.delete(`/api/v1/media/players/${id}`)
     players.value = players.value.filter(p => p.id !== id)
   } catch (err) {
-    console.error('Failed to delete media player:', err)
+    console.error(t('media.view.deleteFailed'), err)
   }
 }
 
@@ -151,12 +151,12 @@ onMounted(() => {
       <div class="header-actions">
         <button class="add-player-btn" @click="isAddModalOpen = true">
           <Plus :size="18" />
-          <span>Aggiungi Player</span>
+          <span>{{ t('media.view.add') }}</span>
         </button>
 
         <button class="broadcast-trigger-btn" @click="isBroadcastModalOpen = true">
           <Bell :size="18" />
-          <span>Diffondi Annuncio Vocale</span>
+          <span>{{ t('media.view.broadcast') }}</span>
         </button>
       </div>
     </header>
@@ -164,11 +164,11 @@ onMounted(() => {
     <!-- Players Grid -->
     <div v-if="players.length === 0" class="empty-players glass-panel">
       <Speaker :size="48" class="empty-icon text-muted" />
-      <p class="empty-state">Nessun media player registrato nel database.</p>
-      <p class="empty-sub">Registra i tuoi altoparlanti Apple AirPlay, Google Cast, ricevitori DLNA o altoparlanti locali.</p>
+      <p class="empty-state">{{ t('media.view.empty') }}</p>
+      <p class="empty-sub">{{ t('media.view.emptyDesc') }}</p>
       <button class="btn-primary add-first-btn" @click="isAddModalOpen = true">
         <Plus :size="18" />
-        <span>Registra Nuovo Media Player</span>
+        <span>{{ t('media.view.registerFirst') }}</span>
       </button>
     </div>
 
@@ -187,11 +187,11 @@ onMounted(() => {
           </div>
 
           <div class="head-right">
-            <span class="state-pill" :class="p.state">{{ p.state.toUpperCase() }}</span>
+            <span class="state-pill" :class="p.state">{{ t('media.view.' + p.state) }}</span>
             <button
               class="delete-player-btn"
-              title="Elimina dal database"
-              aria-label="Elimina player"
+              :title="t('media.view.deleteTitle')"
+              :aria-label="t('media.view.deleteAria')"
               @click="deletePlayer(p.id, p.name)"
             >
               <Trash2 :size="16" />
@@ -201,13 +201,13 @@ onMounted(() => {
 
         <!-- Track Info -->
         <div class="track-info-box">
-          <span class="track-title">{{ p.current_title || 'Nessun brano in riproduzione' }}</span>
-          <span class="track-artist">{{ p.current_artist || 'Speaker connesso e pronto' }}</span>
+          <span class="track-title">{{ p.current_title || t('media.view.noTrack') }}</span>
+          <span class="track-artist">{{ p.current_artist || t('media.view.ready') }}</span>
         </div>
 
         <!-- Controls -->
         <div class="player-controls-row">
-          <button class="play-btn" :title="p.state === 'playing' ? 'Metti in pausa' : 'Riproduci'" @click="togglePlay(p)">
+          <button class="play-btn" :title="p.state === 'playing' ? t('media.view.pause') : t('media.view.play')" @click="togglePlay(p)">
             <Pause v-if="p.state === 'playing'" :size="20" />
             <Play v-else :size="20" />
           </button>
@@ -237,25 +237,25 @@ onMounted(() => {
             <div class="modal-icon-badge warning">
               <Bell :size="20" />
             </div>
-            <h3>Diffusione Vocale Sincronizzata</h3>
+            <h3>{{ t('media.view.broadcastTitle') }}</h3>
           </div>
-          <button class="close-btn" aria-label="Chiudi finestra" @click="isBroadcastModalOpen = false">
+          <button class="close-btn" :aria-label="t('media.view.close')" @click="isBroadcastModalOpen = false">
             <X :size="18" />
           </button>
         </div>
 
         <p class="modal-desc">
-          Il messaggio verrà sintetizzato istantaneamente con Piper TTS e diffuso a volume prioritario su tutti gli altoparlanti, interrompendo momentaneamente la musica in corso.
+          {{ t('media.view.broadcastDesc') }}
         </p>
 
         <div class="form-group">
-          <label class="form-label" for="broadcast-text">Messaggio vocale da diffondere:</label>
+          <label class="form-label" for="broadcast-text">{{ t('media.view.message') }}</label>
           <textarea
             id="broadcast-text"
             v-model="broadcastMessage"
             class="broadcast-textarea"
             rows="3"
-            placeholder="Scrivi il messaggio vocale da pronunciare..."
+            :placeholder="t('media.view.messagePlaceholder')"
           />
         </div>
 
@@ -265,8 +265,8 @@ onMounted(() => {
         </div>
 
         <div class="modal-actions">
-          <button class="btn-cancel" @click="isBroadcastModalOpen = false">Annulla</button>
-          <button class="btn-send" @click="sendBroadcast">Diffondi Ora</button>
+          <button class="btn-cancel" @click="isBroadcastModalOpen = false">{{ t('media.view.cancel') }}</button>
+          <button class="btn-send" @click="sendBroadcast">{{ t('media.view.send') }}</button>
         </div>
       </div>
     </div>
@@ -279,7 +279,7 @@ onMounted(() => {
             <div class="modal-icon-badge primary">
               <Plus :size="20" />
             </div>
-            <h3>Registra Media Player nel Database</h3>
+            <h3>{{ t('media.view.addTitle') }}</h3>
           </div>
           <button class="close-btn" aria-label="Chiudi finestra" @click="isAddModalOpen = false">
             <X :size="18" />
@@ -287,42 +287,42 @@ onMounted(() => {
         </div>
 
         <p class="modal-desc">
-          Aggiunge una nuova periferica audio alla tabella <code>media_players</code> di SQLite per la gestione multi-room e notifiche vocali.
+          {{ t('media.view.addDesc') }}
         </p>
 
         <form class="modal-form" @submit.prevent="createPlayer">
           <div class="form-group">
-            <label class="form-label" for="player-name">Nome Altoparlante / Speaker *</label>
+            <label class="form-label" for="player-name">{{ t('media.view.speakerName') }}</label>
             <input
               id="player-name"
               v-model="newPlayerName"
               type="text"
               class="form-input"
-              placeholder="es. Apple HomePod Mini Cucina, Sonos Salotto"
+              :placeholder="t('media.view.speakerPlaceholder')"
               required
             />
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="player-platform">Piattaforma / Protocollo</label>
+              <label class="form-label" for="player-platform">{{ t('media.view.platform') }}</label>
               <select id="player-platform" v-model="newPlayerPlatform" class="form-select">
-                <option value="cast">Google Cast (Chromecast / Nest)</option>
-                <option value="airplay">Apple AirPlay 2 (HomePod / Ricevitori)</option>
-                <option value="dlna">DLNA / UPnP (Hi-Fi / TV)</option>
-                <option value="local">Altoparlante Locale Hub (Jack / USB / DAC)</option>
+                <option value="cast">{{ t('media.view.cast') }}</option>
+                <option value="airplay">{{ t('media.view.airplay') }}</option>
+                <option value="dlna">{{ t('media.view.dlna') }}</option>
+                <option value="local">{{ t('media.view.local') }}</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="player-area">Stanza / Area</label>
+              <label class="form-label" for="player-area">{{ t('media.view.area') }}</label>
               <select id="player-area" v-model="newPlayerArea" class="form-select">
-                <option value="salotto">Salotto</option>
-                <option value="cucina">Cucina</option>
-                <option value="camera">Camera da Letto</option>
-                <option value="studio">Studio</option>
-                <option value="bagno">Bagno</option>
-                <option value="giardino">Giardino</option>
+                <option value="salotto">{{ t('media.view.salotto') }}</option>
+                <option value="cucina">{{ t('media.view.cucina') }}</option>
+                <option value="camera">{{ t('media.view.camera') }}</option>
+                <option value="studio">{{ t('media.view.studio') }}</option>
+                <option value="bagno">{{ t('media.view.bagno') }}</option>
+                <option value="giardino">{{ t('media.view.giardino') }}</option>
               </select>
             </div>
           </div>
@@ -338,8 +338,8 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-cancel" @click="isAddModalOpen = false">Annulla</button>
-            <button type="submit" class="btn-primary">Salva nel Database</button>
+            <button type="button" class="btn-cancel" @click="isAddModalOpen = false">{{ t('media.view.cancel') }}</button>
+            <button type="submit" class="btn-primary">{{ t('media.view.saveDb') }}</button>
           </div>
         </form>
       </div>

@@ -55,16 +55,16 @@ async function startTwoFactorSetup() {
     }
     showTwoFactorModal.value = true
   } catch (err: any) {
-    alert('Errore inizializzazione 2FA: ' + (err?.message || 'Riprova'))
+    alert(t('settings.twoFactorInitError', { message: err?.message || t('common.error') }))
   }
 }
 
 async function disableTwoFactor() {
-  if (!confirm('Per disattivare la 2FA dovrai confermare la password e il codice del secondo fattore. Continuare?')) return
-  const password = window.prompt('Inserisci la password attuale')
+  if (!confirm(t('settings.confirmDisableTwoFactor'))) return
+  const password = window.prompt(t('settings.promptPassword'))
   if (password === null || !password.trim()) return
   const twoFactorCode = isTwoFactorEnabled.value
-    ? window.prompt('Inserisci il codice TOTP corrente o un codice di recupero')
+    ? window.prompt(t('settings.promptTwoFactorCode'))
     : ''
   if (twoFactorCode === null) return
   try {
@@ -73,9 +73,9 @@ async function disableTwoFactor() {
       two_factor_code: twoFactorCode.trim()
     })
     isTwoFactorEnabled.value = false
-    alert('2FA disattivata con successo.')
+    alert(t('settings.twoFactorDisabled'))
   } catch (err: any) {
-    alert('Errore disattivazione 2FA: ' + (err?.message || 'Riprova'))
+    alert(t('settings.twoFactorDisableError', { message: err?.message || t('common.error') }))
   }
 }
 
@@ -169,7 +169,7 @@ async function loadTags() {
 async function testScanTag(t: any) {
   try {
     await apiClient.post(`/api/v1/tags/${t.tag_id}/scan`, { scanned_by: 'settings_ui' })
-    alert(`Tag "${t.name}" scansionato con successo! Azione eseguita.`)
+    alert(t('settings.tagScanned', { name: t.name }))
   } catch {}
 }
 
@@ -213,9 +213,9 @@ async function triggerPromote() {
   try {
     const res = await apiClient.post<FailoverStatus>('/api/v1/system/failover/promote', {})
     if (res) failoverStatus.value = res
-    alert('Promozione a Leader eseguita con successo!')
+    alert(t('settings.promoteLeaderSuccess'))
   } catch {
-    alert('Promozione del nodo eseguita con successo!')
+    alert(t('settings.promoteNodeSuccess'))
   } finally {
     isPromoting.value = false
   }
@@ -243,22 +243,22 @@ async function triggerCreateBackup() {
       passphrase: backupPassphrase.value || undefined,
       encrypted: true
     })
-    alert('Backup Cifrato generato con successo! Archivio salvato su cloud/NAS locale.')
+    alert(t('settings.backupSuccess'))
     await loadBackupRecords()
   } catch (err: any) {
-    alert('Errore generazione backup: ' + (err?.message || 'Riprova'))
+    alert(t('settings.backupError', { message: err?.message || t('common.error') }))
   } finally {
     isBackingUp.value = false
   }
 }
 
 async function triggerRestoreBackup() {
-  if (!confirm('Sei sicuro di voler avviare il ripristino di emergenza del sistema?')) return
+  if (!confirm(t('settings.confirmRestore'))) return
   isRestoring.value = true
   try {
-    alert('Ripristino dal file di backup completato con successo. Il sistema è ora integro.')
+    alert(t('settings.restoreSuccess'))
   } catch (err: any) {
-    alert('Errore ripristino: ' + (err?.message || 'Riprova'))
+    alert(t('settings.restoreError', { message: err?.message || t('common.error') }))
   } finally {
     isRestoring.value = false
   }
@@ -330,7 +330,7 @@ async function toggleWaterValve() {
   try {
     waterAnomaly.value.main_valve_open = !waterAnomaly.value.main_valve_open
     waterAnomaly.value.leak_detected = false
-    alert(waterAnomaly.value.main_valve_open ? 'Elettrovalvola principale APERTA' : 'Elettrovalvola principale CHIUSA per sicurezza')
+    alert(waterAnomaly.value.main_valve_open ? t('settings.valveOpen') : t('settings.valveClosed'))
   } finally {
     isTogglingValve.value = false
   }
@@ -374,18 +374,18 @@ onMounted(() => {
             <span class="detail-value font-mono">{{ currentUser.username }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Ruolo</span>
+            <span class="detail-label">{{ t('settings.role') }}</span>
             <span class="role-badge">{{ currentUser.role }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">ID Utente</span>
+            <span class="detail-label">{{ t('settings.userId') }}</span>
             <span class="detail-value font-mono text-dim">{{ currentUser.id }}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Autenticazione 2FA</span>
+            <span class="detail-label">{{ t('settings.twoFactor') }}</span>
             <div class="two-factor-controls">
               <span class="two-factor-pill" :class="{ enabled: isTwoFactorEnabled }">
-                {{ isTwoFactorEnabled ? 'Attiva' : 'Non Attiva' }}
+                {{ isTwoFactorEnabled ? t('settings.enabled') : t('settings.notEnabled') }}
               </span>
               <button
                 v-if="!isTwoFactorEnabled"
@@ -393,7 +393,7 @@ onMounted(() => {
                 class="btn-2fa-action"
                 @click="startTwoFactorSetup"
               >
-                Configura
+                {{ t('settings.configure') }}
               </button>
               <button
                 v-else
@@ -401,7 +401,7 @@ onMounted(() => {
                 class="btn-2fa-action disable"
                 @click="disableTwoFactor"
               >
-                Disattiva
+                {{ t('settings.disable') }}
               </button>
             </div>
           </div>
@@ -425,11 +425,11 @@ onMounted(() => {
           <div class="icon-box text-cyan">
             <Palette :size="20" />
           </div>
-          <h3 class="card-title">Aspetto & Tema</h3>
+          <h3 class="card-title">{{ t('settings.appearance') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Personalizza lo stile visivo e il contrasto dell'interfaccia Domus</p>
+          <p class="theme-desc">{{ t('settings.appearanceDescription') }}</p>
 
           <div class="theme-selector-grid">
             <button
@@ -447,8 +447,8 @@ onMounted(() => {
                 <Monitor v-else :size="15" style="color: #a855f7;" />
               </div>
               <div class="theme-btn-info">
-                <span class="theme-btn-title">{{ opt.label }}</span>
-                <span class="theme-btn-desc">{{ opt.description }}</span>
+                <span class="theme-btn-title">{{ t(opt.nameKey) }}</span>
+                <span class="theme-btn-desc">{{ t(opt.descriptionKey) }}</span>
               </div>
               <Check v-if="currentTheme === opt.id" :size="16" class="theme-check-icon" />
             </button>
@@ -573,19 +573,19 @@ onMounted(() => {
 
         <div class="profile-details">
           <div class="detail-row">
-            <span class="detail-label">Versione Core</span>
+            <span class="detail-label">{{ t('settings.coreVersion') }}</span>
             <span class="detail-value font-mono">v1.0.0 (Go modular monolith)</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Versione Web UI</span>
+            <span class="detail-label">{{ t('settings.webVersion') }}</span>
             <span class="detail-value font-mono">v0.8.0 (Vue 3 + Vite PWA)</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Database</span>
+            <span class="detail-label">{{ t('settings.database') }}</span>
             <span class="detail-value font-mono">SQLite WAL mode</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Architettura target</span>
+            <span class="detail-label">{{ t('settings.architecture') }}</span>
             <span class="detail-value font-mono">ARM64 / Raspberry Pi 4</span>
           </div>
         </div>
@@ -703,7 +703,7 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Accesso</span>
+            <span class="detail-label">{{ t('settings.accessStatus') }}</span>
             <span
               class="status-indicator-badge"
               :class="maintenanceStatus?.active ? 'badge-maint-active' : 'badge-maint-inactive'"
@@ -720,7 +720,7 @@ onMounted(() => {
               </span>
             </div>
             <div v-if="maintenanceStatus?.key_fingerprint" class="detail-row">
-              <span class="detail-label">Fingerprint Chiave</span>
+              <span class="detail-label">{{ t('settings.keyFingerprint') }}</span>
               <span class="detail-value font-mono text-dim text-xs">
                 {{ maintenanceStatus.key_fingerprint }}
               </span>
@@ -746,10 +746,10 @@ onMounted(() => {
                 v-model="maintDuration"
                 class="maint-select font-mono"
               >
-                <option :value="15">15 minuti</option>
-                <option :value="30">30 minuti (Default)</option>
-                <option :value="60">60 minuti (1 ora)</option>
-                <option :value="120">120 minuti (2 ore max)</option>
+                <option :value="15">{{ t('settings.duration15') }}</option>
+                <option :value="30">{{ t('settings.duration30') }}</option>
+                <option :value="60">{{ t('settings.duration60') }}</option>
+                <option :value="120">{{ t('settings.duration120') }}</option>
               </select>
             </div>
 
@@ -760,7 +760,7 @@ onMounted(() => {
                 name="ssh_authorized_key"
                 v-model="sshPubKey"
                 rows="2"
-                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
+                :placeholder="t('settings.authorizedKeyPlaceholder')"
                 class="maint-textarea font-mono"
                 autocomplete="off"
               ></textarea>
@@ -785,11 +785,11 @@ onMounted(() => {
           <div class="icon-box text-cyan">
             <RefreshCw :size="20" />
           </div>
-          <h3 class="card-title">Aggiornamenti Firmware OTA</h3>
+          <h3 class="card-title">{{ t('settings.otaTitle') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Aggiorna le periferiche Zigbee, ESPHome e Z-Wave con 1 click senza software esterni.</p>
+          <p class="theme-desc">{{ t('settings.otaDesc') }}</p>
 
           <div class="ota-list">
             <p v-if="otaDevices.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
@@ -825,11 +825,11 @@ onMounted(() => {
           <div class="icon-box text-amber">
             <Radio :size="20" />
           </div>
-          <h3 class="card-title">Tag NFC & QR Code Fisici</h3>
+          <h3 class="card-title">{{ t('settings.nfcTitle') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Scansiona adesivi NFC da smartphone per lanciare scene o automazioni istantanee.</p>
+          <p class="theme-desc">{{ t('settings.nfcDesc') }}</p>
 
           <div class="tags-list">
             <p v-if="nfcTags.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
@@ -917,7 +917,7 @@ onMounted(() => {
             <HardDrive :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Disaster Recovery & Backup Cifrato</h3>
+            <h3 class="card-title">{{ t('settings.backupTitle') }}</h3>
           </div>
         </div>
 
@@ -927,11 +927,11 @@ onMounted(() => {
           </p>
 
           <div class="form-group mt-2">
-            <label class="form-label text-xs">Passphrase di Cifratura (AES-256-GCM)</label>
+            <label class="form-label text-xs">{{ t('settings.backupPassphrase') }}</label>
             <input
               v-model="backupPassphrase"
               type="password"
-              placeholder="Inserisci passphrase sicura..."
+              :placeholder="t('settings.backupPlaceholder')"
               class="maint-input font-mono"
             />
           </div>
@@ -958,7 +958,7 @@ onMounted(() => {
           </div>
 
           <div v-if="backupRecords.length > 0" class="backup-records-list mt-3">
-            <span class="text-xs text-dim">Ultimi snapshot salvati:</span>
+            <span class="text-xs text-dim">{{ t('settings.lastSnapshots') }}</span>
             <div v-for="rec in backupRecords" :key="rec.id" class="backup-rec-item">
               <span class="rec-filename font-mono">{{ rec.filename }}</span>
               <span class="rec-status-badge">{{ rec.status }}</span>
@@ -974,7 +974,7 @@ onMounted(() => {
             <Plane :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Simulazione Presenza (Vacanza)</h3>
+            <h3 class="card-title">{{ t('settings.vacationTitle') }}</h3>
             <span :class="['status-indicator-badge', isVacationActive ? 'badge-online' : 'badge-offline']">
               {{ isVacationActive ? 'Attiva' : 'Disattivata' }}
             </span>
@@ -987,7 +987,7 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Modalità Vacanza</span>
+            <span class="detail-label">{{ t('settings.vacationStatus') }}</span>
             <button
               type="button"
               :class="['btn-toggle-vacation', { active: isVacationActive }]"
@@ -998,13 +998,13 @@ onMounted(() => {
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Variazione Oraria (Jitter)</span>
+            <span class="detail-label">{{ t('settings.timeJitter') }}</span>
             <span class="detail-value font-mono text-cyan">&plusmn;{{ vacationJitter }} minuti casuali</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Pattern di Apprendimento</span>
-            <span class="detail-value font-mono">14 giorni continui</span>
+            <span class="detail-label">{{ t('settings.learningPattern') }}</span>
+            <span class="detail-value font-mono">{{ t('settings.learningDays') }}</span>
           </div>
         </div>
       </div>
@@ -1016,7 +1016,7 @@ onMounted(() => {
             <Wifi :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Salute Dispositivi & Diagnostica RF</h3>
+            <h3 class="card-title">{{ t('settings.rfHealthTitle') }}</h3>
             <span v-if="weakNodesCount > 0" class="badge-warning-mini">
               {{ weakNodesCount }} Avvis{{ weakNodesCount > 1 ? 'i' : 'o' }}
             </span>
@@ -1059,7 +1059,7 @@ onMounted(() => {
             <Droplet :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Anomalie Idriche & Elettrovalvola</h3>
+            <h3 class="card-title">{{ t('settings.waterAnomalyTitle') }}</h3>
             <span :class="['status-indicator-badge', waterAnomaly.main_valve_open ? 'badge-online' : 'badge-warning']">
               {{ waterAnomaly.main_valve_open ? 'Valvola Aperta' : 'Valvola Chiusa' }}
             </span>
@@ -1072,17 +1072,17 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Monitoraggio Flusso</span>
-            <span class="detail-value text-emerald font-semibold">Normale (Nessuna perdita)</span>
+            <span class="detail-label">{{ t('settings.flowMonitoring') }}</span>
+            <span class="detail-value text-emerald font-semibold">{{ t('settings.flowNormal') }}</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Soglia Safe-Stop Notturno</span>
-            <span class="detail-value font-mono">40 minuti di flusso continuo</span>
+            <span class="detail-label">{{ t('settings.nightlySafeStop') }}</span>
+            <span class="detail-value font-mono">{{ t('settings.continuousFlowDuration') }}</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Controllo Elettrovalvola Generale</span>
+            <span class="detail-label">{{ t('settings.mainValveControl') }}</span>
             <button
               type="button"
               :class="['btn-valve-toggle', waterAnomaly.main_valve_open ? 'open' : 'closed']"

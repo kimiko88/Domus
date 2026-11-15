@@ -412,42 +412,42 @@ function selectDayView(dateStr: string) {
       <div>
         <div class="title-with-badge">
           <h1>{{ t('chores.title') }}</h1>
-          <span class="badge-pill">{{ choresStore.pendingChores.length }} Da fare</span>
+          <span class="badge-pill">{{ choresStore.pendingChores.length }} {{ t('chores.view.toDo') }}</span>
         </div>
         <p class="subtitle">{{ t('chores.subtitle') }}</p>
       </div>
 
       <div class="header-action-group">
         <!-- View Mode Switcher -->
-        <div class="view-mode-toggle" role="tablist" aria-label="Visualizzazione Faccende">
+        <div class="view-mode-toggle" role="tablist" :aria-label="t('chores.view.viewModes')">
           <button
             class="toggle-btn"
             :class="{ active: viewMode === 'list' }"
             @click="viewMode = 'list'"
-            aria-label="Vista Elenco"
+            :aria-label="t('chores.view.listView')"
           >
             <List class="btn-icon" />
-            <span>Elenco</span>
+            <span>{{ t('chores.view.listView') }}</span>
           </button>
           <button
             class="toggle-btn"
             :class="{ active: viewMode === 'calendar' }"
             @click="viewMode = 'calendar'"
-            aria-label="Vista Calendario"
+            :aria-label="t('chores.view.calendarView')"
           >
             <Calendar class="btn-icon" />
-            <span>Calendario</span>
+            <span>{{ t('chores.view.calendarView') }}</span>
           </button>
         </div>
 
         <!-- Google Calendar Connect Button -->
-        <button class="btn-secondary" @click="showGCalModal = true" aria-label="Collega Google Calendar">
+        <button class="btn-secondary" @click="showGCalModal = true" :aria-label="t('chores.view.connectGoogleCalendar')">
           <ExternalLink class="btn-icon" />
           <span>Google Calendar</span>
         </button>
 
         <!-- New Chore Button -->
-        <button class="btn-primary" @click="openCreateForDate()" aria-label="Nuova Faccenda">
+        <button class="btn-primary" @click="openCreateForDate()" :aria-label="t('chores.view.newChore')">
           <Plus class="btn-icon" />
           <span>{{ t('chores.newChore') }}</span>
         </button>
@@ -462,7 +462,7 @@ function selectDayView(dateStr: string) {
         </div>
         <div class="stat-data">
           <span class="stat-value">{{ choresStore.overdueChores.length }}</span>
-          <span class="stat-label">In Scadenza / Scadute</span>
+          <span class="stat-label">{{ t('chores.view.dueOrOverdue') }}</span>
         </div>
       </div>
 
@@ -472,7 +472,7 @@ function selectDayView(dateStr: string) {
         </div>
         <div class="stat-data">
           <span class="stat-value">{{ choresStore.pendingChores.length }}</span>
-          <span class="stat-label">Compiti Attivi</span>
+          <span class="stat-label">{{ t('chores.view.activeTasks') }}</span>
         </div>
       </div>
 
@@ -538,7 +538,7 @@ function selectDayView(dateStr: string) {
           <button
             class="check-btn"
             :class="{ done: chore.status === 'completed' }"
-            :aria-label="`Segna ${chore.title} come completata`"
+            :aria-label="t('chores.view.markCompleted', { title: chore.title })"
             @click="handleComplete(chore)"
           >
             <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
@@ -591,7 +591,7 @@ function selectDayView(dateStr: string) {
           </div>
 
           <!-- Action Delete -->
-          <button class="delete-btn" title="Elimina faccenda" aria-label="Elimina faccenda" @click="handleDelete(chore.id)">
+          <button class="delete-btn"  :title="t('chores.view.deleteChore')" :aria-label="t('chores.view.deleteChore')" @click="handleDelete(chore.id)">
             <Trash2 class="del-icon" />
           </button>
         </div>
@@ -599,11 +599,11 @@ function selectDayView(dateStr: string) {
         <!-- Empty State -->
         <div v-if="filteredChores.length === 0" class="empty-state">
           <CheckSquare class="empty-icon" />
-          <h3>Nessuna faccenda in questa vista</h3>
-          <p>Aggiungi una nuova faccenda domestica o seleziona un'altra categoria.</p>
+          <h3>{{ t('chores.view.noChoresInView') }}</h3>
+          <p>{{ t('chores.view.emptyHint') }}</p>
           <button class="btn-primary" @click="openCreateForDate()">
             <Plus class="btn-icon" />
-            Crea Faccenda
+            {{ t('chores.view.createChore') }}
           </button>
         </div>
       </div>
@@ -614,18 +614,18 @@ function selectDayView(dateStr: string) {
       <!-- Calendar Navigation Bar -->
       <div class="calendar-nav-bar">
         <div class="cal-nav-left">
-          <button class="nav-arrow-btn" @click="prevPeriod" :title="calendarViewMode === 'day' ? 'Giorno precedente' : calendarViewMode === 'week' ? 'Settimana precedente' : 'Mese precedente'" aria-label="Periodo precedente">
+          <button class="nav-arrow-btn" @click="prevPeriod" :title="calendarViewMode === 'day' ? t('chores.view.previousDay') : calendarViewMode === 'week' ? t('chores.view.previousWeek') : t('chores.view.previousMonth')" :aria-label="t('chores.view.previousPeriod')">
             <ChevronLeft class="btn-icon" />
           </button>
           <h2 class="month-heading">{{ currentPeriodLabel }}</h2>
-          <button class="nav-arrow-btn" @click="nextPeriod" :title="calendarViewMode === 'day' ? 'Giorno successivo' : calendarViewMode === 'week' ? 'Settimana successiva' : 'Mese successivo'" aria-label="Periodo successivo">
+          <button class="nav-arrow-btn" @click="nextPeriod" :title="calendarViewMode === 'day' ? t('chores.view.nextDay') : calendarViewMode === 'week' ? t('chores.view.nextWeek') : t('chores.view.nextMonth')" :aria-label="t('chores.view.nextPeriod')">
             <ChevronRight class="btn-icon" />
           </button>
-          <button class="btn-today" @click="goToToday">Oggi</button>
+          <button class="btn-today" @click="goToToday">{{ t('chores.view.today') }}</button>
         </div>
 
         <!-- View Mode Switcher: Giorno / Settimana / Mese -->
-        <div class="cal-view-selector" role="tablist" aria-label="Modalità Vista Calendario">
+        <div class="cal-view-selector" role="tablist" :aria-label="t('chores.view.calendarModes')">
           <button
             type="button"
             class="cal-view-btn"
@@ -634,7 +634,7 @@ function selectDayView(dateStr: string) {
             role="tab"
             :aria-selected="calendarViewMode === 'day'"
           >
-            Giorno
+            {{ t('chores.view.day') }}
           </button>
           <button
             type="button"
@@ -644,7 +644,7 @@ function selectDayView(dateStr: string) {
             role="tab"
             :aria-selected="calendarViewMode === 'week'"
           >
-            Settimana
+            {{ t('chores.view.week') }}
           </button>
           <button
             type="button"
@@ -654,15 +654,15 @@ function selectDayView(dateStr: string) {
             role="tab"
             :aria-selected="calendarViewMode === 'month'"
           >
-            Mese
+            {{ t('chores.view.month') }}
           </button>
         </div>
 
         <div class="cal-legend">
-          <span class="legend-item"><span class="dot urgent"></span> Urgente</span>
-          <span class="legend-item"><span class="dot high"></span> Alta</span>
-          <span class="legend-item"><span class="dot medium"></span> Media</span>
-          <span class="legend-item"><span class="dot low"></span> Bassa</span>
+          <span class="legend-item"><span class="dot urgent"></span> {{ t('chores.view.urgent') }}</span>
+          <span class="legend-item"><span class="dot high"></span> {{ t('chores.view.high') }}</span>
+          <span class="legend-item"><span class="dot medium"></span> {{ t('chores.view.medium') }}</span>
+          <span class="legend-item"><span class="dot low"></span> {{ t('chores.view.low') }}</span>
         </div>
       </div>
 
@@ -670,13 +670,13 @@ function selectDayView(dateStr: string) {
       <div v-if="calendarViewMode === 'month'" class="calendar-grid-container">
         <!-- Day Names Row -->
         <div class="calendar-weekdays">
-          <span>Lun</span>
-          <span>Mar</span>
-          <span>Mer</span>
-          <span>Gio</span>
-          <span>Ven</span>
-          <span>Sab</span>
-          <span>Dom</span>
+          <span>{{ t('chores.view.mon') }}</span>
+          <span>{{ t('chores.view.tue') }}</span>
+          <span>{{ t('chores.view.wed') }}</span>
+          <span>{{ t('chores.view.thu') }}</span>
+          <span>{{ t('chores.view.fri') }}</span>
+          <span>{{ t('chores.view.sat') }}</span>
+          <span>{{ t('chores.view.sun') }}</span>
         </div>
 
         <!-- Day Cells -->
@@ -696,13 +696,13 @@ function selectDayView(dateStr: string) {
                 class="cell-day-num"
                 :class="{ 'today-num': day.isToday }"
                 @click.stop="selectDayView(day.dateString)"
-                title="Apri vista giorno"
+                :title="t('chores.view.openDay')"
               >
                 {{ day.dayNumber }}
               </span>
               <button
                 class="cell-add-btn"
-                title="Aggiungi faccenda a questo giorno"
+                :title="t('chores.view.addChoreToDay')"
                 @click.stop="openCreateForDate(day.dateString)"
               >
                 <Plus :size="12" />
@@ -720,7 +720,7 @@ function selectDayView(dateStr: string) {
                   { 'is-completed': chore.status === 'completed' }
                 ]"
                 @click.stop="handleComplete(chore)"
-                :title="`${chore.title} (${getAssigneeName(chore.assigned_user_id)}) - Clicca per completare`"
+                :title="`${chore.title} (${getAssigneeName(chore.assigned_user_id)}) - {{ t('chores.view.clickToComplete') }}`"
               >
                 <span class="priority-dot" :class="chore.priority"></span>
                 <span class="badge-title" :class="{ strike: chore.status === 'completed' }">{{ chore.title }}</span>
@@ -770,7 +770,7 @@ function selectDayView(dateStr: string) {
                 <span class="card-time" v-if="chore.due_date && chore.due_date.includes('T')">
                   {{ formatTime(chore.due_date) }}
                 </span>
-                <span v-else class="card-time text-dim">Tutto il dì</span>
+                <span v-else class="card-time text-dim">{{ t('chores.view.allDay') }}</span>
               </div>
               <span class="card-title" :class="{ strike: chore.status === 'completed' }">
                 {{ chore.title }}
@@ -791,7 +791,7 @@ function selectDayView(dateStr: string) {
               @click="openCreateForDate(day.dateString)"
             >
               <Plus :size="12" />
-              <span>Aggiungi</span>
+              <span>{{ t('chores.view.add') }}</span>
             </button>
           </div>
         </div>
@@ -801,7 +801,7 @@ function selectDayView(dateStr: string) {
       <div v-else-if="calendarViewMode === 'day'" class="day-view-container">
         <div class="day-view-hero">
           <div class="day-hero-info">
-            <div class="day-hero-badge" v-if="selectedDayData.isToday">Oggi</div>
+            <div class="day-hero-badge" v-if="selectedDayData.isToday">{{ t('chores.view.today') }}</div>
             <h3 class="day-hero-title">{{ selectedDayData.dayName }}, {{ selectedDayData.dayNumber }} {{ selectedDayData.monthName }}</h3>
             <p class="day-hero-sub">
               {{ selectedDayData.chores.length }} {{ selectedDayData.chores.length === 1 ? 'faccenda programmata' : 'faccende programmate' }} •
@@ -811,17 +811,17 @@ function selectDayView(dateStr: string) {
 
           <button class="btn-primary" @click="openCreateForDate(selectedDayData.dateString)">
             <Plus :size="16" />
-            <span>Nuova Faccenda</span>
+            <span>{{ t('chores.view.newChore') }}</span>
           </button>
         </div>
 
         <div v-if="selectedDayData.chores.length === 0" class="day-empty-box">
           <Calendar :size="42" class="empty-icon" />
-          <h4>Nessuna faccenda per questa data</h4>
-          <p>Tutti i compiti per questa giornata sono stati completati o non ce ne sono di programmati.</p>
+          <h4>{{ t('chores.view.noChoresForDate') }}</h4>
+          <p>{{ t('chores.view.noChoresForDateHint') }}</p>
           <button class="btn-secondary" @click="openCreateForDate(selectedDayData.dateString)">
             <Plus :size="14" />
-            <span>Aggiungi promemoria per questa data</span>
+            <span>{{ t('chores.view.addReminderForDate') }}</span>
           </button>
         </div>
 
@@ -895,7 +895,7 @@ function selectDayView(dateStr: string) {
     <div v-if="showCreateModal" class="modal-backdrop" @click="showCreateModal = false">
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-header">
-          <h2 id="modal-title">Nuova Faccenda Domestica</h2>
+          <h2 id="modal-title">{{ t('chores.view.newHouseholdChore') }}</h2>
           <button class="modal-close-btn" @click="showCreateModal = false" aria-label="Chiudi finestra">
             <X class="icon-close" />
           </button>
@@ -903,7 +903,7 @@ function selectDayView(dateStr: string) {
 
         <form @submit.prevent="handleCreateChore" class="modal-body">
           <div class="form-group">
-            <label for="chore-title">Titolo del Compito *</label>
+            <label for="chore-title">{{ t('chores.view.taskTitle') }} *</label>
             <input
               id="chore-title"
               v-model="form.title"
@@ -914,7 +914,7 @@ function selectDayView(dateStr: string) {
           </div>
 
           <div class="form-group">
-            <label for="chore-desc">Descrizione / Dettagli</label>
+            <label for="chore-desc">{{ t('chores.view.descriptionDetails') }}</label>
             <textarea
               id="chore-desc"
               v-model="form.description"
@@ -925,9 +925,9 @@ function selectDayView(dateStr: string) {
 
           <!-- Assignment & Notification Rule -->
           <div class="form-group">
-            <label for="chore-assignee">Assegna Persona & Notifica *</label>
+            <label for="chore-assignee">{{ t('chores.view.assignAndNotify') }} *</label>
             <select id="chore-assignee" v-model="form.assigned_user_id">
-              <option value="">👨‍👩‍👧‍👦 Tutta la famiglia (Notifica broadcast a tutti i membri)</option>
+              <option value="">{{ t('chores.view.wholeFamily') }}</option>
               <option v-for="member in familyStore.members" :key="member.id" :value="member.id">
                 👤 {{ member.username }} ({{ member.role }})
               </option>
@@ -943,9 +943,9 @@ function selectDayView(dateStr: string) {
 
           <div class="form-row">
             <div class="form-group">
-              <label for="chore-area">Stanza / Area</label>
+              <label for="chore-area">{{ t('chores.view.roomArea') }}</label>
               <select id="chore-area" v-model="form.area_id">
-                <option value="">Tutta la casa / Esterno</option>
+                <option value="">{{ t('chores.view.wholeHome') }}</option>
                 <option v-for="area in areasStore.areas" :key="area.id" :value="area.id">
                   {{ area.name }}
                 </option>
@@ -953,7 +953,7 @@ function selectDayView(dateStr: string) {
             </div>
 
             <div class="form-group">
-              <label for="chore-priority">Priorità</label>
+              <label for="chore-priority">{{ t('chores.view.priority') }}</label>
               <select id="chore-priority" v-model="form.priority">
                 <option value="low">Bassa</option>
                 <option value="medium">Media</option>
@@ -965,24 +965,24 @@ function selectDayView(dateStr: string) {
 
           <div class="form-row">
             <div class="form-group">
-              <label for="chore-due">Data & Ora Scadenza</label>
+              <label for="chore-due">{{ t('chores.view.dueDateTime') }}</label>
               <input id="chore-due" v-model="form.due_date" type="datetime-local" />
             </div>
 
             <div class="form-group">
-              <label for="chore-recurrence">Ricorrenza</label>
+              <label for="chore-recurrence">{{ t('chores.view.recurrence') }}</label>
               <select id="chore-recurrence" v-model="form.recurrence_type">
-                <option value="none">Nessuna (Una tantum)</option>
-                <option value="daily">Ogni Giorno</option>
-                <option value="weekly">Ogni Settimana</option>
-                <option value="monthly">Ogni Mese</option>
+                <option value="none">{{ t('chores.view.noneOneTime') }}</option>
+                <option value="daily">{{ t('chores.view.daily') }}</option>
+                <option value="weekly">{{ t('chores.view.weekly') }}</option>
+                <option value="monthly">{{ t('chores.view.monthly') }}</option>
               </select>
             </div>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn-cancel" @click="showCreateModal = false">Annulla</button>
-            <button type="submit" class="btn-primary">Salva & Programma</button>
+            <button type="submit" class="btn-primary">{{ t('chores.view.saveAndSchedule') }}</button>
           </div>
         </form>
       </div>
@@ -994,7 +994,7 @@ function selectDayView(dateStr: string) {
         <div class="modal-header">
           <div class="gcal-title-box">
             <Calendar class="gcal-icon" />
-            <h2 id="gcal-title">Collega Google Calendar</h2>
+            <h2 id="gcal-title">{{ t('chores.view.connectGoogleCalendar') }}</h2>
           </div>
           <button class="modal-close-btn" @click="showGCalModal = false" aria-label="Chiudi finestra">
             <X class="icon-close" />
@@ -1005,7 +1005,7 @@ function selectDayView(dateStr: string) {
           <!-- Option A: Subscribe from Google Calendar (Export) -->
           <div class="gcal-section">
             <div class="section-badge">OPZIONE 1: SOTTOSCRIVI DA GOOGLE CALENDAR</div>
-            <h3>Sincronizza le faccende Domus nel tuo Google Calendar</h3>
+            <h3>{{ t('chores.view.syncChoresToGoogleCalendar') }}</h3>
             <p class="gcal-desc">
               Aggiungi questo feed iCal standard al tuo account Google, Apple Calendar o Outlook per visualizzare sempre tutte le faccende domestiche aggiornate:
             </p>
@@ -1025,11 +1025,11 @@ function selectDayView(dateStr: string) {
 
             <div class="gcal-steps">
               <div class="step-num">1</div>
-              <div class="step-text">Apri Google Calendar su browser o smartphone.</div>
+              <div class="step-text">{{ t('chores.view.googleStep1') }}</div>
               <div class="step-num">2</div>
               <div class="step-text">Nella barra laterale sinistra, accanto ad <strong>"Altri calendari"</strong>, fai clic su <strong>+ &gt; Da URL</strong>.</div>
               <div class="step-num">3</div>
-              <div class="step-text">Incolla l'indirizzo copiato e conferma con <strong>"Aggiungi calendario"</strong>.</div>
+              <div class="step-text">{{ t('chores.view.googleStep3') }}</div>
             </div>
           </div>
 
@@ -1038,14 +1038,14 @@ function selectDayView(dateStr: string) {
           <!-- Option B: Sync / Import from Google Calendar (Import) -->
           <div class="gcal-section">
             <div class="section-badge">OPZIONE 2: IMPORTA DA GOOGLE CALENDAR</div>
-            <h3>Importa eventi / compiti da Google Calendar</h3>
+            <h3>{{ t('chores.view.importFromGoogleCalendar') }}</h3>
             <p class="gcal-desc">
               Incolla l'indirizzo iCal segreto o pubblico del tuo Google Calendar per importare i tuoi impegni direttamente come faccende domestiche in Domus:
             </p>
 
             <form @submit.prevent="handleSyncGoogleCalendar" class="sync-form">
               <div class="form-group">
-                <label for="gcal-url">Indirizzo iCal di Google Calendar (.ics)</label>
+                <label for="gcal-url">{{ t('chores.view.googleIcalAddress') }}</label>
                 <input
                   id="gcal-url"
                   v-model="gcalSyncUrl"
@@ -1057,7 +1057,7 @@ function selectDayView(dateStr: string) {
 
               <button type="submit" class="btn-primary" :disabled="isSyncingGCal">
                 <RefreshCw class="btn-icon" :class="{ 'spin-icon': isSyncingGCal }" />
-                <span>{{ isSyncingGCal ? 'Sincronizzazione in corso...' : 'Sincronizza Ora' }}</span>
+                <span>{{ isSyncingGCal ? t('chores.view.syncing') : t('chores.view.syncNow') }}</span>
               </button>
             </form>
           </div>

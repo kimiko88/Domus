@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Wallet,
   Plus,
@@ -27,6 +28,7 @@ import ExpenseModal from '@/components/finance/ExpenseModal.vue'
 import BudgetModal from '@/components/finance/BudgetModal.vue'
 import type { Expense, ExpenseCategory } from '@/api/types'
 
+const { t, locale } = useI18n()
 const financeStore = useFinanceStore()
 
 const isExpenseModalOpen = ref(false)
@@ -34,21 +36,21 @@ const isBudgetModalOpen = ref(false)
 const expenseToEdit = ref<Expense | null>(null)
 const searchQuery = ref('')
 
-const periods: { value: 'day' | 'week' | 'month' | 'year'; label: string }[] = [
-  { value: 'day', label: 'Giorno' },
-  { value: 'week', label: 'Settimana' },
-  { value: 'month', label: 'Mese' },
-  { value: 'year', label: 'Anno' }
+const periods: { value: 'day' | 'week' | 'month' | 'year'; labelKey: string }[] = [
+  { value: 'day', labelKey: 'finance.periods.day' },
+  { value: 'week', labelKey: 'finance.periods.week' },
+  { value: 'month', labelKey: 'finance.periods.month' },
+  { value: 'year', labelKey: 'finance.periods.year' }
 ]
 
-const categoriesFilterList: { category: ExpenseCategory | 'all'; label: string; icon?: any }[] = [
-  { category: 'all', label: 'Tutte le Categorie' },
-  { category: 'food', label: 'Cibo & Spesa', icon: ShoppingBag },
-  { category: 'utilities', label: 'Bollette & Utenze', icon: Zap },
-  { category: 'transport', label: 'Carburante & Auto', icon: Fuel },
-  { category: 'home_maintenance', label: 'Materiali & Casa', icon: Wrench },
-  { category: 'insurance', label: 'Assicurazioni', icon: Shield },
-  { category: 'other', label: 'Altro / Extra', icon: Tag }
+const categoriesFilterList: { category: ExpenseCategory | 'all'; labelKey: string; icon?: any }[] = [
+  { category: 'all', labelKey: 'finance.categories.all' },
+  { category: 'food', labelKey: 'finance.categories.food', icon: ShoppingBag },
+  { category: 'utilities', labelKey: 'finance.categories.utilities', icon: Zap },
+  { category: 'transport', labelKey: 'finance.categories.transport', icon: Fuel },
+  { category: 'home_maintenance', labelKey: 'finance.categories.home_maintenance', icon: Wrench },
+  { category: 'insurance', labelKey: 'finance.categories.insurance', icon: Shield },
+  { category: 'other', labelKey: 'finance.categories.other', icon: Tag }
 ]
 
 const filteredExpensesList = computed(() => {
@@ -96,7 +98,7 @@ async function handleSaveExpense(payload: Partial<Expense>) {
 }
 
 async function handleDeleteExpense(id: string) {
-  if (window.confirm('Sei sicuro di voler eliminare questa spesa?')) {
+  if (window.confirm(t('finance.confirmDelete'))) {
     await financeStore.deleteExpense(id)
   }
 }
@@ -106,7 +108,7 @@ async function handleSaveBudget(limit: number) {
 }
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2
@@ -115,7 +117,7 @@ function formatCurrency(val: number): string {
 
 function formatDate(iso: string): string {
   if (!iso) return ''
-  return new Intl.DateTimeFormat('it-IT', {
+  return new Intl.DateTimeFormat(locale.value, {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
@@ -158,7 +160,7 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
 </script>
 
 <template>
-  <div class="finance-view" role="main" aria-label="Bilancio Casa & Gestione Spese">
+  <div class="finance-view" role="main" :aria-label="t('finance.pageAria')">
     <!-- Top Action Bar -->
     <header class="finance-header">
       <div class="header-left">
@@ -167,15 +169,15 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
             <Wallet :size="24" class="header-icon" aria-hidden="true" />
           </div>
           <div>
-            <h1 class="page-title">Bilancio Casa & Spese</h1>
-            <p class="page-subtitle">Controllo delle uscite familiari, analisi consumi e risparmio intelligente</p>
+            <h1 class="page-title">{{ t('finance.title') }}</h1>
+            <p class="page-subtitle">{{ t('finance.subtitle') }}</p>
           </div>
         </div>
       </div>
 
       <div class="header-right">
         <!-- Period Selector -->
-        <div class="period-selector-pills" role="radiogroup" aria-label="Seleziona Periodo">
+        <div class="period-selector-pills" role="radiogroup" :aria-label="t('finance.selectPeriod')">
           <button
             v-for="p in periods"
             :key="p.value"
@@ -186,7 +188,7 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
             role="radio"
             @click="onPeriodChange(p.value)"
           >
-            {{ p.label }}
+            {{ t(p.labelKey) }}
           </button>
         </div>
 
@@ -194,19 +196,19 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
         <div class="action-buttons">
           <button
             class="btn-budget"
-            aria-label="Imposta Budget Mensile"
+             :aria-label="t('finance.budgetAria')"
             @click="isBudgetModalOpen = true"
           >
             <PiggyBank :size="16" aria-hidden="true" />
-            <span>Budget</span>
+            <span>{{ t('finance.budget') }}</span>
           </button>
           <button
             class="btn-primary-action"
-            aria-label="Registra Nuova Spesa"
+             :aria-label="t('finance.newExpenseAria')"
             @click="openCreateExpense"
           >
             <Plus :size="18" aria-hidden="true" />
-            <span>Nuova Spesa</span>
+            <span>{{ t('finance.newExpense') }}</span>
           </button>
         </div>
       </div>
@@ -239,11 +241,11 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
     </section>
 
     <!-- Recent Expenses & Transactions Section -->
-    <section class="transactions-section glass-panel" role="region" aria-label="Lista Transazioni e Spese">
+    <section class="transactions-section glass-panel" role="region" :aria-label="t('finance.transactionsRegion')">
       <div class="section-top">
         <div>
-          <h2 class="section-title">Transazioni & Spese Registrate</h2>
-          <span class="section-count">{{ filteredExpensesList.length }} movimenti trovati</span>
+          <h2 class="section-title">{{ t('finance.transactionsTitle') }}</h2>
+          <span class="section-count">{{ t('finance.movementsCount', { count: filteredExpensesList.length }) }}</span>
         </div>
 
         <div class="filters-row">
@@ -253,14 +255,14 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
               id="category-filter-select"
               v-model="financeStore.selectedCategory"
               class="category-select"
-              aria-label="Filtra per Categoria"
+               :aria-label="t('finance.categoryFilter')"
             >
               <option
                 v-for="cat in categoriesFilterList"
                 :key="cat.category"
                 :value="cat.category"
               >
-                {{ cat.label }}
+                {{ t(cat.labelKey) }}
               </option>
             </select>
           </div>
@@ -272,8 +274,8 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
               v-model="searchQuery"
               type="text"
               class="search-input"
-              placeholder="Cerca spesa o supermercato..."
-              aria-label="Cerca transazione"
+               :placeholder="t('finance.searchPlaceholder')"
+               :aria-label="t('finance.searchAria')"
             />
           </div>
         </div>
@@ -282,11 +284,11 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
       <!-- Expenses Table / List -->
       <div v-if="filteredExpensesList.length === 0" class="no-expenses">
         <AlertCircle :size="32" class="no-exp-icon" aria-hidden="true" />
-        <p class="no-exp-title">Nessuna spesa trovata</p>
-        <p class="no-exp-sub">Registra la tua prima spesa o modifica i filtri di ricerca per visualizzare le transazioni.</p>
+        <p class="no-exp-title">{{ t('finance.noExpenses') }}</p>
+        <p class="no-exp-sub">{{ t('finance.noExpensesDesc') }}</p>
         <button class="btn-create-first" @click="openCreateExpense">
           <Plus :size="16" aria-hidden="true" />
-          <span>Registra Spesa Ora</span>
+          <span>{{ t('finance.recordNow') }}</span>
         </button>
       </div>
 
@@ -294,12 +296,12 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
         <table class="expenses-table">
           <thead>
             <tr>
-              <th scope="col">Data</th>
-              <th scope="col">Descrizione</th>
-              <th scope="col">Categoria</th>
-              <th scope="col">Tipo</th>
-              <th scope="col" class="text-right">Importo</th>
-              <th scope="col" class="text-center">Azioni</th>
+              <th scope="col">{{ t('finance.date') }}</th>
+              <th scope="col">{{ t('finance.description') }}</th>
+              <th scope="col">{{ t('finance.category') }}</th>
+              <th scope="col">{{ t('finance.type') }}</th>
+              <th scope="col" class="text-right">{{ t('finance.amount') }}</th>
+              <th scope="col" class="text-center">{{ t('finance.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -315,18 +317,18 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
                   {{ exp.energy_kwh }} kWh ({{ (exp.amount / exp.energy_kwh).toFixed(2) }} €/kWh)
                 </span>
                 <span v-if="exp.contract_expiry_date" class="exp-expiry-badge">
-                  Scadenza: {{ formatDate(exp.contract_expiry_date) }}
+                  {{ t('finance.expiry', { date: formatDate(exp.contract_expiry_date) }) }}
                 </span>
               </td>
               <td>
                 <span class="category-badge" :class="getCategoryBadgeColor(exp.category)">
                   <component :is="getCategoryIcon(exp.category)" :size="13" aria-hidden="true" />
-                  <span>{{ exp.category }}</span>
+                  <span>{{ t('finance.categories.' + exp.category) }}</span>
                 </span>
               </td>
               <td>
                 <span :class="['cost-pill', exp.is_fixed ? 'fixed-pill' : 'variable-pill']">
-                  {{ exp.is_fixed ? 'Fisso' : 'Variabile' }}
+                  {{ exp.is_fixed ? t('finance.fixed') : t('finance.variable') }}
                 </span>
               </td>
               <td class="amount-cell text-right">
@@ -336,14 +338,14 @@ function getCategoryBadgeColor(cat: ExpenseCategory): string {
                 <div class="row-actions">
                   <button
                     class="action-icon-btn edit-btn"
-                    :aria-label="`Modifica spesa: ${exp.title}`"
+                    :aria-label="t('finance.editExpenseAria', { title: exp.title })"
                     @click="openEditExpense(exp)"
                   >
                     <Edit2 :size="16" aria-hidden="true" />
                   </button>
                   <button
                     class="action-icon-btn delete-btn"
-                    :aria-label="`Elimina spesa: ${exp.title}`"
+                    :aria-label="t('finance.deleteExpenseAria', { title: exp.title })"
                     @click="handleDeleteExpense(exp.id)"
                   >
                     <Trash2 :size="16" aria-hidden="true" />

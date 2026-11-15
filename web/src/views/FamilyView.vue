@@ -245,7 +245,7 @@ onMounted(() => {
             <div class="member-meta">
               <div class="username-row">
                 <span class="username">{{ member.username }}</span>
-                <span v-if="member.id === currentUserId" class="self-tag">(Tu)</span>
+                <span v-if="member.id === currentUserId" class="self-tag">{{ t('family.view.you') }}</span>
               </div>
               <span class="email">{{ member.email || '—' }}</span>
             </div>
@@ -353,8 +353,8 @@ onMounted(() => {
         <div class="section-header-left">
           <KeyRound :size="18" class="section-icon" />
           <div>
-            <h3 class="section-subtitle">Profili Ospiti & PIN Kiosk Temporaneo</h3>
-            <p class="section-desc">Crea account ad accesso limitato con codice PIN o sblocco Kiosk temporaneo (es. babysitter, affitti brevi)</p>
+            <h3 class="section-subtitle">{{ t('family.view.guestProfilesTitle') }}</h3>
+            <p class="section-desc">{{ t('family.view.guestProfilesDesc') }}</p>
           </div>
         </div>
         <BaseButton
@@ -370,7 +370,7 @@ onMounted(() => {
 
       <div v-if="guests.length === 0" class="empty-state">
         <KeyRound :size="32" class="empty-icon" />
-        <p class="empty-text">Nessun profilo ospite attivo. Crea un PIN temporaneo per i tuoi visitatori.</p>
+        <p class="empty-text">{{ t('family.view.guestProfilesEmpty') }}</p>
       </div>
 
       <div v-else class="invites-list">
@@ -396,7 +396,7 @@ onMounted(() => {
           <div class="invite-actions">
             <button
               class="revoke-btn action-icon-btn"
-              title="Rimuovi ospite"
+              :title="t('family.view.removeGuest')"
               @click="handleRemoveMember(guest.id, guest.username)"
             >
               <Trash2 :size="16" />
@@ -412,7 +412,7 @@ onMounted(() => {
         <div class="modal-header">
           <div class="modal-title-box">
             <KeyRound :size="20" />
-            <h3 class="modal-title">Crea Profilo Ospite / Kiosk</h3>
+            <h3 class="modal-title">{{ t('family.view.createGuestProfileTitle') }}</h3>
           </div>
           <button class="modal-close" @click="closeGuestModal">
             <X :size="18" />
@@ -421,17 +421,17 @@ onMounted(() => {
 
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">Nome Profilo / Visitatore</label>
+            <label class="form-label">{{ t('family.view.profileName') }}</label>
             <input
               v-model="guestUsername"
               type="text"
               class="text-input"
-              placeholder="es. Babysitter, Ospite Salotto"
+              :placeholder="t('family.view.profileNamePlaceholder')"
             />
           </div>
 
           <div class="form-group">
-            <label class="form-label">Codice PIN Numerico (4-8 cifre)</label>
+            <label class="form-label">{{ t('family.view.numericPin') }}</label>
             <input
               v-model="guestPin"
               type="password"
@@ -442,20 +442,20 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Validità Temporanea (Ore)</label>
+            <label class="form-label">{{ t('family.view.temporaryValidity') }}</label>
             <select v-model="guestHours" class="role-select">
-              <option :value="4">4 Ore</option>
-              <option :value="12">12 Ore</option>
-              <option :value="24">24 Ore (1 Giorno)</option>
-              <option :value="72">72 Ore (3 Giorni)</option>
-              <option :value="168">7 Giorni (1 Settimana)</option>
+              <option :value="4">{{ t('family.view.hours', { value: 4 }) }}</option>
+              <option :value="12">{{ t('family.view.hours', { value: 12 }) }}</option>
+              <option :value="24">{{ t('family.view.dayOne') }}</option>
+              <option :value="72">{{ t('family.view.days', { value: 3 }) }}</option>
+              <option :value="168">{{ t('family.view.oneWeek') }}</option>
             </select>
           </div>
 
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" v-model="guestKiosk" />
-              <span>Abilita Modalità Kiosk a Schermo Intero per questo PIN</span>
+              <span>{{ t('family.view.enableKiosk') }}</span>
             </label>
           </div>
         </div>

@@ -794,7 +794,7 @@ onMounted(() => {
           @click="activeTab = 'guardian'"
         >
           <ShieldAlert :size="16" />
-          <span>LAN & IoT Guardian</span>
+          <span>{{ t('integrations.view.lanGuardianTitle') }}</span>
           <span v-if="networkLeaks.length > 0" class="counter-badge alert-pulse">{{ networkLeaks.length }}</span>
         </button>
 
@@ -803,7 +803,7 @@ onMounted(() => {
           @click="activeTab = 'cloud'; fetchTuyaConfig()"
         >
           <Globe :size="16" />
-          <span>Smart Life Cloud</span>
+          <span>{{ t('integrations.view.smartLifeCloud') }}</span>
           <span v-if="tuyaCloudDevices.length > 0" class="counter-badge">{{ tuyaCloudDevices.length }}</span>
         </button>
       </div>
@@ -813,7 +813,7 @@ onMounted(() => {
     <!-- TAB 1: ACTIVE INTEGRATIONS -->
     <div v-if="activeTab === 'active'" class="tab-content">
       <div class="actions-bar">
-        <span class="bar-info">Ponti hardware e protocolli attualmente collegati al sistema locale Domus.</span>
+        <span class="bar-info">{{ t('integrations.view.bridgeInfo') }}</span>
         <button class="btn-action glass-panel" :disabled="loading" @click="fetchIntegrations">
           <RefreshCw :size="15" :class="{ 'animate-spin': loading }" />
           <span>{{ t('integrations.refresh') }}</span>
@@ -873,8 +873,8 @@ onMounted(() => {
         <div class="discovery-intro">
           <div class="icon-chip"><Radio :size="20" /></div>
           <div>
-            <h3 class="disc-title">Scansione Zero-Cloud sulla Rete Locale</h3>
-            <p class="disc-sub">Rileva Shelly, Philips Hue, Sonoff LAN, Tasmota e WLED presenti sul Wi-Fi di casa.</p>
+            <h3 class="disc-title">{{ t('integrations.view.localScanTitle') }}</h3>
+            <p class="disc-sub">{{ t('integrations.view.localScanDesc') }}</p>
           </div>
         </div>
 
@@ -883,13 +883,13 @@ onMounted(() => {
             <input
               v-model="manualIp"
               type="text"
-              placeholder="Indirizzo IP (es. 192.168.1.150)"
+              :placeholder="t('integrations.view.ipAddressPlaceholder')"
               class="ip-input"
               @keyup.enter="scanNetwork()"
             />
             <button class="btn-probe" :disabled="scanning || !manualIp.trim()" @click="scanNetwork()">
               <Plus :size="15" />
-              <span>Sonda IP</span>
+              <span>{{ t('integrations.view.ipProbe') }}</span>
             </button>
           </div>
 
@@ -915,7 +915,7 @@ onMounted(() => {
             </div>
             <span class="zero-cloud-tag">
               <ShieldCheck :size="13" />
-              <span>100% Locale</span>
+              <span>{{ t('integrations.view.localOnly') }}</span>
             </span>
           </div>
 
@@ -929,7 +929,7 @@ onMounted(() => {
 
             <!-- Entities preview -->
             <div v-if="dev.suggested_entities && dev.suggested_entities.length > 0" class="entities-preview">
-              <span class="preview-title">Entità create con 1-Click:</span>
+              <span class="preview-title">{{ t('integrations.view.oneClickEntities') }}</span>
               <div class="tags-cloud">
                 <span
                   v-for="(ent, i) in dev.suggested_entities"
@@ -959,7 +959,7 @@ onMounted(() => {
 
       <div v-else class="empty-state glass-card">
         <Radio :size="40" class="empty-icon" />
-        <h3 class="empty-title">Nessun dispositivo in attesa di associazione</h3>
+        <h3 class="empty-title">{{ t('integrations.view.pendingPairingEmpty') }}</h3>
         <p class="empty-desc">
           Clicca su "Scansiona Rete" oppure inserisci l'indirizzo IP del tuo dispositivo Shelly, Sonoff o Tasmota per importarlo all'istante senza cloud.
         </p>
@@ -986,7 +986,7 @@ onMounted(() => {
             </div>
             <div class="zero-cloud-pill">
               <ShieldCheck :size="13" />
-              <span>Zero-Cloud</span>
+              <span>{{ t('integrations.view.zeroCloud') }}</span>
             </div>
           </div>
 
@@ -994,17 +994,17 @@ onMounted(() => {
 
           <div class="brand-specs">
             <div class="spec-row">
-              <span class="spec-label">Protocollo:</span>
+              <span class="spec-label">{{ t('integrations.view.protocolLabel') }}:</span>
               <span class="spec-val">{{ entry.protocol }}</span>
             </div>
             <div class="spec-row">
-              <span class="spec-label">Guida Rapida:</span>
+              <span class="spec-label">{{ t('integrations.view.quickGuide') }}:</span>
               <span class="spec-val">{{ entry.pairing_guide }}</span>
             </div>
           </div>
 
           <div class="models-box">
-            <span class="models-title">Modelli Supportati:</span>
+            <span class="models-title">{{ t('integrations.view.supportedModels') }}:</span>
             <div class="models-tags">
               <span
                 v-for="(mod, mi) in entry.supported_models"
@@ -1028,7 +1028,7 @@ onMounted(() => {
             <ShieldAlert :size="28" />
           </div>
           <div>
-            <h3 class="guardian-title">IoT Network Guardian & Confinamento LAN</h3>
+            <h3 class="guardian-title">{{ t('integrations.view.networkGuardianTitle') }}</h3>
             <p class="guardian-subtitle">
               Monitoraggio attivo della LAN, analisi passiva ARP/DHCP e rilevamento istantaneo di tentativi di leak verso server cloud esterni non autorizzati.
             </p>
@@ -1040,7 +1040,7 @@ onMounted(() => {
             <Globe :size="16" class="stat-icon-blue" />
             <div class="stat-info">
               <span class="stat-value">{{ networkHosts.length }}</span>
-              <span class="stat-label">Host LAN Rilevati</span>
+              <span class="stat-label">{{ t('integrations.view.detectedLanHosts') }}</span>
             </div>
           </div>
 
@@ -1048,7 +1048,7 @@ onMounted(() => {
             <Lock :size="16" class="stat-icon-amber" />
             <div class="stat-info">
               <span class="stat-value">{{ isolatedMacs.length }}</span>
-              <span class="stat-label">In Quarantena</span>
+              <span class="stat-label">{{ t('integrations.view.quarantinedDevices') }}</span>
             </div>
           </div>
 
@@ -1056,7 +1056,7 @@ onMounted(() => {
             <AlertTriangle :size="16" class="stat-icon-red" />
             <div class="stat-info">
               <span class="stat-value">{{ networkLeaks.length }}</span>
-              <span class="stat-label">Leak WAN Intercettati</span>
+              <span class="stat-label">{{ t('integrations.view.wanLeaksCaught') }}</span>
             </div>
           </div>
 
@@ -1076,7 +1076,7 @@ onMounted(() => {
         <div class="section-subhead">
           <div class="subhead-left">
             <AlertTriangle :size="18" class="text-warning" />
-            <h4 class="subhead-title">Tentativi di Connessione Esterna (WAN Leaks)</h4>
+            <h4 class="subhead-title">{{ t('integrations.view.externalAttemptsTitle') }}</h4>
           </div>
           <span class="subhead-badge" v-if="networkLeaks.length > 0">
             {{ networkLeaks.length }} anomalie registrate
@@ -1085,8 +1085,8 @@ onMounted(() => {
 
         <div v-if="networkLeaks.length === 0" class="empty-guardian-state glass-card">
           <ShieldCheck :size="36" class="text-success" />
-          <h4>Nessun Leak Rilevato</h4>
-          <p>Tutti i dispositivi IoT monitorati sono conformi e operano rigorosamente offline all'interno della rete locale.</p>
+          <h4>{{ t('integrations.view.noLeaksTitle') }}</h4>
+          <p>{{ t('integrations.view.noLeaksDesc') }}</p>
         </div>
 
         <div v-else class="leaks-list">
@@ -1119,7 +1119,7 @@ onMounted(() => {
                 @click="unblockDevice(leak.source_mac, leak.source_ip)"
               >
                 <Unlock :size="15" />
-                <span>Sblocca</span>
+                <span>{{ t('integrations.view.unlock') }}</span>
               </button>
               <button
                 v-else
@@ -1128,7 +1128,7 @@ onMounted(() => {
                 @click="quarantineDevice(leak.source_mac || '', leak.source_ip, leak.reason)"
               >
                 <Lock :size="15" />
-                <span>Metti in Quarantena</span>
+                <span>{{ t('integrations.view.quarantine') }}</span>
               </button>
             </div>
           </div>
@@ -1140,14 +1140,14 @@ onMounted(() => {
         <div class="section-subhead">
           <div class="subhead-left">
             <Globe :size="18" class="text-primary" />
-            <h4 class="subhead-title">Mappa Host Rilevati su LAN (OUI & Port Fingerprint)</h4>
+            <h4 class="subhead-title">{{ t('integrations.view.hostMapTitle') }}</h4>
           </div>
           <span class="subhead-badge">{{ networkHosts.length }} Host</span>
         </div>
 
         <div v-if="networkHosts.length === 0" class="empty-guardian-state glass-card">
           <RefreshCw :size="32" class="animate-spin text-muted" />
-          <p>Nessun host registrato nella cache ARP. Clicca su "Scansione ARP" per rilevare i nodi.</p>
+          <p>{{ t('integrations.view.arpCacheEmpty') }}</p>
         </div>
 
         <div v-else class="hosts-grid">
@@ -1166,7 +1166,7 @@ onMounted(() => {
               </div>
               <div v-if="host.mac && isolatedMacs.includes(host.mac.toLowerCase())" class="badge-quarantined">
                 <Lock :size="12" />
-                <span>ISOLATO</span>
+                <span>{{ t('integrations.view.isolated') }}</span>
               </div>
               <div v-else-if="host.is_iot" class="badge-iot">
                 <Zap :size="12" />
@@ -1176,19 +1176,19 @@ onMounted(() => {
 
             <div class="host-specs">
               <div class="spec-line">
-                <span class="spec-key">MAC:</span>
+                <span class="spec-key">{{ t('integrations.view.mac') }}:</span>
                 <code class="spec-code">{{ host.mac }}</code>
               </div>
               <div v-if="host.suggested_plugin" class="spec-line">
-                <span class="spec-key">Plugin:</span>
+                <span class="spec-key">{{ t('integrations.view.plugin') }}:</span>
                 <span class="spec-val-plugin">{{ host.suggested_plugin }}</span>
               </div>
               <div class="spec-line">
-                <span class="spec-key">Porte Aperte:</span>
+                <span class="spec-key">{{ t('integrations.view.openPorts') }}:</span>
                 <span v-if="host.open_ports && host.open_ports.length > 0" class="ports-list">
                   <span v-for="p in host.open_ports" :key="p" class="port-tag">{{ p }}</span>
                 </span>
-                <span v-else class="text-muted-xs">Nessuna sonda recente</span>
+                <span v-else class="text-muted-xs">{{ t('integrations.view.noRecentProbe') }}</span>
               </div>
             </div>
 
@@ -1197,7 +1197,7 @@ onMounted(() => {
                 class="btn-host-probe"
                 :disabled="probingIp === host.ip"
                 @click="probeHostPorts(host.ip)"
-                title="Esegui TCP probe sulle porte IoT comuni (554, 1883, 6053, 502, 3671)"
+                :title="t('integrations.view.runTcpProbe')"
               >
                 <Activity :size="14" :class="{ 'animate-spin': probingIp === host.ip }" />
                 <span>{{ probingIp === host.ip ? 'Probe...' : 'Probe Porte' }}</span>
@@ -1219,7 +1219,7 @@ onMounted(() => {
                 @click="quarantineDevice(host.mac, host.ip, 'Isolamento manuale da mappa host')"
               >
                 <Lock :size="14" />
-                <span>Isola</span>
+                <span>{{ t('integrations.view.isolate') }}</span>
               </button>
             </div>
           </div>
@@ -1233,14 +1233,14 @@ onMounted(() => {
         <div class="discovery-intro">
           <div class="icon-chip"><Zap :size="20" /></div>
           <div>
-            <h3 class="disc-title">Smart Life & Tuya (Modalità Semplice UID + LAN)</h3>
-            <p class="disc-sub">Collega Smart Life tramite associazione QR Code su iot.tuya.com (grant_type=1): zero popup, zero app OEM e zero OAuth 2.0. Domus recupera le Local Key la prima volta per operare al 100% in locale sulla LAN.</p>
+            <h3 class="disc-title">{{ t('integrations.view.tuyaSetupTitle') }}</h3>
+            <p class="disc-sub">{{ t('integrations.view.tuyaSetupDesc') }}</p>
           </div>
         </div>
         <div class="discovery-inputs">
           <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="() => fetchTuyaCloudDevices()">
             <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
-            <span>Aggiorna dispositivi</span>
+            <span>{{ t('integrations.view.refreshDevices') }}</span>
           </button>
           <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || !tuyaConfig.configured" @click="syncTuyaCloudToLocal">
             <Wifi :size="15" />
@@ -1252,7 +1252,7 @@ onMounted(() => {
           </button>
           <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="disconnectTuyaConfig">
             <Unlock :size="15" />
-            <span>Scollega</span>
+            <span>{{ t('integrations.view.disconnect') }}</span>
           </button>
         </div>
       </div>
@@ -1260,7 +1260,7 @@ onMounted(() => {
       <!-- STATUS BANNER WHEN CONFIGURED -->
       <div v-if="tuyaConfig.configured && !isEditingTuyaConfig" class="tuya-status-banner glass-card">
         <div class="tuya-status-left">
-          <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>Server-to-Server (grant_type=1) Attivo</span></div>
+          <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>{{ t('integrations.view.serverToServer') }}</span></div>
           <div class="tuya-meta-chips">
             <span class="meta-chip"><strong>Client ID:</strong> {{ tuyaConfig.client_id_masked || tuyaConfig.client_id }}</span>
             <span class="meta-chip"><strong>Smart Life UID:</strong> {{ tuyaConfig.uid }}</span>
@@ -1272,7 +1272,7 @@ onMounted(() => {
       <!-- SETUP GUIDE & CONFIG FORM (WHEN NOT CONFIGURED OR EDITING) -->
       <div v-if="!tuyaConfig.configured || isEditingTuyaConfig" class="tuya-config-panel glass-card">
         <div class="tuya-guide-box">
-          <h4 class="guide-title"><QrCode :size="18" /> Come collegare Smart Life a Domus (Senza OAuth 2.0)</h4>
+          <h4 class="guide-title"><QrCode :size="18" /> {{ t('integrations.view.tuyaConnectTitle') }}</h4>
           <ol class="guide-steps">
             <li>
               Entra nel tuo progetto su 
@@ -1281,66 +1281,66 @@ onMounted(() => {
               </a>
               (Cloud → Development → apri il progetto Domus).
             </li>
-            <li>Assicurati che in alto a destra sopra la tabella il Data Center sia impostato su <strong>Central Europe Data Center</strong>.</li>
-            <li>Vai nella scheda <strong>Devices</strong> e poi nella sottoscheda <strong>Link Tuya App Account</strong>.</li>
-            <li>Ignora <em>Configure OAuth 2.0 Authorization</em> e clicca sul pulsante blu <strong>Add App Account</strong> per visualizzare il QR Code.</li>
+            <li>{{ t('integrations.view.dataCenterInstruction') }}</li>
+            <li>{{ t('integrations.view.devicesAccountInstruction') }}</li>
+            <li>{{ t('integrations.view.qrAccountInstruction') }}</li>
             <li>
-              Apri l'app <strong>Smart Life</strong> sullo smartphone → vai su <strong>Io</strong> (in basso a destra) → tocca l'icona dello scanner QR <code>[ - ]</code> in alto a destra → inquadra il QR Code → tocca <strong>Conferma login</strong> → seleziona <strong>Automatic Link</strong>, scegli <strong>Read and Write</strong> e salva.
+              {{ t('integrations.view.smartLifeScanInstruction') }}
             </li>
-            <li>Copia il valore della colonna <strong>UID</strong> (inizia con <code>eu...</code>) e i parametri <strong>Access ID</strong> e <strong>Access Secret</strong> della scheda Overview e inseriscili qui sotto:</li>
+            <li>{{ t('integrations.view.copyCredentialsInstruction') }}</li>
           </ol>
         </div>
 
         <form class="tuya-form-grid" @submit.prevent="saveTuyaConfig">
           <div class="form-group">
-            <label for="tuya-client-id">Access ID / Client ID *</label>
+            <label for="tuya-client-id">{{ t('integrations.view.accessId') }} *</label>
             <input
               id="tuya-client-id"
               v-model="tuyaConfigForm.client_id"
               type="text"
               class="form-control glass-panel"
-              placeholder="es. 3xt9q5..."
+              :placeholder="t('integrations.view.accessIdPlaceholder')"
               required
             />
           </div>
 
           <div class="form-group">
-            <label for="tuya-client-secret">Access Secret / Client Secret *</label>
+            <label for="tuya-client-secret">{{ t('integrations.view.accessSecret') }} *</label>
             <input
               id="tuya-client-secret"
               v-model="tuyaConfigForm.client_secret"
               type="password"
               class="form-control glass-panel"
-              placeholder="es. 8a4b6c..."
+              :placeholder="t('integrations.view.accessSecretPlaceholder')"
               required
             />
           </div>
 
           <div class="form-group">
-            <label for="tuya-uid">Smart Life UID (da Link App Account) *</label>
+            <label for="tuya-uid">{{ t('integrations.view.smartLifeUid') }} *</label>
             <input
               id="tuya-uid"
               v-model="tuyaConfigForm.uid"
               type="text"
               class="form-control glass-panel"
-              placeholder="es. eu167890123456abcdef"
+              :placeholder="t('integrations.view.uidPlaceholder')"
               required
             />
           </div>
 
           <div class="form-group">
-            <label for="tuya-endpoint">API Regional Endpoint</label>
+            <label for="tuya-endpoint">{{ t('integrations.view.apiEndpoint') }}</label>
             <select
               id="tuya-endpoint"
               v-model="tuyaConfigForm.endpoint"
               class="form-control glass-panel"
             >
-              <option value="https://openapi.tuyaeu.com">Central Europe (openapi.tuyaeu.com) [Consigliato]</option>
-              <option value="https://openapi-weaz.tuyaeu.com">Western Europe (openapi-weaz.tuyaeu.com)</option>
-              <option value="https://openapi.tuyaus.com">Western America (openapi.tuyaus.com)</option>
-              <option value="https://openapi-ueaz.tuyaus.com">Eastern America (openapi-ueaz.tuyaus.com)</option>
-              <option value="https://openapi.tuyacn.com">China Data Center (openapi.tuyacn.com)</option>
-              <option value="https://openapi.tuyain.com">India Data Center (openapi.tuyain.com)</option>
+              <option value="https://openapi.tuyaeu.com">{{ t('integrations.view.centralEurope') }}</option>
+              <option value="https://openapi-weaz.tuyaeu.com">{{ t('integrations.view.westernEurope') }}</option>
+              <option value="https://openapi.tuyaus.com">{{ t('integrations.view.westernAmerica') }}</option>
+              <option value="https://openapi-ueaz.tuyaus.com">{{ t('integrations.view.easternAmerica') }}</option>
+              <option value="https://openapi.tuyacn.com">{{ t('integrations.view.chinaDataCenter') }}</option>
+              <option value="https://openapi.tuyain.com">{{ t('integrations.view.indiaDataCenter') }}</option>
             </select>
           </div>
 
@@ -1363,26 +1363,26 @@ onMounted(() => {
 
       <div v-if="tuyaCloudError && tuyaConfig.configured" class="empty-guardian-state glass-card">
         <AlertCircle :size="30" />
-        <h4>Cloud Tuya non raggiungibile</h4>
+        <h4>{{ t('integrations.view.tuyaCloudUnavailable') }}</h4>
         <p>{{ tuyaCloudError }}</p>
-        <p>Verifica che il tuo IP sia autorizzato su Tuya IoT o che le credenziali inserite siano corrette.</p>
+        <p>{{ t('integrations.view.tuyaCredentialsHint') }}</p>
       </div>
 
       <div v-else-if="tuyaCloudLoading && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
         <RefreshCw :size="28" class="animate-spin" />
-        <p>Caricamento dispositivi Smart Life…</p>
+        <p>{{ t('integrations.view.loadingSmartLifeDevices') }}</p>
       </div>
 
       <div v-else-if="tuyaConfig.configured && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
         <Globe :size="32" />
-        <h4>Nessun dispositivo visibile per l'UID specificato</h4>
-        <p>Verifica di aver inquadrato il QR Code su Tuya IoT (Devices → Link Tuya App Account) con l'account Smart Life corretto e che il Data Center coincida.</p>
+        <h4>{{ t('integrations.view.noDevicesForUid') }}</h4>
+        <p>{{ t('integrations.view.verifyUidInstruction') }}</p>
       </div>
 
       <div v-if="tuyaCloudDevices.length > 0" class="tuya-device-toolbar glass-card">
         <div class="tuya-device-toolbar-summary">
           <div>
-            <strong>Dispositivi Smart Life</strong>
+            <strong>{{ t('integrations.view.smartLifeDevices') }}</strong>
             <span class="tuya-device-count">{{ tuyaCloudDevices.length }} totali · {{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline</span>
           </div>
           <span class="tuya-device-count">{{ tuyaSelectedCount }} selezionati per LocalTuya</span>
@@ -1390,9 +1390,9 @@ onMounted(() => {
         <div class="tuya-device-filter-row">
           <label class="tuya-device-search">
             <Search :size="15" />
-            <input id="tuya-device-search" v-model="tuyaSearchQuery" type="search" placeholder="Cerca per nome, modello o ID…" />
+            <input id="tuya-device-search" v-model="tuyaSearchQuery" type="search" :placeholder="t('integrations.view.searchDevicesPlaceholder')" />
           </label>
-          <div class="tuya-device-filters" role="group" aria-label="Filtra dispositivi Tuya">
+          <div class="tuya-device-filters" role="group" :aria-label="t('integrations.view.filterTuyaDevices')">
             <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">Tutti ({{ tuyaCloudDevices.length }})</button>
             <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">Online ({{ tuyaOnlineCount }})</button>
             <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">Offline ({{ tuyaOfflineCount }})</button>
@@ -1403,8 +1403,8 @@ onMounted(() => {
         <div class="tuya-device-bulk-actions">
           <span>{{ filteredTuyaCloudDevices.length }} visualizzati</span>
           <div>
-            <button type="button" @click="selectVisibleTuyaDevices" :disabled="filteredTuyaCloudDevices.length === 0">Seleziona visibili</button>
-            <button type="button" @click="deselectVisibleTuyaDevices" :disabled="!filteredTuyaCloudDevices.some(device => selectedTuyaDeviceIds.includes(device.id))">Deseleziona visibili</button>
+            <button type="button" @click="selectVisibleTuyaDevices" :disabled="filteredTuyaCloudDevices.length === 0">{{ t('integrations.view.selectVisible') }}</button>
+            <button type="button" @click="deselectVisibleTuyaDevices" :disabled="!filteredTuyaCloudDevices.some(device => selectedTuyaDeviceIds.includes(device.id))">{{ t('integrations.view.deselectVisible') }}</button>
           </div>
         </div>
       </div>
@@ -1414,9 +1414,9 @@ onMounted(() => {
           <div class="tuya-device-selection">
             <label>
               <input v-model="selectedTuyaDeviceIds" type="checkbox" :value="device.id" />
-              <span>Usa questo dispositivo in Domus / LocalTuya</span>
+              <span>{{ t('integrations.view.useInDomus') }}</span>
             </label>
-            <span v-if="device.local_configured" class="tuya-selected-note">Abilitato</span>
+            <span v-if="device.local_configured" class="tuya-selected-note">{{ t('integrations.view.enabled') }}</span>
           </div>
           <div class="host-top">
             <div class="host-brand-icon"><Zap :size="20" /></div>
@@ -1426,7 +1426,7 @@ onMounted(() => {
               <span v-if="device.local_ip" class="spec-lan-ip">LAN: {{ device.local_ip }}</span>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
-              <span v-if="device.local_configured" class="badge-lan" title="Controllo locale LAN tramite local_key"><Wifi :size="12" /> LAN Locale</span>
+              <span v-if="device.local_configured" class="badge-lan" :title="t('integrations.view.localLanControl')"><Wifi :size="12" /> {{ t('integrations.view.lanLocal') }}</span>
               <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
             </div>
           </div>
@@ -1447,14 +1447,14 @@ onMounted(() => {
 
           <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
-              <label :for="`tuya-temp-${device.id}`">Temperatura obiettivo (°C)</label>
+              <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }} (°C)</label>
               <input :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]" type="number" min="0" max="50" step="0.5" />
-              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">Imposta temperatura</button>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
             </div>
             <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">
-              <span>Modalità LocalTuya · DP 4</span>
-              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'auto')">Automatico · DP4 = 0</button>
-              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'manual')">Manuale · DP4 = 1</button>
+              <span>{{ t('integrations.view.localTuyaMode') }}</span>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'auto')">{{ t('integrations.view.automaticDp4') }}</button>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:dp4`" @click="setTuyaClimateMode(device, 'manual')">{{ t('integrations.view.manualDp4') }}</button>
             </div>
           </div>
 
@@ -1480,7 +1480,7 @@ onMounted(() => {
                   v-if="isNumericTuyaFunction(fn)"
                   v-model="tuyaFunctionInputs[tuyaFunctionKey(device.id, fn.code)]"
                   type="number"
-                  :aria-label="`Valore per ${fn.name || fn.code}`"
+                  :aria-label="t('integrations.view.valueFor', { name: fn.name || fn.code })"
                 />
                 <input
                   v-else-if="fn.type.toLowerCase() !== 'boolean'"
@@ -1499,9 +1499,9 @@ onMounted(() => {
       </div>
       <div v-else-if="tuyaCloudDevices.length > 0" class="empty-guardian-state glass-card">
         <WifiOff :size="28" />
-        <h4>Nessun dispositivo corrisponde ai filtri</h4>
-        <p>Modifica la ricerca o prova un altro filtro. La selezione già effettuata viene mantenuta.</p>
-        <button type="button" class="btn-action glass-panel" @click="tuyaDeviceFilter = 'all'; tuyaSearchQuery = ''">Azzera filtri</button>
+        <h4>{{ t('integrations.view.noFilterMatches') }}</h4>
+        <p>{{ t('integrations.view.adjustSearchFilters') }}</p>
+        <button type="button" class="btn-action glass-panel" @click="tuyaDeviceFilter = 'all'; tuyaSearchQuery = ''">{{ t('integrations.view.resetFilters') }}</button>
       </div>
     </div>
 

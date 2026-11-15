@@ -276,11 +276,11 @@ function getEmitterLabel(emitter: EmitterType): string {
 </script>
 
 <template>
-  <div class="predictive-climate-container" role="main" aria-label="Controllo Termostato Predittivo">
+  <div class="predictive-climate-container" role="main" :aria-label="t('predictiveClimate.view.mainLabel')">
     <!-- Header -->
     <header class="view-header">
       <div class="title-section">
-        <h1 class="view-title">Termostato Predittivo Multizona</h1>
+        <h1 class="view-title">{{ t('predictiveClimate.view.title') }}</h1>
         <p class="view-subtitle">
           Controllo intelligente con inerzia termica, nowcasting barometrico locale e previsioni solari
         </p>
@@ -292,7 +292,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           class="btn btn-secondary"
           :disabled="store.evaluating"
           @click="handleEvaluateAll"
-          aria-label="Rivaluta tutte le zone"
+          :aria-label="t('predictiveClimate.view.reassessAllZones')"
         >
           {{ store.evaluating ? 'Calcolo in corso...' : '⚡ Valuta Tutte le Zone' }}
         </button>
@@ -300,7 +300,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           type="button"
           class="btn btn-primary"
           @click="openCreateModal"
-          aria-label="Aggiungi nuova zona predittiva"
+          :aria-label="t('predictiveClimate.view.addZone')"
         >
           + Nuova Zona
         </button>
@@ -308,12 +308,12 @@ function getEmitterLabel(emitter: EmitterType): string {
     </header>
 
     <!-- Top KPI Banners -->
-    <section class="kpi-banner-grid" aria-label="Riepilogo condizioni ambientali">
+    <section class="kpi-banner-grid" :aria-label="t('predictiveClimate.view.environmentSummary')">
       <div class="kpi-card">
         <div class="kpi-icon">🌡️</div>
         <div class="kpi-content">
           <div class="kpi-value">{{ store.enabledZones }} / {{ store.totalZones }}</div>
-          <div class="kpi-label">Zone Attive</div>
+          <div class="kpi-label">{{ t('predictiveClimate.view.activeZones') }}</div>
         </div>
       </div>
 
@@ -353,13 +353,13 @@ function getEmitterLabel(emitter: EmitterType): string {
     </section>
 
     <!-- Zone Cards Grid -->
-    <section class="zones-grid" aria-label="Zone termiche predittive">
+    <section class="zones-grid" :aria-label="t('predictiveClimate.view.thermalZones')">
       <div v-if="store.loading && store.zoneStatuses.length === 0" class="empty-state">
         Caricamento zone in corso...
       </div>
 
       <div v-else-if="store.zoneStatuses.length === 0" class="empty-state">
-        <p>Nessuna zona predittiva configurata.</p>
+        <p>{{ t('predictiveClimate.view.noZones') }}</p>
         <button type="button" class="btn btn-primary" @click="openCreateModal">
           Configura la prima zona
         </button>
@@ -396,7 +396,7 @@ function getEmitterLabel(emitter: EmitterType): string {
         <!-- Main Temperature Display -->
         <div class="zone-metrics-row">
           <div class="metric-box">
-            <span class="metric-label">Stanza / Percepita</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.roomPerceived') }}</span>
             <span class="metric-temp">
               {{ item.latest_evaluation ? item.latest_evaluation.current_temp : '--' }} °C
             </span>
@@ -406,12 +406,12 @@ function getEmitterLabel(emitter: EmitterType): string {
           </div>
 
           <div class="metric-box target-box">
-            <span class="metric-label">Target Base</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.baseTarget') }}</span>
             <span class="metric-target">{{ item.config.target_temperature }} °C</span>
           </div>
 
           <div class="metric-box calculated-box">
-            <span class="metric-label">Setpoint Calcolato</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.calculatedSetpoint') }}</span>
             <span class="metric-setpoint">
               {{ item.latest_evaluation ? item.latest_evaluation.calculated_setpoint : item.config.target_temperature }} °C
             </span>
@@ -463,7 +463,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               class="btn btn-sm btn-outline"
               :disabled="store.evaluating"
               @click="item.config.id && handleEvaluateZone(item.config.id)"
-              aria-label="Calcola setpoint per questa stanza"
+              :aria-label="t('predictiveClimate.view.calculateSetpoint')"
             >
               ⚡ Valuta Ora
             </button>
@@ -471,7 +471,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-secondary"
               @click="openThermalProfileModal(item.config)"
-              aria-label="Visualizza modello termico e start ottimale"
+              :aria-label="t('predictiveClimate.view.viewThermalModel')"
             >
               🧠 Modello & Start
             </button>
@@ -481,7 +481,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-ghost"
               @click="openEditModal(item.config)"
-              aria-label="Modifica parametri zona"
+              :aria-label="t('predictiveClimate.view.editZone')"
             >
               Modifica
             </button>
@@ -489,7 +489,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-ghost text-danger"
               @click="item.config.id && handleDeleteZone(item.config.id)"
-              aria-label="Elimina zona"
+              :aria-label="t('predictiveClimate.view.deleteZone')"
             >
               Elimina
             </button>
@@ -514,7 +514,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             type="button"
             class="btn-close"
             @click="showModal = false"
-            aria-label="Chiudi finestra"
+            :aria-label="t('common.close')"
           >
             &times;
           </button>
@@ -522,20 +522,20 @@ function getEmitterLabel(emitter: EmitterType): string {
 
         <form @submit.prevent="handleSaveZone" class="modal-form">
           <div class="form-group">
-            <label for="zone-name">Nome Zona / Stanza</label>
+            <label for="zone-name">{{ t('predictiveClimate.view.zoneName') }}</label>
             <input
               id="zone-name"
               v-model="formName"
               type="text"
               class="form-control"
-              placeholder="es. Salone Principale"
+              :placeholder="t('predictiveClimate.view.zoneNamePlaceholder')"
               required
             />
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-trv">Entità TRV / Termostato</label>
+              <label for="zone-trv">{{ t('predictiveClimate.view.trvEntity') }}</label>
               <input
                 id="zone-trv"
                 v-model="formTRVKey"
@@ -547,7 +547,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             </div>
 
             <div class="form-group col">
-              <label for="zone-temp">Sensore Temperatura Stanza</label>
+              <label for="zone-temp">{{ t('predictiveClimate.view.roomTemperatureSensor') }}</label>
               <input
                 id="zone-temp"
                 v-model="formTempKey"
@@ -561,7 +561,7 @@ function getEmitterLabel(emitter: EmitterType): string {
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-press">Sensore Pressione (Barometro)</label>
+              <label for="zone-press">{{ t('predictiveClimate.view.pressureSensor') }}</label>
               <input
                 id="zone-press"
                 v-model="formPressureKey"
@@ -572,7 +572,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             </div>
 
             <div class="form-group col">
-              <label for="zone-hum">Sensore Umidità Relativa</label>
+              <label for="zone-hum">{{ t('predictiveClimate.view.humiditySensor') }}</label>
               <input
                 id="zone-hum"
                 v-model="formHumidityKey"
@@ -584,7 +584,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           </div>
 
           <div class="form-group">
-            <label for="zone-win">Sensore Contatto Finestra (Opzionale)</label>
+            <label for="zone-win">{{ t('predictiveClimate.view.windowContactSensor') }}</label>
             <input
               id="zone-win"
               v-model="formWindowKey"
@@ -596,7 +596,7 @@ function getEmitterLabel(emitter: EmitterType): string {
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-target">Temperatura Obiettivo (°C)</label>
+              <label for="zone-target">{{ t('predictiveClimate.view.targetTemperature') }} (°C)</label>
               <input
                 id="zone-target"
                 v-model.number="formTargetTemp"
@@ -610,28 +610,28 @@ function getEmitterLabel(emitter: EmitterType): string {
             </div>
 
             <div class="form-group col">
-              <label for="zone-orient">Esposizione Principale</label>
+              <label for="zone-orient">{{ t('predictiveClimate.view.mainExposure') }}</label>
               <select id="zone-orient" v-model="formOrientation" class="form-control">
-                <option value="south">Sud (Forte Sole Pomeriggio)</option>
-                <option value="east">Est (Sole Mattutino)</option>
-                <option value="west">Ovest (Sole Tardo Pomeriggio)</option>
-                <option value="north">Nord (Dispersivo, Zero Sole)</option>
+                <option value="south">{{ t('predictiveClimate.view.south') }}</option>
+                <option value="east">{{ t('predictiveClimate.view.east') }}</option>
+                <option value="west">{{ t('predictiveClimate.view.west') }}</option>
+                <option value="north">{{ t('predictiveClimate.view.north') }}</option>
               </select>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-emitter">Tipo Terminale Riscaldamento</label>
+              <label for="zone-emitter">{{ t('predictiveClimate.view.heatingEmitter') }}</label>
               <select id="zone-emitter" v-model="formEmitter" class="form-control">
-                <option value="radiator">Radiatori (Inerzia media 2h)</option>
-                <option value="floor_radiant">Pavimento Radiante (Inerzia alta 4h)</option>
-                <option value="fancoil">Fan-coil (Inerzia rapida 1h)</option>
+                <option value="radiator">{{ t('predictiveClimate.view.radiator') }}</option>
+                <option value="floor_radiant">{{ t('predictiveClimate.view.floorHeating') }}</option>
+                <option value="fancoil">{{ t('predictiveClimate.view.fanCoil') }}</option>
               </select>
             </div>
 
             <div class="form-group col">
-              <label for="zone-area">Superficie Vetrate (m²)</label>
+              <label for="zone-area">{{ t('predictiveClimate.view.glazedArea') }} (m²)</label>
               <input
                 id="zone-area"
                 v-model.number="formWindowArea"
@@ -648,22 +648,22 @@ function getEmitterLabel(emitter: EmitterType): string {
           <div class="toggles-box">
             <label class="toggle-label">
               <input type="checkbox" v-model="formPressureBoost" />
-              <span>Anticipo Fronte Freddo (Nowcasting Barometrico)</span>
+              <span>{{ t('predictiveClimate.view.coldFrontForecast') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formSolarCutoff" />
-              <span>Taglio Solare Preventivo (Anti-Surriscaldamento)</span>
+              <span>{{ t('predictiveClimate.view.solarCutoff') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formPreheat" />
-              <span>Pre-riscaldamento Meteo (Gelo in arrivo)</span>
+              <span>{{ t('predictiveClimate.view.weatherPreheat') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formEnabled" />
-              <span>Zona Attiva</span>
+              <span>{{ t('predictiveClimate.view.zoneActive') }}</span>
             </label>
           </div>
 
@@ -714,51 +714,51 @@ function getEmitterLabel(emitter: EmitterType): string {
 
         <div v-else class="modal-body profile-modal-content">
           <!-- 1. Parametri Appresi -->
-          <section class="profile-section" aria-label="Parametri termici appresi">
-            <h3 class="section-heading">📊 Parametri Appresi (Fisica Grey-Box 1R-1C)</h3>
+          <section class="profile-section" :aria-label="t('predictiveClimate.view.learnedThermalParameters')">
+            <h3 class="section-heading">📊 {{ t('predictiveClimate.view.learnedParametersTitle') }}</h3>
             <div class="profile-metrics-grid">
               <div class="profile-metric-card">
-                <span class="p-label">Velocità Riscaldamento</span>
+                <span class="p-label">{{ t('predictiveClimate.view.heatingRate') }}</span>
                 <span class="p-value heat-val">
                   {{ currentProfile ? currentProfile.heat_rate_per_hr : '--' }} °C/h
                 </span>
-                <span class="p-sub">In potenza attiva nominale</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.nominalActivePower') }}</span>
               </div>
 
               <div class="profile-metric-card">
-                <span class="p-label">Velocità Dispersione</span>
+                <span class="p-label">{{ t('predictiveClimate.view.heatLossRate') }}</span>
                 <span class="p-value cool-val">
                   {{ currentProfile ? currentProfile.cool_rate_per_hr : '--' }} °C/h
                 </span>
-                <span class="p-sub">Normalizzata a Δ10°C esterno</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.normalizedDelta') }}</span>
               </div>
 
               <div class="profile-metric-card">
-                <span class="p-label">Cicli di Apprendimento</span>
+                <span class="p-label">{{ t('predictiveClimate.view.learningCycles') }}</span>
                 <span class="p-value samples-val">
                   {{ currentProfile ? currentProfile.samples_count : 0 }}
                 </span>
-                <span class="p-sub">Aggiornamenti EMA registrati</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.emaUpdates') }}</span>
               </div>
             </div>
           </section>
 
           <!-- 2. Ottimizzatori: Pre-heating e Coast-Down -->
-          <section class="profile-section" aria-label="Calcolatori dinamici">
+          <section class="profile-section" :aria-label="t('predictiveClimate.view.dynamicCalculators')">
             <div class="optimizers-grid">
               <!-- Pre-heating Card -->
               <div class="optimizer-card">
                 <div class="opt-header">
                   <span class="opt-icon">⚡</span>
                   <div>
-                    <h4 class="opt-title">Pre-Heating (Start Ottimale)</h4>
-                    <p class="opt-desc">Anticipa l'accensione per raggiungere il comfort esattamente all'orario prefissato</p>
+                    <h4 class="opt-title">{{ t('predictiveClimate.view.preheatingTitle') }}</h4>
+                    <p class="opt-desc">{{ t('predictiveClimate.view.preheatingDesc') }}</p>
                   </div>
                 </div>
 
                 <div class="opt-inputs">
                   <div class="form-group">
-                    <label for="preheat-time">Orario Desiderato</label>
+                    <label for="preheat-time">{{ t('predictiveClimate.view.desiredTime') }}</label>
                     <input
                       id="preheat-time"
                       v-model="calcTargetTime"
@@ -768,7 +768,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                     />
                   </div>
                   <div class="form-group">
-                    <label for="preheat-temp">Temp Obiettivo (°C)</label>
+                    <label for="preheat-temp">{{ t('predictiveClimate.view.targetTemperature') }} (°C)</label>
                     <input
                       id="preheat-temp"
                       v-model.number="calcTargetTemp"
@@ -794,14 +794,14 @@ function getEmitterLabel(emitter: EmitterType): string {
                 <div class="opt-header">
                   <span class="opt-icon">🛑</span>
                   <div>
-                    <h4 class="opt-title">Coast-Down (Inerzia & Stop)</h4>
-                    <p class="opt-desc">Spegne il riscaldamento prima dell'uscita o del sonno sfruttando il volano termico</p>
+                    <h4 class="opt-title">{{ t('predictiveClimate.view.coastDownTitle') }}</h4>
+                    <p class="opt-desc">{{ t('predictiveClimate.view.coastDownDesc') }}</p>
                   </div>
                 </div>
 
                 <div class="opt-inputs">
                   <div class="form-group">
-                    <label for="coast-time">Orario Uscita / Sonno</label>
+                    <label for="coast-time">{{ t('predictiveClimate.view.departureSleepTime') }}</label>
                     <input
                       id="coast-time"
                       v-model="calcDepartureTime"
@@ -826,33 +826,33 @@ function getEmitterLabel(emitter: EmitterType): string {
           </section>
 
           <!-- 3. Allenatore Cicli (Simulazione o Registrazione) -->
-          <section class="profile-section training-box" aria-label="Simulatore ciclo termico">
-            <h3 class="section-heading">🧪 Allenamento Modello da Ciclo Reale</h3>
+          <section class="profile-section training-box" :aria-label="t('predictiveClimate.view.thermalCycleSimulator')">
+            <h3 class="section-heading">🧪 {{ t('predictiveClimate.view.modelTrainingTitle') }}</h3>
             <p class="section-subtext">
               Inserisci i dati osservati da una sessione per calibrare i parametri con livellamento esponenziale (EMA).
             </p>
 
             <div class="training-form-row">
               <div class="form-group">
-                <label for="train-type">Tipo Ciclo</label>
+                <label for="train-type">{{ t('predictiveClimate.view.cycleType') }}</label>
                 <select id="train-type" v-model="trainCycleType" class="form-control form-control-sm">
-                  <option value="heating">Riscaldamento Attivo</option>
-                  <option value="cooling">Raffreddamento Passivo</option>
+                  <option value="heating">{{ t('predictiveClimate.view.activeHeating') }}</option>
+                  <option value="cooling">{{ t('predictiveClimate.view.passiveCooling') }}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <label for="train-start">Temp Inizio (°C)</label>
+                <label for="train-start">{{ t('predictiveClimate.view.startTemperature') }} (°C)</label>
                 <input id="train-start" v-model.number="trainStartTemp" type="number" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
-                <label for="train-end">Temp Fine (°C)</label>
+                <label for="train-end">{{ t('predictiveClimate.view.endTemperature') }} (°C)</label>
                 <input id="train-end" v-model.number="trainEndTemp" type="number" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
-                <label for="train-dur">Durata (Minuti)</label>
+                <label for="train-dur">{{ t('predictiveClimate.view.duration') }} ({{ t('predictiveClimate.view.minutes') }})</label>
                 <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" step="5" class="form-control form-control-sm" />
               </div>
 

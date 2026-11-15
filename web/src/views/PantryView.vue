@@ -179,7 +179,7 @@ async function handleDeleteMeal(id: string) {
     <!-- Header -->
     <header class="pantry-header">
       <div>
-        <h1 class="page-title">Dispensa & Ricettario Intelligente</h1>
+        <h1 class="page-title">{{ t('pantry.view.title') }}</h1>
         <p class="page-subtitle">
           Monitora scorte alimentari, crea ricette, pianifica i pasti con scalatura automatica per commensali e leggi scontrini OCR.
         </p>
@@ -209,7 +209,7 @@ async function handleDeleteMeal(id: string) {
     />
 
     <!-- Main Navigation Tabs -->
-    <div class="main-tabs-bar" role="tablist" aria-label="Sezioni dispensa">
+    <div class="main-tabs-bar" role="tablist" :aria-label="t('pantry.view.sections')">
       <button
         type="button"
         :class="['tab-nav-btn', { active: activeTab === 'inventory' }]"
@@ -218,7 +218,7 @@ async function handleDeleteMeal(id: string) {
         @click="activeTab = 'inventory'"
       >
         <Package :size="18" />
-        <span>Dispensa & Scorte</span>
+        <span>{{ t('pantry.view.inventoryTab') }}</span>
         <span class="badge-count">{{ pantryStore.totalItemsCount }}</span>
       </button>
 
@@ -230,7 +230,7 @@ async function handleDeleteMeal(id: string) {
         @click="activeTab = 'recipes'"
       >
         <ChefHat :size="18" />
-        <span>Ricettario</span>
+        <span>{{ t('pantry.view.recipesTab') }}</span>
         <span v-if="pantryStore.cookableCount > 0" class="badge-cookable">
           {{ pantryStore.cookableCount }} cucinabili
         </span>
@@ -244,7 +244,7 @@ async function handleDeleteMeal(id: string) {
         @click="activeTab = 'calendar'"
       >
         <Calendar :size="18" />
-        <span>Calendario Pasti</span>
+        <span>{{ t('pantry.view.mealCalendarTab') }}</span>
       </button>
 
     </div>

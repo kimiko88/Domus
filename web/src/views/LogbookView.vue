@@ -2,35 +2,35 @@
   <main class="logbook-view" id="main-content" tabindex="-1">
     <header class="view-header">
       <div class="header-content">
-        <h1>Registro Eventi (Logbook)</h1>
-        <p class="subtitle">Timeline contestuale dell'attività della casa intelligente</p>
+        <h1>{{ t('logbook.title') }}</h1>
+        <p class="subtitle">{{ t('logbook.subtitle') }}</p>
       </div>
       <div class="header-actions">
         <button
           class="btn btn-secondary"
           @click="refresh"
           :disabled="store.loading"
-          aria-label="Aggiorna registro eventi"
+          :aria-label="t('logbook.refresh')"
         >
-          <span v-if="store.loading">Caricamento...</span>
-          <span v-else>Aggiorna</span>
+          <span v-if="store.loading">{{ t('logbook.refreshing') }}</span>
+          <span v-else>{{ t('logbook.refresh') }}</span>
         </button>
       </div>
     </header>
 
     <!-- Filters Bar -->
-    <section class="filters-bar" aria-label="Filtri registro eventi">
+    <section class="filters-bar" :aria-label="t('logbook.filters')">
       <div class="search-box">
         <input
           v-model="searchQuery"
           type="search"
-          placeholder="Cerca evento, entità o utente..."
-          aria-label="Cerca nel logbook"
+          :placeholder="t('logbook.searchPlaceholder')"
+          :aria-label="t('logbook.searchAria')"
           class="input-search"
         />
       </div>
 
-      <div class="domain-chips" role="group" aria-label="Filtro dominio">
+      <div class="domain-chips" role="group" :aria-label="t('logbook.domainFilter')">
         <button
           v-for="d in domains"
           :key="d.id"
@@ -39,7 +39,7 @@
           @click="selectDomain(d.id)"
           :aria-pressed="selectedDomain === d.id"
         >
-          {{ d.label }}
+          {{ t(d.labelKey) }}
         </button>
       </div>
     </section>
@@ -48,13 +48,13 @@
     <section class="timeline-container" aria-live="polite">
       <div v-if="store.loading && filteredEntries.length === 0" class="loading-state">
         <div class="spinner" aria-hidden="true"></div>
-        <p>Caricamento eventi in corso...</p>
+        <p>{{ t('logbook.loading') }}</p>
       </div>
 
       <div v-else-if="filteredEntries.length === 0" class="empty-state">
         <div class="empty-icon" aria-hidden="true">📋</div>
-        <h2>Nessun evento registrato</h2>
-        <p>Gli eventi appariranno qui non appena le entità o le automazioni cambieranno stato.</p>
+        <h2>{{ t('logbook.emptyTitle') }}</h2>
+        <p>{{ t('logbook.emptyDesc') }}</p>
       </div>
 
       <ol v-else class="timeline-list" role="list">
@@ -97,19 +97,21 @@
 import { ref, computed, onMounted } from 'vue'
 import { useLogbookStore } from '../stores/logbook'
 import type { LogbookEntry } from '../api/types'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const store = useLogbookStore()
 const searchQuery = ref('')
 const selectedDomain = ref('all')
 
 const domains = [
-  { id: 'all', label: 'Tutti' },
-  { id: 'light', label: 'Luci' },
-  { id: 'switch', label: 'Prese' },
-  { id: 'climate', label: 'Clima' },
-  { id: 'alarm', label: 'Allarme' },
-  { id: 'person', label: 'Persone' },
-  { id: 'automation', label: 'Automazioni' },
+  { id: 'all', labelKey: 'logbook.domains.all' },
+  { id: 'light', labelKey: 'logbook.domains.light' },
+  { id: 'switch', labelKey: 'logbook.domains.switch' },
+  { id: 'climate', labelKey: 'logbook.domains.climate' },
+  { id: 'alarm', labelKey: 'logbook.domains.alarm' },
+  { id: 'person', labelKey: 'logbook.domains.person' },
+  { id: 'automation', labelKey: 'logbook.domains.automation' },
 ]
 
 onMounted(async () => {
@@ -174,15 +176,15 @@ function contextIcon(type: string): string {
 
 function formatContext(entry: LogbookEntry): string {
   if (entry.context_type === 'user') {
-    return entry.context_name ? `Azionato da ${entry.context_name}` : 'Azionato da Utente'
+    return entry.context_name ? t('logbook.contextUser', { name: entry.context_name }) : t('logbook.contextUserUnknown')
   }
   if (entry.context_type === 'automation') {
-    return entry.context_name ? `Innescato da "${entry.context_name}"` : 'Innescato da Automazione'
+    return entry.context_name ? t('logbook.contextAutomation', { name: entry.context_name }) : t('logbook.contextAutomationUnknown')
   }
   if (entry.context_type === 'script') {
-    return entry.context_name ? `Eseguito da script "${entry.context_name}"` : 'Eseguito da Script'
+    return entry.context_name ? t('logbook.contextScript', { name: entry.context_name }) : t('logbook.contextScriptUnknown')
   }
-  return 'Evento di Sistema'
+  return t('logbook.contextSystem')
 }
 </script>
 

@@ -164,7 +164,7 @@ const authorizedPlates = ref<AuthorizedVehicle[]>([])
 const isFaceModalOpen = ref(false)
 const isPlateModalOpen = ref(false)
 const newFaceName = ref('')
-const newFaceRole = ref('Residente')
+const newFaceRole = ref('{{ t('cameras.view.resident') }}')
 const newPlateNumber = ref('')
 const newPlateOwner = ref('')
 const newPlateModel = ref('')
@@ -403,7 +403,7 @@ onMounted(async () => {
             @click="currentViewMode = 'grid'; soundEffects.playClick()"
           >
             <Video :size="15" />
-            <span>Griglia</span>
+            <span>{{ t('cameras.view.grid') }}</span>
           </button>
           <button
             type="button"
@@ -412,7 +412,7 @@ onMounted(async () => {
             @click="currentViewMode = 'wall'; soundEffects.playClick()"
           >
             <LayoutGrid :size="15" />
-            <span>Surveillance Wall</span>
+            <span>{{ t('cameras.view.surveillanceWall') }}</span>
           </button>
           <button
             type="button"
@@ -421,7 +421,7 @@ onMounted(async () => {
             @click="currentViewMode = 'ai-faces'; soundEffects.playClick()"
           >
             <UserCheck :size="15" />
-            <span>Biometria & Targhe AI</span>
+            <span>{{ t('cameras.view.biometricPlates') }}</span>
           </button>
         </div>
 
@@ -556,7 +556,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-playback-step"
-              title="Indietro 15 minuti"
+              :title="t('cameras.view.previous15')"
               @click="stepWallTimeline(-15)"
             >
               <Rewind :size="16" />
@@ -566,7 +566,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-playback-play"
-              :title="isWallPlaying ? 'Pausa' : 'Riproduci'"
+              :title="isWallPlaying ? t('cameras.view.pause') : t('cameras.view.play')"
               @click="toggleWallPlayback"
             >
               <Pause v-if="isWallPlaying" :size="18" />
@@ -576,7 +576,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-playback-step"
-              title="Avanti 15 minuti"
+              :title="t('cameras.view.next15')"
               @click="stepWallTimeline(15)"
             >
               <span>+15m</span>
@@ -586,7 +586,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-playback-speed"
-              title="Velocità riproduzione"
+              :title="t('cameras.view.playbackSpeed')"
               @click="cyclePlaybackSpeed"
             >
               {{ wallPlaybackSpeed }}x
@@ -596,7 +596,7 @@ onMounted(async () => {
           <div class="timeline-time-display">
             <Clock :size="16" class="text-primary" />
             <span class="time-readout font-mono">{{ timelineFormattedTime }}</span>
-            <span class="time-scope">Oggi, 24 Ore Registrate</span>
+            <span class="time-scope">{{ t('cameras.view.today24h') }}</span>
           </div>
         </div>
 
@@ -648,7 +648,7 @@ onMounted(async () => {
           </div>
           <div class="scrubbed-event-info">
             <div class="scrub-title-row">
-              <strong>Evento AI Rilevato</strong>
+              <strong>{{ t('cameras.view.aiDetected') }}</strong>
               <span class="scrub-time font-mono">{{ activeScrubbedEvent.detected_at }}</span>
             </div>
             <div class="scrub-details">
@@ -676,11 +676,11 @@ onMounted(async () => {
           <div class="ai-title-row">
             <div class="ai-engine-pill">
               <Cpu :size="16" class="text-primary" />
-              <span>Domus Local Edge Vision Engine</span>
+              <span>{{ t('cameras.view.localVisionEngine') }}</span>
             </div>
             <div class="ai-secure-pill">
               <ShieldCheck :size="14" class="text-emerald" />
-              <span>Zero-Cloud Privacy Guarantee</span>
+              <span>{{ t('cameras.view.privacyGuarantee') }}</span>
             </div>
           </div>
           <p class="ai-banner-desc">
@@ -690,24 +690,24 @@ onMounted(async () => {
 
         <div class="ai-stats-row">
           <div class="ai-stat-box">
-            <span class="ai-stat-label">Familiari Registrati</span>
+            <span class="ai-stat-label">{{ t('cameras.view.registeredFamily') }}</span>
             <span class="ai-stat-number text-primary">{{ familyFaces.length }}</span>
-            <span class="ai-stat-sub">Profili biometrici 128-D attivi</span>
+            <span class="ai-stat-sub">{{ t('cameras.view.biometricProfilesActive') }}</span>
           </div>
           <div class="ai-stat-box">
-            <span class="ai-stat-label">Targhe Autorizzate</span>
+            <span class="ai-stat-label">{{ t('cameras.view.authorizedPlates') }}</span>
             <span class="ai-stat-number text-emerald">{{ authorizedPlates.length }}</span>
-            <span class="ai-stat-sub">Apertura automatica varco attiva</span>
+            <span class="ai-stat-sub">{{ t('cameras.view.automaticGate') }}</span>
           </div>
           <div class="ai-stat-box">
-            <span class="ai-stat-label">Soglia Similarità</span>
+            <span class="ai-stat-label">{{ t('cameras.view.similarityThreshold') }}</span>
             <span class="ai-stat-number text-warning">&ge; 65%</span>
-            <span class="ai-stat-sub">Tolleranza angolare e occhiali</span>
+            <span class="ai-stat-sub">{{ t('cameras.view.angularTolerance') }}</span>
           </div>
           <div class="ai-stat-box">
-            <span class="ai-stat-label">Accelerazione Hardware</span>
+            <span class="ai-stat-label">{{ t('cameras.view.hardwareAcceleration') }}</span>
             <span class="ai-stat-number text-info">{{ nvrStatus.hardware_accel || 'NPU / AVX2 SIMD' }}</span>
-            <span class="ai-stat-sub">Inferenza edge sub-frame</span>
+            <span class="ai-stat-sub">{{ t('cameras.view.edgeInference') }}</span>
           </div>
         </div>
       </div>
@@ -718,45 +718,45 @@ onMounted(async () => {
           <div class="sub-header-title">
             <UserCheck :size="20" class="text-primary" />
             <div>
-              <h3>Profili Biometrici Familiari</h3>
-              <p class="sub-header-desc">Riconoscimento automatico dei componenti della casa per automazioni e disarmo sicurezza</p>
+              <h3>{{ t('cameras.view.familyProfiles') }}</h3>
+              <p class="sub-header-desc">{{ t('cameras.view.familyProfilesDesc') }}</p>
             </div>
           </div>
           <button type="button" class="btn-primary-action" @click="isFaceModalOpen = true; soundEffects.playClick()">
             <Plus :size="15" />
-            <span>Registra Nuovo Volto</span>
+            <span>{{ t('cameras.view.registerFace') }}</span>
           </button>
         </div>
 
         <div v-if="familyFaces.length === 0" class="empty-faces-box">
           <User :size="36" style="opacity: 0.3; margin-bottom: 8px;" />
-          <p>Nessun volto familiare registrato nell'hub locale.</p>
+          <p>{{ t('cameras.view.noFamilyFaces') }}</p>
         </div>
 
         <div v-else class="faces-grid">
           <div v-for="face in familyFaces" :key="face.id" class="face-card glass-panel">
             <div class="face-avatar-container">
               <img :src="face.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(face.name)}`" class="face-avatar-img" :alt="face.name" />
-              <span class="face-verified-badge" title="Embedding Vettoriale Attivo">
+              <span class="face-verified-badge" :title="t('cameras.view.embeddingActive')">
                 <ShieldCheck :size="12" />
               </span>
             </div>
             <div class="face-info-box">
               <div class="face-name-row">
                 <span class="face-name">{{ face.name }}</span>
-                <span class="face-role-pill">{{ face.role || 'Residente' }}</span>
+                <span class="face-role-pill">{{ face.role || t('cameras.view.resident') }}</span>
               </div>
               <span class="face-id-sub font-mono">{{ face.id }}</span>
               <div class="face-vector-status">
                 <span class="status-dot green" />
-                <span class="text-xs">Embedding 128-D Vettoriale</span>
+                <span class="text-xs">{{ t('cameras.view.embedding128') }}</span>
               </div>
             </div>
             <div class="face-card-actions">
               <button
                 type="button"
                 class="btn-test-match"
-                title="Testa similarità con modello AI locale"
+                :title="t('cameras.view.testSimilarity')"
                 @click="testFaceMatch(face)"
               >
                 Test Match
@@ -764,7 +764,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="btn-delete-card"
-                title="Elimina profilo"
+                :title="t('cameras.view.deleteProfile')"
                 @click="handleDeleteFace(face)"
               >
                 <Trash2 :size="14" />
@@ -780,19 +780,19 @@ onMounted(async () => {
           <div class="sub-header-title">
             <Car :size="20" class="text-primary" />
             <div>
-              <h3>Targhe Veicoli Autorizzati (ALPR / ANPR)</h3>
-              <p class="sub-header-desc">Riconoscimento ottico della targa per apertura tempestiva cancello carraio e portone garage</p>
+              <h3>{{ t('cameras.view.authorizedVehiclePlates') }}</h3>
+              <p class="sub-header-desc">{{ t('cameras.view.plateRecognitionDesc') }}</p>
             </div>
           </div>
           <button type="button" class="btn-primary-action" @click="isPlateModalOpen = true; soundEffects.playClick()">
             <Plus :size="15" />
-            <span>Aggiungi Targa</span>
+            <span>{{ t('cameras.view.addPlate') }}</span>
           </button>
         </div>
 
         <div v-if="authorizedPlates.length === 0" class="empty-faces-box">
           <Car :size="36" style="opacity: 0.3; margin-bottom: 8px;" />
-          <p>Nessun veicolo registrato per il varco automatico.</p>
+          <p>{{ t('cameras.view.noAuthorizedVehicles') }}</p>
         </div>
 
         <div v-else class="plates-grid">
@@ -812,14 +812,14 @@ onMounted(async () => {
               <span class="plate-model text-xs text-dim">{{ veh.vehicle_model || 'Veicolo Privato' }}</span>
               <div class="plate-gate-status">
                 <span class="status-dot green" />
-                <span class="text-xs text-emerald">Apertura Automatica Cancello</span>
+                <span class="text-xs text-emerald">{{ t('cameras.view.automaticGateOpen') }}</span>
               </div>
             </div>
             <div class="plate-card-actions">
               <button
                 type="button"
                 class="btn-delete-card"
-                title="Rimuovi targa autorizzata"
+                :title="t('cameras.view.removeAuthorizedPlate')"
                 @click="handleDeletePlate(veh)"
               >
                 <Trash2 :size="14" />
@@ -854,12 +854,12 @@ onMounted(async () => {
         <div class="nvr-stat-card">
           <span class="stat-lbl">{{ t('cameras.inferenceFps') }}</span>
           <span class="stat-val text-primary">{{ nvrStatus.detection_fps }} FPS</span>
-          <span class="stat-desc">Zero frame drop su WebRTC</span>
+          <span class="stat-desc">{{ t('cameras.view.zeroFrameDrops') }}</span>
         </div>
         <div class="nvr-stat-card">
           <span class="stat-lbl">{{ t('cameras.latency') }}</span>
           <span class="stat-val text-emerald">{{ nvrStatus.average_latency_ms }} ms</span>
-          <span class="stat-desc">Inferenza real-time sub-frame</span>
+          <span class="stat-desc">{{ t('cameras.view.realtimeInference') }}</span>
         </div>
         <div class="nvr-stat-card">
           <span class="stat-lbl">{{ t('cameras.activeChannels') }}</span>
@@ -877,7 +877,7 @@ onMounted(async () => {
     <div v-if="currentViewMode === 'grid' && cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
       <Video :size="48" style="opacity: 0.4; margin: 0 auto 12px; color: var(--text-muted);" />
       <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;">{{ t('cameras.noCameras', 'Nessuna telecamera configurata') }}</p>
-      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Collega telecamere WebRTC, RTSP o HLS per visualizzare streaming live e rilevamento AI.</p>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">{{ t('cameras.view.connectCameras') }}</p>
     </div>
 
     <!-- Camera Feeds Grid -->
@@ -889,7 +889,7 @@ onMounted(async () => {
             <span class="pulsing-dot" />
             <span>{{ t('cameras.live') }}</span>
           </div>
-          <button class="expand-btn" title="Espandi a tutto schermo">
+          <button class="expand-btn" :title="t('cameras.view.expandFullscreen')">
             <Maximize2 :size="16" />
           </button>
         </div>
@@ -904,13 +904,13 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-zone-cfg"
-              title="Configura Zone di Movimento AI"
+              :title="t('cameras.view.configureAiZones')"
               @click.stop="openZonesEditor(cam)"
             >
               <Sliders :size="14" />
               <span>{{ t('cameras.zonesAi') }}</span>
             </button>
-            <div v-if="cam.detection_enabled" class="ai-shield-tag" title="Local ONNX AI Guard Attivo">
+            <div v-if="cam.detection_enabled" class="ai-shield-tag" :title="t('cameras.view.aiGuardActive')">
               <ShieldAlert :size="14" />
               <span>{{ t('cameras.aiGuard') }}</span>
             </div>
@@ -929,7 +929,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="motionZones.length === 0" style="padding: 24px; text-align: center; color: var(--text-muted);">
-        <p style="margin: 0;">Nessuna zona di rilevamento movimento configurata.</p>
+        <p style="margin: 0;">{{ t('cameras.view.noMotionZones') }}</p>
       </div>
       <div v-else class="zones-grid">
         <div v-for="zone in motionZones" :key="zone.id" class="zone-card">
@@ -982,7 +982,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="events.length === 0" style="padding: 24px; text-align: center; color: var(--text-muted);">
-        <p style="margin: 0;">Nessun evento AI registrato di recente.</p>
+        <p style="margin: 0;">{{ t('cameras.view.noRecentAiEvents') }}</p>
       </div>
       <div v-else class="events-list">
         <div v-for="e in events" :key="e.id" class="event-row">
@@ -1002,7 +1002,7 @@ onMounted(async () => {
             <button
               type="button"
               class="btn-clip-preview"
-              title="Guarda clip animata dell'evento"
+              :title="t('cameras.view.viewAnimatedClip')"
               @click="openClipPlayer(e)"
             >
               <Film :size="14" />
@@ -1072,16 +1072,16 @@ onMounted(async () => {
           <div class="zones-cam-preview">
             <img :src="selectedCameraForZones.snapshot_url" class="zone-preview-img" />
             <div class="zone-box-overlay zone-1">
-              <span>Portico & Consegna Pacchi</span>
+              <span>{{ t('cameras.view.porchDelivery') }}</span>
             </div>
             <div class="zone-box-overlay zone-2">
-              <span>Vialetto Veicoli</span>
+              <span>{{ t('cameras.view.vehicleDriveway') }}</span>
             </div>
           </div>
 
           <div class="zones-editor-list">
             <div class="editor-header">
-              <h4>Zone Definite per la Telecamera</h4>
+              <h4>{{ t('cameras.view.cameraZones') }}</h4>
               <button type="button" class="btn-add-zone" @click="addMockZone">
                 <Plus :size="14" />
                 <span>{{ t('cameras.addZone') }}</span>
@@ -1131,27 +1131,27 @@ onMounted(async () => {
         <div class="modal-top">
           <div class="clip-title-row">
             <UserCheck :size="18" class="text-primary" />
-            <h3>Registra Nuovo Profilo Biometrico</h3>
+            <h3>{{ t('cameras.view.registerBiometricProfile') }}</h3>
           </div>
           <button class="close-btn" @click="isFaceModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreateFace">
           <div class="form-group">
-            <label class="form-label">Nome e Cognome Familiare</label>
+            <label class="form-label">{{ t('cameras.view.memberFullName') }}</label>
             <input
               v-model="newFaceName"
               type="text"
               class="form-input"
-              placeholder="es. Giulia Rossi"
+              :placeholder="t('cameras.view.memberPlaceholder')"
               required
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Ruolo nell'Abitazione</label>
+            <label class="form-label">{{ t('cameras.view.householdRole') }}</label>
             <select v-model="newFaceRole" class="form-select">
-              <option value="Residente">Residente</option>
-              <option value="Amministratore">Amministratore</option>
-              <option value="Ospite">Ospite Frequente</option>
+              <option value="Residente">{{ t('cameras.view.resident') }}</option>
+              <option value="Amministratore">{{ t('cameras.view.administrator') }}</option>
+              <option value="Ospite">{{ t('cameras.view.frequentGuest') }}</option>
             </select>
           </div>
           <div class="biometric-scan-simulation">
@@ -1160,8 +1160,8 @@ onMounted(async () => {
               <div class="scanner-sweep-line" />
             </div>
             <div class="scan-meta">
-              <strong>Estrazione Vettore 128-D ONNX</strong>
-              <p class="text-xs text-dim">L'algoritmo edge calcolerà la firma vettoriale localmente senza mai caricare immagini su cloud esterni.</p>
+              <strong>{{ t('cameras.view.vectorExtraction') }}</strong>
+              <p class="text-xs text-dim">{{ t('cameras.view.edgeLocalProcessing') }}</p>
             </div>
           </div>
           <div class="modal-actions-row">
@@ -1182,37 +1182,37 @@ onMounted(async () => {
         <div class="modal-top">
           <div class="clip-title-row">
             <Car :size="18" class="text-primary" />
-            <h3>Aggiungi Targa Autorizzata (ALPR)</h3>
+            <h3>{{ t('cameras.view.addAuthorizedPlate') }}</h3>
           </div>
           <button class="close-btn" @click="isPlateModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreatePlate">
           <div class="form-group">
-            <label class="form-label">Targa Veicolo (Formato Europeo o Standard)</label>
+            <label class="form-label">{{ t('cameras.view.licensePlateFormat') }}</label>
             <input
               v-model="newPlateNumber"
               type="text"
               class="form-input font-mono uppercase"
-              placeholder="es. AB123CD"
+              :placeholder="t('cameras.view.platePlaceholder')"
               required
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Proprietario / Riferimento</label>
+            <label class="form-label">{{ t('cameras.view.ownerReference') }}</label>
             <input
               v-model="newPlateOwner"
               type="text"
               class="form-input"
-              placeholder="es. Marco Rossi"
+              :placeholder="t('cameras.view.ownerPlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Modello Veicolo</label>
+            <label class="form-label">{{ t('cameras.view.vehicleModel') }}</label>
             <input
               v-model="newPlateModel"
               type="text"
               class="form-input"
-              placeholder="es. Tesla Model Y, Fiat 500e..."
+              :placeholder="t('cameras.view.vehiclePlaceholder')"
             />
           </div>
           <div class="checkbox-option">
@@ -1244,7 +1244,7 @@ onMounted(async () => {
         <div class="modal-top">
           <div class="clip-title-row">
             <ShieldCheck :size="18" class="text-emerald" />
-            <h3>Test Match Biometrico Locale</h3>
+            <h3>{{ t('cameras.view.localBiometricMatch') }}</h3>
           </div>
           <button class="close-btn" @click="faceTestModal.isOpen = false">✕</button>
         </div>
@@ -1257,7 +1257,7 @@ onMounted(async () => {
           <span class="test-role">{{ faceTestModal.face.role || 'Residente' }}</span>
 
           <div class="match-score-pill">
-            <span>Cosine Similarity:</span>
+            <span>{{ t('cameras.view.cosineSimilarity') }}</span>
             <strong class="text-emerald font-mono">{{ ((faceTestModal.score || 0.94) * 100).toFixed(1) }}%</strong>
             <span class="score-pass-tag">&ge; 65% SOGLIA SUPERATA</span>
           </div>
@@ -1265,8 +1265,8 @@ onMounted(async () => {
           <div class="match-verdict-box">
             <CheckCircle :size="20" class="text-emerald" />
             <div>
-              <strong>ACCESSO CONFERMATO</strong>
-              <p class="text-xs text-dim">Profilo validato dal motore NVR locale. Automazioni di benvenuto sbloccate.</p>
+              <strong>{{ t('cameras.view.accessConfirmed') }}</strong>
+              <p class="text-xs text-dim">{{ t('cameras.view.profileValidated') }}</p>
             </div>
           </div>
         </div>

@@ -148,7 +148,7 @@ async function handleKioskLogin() {
       <!-- Form Kiosk PIN -->
       <form v-show="activeTab === 'kiosk'" class="login-form" @submit.prevent="handleKioskLogin">
         <div class="form-group">
-          <label for="kiosk-pin">Codice PIN Kiosk</label>
+          <label for="kiosk-pin">{{ t('login.kioskPin') }}</label>
           <div class="input-wrapper">
             <KeyRound :size="18" class="input-icon" />
             <input
