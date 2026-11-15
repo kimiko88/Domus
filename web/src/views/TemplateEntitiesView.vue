@@ -30,7 +30,7 @@
             v-model="playgroundCode"
             class="template-editor"
             rows="3"
-            :placeholder="t('templates.editorPlaceholder')"
+            :placeholder="'{{ ' + t('templates.editorPlaceholderBody') + ' }} °F'"
             :aria-label="t('templates.editorLabel')"
             autocomplete="off"
           ></textarea>
