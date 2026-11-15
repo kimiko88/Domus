@@ -607,8 +607,12 @@ func (a *Adapter) waitForDiscoveredLANIP(ctx context.Context, deviceID string) (
 		}
 		select {
 		case <-ctx.Done():
+			slog.Warn("tuya_local: LAN discovery cancelled before an IP was found",
+				"device_id", deviceID, "solicitations_sent", sent, "error", ctx.Err())
 			return DeviceConfig{}, false
 		case <-timer.C:
+			slog.Warn("tuya_local: LAN discovery timed out without a matching device reply",
+				"device_id", deviceID, "solicitations_sent", sent, "listening_ports", []int{6666, 6667, 7000})
 			return DeviceConfig{}, false
 		case <-ticker.C:
 		}
