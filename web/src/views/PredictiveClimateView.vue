@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePredictiveClimateStore } from '../stores/predictiveClimate'
 import type {
-const { t } = useI18n()
   PredictiveZoneConfig,
   RoomOrientation,
   EmitterType,
@@ -11,6 +10,8 @@ const { t } = useI18n()
   PreheatRecommendation,
   CoastDownRecommendation
 } from '../api/types'
+
+const { t } = useI18n()
 
 const store = usePredictiveClimateStore()
 
