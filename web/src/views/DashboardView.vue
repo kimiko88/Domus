@@ -104,7 +104,7 @@ const filteredEntities = computed(() => {
 
 const filterOptions = computed(() => [
   { id: 'all', label: t('dashboard.filterAll'), icon: null },
-  { id: 'alarm', label: 'Allarme', icon: Shield },
+  { id: 'alarm', label: t('dashboard.filterAlarm'), icon: Shield },
   { id: 'light', label: t('dashboard.filterLights'), icon: Lightbulb },
   { id: 'switch', label: t('dashboard.filterSwitches'), icon: Power },
   { id: 'sensor', label: t('dashboard.filterSensors'), icon: Radio },
@@ -298,7 +298,7 @@ function navigateToStore() {
             id="dash-marketplace-search"
             v-model="marketplaceSearchQuery"
             type="search"
-            :placeholder="t('dashboard.searchMarketplace', 'Cerca nel marketplace...')"
+            :placeholder="t('dashboard.searchMarketplace')"
             class="dash-search-input"
             :aria-label="t('dashboard.view.searchExtensions')"
           />
@@ -376,7 +376,7 @@ function navigateToStore() {
 
           <div class="mp-card-body">
             <h3 class="mp-pkg-name">{{ pkg.name }}</h3>
-            <span class="mp-pkg-author">Autore: {{ pkg.author }}</span>
+            <span class="mp-pkg-author">{{ t('dashboard.view.author') }}: {{ pkg.author }}</span>
             <p class="mp-pkg-desc">{{ pkg.description }}</p>
 
             <div v-if="pkg.capabilities && pkg.capabilities.length > 0" class="mp-caps-row">
