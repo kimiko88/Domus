@@ -128,7 +128,29 @@
       "eventPreview": "Anteprima evento"
     },
     "notifications": "Notifiche",
-    "dismissNotification": "Ignora notifica"
+    "dismissNotification": "Ignora notifica",
+    "wsNotifications": {
+      "alarmTitle": "Allarme",
+      "alarmState": "Stato allarme: {state}",
+      "alarmTriggeredTitle": "ALLARME ATTIVATO",
+      "alarmTriggeredMessage": "Allarme intrusione attivato! Motivo: {reason}",
+      "defaultAlarmReason": "Sensore perimetrale",
+      "alarmDisarmedTitle": "Allarme disarmato",
+      "alarmDisarmedMessage": "Centrale allarme disarmata con successo.",
+      "tagScannedTitle": "Tag scansionato",
+      "tagScannedMessage": "Tag \"{tag}\" elaborato con successo.",
+      "deviceOnlineTitle": "Dispositivo online",
+      "deviceOnlineMessage": "{name} è ora online.",
+      "deviceOfflineTitle": "Dispositivo offline",
+      "deviceOfflineMessage": "{name} è offline.",
+      "deviceDiscoveredTitle": "Dispositivo rilevato",
+      "deviceDiscoveredMessage": "Nuovo dispositivo rilevato: {name}",
+      "sceneActivatedTitle": "Scena attivata",
+      "sceneActivatedMessage": "{name} è stata attivata.",
+      "automationFailedTitle": "Automazione non riuscita",
+      "automationFailedMessage": "L’automazione \"{name}\" non è riuscita: {error}",
+      "systemNotification": "Notifica di sistema"
+    }
   },
   "nav": {
     "sectionOverview": "Panoramica",
