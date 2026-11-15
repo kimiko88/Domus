@@ -137,7 +137,23 @@
       "unlockKioskTitle": "Unlock kiosk mode",
       "unlockKioskDesc": "Enter the PIN to exit tablet mode",
       "invalidPin": "Incorrect PIN. Try again.",
-      "unlock": "Unlock"
+      "unlock": "Unlock",
+      "entityFilters": "Dashboard entity and section filters",
+      "openStoreCatalog": "Open the full Domus Store catalog",
+      "searchExtensions": "Search marketplace extensions",
+      "clearSearch": "Clear search",
+      "filterModuleType": "Filter by module type",
+      "packageDetails": "Details for {name}",
+      "uninstallPackage": "Uninstall {name}",
+      "installPackage": "Install {name}",
+      "viewAllExtensions": "View all extensions in the Domus Store catalog",
+      "closeModuleDetails": "Close module details",
+      "author": "Author",
+      "license": "License",
+      "installDate": "Installation date",
+      "wasiPermissions": "WASI sandbox permissions",
+      "viewSourceFor": "View open-source code for {name}",
+      "viewSource": "View open-source source code"
     }
   },
   "areas": {
@@ -450,7 +466,24 @@
     "noPendingInvites": "No pending registration invites at the moment.",
     "expiresAt": "Expires",
     "revoke": "Revoke",
-    "noMembers": "No members found."
+    "noMembers": "No members found.",
+    "view": {
+      "you": "(You)",
+      "guestProfilesTitle": "Guest profiles & temporary kiosk PIN",
+      "guestProfilesDesc": "Create limited-access accounts with a PIN or temporary kiosk unlock (e.g. babysitter or short-term rental guest).",
+      "guestProfilesEmpty": "No active guest profiles. Create a temporary PIN for your visitors.",
+      "removeGuest": "Remove guest",
+      "createGuestProfileTitle": "Create guest / kiosk profile",
+      "profileName": "Profile / visitor name",
+      "profileNamePlaceholder": "e.g. Babysitter, living room guest",
+      "numericPin": "Numeric PIN (4–8 digits)",
+      "temporaryValidity": "Temporary validity (hours)",
+      "hours": "{value} hours",
+      "dayOne": "24 hours (1 day)",
+      "days": "{value} days",
+      "oneWeek": "7 days (1 week)",
+      "enableKiosk": "Enable full-screen kiosk mode for this PIN"
+    }
   },
   "register": {
     "title": "Join the Domus Family",
