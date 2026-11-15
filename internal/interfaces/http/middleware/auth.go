@@ -120,8 +120,7 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 				strings.HasSuffix(path, "/media/broadcast")
 			cameraSession := strings.Contains(path, "/cameras/") && strings.HasSuffix(path, "/webrtc") ||
 				strings.Contains(path, "/intercom/") && strings.HasSuffix(path, "/audio")
-			automationMutation := strings.Contains(path, "/automations/")
-				|| strings.HasSuffix(path, "/automations")
+			automationMutation := strings.Contains(path, "/automations/") || strings.HasSuffix(path, "/automations")
 			if deviceCommand || serviceCall || sceneExecution || mediaControl {
 				permissions := u.EffectivePermissions()
 				if permissions != nil && permissions.CanControlDevices {
