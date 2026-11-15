@@ -806,7 +806,8 @@
     "deviceClassPlaceholder": "power, energy, temperature",
     "cancel": "Cancel",
     "create": "Create Sensor",
-    "previewError": "Error: {message}"
+    "previewError": "Error: {message}",
+    "editorPlaceholderBody": "states('sensor.living_room_temp') | float * 1.8 + 32"
   },
   "finance": {
     "pageAria": "Home budget and expense management",
