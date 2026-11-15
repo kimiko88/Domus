@@ -79,6 +79,31 @@ func TestUserRepository(t *testing.T) {
 	assert.Equal(t, u.Email, fetched.Email)
 	assert.Equal(t, u.Role, fetched.Role)
 	assert.True(t, fetched.Enabled)
+	require.NotNil(t, fetched.Permissions)
+	assert.True(t, fetched.Permissions.CanControlDevices)
+	assert.True(t, fetched.Permissions.CanManageSettings)
+
+	// Persist empty allow-lists as an explicit deny-all policy.
+	customPermissions := &user.UserPermissions{
+		Role: user.RoleViewer,
+		AllowedAreaIDs: []string{},
+		AllowedEntityIDs: []string{"entity-allowed"},
+		AllowedDashboardIDs: []string{},
+		AllowedViews: []string{"/", "/media"},
+		CanControlDevices: true,
+		CanManageAutomations: false,
+		CanManageSettings: false,
+		CanViewCameras: true,
+	}
+	require.NoError(t, repos.Users.UpdatePermissions(ctx, u.ID, customPermissions))
+	fetched, err = repos.Users.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.Permissions)
+	assert.Empty(t, fetched.Permissions.AllowedAreaIDs)
+	assert.NotNil(t, fetched.Permissions.AllowedAreaIDs)
+	assert.Equal(t, []string{"entity-allowed"}, fetched.Permissions.AllowedEntityIDs)
+	assert.Equal(t, []string{"/", "/media"}, fetched.Permissions.AllowedViews)
+	assert.True(t, fetched.Permissions.CanControlDevices)
 
 	// Get by Username
 	byName, err := repos.Users.GetByUsername(ctx, "admin")
