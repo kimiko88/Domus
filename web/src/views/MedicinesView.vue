@@ -587,7 +587,7 @@ onMounted(async () => {
                   <div class="sugg-sub">
                     <span>{{ res.active_ingredient }}</span> &bull;
                     <span>AIC: {{ res.aic }}</span>
-                    <span v-if="res.requires_cold_chain" class="text-cold"> &bull; Frigo 2-8°C</span>
+                    <span v-if="res.requires_cold_chain" class="text-cold"> &bull; {{ t('medicines.fridgeShort') }}</span>
                   </div>
                 </div>
               </div>
