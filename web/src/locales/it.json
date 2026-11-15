@@ -589,7 +589,8 @@
       "googleStep3": "Incolla l'indirizzo copiato e conferma con “Aggiungi calendario”.",
       "importFromGoogleCalendar": "Importa eventi / compiti da Google Calendar",
       "googleIcalAddress": "Indirizzo iCal di Google Calendar (.ics)"
-    }
+    },
+    "newChore": "Nuova Faccenda"
   },
   "helpers": {
     "title": "Entità Virtuali & Helper",
