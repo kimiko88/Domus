@@ -760,7 +760,7 @@ onMounted(() => {
                 name="ssh_authorized_key"
                 v-model="sshPubKey"
                 rows="2"
-                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
+                :placeholder="t('settings.authorizedKeyPlaceholder')"
                 class="maint-textarea font-mono"
                 autocomplete="off"
               ></textarea>
@@ -785,11 +785,11 @@ onMounted(() => {
           <div class="icon-box text-cyan">
             <RefreshCw :size="20" />
           </div>
-          <h3 class="card-title">Aggiornamenti Firmware OTA</h3>
+          <h3 class="card-title">{{ t('settings.otaTitle') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Aggiorna le periferiche Zigbee, ESPHome e Z-Wave con 1 click senza software esterni.</p>
+          <p class="theme-desc">{{ t('settings.otaDesc') }}</p>
 
           <div class="ota-list">
             <p v-if="otaDevices.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
@@ -825,11 +825,11 @@ onMounted(() => {
           <div class="icon-box text-amber">
             <Radio :size="20" />
           </div>
-          <h3 class="card-title">Tag NFC & QR Code Fisici</h3>
+          <h3 class="card-title">{{ t('settings.nfcTitle') }}</h3>
         </div>
 
         <div class="profile-details">
-          <p class="theme-desc">Scansiona adesivi NFC da smartphone per lanciare scene o automazioni istantanee.</p>
+          <p class="theme-desc">{{ t('settings.nfcDesc') }}</p>
 
           <div class="tags-list">
             <p v-if="nfcTags.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
@@ -917,7 +917,7 @@ onMounted(() => {
             <HardDrive :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Disaster Recovery & Backup Cifrato</h3>
+            <h3 class="card-title">{{ t('settings.backupTitle') }}</h3>
           </div>
         </div>
 
@@ -931,7 +931,7 @@ onMounted(() => {
             <input
               v-model="backupPassphrase"
               type="password"
-              placeholder="Inserisci passphrase sicura..."
+              :placeholder="t('settings.backupPlaceholder')"
               class="maint-input font-mono"
             />
           </div>
@@ -974,7 +974,7 @@ onMounted(() => {
             <Plane :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Simulazione Presenza (Vacanza)</h3>
+            <h3 class="card-title">{{ t('settings.vacationTitle') }}</h3>
             <span :class="['status-indicator-badge', isVacationActive ? 'badge-online' : 'badge-offline']">
               {{ isVacationActive ? 'Attiva' : 'Disattivata' }}
             </span>
@@ -1016,7 +1016,7 @@ onMounted(() => {
             <Wifi :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Salute Dispositivi & Diagnostica RF</h3>
+            <h3 class="card-title">{{ t('settings.rfHealthTitle') }}</h3>
             <span v-if="weakNodesCount > 0" class="badge-warning-mini">
               {{ weakNodesCount }} Avvis{{ weakNodesCount > 1 ? 'i' : 'o' }}
             </span>
@@ -1059,7 +1059,7 @@ onMounted(() => {
             <Droplet :size="20" />
           </div>
           <div class="title-with-refresh">
-            <h3 class="card-title">Anomalie Idriche & Elettrovalvola</h3>
+            <h3 class="card-title">{{ t('settings.waterAnomalyTitle') }}</h3>
             <span :class="['status-indicator-badge', waterAnomaly.main_valve_open ? 'badge-online' : 'badge-warning']">
               {{ waterAnomaly.main_valve_open ? 'Valvola Aperta' : 'Valvola Chiusa' }}
             </span>
@@ -1072,17 +1072,17 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Monitoraggio Flusso</span>
-            <span class="detail-value text-emerald font-semibold">Normale (Nessuna perdita)</span>
+            <span class="detail-label">{{ t('settings.flowMonitoring') }}</span>
+            <span class="detail-value text-emerald font-semibold">{{ t('settings.flowNormal') }}</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Soglia Safe-Stop Notturno</span>
-            <span class="detail-value font-mono">40 minuti di flusso continuo</span>
+            <span class="detail-label">{{ t('settings.nightlySafeStop') }}</span>
+            <span class="detail-value font-mono">{{ t('settings.continuousFlowDuration') }}</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Controllo Elettrovalvola Generale</span>
+            <span class="detail-label">{{ t('settings.mainValveControl') }}</span>
             <button
               type="button"
               :class="['btn-valve-toggle', waterAnomaly.main_valve_open ? 'open' : 'closed']"
