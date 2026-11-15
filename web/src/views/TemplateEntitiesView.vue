@@ -2,54 +2,54 @@
   <main class="template-entities-view" id="main-content" tabindex="-1">
     <header class="view-header">
       <div class="header-content">
-        <h1>Entità Template & Sensori Virtuali</h1>
-        <p class="subtitle">Composizione visiva di formule, logica condizionale e sensori calcolati in tempo reale</p>
+        <h1>{{ t('templates.title') }}</h1>
+        <p class="subtitle">{{ t('templates.subtitle') }}</p>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary" @click="openCreateModal" aria-label="Crea nuovo sensore template">
-          + Nuovo Sensore Template
+        <button class="btn btn-primary" @click="openCreateModal" :aria-label="t('templates.createSensorAria')">
+          {{ t('templates.newSensor') }}
         </button>
       </div>
     </header>
 
     <!-- Template Live Playground / Sandbox -->
-    <section class="playground-section" aria-label="Collaudo espressioni template">
+    <section class="playground-section" :aria-label="t('templates.playgroundAria')">
       <div class="playground-card">
         <div class="playground-header">
-          <h2>Collaudo Live Espressioni (Jinja2 / Formula Evaluator)</h2>
+          <h2>{{ t('templates.playgroundTitle') }}</h2>
           <button class="btn btn-sm btn-secondary" @click="testPreview" :disabled="testingPreview">
-            <span v-if="testingPreview">Valutazione...</span>
-            <span v-else>Valuta Template ▶</span>
+            <span v-if="testingPreview">{{ t('templates.evaluating') }}</span>
+            <span v-else>{{ t('templates.evaluate') }}</span>
           </button>
         </div>
         <div class="playground-body">
-          <label for="template-playground-code" class="sr-only">Editor codice template di prova</label>
+          <label for="template-playground-code" class="sr-only">{{ t('templates.editorLabel') }}</label>
           <textarea
             id="template-playground-code"
             name="template_playground_code"
             v-model="playgroundCode"
             class="template-editor"
             rows="3"
-            placeholder="Es. {{ states('sensor.salotto_temp') | float * 1.8 + 32 }} °F"
-            aria-label="Editor codice template di prova"
+            :placeholder="t('templates.editorPlaceholder')"
+            :aria-label="t('templates.editorLabel')"
             autocomplete="off"
           ></textarea>
           <div class="preview-output">
-            <span class="preview-label">Risultato:</span>
-            <code class="preview-result">{{ previewResult || 'Digita un template e clicca "Valuta Template"' }}</code>
+            <span class="preview-label">{{ t('templates.result') }}</span>
+            <code class="preview-result">{{ previewResult || t('templates.previewHint') }}</code>
           </div>
         </div>
       </div>
     </section>
 
     <!-- Configured Template Entities List -->
-    <section class="entities-section" aria-label="Sensori template configurati">
-      <h2>Sensori Template Attivi ({{ store.templates.length }})</h2>
+    <section class="entities-section" :aria-label="t('templates.entitiesAria')">
+      <h2>{{ t('templates.activeSensors', { count: store.templates.length }) }}</h2>
       <div v-if="store.loading && store.templates.length === 0" class="loading-state">
-        <p>Caricamento sensori template...</p>
+        <p>{{ t('templates.loading') }}</p>
       </div>
       <div v-else-if="store.templates.length === 0" class="empty-state">
-        <p>Nessun sensore template configurato. Crea formule o sensori virtuali personalizzati.</p>
+        <p>{{ t('templates.empty') }}</p>
       </div>
       <div v-else class="templates-grid">
         <article v-for="t in store.templates" :key="t.id" class="template-card">
@@ -63,17 +63,17 @@
           </div>
 
           <div class="template-code-preview">
-            <span class="code-label">Formula / Espressione:</span>
+            <span class="code-label">{{ t('templates.formula') }}</span>
             <code>{{ t.state_template }}</code>
           </div>
 
           <footer class="card-footer">
-            <span v-if="t.unit_of_measurement" class="meta-unit">Unità: {{ t.unit_of_measurement }}</span>
-            <span v-if="t.device_class" class="meta-class">Classe: {{ t.device_class }}</span>
+            <span v-if="t.unit_of_measurement" class="meta-unit">{{ t('templates.unit', { unit: t.unit_of_measurement }) }}</span>
+            <span v-if="t.device_class" class="meta-class">{{ t('templates.deviceClass', { class: t.device_class }) }}</span>
             <button
               class="btn-delete"
               @click="handleDelete(t.id)"
-              :aria-label="`Elimina sensore template ${t.name}`"
+              :aria-label="t('templates.deleteSensorAria', { name: t.name })"
             >
               🗑️
             </button>
@@ -85,43 +85,43 @@
     <!-- Create Modal -->
     <div v-if="showModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-template-title">
       <div class="modal-card">
-        <h2 id="modal-template-title">Crea Sensore Template</h2>
+        <h2 id="modal-template-title">{{ t('templates.createTitle') }}</h2>
         <form @submit.prevent="saveTemplate" class="modal-form">
           <div class="form-group">
-            <label for="template-name">Nome Sensore</label>
+            <label for="template-name">{{ t('templates.name') }}</label>
             <input
               id="template-name"
               name="template_name"
               v-model="form.name"
               required
-              placeholder="Es. Potenza Totale Casa"
+              :placeholder="t('templates.namePlaceholder')"
               class="input"
             />
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="template-id">Entity ID</label>
+              <label for="template-id">{{ t('templates.entityId') }}</label>
               <input
                 id="template-id"
                 name="template_entity_id"
                 v-model="form.entity_id"
                 required
-                placeholder="sensor.potenza_totale"
+                :placeholder="t('templates.entityPlaceholder')"
                 class="input"
               />
             </div>
             <div class="form-group">
-              <label for="template-domain">Dominio</label>
+              <label for="template-domain">{{ t('templates.domain') }}</label>
               <select id="template-domain" name="template_domain" v-model="form.domain" class="input">
-                <option value="sensor">sensor (Numerico / Stringa)</option>
-                <option value="binary_sensor">binary_sensor (Booleano on/off)</option>
+                <option value="sensor">{{ t('templates.sensorNumeric') }}</option>
+                <option value="binary_sensor">{{ t('templates.binarySensor') }}</option>
               </select>
             </div>
           </div>
 
           <div class="form-group">
-            <label for="state-template">Formula Template (State)</label>
+            <label for="state-template">{{ t('templates.stateTemplate') }}</label>
             <textarea
               id="state-template"
               name="state_template"
@@ -135,18 +135,18 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="unit">Unità di Misura</label>
-              <input id="unit" name="unit_of_measurement" v-model="form.unit_of_measurement" placeholder="Es. W, kW, °C, %" class="input" />
+              <label for="unit">{{ t('templates.unitOfMeasurement') }}</label>
+              <input id="unit" name="unit_of_measurement" v-model="form.unit_of_measurement" :placeholder="t('templates.unitPlaceholder')" class="input" />
             </div>
             <div class="form-group">
-              <label for="class">Device Class</label>
-              <input id="class" name="device_class" v-model="form.device_class" placeholder="power, energy, temperature" class="input" />
+              <label for="class">{{ t('templates.deviceClassLabel') }}</label>
+              <input id="class" name="device_class" v-model="form.device_class" :placeholder="t('templates.deviceClassPlaceholder')" class="input" />
             </div>
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" @click="closeModal">Annulla</button>
-            <button type="submit" class="btn btn-primary" :disabled="saving">Crea Sensore</button>
+            <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('templates.cancel') }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="saving">{{ t('templates.create') }}</button>
           </div>
         </form>
       </div>
@@ -158,7 +158,9 @@
 import { ref, onMounted } from 'vue'
 import { useTemplatesStore } from '../stores/templates'
 import type { TemplateEntity } from '../api/types'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const store = useTemplatesStore()
 const playgroundCode = ref("{{ states('sensor.temperatura') | float + 2.5 }}")
 const previewResult = ref('')
@@ -186,7 +188,7 @@ async function testPreview() {
   try {
     previewResult.value = await store.previewTemplate(playgroundCode.value)
   } catch (err: any) {
-    previewResult.value = 'Errore: ' + err.message
+    previewResult.value = t('templates.previewError', { message: err?.message || t('common.error') })
   } finally {
     testingPreview.value = false
   }
@@ -220,7 +222,7 @@ async function saveTemplate() {
 }
 
 async function handleDelete(id: string) {
-  if (confirm('Eliminare questo sensore virtuale template?')) {
+  if (confirm(t('templates.confirmDelete'))) {
     await store.deleteTemplate(id)
   }
 }
