@@ -635,13 +635,15 @@
       "admin": "Administrateur",
       "operator": "Opérateur",
       "viewer": "Lecteur",
-      "guest": "Invité"
+      "guest": "Invité",
+      "kid": "Enfant"
     },
     "rolesDesc": {
       "admin": "Accès complet : configuration du système, gestion des membres et contrôle total des appareils.",
       "operator": "Contrôle opérationnel : peut activer les appareils et déclencher les scènes/automatisations.",
       "viewer": "Lecture seule : peut consulter l'état de la maison et les capteurs en temps réel sans envoyer de commandes.",
-      "guest": "Accès invité temporaire ou mode Kiosque avec expiration horaire programmée."
+      "guest": "Accès invité temporaire ou mode Kiosque avec expiration horaire programmée.",
+      "kid": "Accès adapté aux enfants aux sections autorisées, comme le tableau de bord, les médias et les tâches ; sans commandes d’appareils ni réglages système."
     },
     "inviteModalTitle": "Inviter un Nouveau Membre",
     "selectRole": "Sélectionner le Rôle Attribué",
