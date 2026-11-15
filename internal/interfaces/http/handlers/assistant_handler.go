@@ -6,7 +6,8 @@ import (
 	"net/http"
 
 	"github.com/domus-hub/domus/internal/application/assistant"
-	"github.com/go-chi/chi/v5"\n\tdomusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
 type AssistantHandler struct {
