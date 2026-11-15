@@ -23,7 +23,7 @@ async function handleSubmit() {
   }
 
   if (password.value.length < 8) {
-    errorMessage.value = 'La password deve avere almeno 8 caratteri'
+    errorMessage.value = t('setup.passwordMinLength')
     return
   }
 
@@ -36,7 +36,7 @@ async function handleSubmit() {
       router.push('/')
     }
   } catch (err: any) {
-    errorMessage.value = err?.message || 'Errore durante la creazione dell\'amministratore'
+    errorMessage.value = err?.message || t('setup.createAdminError')
   } finally {
     isLoading.value = false
   }
@@ -72,7 +72,7 @@ async function handleSubmit() {
               name="username"
               v-model="username"
               type="text"
-              placeholder="admin"
+              :placeholder="t('setup.usernamePlaceholder')"
               required
               autocomplete="username"
             />
@@ -88,7 +88,7 @@ async function handleSubmit() {
               name="password"
               v-model="password"
               type="password"
-              placeholder="Minimo 8 caratteri"
+              :placeholder="t('setup.passwordPlaceholder')"
               required
               autocomplete="new-password"
             />
@@ -104,7 +104,7 @@ async function handleSubmit() {
               name="confirm_password"
               v-model="confirmPassword"
               type="password"
-              placeholder="Ripeti la password"
+              :placeholder="t('setup.confirmPasswordPlaceholder')"
               required
               autocomplete="new-password"
             />
