@@ -79,6 +79,7 @@ func (l *DiscoveryListener) Start(ctx context.Context) error {
 
 	bound := 0
 	bound7000 := false
+	boundPorts := make([]int, 0, len(l.ports))
 	for _, port := range l.ports {
 		addr := net.UDPAddr{Port: port, IP: net.IPv4zero}
 		conn, err := net.ListenUDP("udp4", &addr)
@@ -87,11 +88,12 @@ func (l *DiscoveryListener) Start(ctx context.Context) error {
 			continue
 		}
 		bound++
+		boundPorts = append(boundPorts, port)
 		if port == 7000 {
 			bound7000 = true
 		}
 		l.wg.Add(1)
-		go l.listenLoop(conn, stopCh)
+		go l.listenLoop(conn, port, stopCh)
 	}
 	if bound == 0 {
 		l.mu.Lock()
@@ -101,6 +103,7 @@ func (l *DiscoveryListener) Start(ctx context.Context) error {
 		return errors.New("tuya_local: no discovery UDP port could be bound")
 	}
 
+	slog.Info("tuya_local: UDP discovery listeners ready", "ports", boundPorts)
 	if bound7000 {
 		l.wg.Add(1)
 		go l.solicitationLoop(stopCh)
@@ -148,7 +151,7 @@ func validDeviceID(id string) bool {
 	return true
 }
 
-func (l *DiscoveryListener) listenLoop(conn *net.UDPConn, stopCh <-chan struct{}) {
+func (l *DiscoveryListener) listenLoop(conn *net.UDPConn, port int, stopCh <-chan struct{}) {
 	defer l.wg.Done()
 	defer conn.Close()
 
@@ -176,13 +179,23 @@ func (l *DiscoveryListener) listenLoop(conn *net.UDPConn, stopCh <-chan struct{}
 		}
 
 		dev, err := decodeTuyaDiscoveryPacket(buf[:n])
-		if err != nil || !validDeviceID(dev.DeviceID) {
+		if err != nil {
+			slog.Debug("tuya_local: ignored undecodable discovery datagram",
+				"port", port, "source_ip", source.IP.String(), "source_port", source.Port, "error", err)
+			continue
+		}
+		if !validDeviceID(dev.DeviceID) {
+			slog.Debug("tuya_local: ignored discovery datagram with invalid device ID",
+				"port", port, "source_ip", source.IP.String())
 			continue
 		}
 
 		// Never trust the address embedded in an unauthenticated broadcast packet.
 		// The UDP peer address is the only source of the device's LAN IP.
 		dev.IP = source.IP.String()
+		slog.Debug("tuya_local: discovered device on LAN",
+			"device_id", dev.DeviceID, "ip", dev.IP, "version", dev.Version,
+			"listen_port", port, "source_port", source.Port)
 		l.handleDiscovered(dev)
 	}
 }
@@ -206,13 +219,21 @@ func (l *DiscoveryListener) solicitationLoop(stopCh <-chan struct{}) {
 	}
 }
 
-func (l *DiscoveryListener) sendSolicitations() {
+// RequestDiscovery sends an immediate v3.5 discovery solicitation on every
+// eligible IPv4 broadcast interface. The regular background loop continues
+// to repeat this request while the listener is running.
+func (l *DiscoveryListener) RequestDiscovery() int {
+	return l.sendSolicitations()
+}
+
+func (l *DiscoveryListener) sendSolicitations() int {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		slog.Warn("tuya_local: could not enumerate network interfaces for v3.5 discovery", "error", err)
-		return
+		return 0
 	}
 
+	sent := 0
 	for _, iface := range interfaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagBroadcast == 0 {
 			continue
@@ -243,9 +264,19 @@ func (l *DiscoveryListener) sendSolicitations() {
 				slog.Debug("tuya_local: v3.5 discovery broadcast failed",
 					"interface", iface.Name, "local_ip", localIP.String(),
 					"broadcast", broadcast.String(), "error", err)
+			} else {
+				sent++
+				slog.Debug("tuya_local: v3.5 discovery solicitation sent",
+					"interface", iface.Name, "local_ip", localIP.String(),
+					"broadcast", broadcast.String(), "port", 7000)
 			}
 		}
 	}
+	if sent == 0 {
+		slog.Debug("tuya_local: no IPv4 broadcast interface was available for v3.5 discovery",
+			"interface_count", len(interfaces))
+	}
+	return sent
 }
 
 func (l *DiscoveryListener) sendSolicitation(localIP, broadcast net.IP) error {

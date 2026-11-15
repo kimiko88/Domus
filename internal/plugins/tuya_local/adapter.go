@@ -491,9 +491,10 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		})
 	}
 
-	// If device IP has changed for a known device, update connection
+	// If device IP has changed for a known device, update connection.
 	a.mu.Lock()
 	cfg, known := a.configs[dev.DeviceID]
+	isActive := a.active
 	if known && (cfg.IP != dev.IP || a.devices[dev.DeviceID] == nil) {
 		cfg.IP = dev.IP
 		if dev.Version != "" {
@@ -514,7 +515,9 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		}
 
 		a.mu.Unlock()
-		go a.connectDevice(cfg)
+		if isActive {
+			go a.connectDevice(cfg)
+		}
 		return
 	}
 	a.mu.Unlock()
@@ -564,6 +567,58 @@ func (a *Adapter) UnregisterDevice(ctx context.Context, deviceID string) error {
 	return nil
 }
 
+// waitForDiscoveredLANIP asks v3.5 devices to identify themselves immediately and
+// waits briefly for the UDP listener to associate a trusted private IP with the
+// configured device. This closes the race between LocalTuya sync and first use.
+func (a *Adapter) waitForDiscoveredLANIP(ctx context.Context, deviceID string) (DeviceConfig, bool) {
+	getConfig := func() (DeviceConfig, bool) {
+		a.mu.RLock()
+		defer a.mu.RUnlock()
+		cfg, ok := a.configs[deviceID]
+		if !ok {
+			return DeviceConfig{}, false
+		}
+		cfg.IP = trustedLANIP(cfg.IP)
+		return cfg, cfg.IP != ""
+	}
+
+	if cfg, found := getConfig(); found {
+		return cfg, true
+	}
+	if a.discovery == nil {
+		return DeviceConfig{}, false
+	}
+
+	// Do not wait for the next six-second background tick: actively solicit
+	// a fresh response now. The UDP listener remains responsible for validating
+	// the packet and extracting the source IP.
+	sent := a.discovery.RequestDiscovery()
+	slog.Info("tuya_local: requesting LAN discovery before command",
+		"device_id", deviceID, "solicitations_sent", sent)
+
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if cfg, found := getConfig(); found {
+			return cfg, true
+		}
+		select {
+		case <-ctx.Done():
+			slog.Warn("tuya_local: LAN discovery cancelled before an IP was found",
+				"device_id", deviceID, "solicitations_sent", sent, "error", ctx.Err())
+			return DeviceConfig{}, false
+		case <-timer.C:
+			slog.Warn("tuya_local: LAN discovery timed out without a matching device reply",
+				"device_id", deviceID, "solicitations_sent", sent, "listening_ports", []int{6666, 6667, 7000})
+			return DeviceConfig{}, false
+		case <-ticker.C:
+		}
+	}
+}
+
 // SendCommand executes a LAN command directly to a device using its local_key.
 func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) error {
 	a.mu.RLock()
@@ -584,8 +639,23 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 	}
 
 	if !exists || client == nil {
-		// Attempt on-demand connection if IP is present
-		if targetCfg.IP != "" {
+		// A device can be registered before its first UDP announcement arrives.
+		// Trigger one immediate discovery request instead of failing before the
+		// background listener's next solicitation interval.
+		if trustedLANIP(targetCfg.IP) == "" {
+			resolved, found := a.waitForDiscoveredLANIP(ctx, targetDevID)
+			if !found {
+				return fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
+			}
+			targetCfg = resolved
+		}
+
+		// A discovery callback may have completed the connection while this
+		// command was waiting. Reuse it rather than opening a duplicate socket.
+		a.mu.RLock()
+		client = a.devices[targetDevID]
+		a.mu.RUnlock()
+		if client == nil {
 			client = NewDeviceClient(
 				targetCfg.DeviceID,
 				targetCfg.IP,
@@ -598,13 +668,16 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 			)
 			if err := client.Connect(ctx); err == nil {
 				a.mu.Lock()
-				a.devices[targetDevID] = client
+				if existing := a.devices[targetDevID]; existing != nil {
+					_ = client.Close()
+					client = existing
+				} else {
+					a.devices[targetDevID] = client
+				}
 				a.mu.Unlock()
 			} else {
 				return fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
 			}
-		} else {
-			return fmt.Errorf("tuya_local: device %q has unknown LAN IP; waiting for UDP broadcast discovery", targetDevID)
 		}
 	}
 
