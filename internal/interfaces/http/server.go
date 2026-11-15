@@ -888,7 +888,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 
-				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/weather", func(wRouter chi.Router) {
 					wRouter.Get("/forecast", ecoH.GetWeatherForecast)
