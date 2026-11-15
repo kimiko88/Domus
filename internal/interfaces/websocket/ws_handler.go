@@ -95,10 +95,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filterRestrictedEvents := false
 	if authenticatedUser != nil && authenticatedUser.Role != user.RoleAdmin {
 		permissions := authenticatedUser.EffectivePermissions()
-		if permissions != nil && (permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil) {
+		if permissions != nil && (permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil || permissions.AllowedViews != nil) {
 			filterRestrictedEvents = true
 			allowedEntityIDs = make(map[string]struct{})
-			if h.repo != nil {
+			canViewEntityData := permissions.AllowedViews == nil
+			for _, view := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+				if permissions.CanAccessView(view) {
+					canViewEntityData = true
+					break
+				}
+			}
+			if canViewEntityData && h.repo != nil {
 				entities, listErr := h.repo.List(r.Context(), entity.ListFilter{})
 				if listErr != nil {
 					http.Error(w, `{"code":"internal_error","message":"unable to load member entity permissions"}`, http.StatusInternalServerError)
