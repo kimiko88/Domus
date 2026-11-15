@@ -921,7 +921,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/voice", func(vRouter chi.Router) {
-					vRouter.Post("/process", ecoH.ProcessVoiceSpeech)
+					vRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/process", ecoH.ProcessVoiceSpeech)
 				})
 
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {
