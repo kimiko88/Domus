@@ -77,7 +77,7 @@ describe('PantryView.vue', () => {
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('h1.page-title').text()).toBe('Dispensa & Ricettario Intelligente')
+    expect(wrapper.find('h1.page-title').text()).toBe('Dispensa e ricettario intelligente')
     expect(wrapper.text()).toContain('Articoli in Dispensa')
     expect(wrapper.text()).toContain('Dispensa & Scorte')
     expect(wrapper.text()).toContain('Ricettario')
