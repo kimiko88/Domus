@@ -371,7 +371,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				famRouter.Get("/members", familyH.ListMembers)
 
 				// Guest profiles management
-				famRouter.Get("/guests", familyH.ListGuests)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/guests", familyH.ListGuests)
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/guests", familyH.CreateGuest)
 
 				// Role modifications and member removal restricted to Admin
