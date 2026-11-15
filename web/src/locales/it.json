@@ -677,7 +677,7 @@
       "actionsTitle": "Azioni consentite",
       "controlDevices": "Inviare comandi ai dispositivi",
       "manageAutomations": "Gestire automazioni",
-      "automationScopeHint": "Per gestire automazioni serve l'accesso a tutte le stanze e a tutti i dispositivi.",
+      "automationScopeHint": "Per gestire automazioni serve il controllo dei dispositivi e l'accesso non limitato a stanze e dispositivi.",
       "viewCameras": "Visualizzare telecamere",
       "manageSettings": "Gestire impostazioni di sistema",
       "hint": "Le autorizzazioni vengono verificate anche dal server.",
