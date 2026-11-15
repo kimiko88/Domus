@@ -274,7 +274,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if lookupErr != nil || ent == nil {
 						result["code"] = "not_found"
 						result["message"] = "entity not found"
-					} else if !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+					} else if !canAccessEntityViews(currentUser) || !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
 						result["code"] = "forbidden"
 						result["message"] = "entity is outside the member's allowed resources"
 					} else if !ent.Writable {
@@ -305,4 +305,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	close(writerStop)
 	_ = conn.Close()
 	<-done
+}
+
+func canAccessEntityViews(currentUser *user.User) bool {
+	if currentUser == nil {
+		return false
+	}
+	permissions := currentUser.EffectivePermissions()
+	if permissions == nil {
+		return false
+	}
+	for _, view := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+		if permissions.CanAccessView(view) {
+			return true
+		}
+	}
+	return false
 }
