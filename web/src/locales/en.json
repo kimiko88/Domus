@@ -420,7 +420,17 @@
       "valueFor": "Value for {name}",
       "noFilterMatches": "No devices match the filters",
       "adjustSearchFilters": "Change the search or try another filter. Your current selection will be kept.",
-      "resetFilters": "Reset filters"
+      "resetFilters": "Reset filters",
+      "iot": "IoT devices",
+      "unlockButton": "Unlock",
+      "filterAll": "All ({count})",
+      "filterOnline": "Online ({count})",
+      "filterOffline": "Offline ({count})",
+      "filterSelected": "Selected ({count})",
+      "filterUnselected": "Not selected ({count})",
+      "clientId": "Client ID:",
+      "smartLifeUidLabel": "Smart Life UID:",
+      "endpointLabel": "Endpoint:"
     }
   },
   "history": {
