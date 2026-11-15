@@ -60,6 +60,10 @@ describe('FamilyView.vue', () => {
     expect(memberCards).toHaveLength(2)
     expect(memberCards[0].text()).toContain('admin_creator')
     expect(memberCards[1].text()).toContain('kid_operator')
+    expect(memberCards[1].find('.permissions-btn').exists()).toBe(true)
+    await memberCards[1].find('.permissions-btn').trigger('click')
+    expect(wrapper.find('.permission-modal-card').exists()).toBe(true)
+    expect(wrapper.find('.permission-section').exists()).toBe(true)
     expect(wrapper.find('.invite-btn').exists()).toBe(true)
   })
 
