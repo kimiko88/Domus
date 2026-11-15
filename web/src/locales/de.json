@@ -635,13 +635,15 @@
       "admin": "Administrator",
       "operator": "Bediener",
       "viewer": "Beobachter",
-      "guest": "Gast"
+      "guest": "Gast",
+      "kid": "Kind"
     },
     "rolesDesc": {
       "admin": "Vollzugriff: Systemkonfiguration, Mitgliederverwaltung und vollständige Gerätesteuerung.",
       "operator": "Betriebssteuerung: kann Geräte schalten und Szenen/Automatisierungen auslösen.",
       "viewer": "Nur Lesezugriff: kann den Status und Umgebungssensoren in Echtzeit einsehen, keine Befehle ausführen.",
-      "guest": "Temporärer Gastzugang oder Kiosk-Modus mit geplanter zeitlicher Gültigkeit."
+      "guest": "Temporärer Gastzugang oder Kiosk-Modus mit geplanter zeitlicher Gültigkeit.",
+      "kid": "Kindgerechter Zugriff auf freigegebene Bereiche wie Dashboard, Medien und Aufgaben; keine Gerätesteuerung oder Systemeinstellungen."
     },
     "inviteModalTitle": "Neues Familienmitglied Einladen",
     "selectRole": "Zugewiesene Rolle Auswählen",
