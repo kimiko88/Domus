@@ -85,7 +85,7 @@ describe('AreasView.vue', () => {
     const wrapper = mount(AreasView)
     await wrapper.vm.$nextTick()
 
-    const editBtn = wrapper.find('.btn-card-action[title="Modifica area"]')
+    const editBtn = wrapper.find('.btn-card-action:not(.is-danger)')
     expect(editBtn.exists()).toBe(true)
     await editBtn.trigger('click')
 
