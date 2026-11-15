@@ -68,3 +68,13 @@ func TestAdminAlwaysHasFullPermissions(t *testing.T) {
 	assert.True(t, permissions.CanAccessArea("any-area"))
 	assert.True(t, permissions.CanAccessEntity("any-entity"))
 }
+
+func TestViewerDefaultsAreReadOnlyAndHideCameras(t *testing.T) {
+	permissions := user.DefaultPermissions("viewer-1", user.RoleViewer)
+	require.NotNil(t, permissions)
+	assert.False(t, permissions.CanControlDevices)
+	assert.False(t, permissions.CanManageAutomations)
+	assert.False(t, permissions.CanManageSettings)
+	assert.False(t, permissions.CanViewCameras)
+	assert.True(t, permissions.CanAccessArea("living-room"))
+}
