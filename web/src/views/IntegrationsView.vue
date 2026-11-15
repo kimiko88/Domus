@@ -279,12 +279,12 @@ async function saveTuyaConfig() {
       uid: tuyaConfigForm.uid,
       endpoint: tuyaConfigForm.endpoint
     })
-    notificationsStore.success('Smart Life Collegato!', res.message || 'Configurazione salvata con successo.')
+    notificationsStore.success(t('integrations.view.messages.tuyaConnectedTitle'), res.message || t('integrations.view.messages.tuyaConnectedDesc'))
     soundEffects.playSuccessChime()
     isEditingTuyaConfig.value = false
     await fetchTuyaConfig()
   } catch (err: any) {
-    notificationsStore.error('Errore Configurazione Tuya', err?.message || 'Impossibile salvare le credenziali.')
+    notificationsStore.error(t('integrations.view.messages.tuyaConfigErrorTitle'), err?.message || t('integrations.view.messages.tuyaConfigErrorDesc'))
   } finally {
     tuyaConfigSaving.value = false
   }
@@ -293,7 +293,7 @@ async function saveTuyaConfig() {
 async function disconnectTuyaConfig() {
   try {
     await apiClient.delete('/api/v1/integrations/tuya-cloud/config')
-    notificationsStore.success('Integrazione Rimossa', 'Configurazione Smart Life scollegata.')
+    notificationsStore.success(t('integrations.view.messages.integrationRemovedTitle'), t('integrations.view.messages.integrationRemovedDesc'))
     tuyaConfig.value = {
       configured: false,
       client_id: '',
@@ -309,7 +309,7 @@ async function disconnectTuyaConfig() {
     tuyaSearchQuery.value = ''
     isEditingTuyaConfig.value = false
   } catch (err: any) {
-    notificationsStore.error('Errore Disconnessione', err?.message || 'Impossibile scollegare Tuya.')
+    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), err?.message || t('integrations.view.messages.disconnectErrorDesc'))
   }
 }
 
@@ -369,10 +369,10 @@ async function syncTuyaCloudToLocal() {
       '/api/v1/integrations/tuya-cloud/sync-local',
       { device_ids: selectedTuyaDeviceIds.value }
     )
-    notificationsStore.success('Selezione LocalTuya aggiornata', res.message || `${res.synced_count} dispositivi abilitati per il controllo LAN.`)
+    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), res.message || t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
     await fetchTuyaCloudDevices(true)
   } catch (err: any) {
-    notificationsStore.error('Sincronizzazione LAN non riuscita', err?.message || 'Impossibile trasferire i dispositivi alla LAN locale.')
+    notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), err?.message || t('integrations.view.messages.localSyncErrorDesc'))
   } finally {
     tuyaSyncing.value = false
   }
@@ -407,7 +407,7 @@ async function toggleTuyaDeviceFunctions(device: TuyaCloudDevice) {
       }
     }
   } catch (err: any) {
-    notificationsStore.error('Comandi Tuya non disponibili', err?.message || 'Impossibile leggere le funzioni del dispositivo.')
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandsUnavailableTitle'), err?.message || t('integrations.view.messages.tuyaCommandsUnavailableDesc'))
     tuyaFunctionPanels.value[device.id] = false
   } finally {
     tuyaFunctionsLoading.value = null
@@ -426,7 +426,7 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
     } else if (isNumericTuyaFunction(fn)) {
       const parsed = Number(tuyaFunctionInputs[key])
       if (!Number.isFinite(parsed)) {
-        notificationsStore.warning('Valore non valido', 'Inserisci un valore numerico valido per il comando.')
+        notificationsStore.warning(t('integrations.view.messages.invalidValueTitle'), t('integrations.view.messages.invalidValueDesc'))
         return
       }
       value = /temp/i.test(fn.code)
@@ -465,10 +465,10 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
         { commands: [{ code: fn.code, value }] }
       )
     }
-    notificationsStore.success(sentLocally ? 'Comando inviato via LAN' : 'Comando inviato', `${device.name}: ${fn.name || fn.code}`)
+    notificationsStore.success(t(sentLocally ? 'integrations.view.messages.commandSentLanTitle' : 'integrations.view.messages.commandSentTitle'), `${device.name}: ${fn.name || fn.code}`)
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error('Comando Tuya non riuscito', err?.message || 'Errore di comunicazione')
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
   } finally {
     tuyaFunctionBusy.value = null
   }
@@ -482,11 +482,9 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
       `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
       { command: 'set_dp', params: { dp_id: 4, value: mode === 'auto' ? 0 : 1 } }
     )
-    notificationsStore.success('Modalità termostato aggiornata', mode === 'auto'
-      ? 'LocalTuya: device.set_dp(4, 0) — automatico'
-      : 'LocalTuya: device.set_dp(4, 1) — manuale')
+    notificationsStore.success(t('integrations.view.messages.thermostatModeUpdatedTitle'), t(mode === 'auto' ? 'integrations.view.messages.thermostatAuto' : 'integrations.view.messages.thermostatManual'))
   } catch (err: any) {
-    notificationsStore.error('Comando termostato non riuscito', err?.message || 'Errore di comunicazione LAN')
+    notificationsStore.error(t('integrations.view.messages.thermostatCommandErrorTitle'), err?.message || t('integrations.view.messages.lanCommunicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -495,7 +493,7 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
 async function setTuyaTemperature(device: TuyaCloudDevice) {
   const temperature = Number(tuyaTemperatureInputs[device.id])
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 50) {
-    notificationsStore.warning('Temperatura non valida', 'Inserisci una temperatura compresa tra 0 e 50 °C.')
+    notificationsStore.warning(t('integrations.view.messages.invalidTemperatureTitle'), t('integrations.view.messages.invalidTemperatureDesc'))
     return
   }
   tuyaCloudCommanding.value = `${device.id}:temperature`
@@ -508,11 +506,11 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
     } else {
       const fn = tuyaTemperatureFunction(device.id)
       if (!fn) {
-        notificationsStore.warning('Comando temperatura non trovato', 'Carica prima i comandi del dispositivo per verificare la funzione di setpoint supportata.')
+        notificationsStore.warning(t('integrations.view.messages.temperatureCommandMissingTitle'), t('integrations.view.messages.temperatureCommandMissingDesc'))
         return
       }
       if (!device.online) {
-        notificationsStore.warning('Dispositivo offline', 'Il termostato è offline e non può ricevere il comando Cloud.')
+        notificationsStore.warning(t('integrations.view.messages.deviceOfflineTitle'), t('integrations.view.messages.deviceOfflineDesc'))
         return
       }
       await apiClient.post(
@@ -520,10 +518,10 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
         { commands: [{ code: fn.code, value: Math.round(temperature * Math.pow(10, tuyaFunctionScale(fn))) }] }
       )
     }
-    notificationsStore.success('Setpoint aggiornato', `${device.name}: ${temperature.toFixed(1)} °C`)
+    notificationsStore.success(t('integrations.view.messages.setpointUpdatedTitle'), `${device.name}: ${temperature.toFixed(1)} °C`)
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error('Impostazione temperatura non riuscita', err?.message || 'Errore di comunicazione')
+    notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -539,17 +537,17 @@ async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; 
         command: point.value ? 'turn_off' : 'turn_on'
       })
       point.value = !point.value
-      notificationsStore.success('Comando LAN Diretto', `${device.name}: eseguito al 100% in locale sulla LAN via Local Key`)
+      notificationsStore.success(t('integrations.view.messages.directLanCommandTitle'), t('integrations.view.messages.directLanCommandDesc', { name: device.name }))
     } else {
       await apiClient.post(`/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`, {
         commands: [{ code: point.code, value: !point.value }]
       })
       point.value = !point.value
-      notificationsStore.success('Comando inviato', `${device.name}: ${point.code}`)
+      notificationsStore.success(t('integrations.view.messages.commandSentTitle'), `${device.name}: ${point.code}`)
       await fetchTuyaCloudDevices()
     }
   } catch (err: any) {
-    notificationsStore.error('Comando Smart Life non riuscito', err?.message || 'Errore di comunicazione')
+    notificationsStore.error(t('integrations.view.messages.smartLifeCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -601,15 +599,15 @@ async function scanNetwork(target?: string) {
     if (res.devices && res.devices.length > 0) {
       notificationsStore.success(
         t('common.success'),
-        `Trovati ${res.devices.length} dispositivi intelligenti sulla rete!`
+        t('integrations.view.messages.scanFoundDevicesDesc', { count: res.devices.length })
       )
       manualIp.value = ''
     } else if (target || manualIp.value) {
-      notificationsStore.warning('Nessun dispositivo', `Nessun dispositivo riconosciuto all'indirizzo indicato.`)
+      notificationsStore.warning(t('integrations.view.messages.noDeviceTitle'), t('integrations.view.messages.noDeviceDesc'))
     }
     await fetchDiscovered()
   } catch (err: any) {
-    notificationsStore.error('Errore scansione', err?.message || 'Impossibile completare la scansione.')
+    notificationsStore.error(t('integrations.view.messages.scanErrorTitle'), err?.message || t('integrations.view.messages.scanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -625,12 +623,12 @@ async function pairDevice(dev: DiscoveredDevice) {
       name: dev.name
     })
     notificationsStore.success(
-      'Dispositivo Associato!',
-      `${dev.name} è stato configurato con successo in Domus.`
+      t('integrations.view.messages.devicePairedTitle'),
+      t('integrations.view.messages.devicePairedDesc', { name: dev.name })
     )
     await Promise.all([fetchIntegrations(), fetchDiscovered()])
   } catch (err: any) {
-    notificationsStore.error('Errore Associazione', err?.message || 'Impossibile associare il dispositivo.')
+    notificationsStore.error(t('integrations.view.messages.pairErrorTitle'), err?.message || t('integrations.view.messages.pairErrorDesc'))
   } finally {
     pairingId.value = null
   }
@@ -680,10 +678,10 @@ async function triggerArpScan() {
   try {
     const res = await apiClient.post<{ count: number; hosts: NetworkDiscoveredHost[] }>('/api/v1/network/scan')
     networkHosts.value = res.hosts || []
-    notificationsStore.success('Scansione ARP Completata', `Rilevati ${res.count} host fisici sulla rete locale.`)
+    notificationsStore.success(t('integrations.view.messages.arpScanCompleteTitle'), t('integrations.view.messages.arpScanCompleteDesc', { count: res.count }))
     soundEffects.playSuccessChime()
   } catch (err: any) {
-    notificationsStore.error('Errore Scansione', err?.message || 'Impossibile completare la scansione di rete.')
+    notificationsStore.error(t('integrations.view.messages.networkScanErrorTitle'), err?.message || t('integrations.view.messages.networkScanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -694,10 +692,10 @@ async function probeHostPorts(ip: string) {
   soundEffects.playClick()
   try {
     const res = await apiClient.post<{ ip: string; open_ports: number[]; host: NetworkDiscoveredHost }>('/api/v1/network/probe', { ip })
-    notificationsStore.info('Port Probe Completato', `Host ${ip}: porte aperte [${res.open_ports.join(', ')}]`)
+    notificationsStore.info(t('integrations.view.messages.portProbeCompleteTitle'), t('integrations.view.messages.portProbeCompleteDesc', { ip, ports: res.open_ports.join(', ') }))
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error('Errore Probe', err?.message || 'Impossibile eseguire port probe.')
+    notificationsStore.error(t('integrations.view.messages.portProbeErrorTitle'), err?.message || t('integrations.view.messages.portProbeErrorDesc'))
   } finally {
     probingIp.value = null
   }
@@ -712,11 +710,11 @@ async function quarantineDevice(mac: string, ip: string, reason?: string) {
       ip,
       reason: reason || 'Dispositivo isolato manualmente da Network Guardian'
     })
-    notificationsStore.warning('Dispositivo Confinato!', `MAC ${mac} isolato a livello di router/firewall.`)
+    notificationsStore.warning(t('integrations.view.messages.deviceQuarantinedTitle'), t('integrations.view.messages.deviceQuarantinedDesc', { mac }))
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error('Errore Quarantena', err?.message || 'Impossibile isolare il dispositivo.')
+    notificationsStore.error(t('integrations.view.messages.quarantineErrorTitle'), err?.message || t('integrations.view.messages.quarantineErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
@@ -727,11 +725,11 @@ async function unblockDevice(mac: string, ip: string) {
   soundEffects.playClick()
   try {
     await apiClient.post('/api/v1/network/unblock', { mac, ip })
-    notificationsStore.success('Dispositivo Sbloccato', `MAC ${mac} rimosso dalla quarantena.`)
+    notificationsStore.success(t('integrations.view.messages.deviceUnblockedTitle'), t('integrations.view.messages.deviceUnblockedDesc', { mac }))
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error('Errore Sblocco', err?.message || 'Impossibile sbloccare il dispositivo.')
+    notificationsStore.error(t('integrations.view.messages.unblockErrorTitle'), err?.message || t('integrations.view.messages.unblockErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
