@@ -194,3 +194,31 @@ func TestRequireDeviceControlUsesExplicitGrant(t *testing.T) {
 	handler.ServeHTTP(operatorRecorder, operatorRequest)
 	assert.Equal(t, http.StatusNoContent, operatorRecorder.Code)
 }
+
+func TestRequireUnrestrictedDeviceControlBlocksScopedBulkActions(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := domusmw.RequireUnrestrictedDeviceControl()(next)
+
+	operator := &user.User{ID: "operator-1", Role: user.RoleOperator}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/scenes/scene-1/apply", nil)
+	request = request.WithContext(domusmw.WithUser(request.Context(), operator))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+
+	scoped := &user.User{
+		ID: "scoped-1",
+		Role: user.RoleOperator,
+		Permissions: &user.UserPermissions{
+			AllowedAreaIDs: []string{"kitchen"},
+			CanControlDevices: true,
+		},
+	}
+	scopedRequest := httptest.NewRequest(http.MethodPost, "/api/v1/scenes/scene-1/apply", nil)
+	scopedRequest = scopedRequest.WithContext(domusmw.WithUser(scopedRequest.Context(), scoped))
+	scopedRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(scopedRecorder, scopedRequest)
+	assert.Equal(t, http.StatusForbidden, scopedRecorder.Code)
+}
