@@ -566,8 +566,9 @@ automation_run_days = 30    # Giorni retention esecuzioni automazioni
 
 Domus supporta la comunicazione diretta via LAN con i dispositivi Tuya e Smart Life (prese smart, lampadine CCT/RGB, termostati, ciabatte smart).
 
-- **Porta UDP 6666/6667**: ascolto broadcast locale per discovery automatica di nuovi dispositivi.
-- **Porta TCP 6668**: canale dati crittografato AES-128 (v3.1, v3.3) o HMAC-SHA256 (v3.4, v3.5).
+- **Porte UDP 6666/6667**: ascolto dei broadcast di discovery Tuya legacy.
+- **Porta UDP 7000**: discovery attiva e risposte dei dispositivi Tuya v3.5 (`REQ_DEVINFO`); deve essere raggiungibile sulla LAN.
+- **Porta TCP 6668**: canale dati locale crittografato (protocollo Tuya in base alla versione).
 - **Zero Cloud**: dopo aver estratto la `local_key` iniziale, i dispositivi comunicano interamente sulla rete locale senza dipendere dai server Tuya.
 
 ---
