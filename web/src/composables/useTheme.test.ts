@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 describe('useTheme system preference', () => {
   beforeEach(() => {
@@ -39,6 +40,7 @@ describe('useTheme system preference', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBeNull()
 
     setTheme('light')
+    await nextTick()
     listeners[0]({ matches: true } as MediaQueryListEvent)
     expect(theme.value).toBe('light')
     expect(resolvedTheme.value).toBe('light')
