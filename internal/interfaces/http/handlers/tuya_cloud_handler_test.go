@@ -320,3 +320,62 @@ func TestTuyaCloudHandler_UpperTemperatureRetainsCloudDatapoint(t *testing.T) {
 		t.Fatalf("upper_temp must be sent unchanged through Tuya Cloud, got %q", commandPayload)
 	}
 }
+
+func TestTuyaCloudHandler_UpperTemperatureRetainsCloudDatapoint(t *testing.T) {
+	var commandPayload string
+	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
+		switch r.URL.Path {
+		case "/v1.0/iot-03/devices/dev-upper-temp/functions":
+			body = `{"success":true,"result":{"category":"wk","functions":[{"code":"upper_temp","name":"Upper temperature","type":"Integer","values":"{\"scale\":1}"}]}}`
+		case "/v1.0/iot-03/devices/dev-upper-temp/commands":
+			raw, err := io.ReadAll(r.Body)
+			if err != nil {
+				return nil, err
+			}
+			commandPayload = string(raw)
+			body = `{"success":true,"result":{}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})
+
+	client, err := tuya_cloud.New(tuya_cloud.Config{
+		ClientID:   "cid",
+		Secret:     "secret",
+		BaseURL:    "https://openapi.tuyaeu.com",
+		HTTPClient: &http.Client{Transport: transport},
+	})
+	if err != nil {
+		t.Fatalf("create Tuya Cloud client: %v", err)
+	}
+
+	localAdapter := tuya_local.NewAdapter("tuya_local", &mockBusForTest{})
+	localAdapter.RegisterDevice(tuya_local.DeviceConfig{
+		DeviceID: "dev-upper-temp",
+		LocalKey: "key1234567890123",
+		Category: tuya_local.CategoryClimate,
+	})
+	handler := NewTuyaCloudHandler(client).WithLocalAdapter(localAdapter)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/devices/dev-upper-temp/commands",
+		strings.NewReader(`{"commands":[{"code":"upper_temp","value":280}]}`),
+	)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("SendCommands returned %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if commandPayload != `{"commands":[{"code":"upper_temp","value":280}]}` {
+		t.Fatalf("upper_temp must be sent unchanged through Tuya Cloud, got %q", commandPayload)
+	}
+}
