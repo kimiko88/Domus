@@ -635,13 +635,15 @@
       "admin": "Amministratore",
       "operator": "Operatore",
       "viewer": "Visualizzatore",
-      "guest": "Ospite"
+      "guest": "Ospite",
+      "kid": "Minore"
     },
     "rolesDesc": {
       "admin": "Accesso completo: configurazione del sistema, gestione componenti e controllo totale dispositivi.",
       "operator": "Controllo operativo: può accendere/spegnere dispositivi e attivare scene/automazioni, senza modificare impostazioni.",
       "viewer": "Sola lettura: può visualizzare lo stato della casa e i sensori in tempo reale, senza inviare comandi.",
-      "guest": "Accesso ospite temporaneo o modalità Kiosk con scadenza oraria programmata."
+      "guest": "Accesso ospite temporaneo o modalità Kiosk con scadenza oraria programmata.",
+      "kid": "Accesso protetto alle sezioni consentite per i minori, come dashboard, media e faccende; senza comandi domotici o impostazioni di sistema."
     },
     "inviteModalTitle": "Invita un Nuovo Componente",
     "selectRole": "Seleziona Permesso Assegnato",
