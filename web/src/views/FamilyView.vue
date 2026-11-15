@@ -17,7 +17,8 @@ import {
   Clock,
   X,
   Link,
-  KeyRound
+  KeyRound,
+  Baby
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -252,6 +253,7 @@ onMounted(() => {
             <div class="role-badge" :class="`role-${member.role}`">
               <Shield v-if="member.role === 'admin'" :size="14" />
               <Sliders v-else-if="member.role === 'operator'" :size="14" />
+              <Baby v-else-if="member.role === 'kid'" :size="14" />
               <Eye v-else :size="14" />
               <span>{{ t(`family.roles.${member.role}`) }}</span>
             </div>
@@ -274,6 +276,7 @@ onMounted(() => {
                 <option value="admin">{{ t('family.roles.admin') }}</option>
                 <option value="operator">{{ t('family.roles.operator') }}</option>
                 <option value="viewer">{{ t('family.roles.viewer') }}</option>
+                <option value="kid">{{ t('family.roles.kid') }}</option>
               </select>
 
               <button
@@ -316,6 +319,7 @@ onMounted(() => {
             <div class="role-badge" :class="`role-${inv.role}`">
               <Shield v-if="inv.role === 'admin'" :size="14" />
               <Sliders v-else-if="inv.role === 'operator'" :size="14" />
+              <Baby v-else-if="inv.role === 'kid'" :size="14" />
               <Eye v-else :size="14" />
               <span>{{ t(`family.roles.${inv.role}`) }}</span>
             </div>
@@ -524,6 +528,25 @@ onMounted(() => {
                     <span class="role-name">{{ t('family.roles.viewer') }}</span>
                   </div>
                   <p class="role-desc">{{ t('family.rolesDesc.viewer') }}</p>
+                </div>
+              </label>
+
+              <label
+                class="role-card"
+                :class="{ active: selectedRole === 'kid' }"
+              >
+                <input
+                  type="radio"
+                  name="inviteRole"
+                  value="kid"
+                  v-model="selectedRole"
+                />
+                <div class="role-card-content">
+                  <div class="role-card-header">
+                    <Baby :size="16" class="role-icon viewer-icon" />
+                    <span class="role-name">{{ t('family.roles.kid') }}</span>
+                  </div>
+                  <p class="role-desc">{{ t('family.rolesDesc.kid') }}</p>
                 </div>
               </label>
 
