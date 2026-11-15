@@ -3,8 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useFamilyStore } from '../stores/family'
+import { apiClient } from '../api/client'
+import type { UserRole, UserPermissions, Area, Entity } from '../api/types'
 import BaseButton from '../components/ui/BaseButton.vue'
-import type { UserRole } from '../api/types'
 import {
   Users,
   UserPlus,
@@ -45,9 +46,58 @@ const guestHours = ref(24)
 const guestKiosk = ref(true)
 const guests = computed(() => familyStore.guests)
 
+const availableAreas = ref<Area[]>([])
+const availableEntities = ref<Entity[]>([])
+const isPermissionsModalOpen = ref(false)
+const isSavingPermissions = ref(false)
+const permissionsMember = ref<{ id: string; username: string } | null>(null)
+const allAreas = ref(true)
+const allEntities = ref(true)
+const allViews = ref(true)
+const selectedAreaIDs = ref<string[]>([])
+const selectedEntityIDs = ref<string[]>([])
+const selectedViews = ref<string[]>([])
+const canControlDevices = ref(false)
+const canManageAutomations = ref(false)
+const canManageSettings = ref(false)
+const canViewCameras = ref(false)
+const permissionViews = [
+  { path: '/', label: 'Dashboard' },
+  { path: '/areas', label: 'Stanze' },
+  { path: '/devices', label: 'Dispositivi' },
+  { path: '/energy', label: 'Energia' },
+  { path: '/automations', label: 'Automazioni' },
+  { path: '/scenes', label: 'Scene' },
+  { path: '/schedules', label: 'Programmazione' },
+  { path: '/history', label: 'Storico' },
+  { path: '/cameras', label: 'Telecamere' },
+  { path: '/media', label: 'Media' },
+  { path: '/chores', label: 'Faccende' },
+  { path: '/shopping', label: 'Lista spesa' },
+  { path: '/pantry', label: 'Dispensa' },
+  { path: '/medicines', label: 'Farmaci' },
+  { path: '/finance', label: 'Finanze' },
+  { path: '/family', label: 'Famiglia' },
+  { path: '/custom-dashboards', label: 'Dashboard personalizzate' },
+  { path: '/mesh', label: 'Rete mesh' },
+  { path: '/store', label: 'Store' },
+  { path: '/floorplan', label: 'Planimetria' },
+  { path: '/zones', label: 'Zone' },
+  { path: '/guide', label: 'Guida' },
+  { path: '/logbook', label: 'Registro eventi' }
+]
+
 async function loadData() {
   try {
     await familyStore.fetchMembers()
+    if (isAdmin.value) {
+      const [areas, entities] = await Promise.all([
+        apiClient.get<Area[]>('/api/v1/areas/'),
+        apiClient.get<Entity[]>('/api/v1/entities/')
+      ])
+      availableAreas.value = areas || []
+      availableEntities.value = entities || []
+    }
     if (isAdmin.value) {
       await familyStore.fetchInvites()
       try {
@@ -120,6 +170,52 @@ async function handleCopy(url: string) {
     }, 2500)
   } catch (err) {
     console.warn('Clipboard copy failed:', err)
+  }
+}
+
+function openPermissions(member: { id: string; username: string; permissions?: UserPermissions }) {
+  const permissions = member.permissions
+  permissionsMember.value = { id: member.id, username: member.username }
+  allAreas.value = permissions?.allowed_area_ids == null
+  allEntities.value = permissions?.allowed_entity_ids == null
+  allViews.value = permissions?.allowed_views == null
+  selectedAreaIDs.value = [...(permissions?.allowed_area_ids || [])]
+  selectedEntityIDs.value = [...(permissions?.allowed_entity_ids || [])]
+  selectedViews.value = [...(permissions?.allowed_views || [])]
+  canControlDevices.value = permissions?.can_control_devices ?? false
+  canManageAutomations.value = permissions?.can_manage_automations ?? false
+  canManageSettings.value = permissions?.can_manage_settings ?? false
+  canViewCameras.value = permissions?.can_view_cameras ?? false
+  isPermissionsModalOpen.value = true
+}
+
+function closePermissions() {
+  isPermissionsModalOpen.value = false
+  permissionsMember.value = null
+}
+
+async function savePermissions() {
+  if (!permissionsMember.value) return
+  isSavingPermissions.value = true
+  errorMsg.value = null
+  const payload: UserPermissions = {
+    role: familyStore.members.find(member => member.id === permissionsMember.value?.id)?.role || 'viewer',
+    allowed_area_ids: allAreas.value ? null : [...selectedAreaIDs.value],
+    allowed_entity_ids: allEntities.value ? null : [...selectedEntityIDs.value],
+    allowed_dashboard_ids: null,
+    allowed_views: allViews.value ? null : [...selectedViews.value],
+    can_control_devices: canControlDevices.value,
+    can_manage_automations: canManageAutomations.value,
+    can_manage_settings: canManageSettings.value,
+    can_view_cameras: canViewCameras.value
+  }
+  try {
+    await familyStore.updateMemberPermissions(permissionsMember.value.id, payload)
+    closePermissions()
+  } catch (err: any) {
+    errorMsg.value = err?.message || 'Impossibile aggiornare i permessi'
+  } finally {
+    isSavingPermissions.value = false
   }
 }
 
@@ -279,6 +375,14 @@ onMounted(() => {
                 <option value="kid">{{ t('family.roles.kid') }}</option>
               </select>
 
+              <button
+                v-if="member.id !== currentUserId"
+                class="permissions-btn"
+                :title="'Gestisci permessi'"
+                @click="openPermissions(member)"
+              >
+                <Sliders :size="16" />
+              </button>
               <button
                 v-if="member.id !== currentUserId"
                 class="remove-btn"
@@ -638,6 +742,89 @@ onMounted(() => {
             <Link :size="16" />
             <span>{{ t('family.generateInvite') }}</span>
           </BaseButton>
+        </div>
+      </div>
+    </div>
+    <!-- Granular permissions modal -->
+    <div v-if="isPermissionsModalOpen && permissionsMember" class="modal-overlay" @click.self="closePermissions">
+      <div class="modal-card permission-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <Sliders :size="20" />
+            <h3 class="modal-title">Permessi di {{ permissionsMember.username }}</h3>
+          </div>
+          <button class="modal-close" @click="closePermissions"><X :size="18" /></button>
+        </div>
+        <div class="modal-body permission-modal-body">
+          <section class="permission-section">
+            <h4>Stanze accessibili</h4>
+            <label class="permission-check">
+              <input v-model="allAreas" type="checkbox" />
+              <span>Tutte le stanze</span>
+            </label>
+            <div v-if="!allAreas" class="permission-options">
+              <label v-for="area in availableAreas" :key="area.id" class="permission-check">
+                <input v-model="selectedAreaIDs" type="checkbox" :value="area.id" />
+                <span>{{ area.name }}</span>
+              </label>
+              <p v-if="availableAreas.length === 0" class="permission-hint">Nessuna stanza disponibile.</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>Dispositivi ed entità</h4>
+            <label class="permission-check">
+              <input v-model="allEntities" type="checkbox" />
+              <span>Tutti i dispositivi e le entità</span>
+            </label>
+            <div v-if="!allEntities" class="permission-options permission-options-scroll">
+              <label v-for="entity in availableEntities" :key="entity.id" class="permission-check">
+                <input v-model="selectedEntityIDs" type="checkbox" :value="entity.id" />
+                <span>{{ entity.name || entity.id }}</span>
+                <small>{{ entity.domain }}</small>
+              </label>
+              <p v-if="availableEntities.length === 0" class="permission-hint">Nessuna entità disponibile.</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>Sezioni visibili</h4>
+            <label class="permission-check">
+              <input v-model="allViews" type="checkbox" />
+              <span>Tutte le sezioni</span>
+            </label>
+            <div v-if="!allViews" class="permission-options permission-options-grid">
+              <label v-for="view in permissionViews" :key="view.path" class="permission-check">
+                <input v-model="selectedViews" type="checkbox" :value="view.path" />
+                <span>{{ view.label }}</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>Azioni consentite</h4>
+            <label class="permission-check">
+              <input v-model="canControlDevices" type="checkbox" />
+              <span>Inviare comandi ai dispositivi</span>
+            </label>
+            <label class="permission-check">
+              <input v-model="canManageAutomations" type="checkbox" />
+              <span>Gestire automazioni</span>
+            </label>
+            <label class="permission-check">
+              <input v-model="canViewCameras" type="checkbox" />
+              <span>Visualizzare telecamere</span>
+            </label>
+            <label class="permission-check">
+              <input v-model="canManageSettings" type="checkbox" />
+              <span>Gestire impostazioni di sistema</span>
+            </label>
+          </section>
+          <p class="permission-hint">Le autorizzazioni vengono verificate anche dal server. Le modifiche hanno effetto sulle nuove richieste e sulle nuove sessioni API.</p>
+        </div>
+        <div class="modal-footer">
+          <BaseButton variant="secondary" @click="closePermissions">Annulla</BaseButton>
+          <BaseButton variant="primary" :loading="isSavingPermissions" @click="savePermissions">Salva permessi</BaseButton>
         </div>
       </div>
     </div>
@@ -1048,6 +1235,35 @@ onMounted(() => {
   color: var(--text-main);
 }
 
+.permissions-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.permissions-btn:hover { color: var(--text-main); border-color: var(--accent-primary, #6366f1); }
+.permission-modal-card { width: min(760px, calc(100vw - 28px)); max-height: min(88vh, 900px); }
+.permission-modal-body { overflow-y: auto; max-height: calc(88vh - 150px); }
+.permission-section { padding: 0.9rem 0; border-bottom: 1px solid var(--border-subtle); }
+.permission-section h4 { margin: 0 0 0.65rem; font-size: 0.92rem; color: var(--text-main); }
+.permission-check { display: flex; align-items: center; gap: 0.55rem; min-height: 34px; font-size: 0.86rem; color: var(--text-main); cursor: pointer; }
+.permission-check input { accent-color: var(--accent-primary, #6366f1); }
+.permission-check small { margin-left: auto; color: var(--text-muted); }
+.permission-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.2rem 0.8rem; margin: 0.55rem 0 0 1.3rem; }
+.permission-options-scroll { max-height: 190px; overflow: auto; }
+.permission-options-grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+.permission-hint { margin: 0.6rem 0 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
+@media (max-width: 600px) {
+  .permission-modal-card { width: calc(100vw - 16px); max-height: 94vh; }
+  .permission-modal-body { max-height: calc(94vh - 140px); }
+  .permission-options { grid-template-columns: 1fr; margin-left: 0.5rem; }
+}
 .role-options {
   display: flex;
   flex-direction: column;
