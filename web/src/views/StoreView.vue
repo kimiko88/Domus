@@ -273,7 +273,7 @@ onMounted(async () => {
               :class="['pill-btn', { active: activeTier === '' }]"
               @click="activeTier = ''"
             >
-              Tutti <span class="pill-badge">{{ packages.length }}</span>
+              {{ t('store.view.all') }} <span class="pill-badge">{{ packages.length }}</span>
             </button>
             <button
               type="button"
@@ -298,7 +298,7 @@ onMounted(async () => {
               @click="activeTier = 'pending_review'"
             >
               <Clock :size="14" />
-              In Revisione <span class="pill-badge pending-badge">{{ countByTier('pending_review') }}</span>
+              {{ t('store.view.pendingReview') }} <span class="pill-badge pending-badge">{{ countByTier('pending_review') }}</span>
             </button>
           </div>
         </div>
@@ -312,28 +312,28 @@ onMounted(async () => {
               :class="['pill-btn', { active: activeType === '' }]"
               @click="activeType = ''"
             >
-              Tutti i Tipi
+              {{ t('store.view.allTypes') }}
             </button>
             <button
               type="button"
               :class="['pill-btn', { active: activeType === 'wasm_plugin' }]"
               @click="activeType = 'wasm_plugin'"
             >
-              WASM Plugins <span class="pill-badge">{{ countByType('wasm_plugin') }}</span>
+              {{ t('store.view.wasmPlugins') }} <span class="pill-badge">{{ countByType('wasm_plugin') }}</span>
             </button>
             <button
               type="button"
               :class="['pill-btn', { active: activeType === 'blueprint' }]"
               @click="activeType = 'blueprint'"
             >
-              Blueprints <span class="pill-badge">{{ countByType('blueprint') }}</span>
+              {{ t('store.view.blueprints') }} <span class="pill-badge">{{ countByType('blueprint') }}</span>
             </button>
             <button
               type="button"
               :class="['pill-btn', { active: activeType === 'widget' }]"
               @click="activeType = 'widget'"
             >
-              Widget UI <span class="pill-badge">{{ countByType('widget') }}</span>
+              {{ t('store.view.dashboardWidgets') }} <span class="pill-badge">{{ countByType('widget') }}</span>
             </button>
           </div>
         </div>
@@ -650,7 +650,7 @@ onMounted(async () => {
           <button
             type="button"
             class="btn-close"
-            aria-label="Chiudi finestra"
+            :aria-label="t('store.view.closeWindow')"
             @click="closeDetails"
           >
             <X :size="20" />
@@ -669,10 +669,10 @@ onMounted(async () => {
               {{ t('store.view.pendingReview') }}
             </span>
             <span v-else-if="selectedPackage.tier === 'community'" class="badge-community">
-              Community Open Source
+              {{ t('store.view.communityOpenSource') }}
             </span>
             <span v-else class="badge-verified">
-              Domus Verified
+              {{ t('store.view.domusVerified') }}
             </span>
           </div>
 
