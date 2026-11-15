@@ -13,7 +13,7 @@ describe('Localization (i18n)', () => {
     setLanguage('it')
   })
 
-  it('contains consistent top-level and nested translation keys across all 6 locales', () => {
+  it('contains identical translation keys recursively across all 6 locales', () => {
     const locales: Record<string, Record<string, any>> = {
       it: itLocale,
       en: enLocale,
@@ -23,16 +23,40 @@ describe('Localization (i18n)', () => {
       ru: ruLocale
     }
 
-    const baselineKeys = Object.keys(itLocale).sort()
+    const compareKeys = (baseline: any, current: any, path: string, code: string) => {
+      expect(current, `Locale ${code} is missing ${path}`).toBeDefined()
+      if (baseline && typeof baseline === 'object' && !Array.isArray(baseline)) {
+        expect(current && typeof current === 'object' && !Array.isArray(current),
+          `Locale ${code} has an invalid structure at ${path}`).toBe(true)
+        expect(Object.keys(current).sort(), `Locale ${code} keys mismatch at ${path}`)
+          .toEqual(Object.keys(baseline).sort())
+        for (const key of Object.keys(baseline)) {
+          compareKeys(baseline[key], current[key], `${path}.${key}`, code)
+        }
+      }
+    }
 
     for (const [code, catalog] of Object.entries(locales)) {
-      const keys = Object.keys(catalog).sort()
-      expect(keys, `Locale ${code} top keys mismatch`).toEqual(baselineKeys)
+      compareKeys(itLocale, catalog, 'root', code)
+    }
+  })
 
-      for (const section of baselineKeys) {
-        const baselineSubKeys = Object.keys(itLocale[section as keyof typeof itLocale]).sort()
-        const currentSubKeys = Object.keys(catalog[section]).sort()
-        expect(currentSubKeys, `Locale ${code} section ${section} keys mismatch`).toEqual(baselineSubKeys)
+  it('translates the recently migrated device, shopping, chores and media copy', () => {
+    const locales = [itLocale, frLocale, esLocale, deLocale, ruLocale]
+    const samples = [
+      ['devices', 'view', 'scanLanTitle'],
+      ['shopping', 'view', 'receiptIntro'],
+      ['chores', 'view', 'googleStep1'],
+      ['media', 'view', 'broadcastDesc']
+    ]
+
+    for (const catalog of locales) {
+      for (const path of samples) {
+        const translated = path.reduce((value: any, key) => value?.[key], catalog as any)
+        const english = path.reduce((value: any, key) => value?.[key], enLocale as any)
+        expect(typeof translated, path.join('.')).toBe('string')
+        expect(translated.length, path.join('.')).toBeGreaterThan(0)
+        expect(translated, `Missing translation for ${path.join('.')}`).not.toBe(english)
       }
     }
   })
