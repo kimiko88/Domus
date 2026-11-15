@@ -262,7 +262,9 @@
       "installDate": "Installationsdatum",
       "wasiPermissions": "WASI-Sandbox-Berechtigungen",
       "viewSourceFor": "Open-Source-Code von {name} anzeigen",
-      "viewSource": "Open-Source-Quellcode anzeigen"
+      "viewSource": "Open-Source-Quellcode anzeigen",
+      "climateThermostat": "Klima und Thermostat",
+      "batteryLabel": "Batterie ({value} %)"
     }
   },
   "areas": {
