@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
-import type { FamilyMember, FamilyInvite, CreateInviteResponse, UserRole } from '../api/types'
+import type { FamilyMember, FamilyInvite, CreateInviteResponse, UserRole, UserPermissions } from '../api/types'
 
 export const useFamilyStore = defineStore('family', () => {
   const members = ref<FamilyMember[]>([])
@@ -86,6 +86,21 @@ export const useFamilyStore = defineStore('family', () => {
     }
   }
 
+  async function updateMemberPermissions(id: string, permissions: UserPermissions): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      await apiClient.put(`/api/v1/family/members/${encodeURIComponent(id)}/permissions`, permissions)
+      const member = members.value.find(item => item.id === id)
+      if (member) member.permissions = { ...permissions, user_id: id }
+    } catch (err: any) {
+      error.value = err?.message || 'Failed to update member permissions'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function removeMember(id: string): Promise<void> {
     loading.value = true
     error.value = null
@@ -148,6 +163,7 @@ export const useFamilyStore = defineStore('family', () => {
     createInvite,
     revokeInvite,
     updateMemberRole,
+    updateMemberPermissions,
     removeMember
   }
 })
