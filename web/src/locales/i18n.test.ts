@@ -67,7 +67,10 @@ describe('Localization (i18n)', () => {
       ['integrations', 'view', 'messages', 'tuyaConnectedTitle'],
       ['integrations', 'view', 'messages', 'deviceOfflineDesc'],
       ['integrations', 'view', 'messages', 'arpScanCompleteDesc'],
-      ['integrations', 'view', 'messages', 'deviceUnblockedTitle']
+      ['integrations', 'view', 'messages', 'deviceUnblockedTitle'],
+      ['common', 'wsNotifications', 'deviceDiscoveredTitle'],
+      ['common', 'wsNotifications', 'deviceDiscoveredMessage'],
+      ['common', 'wsNotifications', 'automationFailedMessage']
     ]
 
     for (const catalog of locales) {
