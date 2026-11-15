@@ -677,6 +677,7 @@
       "actionsTitle": "Allowed actions",
       "controlDevices": "Send commands to devices",
       "manageAutomations": "Manage automations",
+      "automationScopeHint": "Automation management requires access to all areas and devices.",
       "viewCameras": "View cameras",
       "manageSettings": "Manage system settings",
       "hint": "Permissions are also enforced by the server.",
