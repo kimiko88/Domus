@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Automation } from '../../api/types'
 import { useAutomationsStore } from '../../stores/automations'
 import { useNotificationsStore } from '../../stores/notifications'
@@ -15,6 +16,8 @@ import {
   AlertCircle,
   Activity
 } from '@lucide/vue'
+
+const { t } = useI18n()
 
 interface Props {
   automation: Automation
@@ -74,7 +77,7 @@ async function handleTrigger() {
       <button
         class="toggle-btn"
         :class="{ active: automation.enabled }"
-        aria-label="Toggle automation enabled"
+        :aria-label="t('common.automationCard.toggleEnabled')"
         @click="handleToggle"
       >
         <span class="toggle-indicator" />
@@ -110,36 +113,36 @@ async function handleTrigger() {
         <button
           class="btn-action btn-trigger"
           :disabled="isTriggering"
-          title="Esegui manualmente"
+          :title="t('common.automationCard.runManually')"
           @click="handleTrigger"
         >
           <Play :size="13" :class="{ 'animate-spin': isTriggering }" />
-          <span>Esegui</span>
+          <span>{{ t('common.automationCard.run') }}</span>
         </button>
 
         <button
           class="btn-action btn-runs"
-          title="Visualizza cronologia esecuzioni"
+          :title="t('common.automationCard.executionHistory')"
           @click="emit('view-runs', automation)"
         >
           <History :size="13" />
-          <span>Cronologia</span>
+          <span>{{ t('common.automationCard.history') }}</span>
         </button>
       </div>
 
       <div class="secondary-buttons">
         <button
           class="btn-icon btn-edit"
-          title="Modifica regola"
-          aria-label="Edit automation"
+          :title="t('common.automationCard.edit')"
+          :aria-label="t('common.automationCard.edit')"
           @click="emit('edit', automation)"
         >
           <Pencil :size="14" />
         </button>
         <button
           class="btn-icon btn-delete"
-          title="Elimina automazione"
-          aria-label="Delete automation"
+          :title="t('common.automationCard.delete')"
+          :aria-label="t('common.automationCard.delete')"
           @click="emit('delete', automation)"
         >
           <Trash2 :size="14" />

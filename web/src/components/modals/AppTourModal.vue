@@ -140,13 +140,13 @@ const isLastStep = computed(() => currentStepIndex.value === steps.length - 1)
         </div>
 
         <!-- Dot Indicators -->
-        <div class="step-dots" role="tablist" aria-label="Passi del tour">
+        <div class="step-dots" role="tablist" :aria-label="t('tour.stepsAria')">
           <button
             v-for="(_, idx) in steps"
             :key="idx"
             class="dot-indicator"
             :class="{ active: idx === currentStepIndex }"
-            :aria-label="`Vai al passo ${idx + 1}`"
+            :aria-label="t('tour.goToStep', { step: idx + 1 })"
             @click="tourStore.goToStep(idx)"
           />
         </div>

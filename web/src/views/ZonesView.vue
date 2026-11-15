@@ -268,7 +268,7 @@
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" @click="closeModal">Annulla</button>
+            <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('zones.cancel') }}</button>
             <button type="submit" class="btn btn-primary" :disabled="saving">{{ t('zones.saveZone') }}</button>
           </div>
         </form>

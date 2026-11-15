@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { usePredictiveClimateStore } from '../stores/predictiveClimate'
 import type {
   PredictiveZoneConfig,
@@ -9,6 +10,8 @@ import type {
   PreheatRecommendation,
   CoastDownRecommendation
 } from '../api/types'
+
+const { t } = useI18n()
 
 const store = usePredictiveClimateStore()
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Package,
   ChefHat,
@@ -17,6 +18,7 @@ import RecipeModal from '../components/pantry/RecipeModal.vue'
 import MealPlanModal from '../components/pantry/MealPlanModal.vue'
 import type { PantryItem, Recipe, MealPlan, MealType } from '../api/types'
 
+const { t } = useI18n()
 const pantryStore = usePantryStore()
 
 type TabKey = 'inventory' | 'recipes' | 'calendar'
