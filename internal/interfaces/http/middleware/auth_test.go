@@ -239,6 +239,7 @@ func TestRequireViewAccessMapsAlarmAndAssistantRoutes(t *testing.T) {
 
 	viewer := &user.User{ID: "viewer-1", Role: user.RoleViewer, Permissions: user.DefaultPermissions("viewer-1", user.RoleViewer)}
 	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/alarm", viewer))
+	assert.Equal(t, http.StatusForbidden, request(http.MethodGet, "/api/v1/presence/vacation", viewer))
 	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/assistant/chat", viewer))
 	assert.Equal(t, http.StatusForbidden, request(http.MethodGet, "/api/v1/assistant/config", viewer))
 	assert.Equal(t, http.StatusForbidden, request(http.MethodGet, "/api/v1/assistant/satellites", viewer))
