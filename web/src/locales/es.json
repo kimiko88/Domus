@@ -137,7 +137,23 @@
       "unlockKioskTitle": "Desbloquear modo quiosco",
       "unlockKioskDesc": "Introduce el PIN para salir del modo tablet",
       "invalidPin": "PIN incorrecto. Inténtalo de nuevo.",
-      "unlock": "Desbloquear"
+      "unlock": "Desbloquear",
+      "entityFilters": "Filtros de entidades y secciones del panel",
+      "openStoreCatalog": "Abrir el catálogo completo de Domus Store",
+      "searchExtensions": "Buscar extensiones en el marketplace",
+      "clearSearch": "Borrar búsqueda",
+      "filterModuleType": "Filtrar por tipo de módulo",
+      "packageDetails": "Detalles de {name}",
+      "uninstallPackage": "Desinstalar {name}",
+      "installPackage": "Instalar {name}",
+      "viewAllExtensions": "Ver todas las extensiones del catálogo de Domus Store",
+      "closeModuleDetails": "Cerrar detalles del módulo",
+      "author": "Autor",
+      "license": "Licencia",
+      "installDate": "Fecha de instalación",
+      "wasiPermissions": "Permisos del entorno aislado WASI",
+      "viewSourceFor": "Ver el código abierto de {name}",
+      "viewSource": "Ver el código fuente abierto"
     }
   },
   "areas": {
@@ -450,7 +466,24 @@
     "noPendingInvites": "No hay invitaciones de registro activas en este momento.",
     "expiresAt": "Vencimiento",
     "revoke": "Revocar",
-    "noMembers": "No se encontraron miembros."
+    "noMembers": "No se encontraron miembros.",
+    "view": {
+      "you": "(Tú)",
+      "guestProfilesTitle": "Perfiles de invitados y PIN temporal de quiosco",
+      "guestProfilesDesc": "Crea cuentas de acceso limitado con PIN o desbloqueo temporal del modo quiosco (p. ej., canguro o huéspedes de alquiler vacacional).",
+      "guestProfilesEmpty": "No hay perfiles de invitados activos. Crea un PIN temporal para tus visitantes.",
+      "removeGuest": "Eliminar invitado",
+      "createGuestProfileTitle": "Crear perfil de invitado / quiosco",
+      "profileName": "Nombre del perfil / visitante",
+      "profileNamePlaceholder": "Ej.: canguro, invitado del salón",
+      "numericPin": "PIN numérico (4-8 dígitos)",
+      "temporaryValidity": "Validez temporal (horas)",
+      "hours": "{value} horas",
+      "dayOne": "24 horas (1 día)",
+      "days": "{value} días",
+      "oneWeek": "7 días (1 semana)",
+      "enableKiosk": "Habilitar el modo quiosco a pantalla completa para este PIN"
+    }
   },
   "register": {
     "title": "Únete a la Familia Domus",
