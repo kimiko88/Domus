@@ -385,7 +385,7 @@ onMounted(() => {
               <button
                 v-if="member.id !== currentUserId && member.role !== 'admin'"
                 class="permissions-btn"
-                :title="'Gestisci permessi'"
+                 :title="t('family.permissions.manage')"
                 @click="openPermissions(member)"
               >
                 <Sliders :size="16" />
@@ -758,31 +758,31 @@ onMounted(() => {
         <div class="modal-header">
           <div class="modal-title-group">
             <Sliders :size="20" />
-            <h3 class="modal-title">Permessi di {{ permissionsMember.username }}</h3>
+            <h3 class="modal-title">{{ t('family.permissions.title', { name: permissionsMember.username }) }}</h3>
           </div>
           <button class="modal-close" @click="closePermissions"><X :size="18" /></button>
         </div>
         <div class="modal-body permission-modal-body">
           <section class="permission-section">
-            <h4>Stanze accessibili</h4>
+            <h4>{{ t('family.permissions.areasTitle') }}</h4>
             <label class="permission-check">
               <input v-model="allAreas" type="checkbox" />
-              <span>Tutte le stanze</span>
+              <span>{{ t('family.permissions.allAreas') }}</span>
             </label>
             <div v-if="!allAreas" class="permission-options">
               <label v-for="area in availableAreas" :key="area.id" class="permission-check">
                 <input v-model="selectedAreaIDs" type="checkbox" :value="area.id" />
                 <span>{{ area.name }}</span>
               </label>
-              <p v-if="availableAreas.length === 0" class="permission-hint">Nessuna stanza disponibile.</p>
+              <p v-if="availableAreas.length === 0" class="permission-hint">{{ t('family.permissions.noAreas') }}</p>
             </div>
           </section>
 
           <section class="permission-section">
-            <h4>Dispositivi ed entità</h4>
+            <h4>{{ t('family.permissions.entitiesTitle') }}</h4>
             <label class="permission-check">
               <input v-model="allEntities" type="checkbox" />
-              <span>Tutti i dispositivi e le entità</span>
+              <span>{{ t('family.permissions.allEntities') }}</span>
             </label>
             <div v-if="!allEntities" class="permission-options permission-options-scroll">
               <label v-for="entity in availableEntities" :key="entity.id" class="permission-check">
@@ -790,30 +790,30 @@ onMounted(() => {
                 <span>{{ entity.name || entity.id }}</span>
                 <small>{{ entity.domain }}</small>
               </label>
-              <p v-if="availableEntities.length === 0" class="permission-hint">Nessuna entità disponibile.</p>
+              <p v-if="availableEntities.length === 0" class="permission-hint">{{ t('family.permissions.noEntities') }}</p>
             </div>
           </section>
 
           <section class="permission-section">
-            <h4>Dashboard personalizzate</h4>
+            <h4>{{ t('family.permissions.dashboardsTitle') }}</h4>
             <label class="permission-check">
               <input v-model="allDashboards" type="checkbox" />
-              <span>Tutte le dashboard</span>
+              <span>{{ t('family.permissions.allDashboards') }}</span>
             </label>
             <div v-if="!allDashboards" class="permission-options">
               <label v-for="dashboard in availableDashboards" :key="dashboard.id" class="permission-check">
                 <input v-model="selectedDashboardIDs" type="checkbox" :value="dashboard.id" />
                 <span>{{ dashboard.title }}</span>
               </label>
-              <p v-if="availableDashboards.length === 0" class="permission-hint">Nessuna dashboard personalizzata disponibile.</p>
+              <p v-if="availableDashboards.length === 0" class="permission-hint">{{ t('family.permissions.noDashboards') }}</p>
             </div>
           </section>
 
           <section class="permission-section">
-            <h4>Sezioni visibili</h4>
+            <h4>{{ t('family.permissions.viewsTitle') }}</h4>
             <label class="permission-check">
               <input v-model="allViews" type="checkbox" />
-              <span>Tutte le sezioni</span>
+              <span>{{ t('family.permissions.allViews') }}</span>
             </label>
             <div v-if="!allViews" class="permission-options permission-options-grid">
               <label v-for="view in permissionViews" :key="view.path" class="permission-check">
@@ -824,29 +824,29 @@ onMounted(() => {
           </section>
 
           <section class="permission-section">
-            <h4>Azioni consentite</h4>
+            <h4>{{ t('family.permissions.actionsTitle') }}</h4>
             <label class="permission-check">
               <input v-model="canControlDevices" type="checkbox" />
-              <span>Inviare comandi ai dispositivi</span>
+              <span>{{ t('family.permissions.controlDevices') }}</span>
             </label>
             <label class="permission-check">
               <input v-model="canManageAutomations" type="checkbox" />
-              <span>Gestire automazioni</span>
+              <span>{{ t('family.permissions.manageAutomations') }}</span>
             </label>
             <label class="permission-check">
               <input v-model="canViewCameras" type="checkbox" />
-              <span>Visualizzare telecamere</span>
+              <span>{{ t('family.permissions.viewCameras') }}</span>
             </label>
             <label class="permission-check">
               <input v-model="canManageSettings" type="checkbox" />
-              <span>Gestire impostazioni di sistema</span>
+              <span>{{ t('family.permissions.manageSettings') }}</span>
             </label>
           </section>
-          <p class="permission-hint">Le autorizzazioni vengono verificate anche dal server. Le modifiche hanno effetto sulle nuove richieste e sulle nuove sessioni API.</p>
+          <p class="permission-hint">{{ t('family.permissions.hint') }}</p>
         </div>
         <div class="modal-footer">
-          <BaseButton variant="secondary" @click="closePermissions">Annulla</BaseButton>
-          <BaseButton variant="primary" :loading="isSavingPermissions" @click="savePermissions">Salva permessi</BaseButton>
+          <BaseButton variant="secondary" @click="closePermissions">{{ t('family.permissions.cancel') }}</BaseButton>
+          <BaseButton variant="primary" :loading="isSavingPermissions" @click="savePermissions">{{ t('family.permissions.save') }}</BaseButton>
         </div>
       </div>
     </div>
