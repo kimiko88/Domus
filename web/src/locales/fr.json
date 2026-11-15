@@ -677,6 +677,7 @@
       "actionsTitle": "Actions autorisées",
       "controlDevices": "Envoyer des commandes aux appareils",
       "manageAutomations": "Gérer les automatisations",
+      "automationScopeHint": "La gestion des automatisations nécessite l’accès à toutes les pièces et à tous les appareils.",
       "viewCameras": "Voir les caméras",
       "manageSettings": "Gérer les paramètres système",
       "hint": "Les autorisations sont également appliquées par le serveur.",
