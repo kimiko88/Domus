@@ -176,7 +176,7 @@ describe('ShoppingListView.vue', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.receipt-modal-backdrop').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Scansiona Scontrino Spesa')
+    expect(wrapper.text()).toContain('Scansiona scontrino spesa')
     expect(wrapper.find('#receipt-image-input').exists()).toBe(true)
     expect(wrapper.find('#receipt-image-input').attributes('capture')).toBe('environment')
 
