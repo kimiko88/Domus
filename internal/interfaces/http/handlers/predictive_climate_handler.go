@@ -10,6 +10,7 @@ import (
 
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -27,15 +28,15 @@ func NewPredictiveClimateHandler(service *appclimate.PredictiveService) *Predict
 func (h *PredictiveClimateHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/status", h.GetStatus)
 	r.Get("/zones", h.ListZones)
-	r.Post("/zones", h.CreateZone)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/zones", h.CreateZone)
 	r.Get("/zones/{id}", h.GetZone)
-	r.Put("/zones/{id}", h.UpdateZone)
-	r.Delete("/zones/{id}", h.DeleteZone)
-	r.Post("/zones/{id}/evaluate", h.EvaluateZone)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/zones/{id}", h.UpdateZone)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/zones/{id}", h.DeleteZone)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/zones/{id}/evaluate", h.EvaluateZone)
 	r.Get("/zones/{id}/evaluations", h.GetZoneEvaluations)
-	r.Post("/evaluate-all", h.EvaluateAll)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/evaluate-all", h.EvaluateAll)
 	r.Get("/zones/{id}/profile", h.GetZoneProfile)
-	r.Post("/zones/{id}/train", h.TrainZone)
+	r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/zones/{id}/train", h.TrainZone)
 	r.Get("/zones/{id}/optimal-start", h.GetOptimalStart)
 	r.Get("/zones/{id}/optimal-stop", h.GetOptimalStop)
 }
