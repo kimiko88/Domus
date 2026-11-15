@@ -183,6 +183,34 @@ func RequireViewAccess() func(http.Handler) http.Handler {
 				required = "/scenes"
 			case strings.HasPrefix(path, "/areas"):
 				required = "/areas"
+			case strings.HasPrefix(path, "/energy"):
+				required = "/energy"
+			case strings.HasPrefix(path, "/floors"):
+				required = "/floorplan"
+			case strings.HasPrefix(path, "/persons") || strings.HasPrefix(path, "/presence"):
+				required = "/family"
+			case strings.HasPrefix(path, "/template-entities"):
+				required = "/templates"
+			case strings.HasPrefix(path, "/hardware") || strings.HasPrefix(path, "/ota") || strings.HasPrefix(path, "/tags"):
+				required = "/devices"
+			case strings.HasPrefix(path, "/helpers"):
+				required = "/helpers"
+			case strings.HasPrefix(path, "/intercom"):
+				required = "/cameras"
+			case strings.HasPrefix(path, "/notifications"):
+				required = "/"
+			case strings.HasPrefix(path, "/schedules") || strings.HasPrefix(path, "/calendar"):
+				required = "/schedules"
+			case strings.HasPrefix(path, "/scripts"):
+				required = "/automations"
+			case strings.HasPrefix(path, "/weather"):
+				required = "/"
+			case strings.HasPrefix(path, "/voice"):
+				required = "/media"
+			case strings.HasPrefix(path, "/safety") || strings.HasPrefix(path, "/anomalies"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/webhook-configs") || strings.HasPrefix(path, "/webhooks"):
+				required = "/integrations"
 			case strings.HasPrefix(path, "/devices"):
 				required = "/devices"
 			case strings.HasPrefix(path, "/integrations"):
