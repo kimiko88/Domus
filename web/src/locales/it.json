@@ -713,8 +713,8 @@
       "createGuest": "Impossibile creare il profilo ospite.",
       "generateInvite": "Impossibile generare l'invito.",
       "updatePermissions": "Impossibile aggiornare i permessi.",
-      "updateRole": "Impossibile aggiornare il ruolo del componente.",
-      "removeMember": "Impossibile rimuovere il componente.",
+      "updateRole": "Impossibile aggiornare il ruolo del membro.",
+      "removeMember": "Impossibile rimuovere il membro.",
       "revokeInvite": "Impossibile revocare l'invito."
     },
     "tokenLabel": "Token"
