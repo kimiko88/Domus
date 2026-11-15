@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import FamilyView from './FamilyView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -92,15 +92,21 @@ describe('FamilyView.vue', () => {
       vi.spyOn(familyStore, 'fetchGuests').mockResolvedValue()
       const updatePermissions = vi.spyOn(familyStore, 'updateMemberPermissions').mockResolvedValue()
 
+      expect(i18n.global.t('family.title')).toBe('Управление семьёй и разрешениями')
       const wrapper = mount(FamilyView, {
         global: { plugins: [pinia, i18n] }
       })
+      await flushPromises()
 
+      expect(wrapper.find('.section-title').exists()).toBe(true)
       expect(wrapper.find('.section-title').text()).toContain('Управление семьёй и разрешениями')
       const permissionsButton = wrapper.find('.permissions-btn')
+      expect(permissionsButton.exists()).toBe(true)
       expect(permissionsButton.text()).toContain('Управление разрешениями')
       await permissionsButton.trigger('click')
+      await flushPromises()
       const permissionModal = wrapper.find('.permission-modal-card')
+      expect(permissionModal.exists()).toBe(true)
       expect(permissionModal.text()).toContain('Доступные помещения')
       expect(permissionModal.text()).toContain('Разрешённые действия')
       expect(permissionModal.text()).toContain('Управление автоматизациями')
@@ -110,10 +116,12 @@ describe('FamilyView.vue', () => {
         .find(label => label.text().includes('Управление системными настройками'))
       expect(settingsToggle).toBeDefined()
       await settingsToggle!.find('input').setValue(true)
+      await flushPromises()
       const saveButton = permissionModal.find('.modal-footer').findAll('button')
         .find(button => button.text().includes('Сохранить разрешения'))
       expect(saveButton).toBeDefined()
       await saveButton!.trigger('click')
+      await flushPromises()
       expect(updatePermissions).toHaveBeenCalledWith(
         'member-2',
         expect.objectContaining({ can_manage_settings: true })
