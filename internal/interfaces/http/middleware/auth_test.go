@@ -229,8 +229,8 @@ func TestRequireViewAccessMapsAlarmAndAssistantRoutes(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	handler := domusmw.RequireViewAccess()(next)
-	request := func(path string, member *user.User) int {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
+	request := func(method, path string, member *user.User) int {
+		req := httptest.NewRequest(method, path, nil)
 		req = req.WithContext(domusmw.WithUser(req.Context(), member))
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, req)
@@ -238,11 +238,36 @@ func TestRequireViewAccessMapsAlarmAndAssistantRoutes(t *testing.T) {
 	}
 
 	viewer := &user.User{ID: "viewer-1", Role: user.RoleViewer, Permissions: user.DefaultPermissions("viewer-1", user.RoleViewer)}
-	assert.Equal(t, http.StatusNoContent, request("/api/v1/alarm", viewer))
-	assert.Equal(t, http.StatusNoContent, request("/api/v1/assistant/chat", viewer))
-	assert.Equal(t, http.StatusForbidden, request("/api/v1/assistant/config", viewer))
-	assert.Equal(t, http.StatusForbidden, request("/api/v1/assistant/satellites", viewer))
+	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/alarm", viewer))
+	assert.Equal(t, http.StatusNoContent, request(http.MethodPost, "/api/v1/assistant/chat", viewer))
+	assert.Equal(t, http.StatusForbidden, request(http.MethodGet, "/api/v1/assistant/config", viewer))
+	assert.Equal(t, http.StatusForbidden, request(http.MethodGet, "/api/v1/assistant/satellites", viewer))
 
 	kid := &user.User{ID: "kid-1", Role: user.RoleKid, Permissions: user.DefaultPermissions("kid-1", user.RoleKid)}
-	assert.Equal(t, http.StatusNoContent, request("/api/v1/assistant/satellites", kid))
+	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/assistant/satellites", kid))
+}
+
+func TestRequireSettingsPermissionUsesExplicitGrant(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := domusmw.RequireSettingsPermission()
+	request := func(member *user.User) int {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/assistant/config", nil)
+		req = req.WithContext(domusmw.WithUser(req.Context(), member))
+		recorder := httptest.NewRecorder()
+		handler(next).ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	operator := &user.User{ID: "operator-1", Role: user.RoleOperator}
+	assert.Equal(t, http.StatusForbidden, request(operator))
+
+	granted := &user.User{
+		ID: "operator-granted",
+		Role: user.RoleOperator,
+		Permissions: &user.UserPermissions{CanManageSettings: true},
+	}
+	assert.Equal(t, http.StatusNoContent, request(granted))
+	assert.Equal(t, http.StatusNoContent, request(&user.User{ID: "admin-1", Role: user.RoleAdmin}))
 }
