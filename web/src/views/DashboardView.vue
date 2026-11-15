@@ -244,7 +244,7 @@ function navigateToStore() {
     </div>
 
     <!-- Filter Pills Row -->
-    <div class="filters-row" role="tablist" aria-label="Filtri entità e sezioni della dashboard">
+    <div class="filters-row" role="tablist" :aria-label="t('dashboard.view.entityFilters')">
       <button
         v-for="pill in filterOptions"
         :key="pill.id"
@@ -283,7 +283,7 @@ function navigateToStore() {
           type="button"
           class="btn-open-store"
           @click="navigateToStore"
-          aria-label="Apri catalogo completo nel Domus Store"
+          :aria-label="t('dashboard.view.openStoreCatalog')"
         >
           <span>{{ t('dashboard.exploreStore', 'Esplora Domus Store') }}</span>
           <ArrowRight :size="16" />
@@ -300,20 +300,20 @@ function navigateToStore() {
             type="search"
             :placeholder="t('dashboard.searchMarketplace', 'Cerca nel marketplace...')"
             class="dash-search-input"
-            aria-label="Cerca estensioni marketplace"
+            :aria-label="t('dashboard.view.searchExtensions')"
           />
           <button
             v-if="marketplaceSearchQuery"
             type="button"
             class="clear-search-btn"
-            aria-label="Cancella ricerca"
+            :aria-label="t('dashboard.view.clearSearch')"
             @click="marketplaceSearchQuery = ''"
           >
             <X :size="14" />
           </button>
         </div>
 
-        <div class="type-pills" role="tablist" aria-label="Filtro per tipologia di modulo">
+        <div class="type-pills" role="tablist" :aria-label="t('dashboard.view.filterModuleType')">
           <button
             type="button"
             :class="['type-pill', { active: marketplaceTypeFilter === '' }]"
@@ -353,7 +353,7 @@ function navigateToStore() {
           class="marketplace-card glass-card"
           tabindex="0"
           role="button"
-          :aria-label="`Dettagli per ${pkg.name}`"
+          :aria-label="t('dashboard.view.packageDetails', { name: pkg.name })"
           @click="openDetails(pkg)"
           @keydown.enter="openDetails(pkg)"
         >
@@ -394,7 +394,7 @@ function navigateToStore() {
               type="button"
               :class="['btn-install-toggle', { installed: pkg.installed }]"
               :disabled="installingPackageId === pkg.id"
-              :aria-label="pkg.installed ? `Disinstalla ${pkg.name}` : `Installa ${pkg.name}`"
+              :aria-label="pkg.installed ? t('dashboard.view.uninstallPackage', { name: pkg.name }) : t('dashboard.view.installPackage', { name: pkg.name })"
               @click="toggleInstall(pkg, $event)"
             >
               <CheckCircle v-if="pkg.installed" :size="15" />
@@ -465,7 +465,7 @@ function navigateToStore() {
           type="button"
           class="btn-showcase-link"
           @click="navigateToStore"
-          aria-label="Visualizza tutte le estensioni del catalogo Domus Store"
+          :aria-label="t('dashboard.view.viewAllExtensions')"
         >
           <span>{{ t('dashboard.exploreStore', 'Esplora Domus Store') }}</span>
           <ArrowRight :size="16" />
@@ -543,7 +543,7 @@ function navigateToStore() {
           <button
             type="button"
             class="btn-close"
-            aria-label="Chiudi dettagli modulo"
+            :aria-label="t('dashboard.view.closeModuleDetails')"
             @click="closeDetails"
           >
             <X :size="20" />
@@ -566,21 +566,21 @@ function navigateToStore() {
 
           <div class="modal-meta-grid">
             <div class="meta-item">
-              <span class="meta-label">Autore:</span>
+              <span class="meta-label">{{ t('dashboard.view.author') }}:</span>
               <span class="meta-val">{{ selectedPackage.author }}</span>
             </div>
             <div v-if="selectedPackage.license" class="meta-item">
-              <span class="meta-label">Licenza:</span>
+              <span class="meta-label">{{ t('dashboard.view.license') }}:</span>
               <span class="meta-val">{{ selectedPackage.license }}</span>
             </div>
             <div v-if="selectedPackage.installed_at" class="meta-item">
-              <span class="meta-label">Data Installazione:</span>
+              <span class="meta-label">{{ t('dashboard.view.installDate') }}:</span>
               <span class="meta-val">{{ new Date(selectedPackage.installed_at).toLocaleDateString() }}</span>
             </div>
           </div>
 
           <div v-if="selectedPackage.capabilities && selectedPackage.capabilities.length > 0" class="modal-caps-box">
-            <span class="caps-label">Permessi Sandbox WASI:</span>
+            <span class="caps-label">{{ t('dashboard.view.wasiPermissions') }}:</span>
             <div class="mp-caps-row">
               <span v-for="cap in selectedPackage.capabilities" :key="cap" class="mp-cap-tag">
                 {{ cap }}
@@ -594,9 +594,9 @@ function navigateToStore() {
               target="_blank"
               rel="noopener noreferrer"
               class="source-link"
-              :aria-label="`Visualizza codice sorgente open source di ${selectedPackage.name}`"
+              :aria-label="t('dashboard.view.viewSourceFor', { name: selectedPackage.name })"
             >
-              <span>Visualizza codice sorgente open source</span>
+              <span>{{ t('dashboard.view.viewSource') }}</span>
               <ExternalLink :size="14" />
             </a>
           </div>
