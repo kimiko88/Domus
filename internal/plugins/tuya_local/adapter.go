@@ -620,7 +620,7 @@ func (a *Adapter) waitForDiscoveredLANIP(ctx context.Context, deviceID string) (
 }
 
 // SendCommand executes a LAN command directly to a device using its local_key.
-func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) error {
+func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) (map[string]any, error) {
 	a.mu.RLock()
 	var targetDevID string
 	var targetCfg DeviceConfig
@@ -635,7 +635,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 	a.mu.RUnlock()
 
 	if targetDevID == "" {
-		return fmt.Errorf("tuya_local: target %q not found in local configurations", target)
+		return nil, fmt.Errorf("tuya_local: target %q not found in local configurations", target)
 	}
 
 	if !exists || client == nil {
@@ -683,7 +683,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 
 	dps, err := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	return client.SendCommand(ctx, dps)
@@ -704,7 +704,8 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 		return nil
 	}
 
-	return a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	_, err = a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	return err
 }
 
 // GetConfiguredDevices returns all devices currently registered for local LAN control.
