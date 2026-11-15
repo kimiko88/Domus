@@ -73,7 +73,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("sqlite: marshal user permissions: %w", err)
 	}
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = r.db.ExecContext(ctx, query,
 		u.ID,
 		u.Username,
 		email,
