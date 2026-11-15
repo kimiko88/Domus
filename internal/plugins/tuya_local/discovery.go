@@ -260,7 +260,7 @@ func (l *DiscoveryListener) sendSolicitations() int {
 			if broadcast.Equal(localIP) || broadcast.IsUnspecified() {
 				continue
 			}
-			if err := l.sendSolicitation(localIP, broadcast); err != nil {
+			if err := l.sendSolicitation(iface.Name, localIP, broadcast); err != nil {
 				slog.Debug("tuya_local: v3.5 discovery broadcast failed",
 					"interface", iface.Name, "local_ip", localIP.String(),
 					"broadcast", broadcast.String(), "error", err)
@@ -279,7 +279,10 @@ func (l *DiscoveryListener) sendSolicitations() int {
 	return sent
 }
 
-func (l *DiscoveryListener) sendSolicitation(localIP, broadcast net.IP) error {
+func (l *DiscoveryListener) sendSolicitation(interfaceName string, localIP, broadcast net.IP) error {
+	if strings.TrimSpace(interfaceName) == "" {
+		return errors.New("tuya_local: v3.5 discovery requires a network interface")
+	}
 	if localIP.To4() == nil || broadcast.To4() == nil {
 		return errors.New("tuya_local: v3.5 discovery requires IPv4 addresses")
 	}
@@ -298,6 +301,9 @@ func (l *DiscoveryListener) sendSolicitation(localIP, broadcast net.IP) error {
 		Control: func(network, address string, raw syscall.RawConn) error {
 			var socketErr error
 			if err := raw.Control(func(fd uintptr) {
+				if socketErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, interfaceName); socketErr != nil {
+					return
+				}
 				socketErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
 			}); err != nil {
 				return err
@@ -307,7 +313,7 @@ func (l *DiscoveryListener) sendSolicitation(localIP, broadcast net.IP) error {
 	}
 	packetConn, err := listenConfig.ListenPacket(context.Background(), "udp4", net.JoinHostPort(localIP.String(), "0"))
 	if err != nil {
-		return fmt.Errorf("bind discovery sender to %s: %w", localIP, err)
+		return fmt.Errorf("bind discovery sender to %s on %s: %w", localIP, interfaceName, err)
 	}
 	defer packetConn.Close()
 
