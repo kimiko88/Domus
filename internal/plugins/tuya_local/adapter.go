@@ -676,7 +676,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 				}
 				a.mu.Unlock()
 			} else {
-				return fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
+				return nil, fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
 			}
 		}
 	}
