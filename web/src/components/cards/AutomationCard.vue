@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
 import type { Automation } from '../../api/types'
 import { useAutomationsStore } from '../../stores/automations'
 import { useNotificationsStore } from '../../stores/notifications'
 import {
+const { t } = useI18n()
   Zap,
   Play,
   History,
