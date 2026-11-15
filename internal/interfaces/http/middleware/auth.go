@@ -112,6 +112,17 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 
 			path := strings.TrimSuffix(r.URL.Path, "/")
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
+			deviceCommand := strings.Contains(path, "/entities/") && strings.HasSuffix(path, "/command")
+			serviceCall := strings.Contains(path, "/services/")
+			if deviceCommand || serviceCall {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanControlDevices {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
 			presenceSelfService := hasSuffix("/presence/gps") ||
 				hasSuffix("/presence/room")
 			choreCompletion := strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete")
@@ -126,6 +137,53 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			}
 			if u.Role != user.RoleOperator && u.Role != user.RoleAdmin {
 				writeJSONError(w, http.StatusForbidden, "forbidden", "operator or admin role required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireDeviceControl allows authenticated members with the explicit device-control grant.
+func RequireDeviceControl() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !permissions.CanControlDevices {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireAutomationManagement checks the explicit automation-management grant.
+func RequireAutomationManagement() func(http.Handler) http.Handler {
+	return requirePermission(func(p *user.UserPermissions) bool { return p.CanManageAutomations }, "automation management permission required")
+}
+
+// RequireCameraView checks the explicit camera viewing grant.
+func RequireCameraView() func(http.Handler) http.Handler {
+	return requirePermission(func(p *user.UserPermissions) bool { return p.CanViewCameras }, "camera viewing permission required")
+}
+
+func requirePermission(check func(*user.UserPermissions) bool, message string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !check(permissions) {
+				writeJSONError(w, http.StatusForbidden, "forbidden", message)
 				return
 			}
 			next.ServeHTTP(w, r)
