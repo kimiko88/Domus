@@ -47,7 +47,9 @@ describe('Localization (i18n)', () => {
       ['devices', 'view', 'scanLanTitle'],
       ['shopping', 'view', 'receiptIntro'],
       ['chores', 'view', 'googleStep1'],
-      ['media', 'view', 'broadcastDesc']
+      ['media', 'view', 'broadcastDesc'],
+      ['dashboard', 'view', 'climateThermostat'],
+      ['dashboard', 'view', 'batteryLabel']
     ]
 
     for (const catalog of locales) {
