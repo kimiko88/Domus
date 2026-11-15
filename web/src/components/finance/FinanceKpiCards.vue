@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   TrendingUp,
   TrendingDown,
@@ -11,17 +12,13 @@ import {
 } from '@lucide/vue'
 import type { FinancialSummary } from '@/api/types'
 
+const { t, locale } = useI18n()
+
 const props = defineProps<{
   summary: FinancialSummary | null
   period: 'day' | 'week' | 'month' | 'year'
 }>()
 
-const periodLabels = {
-  day: 'oggi',
-  week: 'questa settimana',
-  month: 'questo mese',
-  year: 'quest\'anno'
-}
 
 const totalSpent = computed(() => props.summary?.total_spent ?? 0)
 const previousTotal = computed(() => props.summary?.previous_period_total ?? 0)
@@ -51,7 +48,7 @@ const fixedVsVar = computed(() => {
 })
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2,
@@ -61,11 +58,11 @@ function formatCurrency(val: number): string {
 </script>
 
 <template>
-  <div class="finance-kpis-grid" role="region" aria-label="Indicatori Finanziari Principali">
+  <div class="finance-kpis-grid" role="region" :aria-label="t('finance.kpis.region')">
     <!-- 1. Totale Speso -->
     <div class="kpi-card glass-panel">
       <div class="kpi-header">
-        <span class="kpi-title">Totale Speso</span>
+        <span class="kpi-title">{{ t('finance.kpis.totalSpent') }}</span>
         <div class="kpi-icon-badge primary">
           <Wallet :size="20" aria-hidden="true" />
         </div>
@@ -77,19 +74,19 @@ function formatCurrency(val: number): string {
         <span
           v-if="previousTotal > 0"
           :class="['kpi-trend-badge', percentageChange <= 0 ? 'trend-positive' : 'trend-negative']"
-          :title="percentageChange <= 0 ? 'Spesa ridotta rispetto al periodo precedente' : 'Spesa aumentata rispetto al periodo precedente'"
+          :title="percentageChange <= 0 ? t('finance.kpis.reduced') : t('finance.kpis.increased')"
         >
           <component :is="percentageChange <= 0 ? TrendingDown : TrendingUp" :size="14" aria-hidden="true" />
           <span>{{ Math.abs(percentageChange).toFixed(1) }}%</span>
         </span>
-        <span class="kpi-subtitle">vs periodo precedente</span>
+        <span class="kpi-subtitle">{{ t('finance.kpis.previous') }}</span>
       </div>
     </div>
 
     <!-- 2. Budget Mensile & Residuo -->
     <div class="kpi-card glass-panel" :class="{ 'card-alert': isOverBudget }">
       <div class="kpi-header">
-        <span class="kpi-title">Budget Mensile</span>
+        <span class="kpi-title">{{ t('finance.kpis.monthlyBudget') }}</span>
         <div class="kpi-icon-badge" :class="isOverBudget ? 'danger' : 'success'">
           <PiggyBank :size="20" aria-hidden="true" />
         </div>
@@ -110,8 +107,8 @@ function formatCurrency(val: number): string {
           />
         </div>
         <div class="budget-details">
-          <span>{{ budgetUsagePercent }}% speso</span>
-          <span>Max: {{ formatCurrency(monthlyBudget) }}</span>
+          <span>{{ budgetUsagePercent }}% {{ t('finance.kpis.spent') }}</span>
+          <span>{{ t('finance.kpis.max') }} {{ formatCurrency(monthlyBudget) }}</span>
         </div>
       </div>
     </div>
@@ -119,7 +116,7 @@ function formatCurrency(val: number): string {
     <!-- 3. Media Giornaliera / Settimanale -->
     <div class="kpi-card glass-panel">
       <div class="kpi-header">
-        <span class="kpi-title">Media Giornaliera</span>
+        <span class="kpi-title">{{ t('finance.kpis.dailyAverage') }}</span>
         <div class="kpi-icon-badge info">
           <Calendar :size="20" aria-hidden="true" />
         </div>
@@ -128,25 +125,25 @@ function formatCurrency(val: number): string {
         {{ formatCurrency(dailyAverage) }}
       </div>
       <div class="kpi-footer">
-        <span class="kpi-subtitle">Ritmo di spesa medio calcolato per {{ periodLabels[period] }}</span>
+        <span class="kpi-subtitle">{{ t('finance.kpis.averageFor', { period: t('finance.periods.' + period) }) }}</span>
       </div>
     </div>
 
     <!-- 4. Fisse vs Variabili -->
     <div class="kpi-card glass-panel">
       <div class="kpi-header">
-        <span class="kpi-title">Fisse vs Variabili</span>
+        <span class="kpi-title">{{ t('finance.kpis.fixedVsVariable') }}</span>
         <div class="kpi-icon-badge warning">
           <Layers :size="20" aria-hidden="true" />
         </div>
       </div>
       <div class="kpi-main-val split-val">
         <span class="fixed-num" :title="`Fisse: ${formatCurrency(fixedVsVar.fixed_amount)}`">
-          {{ Math.round(fixedVsVar.fixed_percentage) }}% Fisse
+          {{ Math.round(fixedVsVar.fixed_percentage) }}% {{ t('finance.kpis.fixed') }}
         </span>
         <span class="split-separator">/</span>
         <span class="var-num" :title="`Variabili: ${formatCurrency(fixedVsVar.variable_amount)}`">
-          {{ Math.round(fixedVsVar.variable_percentage) }}% Var
+          {{ Math.round(fixedVsVar.variable_percentage) }}% {{ t('finance.kpis.variableShort') }}
         </span>
       </div>
       <div class="kpi-footer">
@@ -155,8 +152,8 @@ function formatCurrency(val: number): string {
           <div class="split-fill-var" :style="{ width: `${fixedVsVar.variable_percentage}%` }" />
         </div>
         <div class="split-labels">
-          <span>Incomprimibili: {{ formatCurrency(fixedVsVar.fixed_amount) }}</span>
-          <span>Flessibili: {{ formatCurrency(fixedVsVar.variable_amount) }}</span>
+          <span>{{ t('finance.kpis.essential') }} {{ formatCurrency(fixedVsVar.fixed_amount) }}</span>
+          <span>{{ t('finance.kpis.flexible') }} {{ formatCurrency(fixedVsVar.variable_amount) }}</span>
         </div>
       </div>
     </div>
