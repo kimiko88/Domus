@@ -593,14 +593,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					eRouter.Get("/flow", advH.GetEnergyFlow)
 					eRouter.Get("/tariffs", advH.GetTariffs)
 					eRouter.Get("/dynamic-tariffs", advH.GetDynamicTariffs)
-					eRouter.Put("/flexible-loads", advH.UpdateFlexibleLoad)
+					eRouter.With(domusmw.RequireSettingsPermission()).Put("/flexible-loads", advH.UpdateFlexibleLoad)
 					eRouter.Post("/evaluate-tariffs", advH.EvaluateTariffs)
 					eRouter.Get("/bess/schedule", advH.GetBESSSchedule)
 					eRouter.Post("/bess/optimize", advH.OptimizeBESS)
-					eRouter.Put("/bess/config", advH.UpdateBESSConfig)
+					eRouter.With(domusmw.RequireSettingsPermission()).Put("/bess/config", advH.UpdateBESSConfig)
 					eRouter.Get("/wallbox", advH.GetWallboxStatus)
-					eRouter.Post("/wallbox/mode", advH.SetWallboxMode)
-					eRouter.Post("/wallbox/modulate", advH.CalculateOptimalWallboxCurrent)
+					eRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/wallbox/mode", advH.SetWallboxMode)
+					eRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/wallbox/modulate", advH.CalculateOptimalWallboxCurrent)
 					if srv.authService != nil {
 						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
 					} else {
@@ -609,10 +609,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					if srv.repos.UtilityMeters != nil {
 						umH := handlers.NewUtilityMeterHandler(srv.repos.UtilityMeters, srv.repos.Entities)
 						eRouter.Get("/utility-meters", umH.List)
-						eRouter.Post("/utility-meters", umH.Create)
+						eRouter.With(domusmw.RequireSettingsPermission()).Post("/utility-meters", umH.Create)
 						eRouter.Get("/utility-meters/{id}", umH.Get)
-						eRouter.Put("/utility-meters/{id}", umH.Update)
-						eRouter.Delete("/utility-meters/{id}", umH.Delete)
+						eRouter.With(domusmw.RequireSettingsPermission()).Put("/utility-meters/{id}", umH.Update)
+						eRouter.With(domusmw.RequireSettingsPermission()).Delete("/utility-meters/{id}", umH.Delete)
 						eRouter.Get("/multi-utility-summary", umH.Summary)
 					}
 				})
@@ -811,9 +811,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/schedules", func(sRouter chi.Router) {
 					sRouter.Get("/", ecoH.ListSchedules)
-					sRouter.Post("/", ecoH.CreateSchedule)
-					sRouter.Put("/{id}", ecoH.UpdateSchedule)
-					sRouter.Delete("/{id}", ecoH.DeleteSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", ecoH.CreateSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", ecoH.UpdateSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", ecoH.DeleteSchedule)
 				})
 
 				if srv.repos.WeeklySchedules != nil {
@@ -821,11 +821,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					weeklyH := handlers.NewWeeklyScheduleHandler(weeklySvc)
 					domainRouter.Route("/schedules/weekly", func(wRouter chi.Router) {
 						wRouter.Get("/", weeklyH.List)
-						wRouter.Post("/", weeklyH.Create)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", weeklyH.Create)
 						wRouter.Get("/{id}", weeklyH.Get)
-						wRouter.Put("/{id}", weeklyH.Update)
-						wRouter.Delete("/{id}", weeklyH.Delete)
-						wRouter.Post("/evaluate", weeklyH.Evaluate)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", weeklyH.Update)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", weeklyH.Delete)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/evaluate", weeklyH.Evaluate)
 					})
 				}
 
@@ -858,10 +858,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						climateH := handlers.NewClimateCompensatorHandler(climateSvc)
 						domainRouter.Route("/climate/compensations", func(cRouter chi.Router) {
 							cRouter.Get("/", climateH.List)
-							cRouter.Post("/", climateH.Create)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", climateH.Create)
 							cRouter.Get("/{id}", climateH.Get)
-							cRouter.Put("/{id}", climateH.Update)
-							cRouter.Delete("/{id}", climateH.Delete)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", climateH.Update)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", climateH.Delete)
 						})
 					}
 				}
@@ -881,10 +881,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
-					mRouter.Post("/players", ecoH.CreateMediaPlayer)
+					mRouter.With(domusmw.RequireSettingsPermission()).Post("/players", ecoH.CreateMediaPlayer)
 					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/volume", ecoH.SetPlayerVolume)
 					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/state", ecoH.SetPlayerState)
-					mRouter.Delete("/players/{id}", ecoH.DeleteMediaPlayer)
+					mRouter.With(domusmw.RequireSettingsPermission()).Delete("/players/{id}", ecoH.DeleteMediaPlayer)
 					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 
