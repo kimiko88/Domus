@@ -79,6 +79,6 @@ describe('FlowEditorView.vue', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
-    expect(wrapper.text()).toContain('JSON AST Compilato')
+    expect(wrapper.text()).toContain('JSON AST compilato')
   })
 })
