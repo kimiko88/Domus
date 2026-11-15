@@ -690,7 +690,7 @@
     "success": "Inscription réussie ! Bienvenue sur Domus.",
     "backToLogin": "Retour à la Connexion",
     "usernamePlaceholder": "ex. : jean_dupont",
-    "emailPlaceholder": "ex. : jean@exemple.fr"
+    "emailPlaceholder": "ex. : jean{'@'}exemple.fr"
   },
   "energy": {
     "title": "Surveillance Énergétique & Flux Solaire",
