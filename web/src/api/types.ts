@@ -1,5 +1,18 @@
 export type UserRole = 'admin' | 'operator' | 'viewer' | 'guest' | 'kid'
 
+export interface UserPermissions {
+  user_id?: string
+  role: UserRole
+  allowed_area_ids: string[] | null
+  allowed_entity_ids: string[] | null
+  allowed_dashboard_ids: string[] | null
+  allowed_views: string[] | null
+  can_control_devices: boolean
+  can_manage_automations: boolean
+  can_manage_settings: boolean
+  can_view_cameras: boolean
+}
+
 export interface User {
   id: string
   username: string
@@ -12,6 +25,7 @@ export interface User {
   allowed_views?: string[]
   allowed_area_ids?: string[]
   allowed_entity_ids?: string[]
+  permissions?: UserPermissions
   created_at: string
   updated_at: string
 }
@@ -292,6 +306,7 @@ export interface FamilyMember {
   guest_expires_at?: string
   pin_code?: string
   kiosk_mode?: boolean
+  permissions?: UserPermissions
   created_at: string
 }
 
