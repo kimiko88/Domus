@@ -308,7 +308,27 @@
     "deleteError": "Unable to delete automation",
     "emptyTitle": "No automations found",
     "emptyDesc": "Create your first automation to control lights or send commands when events occur.",
-    "noResults": "No results match your search."
+    "noResults": "No results match your search.",
+    "view": {
+      "confirmDeleteWebhook": "Are you sure you want to delete webhook \"{name}\"?",
+      "nodeEditorTitle": "Open visual node editor",
+      "nodeEditorButton": "Node Editor",
+      "webhookTitle": "Inbound Webhooks",
+      "webhookSubtitle": "Receive HMAC-protected HTTP payloads from IFTTT, n8n, OwnTracks or external sensors to trigger events.",
+      "newWebhook": "New Webhook",
+      "webhookEmpty": "No webhooks configured. Create an endpoint to securely receive external requests.",
+      "webhookCopied": "Copied!",
+      "copyWebhookUrl": "Copy Webhook URL",
+      "newWebhookTitle": "New Inbound Webhook",
+      "webhookName": "Webhook name",
+      "webhookNamePlaceholder": "e.g. IFTTT Arrive Home, OwnTracks GPS",
+      "secretToken": "HMAC secret token (optional, for X-Domus-Signature validation)",
+      "secretPlaceholder": "e.g. secret_my_token_123",
+      "allowedHttpMethod": "Allowed HTTP method",
+      "postStandard": "POST (standard JSON payload)",
+      "getQuery": "GET (query string parameters)",
+      "createWebhook": "Create Webhook"
+    }
   },
   "scenes": {
     "title": "Scenes & Presets",
