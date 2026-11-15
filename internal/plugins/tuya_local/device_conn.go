@@ -125,7 +125,7 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 	if err != nil {
 		return nil, err
 	}
-	waiter := &commandWaiter{sequence: seq, command: CmdControl, expected: cloneDPS(dps), ack: make(chan error, 1), confirmed: make(chan map[string]any, 1)}
+	waiter := &commandWaiter{sequence: seq, command: CmdControl, expected: cloneDPS(dps), ack: make(chan error, 1), reported: make(chan map[string]any, 1), confirmed: make(chan map[string]any, 1)}
 	c.pendingMu.Lock()
 	c.pending = waiter
 	c.pendingMu.Unlock()
@@ -160,6 +160,7 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 	timer := time.NewTimer(5*time.Second)
 	defer timer.Stop()
 	ackReceived := false
+	var reported map[string]any
 	var confirmed map[string]any
 	for !ackReceived || confirmed == nil {
 		select {
@@ -168,13 +169,19 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 				return nil, ackErr
 			}
 			ackReceived = true
+		case status := <-waiter.reported:
+			reported = status
 		case status := <-waiter.confirmed:
+			reported = status
 			confirmed = status
 		case <-ctx.Done():
-			return nil, fmt.Errorf("tuya: command outcome unconfirmed: %w", ctx.Err())
+			return reported, fmt.Errorf("tuya: command outcome unconfirmed: %w", ctx.Err())
 		case <-timer.C:
 			if !ackReceived {
-				return nil, errors.New("tuya: device acknowledgement timeout; command delivery is unconfirmed")
+				return reported, errors.New("tuya: device acknowledgement timeout; command delivery is unconfirmed")
+			}
+			if reported != nil {
+				return reported, fmt.Errorf("tuya: device reported DPS state %v, which does not match requested values %v", reported, dps)
 			}
 			return nil, errors.New("tuya: device acknowledged the command but did not report the requested DPS state")
 		}
@@ -188,6 +195,15 @@ func cloneDPS(dps map[string]any) map[string]any {
 		copy[key] = value
 	}
 	return copy
+}
+
+func dpsContainsKeys(expected, actual map[string]any) bool {
+	for key := range expected {
+		if _, ok := actual[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func dpsMatch(expected, actual map[string]any) bool {
@@ -352,10 +368,16 @@ func (c *DeviceClient) handleResponsePacket(packet *Packet) {
 					}
 			}
 		}
-		if len(dps) > 0 && dpsMatch(waiter.expected, dps) {
+		if len(dps) > 0 && dpsContainsKeys(waiter.expected, dps) {
 			select {
-			case waiter.confirmed <- cloneDPS(dps):
+			case waiter.reported <- cloneDPS(dps):
 			default:
+			}
+			if dpsMatch(waiter.expected, dps) {
+				select {
+				case waiter.confirmed <- cloneDPS(dps):
+				default:
+				}
 			}
 		}
 	}
