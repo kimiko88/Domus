@@ -1161,7 +1161,7 @@ onMounted(() => {
                 <Cpu :size="20" />
               </div>
               <div class="host-meta">
-                <span class="host-vendor">{{ host.vendor || 'Generic LAN Host' }}</span>
+                <span class="host-vendor">{{ host.vendor || t('integrations.view.genericLanHost') }}</span>
                 <span class="host-ip">{{ host.ip }}</span>
               </div>
               <div v-if="host.mac && isolatedMacs.includes(host.mac.toLowerCase())" class="badge-quarantined">
@@ -1210,7 +1210,7 @@ onMounted(() => {
                 @click="unblockDevice(host.mac, host.ip)"
               >
                 <Unlock :size="14" />
-                <span>Sblocca</span>
+                <span>{{ t('integrations.view.unblock') }}</span>
               </button>
               <button
                 v-else
@@ -1385,7 +1385,7 @@ onMounted(() => {
             <strong>{{ t('integrations.view.smartLifeDevices') }}</strong>
             <span class="tuya-device-count">{{ tuyaCloudDevices.length }} totali · {{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline</span>
           </div>
-          <span class="tuya-device-count">{{ tuyaSelectedCount }} selezionati per LocalTuya</span>
+          <span class="tuya-device-count">{{ t('integrations.view.selectedForLocalTuya', { count: tuyaSelectedCount }) }}</span>
         </div>
         <div class="tuya-device-filter-row">
           <label class="tuya-device-search">
@@ -1393,11 +1393,11 @@ onMounted(() => {
             <input id="tuya-device-search" v-model="tuyaSearchQuery" type="search" :placeholder="t('integrations.view.searchDevicesPlaceholder')" />
           </label>
           <div class="tuya-device-filters" role="group" :aria-label="t('integrations.view.filterTuyaDevices')">
-            <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">Tutti ({{ tuyaCloudDevices.length }})</button>
-            <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">Online ({{ tuyaOnlineCount }})</button>
-            <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">Offline ({{ tuyaOfflineCount }})</button>
-            <button type="button" data-filter="selected" :aria-pressed="tuyaDeviceFilter === 'selected'" :class="{ active: tuyaDeviceFilter === 'selected' }" @click="tuyaDeviceFilter = 'selected'">Selezionati ({{ tuyaSelectedCount }})</button>
-            <button type="button" data-filter="unselected" :aria-pressed="tuyaDeviceFilter === 'unselected'" :class="{ active: tuyaDeviceFilter === 'unselected' }" @click="tuyaDeviceFilter = 'unselected'">Non selezionati ({{ tuyaUnselectedCount }})</button>
+            <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">{{ t('integrations.view.filterAll') }} ({{ tuyaCloudDevices.length }})</button>
+            <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">{{ t('integrations.view.filterOnline') }} ({{ tuyaOnlineCount }})</button>
+            <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">{{ t('integrations.view.filterOffline') }} ({{ tuyaOfflineCount }})</button>
+            <button type="button" data-filter="selected" :aria-pressed="tuyaDeviceFilter === 'selected'" :class="{ active: tuyaDeviceFilter === 'selected' }" @click="tuyaDeviceFilter = 'selected'">{{ t('integrations.view.filterSelected') }} ({{ tuyaSelectedCount }})</button>
+            <button type="button" data-filter="unselected" :aria-pressed="tuyaDeviceFilter === 'unselected'" :class="{ active: tuyaDeviceFilter === 'unselected' }" @click="tuyaDeviceFilter = 'unselected'">{{ t('integrations.view.filterUnselected') }} ({{ tuyaUnselectedCount }})</button>
           </div>
         </div>
         <div class="tuya-device-bulk-actions">
@@ -1486,7 +1486,7 @@ onMounted(() => {
                   v-else-if="fn.type.toLowerCase() !== 'boolean'"
                   v-model="tuyaFunctionInputs[tuyaFunctionKey(device.id, fn.code)]"
                   type="text"
-                  :aria-label="`Valore per ${fn.name || fn.code}`"
+                  :aria-label="t('integrations.view.valueFor', { name: fn.name || fn.code })"
                 />
                 <button type="button" class="btn-host-probe" :disabled="tuyaFunctionBusy === tuyaFunctionKey(device.id, fn.code) || (!device.online && !device.local_active)" @click="executeTuyaFunction(device, fn)">
                   {{ tuyaFunctionBusy === tuyaFunctionKey(device.id, fn.code) ? 'Invio…' : fn.type.toLowerCase() === 'boolean' ? 'Inverti' : 'Invia' }}
