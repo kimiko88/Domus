@@ -64,27 +64,27 @@ const canControlDevices = ref(false)
 const canManageAutomations = ref(false)
 const canViewCameras = ref(false)
 const permissionViews = [
-  { path: '/', label: 'Dashboard' },
-  { path: '/areas', label: 'Stanze' },
-  { path: '/devices', label: 'Dispositivi' },
-  { path: '/integrations', label: 'Integrazioni' },
-  { path: '/energy', label: 'Energia' },
-  { path: '/climate/predictive', label: 'Clima predittivo' },
-  { path: '/automations', label: 'Automazioni' },
-  { path: '/scenes', label: 'Scene' },
-  { path: '/schedules', label: 'Programmazione' },
-  { path: '/history', label: 'Storico' },
-  { path: '/cameras', label: 'Telecamere' },
-  { path: '/media', label: 'Media' },
-  { path: '/chores', label: 'Faccende' },
-  { path: '/shopping', label: 'Lista spesa' },
-  { path: '/pantry', label: 'Dispensa' },
-  { path: '/medicines', label: 'Farmaci' },
-  { path: '/finance', label: 'Finanze' },
-  { path: '/family', label: 'Famiglia' },
-  { path: '/custom-dashboards', label: 'Dashboard personalizzate' },
-  { path: '/guide', label: 'Guida' },
-  { path: '/logbook', label: 'Registro eventi' }
+  { path: '/', labelKey: 'nav.dashboard' },
+  { path: '/areas', labelKey: 'nav.areas' },
+  { path: '/devices', labelKey: 'nav.devices' },
+  { path: '/integrations', labelKey: 'nav.integrations' },
+  { path: '/energy', labelKey: 'nav.energy' },
+  { path: '/climate/predictive', labelKey: 'nav.predictiveClimate' },
+  { path: '/automations', labelKey: 'nav.automations' },
+  { path: '/scenes', labelKey: 'nav.scenes' },
+  { path: '/schedules', labelKey: 'nav.schedules' },
+  { path: '/history', labelKey: 'nav.history' },
+  { path: '/cameras', labelKey: 'nav.cameras' },
+  { path: '/media', labelKey: 'nav.media' },
+  { path: '/chores', labelKey: 'nav.chores' },
+  { path: '/shopping', labelKey: 'nav.shopping' },
+  { path: '/pantry', labelKey: 'nav.pantry' },
+  { path: '/medicines', labelKey: 'nav.medicines' },
+  { path: '/finance', labelKey: 'nav.finance' },
+  { path: '/family', labelKey: 'nav.family' },
+  { path: '/custom-dashboards', labelKey: 'nav.customDashboards' },
+  { path: '/guide', labelKey: 'nav.guide' },
+  { path: '/logbook', labelKey: 'nav.logbook' }
 ]
 
 async function loadData() {
@@ -815,7 +815,7 @@ onMounted(() => {
             <div v-if="!allViews" class="permission-options permission-options-grid">
               <label v-for="view in permissionViews" :key="view.path" class="permission-check">
                 <input v-model="selectedViews" type="checkbox" :value="view.path" />
-                <span>{{ view.label }}</span>
+                <span>{{ t(view.labelKey) }}</span>
               </label>
             </div>
           </section>
