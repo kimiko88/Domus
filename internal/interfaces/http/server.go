@@ -413,10 +413,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					intRouter.Get("/", integrationH.List)
 					intRouter.Get("/catalog", integrationH.GetCatalog)
 					intRouter.Get("/discovery/devices", integrationH.ListDiscovered)
-					intRouter.Post("/discovery/scan", integrationH.Scan)
-					intRouter.Post("/discovery/pair", integrationH.Pair)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/discovery/scan", integrationH.Scan)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/discovery/pair", integrationH.Pair)
 					intRouter.Get("/{id}", integrationH.GetByID)
-					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/{id}/reconnect", integrationH.Reconnect)
 				})
 				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
 				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
@@ -787,14 +787,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/tags", func(tRouter chi.Router) {
 					tRouter.Get("/", ecoH.ListTags)
-					tRouter.Post("/", ecoH.CreateTag)
-					tRouter.Post("/{id}/scan", ecoH.ScanTag)
+					tRouter.With(domusmw.RequireSettingsPermission()).Post("/", ecoH.CreateTag)
+					tRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/scan", ecoH.ScanTag)
 				})
 
 				domainRouter.Route("/notifications/actionable", func(nRouter chi.Router) {
 					nRouter.Get("/", ecoH.ListActionableNotifications)
-					nRouter.Post("/", ecoH.CreateActionableNotification)
-					nRouter.Post("/actions/{action_id}", ecoH.HandleNotificationAction)
+					nRouter.With(domusmw.RequireSettingsPermission()).Post("/", ecoH.CreateActionableNotification)
+					nRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/actions/{action_id}", ecoH.HandleNotificationAction)
 				})
 				domainRouter.Get("/notifications", ecoH.ListActionableNotifications)
 
@@ -805,7 +805,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						pRouter.Post("/tokens", pushH.RegisterToken)
 						pRouter.Delete("/tokens", pushH.RevokeToken)
 						pRouter.Get("/tokens", pushH.ListTokens)
-						pRouter.Post("/send", pushH.Send)
+						pRouter.With(domusmw.RequireSettingsPermission()).Post("/send", pushH.Send)
 					})
 				}
 
