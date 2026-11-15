@@ -662,8 +662,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					pRouter.Post("/room", advH.UpdateRoomPresence)
 					pRouter.Get("/status", advH.GetPresenceStatus)
 					pRouter.Get("/vacation", advH.GetVacationMode)
-					pRouter.Post("/vacation", advH.SetVacationMode)
-					pRouter.Post("/vacation/actions", advH.RegisterVacationAction)
+					pRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/vacation", advH.SetVacationMode)
+					pRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/vacation/actions", advH.RegisterVacationAction)
 					pRouter.Post("/commute", advH.UpdateCommuteLocation)
 					pRouter.Get("/commute/{userId}", advH.GetCommuteStatus)
 					if zoneH != nil {
