@@ -552,5 +552,146 @@ describe('IntegrationsView.vue', () => {
     )
   })
 
+
+  it('inverts active Tuya Boolean functions when Cloud reports string or numeric values', async () => {
+    const cloudDevices = [{
+      id: 'tuya-eco-1',
+      name: 'Termostato ECO',
+      online: true,
+      status: [{ code: 'eco', value: 'true' }]
+    }]
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-eco-1/functions')) {
+        return {
+          functions: [{ code: 'eco', name: 'Eco', type: 'Boolean', values: '{}' }]
+        }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    expect(functionsButton).toBeDefined()
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const invertButton = wrapper.findAll('button').find(button => button.text() === 'Inverti')
+    expect(invertButton).toBeDefined()
+    await invertButton!.trigger('click')
+
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-eco-1/functions')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-eco-1/commands',
+      { commands: [{ code: 'eco', value: false }] }
+    )
+  })
+
+  it('does not guess a Tuya Boolean target when the current datapoint state is missing', async () => {
+    const cloudDevices = [{
+      id: 'tuya-eco-unknown',
+      name: 'Termostato ECO',
+      online: true,
+      status: []
+    }]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-eco-unknown/functions')) {
+        return {
+          functions: [{ code: 'eco', name: 'Eco', type: 'Boolean', values: '{}' }]
+        }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const invertButton = wrapper.findAll('button').find(button => button.text() === 'Inverti')
+    await invertButton!.trigger('click')
+    expect(postSpy).not.toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-eco-unknown/commands',
+      expect.anything()
+    )
+  })
+
+  it('keeps upper temperature functions on their original Tuya datapoint instead of mapping them to local DP2', async () => {
+    const cloudDevices = [{
+      id: 'tuya-upper-temp',
+      name: 'Termostato locale',
+      category: 'wk',
+      online: true,
+      local_configured: true,
+      local_active: true,
+      local_ip: '192.168.1.90',
+      status: [{ code: 'upper_temp', value: 300 }]
+    }]
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-upper-temp/functions')) {
+        return {
+          functions: [{
+            code: 'upper_temp',
+            name: 'Temperatura massima',
+            type: 'Integer',
+            values: '{"min":50,"max":350,"scale":1}'
+          }]
+        }
+      }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const functionsButton = wrapper.findAll('button').find(button => button.text().includes('Comandi disponibili via API'))
+    await functionsButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const valueInput = wrapper.find('input[aria-label="Valore per Temperatura massima"]')
+    await valueInput.setValue('28')
+    const executeButton = wrapper.findAll('button').find(button => button.text() === 'Invia')
+    await executeButton!.trigger('click')
+
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/tuya-upper-temp/commands',
+      { commands: [{ code: 'upper_temp', value: 280 }] }
+    )
+    expect(postSpy).not.toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-local/devices/tuya-upper-temp/command',
+      expect.anything()
+    )
+  })
+
 })
 
