@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import type { Entity } from '../../api/types'
 import { useEntityCommand } from '../../composables/useEntityCommand'
 import { Lightbulb } from '@lucide/vue'
@@ -60,7 +62,7 @@ async function handleBrightnessChange() {
         :disabled="isExecuting"
         role="switch"
         :aria-checked="isOn"
-        :aria-label="isOn ? `Spegni ${entity.name}` : `Accendi ${entity.name}`"
+        :aria-label="isOn ? t('common.entityCard.turnOff', { name: entity.name }) : t('common.entityCard.turnOn', { name: entity.name })"
         @click="handleToggle"
       >
         <span class="toggle-indicator" />
@@ -76,7 +78,7 @@ async function handleBrightnessChange() {
         max="100"
         class="brightness-slider"
         role="slider"
-        aria-label="Luminosità"
+        :aria-label="t('common.entityCard.brightness')"
         aria-valuemin="1"
         aria-valuemax="100"
         :aria-valuenow="sliderValue"
