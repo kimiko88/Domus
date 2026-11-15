@@ -6,7 +6,6 @@ import { useScenesStore } from '../../stores/scenes'
 import { useNotificationsStore } from '../../stores/notifications'
 import BaseButton from '../ui/BaseButton.vue'
 import {
-const { t } = useI18n()
   Clapperboard,
   Play,
   Pencil,
@@ -17,6 +16,8 @@ const { t } = useI18n()
   Coffee,
   Sparkles
 } from '@lucide/vue'
+
+const { t } = useI18n()
 
 interface Props {
   scene: Scene
