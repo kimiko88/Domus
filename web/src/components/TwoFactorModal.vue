@@ -8,20 +8,20 @@
   >
     <div class="modal-card">
       <header class="modal-header">
-        <h2 id="modal-2fa-title">Autenticazione a Due Fattori (2FA / TOTP)</h2>
-        <button class="btn-close" @click="close" aria-label="Chiudi finestra modale">✕</button>
+        <h2 id="modal-2fa-title">{{ t('common.twoFactor.title') }}</h2>
+        <button class="btn-close" @click="close" :aria-label="t('common.twoFactor.close')">✕</button>
       </header>
 
       <!-- Step 1: Scan QR & Secret -->
       <section v-if="step === 'setup'" class="modal-body">
         <p class="step-desc">
-          1. Scansiona questo codice QR con la tua app di autenticazione (Google Authenticator, Apple Password, 1Password, Authy).
+          {{ t('common.twoFactor.scanQr') }}
         </p>
 
         <div class="qr-container">
           <!-- Render visual OTP code / QR block -->
-          <div class="qr-preview" aria-label="Codice QR di configurazione">
-            <svg class="qr-svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Simbolo QR">
+          <div class="qr-preview" :aria-label="t('common.twoFactor.qrConfig')">
+            <svg class="qr-svg" viewBox="0 0 120 120" width="120" height="120" role="img" :aria-label="t('common.twoFactor.qrSymbol')">
               <rect width="120" height="120" fill="#ffffff" rx="6" />
               <!-- Mock QR corner squares -->
               <rect x="10" y="10" width="30" height="30" fill="#000000" />
@@ -48,16 +48,16 @@
           </div>
 
           <div class="secret-box">
-            <span class="secret-label">Chiave manuale (Base32):</span>
+            <span class="secret-label">{{ t('common.twoFactor.manualKey') }}</span>
             <code class="secret-code">{{ secret }}</code>
             <button type="button" class="btn btn-sm btn-secondary" @click="copySecret">
-              {{ copied ? 'Copiato!' : 'Copia Chiave' }}
+              {{ copied ? t('common.twoFactor.copied') : t('common.twoFactor.copyKey') }}
             </button>
           </div>
         </div>
 
         <form @submit.prevent="verifyCode" class="verify-form">
-          <label for="totp-code">2. Inserisci il codice a 6 cifre generato dall'app:</label>
+          <label for="totp-code">{{ t('common.twoFactor.enterCode') }}</label>
           <div class="verify-input-group">
             <input
               id="totp-code"
@@ -69,12 +69,12 @@
               pattern="[0-9]*"
               autocomplete="one-time-code"
               required
-              placeholder="123456"
+              :placeholder="t('common.twoFactor.codePlaceholder')"
               class="input-totp font-mono"
             />
             <button type="submit" class="btn btn-primary" :disabled="verifying || totpCode.length < 6">
-              <span v-if="verifying">Verifica...</span>
-              <span v-else>Verifica & Attiva</span>
+              <span v-if="verifying">{{ t('common.twoFactor.verifying') }}</span>
+              <span v-else>{{ t('common.twoFactor.verifyEnable') }}</span>
             </button>
           </div>
           <p v-if="verifyError" class="error-msg" role="alert">{{ verifyError }}</p>
@@ -84,9 +84,9 @@
       <!-- Step 2: Backup Codes Success -->
       <section v-else-if="step === 'success'" class="modal-body success-body">
         <div class="success-icon" aria-hidden="true">🎉</div>
-        <h3>2FA Attivata con Successo!</h3>
+        <h3>{{ t('common.twoFactor.activated') }}</h3>
         <p class="backup-desc">
-          Salva questi codici di backup in un luogo sicuro. Ciascun codice può essere utilizzato una sola volta per accedere se perdi il tuo dispositivo:
+          {{ t('common.twoFactor.backupDescription') }}
         </p>
 
         <div class="backup-codes-grid">
@@ -95,10 +95,10 @@
 
         <div class="backup-actions">
           <button type="button" class="btn btn-secondary" @click="downloadBackupCodes">
-            💾 Scarica Codici (.txt)
+            💾 {{ t('common.twoFactor.downloadCodes') }}
           </button>
           <button type="button" class="btn btn-primary" @click="close">
-            Ho salvato i codici, Chiudi
+            {{ t('common.twoFactor.savedClose') }}
           </button>
         </div>
       </section>
@@ -108,6 +108,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t, locale } = useI18n()
 import { apiClient } from '../api/client'
 
 const props = defineProps<{
@@ -150,16 +152,16 @@ async function verifyCode() {
     step.value = 'success'
     emit('enabled')
   } catch (err: any) {
-    verifyError.value = err?.message || 'Codice TOTP non valido. Riprova.'
+    verifyError.value = err?.message || t('common.twoFactor.invalidCode')
   } finally {
     verifying.value = false
   }
 }
 
 function downloadBackupCodes() {
-  const content = `=== CODICI DI BACKUP DOMUS 2FA ===\nData: ${new Date().toISOString()}\n\n` +
+  const content = `=== ${t('common.twoFactor.backupFileTitle')} ===\n${t('common.twoFactor.backupFileDate')}: ${new Date().toLocaleString(locale.value)}\n\n` +
     backupCodes.value.join('\n') +
-    '\n\nCustodisci questi codici con cura.'
+    `\n\n${t('common.twoFactor.backupFileWarning')}`
   const blob = new Blob([content], { type: 'text/plain' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
