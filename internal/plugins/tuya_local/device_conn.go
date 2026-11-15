@@ -20,6 +20,7 @@ type commandWaiter struct {
 	command uint32
 	expected map[string]any
 	ack chan error
+	reported chan map[string]any
 	confirmed chan map[string]any
 }
 
