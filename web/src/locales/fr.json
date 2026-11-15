@@ -420,7 +420,17 @@
       "valueFor": "Valeur pour {name}",
       "noFilterMatches": "Aucun appareil ne correspond aux filtres",
       "adjustSearchFilters": "Modifiez la recherche ou essayez un autre filtre. La sélection actuelle sera conservée.",
-      "resetFilters": "Réinitialiser les filtres"
+      "resetFilters": "Réinitialiser les filtres",
+      "iot": "Appareils IoT",
+      "unlockButton": "Déverrouiller",
+      "filterAll": "Tous ({count})",
+      "filterOnline": "En ligne ({count})",
+      "filterOffline": "Hors ligne ({count})",
+      "filterSelected": "Sélectionnés ({count})",
+      "filterUnselected": "Non sélectionnés ({count})",
+      "clientId": "ID client:",
+      "smartLifeUidLabel": "UID Smart Life:",
+      "endpointLabel": "Point de terminaison:"
     }
   },
   "history": {
