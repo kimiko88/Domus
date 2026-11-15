@@ -55,7 +55,15 @@ describe('Localization (i18n)', () => {
       ['dashboard', 'view', 'defaultProfileNight'],
       ['dashboard', 'view', 'roomLivingRoom'],
       ['dashboard', 'view', 'roomKitchen'],
-      ['dashboard', 'view', 'roomBedroom']
+      ['dashboard', 'view', 'roomBedroom'],
+      ['integrations', 'view', 'genericLanHost'],
+      ['integrations', 'view', 'selectedForLocalTuya'],
+      ['integrations', 'view', 'filterAll'],
+      ['integrations', 'view', 'filterOnline'],
+      ['integrations', 'view', 'filterOffline'],
+      ['integrations', 'view', 'filterSelected'],
+      ['integrations', 'view', 'filterUnselected'],
+      ['integrations', 'view', 'unblock']
     ]
 
     for (const catalog of locales) {
