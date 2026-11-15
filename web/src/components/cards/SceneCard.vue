@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import type { Scene } from '../../api/types'
 import { useScenesStore } from '../../stores/scenes'
 import { useNotificationsStore } from '../../stores/notifications'
@@ -74,22 +76,22 @@ async function handleApply() {
         @click="handleApply"
       >
         <Play :size="14" class="play-icon" />
-        <span>Attiva</span>
+        <span>{{ t('common.sceneCard.activate') }}</span>
       </BaseButton>
 
       <div class="secondary-actions">
         <button
           class="btn-icon btn-edit"
-          title="Modifica scena"
-          aria-label="Edit scene"
+          :title="t('common.sceneCard.edit')"
+          :aria-label="t('common.sceneCard.edit')"
           @click="emit('edit', scene)"
         >
           <Pencil :size="15" />
         </button>
         <button
           class="btn-icon btn-delete"
-          title="Elimina scena"
-          aria-label="Delete scene"
+          :title="t('common.sceneCard.delete')"
+          :aria-label="t('common.sceneCard.delete')"
           @click="emit('delete', scene)"
         >
           <Trash2 :size="15" />
