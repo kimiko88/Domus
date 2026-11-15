@@ -340,8 +340,8 @@ onUnmounted(() => {
       <div class="dash-title-group">
         <LayoutDashboard :size="24" class="text-primary" />
         <div>
-          <h1 class="dash-title">Dashboard Personalizzata</h1>
-          <p class="dash-subtitle">Widget interattivi a griglia ottimizzati per wall tablet e kiosk mode</p>
+          <h1 class="dash-title">{{ t('dashboard.view.customTitle') }}</h1>
+          <p class="dash-subtitle">{{ t('dashboard.view.customSubtitle') }}</p>
         </div>
       </div>
 
@@ -352,7 +352,7 @@ onUnmounted(() => {
           name="profile_select"
           v-model="currentDashboardId"
           class="profile-select"
-          aria-label="Seleziona Profilo Tablet"
+          :aria-label="t('dashboard.view.selectTabletProfile')"
           @change="switchDashboardProfile"
         >
           <option v-for="d in dashboards" :key="d.id" :value="d.id">
@@ -360,20 +360,20 @@ onUnmounted(() => {
           </option>
         </select>
 
-        <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" title="Configura Modalità Kiosk & Screensaver">
+        <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" :title="t('dashboard.view.configureKiosk')">
           <Settings2 :size="18" />
-          <span>Configura Kiosk</span>
+          <span>{{ t('dashboard.view.configureKioskButton') }}</span>
         </button>
 
-        <button class="kiosk-toggle-btn" @click="toggleFullscreen" title="Avvia Modalità Tablet a Parete">
+        <button class="kiosk-toggle-btn" @click="toggleFullscreen" :title="t('dashboard.view.startWallTablet')">
           <Maximize2 :size="18" />
-          <span>Kiosk Mode</span>
+          <span>{{ t('dashboard.view.kioskMode') }}</span>
         </button>
       </div>
     </header>
 
     <!-- Floating Exit Kiosk Button (only visible in kiosk) -->
-    <button v-if="isKioskMode && !showScreensaver" class="exit-kiosk-fab" @click="attemptExitKiosk" title="Esci da Kiosk">
+    <button v-if="isKioskMode && !showScreensaver" class="exit-kiosk-fab" @click="attemptExitKiosk" :title="t('dashboard.view.exitKiosk')">
       <Minimize2 :size="20" />
     </button>
 
@@ -386,7 +386,7 @@ onUnmounted(() => {
             <Flame :size="20" class="text-warning animate-pulse" />
             <span class="card-title">Clima & Termostato {{ activeRoomName }}</span>
           </div>
-          <span class="badge heating-badge">Riscaldamento Attivo</span>
+          <span class="badge heating-badge">{{ t('dashboard.view.heatingActive') }}</span>
         </div>
 
         <div class="dial-container">
@@ -427,10 +427,10 @@ onUnmounted(() => {
 
           <!-- Inside Dial Values -->
           <div class="dial-content">
-            <span class="dial-current-label">Attuale</span>
+            <span class="dial-current-label">{{ t('dashboard.view.current') }}</span>
             <span class="dial-current-val">{{ currentTemp.toFixed(1) }}°C</span>
             <div class="dial-target-row">
-              <span class="dial-target-label">Target:</span>
+              <span class="dial-target-label">{{ t('dashboard.view.target') }}:</span>
               <span class="dial-target-val">{{ targetTemp.toFixed(1) }}°C</span>
             </div>
           </div>
@@ -448,7 +448,7 @@ onUnmounted(() => {
         <div class="card-header">
           <div class="header-left">
             <TrendingUp :size="20" class="text-info" />
-            <span class="card-title">Temperatura Salotto (Trend 6h)</span>
+            <span class="card-title">{{ t('dashboard.view.livingRoomTemperature') }}</span>
           </div>
           <span class="spark-val">{{ currentTemp }}°C</span>
         </div>
@@ -473,9 +473,9 @@ onUnmounted(() => {
         </div>
 
         <div class="spark-footer">
-          <span>Min: 19.2°C</span>
-          <span class="text-success">In aumento (+0.4°C/h)</span>
-          <span>Max: 21.4°C</span>
+          <span>{{ t('dashboard.view.minimumTemperature', { value: '19.2°C' }) }}</span>
+          <span class="text-success">{{ t('dashboard.view.risingTemperature', { value: '+0.4°C/h' }) }}</span>
+          <span>{{ t('dashboard.view.maximumTemperature', { value: '21.4°C' }) }}</span>
         </div>
       </section>
 
@@ -484,16 +484,16 @@ onUnmounted(() => {
         <div class="card-header">
           <div class="header-left">
             <Zap :size="20" class="text-warning" />
-            <span class="card-title">Flusso Energetico Istantaneo</span>
+            <span class="card-title">{{ t('dashboard.view.instantEnergyFlow') }}</span>
           </div>
-          <span class="text-success badge">Autoconsumo 100%</span>
+          <span class="text-success badge">{{ t('dashboard.view.selfConsumption') }}</span>
         </div>
 
         <div class="vectors-row">
           <div class="vector-node solar">
             <Sun :size="24" class="text-warning animate-spin-slow" />
             <span class="v-val">{{ solarWatts }} W</span>
-            <span class="v-label">Solare</span>
+            <span class="v-label">{{ t('dashboard.view.solar') }}</span>
           </div>
 
           <div class="vector-node battery">
@@ -505,13 +505,13 @@ onUnmounted(() => {
           <div class="vector-node grid">
             <Zap :size="24" class="text-primary" />
             <span class="v-val">{{ Math.abs(gridWatts) }} W</span>
-            <span class="v-label">Immissione</span>
+            <span class="v-label">{{ t('dashboard.view.feedIn') }}</span>
           </div>
 
           <div class="vector-node house">
             <Home :size="24" class="text-success" />
             <span class="v-val">{{ houseWatts }} W</span>
-            <span class="v-label">Casa</span>
+            <span class="v-label">{{ t('dashboard.view.home') }}</span>
           </div>
         </div>
       </section>
@@ -527,14 +527,14 @@ onUnmounted(() => {
           <div v-if="kioskConfig.showWeather" class="screensaver-weather">
             <CloudSun :size="36" class="text-warning" />
             <div class="weather-meta">
-              <span class="temp">22°C Soleggiato</span>
-              <span class="desc">Qualità Aria: Ottima (12 µg/m³)</span>
+              <span class="temp">{{ t('dashboard.view.sunnyWeather', { temperature: '22°C' }) }}</span>
+              <span class="desc">{{ t('dashboard.view.airQuality', { quality: t('dashboard.view.excellent'), value: '12 µg/m³' }) }}</span>
             </div>
           </div>
 
           <div class="screensaver-hint">
             <Sparkles :size="16" />
-            <span>Tocca lo schermo o avvicinati per attivare Domus</span>
+            <span>{{ t('dashboard.view.activateDomusHint') }}</span>
           </div>
         </div>
       </div>
@@ -546,65 +546,65 @@ onUnmounted(() => {
         <div class="modal-header">
           <div class="header-left">
             <Tablet :size="22" class="text-primary" />
-            <h3 class="modal-title">Configurazione Kiosk & Wall Tablet</h3>
+            <h3 class="modal-title">{{ t('dashboard.view.kioskSettingsTitle') }}</h3>
           </div>
           <button class="btn-close-modal" @click="isKioskConfigModalOpen = false">✕</button>
         </div>
 
         <div class="modal-body">
           <div class="config-field">
-            <label>Timeout Inattività Screensaver</label>
+            <label>{{ t('dashboard.view.screensaverTimeout') }}</label>
             <select v-model.number="kioskConfig.screensaverTimeoutSec" class="form-select">
-              <option :value="15">15 secondi (Test rapido)</option>
-              <option :value="30">30 secondi</option>
-              <option :value="60">1 minuto (Consigliato)</option>
-              <option :value="120">2 minuti</option>
-              <option :value="300">5 minuti</option>
-              <option :value="0">Mai (Sempre attivo)</option>
+              <option :value="15">{{ t('dashboard.view.secondsQuickTest') }}</option>
+              <option :value="30">{{ t('dashboard.view.seconds', { value: 30 }) }}</option>
+              <option :value="60">{{ t('dashboard.view.minuteRecommended') }}</option>
+              <option :value="120">{{ t('dashboard.view.minutes', { value: 2 }) }}</option>
+              <option :value="300">{{ t('dashboard.view.minutes', { value: 5 }) }}</option>
+              <option :value="0">{{ t('dashboard.view.neverAlwaysOn') }}</option>
             </select>
-            <p class="field-hint">Tempo di assenza tocco prima di oscurare lo schermo o mostrare lo screensaver.</p>
+            <p class="field-hint">{{ t('dashboard.view.screensaverTimeoutHint') }}</p>
           </div>
 
           <div class="config-toggle-row">
             <div>
-              <span class="toggle-label">Risveglio via Fotocamera / Movimento</span>
-              <p class="toggle-desc">Usa la fotocamera frontale del tablet per rilevare quando qualcuno si avvicina</p>
+              <span class="toggle-label">{{ t('dashboard.view.wakeOnPresence') }}</span>
+              <p class="toggle-desc">{{ t('dashboard.view.wakeOnPresenceDesc') }}</p>
             </div>
             <input type="checkbox" v-model="kioskConfig.wakeOnCamera" class="toggle-checkbox" />
           </div>
 
           <div class="config-toggle-row">
             <div>
-              <span class="toggle-label">Mostra Orologio Digitale & Data</span>
-              <p class="toggle-desc">Visualizza orario grande con contrasto elevato nello screensaver</p>
+              <span class="toggle-label">{{ t('dashboard.view.showClockDate') }}</span>
+              <p class="toggle-desc">{{ t('dashboard.view.showClockDateDesc') }}</p>
             </div>
             <input type="checkbox" v-model="kioskConfig.showClock" class="toggle-checkbox" />
           </div>
 
           <div class="config-toggle-row">
             <div>
-              <span class="toggle-label">Mostra Meteo & Qualità Aria</span>
-              <p class="toggle-desc">Widget meteo con temperatura locale e indice particolato PM2.5</p>
+              <span class="toggle-label">{{ t('dashboard.view.showWeatherAirQuality') }}</span>
+              <p class="toggle-desc">{{ t('dashboard.view.showWeatherAirQualityDesc') }}</p>
             </div>
             <input type="checkbox" v-model="kioskConfig.showWeather" class="toggle-checkbox" />
           </div>
 
           <div class="config-field">
-            <label>PIN di Protezione Uscita (Opzionale)</label>
+            <label>{{ t('dashboard.view.exitPin') }}</label>
             <input
               type="password"
               maxlength="6"
               v-model="kioskConfig.pinCode"
-              placeholder="Es. 1234 (lascia vuoto per disattivare)"
+              :placeholder="t('dashboard.view.exitPinPlaceholder')"
               class="form-input"
             />
-            <p class="field-hint">Impedisce a bambini o visitatori di uscire dal Kiosk o accedere alle altre sezioni.</p>
+            <p class="field-hint">{{ t('dashboard.view.exitPinHint') }}</p>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" @click="isKioskConfigModalOpen = false">Annulla</button>
-          <button class="btn-save" @click="saveKioskConfig">Salva Configurazione</button>
+          <button class="btn-cancel" @click="isKioskConfigModalOpen = false">{{ t('common.cancel') }}</button>
+          <button class="btn-save" @click="saveKioskConfig">{{ t('dashboard.view.saveConfiguration') }}</button>
         </div>
       </div>
     </div>
@@ -612,8 +612,8 @@ onUnmounted(() => {
     <!-- PIN Unlock Modal for Exiting Kiosk Mode -->
     <div v-if="isPinModalOpen" class="modal-backdrop" @click="isPinModalOpen = false">
       <div class="pin-modal glass-panel" @click.stop>
-        <h3 class="pin-title">Sblocco Kiosk Mode</h3>
-        <p class="pin-desc">Inserisci il PIN per uscire dalla modalità tablet</p>
+        <h3 class="pin-title">{{ t('dashboard.view.unlockKioskTitle') }}</h3>
+        <p class="pin-desc">{{ t('dashboard.view.unlockKioskDesc') }}</p>
         <input
           type="password"
           maxlength="6"
@@ -623,10 +623,10 @@ onUnmounted(() => {
           @keyup.enter="verifyPinAndExit"
           autofocus
         />
-        <p v-if="pinError" class="pin-error">PIN errato, riprova.</p>
+        <p v-if="pinError" class="pin-error">{{ t('dashboard.view.invalidPin') }}</p>
         <div class="pin-actions">
           <button class="btn-cancel" @click="isPinModalOpen = false">Annulla</button>
-          <button class="btn-save" @click="verifyPinAndExit">Sblocca</button>
+          <button class="btn-save" @click="verifyPinAndExit">{{ t('dashboard.view.unlock') }}</button>
         </div>
       </div>
     </div>
