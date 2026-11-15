@@ -31,7 +31,7 @@ describe('FlowEditorView.vue', () => {
     expect(wrapper.text()).toContain('Conditions')
     expect(wrapper.text()).toContain('Actions & Flow')
     expect(wrapper.text()).toContain('Test Run')
-    expect(wrapper.text()).toContain('Salva Flusso')
+    expect(wrapper.text()).toContain('Salva flusso')
     expect(wrapper.text()).toContain('JSON AST')
   })
 
