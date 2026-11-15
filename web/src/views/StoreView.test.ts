@@ -43,7 +43,7 @@ describe('StoreView.vue', () => {
 
     expect(wrapper.text()).toContain('Domus Store & Marketplace Estensioni')
     expect(wrapper.text()).toContain('Plugin WASM')
-    expect(wrapper.text()).toContain('Blueprints')
+    expect(wrapper.text()).toContain('Blueprint')
   })
 
   it('filters packages and triggers 1-click install', async () => {
