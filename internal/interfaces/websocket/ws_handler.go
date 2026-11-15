@@ -94,8 +94,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var allowedEntityIDs map[string]struct{}
 	filterRestrictedEvents := false
+	canViewNotifications := false
 	if authenticatedUser != nil && authenticatedUser.Role != user.RoleAdmin {
 		permissions := authenticatedUser.EffectivePermissions()
+		if permissions != nil {
+			canViewNotifications = permissions.CanAccessView("/notifications")
+		}
 		if permissions != nil && (permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil || permissions.AllowedViews != nil) {
 			filterRestrictedEvents = true
 			allowedEntityIDs = make(map[string]struct{})
@@ -146,6 +150,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if !filterRestrictedEvents {
 			return true
+		}
+		if msg.Type == string(events.NotificationCreated) {
+			return canViewNotifications
 		}
 		if msg.Type != string(events.EntityStateChanged) {
 			return false
