@@ -175,6 +175,10 @@ func RequireViewAccess() func(http.Handler) http.Handler {
 			}
 			path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1"), "/")
 			required := ""
+			if path == "/presence/gps" || path == "/presence/room" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			switch {
 			case strings.HasPrefix(path, "/family"):
 				required = "/family"
