@@ -36,14 +36,14 @@ const isBudgetModalOpen = ref(false)
 const expenseToEdit = ref<Expense | null>(null)
 const searchQuery = ref('')
 
-const periods: { value: 'day' | 'week' | 'month' | 'year'; label: string }[] = [
+const periods: { value: 'day' | 'week' | 'month' | 'year'; labelKey: string }[] = [
   { value: 'day', labelKey: 'finance.periods.day' },
   { value: 'week', labelKey: 'finance.periods.week' },
   { value: 'month', labelKey: 'finance.periods.month' },
   { value: 'year', labelKey: 'finance.periods.year' }
 ]
 
-const categoriesFilterList: { category: ExpenseCategory | 'all'; label: string; icon?: any }[] = [
+const categoriesFilterList: { category: ExpenseCategory | 'all'; labelKey: string; icon?: any }[] = [
   { category: 'all', labelKey: 'finance.categories.all' },
   { category: 'food', labelKey: 'finance.categories.food', icon: ShoppingBag },
   { category: 'utilities', labelKey: 'finance.categories.utilities', icon: Zap },
