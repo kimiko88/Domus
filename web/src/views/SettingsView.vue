@@ -573,19 +573,19 @@ onMounted(() => {
 
         <div class="profile-details">
           <div class="detail-row">
-            <span class="detail-label">Versione Core</span>
+            <span class="detail-label">{{ t('settings.coreVersion') }}</span>
             <span class="detail-value font-mono">v1.0.0 (Go modular monolith)</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Versione Web UI</span>
+            <span class="detail-label">{{ t('settings.webVersion') }}</span>
             <span class="detail-value font-mono">v0.8.0 (Vue 3 + Vite PWA)</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Database</span>
+            <span class="detail-label">{{ t('settings.database') }}</span>
             <span class="detail-value font-mono">SQLite WAL mode</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Architettura target</span>
+            <span class="detail-label">{{ t('settings.architecture') }}</span>
             <span class="detail-value font-mono">ARM64 / Raspberry Pi 4</span>
           </div>
         </div>
@@ -703,7 +703,7 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Accesso</span>
+            <span class="detail-label">{{ t('settings.accessStatus') }}</span>
             <span
               class="status-indicator-badge"
               :class="maintenanceStatus?.active ? 'badge-maint-active' : 'badge-maint-inactive'"
@@ -720,7 +720,7 @@ onMounted(() => {
               </span>
             </div>
             <div v-if="maintenanceStatus?.key_fingerprint" class="detail-row">
-              <span class="detail-label">Fingerprint Chiave</span>
+              <span class="detail-label">{{ t('settings.keyFingerprint') }}</span>
               <span class="detail-value font-mono text-dim text-xs">
                 {{ maintenanceStatus.key_fingerprint }}
               </span>
@@ -746,10 +746,10 @@ onMounted(() => {
                 v-model="maintDuration"
                 class="maint-select font-mono"
               >
-                <option :value="15">15 minuti</option>
-                <option :value="30">30 minuti (Default)</option>
-                <option :value="60">60 minuti (1 ora)</option>
-                <option :value="120">120 minuti (2 ore max)</option>
+                <option :value="15">{{ t('settings.duration15') }}</option>
+                <option :value="30">{{ t('settings.duration30') }}</option>
+                <option :value="60">{{ t('settings.duration60') }}</option>
+                <option :value="120">{{ t('settings.duration120') }}</option>
               </select>
             </div>
 
@@ -927,7 +927,7 @@ onMounted(() => {
           </p>
 
           <div class="form-group mt-2">
-            <label class="form-label text-xs">Passphrase di Cifratura (AES-256-GCM)</label>
+            <label class="form-label text-xs">{{ t('settings.backupPassphrase') }}</label>
             <input
               v-model="backupPassphrase"
               type="password"
@@ -958,7 +958,7 @@ onMounted(() => {
           </div>
 
           <div v-if="backupRecords.length > 0" class="backup-records-list mt-3">
-            <span class="text-xs text-dim">Ultimi snapshot salvati:</span>
+            <span class="text-xs text-dim">{{ t('settings.lastSnapshots') }}</span>
             <div v-for="rec in backupRecords" :key="rec.id" class="backup-rec-item">
               <span class="rec-filename font-mono">{{ rec.filename }}</span>
               <span class="rec-status-badge">{{ rec.status }}</span>
@@ -987,7 +987,7 @@ onMounted(() => {
           </p>
 
           <div class="detail-row mt-2">
-            <span class="detail-label">Stato Modalità Vacanza</span>
+            <span class="detail-label">{{ t('settings.vacationStatus') }}</span>
             <button
               type="button"
               :class="['btn-toggle-vacation', { active: isVacationActive }]"
@@ -998,13 +998,13 @@ onMounted(() => {
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Variazione Oraria (Jitter)</span>
+            <span class="detail-label">{{ t('settings.timeJitter') }}</span>
             <span class="detail-value font-mono text-cyan">&plusmn;{{ vacationJitter }} minuti casuali</span>
           </div>
 
           <div class="detail-row">
-            <span class="detail-label">Pattern di Apprendimento</span>
-            <span class="detail-value font-mono">14 giorni continui</span>
+            <span class="detail-label">{{ t('settings.learningPattern') }}</span>
+            <span class="detail-value font-mono">{{ t('settings.learningDays') }}</span>
           </div>
         </div>
       </div>
