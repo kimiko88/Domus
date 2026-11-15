@@ -472,7 +472,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					entRouter.Get("/", entityH.List)
 					entRouter.Get("/{id}", entityH.GetByID)
 					if srv.authService != nil {
-						entRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/command", entityH.Command)
+						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/command", entityH.Command)
 					} else {
 						entRouter.Post("/{id}/command", entityH.Command)
 					}
@@ -501,22 +501,23 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Mobile & ecosystem services endpoint (/api/v1/services/{domain}/{service})
 				if srv.authService != nil {
-					domainRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/services/{domain}/{service}", entityH.CallService)
+					domainRouter.With(domusmw.RequireDeviceControl()).Post("/services/{domain}/{service}", entityH.CallService)
 				} else {
 					domainRouter.Post("/services/{domain}/{service}", entityH.CallService)
 				}
 
 				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine).WithEntities(srv.repos.Entities)
 				domainRouter.Route("/automations", func(autoRouter chi.Router) {
+					autoRouter.Use(domusmw.RequireAutomationManagement())
 					autoRouter.Get("/", autoH.List)
 					autoRouter.Get("/blueprints", autoH.ListBlueprints)
 					if srv.authService != nil {
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", autoH.Create)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", autoH.Update)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", autoH.Delete)
-						autoRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Put("/{id}", autoH.Update)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Delete("/{id}", autoH.Delete)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/{id}/trigger", autoH.Trigger)
 						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					} else {
 						autoRouter.Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
@@ -764,20 +765,20 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
-						cRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+					cRouter.Use(domusmw.RequireCameraView())
 					cRouter.Get("/", ecoH.ListCameras)
-					cRouter.Post("/", ecoH.CreateCamera)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", ecoH.CreateCamera)
 					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 					cRouter.Get("/faces", ecoH.ListFamilyFaces)
-					cRouter.Post("/faces", ecoH.RegisterFamilyFace)
-					cRouter.Delete("/faces/{id}", ecoH.DeleteFamilyFace)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/faces", ecoH.RegisterFamilyFace)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/faces/{id}", ecoH.DeleteFamilyFace)
 					cRouter.Get("/plates", ecoH.ListAuthorizedPlates)
-					cRouter.Post("/plates", ecoH.RegisterAuthorizedPlate)
-					cRouter.Delete("/plates/{plate}", ecoH.DeleteAuthorizedPlate)
-					cRouter.Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/plates", ecoH.RegisterAuthorizedPlate)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/plates/{plate}", ecoH.DeleteAuthorizedPlate)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
 					cRouter.Get("/{id}/zones", ecoH.GetCameraZones)
-					cRouter.Post("/{id}/zones", ecoH.AddCameraZone)
-					cRouter.Post("/{id}/detect", ecoH.ProcessAIDetection)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/zones", ecoH.AddCameraZone)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/detect", ecoH.ProcessAIDetection)
 					cRouter.Get("/events", ecoH.ListCameraEvents)
 					cRouter.Get("/events/{id}/clip", ecoH.GetEventClip)
 				})
