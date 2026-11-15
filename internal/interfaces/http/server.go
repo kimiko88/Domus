@@ -517,7 +517,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						autoRouter.Get("/{id}", autoH.Get)
 						autoRouter.With(domusmw.RequireAutomationManagement()).Put("/{id}", autoH.Update)
 						autoRouter.With(domusmw.RequireAutomationManagement()).Delete("/{id}", autoH.Delete)
-						autoRouter.With(domusmw.RequireAutomationManagement()).Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/{id}/trigger", autoH.Trigger)
 						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					} else {
 						autoRouter.Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
@@ -539,7 +539,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						sceneRouter.Get("/{id}", sceneH.Get)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", sceneH.Update)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", sceneH.Delete)
-						sceneRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/apply", sceneH.Apply)
+						sceneRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/apply", sceneH.Apply)
 					} else {
 						sceneRouter.Post("/", sceneH.Create)
 						sceneRouter.Get("/{id}", sceneH.Get)
