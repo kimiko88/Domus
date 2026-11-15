@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import type { Entity } from '../../api/types'
 import { useEntityCommand } from '../../composables/useEntityCommand'
 import { Power, Zap } from '@lucide/vue'
@@ -47,7 +49,7 @@ async function handleToggle() {
         :disabled="isExecuting"
         role="switch"
         :aria-checked="isOn"
-        :aria-label="isOn ? `Disattiva ${entity.name}` : `Attiva ${entity.name}`"
+        :aria-label="isOn ? t('common.entityCard.deactivate', { name: entity.name }) : t('common.entityCard.activate', { name: entity.name })"
         @click="handleToggle"
       >
         <span class="toggle-indicator" />
