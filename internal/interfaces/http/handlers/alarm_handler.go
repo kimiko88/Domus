@@ -7,7 +7,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/application/alarm"
 	domainAlarm "github.com/domus-hub/domus/internal/domain/alarm"
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5"\n\tdomusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 )
 
 type AlarmHandler struct {
@@ -21,10 +21,10 @@ func NewAlarmHandler(svc *alarm.Service) *AlarmHandler {
 func (h *AlarmHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/alarm", func(r chi.Router) {
 		r.Get("/", h.GetPanel)
-		r.Post("/arm", h.Arm)
-		r.Post("/disarm", h.Disarm)
-		r.Post("/trigger", h.Trigger)
-		r.Put("/config", h.UpdateConfig)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/arm", h.Arm)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/disarm", h.Disarm)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/trigger", h.Trigger)
+		r.With(domusmw.RequireSettingsPermission()).Put("/config", h.UpdateConfig)
 	})
 }
 
