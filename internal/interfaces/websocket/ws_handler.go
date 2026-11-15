@@ -138,14 +138,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sendCh := make(chan websocket.Message, 64)
 	eventFilter := func(msg websocket.Message) bool {
-		if !filterRestrictedEvents {
-			return true
-		}
 		// Session revocation on permission changes must stop broadcasts immediately.
 		if h.authService != nil {
 			if _, _, sessionErr := h.authService.ValidateSession(context.Background(), sessionID); sessionErr != nil {
 				return false
 			}
+		}
+		if !filterRestrictedEvents {
+			return true
 		}
 		if msg.Type != string(events.EntityStateChanged) {
 			return false
