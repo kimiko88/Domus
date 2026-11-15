@@ -262,7 +262,9 @@
       "installDate": "Date d’installation",
       "wasiPermissions": "Autorisations du bac à sable WASI",
       "viewSourceFor": "Voir le code open source de {name}",
-      "viewSource": "Voir le code source open source"
+      "viewSource": "Voir le code source open source",
+      "climateThermostat": "Climat et thermostat",
+      "batteryLabel": "Batterie ({value} %)"
     }
   },
   "areas": {
