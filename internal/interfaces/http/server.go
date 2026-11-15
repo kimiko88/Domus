@@ -366,7 +366,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 			// Family management routes (authenticated)
 			api.Route("/family", func(famRouter chi.Router) {
-				famRouter.Use(domusmw.RequireAuth())
+				famRouter.Use(domusmw.RequireAuth(), domusmw.RequireViewAccess())
 				// All authenticated members can view other family members
 				famRouter.Get("/members", familyH.ListMembers)
 
@@ -407,7 +407,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 
 			api.Group(func(domainRouter chi.Router) {
-				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireOperatorForWrites())
+				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireViewAccess(), domusmw.RequireOperatorForWrites())
 
 				domainRouter.Route("/integrations", func(intRouter chi.Router) {
 					intRouter.Get("/", integrationH.List)
