@@ -5,7 +5,6 @@ import type { Automation } from '../../api/types'
 import { useAutomationsStore } from '../../stores/automations'
 import { useNotificationsStore } from '../../stores/notifications'
 import {
-const { t } = useI18n()
   Zap,
   Play,
   History,
@@ -17,6 +16,8 @@ const { t } = useI18n()
   AlertCircle,
   Activity
 } from '@lucide/vue'
+
+const { t } = useI18n()
 
 interface Props {
   automation: Automation
