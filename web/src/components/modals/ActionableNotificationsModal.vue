@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
 import { Bell, CheckCircle, AlertTriangle, X, ShieldAlert, Sparkles, Clock } from '@lucide/vue'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAuthStore } from '../../stores/auth'
 import { useModalA11y } from '../../composables/useModalA11y'
+const { t } = useI18n()
 
 const props = defineProps<{
   isOpen: boolean
