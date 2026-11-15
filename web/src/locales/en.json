@@ -660,6 +660,7 @@
     "revoke": "Revoke",
     "noMembers": "No members found.",
     "permissions": {
+      "notifications": "Notifications",
       "manage": "Manage permissions",
       "title": "Permissions for {name}",
       "areasTitle": "Accessible areas",
