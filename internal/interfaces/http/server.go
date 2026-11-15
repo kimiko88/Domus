@@ -512,12 +512,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					autoRouter.Get("/", autoH.List)
 					autoRouter.Get("/blueprints", autoH.ListBlueprints)
 					if srv.authService != nil {
-						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
-						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/", autoH.Create)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
-						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Put("/{id}", autoH.Update)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", autoH.Update)
 						autoRouter.With(domusmw.RequireAutomationManagement()).Delete("/{id}", autoH.Delete)
-						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireDeviceControl()).Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/trigger", autoH.Trigger)
 						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					} else {
 						autoRouter.Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
@@ -539,7 +539,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						sceneRouter.Get("/{id}", sceneH.Get)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", sceneH.Update)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", sceneH.Delete)
-						sceneRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/apply", sceneH.Apply)
+						sceneRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/apply", sceneH.Apply)
 					} else {
 						sceneRouter.Post("/", sceneH.Create)
 						sceneRouter.Get("/{id}", sceneH.Get)
@@ -759,7 +759,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/intercom", func(iRouter chi.Router) {
 					iRouter.Use(domusmw.RequireCameraView())
-					iRouter.With(domusmw.RequireDeviceControl()).Post("/ring", ecoH.RingIntercomDoorbell)
+					iRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/ring", ecoH.RingIntercomDoorbell)
 					iRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/unlock", ecoH.UnlockIntercomGate)
 					iRouter.Post("/{id}/audio", ecoH.NegotiateIntercomAudio)
 				})
@@ -882,10 +882,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
 					mRouter.Post("/players", ecoH.CreateMediaPlayer)
-					mRouter.With(domusmw.RequireDeviceControl()).Post("/players/{id}/volume", ecoH.SetPlayerVolume)
-					mRouter.With(domusmw.RequireDeviceControl()).Post("/players/{id}/state", ecoH.SetPlayerState)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/volume", ecoH.SetPlayerVolume)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/state", ecoH.SetPlayerState)
 					mRouter.Delete("/players/{id}", ecoH.DeleteMediaPlayer)
-					mRouter.With(domusmw.RequireDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 
 				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
