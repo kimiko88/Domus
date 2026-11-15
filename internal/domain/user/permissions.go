@@ -86,3 +86,33 @@ func containsOrUnrestricted(values []string, value string) bool {
 	}
 	return false
 }
+
+func (u *User) EffectivePermissions() *UserPermissions {
+	if u == nil {
+		return nil
+	}
+	if u.Role == RoleAdmin {
+		return DefaultAdminPermissions(u.ID)
+	}
+	if u.Permissions != nil {
+		p := *u.Permissions
+		p.UserID = u.ID
+		p.Role = u.Role
+		return &p
+	}
+	return DefaultPermissions(u.ID, u.Role)
+}
+
+func (u *User) CanAccessEntityInArea(entityID, areaID string) bool {
+	p := u.EffectivePermissions()
+	if p == nil || !p.CanAccessEntity(entityID) {
+		return false
+	}
+	if p.AllowedAreaIDs == nil {
+		return true
+	}
+	if areaID == "" {
+		return false
+	}
+	return p.CanAccessArea(areaID)
+}
