@@ -677,7 +677,7 @@
       "actionsTitle": "Acciones permitidas",
       "controlDevices": "Enviar comandos a dispositivos",
       "manageAutomations": "Gestionar automatizaciones",
-      "automationScopeHint": "Para gestionar automatizaciones se necesita acceso a todas las estancias y dispositivos.",
+      "automationScopeHint": "Para gestionar automatizaciones se necesita controlar dispositivos y tener acceso sin restricciones a estancias y dispositivos.",
       "viewCameras": "Ver cámaras",
       "manageSettings": "Gestionar ajustes del sistema",
       "hint": "El servidor también aplica estos permisos.",
