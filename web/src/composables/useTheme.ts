@@ -113,6 +113,7 @@ watch(theme, (t) => {
 if (mql) {
   const handleSystemThemeChange = (event: MediaQueryListEvent | MediaQueryList) => {
     prefersDark.value = event.matches
+    if (theme.value === 'system') applyTheme('system')
   }
   if (typeof mql.addEventListener === 'function') {
     mql.addEventListener('change', handleSystemThemeChange)
