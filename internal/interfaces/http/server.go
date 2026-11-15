@@ -376,6 +376,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Role modifications and member removal restricted to Admin
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/role", familyH.UpdateMemberRole)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/permissions", familyH.UpdateMemberPermissions)
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/members/{id}", familyH.RemoveMember)
 
 				// Invites management restricted to Admin
