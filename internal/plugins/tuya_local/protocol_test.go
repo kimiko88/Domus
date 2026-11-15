@@ -68,7 +68,9 @@ func TestDecodeResponsePacketExtractsReturnCode(t *testing.T) {
 	key := []byte("0123456789abcdef")
 	payload := []byte(`{"dps":{"4":1}}`)
 	outgoing, err := EncodePacket(7, CmdControl, payload, key, "3.3")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Device responses prepend a uint32 return code to the payload.
 	bodyEnd := len(outgoing) - 8
@@ -84,10 +86,18 @@ func TestDecodeResponsePacketExtractsReturnCode(t *testing.T) {
 	response = append(response, SuffixHeader...)
 
 	packet, err := DecodeResponsePacket(response, key)
-	if err != nil { t.Fatalf("decode device response: %v", err) }
-	if packet.ReturnCode != 0 { t.Fatalf("return code = %d, want 0", packet.ReturnCode) }
-	if packet.Sequence != 7 || packet.Command != CmdControl { t.Fatalf("unexpected response header: seq=%d command=%d", packet.Sequence, packet.Command) }
-	if !bytes.Equal(packet.Payload, payload) { t.Fatalf("payload mismatch: got %q want %q", packet.Payload, payload) }
+	if err != nil {
+		t.Fatalf("decode device response: %v", err)
+	}
+	if packet.ReturnCode != 0 {
+		t.Fatalf("return code = %d, want 0", packet.ReturnCode)
+	}
+	if packet.Sequence != 7 || packet.Command != CmdControl {
+		t.Fatalf("unexpected response header: seq=%d command=%d", packet.Sequence, packet.Command)
+	}
+	if !bytes.Equal(packet.Payload, payload) {
+		t.Fatalf("payload mismatch: got %q want %q", packet.Payload, payload)
+	}
 }
 
 func TestDPSMatchRequiresRequestedValues(t *testing.T) {
