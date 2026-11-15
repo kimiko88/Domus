@@ -149,7 +149,8 @@
       "sceneActivatedMessage": "{name} è stata attivata.",
       "automationFailedTitle": "Automazione non riuscita",
       "automationFailedMessage": "L’automazione \"{name}\" non è riuscita: {error}",
-      "systemNotification": "Notifica di sistema"
+      "systemNotification": "Notifica di sistema",
+      "updatedState": "aggiornato"
     }
   },
   "nav": {
