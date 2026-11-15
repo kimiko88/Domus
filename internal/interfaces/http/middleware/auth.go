@@ -114,6 +114,8 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
 			deviceCommand := strings.Contains(path, "/entities/") && strings.HasSuffix(path, "/command")
 			serviceCall := strings.Contains(path, "/services/")
+			automationMutation := strings.Contains(path, "/automations/")
+				|| strings.HasSuffix(path, "/automations")
 			if deviceCommand || serviceCall {
 				permissions := u.EffectivePermissions()
 				if permissions != nil && permissions.CanControlDevices {
@@ -121,6 +123,15 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 					return
 				}
 				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
+			if automationMutation {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanManageAutomations {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "automation management permission required")
 				return
 			}
 			presenceSelfService := hasSuffix("/presence/gps") ||
