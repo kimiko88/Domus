@@ -711,7 +711,7 @@
       "days": "{value} jours",
       "oneWeek": "7 jours (1 semaine)",
       "enableKiosk": "Activer le mode borne plein écran pour ce code PIN",
-      "createGuestButton": "Nouvel invité / code PIN de borne",
+      "createGuestButton": "Nouveau profil invité / code PIN borne",
       "guestLabel": "Invité",
       "guestKioskLabel": "Invité (borne)",
       "pinLabel": "Code PIN",
