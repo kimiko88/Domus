@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   LayoutDashboard,
   Maximize2,
@@ -18,6 +19,8 @@ import {
   Tablet
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
+
+const { t, locale } = useI18n()
 
 interface Widget {
   id: string
@@ -81,8 +84,8 @@ const activeRoomName = ref('Salotto')
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
-const currentTime = ref(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))
-const currentDate = ref(new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }))
+const currentTime = ref(new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }))
+const currentDate = ref(new Date().toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' }))
 
 // Kiosk Configurator State
 const isKioskConfigModalOpen = ref(false)
@@ -272,7 +275,7 @@ let clockInterval: any = null
 
 onMounted(async () => {
   clockInterval = setInterval(() => {
-    currentTime.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    currentTime.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   }, 1000)
 
   window.addEventListener('mousemove', resetInactivity)
