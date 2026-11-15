@@ -711,7 +711,7 @@
       "days": "{value} Tage",
       "oneWeek": "7 Tage (1 Woche)",
       "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren",
-      "createGuestButton": "Neuer Gast / Kiosk-PIN",
+      "createGuestButton": "Neuen Gast / Kiosk-PIN anlegen",
       "guestLabel": "Gast",
       "guestKioskLabel": "Gast (Kiosk)",
       "pinLabel": "PIN",
@@ -720,13 +720,13 @@
     "tokenLabel": "Token",
     "errors": {
       "load": "Familiendaten konnten nicht geladen werden.",
-      "guestRequired": "Geben Sie den Gastnamen und die PIN ein.",
-      "createGuest": "Gastprofil konnte nicht erstellt werden.",
-      "generateInvite": "Einladung konnte nicht erstellt werden.",
-      "updatePermissions": "Berechtigungen konnten nicht aktualisiert werden.",
-      "updateRole": "Mitgliedsrolle konnte nicht geändert werden.",
-      "removeMember": "Mitglied konnte nicht entfernt werden.",
-      "revokeInvite": "Einladung konnte nicht widerrufen werden."
+      "guestRequired": "Geben Sie einen Gastnamen und eine PIN ein.",
+      "createGuest": "Das Gastprofil konnte nicht erstellt werden.",
+      "generateInvite": "Die Einladung konnte nicht erstellt werden.",
+      "updatePermissions": "Die Berechtigungen konnten nicht aktualisiert werden.",
+      "updateRole": "Die Mitgliedsrolle konnte nicht geändert werden.",
+      "removeMember": "Das Mitglied konnte nicht entfernt werden.",
+      "revokeInvite": "Die Einladung konnte nicht widerrufen werden."
     }
   },
   "register": {
