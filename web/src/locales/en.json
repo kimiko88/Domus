@@ -179,7 +179,8 @@
     "onlineSensors": "Online Sensors",
     "activeCount": "Active",
     "detectedCount": "Detected",
-    "filterAll": "All", "filterAlarm": "Alarm",
+    "filterAll": "All",
+    "filterAlarm": "Alarm",
     "filterLights": "Lights",
     "filterSwitches": "Switches",
     "filterSensors": "Sensors",
@@ -699,8 +700,24 @@
       "dayOne": "24 hours (1 day)",
       "days": "{value} days",
       "oneWeek": "7 days (1 week)",
-      "enableKiosk": "Enable full-screen kiosk mode for this PIN"
-    }
+      "enableKiosk": "Enable full-screen kiosk mode for this PIN",
+      "createGuestButton": "New Guest / Kiosk PIN",
+      "guestLabel": "Guest",
+      "guestKioskLabel": "Guest (Kiosk)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Expires"
+    },
+    "errors": {
+      "load": "Failed to load family data.",
+      "guestRequired": "Enter a guest name and PIN.",
+      "createGuest": "Could not create the guest profile.",
+      "generateInvite": "Could not generate the invitation.",
+      "updatePermissions": "Could not update permissions.",
+      "updateRole": "Could not update the member role.",
+      "removeMember": "Could not remove the member.",
+      "revokeInvite": "Could not revoke the invitation."
+    },
+    "tokenLabel": "Token"
   },
   "register": {
     "title": "Join the Domus Family",
