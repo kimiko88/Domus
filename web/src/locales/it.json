@@ -806,7 +806,8 @@
     "deviceClassPlaceholder": "power, energy, temperature",
     "cancel": "Annulla",
     "create": "Crea Sensore",
-    "previewError": "Errore: {message}"
+    "previewError": "Errore: {message}",
+    "editorPlaceholderBody": "states('sensor.salotto_temp') | float * 1.8 + 32"
   },
   "finance": {
     "pageAria": "Bilancio familiare e gestione delle spese",
