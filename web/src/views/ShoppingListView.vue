@@ -435,17 +435,17 @@ onMounted(async () => {
         <button
           class="btn-scan-receipt"
           @click="openReceiptModal"
-          title="Scansiona scontrino della spesa"
+          :title="t('shopping.view.scanReceipt')"
         >
           <Receipt :size="16" />
-          <span>Scansiona Scontrino</span>
+          <span>{{ t('shopping.view.scanReceipt') }}</span>
         </button>
 
         <button
           v-if="items.length > 0"
           class="btn-transfer-pantry"
           @click="openTransferModal"
-          :title="completedCount > 0 ? 'Sposta gli articoli acquistati nella dispensa' : 'Sposta articoli della spesa nella dispensa'"
+          :title="completedCount > 0 ? t('shopping.view.moveBoughtToPantry') : t('shopping.view.moveShoppingToPantry')"
         >
           <PackageCheck :size="16" />
           <span>{{ completedCount > 0 ? `Sposta Spesa in Dispensa (${completedCount})` : 'Sposta Spesa in Dispensa' }}</span>
@@ -472,7 +472,7 @@ onMounted(async () => {
             :placeholder="t('shopping.placeholderName')"
             class="input-name"
             required
-            aria-label="Nome Prodotto"
+            :aria-label="t('shopping.view.productName')"
           />
           <input
             v-model="newItemQty"
@@ -486,16 +486,16 @@ onMounted(async () => {
             <input
               v-model="newItemSupermarket"
               type="text"
-              placeholder="Supermercato / Negozio"
+              :placeholder="t('shopping.view.supermarketPlaceholder')"
               class="input-supermarket"
               list="supermarket-suggestions"
-              aria-label="Supermercato o Negozio"
+              :aria-label="t('shopping.view.supermarketLabel')"
             />
             <datalist id="supermarket-suggestions">
               <option v-for="s in popularSupermarkets" :key="s" :value="s" />
             </datalist>
           </div>
-          <button type="submit" class="btn-add" aria-label="Aggiungi alla lista">
+          <button type="submit" class="btn-add" :aria-label="t('shopping.view.addToList')">
             <Plus :size="18" />
             <span>{{ t('shopping.addBtn') }}</span>
           </button>
@@ -503,7 +503,7 @@ onMounted(async () => {
 
         <!-- Supermarket Quick Chips -->
         <div class="supermarket-presets">
-          <span class="preset-label">Supermercati rapidi:</span>
+          <span class="preset-label">{{ t('shopping.view.quickSupermarkets') }}</span>
           <button
             v-for="s in popularSupermarkets"
             :key="s"
@@ -561,14 +561,14 @@ onMounted(async () => {
       <div v-if="availableSupermarkets.length > 0" class="supermarket-filter-bar">
         <span class="filter-icon-label">
           <Filter :size="14" />
-          <span>Filtra per negozio:</span>
+          <span>{{ t('shopping.view.filterByStore') }}</span>
         </span>
         <button
           class="store-filter-chip"
           :class="{ active: filterSupermarket === 'all' }"
           @click="filterSupermarket = 'all'"
         >
-          Tutti i negozi
+          {{ t('shopping.view.allStores') }}
         </button>
         <button
           v-for="s in availableSupermarkets"
@@ -591,12 +591,12 @@ onMounted(async () => {
         </div>
         <div class="prompt-text">
           <h4 class="prompt-title">Hai completato {{ completedCount }} articol{{ completedCount > 1 ? 'i' : 'o' }} della spesa!</h4>
-          <p class="prompt-sub">Spostali direttamente nella Dispensa: puoi sommare le quantità a quelle già presenti e impostare le scadenze dei cibi deperibili.</p>
+          <p class="prompt-sub">{{ t('shopping.view.moveCompletedHint') }}</p>
         </div>
       </div>
       <button class="btn-prompt-transfer" @click="openTransferModal">
         <PackageCheck :size="16" />
-        <span>Carica in Dispensa</span>
+        <span>{{ t('shopping.view.loadIntoPantry') }}</span>
       </button>
     </div>
 
@@ -647,14 +647,14 @@ onMounted(async () => {
           <button
             class="btn-transfer-single"
             @click.stop="openTransferSingle(it)"
-            title="Sposta questo articolo in Dispensa e imposta scadenza"
-            aria-label="Sposta articolo in dispensa"
+            :title="t('shopping.view.moveItemToPantry')"
+            :aria-label="t('shopping.view.moveItemToPantry')"
           >
             <PackageCheck :size="15" />
-            <span class="btn-transfer-label">In Dispensa</span>
+            <span class="btn-transfer-label">{{ t('shopping.view.inPantry') }}</span>
           </button>
 
-          <button class="btn-delete" @click="deleteItem(it.id)" title="Rimuovi" aria-label="Rimuovi prodotto">
+          <button class="btn-delete" @click="deleteItem(it.id)" :title="t('common.delete')" :aria-label="t('shopping.view.removeProduct')">
             <Trash2 :size="16" />
           </button>
         </div>
@@ -663,12 +663,12 @@ onMounted(async () => {
       <!-- Empty State -->
       <div v-if="filteredItems.length === 0" class="empty-state glass-panel">
         <ShoppingCart :size="48" class="text-muted mb-2" />
-        <h3>Nessun articolo nella lista</h3>
+        <h3>{{ t('shopping.view.noItems') }}</h3>
         <p class="text-dim">
           {{
             filterSupermarket !== 'all'
-              ? `Nessun prodotto trovato per il supermercato "${filterSupermarket}".`
-              : 'Tutti gli articoli sono stati acquistati o la lista è vuota.'
+              ? t('shopping.view.noProductsForStore', { store: filterSupermarket })
+              : t('shopping.view.allPurchasedOrEmpty')
           }}
         </p>
       </div>
@@ -699,13 +699,13 @@ onMounted(async () => {
               <Receipt :size="22" class="text-primary" />
             </div>
             <div>
-              <h2 id="receipt-modal-title" class="receipt-modal-title">Scansiona Scontrino Spesa</h2>
+              <h2 id="receipt-modal-title" class="receipt-modal-title">{{ t('shopping.view.receiptTitle') }}</h2>
               <p class="receipt-modal-sub">
-                Scatta una foto, carica un’immagine o un PDF oppure incolla il testo. Verifica i prodotti prima di confermare.
+                {{ t('shopping.view.receiptIntro') }}
               </p>
             </div>
           </div>
-          <button class="btn-close-modal" type="button" @click="closeReceiptModal" aria-label="Chiudi scanner">
+          <button class="btn-close-modal" type="button" @click="closeReceiptModal" :aria-label="t('shopping.view.closeScanner')">
             <X :size="20" />
           </button>
         </header>
@@ -721,9 +721,9 @@ onMounted(async () => {
         />
 
         <div v-if="pantryStore.parsedReceipt" class="shopping-receipt-matches">
-          <h3>Confronto con la lista della spesa</h3>
+          <h3>{{ t('shopping.view.compareWithList') }}</h3>
           <p v-if="matchedShoppingItems.length === 0" class="text-dim">
-            Nessuna corrispondenza automatica: puoi comunque verificare lo scontrino e confermare l’importazione.
+            {{ t('shopping.view.noAutoMatches') }}
           </p>
           <div v-else class="matched-checkboxes">
             <label v-for="match in matchedShoppingItems" :key="match.shoppingItem.id" class="matched-label">
@@ -747,9 +747,9 @@ onMounted(async () => {
         </div>
         <div class="toast-right">
           <button class="btn-goto-pantry" @click="router.push('/pantry')">
-            Vai alla Dispensa &rarr;
+            {{ t('shopping.view.goToPantry') }}
           </button>
-          <button class="btn-toast-close" @click="transferFeedback = null" aria-label="Chiudi notifica">
+          <button class="btn-toast-close" @click="transferFeedback = null" :aria-label="t('shopping.view.closeNotification')">
             &times;
           </button>
         </div>
