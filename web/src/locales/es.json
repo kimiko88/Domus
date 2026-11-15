@@ -635,13 +635,15 @@
       "admin": "Administrador",
       "operator": "Operador",
       "viewer": "Visualizador",
-      "guest": "Invitado"
+      "guest": "Invitado",
+      "kid": "Menor"
     },
     "rolesDesc": {
       "admin": "Acceso total: configuración del sistema, administración de miembros y control total de dispositivos.",
       "operator": "Control operativo: puede accionar dispositivos y ejecutar escenas/automatizaciones.",
       "viewer": "Solo lectura: puede consultar el estado del hogar y sensores en tiempo real sin enviar comandos.",
-      "guest": "Acceso de invitado temporal o modo Kiosco con caducidad horaria programada."
+      "guest": "Acceso de invitado temporal o modo Kiosco con caducidad horaria programada.",
+      "kid": "Acceso protegido a secciones permitidas, como panel, contenido multimedia y tareas; sin controles de dispositivos ni ajustes del sistema."
     },
     "inviteModalTitle": "Invitar a un Nuevo Miembro",
     "selectRole": "Seleccionar Rol Asignado",
