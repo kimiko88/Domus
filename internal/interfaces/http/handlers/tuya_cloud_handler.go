@@ -407,6 +407,13 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 			for _, localCmd := range localCommands {
 				response, err := h.tuyaLocal.SendCommand(r.Context(), deviceID, localCmd.command, localCmd.params)
 				if err != nil {
+					if response != nil {
+						writeJSON(w, http.StatusBadGateway, map[string]any{
+							"success": false, "confirmed": false, "transport": "lan_local",
+							"code": "TUYA_LOCAL_ERROR", "message": err.Error(), "device_response": response,
+						})
+						return
+					}
 					writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", fmt.Sprintf("local LAN command was not confirmed: %v", err))
 					return
 				}
