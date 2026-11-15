@@ -179,7 +179,7 @@
     "onlineSensors": "Sensores Conectados",
     "activeCount": "Activas",
     "detectedCount": "Detectados",
-    "filterAll": "Todas",
+    "filterAll": "Todas", "filterAlarm": "Alarma",
     "filterLights": "Luces",
     "filterSwitches": "Interruptores",
     "filterSensors": "Sensores",
