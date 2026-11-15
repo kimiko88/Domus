@@ -491,9 +491,10 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		})
 	}
 
-	// If device IP has changed for a known device, update connection
+	// If device IP has changed for a known device, update connection.
 	a.mu.Lock()
 	cfg, known := a.configs[dev.DeviceID]
+	isActive := a.active
 	if known && (cfg.IP != dev.IP || a.devices[dev.DeviceID] == nil) {
 		cfg.IP = dev.IP
 		if dev.Version != "" {
@@ -514,7 +515,9 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		}
 
 		a.mu.Unlock()
-		go a.connectDevice(cfg)
+		if isActive {
+			go a.connectDevice(cfg)
+		}
 		return
 	}
 	a.mu.Unlock()
