@@ -308,7 +308,27 @@
     "deleteError": "Impossible de supprimer l'automatisation",
     "emptyTitle": "Aucune automatisation trouvée",
     "emptyDesc": "Créez votre première automatisation pour contrôler des lumières ou envoyer des commandes lors d’événements.",
-    "noResults": "Aucun résultat ne correspond à votre recherche."
+    "noResults": "Aucun résultat ne correspond à votre recherche.",
+    "view": {
+      "confirmDeleteWebhook": "Voulez-vous vraiment supprimer le webhook « {name} » ?",
+      "nodeEditorTitle": "Ouvrir l’éditeur visuel de nœuds",
+      "nodeEditorButton": "Éditeur de nœuds",
+      "webhookTitle": "Webhooks entrants",
+      "webhookSubtitle": "Recevez des requêtes HTTP protégées par HMAC depuis IFTTT, n8n, OwnTracks ou des capteurs externes pour déclencher des événements.",
+      "newWebhook": "Nouveau webhook",
+      "webhookEmpty": "Aucun webhook configuré. Créez un point de terminaison pour recevoir des requêtes externes en toute sécurité.",
+      "webhookCopied": "Copié !",
+      "copyWebhookUrl": "Copier l’URL du webhook",
+      "newWebhookTitle": "Nouveau webhook entrant",
+      "webhookName": "Nom du webhook",
+      "webhookNamePlaceholder": "Ex. : IFTTT Arrivée à la maison, OwnTracks GPS",
+      "secretToken": "Jeton secret HMAC (facultatif, pour la signature X-Domus-Signature)",
+      "secretPlaceholder": "Ex. : secret_my_token_123",
+      "allowedHttpMethod": "Méthode HTTP autorisée",
+      "postStandard": "POST (charge utile JSON standard)",
+      "getQuery": "GET (paramètres de chaîne de requête)",
+      "createWebhook": "Créer le webhook"
+    }
   },
   "scenes": {
     "title": "Scènes & Ambiances",
