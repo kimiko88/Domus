@@ -105,7 +105,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, er
 // GetByUsername retrieves a user by their unique username.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		WHERE username = ?;
 	`
@@ -116,7 +116,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 // GetByPinCode finds an active user or guest by their numeric PIN code.
 func (r *UserRepository) GetByPinCode(ctx context.Context, pin string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		WHERE pin_code = ? AND pin_code IS NOT NULL AND pin_code != '';
 	`
@@ -137,7 +137,7 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 // List returns all registered users in chronological order.
 func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		ORDER BY created_at ASC;
 	`
