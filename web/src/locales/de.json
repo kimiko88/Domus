@@ -427,7 +427,15 @@
       "valueFor": "Wert für {name}",
       "noFilterMatches": "Keine Geräte entsprechen den Filtern",
       "adjustSearchFilters": "Ändere die Suche oder probiere einen anderen Filter. Die aktuelle Auswahl bleibt erhalten.",
-      "resetFilters": "Filter zurücksetzen"
+      "resetFilters": "Filter zurücksetzen",
+      "genericLanHost": "Allgemeiner LAN-Host",
+      "selectedForLocalTuya": "{count} für LocalTuya ausgewählt",
+      "filterAll": "Alle",
+      "filterOnline": "Online",
+      "filterOffline": "Offline",
+      "filterSelected": "Ausgewählt",
+      "filterUnselected": "Nicht ausgewählt",
+      "unblock": "Freigeben"
     }
   },
   "history": {
