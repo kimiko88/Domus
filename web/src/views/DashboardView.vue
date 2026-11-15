@@ -479,7 +479,7 @@ function navigateToStore() {
           class="showcase-card glass-panel"
           tabindex="0"
           role="button"
-          :aria-label="`Dettagli per ${pkg.name}`"
+          :aria-label="t('dashboard.view.packageDetails', { name: pkg.name })"
           @click="openDetails(pkg)"
           @keydown.enter="openDetails(pkg)"
         >
@@ -507,7 +507,7 @@ function navigateToStore() {
               type="button"
               :class="['btn-install-mini', { installed: pkg.installed }]"
               :disabled="installingPackageId === pkg.id"
-              :aria-label="pkg.installed ? `Disinstalla ${pkg.name}` : `Installa ${pkg.name}`"
+              :aria-label="pkg.installed ? t('dashboard.view.uninstallPackage', { name: pkg.name }) : t('dashboard.view.installPackage', { name: pkg.name })"
               @click="toggleInstall(pkg, $event)"
             >
               <CheckCircle v-if="pkg.installed" :size="14" />
