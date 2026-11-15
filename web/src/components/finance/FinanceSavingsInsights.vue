@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Zap,
@@ -17,6 +18,7 @@ const props = defineProps<{
   insights: SavingsInsight[]
 }>()
 
+const { t, locale } = useI18n()
 const router = useRouter()
 
 const totalPotentialSavings = computed(() => {
@@ -24,7 +26,7 @@ const totalPotentialSavings = computed(() => {
 })
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2
@@ -52,23 +54,23 @@ function handleAction(url?: string) {
 </script>
 
 <template>
-  <div class="savings-insights-section" role="region" aria-label="Suggerimenti Intelligenti di Risparmio">
+  <div class="savings-insights-section" role="region" :aria-label="t('finance.insights.region')">
     <div class="section-header">
       <div class="title-with-badge">
         <Sparkles :size="20" class="sparkle-icon" aria-hidden="true" />
-        <h3 class="section-title">Suggerimenti Intelligenti di Risparmio</h3>
-        <span class="domus-badge">La Chicca di Domus</span>
+        <h3 class="section-title">{{ t('finance.insights.title') }}</h3>
+        <span class="domus-badge">{{ t('finance.insights.badge') }}</span>
       </div>
       <div v-if="totalPotentialSavings > 0" class="total-savings-badge">
-        <span>Risparmio potenziale stimato: <strong>{{ formatCurrency(totalPotentialSavings) }}</strong></span>
+        <span>{{ t('finance.insights.potential') }} <strong>{{ formatCurrency(totalPotentialSavings) }}</strong></span>
       </div>
     </div>
 
     <div v-if="insights.length === 0" class="no-insights-box glass-panel">
       <CheckCircle2 :size="24" class="no-insights-icon" aria-hidden="true" />
       <div>
-        <p class="no-insights-title">Ottimo lavoro! Nessuna spesa anomala o spreco rilevato.</p>
-        <p class="no-insights-sub">I consumi energetici, le scadenze e la gestione delle scorte sono perfettamente ottimizzati.</p>
+        <p class="no-insights-title">{{ t('finance.insights.emptyTitle') }}</p>
+        <p class="no-insights-sub">{{ t('finance.insights.emptyDesc') }}</p>
       </div>
     </div>
 
@@ -86,7 +88,7 @@ function handleAction(url?: string) {
           <div class="insight-meta">
             <h4 class="insight-title">{{ ins.title }}</h4>
             <span v-if="ins.potential_saving" class="saving-chip">
-              Risparmio: +{{ formatCurrency(ins.potential_saving) }}
+              {{ t('finance.insights.saving') }} +{{ formatCurrency(ins.potential_saving) }}
             </span>
           </div>
         </div>
@@ -96,10 +98,10 @@ function handleAction(url?: string) {
         <div v-if="ins.action_url" class="insight-actions">
           <button
             class="action-btn"
-            :aria-label="`Vai all'azione per: ${ins.title}`"
+            :aria-label="t('finance.insights.actionAria', { title: ins.title })"
             @click="handleAction(ins.action_url)"
           >
-            <span>Risolvi & Ottimizza</span>
+            <span>{{ t('finance.insights.resolve') }}</span>
             <ArrowRight :size="15" aria-hidden="true" />
           </button>
         </div>
