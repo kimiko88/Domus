@@ -155,6 +155,82 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireViewAccess maps API resources to their corresponding UI section and applies the member allow-list.
+func RequireViewAccess() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil || u.Role == user.RoleAdmin {
+				next.ServeHTTP(w, r)
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "view access denied")
+				return
+			}
+			path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1"), "/")
+			required := ""
+			switch {
+			case strings.HasPrefix(path, "/family"):
+				required = "/family"
+			case strings.HasPrefix(path, "/dashboards"):
+				required = "/custom-dashboards"
+			case strings.HasPrefix(path, "/automations"):
+				required = "/automations"
+			case strings.HasPrefix(path, "/scenes"):
+				required = "/scenes"
+			case strings.HasPrefix(path, "/areas"):
+				required = "/areas"
+			case strings.HasPrefix(path, "/devices"):
+				required = "/devices"
+			case strings.HasPrefix(path, "/integrations"):
+				required = "/integrations"
+			case strings.HasPrefix(path, "/history"):
+				required = "/history"
+			case strings.HasPrefix(path, "/cameras"):
+				required = "/cameras"
+			case strings.HasPrefix(path, "/chores"):
+				required = "/chores"
+			case strings.HasPrefix(path, "/shopping"):
+				required = "/shopping"
+			case strings.HasPrefix(path, "/pantry"):
+				required = "/pantry"
+			case strings.HasPrefix(path, "/medicines"):
+				required = "/medicines"
+			case strings.HasPrefix(path, "/finance"):
+				required = "/finance"
+			case strings.HasPrefix(path, "/media"):
+				required = "/media"
+			case strings.HasPrefix(path, "/zones"):
+				required = "/zones"
+			case strings.HasPrefix(path, "/mesh"):
+				required = "/mesh"
+			case strings.HasPrefix(path, "/store"):
+				required = "/store"
+			case strings.HasPrefix(path, "/floorplan"):
+				required = "/floorplan"
+			case strings.HasPrefix(path, "/system"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/entities"):
+				for _, candidate := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+					if permissions.CanAccessView(candidate) {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "entity view access denied")
+				return
+			}
+			if required != "" && !permissions.CanAccessView(required) {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "view access denied")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireDeviceControl allows authenticated members with the explicit device-control grant.
 func RequireDeviceControl() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
