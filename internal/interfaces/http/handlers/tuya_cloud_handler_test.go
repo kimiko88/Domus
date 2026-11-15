@@ -238,3 +238,26 @@ func TestTuyaCloudHandler_SyncLocalDoesNotRemoveOtherLocalTuyaAccounts(t *testin
 		t.Fatal("selection update must not remove devices outside the configured Smart Life account")
 	}
 }
+
+func TestIsLocalTuyaSetpointFunction(t *testing.T) {
+	tests := []struct {
+		name string
+		code string
+		want bool
+	}{
+		{name: "known target setpoint", code: "temp_set", want: true},
+		{name: "case-insensitive target setpoint", code: "TEMP_SET", want: true},
+		{name: "upper temperature is not DP2", code: "upper_temp", want: false},
+		{name: "lower temperature is not DP2", code: "lower_temp", want: false},
+		{name: "current temperature is read-only", code: "temp_current", want: false},
+		{name: "unknown temperature function", code: "temperature", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isLocalTuyaSetpointFunction(tt.code); got != tt.want {
+				t.Fatalf("isLocalTuyaSetpointFunction(%q) = %v, want %v", tt.code, got, tt.want)
+			}
+		})
+	}
+}
