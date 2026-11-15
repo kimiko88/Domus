@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import type { Entity } from '../../api/types'
 import { useEntityCommand } from '../../composables/useEntityCommand'
 import { Thermometer, Plus, Minus, Flame, Snowflake, RefreshCw, Power } from '@lucide/vue'
@@ -63,7 +65,7 @@ async function adjustTemp(delta: number) {
         <button
           class="btn-temp btn-temp-minus"
           :disabled="isExecuting"
-          aria-label="Decrease temperature"
+          :aria-label="t('common.entityCard.decreaseTemperature')"
           @click="adjustTemp(-0.5)"
         >
           <Minus :size="18" />
@@ -77,7 +79,7 @@ async function adjustTemp(delta: number) {
         <button
           class="btn-temp btn-temp-plus"
           :disabled="isExecuting"
-          aria-label="Increase temperature"
+          :aria-label="t('common.entityCard.increaseTemperature')"
           @click="adjustTemp(0.5)"
         >
           <Plus :size="18" />
