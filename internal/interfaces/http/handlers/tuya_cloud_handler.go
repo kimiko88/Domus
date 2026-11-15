@@ -403,13 +403,18 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 		// Only use the local adapter when every requested function has a safe,
 		// known DPS mapping. Unknown device functions remain available through Cloud API.
 		if localSupported {
+			deviceResponse := make(map[string]any)
 			for _, localCmd := range localCommands {
-				if err := h.tuyaLocal.SendCommand(r.Context(), deviceID, localCmd.command, localCmd.params); err != nil {
-					writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", fmt.Sprintf("local LAN command failed: %v", err))
+				response, err := h.tuyaLocal.SendCommand(r.Context(), deviceID, localCmd.command, localCmd.params)
+				if err != nil {
+					writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", fmt.Sprintf("local LAN command was not confirmed: %v", err))
 					return
 				}
+				for dp, value := range response {
+					deviceResponse[dp] = value
+				}
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"success": true, "transport": "lan_local"})
+			writeJSON(w, http.StatusOK, map[string]any{"success": true, "confirmed": true, "transport": "lan_local", "device_response": deviceResponse})
 			return
 		}
 	}
