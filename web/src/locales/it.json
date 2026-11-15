@@ -137,7 +137,23 @@
       "unlockKioskTitle": "Sblocco modalità kiosk",
       "unlockKioskDesc": "Inserisci il PIN per uscire dalla modalità tablet",
       "invalidPin": "PIN errato. Riprova.",
-      "unlock": "Sblocca"
+      "unlock": "Sblocca",
+      "entityFilters": "Filtri delle entità e delle sezioni della dashboard",
+      "openStoreCatalog": "Apri il catalogo completo del Domus Store",
+      "searchExtensions": "Cerca estensioni nel marketplace",
+      "clearSearch": "Cancella ricerca",
+      "filterModuleType": "Filtra per tipologia di modulo",
+      "packageDetails": "Dettagli di {name}",
+      "uninstallPackage": "Disinstalla {name}",
+      "installPackage": "Installa {name}",
+      "viewAllExtensions": "Visualizza tutte le estensioni del catalogo Domus Store",
+      "closeModuleDetails": "Chiudi i dettagli del modulo",
+      "author": "Autore",
+      "license": "Licenza",
+      "installDate": "Data di installazione",
+      "wasiPermissions": "Permessi della sandbox WASI",
+      "viewSourceFor": "Visualizza il codice open source di {name}",
+      "viewSource": "Visualizza il codice sorgente open source"
     }
   },
   "areas": {
@@ -450,7 +466,24 @@
     "noPendingInvites": "Nessun invito di registrazione attivo al momento.",
     "expiresAt": "Scadenza",
     "revoke": "Revoca",
-    "noMembers": "Nessun componente trovato."
+    "noMembers": "Nessun componente trovato.",
+    "view": {
+      "you": "(Tu)",
+      "guestProfilesTitle": "Profili ospiti e PIN kiosk temporaneo",
+      "guestProfilesDesc": "Crea account con accesso limitato tramite PIN o sblocco temporaneo della modalità kiosk (es. babysitter o ospiti di affitti brevi).",
+      "guestProfilesEmpty": "Nessun profilo ospite attivo. Crea un PIN temporaneo per i tuoi visitatori.",
+      "removeGuest": "Rimuovi ospite",
+      "createGuestProfileTitle": "Crea profilo ospite / kiosk",
+      "profileName": "Nome profilo / visitatore",
+      "profileNamePlaceholder": "es. Babysitter, ospite del soggiorno",
+      "numericPin": "Codice PIN numerico (4–8 cifre)",
+      "temporaryValidity": "Validità temporanea (ore)",
+      "hours": "{value} ore",
+      "dayOne": "24 ore (1 giorno)",
+      "days": "{value} giorni",
+      "oneWeek": "7 giorni (1 settimana)",
+      "enableKiosk": "Abilita la modalità kiosk a schermo intero per questo PIN"
+    }
   },
   "register": {
     "title": "Unisciti alla Famiglia Domus",
