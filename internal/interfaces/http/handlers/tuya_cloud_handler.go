@@ -364,7 +364,7 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 				if value, ok := cmd.Value.(bool); ok {
 					if value { localCmd = "turn_on" } else { localCmd = "turn_off" }
 				}
-			case strings.Contains(code, "temp") && !strings.Contains(code, "current") && !strings.Contains(code, "cur_"):
+			case code == "temp_set":
 				if value, ok := tuyaNumericValue(cmd.Value); ok {
 					var spec struct { Scale int `json:"scale"` }
 					_ = json.Unmarshal([]byte(fn.Values), &spec)
