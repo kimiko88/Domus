@@ -264,7 +264,13 @@
       "viewSourceFor": "Ver el código abierto de {name}",
       "viewSource": "Ver el código fuente abierto",
       "climateThermostat": "Clima y termostato",
-      "batteryLabel": "Batería ({value} %)"
+      "batteryLabel": "Batería ({value} %)",
+      "defaultProfileLivingRoom": "Tablet del salón (principal)",
+      "defaultProfileKitchen": "Tablet de cocina y entrada",
+      "defaultProfileNight": "Tablet del dormitorio y noche",
+      "roomLivingRoom": "Salón",
+      "roomKitchen": "Cocina",
+      "roomBedroom": "Dormitorio"
     }
   },
   "areas": {
