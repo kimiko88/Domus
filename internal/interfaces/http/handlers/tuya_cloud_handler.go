@@ -364,7 +364,7 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 				if value, ok := cmd.Value.(bool); ok {
 					if value { localCmd = "turn_on" } else { localCmd = "turn_off" }
 				}
-			case code == "temp_set":
+			case isLocalTuyaSetpointFunction(code):
 				if value, ok := tuyaNumericValue(cmd.Value); ok {
 					var spec struct { Scale int `json:"scale"` }
 					_ = json.Unmarshal([]byte(fn.Values), &spec)
@@ -551,6 +551,10 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		"devices": synced,
 	})
 }
+func isLocalTuyaSetpointFunction(code string) bool {
+	return strings.EqualFold(strings.TrimSpace(code), "temp_set")
+}
+
 func tuyaNumericValue(value any) (float64, bool) {
 	switch number := value.(type) {
 	case float64:
