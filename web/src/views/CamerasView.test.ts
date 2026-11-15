@@ -72,18 +72,18 @@ describe('CamerasView.vue', () => {
     expect(wrapper.text()).toContain('95%')
   })
 
-  it('switches to Biometria & Targhe AI tab and displays registered faces and plates', async () => {
+  it('switches to Biometria e targhe AI tab and displays registered faces and plates', async () => {
     const wrapper = mount(CamerasView)
     await flushPromises()
 
-    const biometricsBtn = wrapper.findAll('.btn-view-toggle').find(btn => btn.text().includes('Biometria & Targhe AI'))
+    const biometricsBtn = wrapper.findAll('.btn-view-toggle').find(btn => btn.text().includes('Biometria e targhe AI'))
     expect(biometricsBtn).toBeDefined()
     await biometricsBtn?.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Profili Biometrici Familiari')
+    expect(wrapper.text()).toContain('Profili biometrici familiari')
     expect(wrapper.text()).toContain('Marco Rossi')
-    expect(wrapper.text()).toContain('Targhe Veicoli Autorizzati')
+    expect(wrapper.text()).toContain('Targhe dei veicoli autorizzati (ALPR / ANPR)')
     expect(wrapper.text()).toContain('AB123CD')
     expect(wrapper.text()).toContain('Tesla Model Y')
   })
