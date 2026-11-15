@@ -5,6 +5,7 @@ import FamilyView from './FamilyView.vue'
 import { useAuthStore } from '../stores/auth'
 import { useFamilyStore } from '../stores/family'
 import { i18n } from '../locales'
+import { apiClient } from '../api/client'
 
 describe('FamilyView.vue', () => {
   let pinia: any
@@ -13,6 +14,7 @@ describe('FamilyView.vue', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     vi.restoreAllMocks()
+    vi.spyOn(apiClient, 'get').mockImplementation(async () => [] as any)
   })
 
   it('renders family members list and role badges', async () => {
