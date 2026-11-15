@@ -305,6 +305,26 @@ func RequireDeviceControl() func(http.Handler) http.Handler {
 	}
 }
 
+// RequireUnrestrictedDeviceControl protects bulk actions that may target multiple entities.
+func RequireUnrestrictedDeviceControl() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !permissions.CanControlDevices ||
+				permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "bulk device actions require unrestricted device scope")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireAutomationManagement checks the explicit automation-management grant.
 func RequireAutomationManagement() func(http.Handler) http.Handler {
 	return requirePermission(func(p *user.UserPermissions) bool { return p.CanManageAutomations }, "automation management permission required")
