@@ -5,13 +5,11 @@ import {
   LayoutDashboard,
   Maximize2,
   Minimize2,
-  Plus,
   Flame,
   Sun,
   Battery,
   Zap,
   Home,
-  Clock,
   CloudSun,
   TrendingUp,
   Settings2,
@@ -21,16 +19,6 @@ import {
 import { apiClient } from '../api/client'
 
 const { t, locale } = useI18n()
-
-interface Widget {
-  id: string
-  type: 'thermostat' | 'sparkline' | 'sankey' | 'entity_card'
-  title: string
-  entityKey?: string
-  value?: any
-  colSpan: number
-  rowSpan: number
-}
 
 interface KioskConfig {
   enabled: boolean
@@ -105,7 +93,6 @@ const kioskConfig = ref<KioskConfig>({
 // Circular Thermostat State
 const currentTemp = ref(20.0)
 const targetTemp = ref(20.0)
-const isHeating = ref(false)
 
 function adjustTargetTemp(delta: number) {
   targetTemp.value = Math.round((targetTemp.value + delta) * 10) / 10
@@ -320,7 +307,6 @@ onMounted(async () => {
         if (!isNaN(tVal)) {
           currentTemp.value = tVal
           targetTemp.value = climate.attributes?.temperature || tVal
-          isHeating.value = climate.attributes?.hvac_action === 'heating'
         }
       }
     }
