@@ -27,8 +27,6 @@ func DefaultPermissions(userID string, role Role) *UserPermissions {
 		p.CanControlDevices = true
 		p.CanManageAutomations = true
 		p.CanViewCameras = true
-	case RoleViewer:
-		p.CanViewCameras = true
 	case RoleKid:
 		p.AllowedAreaIDs = []string{}
 		p.AllowedEntityIDs = []string{}
