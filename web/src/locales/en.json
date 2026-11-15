@@ -635,13 +635,15 @@
       "admin": "Administrator",
       "operator": "Operator",
       "viewer": "Viewer",
-      "guest": "Guest"
+      "guest": "Guest",
+      "kid": "Child"
     },
     "rolesDesc": {
       "admin": "Full access: system configuration, member governance, and complete device control.",
       "operator": "Operational control: can toggle devices and trigger scenes/automations, cannot alter system settings.",
       "viewer": "Read-only: can view home status and environmental sensors in real time, cannot issue commands.",
-      "guest": "Temporary guest access or Kiosk mode with scheduled time expiration."
+      "guest": "Temporary guest access or Kiosk mode with scheduled time expiration.",
+      "kid": "Child-safe access to approved areas such as dashboards, media and chores; no device commands or system settings."
     },
     "inviteModalTitle": "Invite a New Family Member",
     "selectRole": "Select Assigned Role",
