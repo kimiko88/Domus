@@ -62,7 +62,6 @@ const selectedDashboardIDs = ref<string[]>([])
 const selectedViews = ref<string[]>([])
 const canControlDevices = ref(false)
 const canManageAutomations = ref(false)
-const canManageSettings = ref(false)
 const canViewCameras = ref(false)
 const permissionViews = [
   { path: '/', label: 'Dashboard' },
@@ -191,7 +190,6 @@ function openPermissions(member: { id: string; username: string; permissions?: U
   selectedViews.value = [...(permissions?.allowed_views || [])]
   canControlDevices.value = permissions?.can_control_devices ?? false
   canManageAutomations.value = permissions?.can_manage_automations ?? false
-  canManageSettings.value = permissions?.can_manage_settings ?? false
   canViewCameras.value = permissions?.can_view_cameras ?? false
   isPermissionsModalOpen.value = true
 }
@@ -213,7 +211,7 @@ async function savePermissions() {
     allowed_views: allViews.value ? null : [...selectedViews.value],
     can_control_devices: canControlDevices.value,
     can_manage_automations: canManageAutomations.value,
-    can_manage_settings: canManageSettings.value,
+    can_manage_settings: false,
     can_view_cameras: canViewCameras.value
   }
   try {
@@ -836,10 +834,6 @@ onMounted(() => {
             <label class="permission-check">
               <input v-model="canViewCameras" type="checkbox" />
               <span>{{ t('family.permissions.viewCameras') }}</span>
-            </label>
-            <label class="permission-check">
-              <input v-model="canManageSettings" type="checkbox" />
-              <span>{{ t('family.permissions.manageSettings') }}</span>
             </label>
           </section>
           <p class="permission-hint">{{ t('family.permissions.hint') }}</p>
