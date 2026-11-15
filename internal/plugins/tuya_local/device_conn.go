@@ -1,7 +1,9 @@
 package tuya_local
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -223,65 +225,80 @@ func (c *DeviceClient) heartbeatLoop() {
 }
 
 func (c *DeviceClient) readLoop() {
-	buf := make([]byte, 4096)
+	readBuf := make([]byte, 4096)
+	pending := make([]byte, 0, 8192)
 
 	for {
-		if c.closed.Load() {
-			return
-		}
-
+		if c.closed.Load() { return }
 		c.mu.Lock()
 		conn := c.conn
 		c.mu.Unlock()
-
-		if conn == nil {
-			return
-		}
+		if conn == nil { return }
 
 		_ = conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-		n, err := conn.Read(buf)
+		n, err := conn.Read(readBuf)
 		if err != nil {
-			if errors.Is(err, io.EOF) || c.closed.Load() {
-				return
-			}
-			continue
+			if errors.Is(err, io.EOF) || c.closed.Load() { return }
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() { continue }
+			return
 		}
+		pending = append(pending, readBuf[:n]...)
 
-		if n < 16 {
-			continue
-		}
-
-		packet, err := DecodeResponsePacket(buf[:n], c.LocalKey)
-		if err != nil {
-			continue
-		}
-
-		var dps map[string]any
-		if len(packet.Payload) > 0 {
-			var resp struct {
-				DPS map[string]any `json:"dps"`
-				Data struct { DPS map[string]any `json:"dps"` } `json:"data"`
-			}
-			if err := json.Unmarshal(packet.Payload, &resp); err == nil {
-				dps = resp.DPS
-				if len(dps) == 0 { dps = resp.Data.DPS }
-			}
-		}
-		if len(dps) > 0 && c.onStatus != nil { c.onStatus(dps) }
-		c.pendingMu.Lock()
-		waiter := c.pending
-		if waiter != nil {
-			if packet.Sequence == waiter.sequence && packet.Command == waiter.command {
-				if packet.ReturnCode != 0 {
-					select { case waiter.ack <- fmt.Errorf("tuya: device rejected command with return code %d", packet.ReturnCode): default: }
-				} else {
-					select { case waiter.ack <- nil: default: }
+		// TCP is a byte stream: one Read may contain a partial frame or several
+		// coalesced frames. Extract complete 55AA packets before decoding.
+		for {
+			prefixAt := bytes.Index(pending, PrefixHeader)
+			if prefixAt < 0 {
+				if len(pending) > len(PrefixHeader)-1 {
+					pending = append(pending[:0], pending[len(pending)-(len(PrefixHeader)-1):]...)
 				}
+				break
 			}
-			if len(dps) > 0 && dpsMatch(waiter.expected, dps) {
-				select { case waiter.confirmed <- cloneDPS(dps): default: }
+			if prefixAt > 0 { pending = pending[prefixAt:] }
+			if len(pending) < 16 { break }
+			payloadLen := binary.BigEndian.Uint32(pending[12:16])
+			if payloadLen < 8 || payloadLen > 1<<20 {
+				pending = pending[1:]
+				continue
+			}
+			frameLen := 16 + int(payloadLen)
+			if len(pending) < frameLen { break }
+			frame := append([]byte(nil), pending[:frameLen]...)
+			pending = pending[frameLen:]
+			packet, decodeErr := DecodeResponsePacket(frame, c.LocalKey)
+			if decodeErr != nil { continue }
+			c.handleResponsePacket(packet)
+		}
+	}
+}
+
+func (c *DeviceClient) handleResponsePacket(packet *Packet) {
+	var dps map[string]any
+	if len(packet.Payload) > 0 {
+		var resp struct {
+			DPS map[string]any `json:"dps"`
+			Data struct { DPS map[string]any `json:"dps"` } `json:"data"`
+		}
+		if err := json.Unmarshal(packet.Payload, &resp); err == nil {
+			dps = resp.DPS
+			if len(dps) == 0 { dps = resp.Data.DPS }
+		}
+	}
+	if len(dps) > 0 && c.onStatus != nil { c.onStatus(dps) }
+
+	c.pendingMu.Lock()
+	waiter := c.pending
+	if waiter != nil {
+		if packet.Sequence == waiter.sequence && packet.Command == waiter.command {
+			if packet.ReturnCode != 0 {
+				select { case waiter.ack <- fmt.Errorf("tuya: device rejected command with return code %d", packet.ReturnCode): default: }
+			} else {
+				select { case waiter.ack <- nil: default: }
 			}
 		}
-		c.pendingMu.Unlock()
+		if len(dps) > 0 && dpsMatch(waiter.expected, dps) {
+			select { case waiter.confirmed <- cloneDPS(dps): default: }
+		}
 	}
+	c.pendingMu.Unlock()
 }
