@@ -65,6 +65,9 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	if permissions == nil {
 		permissions = user.DefaultPermissions(u.ID, u.Role)
 	}
+	permissions.UserID = u.ID
+	permissions.Role = u.Role
+	u.Permissions = permissions
 	permissionsJSON, err := json.Marshal(permissions)
 	if err != nil {
 		return fmt.Errorf("sqlite: marshal user permissions: %w", err)
