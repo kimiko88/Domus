@@ -111,7 +111,7 @@ describe('ZonesView.vue', () => {
     const wrapper = mount(ZonesView)
     await flushPromises()
 
-    const addBtn = wrapper.find('button[aria-label="Aggiungi un'azione simulata"]')
+    const addBtn = wrapper.find("button[aria-label=\"Aggiungi un'azione simulata\"]")
     expect(addBtn.exists()).toBe(true)
     await addBtn.trigger('click')
 
