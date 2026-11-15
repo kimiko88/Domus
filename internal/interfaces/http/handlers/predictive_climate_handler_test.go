@@ -11,9 +11,11 @@ import (
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	appweather "github.com/domus-hub/domus/internal/application/weather"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,12 @@ func setupPredictiveHandlerTest(t *testing.T) (*chi.Mux, *appclimate.PredictiveS
 	handler := handlers.NewPredictiveClimateHandler(svc)
 
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		admin := &user.User{ID: "test-admin", Role: user.RoleAdmin}
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(domusmw.WithUser(req.Context(), admin)))
+		})
+	})
 	r.Route("/api/v1/climate/predictive", func(sub chi.Router) {
 		handler.RegisterRoutes(sub)
 	})
