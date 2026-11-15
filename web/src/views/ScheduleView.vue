@@ -22,7 +22,7 @@ import { apiClient } from '../api/client'
 import { useEntitiesStore } from '../stores/entities'
 import { useNotificationsStore } from '../stores/notifications'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const entitiesStore = useEntitiesStore()
 const notifStore = useNotificationsStore()
 
@@ -52,15 +52,15 @@ export interface CalendarEvent {
 
 const activeTab = ref<'cronotermostato' | 'calendar'>('cronotermostato')
 
-const daysOfWeek = [
-  { key: 'monday', label: 'Lunedì' },
-  { key: 'tuesday', label: 'Martedì' },
-  { key: 'wednesday', label: 'Mercoledì' },
-  { key: 'thursday', label: 'Giovedì' },
-  { key: 'friday', label: 'Venerdì' },
-  { key: 'saturday', label: 'Sabato' },
-  { key: 'sunday', label: 'Domenica' }
-]
+const daysOfWeek = computed(() => [
+  { key: 'monday', label: t('schedules.view.days.monday') },
+  { key: 'tuesday', label: t('schedules.view.days.tuesday') },
+  { key: 'wednesday', label: t('schedules.view.days.wednesday') },
+  { key: 'thursday', label: t('schedules.view.days.thursday') },
+  { key: 'friday', label: t('schedules.view.days.friday') },
+  { key: 'saturday', label: t('schedules.view.days.saturday') },
+  { key: 'sunday', label: t('schedules.view.days.sunday') }
+])
 
 const schedules = ref<Schedule[]>([])
 const selectedScheduleId = ref<string>('')
@@ -384,22 +384,22 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="tab-selector" role="tablist" aria-label="Sezioni Cronotermostato">
+      <div class="tab-selector" role="tablist" :aria-label="t('schedules.view.tabSelector')">
         <button
           :class="['tab-btn', { active: activeTab === 'cronotermostato' }]"
           @click="activeTab = 'cronotermostato'"
-          aria-label="Cronotermostato Settimanale"
+          :aria-label="t('schedules.view.weeklyTabAria')"
         >
           <Flame :size="16" />
-          <span>Cronotermostato</span>
+          <span>{{ t('schedules.view.weeklyTab') }}</span>
         </button>
         <button
           :class="['tab-btn', { active: activeTab === 'calendar' }]"
           @click="activeTab = 'calendar'"
-          aria-label="Calendario & iCal"
+          :aria-label="t('schedules.view.calendarTabAria')"
         >
           <CalendarIcon :size="16" />
-          <span>Calendario & Eventi</span>
+          <span>{{ t('schedules.view.calendarEventsTab') }}</span>
         </button>
       </div>
     </header>
@@ -407,16 +407,16 @@ onMounted(async () => {
     <!-- Tab 1: Cronotermostato Live & Weekly Matrix -->
     <div v-if="activeTab === 'cronotermostato'" class="cronotermostato-layout">
       <!-- SECTION 1: LIVE SMART THERMOSTAT REGULATOR WIDGET -->
-      <section class="live-thermostat-card glass-panel" aria-label="Regolazione Termostato Smart">
+      <section class="live-thermostat-card glass-panel" :aria-label="t('schedules.view.liveThermostatAria')">
         <div class="thermostat-top-row">
           <div class="thermostat-title-box">
             <Thermometer :size="20" class="text-primary" />
-            <h3>Regola Termostato Smart Collegato</h3>
+            <h3>{{ t('schedules.view.liveThermostatTitle') }}</h3>
           </div>
 
           <!-- Selector of Connected Thermostats -->
           <div class="thermostat-selector-wrap">
-            <label for="thermostat-select">Dispositivo:</label>
+            <label for="thermostat-select">{{ t('schedules.view.deviceLabel') }}</label>
             <select
               id="thermostat-select"
               v-model="activeThermostatId"
@@ -427,7 +427,7 @@ onMounted(async () => {
                 🌡️ {{ t.name }} ({{ t.id }})
               </option>
               <option v-if="connectedThermostats.length === 0" value="climate.termostato_salotto">
-                🌡️ Termostato Salotto (Simulato)
+                🌡️ {{ t('schedules.view.simulatedThermostat') }}
               </option>
             </select>
           </div>
@@ -436,26 +436,26 @@ onMounted(async () => {
         <div class="thermostat-dial-grid">
           <!-- Current Reading -->
           <div class="temp-display-block current">
-            <span class="temp-sublabel">Temperatura Rilevata</span>
+            <span class="temp-sublabel">{{ t('schedules.view.actualTemperature') }}</span>
             <div class="temp-value-huge">
               <span class="number">{{ currentAmbientTemp.toFixed(1) }}</span>
               <span class="unit">°C</span>
             </div>
             <span class="status-indicator">
-              <span class="dot-online"></span> In monitoraggio continuo
+              <span class="dot-online"></span> {{ t('schedules.view.continuousMonitoring') }}
             </span>
           </div>
 
           <!-- Interactive Setpoint Control -->
           <div class="temp-display-block target">
-            <span class="temp-sublabel">Obiettivo Setpoint Desiderato</span>
+            <span class="temp-sublabel">{{ t('schedules.view.desiredSetpoint') }}</span>
 
             <div class="setpoint-adjust-row">
               <button
                 class="btn-temp-circle"
                 @click="adjustLiveTemp(-0.5)"
-                title="Diminuisci 0.5°C"
-                aria-label="Diminuisci temperatura di 0.5 gradi"
+                :title="t('schedules.view.decreaseHalfDegree')"
+                :aria-label="t('schedules.view.decreaseTemperature')"
               >
                 -
               </button>
@@ -466,8 +466,8 @@ onMounted(async () => {
               <button
                 class="btn-temp-circle"
                 @click="adjustLiveTemp(0.5)"
-                title="Aumenta 0.5°C"
-                aria-label="Aumenta temperatura di 0.5 gradi"
+                :title="t('schedules.view.increaseHalfDegree')"
+                :aria-label="t('schedules.view.increaseTemperature')"
               >
                 +
               </button>
@@ -481,7 +481,7 @@ onMounted(async () => {
                 @click="setLivePreset(18.0)"
               >
                 <Moon :size="12" />
-                <span>Eco 18°C</span>
+                <span>{{ t('schedules.view.ecoPreset') }}</span>
               </button>
               <button
                 class="temp-pill"
@@ -489,7 +489,7 @@ onMounted(async () => {
                 @click="setLivePreset(20.0)"
               >
                 <Sun :size="12" />
-                <span>Normale 20°C</span>
+                <span>{{ t('schedules.view.normalPreset') }}</span>
               </button>
               <button
                 class="temp-pill"
@@ -497,7 +497,7 @@ onMounted(async () => {
                 @click="setLivePreset(21.5)"
               >
                 <Flame :size="12" />
-                <span>Comfort 21.5°C</span>
+                <span>{{ t('schedules.view.comfortPreset') }}</span>
               </button>
               <button
                 class="temp-pill"
@@ -505,14 +505,14 @@ onMounted(async () => {
                 @click="setLivePreset(23.0)"
               >
                 <Sparkles :size="12" />
-                <span>Boost 23°C</span>
+                <span>{{ t('schedules.view.boostPreset') }}</span>
               </button>
             </div>
           </div>
 
           <!-- HVAC Mode & Execution Column -->
           <div class="temp-display-block actions-col">
-            <span class="temp-sublabel">Modalità Operativa</span>
+            <span class="temp-sublabel">{{ t('schedules.view.operatingMode') }}</span>
 
             <div class="hvac-mode-buttons">
               <button
@@ -521,7 +521,7 @@ onMounted(async () => {
                 @click="liveHvacMode = 'heat'"
               >
                 <Flame :size="14" />
-                <span>Riscaldamento</span>
+                <span>{{ t('schedules.view.heating') }}</span>
               </button>
               <button
                 class="mode-btn"
@@ -529,7 +529,7 @@ onMounted(async () => {
                 @click="liveHvacMode = 'auto'"
               >
                 <Clock :size="14" />
-                <span>Automatico</span>
+                <span>{{ t('schedules.view.automatic') }}</span>
               </button>
               <button
                 class="mode-btn off"
@@ -537,7 +537,7 @@ onMounted(async () => {
                 @click="liveHvacMode = 'off'"
               >
                 <Power :size="14" />
-                <span>Spento</span>
+                <span>{{ t('schedules.view.off') }}</span>
               </button>
             </div>
 
@@ -547,23 +547,23 @@ onMounted(async () => {
               @click="applyLiveThermostatSettings"
             >
               <Save :size="16" />
-              <span>{{ isAdjustingLive ? 'Invio comando...' : 'Regola Termostato Ora' }}</span>
+              <span>{{ isAdjustingLive ? t('schedules.view.sendingCommand') : t('schedules.view.adjustThermostatNow') }}</span>
             </button>
           </div>
         </div>
       </section>
 
       <!-- SECTION 2: WEEKLY SCHEDULE MATRIX (7 GIORNI X 24H) -->
-      <section v-if="selectedSchedule" class="planner-card glass-panel" aria-label="Programmatore Settimanale">
+      <section v-if="selectedSchedule" class="planner-card glass-panel" :aria-label="t('schedules.view.weeklyProgrammer')">
         <div class="planner-top">
           <div class="schedule-title-block">
             <h2 class="schedule-title">{{ selectedSchedule.name }}</h2>
-            <span class="schedule-target">Entità controllata: {{ selectedSchedule.entity_key }}</span>
+            <span class="schedule-target">{{ t('schedules.view.controlledEntity') }} {{ selectedSchedule.entity_key }}</span>
           </div>
 
           <div class="schedule-selector-row">
             <div class="form-group inline">
-              <label for="sched-picker">Profilo:</label>
+              <label for="sched-picker">{{ t('schedules.view.profile') }}</label>
               <select id="sched-picker" v-model="selectedScheduleId" class="sched-select">
                 <option v-for="s in schedules" :key="s.id" :value="s.id">
                   {{ s.name }} ({{ s.entity_key }})
@@ -573,29 +573,29 @@ onMounted(async () => {
 
             <button class="btn-tool-secondary" @click="createNewSchedule">
               <Plus :size="14" />
-              <span>Nuovo Profilo</span>
+              <span>{{ t('schedules.view.newProfile') }}</span>
             </button>
           </div>
 
           <div class="planner-top-actions">
             <!-- Preset Profile Buttons -->
-            <button class="btn-profile-preset" @click="applyWinterWorkingProfile" title="Imposta orari per settimana lavorativa">
+            <button class="btn-profile-preset" @click="applyWinterWorkingProfile" :title="t('schedules.view.winterWorkProfile')">
               <Sparkles :size="14" />
-              <span>Profilo Inverno Lavoro</span>
+              <span>{{ t('schedules.view.winterWorkProfile') }}</span>
             </button>
-            <button class="btn-profile-preset" @click="copyMondayToWorkdays" title="Copia Lunedì da Martedì a Venerdì">
+            <button class="btn-profile-preset" @click="copyMondayToWorkdays" :title="t('schedules.view.copyMondayToFriday')">
               <Copy :size="14" />
-              <span>Copia Lun &gt; Mar-Ven</span>
+              <span>{{ t('schedules.view.copyMondayToFriday') }}</span>
             </button>
-            <button class="btn-profile-preset" @click="copySaturdayToSunday" title="Copia Sabato a Domenica">
+            <button class="btn-profile-preset" @click="copySaturdayToSunday" :title="t('schedules.view.copySaturdayToSunday')">
               <Copy :size="14" />
-              <span>Copia Sab &gt; Dom</span>
+              <span>{{ t('schedules.view.copySaturdayToSunday') }}</span>
             </button>
 
             <!-- Save Schedule Button -->
             <button class="btn-primary" :disabled="isSavingSchedule" @click="saveCurrentSchedule">
               <Save :size="16" />
-              <span>{{ isSavingSchedule ? 'Salvataggio...' : 'Salva Programmazione' }}</span>
+              <span>{{ isSavingSchedule ? t('schedules.view.saving') : t('schedules.view.saveSchedule') }}</span>
             </button>
           </div>
         </div>
@@ -605,9 +605,9 @@ onMounted(async () => {
           <div v-for="day in daysOfWeek" :key="day.key" class="day-row">
             <div class="day-col-left">
               <span class="day-label">{{ day.label }}</span>
-              <button class="btn-add-slot" @click="openAddSlot(day.key)" title="Aggiungi fascia oraria">
+              <button class="btn-add-slot" @click="openAddSlot(day.key)" :title="t('schedules.view.addTimeSlot')">
                 <Plus :size="12" />
-                <span>Fascia</span>
+                <span>{{ t('schedules.view.timeSlot') }}</span>
               </button>
             </div>
 
@@ -635,7 +635,7 @@ onMounted(async () => {
                 v-if="!selectedSchedule.grid[day.key] || selectedSchedule.grid[day.key].length === 0"
                 class="no-slots"
               >
-                Nessuna fascia oraria (mantenimento eco 18.0°C)
+                {{ t('schedules.view.emptyTimeSlots') }}
               </div>
             </div>
           </div>
@@ -647,10 +647,10 @@ onMounted(async () => {
     <div v-else class="calendar-layout">
       <div class="calendar-card glass-panel">
         <div class="cal-top-bar">
-          <h2 class="section-title">Eventi Sincronizzati & Trigger Automazioni</h2>
+          <h2 class="section-title">{{ t('schedules.view.syncedEventsTitle') }}</h2>
           <label class="import-btn">
             <Upload :size="16" />
-            <span>Importa .ics / CalDAV</span>
+            <span>{{ t('schedules.view.importIcs') }}</span>
             <input type="file" accept=".ics" class="hidden-input" @change="handleICalUpload" />
           </label>
         </div>
@@ -658,22 +658,22 @@ onMounted(async () => {
         <p v-if="icsUploadStatus" class="status-msg text-success">{{ icsUploadStatus }}</p>
 
         <p v-if="calendarEvents.length === 0" class="empty-state">
-          Nessun evento sincronizzato nel database.
+          {{ t('schedules.view.noSyncedEvents') }}
         </p>
 
         <div v-else class="calendar-events-list">
           <div v-for="evt in calendarEvents" :key="evt.id" class="cal-event-card">
             <div class="cal-time-col">
-              <span class="cal-date">{{ new Date(evt.start_time).toLocaleDateString('it-IT') }}</span>
+              <span class="cal-date">{{ new Date(evt.start_time).toLocaleDateString(locale) }}</span>
               <span class="cal-hours">{{
-                new Date(evt.start_time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+                new Date(evt.start_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
               }}</span>
             </div>
 
             <div class="cal-info-col">
               <h3 class="evt-summary">{{ evt.summary }}</h3>
               <p class="evt-desc">{{ evt.description }}</p>
-              <span v-if="evt.location" class="evt-loc">Stanza: {{ evt.location }}</span>
+              <span v-if="evt.location" class="evt-loc">{{ t('schedules.view.room') }} {{ evt.location }}</span>
             </div>
 
             <span class="source-tag" :class="evt.source">{{ evt.source.toUpperCase() }}</span>
@@ -686,8 +686,8 @@ onMounted(async () => {
     <div v-if="showAddSlotModal" class="modal-backdrop" @click="showAddSlotModal = false">
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-slot-title">
         <div class="modal-header">
-          <h2 id="modal-slot-title">Nuova Fascia Oraria</h2>
-          <button class="modal-close-btn" @click="showAddSlotModal = false" aria-label="Chiudi finestra">
+          <h2 id="modal-slot-title">{{ t('schedules.view.newTimeSlotTitle') }}</h2>
+          <button class="modal-close-btn" @click="showAddSlotModal = false" :aria-label="t('schedules.view.closeWindow')">
             <X class="icon-close" />
           </button>
         </div>
@@ -695,17 +695,17 @@ onMounted(async () => {
         <form @submit.prevent="saveSlot" class="modal-body">
           <div class="form-row">
             <div class="form-group">
-              <label for="slot-start">Ora Inizio</label>
+              <label for="slot-start">{{ t('schedules.view.startTime') }}</label>
               <input id="slot-start" v-model="newSlotForm.start" type="time" required />
             </div>
             <div class="form-group">
-              <label for="slot-end">Ora Fine</label>
+              <label for="slot-end">{{ t('schedules.view.endTime') }}</label>
               <input id="slot-end" v-model="newSlotForm.end" type="time" required />
             </div>
           </div>
 
           <div class="form-group">
-            <label for="slot-temp">Temperatura Obiettivo (°C)</label>
+            <label for="slot-temp">{{ t('schedules.view.targetTemperature') }}</label>
             <input
               id="slot-temp"
               v-model.number="newSlotForm.value"
@@ -718,8 +718,8 @@ onMounted(async () => {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-cancel" @click="showAddSlotModal = false">Annulla</button>
-            <button type="submit" class="btn-primary">Aggiungi Fascia</button>
+            <button type="button" class="btn-cancel" @click="showAddSlotModal = false">{{ t('schedules.view.cancel') }}</button>
+            <button type="submit" class="btn-primary">{{ t('schedules.view.addSlot') }}</button>
           </div>
         </form>
       </div>
