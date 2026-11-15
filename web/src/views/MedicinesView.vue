@@ -448,7 +448,7 @@ onMounted(async () => {
           <div class="info-row">
             <span class="info-label">{{ t('medicines.position') }}</span>
             <span class="info-val font-medium">
-              {{ locations.find(l => l.key === med.location)?.label || med.location }}
+              {{ (locations.find(l => l.key === med.location) ? t(locations.find(l => l.key === med.location)!.labelKey) : med.location) }}
             </span>
           </div>
 
@@ -637,7 +637,7 @@ onMounted(async () => {
               <div class="form-group">
                 <label class="form-label">{{ t('medicines.storageLocation') }}</label>
                 <select v-model="formLocation" class="form-input">
-                  <option v-for="loc in locations" :key="loc.key" :value="loc.key">{{ loc.label }}</option>
+                  <option v-for="loc in locations" :key="loc.key" :value="loc.key">{{ t(loc.labelKey) }}</option>
                 </select>
               </div>
 
