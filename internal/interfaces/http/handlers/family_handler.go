@@ -236,6 +236,7 @@ func (h *FamilyHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 			"email":      m.Email,
 			"role":       string(m.Role),
 			"enabled":    m.Enabled,
+			"permissions": m.Permissions,
 			"created_at": m.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -290,6 +291,58 @@ func (h *FamilyHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+type updatePermissionsRequest struct {
+	AllowedAreaIDs       []string `json:"allowed_area_ids"`
+	AllowedEntityIDs     []string `json:"allowed_entity_ids"`
+	AllowedDashboardIDs  []string `json:"allowed_dashboard_ids"`
+	AllowedViews         []string `json:"allowed_views"`
+	CanControlDevices    bool     `json:"can_control_devices"`
+	CanManageAutomations bool     `json:"can_manage_automations"`
+	CanManageSettings    bool     `json:"can_manage_settings"`
+	CanViewCameras       bool     `json:"can_view_cameras"`
+}
+
+// UpdateMemberPermissions handles PUT /api/v1/family/members/{id}/permissions.
+func (h *FamilyHandler) UpdateMemberPermissions(w http.ResponseWriter, r *http.Request) {
+	admin := domusmw.GetUser(r.Context())
+	if admin == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	targetID := chi.URLParam(r, "id")
+	if targetID == "" {
+		writeError(w, http.StatusBadRequest, "missing_param", "member ID is required")
+		return
+	}
+	var req updatePermissionsRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid permissions payload")
+		return
+	}
+	permissions := &user.UserPermissions{
+		UserID: targetID,
+		AllowedAreaIDs: req.AllowedAreaIDs,
+		AllowedEntityIDs: req.AllowedEntityIDs,
+		AllowedDashboardIDs: req.AllowedDashboardIDs,
+		AllowedViews: req.AllowedViews,
+		CanControlDevices: req.CanControlDevices,
+		CanManageAutomations: req.CanManageAutomations,
+		CanManageSettings: req.CanManageSettings,
+		CanViewCameras: req.CanViewCameras,
+	}
+	if err := h.authService.UpdateFamilyMemberPermissions(r.Context(), admin.ID, targetID, permissions); err != nil {
+		if errors.Is(err, user.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user_not_found", "member not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, "invalid_permissions", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "permissions": permissions})
 }
 
 // RemoveMember handles DELETE /api/v1/family/members/{id}.
