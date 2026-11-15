@@ -389,7 +389,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// Domain repository routes (Areas, Devices, Entities)
 		if srv.repos != nil {
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
-			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
+			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
