@@ -5,6 +5,8 @@ import { useNotificationsStore } from './notifications'
 import { useAlarmStore } from './alarm'
 import type { EntityStateEventPayload } from '../api/types'
 
+const DISCOVERY_NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000
+
 export const useWsStore = defineStore('ws', () => {
   const isConnected = ref(false)
   const isConnecting = ref(false)
@@ -13,6 +15,7 @@ export const useWsStore = defineStore('ws', () => {
   const entitiesStore = useEntitiesStore()
   const notificationsStore = useNotificationsStore()
   const alarmStore = useAlarmStore()
+  const discoveryNotificationLastShownAt = new Map<string, number>()
 
   function setConnected(connected: boolean) {
     isConnected.value = connected
@@ -24,6 +27,30 @@ export const useWsStore = defineStore('ws', () => {
 
   function setError(error: string | null) {
     lastError.value = error
+  }
+
+  function notifyDiscoveredDevice(payload: any) {
+    const deviceKey = String(payload.device_id || payload.id || payload.name || '').trim()
+    if (!deviceKey) return
+
+    const now = Date.now()
+    const lastShownAt = discoveryNotificationLastShownAt.get(deviceKey)
+    if (lastShownAt !== undefined && now - lastShownAt < DISCOVERY_NOTIFICATION_COOLDOWN_MS) {
+      return
+    }
+
+    // Keep the map bounded when many different devices are discovered over time.
+    for (const [key, timestamp] of discoveryNotificationLastShownAt) {
+      if (now - timestamp >= DISCOVERY_NOTIFICATION_COOLDOWN_MS) {
+        discoveryNotificationLastShownAt.delete(key)
+      }
+    }
+
+    discoveryNotificationLastShownAt.set(deviceKey, now)
+    notificationsStore.info(
+      'Device Discovered',
+      `New device discovered: ${payload.name || payload.device_id || deviceKey}`
+    )
   }
 
   function handleIncomingEvent(eventType: string, payload: any) {
@@ -61,7 +88,7 @@ export const useWsStore = defineStore('ws', () => {
         break
 
       case 'device.discovered':
-        notificationsStore.info('Device Discovered', `New device discovered: ${payload.name || payload.device_id}`)
+        notifyDiscoveredDevice(payload)
         break
 
       case 'scene.activated':
