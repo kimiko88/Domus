@@ -2,6 +2,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -139,6 +140,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	eventFilter := func(msg websocket.Message) bool {
 		if !filterRestrictedEvents {
 			return true
+		}
+		// Session revocation on permission changes must stop broadcasts immediately.
+		if h.authService != nil {
+			if _, _, sessionErr := h.authService.ValidateSession(context.Background(), sessionID); sessionErr != nil {
+				return false
+			}
 		}
 		if msg.Type != string(events.EntityStateChanged) {
 			return false
