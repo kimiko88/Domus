@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { apiClient } from '../api/client'
 
 interface Widget {
@@ -37,6 +38,7 @@ interface ShareInfo {
   created_at: string
 }
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const token = route.params.token as string
 
@@ -72,7 +74,7 @@ async function loadSharedDashboard() {
       }
     }
   } catch (err: any) {
-    error.value = err?.message || 'Token di condivisione non valido o scaduto.'
+    error.value = err?.message || t('sharedDashboard.view.invalidToken')
   } finally {
     loading.value = false
   }
@@ -88,15 +90,15 @@ onMounted(() => {
     <!-- Loading State -->
     <div v-if="loading" class="state-box">
       <div class="spinner"></div>
-      <p>Caricamento dashboard condivisa...</p>
+      <p>{{ t('sharedDashboard.view.loading') }}</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="error" class="state-box error-box">
       <div class="icon-warning">⚠️</div>
-      <h2>Accesso Negato o Scaduto</h2>
+      <h2>{{ t('sharedDashboard.view.accessDenied') }}</h2>
       <p>{{ error }}</p>
-      <router-link to="/login" class="btn-return">Accedi a Domus</router-link>
+      <router-link to="/login" class="btn-return">{{ t('sharedDashboard.view.loginToDomus') }}</router-link>
     </div>
 
     <!-- Dashboard Content -->
@@ -104,8 +106,8 @@ onMounted(() => {
       <header class="shared-header">
         <div class="header-titles">
           <h1>{{ dashboard.title }}</h1>
-          <span v-if="shareInfo?.read_only" class="badge-readonly">Sola Lettura</span>
-          <span v-else class="badge-guest">Accesso Ospite</span>
+          <span v-if="shareInfo?.read_only" class="badge-readonly">{{ t('sharedDashboard.view.readOnly') }}</span>
+          <span v-else class="badge-guest">{{ t('sharedDashboard.view.guestAccess') }}</span>
         </div>
         <div class="expiry-indicator" v-if="shareInfo?.expires_at">
           <span>Scade il: {{ new Date(shareInfo.expires_at).toLocaleDateString() }}</span>
@@ -113,7 +115,7 @@ onMounted(() => {
       </header>
 
       <!-- Widgets Grid -->
-      <section class="widgets-grid" aria-label="Widget Dashboard">
+      <section class="widgets-grid" :aria-label="t('sharedDashboard.view.widgetsAria')">
         <div
           v-for="w in widgets"
           :key="w.id"
@@ -130,13 +132,13 @@ onMounted(() => {
           <div class="widget-body">
             <p v-if="w.entity_key" class="entity-key"><code>{{ w.entity_key }}</code></p>
             <div class="widget-placeholder">
-              <span>Attivo</span>
+              <span>{{ t('sharedDashboard.view.active') }}</span>
             </div>
           </div>
         </div>
 
         <div v-if="widgets.length === 0" class="empty-state">
-          <p>Nessun widget configurato in questa dashboard.</p>
+          <p>{{ t('sharedDashboard.view.emptyWidgets') }}</p>
         </div>
       </section>
     </div>
