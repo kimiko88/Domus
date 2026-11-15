@@ -7,7 +7,8 @@ import (
 
 	"github.com/domus-hub/domus/internal/application/alarm"
 	domainAlarm "github.com/domus-hub/domus/internal/domain/alarm"
-	"github.com/go-chi/chi/v5"\n\tdomusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/go-chi/chi/v5"
 )
 
 type AlarmHandler struct {
