@@ -122,7 +122,7 @@ const paletteItems: PaletteItem[] = [
     type: 'trigger',
     subType: 'numeric_state',
     title: 'Soglia Numerica',
-    desc: 'Temperatura, potenza o luminosità > o <',
+    desc: t('flowchart.view.sensorTriggerDesc'),
     icon: Activity,
     category: 'Triggers'
   },
@@ -706,8 +706,8 @@ onMounted(async () => {
         <button
           class="btn-back glass-panel"
           @click="router.push('/automations')"
-          title="Torna alle Automazioni"
-          aria-label="Torna alle Automazioni"
+          :title="t('flowchart.view.backToAutomations')"
+          :aria-label="t('flowchart.view.backToAutomations')"
         >
           <ArrowLeft :size="18" />
         </button>
@@ -717,7 +717,7 @@ onMounted(async () => {
             v-model="automationName"
             type="text"
             class="title-input"
-            placeholder="Nome automazione..."
+            :placeholder="t('flowchart.view.automationNamePlaceholder')"
           />
           <div class="badge-status-row">
             <label class="toggle-enabled">
@@ -735,7 +735,7 @@ onMounted(async () => {
           class="btn-tool glass-panel"
           @click="handleTestRun"
           :disabled="isTestingRun"
-          title="Simula l'esecuzione del flusso"
+          :title="t('flowchart.view.simulateFlow')"
         >
           <Play :size="16" :class="{ 'animate-pulse': isTestingRun }" />
           <span>{{ isTestingRun ? 'In Esecuzione...' : 'Test Run' }}</span>
@@ -744,15 +744,15 @@ onMounted(async () => {
         <button
           class="btn-tool glass-panel"
           @click="handleOpenJson"
-          title="Visualizza o esporta il JSON AST"
+          :title="t('flowchart.view.viewExportAst')"
         >
           <Code :size="16" />
-          <span>AST JSON</span>
+          <span>{{ t('flowchart.view.astJson') }}</span>
         </button>
 
-        <button class="btn-save" @click="handleSave" title="Salva automazione su Domus Hub">
+        <button class="btn-save" @click="handleSave" :title="t('flowchart.view.saveToDomusHub')">
           <Save :size="16" />
-          <span>Salva Flusso</span>
+          <span>{{ t('flowchart.view.saveFlow') }}</span>
         </button>
       </div>
     </header>
@@ -762,8 +762,8 @@ onMounted(async () => {
       <!-- Left: Node Library Palette -->
       <aside class="node-palette glass-panel">
         <div class="palette-header">
-          <h4 class="palette-title">Libreria Nodi</h4>
-          <span class="palette-desc">Trascina sul canvas o clicca (+) per inserire.</span>
+          <h4 class="palette-title">{{ t('flowchart.view.nodeLibrary') }}</h4>
+          <span class="palette-desc">{{ t('flowchart.view.nodeLibraryHint') }}</span>
         </div>
 
         <div class="palette-categories">
@@ -792,7 +792,7 @@ onMounted(async () => {
                 <button
                   class="btn-add-mini"
                   @click.stop="createNode(item.type, item.subType, item.title)"
-                  aria-label="Aggiungi nodo"
+                  :aria-label="t('flowchart.view.addNode')"
                 >
                   <Plus :size="14" />
                 </button>
@@ -814,14 +814,14 @@ onMounted(async () => {
       >
         <!-- Canvas Toolbar Overlay (Zoom & Controls) -->
         <div class="canvas-floating-controls glass-panel">
-          <button class="btn-ctl" @click="zoom = Math.min(zoom + 0.15, 2)" title="Ingrandisci">
+          <button class="btn-ctl" @click="zoom = Math.min(zoom + 0.15, 2)" :title="t('flowchart.view.zoomIn')">
             <ZoomIn :size="16" />
           </button>
           <span class="zoom-level">{{ Math.round(zoom * 100) }}%</span>
-          <button class="btn-ctl" @click="zoom = Math.max(zoom - 0.15, 0.4)" title="Riduci">
+          <button class="btn-ctl" @click="zoom = Math.max(zoom - 0.15, 0.4)" :title="t('flowchart.view.zoomOut')">
             <ZoomOut :size="16" />
           </button>
-          <button class="btn-ctl" @click="resetZoom" title="Centra vista (100%)">
+          <button class="btn-ctl" @click="resetZoom" :title="t('flowchart.view.resetZoom')">
             <RotateCcw :size="16" />
           </button>
         </div>
@@ -842,7 +842,7 @@ onMounted(async () => {
                 :d="getWirePath(wire)"
                 class="wire-path-hitbox"
                 @click.stop="deleteWire(wire.id)"
-                title="Clicca per rimuovere il collegamento"
+                :title="t('flowchart.view.removeConnection')"
               />
               <path
                 :d="getWirePath(wire)"
@@ -880,7 +880,7 @@ onMounted(async () => {
               v-if="node.type !== 'trigger'"
               class="node-port port-input"
               @mouseup="endWiring(node.id, $event)"
-              title="Collega qui il segnale di ingresso"
+              :title="t('flowchart.view.connectInput')"
             >
               <div class="port-dot"></div>
             </div>
@@ -900,8 +900,8 @@ onMounted(async () => {
               <button
                 class="btn-delete-node"
                 @click.stop="deleteNode(node.id)"
-                title="Elimina nodo"
-                aria-label="Elimina nodo"
+                :title="t('flowchart.view.deleteNode')"
+                :aria-label="t('flowchart.view.deleteNode')"
               >
                 <Trash2 :size="13" />
               </button>
@@ -916,7 +916,7 @@ onMounted(async () => {
             <div
               class="node-port port-output"
               @mousedown="startWiring(node.id, $event)"
-              title="Trascina verso un altro nodo per collegare"
+              :title="t('flowchart.view.dragToConnect')"
             >
               <div class="port-dot"></div>
             </div>
@@ -938,7 +938,7 @@ onMounted(async () => {
 
         <div class="inspector-content">
           <div class="prop-group">
-            <label class="prop-label">Titolo Visuale</label>
+            <label class="prop-label">{{ t('flowchart.view.visualTitle') }}</label>
             <input
               v-model="selectedNode.title"
               type="text"
@@ -949,7 +949,7 @@ onMounted(async () => {
 
           <!-- Dynamic Form based on SubType -->
           <div v-if="selectedNode.subType === 'state'" class="prop-group">
-            <label class="prop-label">Entità Target</label>
+            <label class="prop-label">{{ t('flowchart.view.targetEntity') }}</label>
             <select
               v-model="selectedNode.data.entity_key"
               class="prop-select"
@@ -964,18 +964,18 @@ onMounted(async () => {
               </option>
             </select>
 
-            <label class="prop-label mt-12">Stato Previsto (To / State)</label>
+            <label class="prop-label mt-12">{{ t('flowchart.view.expectedState') }}</label>
             <input
               v-model="selectedNode.data.to"
               type="text"
               class="prop-input"
-              placeholder="es. on, off, open, closed"
+              :placeholder="t('flowchart.view.expectedStatePlaceholder')"
               @input="handleInspectorDataChange"
             />
           </div>
 
           <div v-else-if="selectedNode.subType === 'numeric_state'" class="prop-group">
-            <label class="prop-label">Sensore Numerico</label>
+            <label class="prop-label">{{ t('flowchart.view.numericSensor') }}</label>
             <select
               v-model="selectedNode.data.entity_key"
               class="prop-select"
@@ -992,7 +992,7 @@ onMounted(async () => {
 
             <div class="prop-row mt-12">
               <div class="prop-col">
-                <label class="prop-label">Soglia Superiore (&gt;)</label>
+                <label class="prop-label">{{ t('flowchart.view.upperThreshold') }} (&gt;)</label>
                 <input
                   v-model.number="selectedNode.data.above"
                   type="number"
@@ -1001,7 +1001,7 @@ onMounted(async () => {
                 />
               </div>
               <div class="prop-col">
-                <label class="prop-label">Soglia Inferiore (&lt;)</label>
+                <label class="prop-label">{{ t('flowchart.view.lowerThreshold') }} (&lt;)</label>
                 <input
                   v-model.number="selectedNode.data.below"
                   type="number"
@@ -1013,7 +1013,7 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'time'" class="prop-group">
-            <label class="prop-label">Orario Esatto (HH:MM:SS)</label>
+            <label class="prop-label">{{ t('flowchart.view.exactTime') }} (HH:MM:SS)</label>
             <input
               v-model="selectedNode.data.at"
               type="time"
@@ -1024,7 +1024,7 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'service'" class="prop-group">
-            <label class="prop-label">Entità da Controllare</label>
+            <label class="prop-label">{{ t('flowchart.view.entityToControl') }}</label>
             <select
               v-model="selectedNode.data.target_entity_key"
               class="prop-select"
@@ -1039,23 +1039,23 @@ onMounted(async () => {
               </option>
             </select>
 
-            <label class="prop-label mt-12">Servizio / Azione</label>
+            <label class="prop-label mt-12">{{ t('flowchart.view.serviceAction') }}</label>
             <select
               v-model="selectedNode.data.service"
               class="prop-select"
               @change="handleInspectorDataChange"
             >
-              <option value="turn_on">Accendi (turn_on)</option>
-              <option value="turn_off">Spegni (turn_off)</option>
-              <option value="toggle">Commuta (toggle)</option>
-              <option value="close_cover">Chiudi Tapparella</option>
-              <option value="open_cover">Apri Tapparella</option>
-              <option value="set_temperature">Imposta Clima</option>
+              <option value="turn_on">{{ t('flowchart.view.turnOn') }}</option>
+              <option value="turn_off">{{ t('flowchart.view.turnOff') }}</option>
+              <option value="toggle">{{ t('flowchart.view.toggle') }}</option>
+              <option value="close_cover">{{ t('flowchart.view.closeCover') }}</option>
+              <option value="open_cover">{{ t('flowchart.view.openCover') }}</option>
+              <option value="set_temperature">{{ t('flowchart.view.setTemperature') }}</option>
             </select>
           </div>
 
           <div v-else-if="selectedNode.subType === 'delay'" class="prop-group">
-            <label class="prop-label">Secondi di Attesa (Pausa)</label>
+            <label class="prop-label">{{ t('flowchart.view.waitSeconds') }}</label>
             <input
               v-model.number="selectedNode.data.delay_seconds"
               type="number"
@@ -1067,7 +1067,7 @@ onMounted(async () => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'notify'" class="prop-group">
-            <label class="prop-label">Messaggio Notifica</label>
+            <label class="prop-label">{{ t('flowchart.view.notificationMessage') }}</label>
             <textarea
               v-model="selectedNode.data.message"
               class="prop-textarea"
@@ -1079,7 +1079,7 @@ onMounted(async () => {
           <div class="inspector-footer">
             <button class="btn-remove-selected" @click="deleteNode(selectedNode.id)">
               <Trash2 :size="15" />
-              <span>Elimina Nodo</span>
+              <span>{{ t('flowchart.view.deleteNodeButton') }}</span>
             </button>
           </div>
         </div>
@@ -1092,7 +1092,7 @@ onMounted(async () => {
         <div class="modal-header">
           <div class="modal-title-row">
             <Code :size="20" class="text-primary" />
-            <h3>AST JSON Compilato</h3>
+            <h3>{{ t('flowchart.view.compiledAstTitle') }}</h3>
           </div>
           <button class="btn-modal-close" @click="isJsonModalOpen = false">
             <X :size="18" />
@@ -1109,7 +1109,7 @@ onMounted(async () => {
             <Copy v-else :size="16" />
             <span>{{ jsonCopied ? 'Copiato!' : 'Copia negli Appunti' }}</span>
           </button>
-          <button class="btn-done" @click="isJsonModalOpen = false">Chiudi</button>
+          <button class="btn-done" @click="isJsonModalOpen = false">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>
