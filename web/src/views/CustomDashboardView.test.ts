@@ -34,7 +34,7 @@ describe('CustomDashboardView.vue', () => {
     const wrapper = mount(CustomDashboardView)
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Dashboard Personalizzata')
+    expect(wrapper.text()).toContain('Dashboard personalizzata')
     expect(wrapper.find('.profile-select').exists()).toBe(true)
     expect(wrapper.find('.kiosk-toggle-btn').exists()).toBe(true)
   })
