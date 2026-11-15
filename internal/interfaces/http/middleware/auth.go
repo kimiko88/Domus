@@ -118,6 +118,8 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			mediaControl := strings.Contains(path, "/media/players/") &&
 				(strings.HasSuffix(path, "/volume") || strings.HasSuffix(path, "/state")) ||
 				strings.HasSuffix(path, "/media/broadcast")
+			cameraSession := strings.Contains(path, "/cameras/") && strings.HasSuffix(path, "/webrtc") ||
+				strings.Contains(path, "/intercom/") && strings.HasSuffix(path, "/audio")
 			automationMutation := strings.Contains(path, "/automations/")
 				|| strings.HasSuffix(path, "/automations")
 			if deviceCommand || serviceCall || sceneExecution || mediaControl {
@@ -127,6 +129,15 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 					return
 				}
 				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
+			if cameraSession {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanViewCameras {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "camera viewing permission required")
 				return
 			}
 			if automationMutation {
