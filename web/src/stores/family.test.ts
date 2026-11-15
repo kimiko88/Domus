@@ -107,6 +107,16 @@ describe('useFamilyStore', () => {
 
   it('updates a member role', async () => {
     vi.spyOn(apiClient, 'put').mockResolvedValue({ status: 'ok' })
+    vi.spyOn(apiClient, 'get').mockResolvedValue({
+      members: [{
+        id: 'user-kid',
+        username: 'kid',
+        role: 'operator',
+        enabled: true,
+        created_at: '2026-10-04T00:00:00Z'
+      }],
+      total: 1
+    })
 
     const store = useFamilyStore()
     store.members = [
@@ -121,6 +131,34 @@ describe('useFamilyStore', () => {
 
     await store.updateMemberRole('user-kid', 'operator')
     expect(store.members[0].role).toBe('operator')
+  })
+
+  it('updates granular member permissions', async () => {
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({ status: 'ok' })
+    const store = useFamilyStore()
+    store.members = [{
+      id: 'user-kid',
+      username: 'kid',
+      role: 'kid',
+      enabled: true,
+      created_at: '2026-10-04T00:00:00Z'
+    }]
+    const permissions = {
+      role: 'kid' as const,
+      allowed_area_ids: ['kitchen'],
+      allowed_entity_ids: ['light-1'],
+      allowed_dashboard_ids: [],
+      allowed_views: ['/'],
+      can_control_devices: true,
+      can_manage_automations: false,
+      can_manage_settings: false,
+      can_view_cameras: false
+    }
+
+    await store.updateMemberPermissions('user-kid', permissions)
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/family/members/user-kid/permissions', permissions)
+    expect(store.members[0].permissions?.allowed_area_ids).toEqual(['kitchen'])
   })
 
   it('removes a family member', async () => {
