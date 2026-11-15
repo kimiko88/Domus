@@ -579,7 +579,9 @@
     "errorInvalidInvite": "This invite link is invalid or has expired. Please contact your family admin.",
     "errorPasswordMismatch": "Passwords do not match.",
     "success": "Registration successful! Welcome to Domus.",
-    "backToLogin": "Back to Login"
+    "backToLogin": "Back to Login",
+    "usernamePlaceholder": "e.g. alex_smith",
+    "emailPlaceholder": "e.g. alex@example.com"
   },
   "energy": {
     "title": "Energy Monitoring & Solar Flow",
@@ -986,7 +988,34 @@
     "coordinator": "Coordinator",
     "router": "Router / Repeater",
     "endDevice": "Battery End Device",
-    "linkQuality": "Link Quality"
+    "linkQuality": "Link Quality",
+    "view": {
+      "coordinator": "Coordinator (gateway)",
+      "router": "Router / repeater (mains-powered)",
+      "endDevice": "End device (battery-powered)",
+      "excellent": "Excellent",
+      "good": "Good",
+      "weak": "Weak",
+      "devicesProtocolHint": "Devices configured for this protocol will appear here with their real LQI metrics.",
+      "nodeType": "Node type",
+      "linkQuality": "Link quality (LQI)",
+      "remainingBattery": "Remaining battery",
+      "directBindingTitle": "Zigbee direct binding (hub-free direct association)",
+      "directBindingDesc": "Directly pair a wireless remote or button with a bulb/group. It keeps working instantly even when the Domus server is off!",
+      "noBindings": "No direct bindings are active. Create a direct hardware connection between a switch and an actuator device.",
+      "removeBinding": "Remove binding",
+      "newBindingTitle": "New direct Zigbee binding",
+      "sourceDevice": "Source device (remote / switch)",
+      "sourceNamePlaceholder": "Name (e.g. bedside remote)",
+      "deviceIdPlaceholder": "IEEE / device ID",
+      "destinationDevice": "Destination device (bulb / relay / group)",
+      "destinationNamePlaceholder": "Name (e.g. bedside light)",
+      "functionalCluster": "Functional cluster",
+      "onOffCluster": "On / Off (genOnOff)",
+      "levelCluster": "Dimming / Level (genLevelCtrl)",
+      "colorCluster": "Color / temperature (lightingColorCtrl)",
+      "createBinding": "Create direct binding"
+    }
   },
   "store": {
     "title": "Domus Store & Extensions Marketplace",
@@ -1011,7 +1040,8 @@
     "username": "Username",
     "password": "Password",
     "submit": "Log In",
-    "error": "Invalid credentials or session expired"
+    "error": "Invalid credentials or session expired",
+    "kioskPin": "Kiosk PIN code"
   },
   "setup": {
     "title": "Initial Domus Setup",
@@ -1649,5 +1679,12 @@
       "fridge": "Refrigerator (2–8°C)",
       "other": "Other"
     }
+  },
+  "pantry": {
+    "title": "Smart Pantry & Recipe Book",
+    "sections": "Pantry sections",
+    "inventoryTab": "Pantry & inventory",
+    "recipesTab": "Recipe book",
+    "mealCalendarTab": "Meal calendar"
   }
 }
