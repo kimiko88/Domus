@@ -460,7 +460,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             <ShieldCheck :size="20" class="matter-shield-icon" />
             <h3 class="modal-title">{{ t('devices.view.matterCommissioning') }}</h3>
           </div>
-          <button class="btn-close-modal" @click="closeMatterWizard" aria-label="Chiudi">
+          <button class="btn-close-modal" @click="closeMatterWizard" :aria-label="t('devices.view.close')">
             <X :size="18" />
           </button>
         </div>
