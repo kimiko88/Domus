@@ -49,7 +49,13 @@ describe('Localization (i18n)', () => {
       ['chores', 'view', 'googleStep1'],
       ['media', 'view', 'broadcastDesc'],
       ['dashboard', 'view', 'climateThermostat'],
-      ['dashboard', 'view', 'batteryLabel']
+      ['dashboard', 'view', 'batteryLabel'],
+      ['dashboard', 'view', 'defaultProfileLivingRoom'],
+      ['dashboard', 'view', 'defaultProfileKitchen'],
+      ['dashboard', 'view', 'defaultProfileNight'],
+      ['dashboard', 'view', 'roomLivingRoom'],
+      ['dashboard', 'view', 'roomKitchen'],
+      ['dashboard', 'view', 'roomBedroom']
     ]
 
     for (const catalog of locales) {
