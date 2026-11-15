@@ -182,6 +182,21 @@ function tuyaFunctionKey(deviceId: string, code: string) {
   return `${deviceId}:${code}`
 }
 
+function tuyaBooleanState(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') {
+    if (value === 1) return true
+    if (value === 0) return false
+    return undefined
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'on', 'enabled', 'active', 'yes'].includes(normalized)) return true
+    if (['false', '0', 'off', 'disabled', 'inactive', 'no'].includes(normalized)) return false
+  }
+  return undefined
+}
+
 function tuyaFunctionValues(fn: TuyaDeviceFunction): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(fn.values || '{}')
@@ -203,9 +218,10 @@ function tuyaFunctionScale(fn: TuyaDeviceFunction) {
 }
 
 function tuyaTemperatureFunction(deviceId: string) {
-  return (tuyaDeviceFunctions.value[deviceId] || []).find(fn =>
-    /temp/i.test(fn.code) && !/current|cur_|indoor/i.test(fn.code)
-  )
+  return (tuyaDeviceFunctions.value[deviceId] || []).find(fn => {
+    const code = fn.code.trim().toLowerCase()
+    return ['temp_set', 'target_temp', 'target_temperature'].includes(code)
+  })
 }
 
 function isTuyaClimateDevice(device: TuyaCloudDevice) {
@@ -420,9 +436,17 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
   try {
     const current = (device.status || []).find(point => point.code === fn.code)?.value
     let value: unknown
-    const type = fn.type.toLowerCase()
+    const type = fn.type.trim().toLowerCase()
     if (type === 'boolean') {
-      value = current === true ? false : true
+      const currentBoolean = tuyaBooleanState(current)
+      if (currentBoolean === undefined) {
+        notificationsStore.warning(
+          'Stato non disponibile',
+          `Impossibile invertire ${fn.name || fn.code}: aggiorna lo stato del dispositivo e riprova.`
+        )
+        return
+      }
+      value = !currentBoolean
     } else if (isNumericTuyaFunction(fn)) {
       const parsed = Number(tuyaFunctionInputs[key])
       if (!Number.isFinite(parsed)) {
@@ -443,7 +467,7 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       if ((code.includes('switch') || code.includes('power')) && typeof value === 'boolean') {
         await apiClient.post(localPath, { command: value ? 'turn_on' : 'turn_off' })
         sentLocally = true
-      } else if (code.includes('temp') && !code.includes('current') && !code.includes('cur_') && typeof value === 'number') {
+      } else if (code === 'temp_set' && typeof value === 'number') {
         await apiClient.post(localPath, {
           command: 'set_temperature',
           params: { temperature: value / Math.pow(10, tuyaFunctionScale(fn)) }
