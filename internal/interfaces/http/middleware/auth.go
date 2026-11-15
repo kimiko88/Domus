@@ -191,6 +191,14 @@ func RequireViewAccess() func(http.Handler) http.Handler {
 				return
 			}
 			switch {
+			case strings.HasPrefix(path, "/alarm"):
+				required = "/"
+			case strings.HasPrefix(path, "/assistant/config"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/assistant/satellites"):
+				required = "/media"
+			case strings.HasPrefix(path, "/assistant/chat"):
+				required = "/"
 			case strings.HasPrefix(path, "/family"):
 				required = "/family"
 			case strings.HasPrefix(path, "/dashboards"):
