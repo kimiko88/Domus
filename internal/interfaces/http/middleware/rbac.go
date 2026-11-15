@@ -1,10 +1,6 @@
 package middleware
 
-import (
-	"net/http"
-
-	"github.com/domus-hub/domus/internal/domain/user"
-)
+import "net/http"
 
 // RequireSettingsPermission ensures the user is an admin or has settings management rights.
 func RequireSettingsPermission() func(http.Handler) http.Handler {
