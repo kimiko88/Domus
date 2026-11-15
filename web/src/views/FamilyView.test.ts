@@ -90,6 +90,7 @@ describe('FamilyView.vue', () => {
       vi.spyOn(familyStore, 'fetchMembers').mockResolvedValue()
       vi.spyOn(familyStore, 'fetchInvites').mockResolvedValue()
       vi.spyOn(familyStore, 'fetchGuests').mockResolvedValue()
+      const updatePermissions = vi.spyOn(familyStore, 'updateMemberPermissions').mockResolvedValue()
 
       const wrapper = mount(FamilyView, {
         global: { plugins: [pinia, i18n] }
@@ -104,6 +105,19 @@ describe('FamilyView.vue', () => {
       expect(permissionModal.text()).toContain('Разрешённые действия')
       expect(permissionModal.text()).toContain('Управление автоматизациями')
       expect(permissionModal.text()).toContain('Управление системными настройками')
+
+      const settingsToggle = permissionModal.findAll('label.permission-check')
+        .find(label => label.text().includes('Управление системными настройками'))
+      expect(settingsToggle).toBeDefined()
+      await settingsToggle!.find('input').setValue(true)
+      const saveButton = permissionModal.find('.modal-footer').findAll('button')
+        .find(button => button.text().includes('Сохранить разрешения'))
+      expect(saveButton).toBeDefined()
+      await saveButton!.trigger('click')
+      expect(updatePermissions).toHaveBeenCalledWith(
+        'member-2',
+        expect.objectContaining({ can_manage_settings: true })
+      )
     } finally {
       i18n.global.locale.value = previousLocale
     }
