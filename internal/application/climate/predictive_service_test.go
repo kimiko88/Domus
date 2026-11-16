@@ -3,6 +3,7 @@ package climate_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -437,4 +438,60 @@ func TestPredictiveService_PropagatesCommandDispatchFailure(t *testing.T) {
 	_, err := svc.EvaluateZone(ctx, zone.ID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "event bus unavailable")
+}
+
+func TestPredictiveService_SkipsRedundantThermostatSetpoint(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "no-op-zone", Name: "Room", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temperature", TargetTemperature: 21,
+		EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	expected := domclimate.EvaluateZone(zone, 19.5, 50, 1013.25, 0, false, nil).CalculatedSetpoint
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"climate-room": {
+			ID: "climate-room", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true,
+			Attributes: fmt.Sprintf(`{"min_temp":5,"max_temp":35,"target_temperature":%.1f}`, expected),
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	require.NoError(t, svc.SaveZone(ctx, zone))
+	eval, err := svc.EvaluateZone(ctx, zone.ID)
+	require.NoError(t, err)
+	assert.InDelta(t, expected, eval.CalculatedSetpoint, 0.01)
+	assert.Empty(t, bus.published, "unchanged setpoint should not produce a redundant device command")
+}
+
+func TestPredictiveService_RejectsNonClimateTarget(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"switch-room": {
+			ID: "switch-room", EntityKey: "switch.heater", Domain: "switch",
+			State: "off", Available: true,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "invalid-target-zone", Name: "Room", TRVEntityKey: "switch.heater",
+		TempSensorKey: "sensor.room_temperature", TargetTemperature: 21,
+		EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+	_, err := svc.EvaluateZone(ctx, zone.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a climate entity")
+	assert.Empty(t, bus.published)
 }
