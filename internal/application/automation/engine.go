@@ -21,10 +21,14 @@ type Engine struct {
 	entityRepo entity.Repository
 	bus        events.Bus
 	evaluator  *Evaluator
-	mu         sync.Mutex
-	unsubs     []func()
-	running    bool
-	activeRuns sync.Map // map[string]context.CancelFunc
+	mu               sync.Mutex
+	unsubs           []func()
+	running          bool
+	schedulerCancel  context.CancelFunc
+	schedulerDone    chan struct{}
+	scheduleMu       sync.Mutex
+	scheduledDates   map[string]string
+	activeRuns       sync.Map // map[string]context.CancelFunc
 }
 
 // NewEngine creates an automation Engine instance.
@@ -37,7 +41,8 @@ func NewEngine(
 		autoRepo:   autoRepo,
 		entityRepo: entityRepo,
 		bus:        bus,
-		evaluator:  NewEvaluator(),
+		evaluator:      NewEvaluator(),
+		scheduledDates: make(map[string]string),
 	}
 }
 
@@ -53,6 +58,15 @@ func (e *Engine) Start(ctx context.Context) error {
 	u := e.bus.SubscribeAll(e.handleEvent)
 	e.unsubs = append(e.unsubs, u)
 
+	schedulerCtx, cancel := context.WithCancel(ctx)
+	e.schedulerCancel = cancel
+	e.schedulerDone = make(chan struct{})
+	done := e.schedulerDone
+	go func() {
+		defer close(done)
+		e.runTimeTriggerScheduler(schedulerCtx)
+	}()
+
 	e.running = true
 	slog.Info("automation engine started")
 	return nil
@@ -61,9 +75,8 @@ func (e *Engine) Start(ctx context.Context) error {
 // Stop cleanly unregisters all event subscriptions.
 func (e *Engine) Stop(ctx context.Context) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	if !e.running {
+		e.mu.Unlock()
 		return nil
 	}
 
@@ -71,9 +84,88 @@ func (e *Engine) Stop(ctx context.Context) error {
 		u()
 	}
 	e.unsubs = nil
+	cancel := e.schedulerCancel
+	done := e.schedulerDone
+	e.schedulerCancel = nil
+	e.schedulerDone = nil
 	e.running = false
+	e.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	slog.Info("automation engine stopped")
 	return nil
+}
+
+// runTimeTriggerScheduler evaluates daily wall-clock triggers independently of
+// the event bus. A one-second tick supports both HH:MM and HH:MM:SS schedules.
+func (e *Engine) runTimeTriggerScheduler(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	e.processTimeTriggers(ctx, time.Now())
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			e.processTimeTriggers(ctx, now)
+		}
+	}
+}
+
+// processTimeTriggers executes each configured time trigger at most once per
+// local calendar day, even though the scheduler polls every second.
+func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
+	enabled := true
+	rules, err := e.autoRepo.List(ctx, automation.ListFilter{Enabled: &enabled})
+	if err != nil {
+		slog.Warn("automation: cannot load scheduled rules", "error", err)
+		return
+	}
+
+	localNow := now.In(time.Local)
+	dateKey := localNow.Format("2006-01-02")
+	for _, rule := range rules {
+		for index, trigger := range rule.Triggers {
+			if !e.evaluator.EvaluateTimeTrigger(trigger, localNow) {
+				continue
+			}
+			triggerID := trigger.ID
+			if triggerID == "" {
+				triggerID = fmt.Sprintf("time-%d", index)
+			}
+			scheduleKey := rule.ID + ":" + triggerID
+
+			if rule.CooldownSeconds > 0 && rule.LastRunAt != nil &&
+				now.Sub(*rule.LastRunAt) < time.Duration(rule.CooldownSeconds)*time.Second {
+				continue
+			}
+
+			e.scheduleMu.Lock()
+			alreadyFired := e.scheduledDates[scheduleKey] == dateKey
+			if !alreadyFired {
+				e.scheduledDates[scheduleKey] = dateKey
+			}
+			e.scheduleMu.Unlock()
+			if alreadyFired {
+				continue
+			}
+
+			triggerContextBytes, _ := json.Marshal(map[string]any{
+				"trigger":      trigger,
+				"scheduled_at": localNow.Format(time.RFC3339),
+			})
+			go e.launchRuleExecution(rule, triggerID, string(triggerContextBytes))
+		}
+	}
 }
 
 func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {

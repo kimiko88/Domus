@@ -86,6 +86,7 @@ export interface EntityAttributes {
 
 export interface Entity {
   id: string
+  entity_key?: string
   device_id?: string
   domain: EntityDomain
   name: string
@@ -127,6 +128,7 @@ export interface AutomationTrigger {
   id?: string
   platform: string // 'state' | 'numeric_state' | 'time' | 'event'
   entity_key?: string
+  attribute?: string
   from?: string
   to?: string
   above?: number
@@ -140,6 +142,7 @@ export interface AutomationCondition {
   id?: string
   condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not'
   entity_key?: string
+  attribute?: string
   state?: string
   above?: number
   below?: number

@@ -105,10 +105,20 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 		if val, exists := dps["1"]; exists {
 			result.State = boolToOnOff(val)
 		}
-		// Target temperature: DPS 2 (or 16)
-		if target, exists := dps["2"]; exists {
+		// Target temperature is DPS 2 on common Tuya thermostats; some
+		// products expose the same value as DPS 16.
+		target, exists := dps["2"]
+		if !exists {
+			target, exists = dps["16"]
+		}
+		if exists {
 			if num, ok := toFloat(target); ok {
 				result.Attributes["target_temperature"] = num / 10.0
+				if _, hasPrimary := dps["2"]; !hasPrimary {
+					result.Attributes["target_temperature_dp"] = 16
+				} else {
+					result.Attributes["target_temperature_dp"] = 2
+				}
 			}
 		}
 		// Current temperature: DPS 3
@@ -208,7 +218,15 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 			if !ok || math.IsNaN(temp) || math.IsInf(temp, 0) {
 				return nil, errors.New("climate temperature must be a finite number")
 			}
-			dps["2"] = int(math.Round(temp * 10.0))
+			dpID := 2
+			if configuredDP, exists := params["dp_id"]; exists {
+				value, valid := toFloat(configuredDP)
+				if !valid || (value != 2 && value != 16) {
+					return nil, errors.New("climate setpoint dp_id must be 2 or 16")
+				}
+				dpID = int(value)
+			}
+			dps[fmt.Sprint(dpID)] = int(math.Round(temp * 10.0))
 		case "set_mode":
 			mode, ok := params["mode"].(string)
 			if !ok {

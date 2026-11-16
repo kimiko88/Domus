@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, toRef } from 'vue'
-import type { Automation } from '../../api/types'
+import { computed, ref, watch, toRef } from 'vue'
+import type { Automation, Entity } from '../../api/types'
+import { apiClient } from '../../api/client'
 import BaseButton from '../ui/BaseButton.vue'
 import { useModalA11y } from '../../composables/useModalA11y'
 import { X, Zap, AlertCircle, CheckCircle, Code2, Sparkles } from '@lucide/vue'
@@ -34,6 +35,113 @@ const cooldownSeconds = ref(0)
 const dslJson = ref('')
 const validationError = ref<string | null>(null)
 const jsonValid = ref(true)
+
+// Guided daily thermostat program: read a sensor at a chosen time, then
+// select one of two setpoints according to the measured temperature.
+const climateBuilderOpen = ref(false)
+const climateEntities = ref<Entity[]>([])
+const climateEntitiesLoading = ref(false)
+const climateEntitiesError = ref('')
+const climateSensorKey = ref('')
+const climateSensorAttribute = ref('')
+const climateTargetKey = ref('')
+const climateScheduleTime = ref('07:00')
+const climateThreshold = ref(19)
+const climateColdSetpoint = ref(21)
+const climateWarmSetpoint = ref(18)
+
+function entityKey(entity: Entity): string {
+  if (entity.entity_key) return entity.entity_key
+  return entity.id.startsWith(entity.domain + '.') ? entity.id : ''
+}
+
+const temperatureSources = computed(() => climateEntities.value.filter(entity =>
+  entity.domain === 'sensor' ||
+  (entity.domain === 'climate' && typeof entity.attributes?.current_temperature === 'number')
+))
+const climateTargets = computed(() => climateEntities.value.filter(entity => entity.domain === 'climate'))
+
+async function toggleClimateBuilder() {
+  climateBuilderOpen.value = !climateBuilderOpen.value
+  if (!climateBuilderOpen.value || climateEntities.value.length || climateEntitiesLoading.value) return
+
+  climateEntitiesLoading.value = true
+  climateEntitiesError.value = ''
+  try {
+    climateEntities.value = await apiClient.get<Entity[]>('/api/v1/entities')
+    if (!climateSensorKey.value) {
+      const firstSource = temperatureSources.value[0]
+      if (firstSource) climateSensorKey.value = entityKey(firstSource)
+    }
+    if (!climateTargetKey.value && climateTargets.value[0]) {
+      climateTargetKey.value = entityKey(climateTargets.value[0])
+    }
+  } catch (err: any) {
+    climateEntitiesError.value = err?.message || 'Impossibile caricare i dispositivi.'
+  } finally {
+    climateEntitiesLoading.value = false
+  }
+}
+
+watch(climateSensorKey, key => {
+  const source = temperatureSources.value.find(entity => entityKey(entity) === key)
+  climateSensorAttribute.value = source?.domain === 'climate' ? 'current_temperature' : ''
+})
+
+function buildClimateProgram() {
+  validationError.value = ''
+  const source = temperatureSources.value.find(entity => entityKey(entity) === climateSensorKey.value)
+  const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
+  const values = [climateThreshold.value, climateColdSetpoint.value, climateWarmSetpoint.value]
+  if (!source || !target || !entityKey(source) || !entityKey(target)) {
+    validationError.value = 'Seleziona un sensore di temperatura e un termostato.'
+    return
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(climateScheduleTime.value)) {
+    validationError.value = 'Inserisci un orario valido nel formato HH:MM.'
+    return
+  }
+  if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
+    validationError.value = 'Le temperature devono essere comprese tra 5 e 35 °C.'
+    return
+  }
+
+  const numericCondition: Record<string, any> = {
+    condition: 'numeric_state',
+    entity_key: entityKey(source)
+  }
+  if (climateSensorAttribute.value) numericCondition.attribute = climateSensorAttribute.value
+
+  const serviceAction = (temperature: number) => ({
+    type: 'service',
+    service: 'set_temperature',
+    target_entity_key: entityKey(target),
+    params: { temperature: Math.round(temperature * 10) / 10 }
+  })
+
+  const dsl = {
+    triggers: [{ id: 'daily_climate_schedule', platform: 'time', at: climateScheduleTime.value + ':00' }],
+    // A missing or non-numeric sensor value skips the automation instead of
+    // falling through to the default temperature branch.
+    conditions: [numericCondition],
+    actions: [{
+      type: 'choose',
+      choose: [{
+        conditions: [{ ...numericCondition, below: climateThreshold.value }],
+        sequence: [serviceAction(climateColdSetpoint.value)]
+      }],
+      default: [serviceAction(climateWarmSetpoint.value)]
+    }]
+  }
+
+  dslJson.value = JSON.stringify(dsl, null, 2)
+  if (!name.value.trim()) name.value = 'Programma termostato ' + target.name
+  if (!description.value.trim()) {
+    description.value = `Ogni giorno alle ${climateScheduleTime.value}, legge ${source.name}: sotto ${climateThreshold.value} °C imposta ${climateColdSetpoint.value} °C, altrimenti ${climateWarmSetpoint.value} °C su ${target.name}.`
+  }
+  jsonValid.value = true
+  climateBuilderOpen.value = false
+}
 
 const defaultDsl = {
   triggers: [
@@ -228,6 +336,16 @@ function handleSubmit() {
             </div>
 
             <div class="dsl-actions">
+              <button
+                type="button"
+                class="btn-template climate-template"
+                data-testid="climate-program-toggle"
+                :aria-expanded="climateBuilderOpen"
+                @click="toggleClimateBuilder"
+              >
+                <Sparkles :size="12" />
+                <span>Programma termostato</span>
+              </button>
               <button type="button" class="btn-template" @click="applyTemplate('motion')">
                 <Sparkles :size="12" />
                 <span>Motion Preset</span>
@@ -241,6 +359,76 @@ function handleSubmit() {
               </button>
             </div>
           </div>
+
+          <section v-if="climateBuilderOpen" class="climate-builder" aria-label="Programma termostato basato sul sensore">
+            <div class="climate-builder-heading">
+              <div>
+                <strong>Programma giornaliero basato sulla temperatura</strong>
+                <p>All'orario scelto legge il sensore e imposta il termostato in uno dei due modi.</p>
+              </div>
+            </div>
+
+            <p v-if="climateEntitiesLoading" class="builder-hint">Caricamento dispositivi...</p>
+            <p v-else-if="climateEntitiesError" class="builder-error">{{ climateEntitiesError }}</p>
+            <p v-else-if="temperatureSources.length === 0 || climateTargets.length === 0" class="builder-hint">
+              Servono almeno un sensore di temperatura e un'entità Climate. Verifica che siano già configurati in Domus.
+            </p>
+
+            <template v-else>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="climate-source">Sensore da leggere</label>
+                  <select id="climate-source" name="climate-sensor" v-model="climateSensorKey">
+                    <option v-for="entity in temperatureSources" :key="entity.id" :value="entityKey(entity)">
+                      {{ entity.name }} · {{ entity.entity_key || entity.id }}
+                    </option>
+                  </select>
+                  <small v-if="climateSensorAttribute" class="builder-hint">Lettura della temperatura ambiente corrente.</small>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="climate-target">Termostato da regolare</label>
+                  <select id="climate-target" name="climate-thermostat" v-model="climateTargetKey">
+                    <option v-for="entity in climateTargets" :key="entity.id" :value="entityKey(entity)">
+                      {{ entity.name }} · {{ entity.entity_key || entity.id }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="climate-time">Orario quotidiano</label>
+                  <input id="climate-time" name="climate-time" v-model="climateScheduleTime" type="time" />
+                </div>
+                <div class="form-group flex-1">
+                  <label for="climate-threshold">Soglia del sensore (°C)</label>
+                  <input id="climate-threshold" v-model.number="climateThreshold" type="number" min="5" max="35" step="0.1" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="climate-cold-setpoint">Se è sotto soglia, imposta (°C)</label>
+                  <input id="climate-cold-setpoint" v-model.number="climateColdSetpoint" type="number" min="5" max="35" step="0.1" />
+                </div>
+                <div class="form-group flex-1">
+                  <label for="climate-warm-setpoint">Altrimenti imposta (°C)</label>
+                  <input id="climate-warm-setpoint" v-model.number="climateWarmSetpoint" type="number" min="5" max="35" step="0.1" />
+                </div>
+              </div>
+
+              <p class="climate-rule-preview">
+                Ogni giorno alle <strong>{{ climateScheduleTime }}</strong>, Domus legge il sensore:
+                se è sotto <strong>{{ climateThreshold }} °C</strong> imposta <strong>{{ climateColdSetpoint }} °C</strong>,
+                altrimenti <strong>{{ climateWarmSetpoint }} °C</strong>.
+              </p>
+              <div class="builder-actions">
+                <button type="button" class="btn-template" data-testid="generate-climate-program" @click="buildClimateProgram">
+                  Genera regola DSL
+                </button>
+              </div>
+            </template>
+          </section>
 
           <textarea
             v-model="dslJson"
@@ -442,6 +630,62 @@ input:focus, select:focus {
 .btn-template:hover, .btn-format:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-main);
+}
+
+.climate-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.climate-builder-heading strong {
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.climate-builder-heading p,
+.builder-hint {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.builder-error {
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.climate-rule-preview {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.08);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.climate-rule-preview strong {
+  color: var(--text-main);
+}
+
+.builder-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.climate-template {
+  border-color: rgba(14, 165, 233, 0.35);
+  color: var(--primary);
+}
+
+.form-group small {
+  font-size: 11px;
 }
 
 .dsl-textarea {

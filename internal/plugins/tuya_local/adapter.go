@@ -696,15 +696,45 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 	}
 
 	var cmd struct {
+		EntityID  string         `json:"entity_id"`
 		EntityKey string         `json:"entity_key"`
 		Command   string         `json:"command"`
+		Service   string         `json:"service"`
 		Params    map[string]any `json:"params"`
+		// Legacy assistant integrations used a top-level temperature field.
+		Temperature *float64 `json:"temperature"`
 	}
 	if err := json.Unmarshal(payloadBytes, &cmd); err != nil {
 		return nil
 	}
 
+	if cmd.Command == "" {
+		cmd.Command = cmd.Service
+	}
+	if cmd.Params == nil {
+		cmd.Params = make(map[string]any)
+	}
+	if cmd.Temperature != nil {
+		if _, exists := cmd.Params["temperature"]; !exists {
+			cmd.Params["temperature"] = *cmd.Temperature
+		}
+	}
+	if cmd.EntityKey == "" && cmd.EntityID != "" && a.entRepo != nil {
+		if ent, getErr := a.entRepo.GetByID(ctx, cmd.EntityID); getErr == nil && ent != nil {
+			cmd.EntityKey = ent.EntityKey
+		}
+	}
+	if cmd.EntityKey == "" || cmd.Command == "" {
+		return nil
+	}
+
 	_, err = a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	if errors.Is(err, ErrStateNotReported) {
+		// The TCP peer acknowledged the command. Do not turn a missing telemetry
+		// update into a failed automation/action; the entity will update when the
+		// device next publishes its state.
+		return nil
+	}
 	return err
 }
 
