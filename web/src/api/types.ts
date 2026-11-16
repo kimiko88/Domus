@@ -155,7 +155,7 @@ export interface AutomationCondition {
 
 export interface AutomationAction {
   id?: string
-  type: string // 'service' | 'delay' | 'event' | 'choose' | 'if' | 'repeat' | 'parallel'
+  type: string // includes 'climate_profile' for Comfort/Eco/Night/Away thermostat actions
   service?: string
   target_entity_key?: string
   profile?: 'comfort' | 'eco' | 'night' | 'away'
