@@ -805,11 +805,13 @@ func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *
 func (e *Engine) ApplyClimateProfile(ctx context.Context, entityKey, profile string, temperature *float64, durationMinutes int) error {
 	if durationMinutes > 0 {
 		e.mu.Lock()
-		running := e.running && e.executionCtx != nil && e.executionCtx.Err() == nil
+		engineCtx := e.executionCtx
+		running := e.running && engineCtx != nil && engineCtx.Err() == nil
 		if running {
 			// Register the request before releasing the lifecycle lock. Stop may
 			// start waiting immediately after it marks the engine as stopped.
 			e.executionWG.Add(1)
+			ctx = engineCtx
 		}
 		e.mu.Unlock()
 		if !running {
