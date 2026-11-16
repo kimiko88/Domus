@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+// ErrStateNotReported means the device acknowledged a command, but did not publish
+// a matching DPS update before the confirmation deadline. The command may have
+// been applied; callers must report it as accepted-but-unconfirmed, not rejected.
+var ErrStateNotReported = errors.New("tuya: device acknowledged the command but did not report the requested DPS state")
+
 // DeviceClient handles a persistent TCP connection to a single Tuya device on port 6668.
 type commandWaiter struct {
 	sequence uint32
@@ -184,7 +189,11 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 			if reported != nil {
 				return reported, fmt.Errorf("tuya: device reported DPS state %v, which does not match requested values %v", reported, dps)
 			}
-			return nil, errors.New("tuya: device acknowledged the command but did not report the requested DPS state")
+			return map[string]any{
+				"acknowledged":  true,
+				"confirmed":     false,
+				"requested_dps": cloneDPS(dps),
+			}, ErrStateNotReported
 		}
 	}
 	return confirmed, nil
