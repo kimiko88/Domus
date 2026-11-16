@@ -667,6 +667,14 @@ func (e *Engine) executeAction(
 			overrideCtx, cancel := context.WithCancel(parent)
 			override := &climateOverride{cancel: cancel}
 			e.overrideMu.Lock()
+			// Stop cancels the engine context before clearing overrides. Check
+			// while holding the same mutex so an override cannot be registered
+			// after shutdown has already drained the map.
+			if err := parent.Err(); err != nil {
+				e.overrideMu.Unlock()
+				cancel()
+				return err
+			}
 			e.climateOverrides[act.TargetEntityKey] = override
 			e.overrideMu.Unlock()
 			e.mu.Lock()
@@ -692,7 +700,9 @@ func (e *Engine) executeAction(
 				e.overrideMu.Unlock()
 			}()
 		}
-		*actionLogs = append(*actionLogs, fmt.Sprintf("Climate profile %s applied to %s at %.1f°C (duration %d min)", act.Profile, act.TargetEntityKey, setpoint, act.DurationMinutes))
+		profileName := strings.TrimSpace(act.Profile)
+		if profileName == "" { profileName = "custom" }
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Climate profile %s applied to %s at %.1f°C (duration %d min)", profileName, act.TargetEntityKey, setpoint, act.DurationMinutes))
 
 	case "service":
 		if act.Service == "" || act.TargetEntityKey == "" {
