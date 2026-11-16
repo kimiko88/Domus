@@ -37,6 +37,8 @@ func TestPredictiveClimateRepository_CRUDAndEvaluations(t *testing.T) {
 		PressureSensorKey:    "sensor.salone_pressione",
 		HumiditySensorKey:    "sensor.salone_umidita",
 		WindowSensorKey:      "binary_sensor.finestra_salone",
+		PresenceSensorKey:    "binary_sensor.presenza_salone",
+		AwayTemperature:      16.5,
 		TargetTemperature:    21.5,
 		Orientation:          climate.OrientationSouth,
 		WindowAreaSqm:        6.0,
@@ -59,6 +61,9 @@ func TestPredictiveClimateRepository_CRUDAndEvaluations(t *testing.T) {
 	}
 	if fetched.Name != "Salone Principale" || fetched.TargetTemperature != 21.5 {
 		t.Errorf("unexpected zone data: %+v", fetched)
+	}
+	if fetched.PresenceSensorKey != "binary_sensor.presenza_salone" || fetched.AwayTemperature != 16.5 {
+		t.Errorf("unexpected occupancy settings: %+v", fetched)
 	}
 	if fetched.Orientation != climate.OrientationSouth || fetched.EmitterType != climate.EmitterFloorRadiant {
 		t.Errorf("unexpected orientation or emitter: %+v", fetched)
