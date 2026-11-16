@@ -70,6 +70,9 @@ type Action struct {
 	Type            string         `json:"type"`              // "service", "delay", "event", "choose", "if", "repeat", "parallel"
 	Service         string         `json:"service,omitempty"` // "turn_on", "turn_off", "toggle"
 	TargetEntityKey string         `json:"target_entity_key,omitempty"`
+	Profile         string         `json:"profile,omitempty"` // climate profile: comfort, eco, night, away
+	Temperature     *float64       `json:"temperature,omitempty"`
+	DurationMinutes int            `json:"duration_minutes,omitempty"` // restore previous setpoint after this many minutes
 	Params          map[string]any `json:"params,omitempty"`
 	DelayMs         int            `json:"delay_ms,omitempty"`
 	EventType       string         `json:"event_type,omitempty"`
