@@ -223,7 +223,12 @@ func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken str
 					},
 					Configuration: map[string]any{
 						"supportsScheduling": false,
-						"supportsModes": []string{"AUTO", "HEAT", "COOL", "OFF"},
+						"supportedModes": []map[string]string{
+							{"value": "AUTO"},
+							{"value": "HEAT"},
+							{"value": "COOL"},
+							{"value": "OFF"},
+						},
 					},
 				},
 				cloud_assistant.AlexaCapability{
