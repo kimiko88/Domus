@@ -800,6 +800,26 @@ func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *
 	})
 }
 
+// ApplyClimateProfile applies a profile from a direct thermostat control and,
+// when requested, restores the previous target after the configured duration.
+func (e *Engine) ApplyClimateProfile(ctx context.Context, entityKey, profile string, temperature *float64, durationMinutes int) error {
+	if durationMinutes > 0 {
+		e.mu.Lock()
+		running := e.running && e.executionCtx != nil && e.executionCtx.Err() == nil
+		e.mu.Unlock()
+		if !running {
+			return fmt.Errorf("temporary thermostat overrides require the automation engine to be running")
+		}
+	}
+	action := automation.Action{
+		Type: "climate_profile", TargetEntityKey: entityKey,
+		Profile: profile, Temperature: temperature, DurationMinutes: durationMinutes,
+	}
+	rule := &automation.Automation{ID: "manual-climate-profile", Name: "Manual thermostat profile"}
+	var logs []string
+	return e.executeAction(ctx, action, rule, &automation.AutomationRun{}, "", &logs)
+}
+
 func numericAttribute(attributes map[string]any, key string) (float64, bool) {
 	value, ok := attributes[key]
 	if !ok { return 0, false }
