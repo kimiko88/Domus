@@ -36,7 +36,7 @@ const dslJson = ref('')
 const validationError = ref<string | null>(null)
 const jsonValid = ref(true)
 
-// Guided daily thermostat program: at each configured time, read the latest
+// Guided weekly thermostat program: at each configured time, read the latest
 // temperature reported by a sensor and choose a setpoint for the thermostat.
 interface ClimateScheduleSlot {
   id: string
@@ -160,14 +160,17 @@ function buildClimateProgram() {
       validationError.value = 'Inserisci orari validi nel formato HH:MM.'
       return
     }
-    if (seenTimes.has(slot.time)) {
-      validationError.value = `L'orario ${slot.time} è duplicato. Ogni fascia deve avere un orario diverso.`
-      return
-    }
-    seenTimes.add(slot.time)
     if (!slot.days.length || slot.days.some(day => !Number.isInteger(day) || day < 1 || day > 7)) {
       validationError.value = 'Seleziona almeno un giorno valido per ogni fascia.'
       return
+    }
+    for (const day of slot.days) {
+      const dayTime = `${day}:${slot.time}`
+      if (seenTimes.has(dayTime)) {
+        validationError.value = `L'orario ${slot.time} è duplicato per almeno uno dei giorni selezionati.`
+        return
+      }
+      seenTimes.add(dayTime)
     }
     const values = [slot.threshold, slot.coldSetpoint, slot.warmSetpoint]
     if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
