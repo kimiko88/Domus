@@ -113,6 +113,46 @@ func parseEntityAttributes(ent *entity.Entity) map[string]any {
 	return m
 }
 
+func numericAttribute(attrs map[string]any, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		value, exists := attrs[key]
+		if !exists {
+			continue
+		}
+		switch number := value.(type) {
+		case float64:
+			return number, true
+		case float32:
+			return float64(number), true
+		case int:
+			return float64(number), true
+		case int64:
+			return float64(number), true
+		case json.Number:
+			if parsed, err := number.Float64(); err == nil {
+				return parsed, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func climateSetpoint(attrs map[string]any) (float64, bool) {
+	return numericAttribute(attrs, "target_temperature", "temperature", "target_temp")
+}
+
+func climateAmbientTemperature(attrs map[string]any) (float64, bool) {
+	return numericAttribute(attrs, "current_temperature", "current_temp", "ambient_temperature")
+}
+
+func celsius(value float64, scale string) float64 {
+	if strings.EqualFold(strings.TrimSpace(scale), "FAHRENHEIT") ||
+		strings.EqualFold(strings.TrimSpace(scale), "F") {
+		return (value - 32) * 5 / 9
+	}
+	return value
+}
+
 func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken string) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	allEntities, err := s.entities.List(ctx, entity.ListFilter{})
 	if err != nil {
@@ -166,18 +206,26 @@ func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken str
 			})
 		case "climate":
 			category = "THERMOSTAT"
-			capabilities = append(capabilities, cloud_assistant.AlexaCapability{
-				Type:      "AlexaInterface",
-				Interface: "Alexa.ThermostatController",
-				Version:   "3",
-				Properties: &cloud_assistant.AlexaProperties{
-					Supported: []cloud_assistant.AlexaSupportedProperty{
-						{Name: "targetSetpoint"},
-						{Name: "thermostatMode"},
+			capabilities = append(capabilities,
+				cloud_assistant.AlexaCapability{
+					Type:      "AlexaInterface",
+					Interface: "Alexa.ThermostatController",
+					Version:   "3",
+					Properties: &cloud_assistant.AlexaProperties{
+						Supported:   []cloud_assistant.AlexaSupportedProperty{{Name: "targetSetpoint"}},
+						Retrievable: true,
 					},
-					Retrievable: true,
 				},
-			})
+				cloud_assistant.AlexaCapability{
+					Type:      "AlexaInterface",
+					Interface: "Alexa.TemperatureSensor",
+					Version:   "3",
+					Properties: &cloud_assistant.AlexaProperties{
+						Supported:   []cloud_assistant.AlexaSupportedProperty{{Name: "temperature"}},
+						Retrievable: true,
+					},
+				},
+			)
 		default:
 			continue
 		}
@@ -316,10 +364,19 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 			Scale string  `json:"scale"`
 		} `json:"targetSetpoint"`
 	}
-	_ = json.Unmarshal(dir.Payload, &payload)
+	if err := json.Unmarshal(dir.Payload, &payload); err != nil {
+		return nil, fmt.Errorf("decode thermostat setpoint: %w", err)
+	}
+	if dir.Header.Name != "SetTargetTemperature" {
+		return nil, fmt.Errorf("%w: %s.%s", ErrUnsupportedIntent, dir.Header.Namespace, dir.Header.Name)
+	}
+	targetCelsius := celsius(payload.TargetSetpoint.Value, payload.TargetSetpoint.Scale)
+	if targetCelsius < 5 || targetCelsius > 35 {
+		return nil, errors.New("thermostat setpoint must be between 5 and 35 °C")
+	}
 
 	if s.bus != nil {
-		_ = s.bus.Publish(ctx, events.Event{
+		if err := s.bus.Publish(ctx, events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.CommandRequested,
 			OccurredAt: time.Now().UTC(),
@@ -328,9 +385,11 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 				"entity_id":   entID,
 				"domain":      "climate",
 				"service":     "set_temperature",
-				"temperature": payload.TargetSetpoint.Value,
+				"temperature": targetCelsius,
 			},
-		})
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	nowISO := time.Now().UTC().Format(time.RFC3339)
@@ -345,7 +404,7 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 				{
 					Namespace:                 "Alexa.ThermostatController",
 					Name:                      "targetSetpoint",
-					Value:                     map[string]any{"value": payload.TargetSetpoint.Value, "scale": "CELSIUS"},
+					Value:                     map[string]any{"value": targetCelsius, "scale": "CELSIUS"},
 					TimeOfSample:              nowISO,
 					UncertaintyInMilliseconds: 50,
 				},
@@ -366,9 +425,39 @@ func (s *Service) handleAlexaReportState(ctx context.Context, dir cloud_assistan
 	}
 
 	nowISO := time.Now().UTC().Format(time.RFC3339)
-	powerVal := "OFF"
-	if isEntityOn(ent) {
-		powerVal = "ON"
+	properties := make([]cloud_assistant.AlexaResponseContextProperty, 0, 3)
+	if ent.Domain == "climate" {
+		attrs := parseEntityAttributes(ent)
+		if setpoint, ok := climateSetpoint(attrs); ok {
+			properties = append(properties, cloud_assistant.AlexaResponseContextProperty{
+				Namespace: "Alexa.ThermostatController",
+				Name: "targetSetpoint",
+				Value: map[string]any{"value": setpoint, "scale": "CELSIUS"},
+				TimeOfSample: nowISO,
+				UncertaintyInMilliseconds: 1000,
+			})
+		}
+		if ambient, ok := climateAmbientTemperature(attrs); ok {
+			properties = append(properties, cloud_assistant.AlexaResponseContextProperty{
+				Namespace: "Alexa.TemperatureSensor",
+				Name: "temperature",
+				Value: map[string]any{"value": ambient, "scale": "CELSIUS"},
+				TimeOfSample: nowISO,
+				UncertaintyInMilliseconds: 1000,
+			})
+		}
+	} else {
+		powerVal := "OFF"
+		if isEntityOn(ent) {
+			powerVal = "ON"
+		}
+		properties = append(properties, cloud_assistant.AlexaResponseContextProperty{
+			Namespace: "Alexa.PowerController",
+			Name: "powerState",
+			Value: powerVal,
+			TimeOfSample: nowISO,
+			UncertaintyInMilliseconds: 50,
+		})
 	}
 
 	return &cloud_assistant.AlexaResponseEnvelope{
@@ -378,15 +467,7 @@ func (s *Service) handleAlexaReportState(ctx context.Context, dir cloud_assistan
 			Payload:  map[string]any{},
 		},
 		Context: &cloud_assistant.AlexaResponseCtx{
-			Properties: []cloud_assistant.AlexaResponseContextProperty{
-				{
-					Namespace:                 "Alexa.PowerController",
-					Name:                      "powerState",
-					Value:                     powerVal,
-					TimeOfSample:              nowISO,
-					UncertaintyInMilliseconds: 50,
-				},
-			},
+			Properties: properties,
 		},
 	}, nil
 }
@@ -442,10 +523,18 @@ func (s *Service) handleGoogleSync(ctx context.Context, reqID string) (*cloud_as
 			continue
 		}
 
+		var attributes map[string]any
+		if ent.Domain == "climate" {
+			attributes = map[string]any{
+				"thermostatTemperatureUnit": "C",
+				"availableThermostatModes":  "off,heat,cool,auto",
+			}
+		}
 		devices = append(devices, cloud_assistant.GoogleDevice{
-			ID:     ent.ID,
-			Type:   devType,
-			Traits: traits,
+			ID:         ent.ID,
+			Type:       devType,
+			Traits:     traits,
+			Attributes: attributes,
 			Name: cloud_assistant.GoogleDeviceName{
 				Name: ent.Name,
 			},
@@ -495,11 +584,28 @@ func (s *Service) handleGoogleQuery(ctx context.Context, reqID string, payloadBy
 				st["brightness"] = int(br / 2.55)
 			}
 		} else if ent.Domain == "climate" {
-			if temp, ok := attrs["temperature"].(float64); ok {
+			if temp, ok := climateSetpoint(attrs); ok {
 				st["thermostatTemperatureSetpoint"] = temp
 			}
-			if cur, ok := attrs["current_temperature"].(float64); ok {
+			if cur, ok := climateAmbientTemperature(attrs); ok {
 				st["thermostatTemperatureAmbient"] = cur
+			}
+			st["thermostatTemperatureUnit"] = "C"
+			mode, _ := attrs["hvac_mode"].(string)
+			if mode == "" {
+				mode = strings.Trim(strings.TrimSpace(ent.State), `"`)
+			}
+			switch strings.ToLower(mode) {
+			case "off":
+				st["thermostatMode"] = "off"
+			case "heat", "heating":
+				st["thermostatMode"] = "heat"
+			case "cool", "cooling":
+				st["thermostatMode"] = "cool"
+			case "auto", "automatic":
+				st["thermostatMode"] = "auto"
+			default:
+				st["thermostatMode"] = "auto"
 			}
 		}
 
