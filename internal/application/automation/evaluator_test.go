@@ -252,3 +252,16 @@ func TestEvaluator_TimeConditionSupportsOvernightWindows(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluator_UnknownConditionFailsClosed(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	ok, err := evaluator.EvaluateConditionWithTrigger(
+		context.Background(),
+		automation.Condition{Condition: "numeric_sttae", EntityKey: "sensor.temperature"},
+		nil,
+		"",
+	)
+	require.Error(t, err)
+	assert.False(t, ok)
+	assert.Contains(t, err.Error(), "unsupported automation condition")
+}
