@@ -195,23 +195,31 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 	}
 
 	// 1. Fetch sensor states
-	currentTemp := 20.0
-	if s.entityRepo != nil {
-		if cfg.TempSensorKey == "" {
-			return nil, errors.New("predictive climate zone has no temperature sensor configured")
-		}
-		sensor, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey)
-		if err != nil {
-			return nil, fmt.Errorf("read room temperature sensor %q: %w", cfg.TempSensorKey, err)
-		}
-		if !sensor.Available {
-			return nil, fmt.Errorf("room temperature sensor %q is unavailable", cfg.TempSensorKey)
-		}
-		value, ok := parseNumericState(sensor.State)
-		if !ok {
-			return nil, fmt.Errorf("room temperature sensor %q has no valid numeric reading", cfg.TempSensorKey)
-		}
-		currentTemp = value
+	if s.entityRepo == nil {
+		return nil, errors.New("predictive climate requires an entity repository")
+	}
+	if cfg.TempSensorKey == "" {
+		return nil, errors.New("predictive climate zone has no temperature sensor configured")
+	}
+	sensor, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey)
+	if err != nil {
+		return nil, fmt.Errorf("read room temperature sensor %q: %w", cfg.TempSensorKey, err)
+	}
+	if sensor.Domain != "sensor" {
+		return nil, fmt.Errorf("configured room temperature entity %q is not a sensor", cfg.TempSensorKey)
+	}
+	if !sensor.Available {
+		return nil, fmt.Errorf("room temperature sensor %q is unavailable", cfg.TempSensorKey)
+	}
+	currentTemp, ok := parseNumericState(sensor.State)
+	if !ok {
+		return nil, fmt.Errorf("room temperature sensor %q has no valid numeric reading", cfg.TempSensorKey)
+	}
+	if isFahrenheit(sensor.UnitOfMeasurement, sensor.Attributes) {
+		currentTemp = (currentTemp - 32) * 5 / 9
+	}
+	if currentTemp < -50 || currentTemp > 70 {
+		return nil, fmt.Errorf("room temperature sensor %q reading %.2f°C is outside the plausible range", cfg.TempSensorKey, currentTemp)
 	}
 
 	currentHumidity := 50.0
@@ -234,10 +242,15 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 	}
 
 	windowOpen := false
-	if s.entityRepo != nil && cfg.WindowSensorKey != "" {
-		if e, err := s.entityRepo.GetByKey(ctx, cfg.WindowSensorKey); err == nil {
-			windowOpen = parseBooleanState(e.State)
+	if cfg.WindowSensorKey != "" {
+		window, err := s.entityRepo.GetByKey(ctx, cfg.WindowSensorKey)
+		if err != nil {
+			return nil, fmt.Errorf("read configured window sensor %q: %w", cfg.WindowSensorKey, err)
 		}
+		if !window.Available {
+			return nil, fmt.Errorf("configured window sensor %q is unavailable; refusing predictive heating command", cfg.WindowSensorKey)
+		}
+		windowOpen = parseBooleanState(window.State)
 	}
 
 	// 2. Barometric trend
@@ -278,14 +291,31 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 		forecastPoints,
 	)
 
-	// 5. Persist evaluation
+	// 5. Persist evaluation before considering a device command.
 	if err := s.repo.SaveEvaluation(ctx, &eval); err != nil {
-		s.logger.WarnContext(ctx, "failed to save predictive climate evaluation", "error", err, "zone_id", zoneID)
+		return nil, fmt.Errorf("persist predictive climate evaluation for zone %q: %w", zoneID, err)
 	}
 
-	// 6. If enabled, dispatch command to TRV
+	// 6. Validate the actuator and setpoint before dispatching any command.
 	if cfg.Enabled && cfg.TRVEntityKey != "" && s.bus != nil {
-		s.dispatchTRVSetpoint(ctx, cfg.TRVEntityKey, eval.CalculatedSetpoint, eval.Reason)
+		trv, err := s.entityRepo.GetByKey(ctx, cfg.TRVEntityKey)
+		if err != nil {
+			return nil, fmt.Errorf("resolve target thermostat %q: %w", cfg.TRVEntityKey, err)
+		}
+		if trv.Domain != "climate" {
+			return nil, fmt.Errorf("configured target %q is not a climate entity", cfg.TRVEntityKey)
+		}
+		if !trv.Available {
+			return nil, fmt.Errorf("target thermostat %q is unavailable; predictive command not sent", cfg.TRVEntityKey)
+		}
+		minTemp, maxTemp := climateEntityTemperatureRange(trv)
+		if eval.CalculatedSetpoint < minTemp || eval.CalculatedSetpoint > maxTemp {
+			return nil, fmt.Errorf("calculated setpoint %.1f°C is outside thermostat %q range %.1f–%.1f°C",
+				eval.CalculatedSetpoint, cfg.TRVEntityKey, minTemp, maxTemp)
+		}
+		if err := s.dispatchTRVSetpoint(ctx, cfg.TRVEntityKey, eval.CalculatedSetpoint, eval.Reason); err != nil {
+			return nil, fmt.Errorf("dispatch predictive setpoint to %q: %w", cfg.TRVEntityKey, err)
+		}
 	}
 
 	return &eval, nil
@@ -582,16 +612,19 @@ func (s *PredictiveService) CalculateCoastDown(
 	}, nil
 }
 
-func (s *PredictiveService) dispatchTRVSetpoint(ctx context.Context, trvKey string, targetTemp float64, reason string) {
-	if s.bus == nil || trvKey == "" {
-		return
+func (s *PredictiveService) dispatchTRVSetpoint(ctx context.Context, trvKey string, targetTemp float64, reason string) error {
+	if s.bus == nil {
+		return errors.New("event bus is unavailable")
+	}
+	if strings.TrimSpace(trvKey) == "" {
+		return errors.New("target thermostat entity key is empty")
 	}
 	s.logger.InfoContext(ctx, "dispatching predictive TRV setpoint",
 		"trv_key", trvKey,
 		"setpoint", targetTemp,
 		"reason", reason,
 	)
-	_ = s.bus.Publish(ctx, events.Event{
+	return s.bus.Publish(ctx, events.Event{
 		ID:         uuid.NewString(),
 		Type:       events.CommandRequested,
 		OccurredAt: time.Now().UTC(),
@@ -626,6 +659,55 @@ func (s *PredictiveService) handleEntityStateChanged(ctx context.Context, evt ev
 	}
 
 	return nil
+}
+
+func isFahrenheit(unit, attributes string) bool {
+	if strings.Contains(strings.ToUpper(unit), "F") {
+		return true
+	}
+	var values map[string]any
+	if json.Unmarshal([]byte(attributes), &values) == nil {
+		for _, key := range []string{"unit_of_measurement", "temperature_unit"} {
+			if value, ok := values[key].(string); ok && strings.Contains(strings.ToUpper(value), "F") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func climateEntityTemperatureRange(ent *entity.Entity) (float64, float64) {
+	minTemp, maxTemp := 5.0, 35.0
+	var attributes map[string]any
+	if ent != nil && json.Unmarshal([]byte(ent.Attributes), &attributes) == nil {
+		if value, ok := parseNumericAttribute(attributes["min_temp"]); ok {
+			minTemp = value
+		}
+		if value, ok := parseNumericAttribute(attributes["max_temp"]); ok {
+			maxTemp = value
+		}
+	}
+	if ent != nil && isFahrenheit(ent.UnitOfMeasurement, ent.Attributes) {
+		minTemp = (minTemp - 32) * 5 / 9
+		maxTemp = (maxTemp - 32) * 5 / 9
+	}
+	if minTemp < -20 || maxTemp > 60 || maxTemp <= minTemp {
+		return 5, 35
+	}
+	return minTemp, maxTemp
+}
+
+func parseNumericAttribute(value any) (float64, bool) {
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case int:
+		return float64(number), true
+	case string:
+		return strconv.ParseFloat(strings.TrimSpace(number), 64) == nil
+	default:
+		return 0, false
+	}
 }
 
 func parseNumericState(raw string) (float64, bool) {
