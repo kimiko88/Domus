@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"strings"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,6 +19,10 @@ import (
 )
 
 type activeRun struct {
+	cancel context.CancelFunc
+}
+
+type climateOverride struct {
 	cancel context.CancelFunc
 }
 
@@ -37,6 +44,8 @@ type Engine struct {
 	scheduledDates   map[string]string
 	activeRuns       sync.Map // map[string]*activeRun
 	queuedRuns       sync.Map // map[string]chan struct{}
+	overrideMu       sync.Mutex
+	climateOverrides map[string]*climateOverride
 
 }
 
@@ -70,6 +79,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	schedulerCtx, cancel := context.WithCancel(ctx)
 	e.schedulerCancel = cancel
 	e.executionCtx, e.executionCancel = context.WithCancel(ctx)
+	e.climateOverrides = make(map[string]*climateOverride)
 	e.schedulerDone = make(chan struct{})
 	done := e.schedulerDone
 	go func() {
@@ -110,6 +120,12 @@ func (e *Engine) Stop(ctx context.Context) error {
 	if executionCancel != nil {
 		executionCancel()
 	}
+	e.overrideMu.Lock()
+	for key, override := range e.climateOverrides {
+		override.cancel()
+		delete(e.climateOverrides, key)
+	}
+	e.overrideMu.Unlock()
 	if done != nil {
 		select {
 		case <-done:
@@ -591,6 +607,93 @@ func (e *Engine) executeAction(
 			return parallelErr
 		}
 
+	case "climate_profile":
+		if act.TargetEntityKey == "" {
+			return fmt.Errorf("climate_profile action requires target_entity_key")
+		}
+		target, err := e.entityRepo.GetByKey(ctx, act.TargetEntityKey)
+		if err != nil {
+			return fmt.Errorf("read thermostat %q: %w", act.TargetEntityKey, err)
+		}
+		if target.Domain != "climate" || !target.Available || !target.Writable {
+			return fmt.Errorf("thermostat %q must be an available, writable climate entity", act.TargetEntityKey)
+		}
+		profileSetpoints := map[string]float64{"comfort": 21, "eco": 18, "night": 17, "away": 16}
+		setpoint, ok := profileSetpoints[strings.ToLower(strings.TrimSpace(act.Profile))]
+		if act.Temperature != nil {
+			setpoint, ok = *act.Temperature, true
+		}
+		if !ok {
+			return fmt.Errorf("unsupported climate profile %q", act.Profile)
+		}
+		if math.IsNaN(setpoint) || math.IsInf(setpoint, 0) || setpoint < 5 || setpoint > 35 {
+			return fmt.Errorf("climate setpoint %.2f°C is outside the supported safety range 5–35°C", setpoint)
+		}
+		if act.DurationMinutes < 0 || act.DurationMinutes > 1440 {
+			return fmt.Errorf("climate override duration must be between 0 and 1440 minutes")
+		}
+		var attributes map[string]any
+		if err := json.Unmarshal([]byte(target.Attributes), &attributes); err != nil {
+			return fmt.Errorf("parse thermostat attributes: %w", err)
+		}
+		minTemp, maxTemp := 5.0, 35.0
+		if v, ok := numericAttribute(attributes, "min_temp"); ok { minTemp = v }
+		if v, ok := numericAttribute(attributes, "max_temp"); ok { maxTemp = v }
+		if minTemp < 5 || maxTemp > 35 || minTemp > maxTemp || setpoint < minTemp || setpoint > maxTemp {
+			return fmt.Errorf("climate setpoint %.1f°C is outside thermostat range %.1f–%.1f°C", setpoint, minTemp, maxTemp)
+		}
+		var previous float64
+		hasPrevious := false
+		for _, key := range []string{"target_temperature", "target_temp", "temperature"} {
+			if value, found := numericAttribute(attributes, key); found {
+				previous, hasPrevious = value, true
+				break
+			}
+		}
+		if act.DurationMinutes > 0 && !hasPrevious {
+			return fmt.Errorf("cannot create a temporary override: thermostat %q has no readable previous setpoint", act.TargetEntityKey)
+		}
+		e.overrideMu.Lock()
+		if current := e.climateOverrides[act.TargetEntityKey]; current != nil {
+			current.cancel()
+			delete(e.climateOverrides, act.TargetEntityKey)
+		}
+		e.overrideMu.Unlock()
+		if err := e.publishClimateSetpoint(ctx, rule.ID, act.TargetEntityKey, setpoint); err != nil {
+			return err
+		}
+		if act.DurationMinutes > 0 {
+			parent := e.executionContext(ctx)
+			overrideCtx, cancel := context.WithCancel(parent)
+			override := &climateOverride{cancel: cancel}
+			e.overrideMu.Lock()
+			e.climateOverrides[act.TargetEntityKey] = override
+			e.overrideMu.Unlock()
+			e.mu.Lock()
+			e.executionWG.Add(1)
+			e.mu.Unlock()
+			go func() {
+				defer e.executionWG.Done()
+				defer cancel()
+				timer := time.NewTimer(time.Duration(act.DurationMinutes) * time.Minute)
+				defer timer.Stop()
+				select {
+				case <-overrideCtx.Done():
+					return
+				case <-timer.C:
+				}
+				if err := e.publishClimateSetpoint(overrideCtx, rule.ID, act.TargetEntityKey, previous); err != nil {
+					slog.ErrorContext(overrideCtx, "failed to restore thermostat setpoint after temporary profile", "entity", act.TargetEntityKey, "error", err)
+				}
+				e.overrideMu.Lock()
+				if e.climateOverrides[act.TargetEntityKey] == override {
+					delete(e.climateOverrides, act.TargetEntityKey)
+				}
+				e.overrideMu.Unlock()
+			}()
+		}
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Climate profile %s applied to %s at %.1f°C (duration %d min)", act.Profile, act.TargetEntityKey, setpoint, act.DurationMinutes))
+
 	case "service":
 		if act.Service == "" || act.TargetEntityKey == "" {
 			return fmt.Errorf("service action requires both service and target_entity_key")
@@ -663,4 +766,37 @@ func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *
 			"error":         errMsg,
 		},
 	})
+}
+
+func numericAttribute(attributes map[string]any, key string) (float64, bool) {
+	value, ok := attributes[key]
+	if !ok { return 0, false }
+	switch v := value.(type) {
+	case float64:
+		return v, !math.IsNaN(v) && !math.IsInf(v, 0)
+	case json.Number:
+		n, err := v.Float64()
+		return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
+	default:
+		return 0, false
+	}
+}
+
+func (e *Engine) publishClimateSetpoint(ctx context.Context, automationID, entityKey string, temperature float64) error {
+	if err := ctx.Err(); err != nil { return err }
+	evt := events.Event{
+		ID: uuid.NewString(), Type: events.CommandRequested, OccurredAt: time.Now().UTC(),
+		Source: fmt.Sprintf("automation:%s", automationID),
+		Payload: map[string]any{
+			"entity_key": entityKey, "service": "set_temperature",
+			"params": map[string]any{"temperature": math.Round(temperature*10)/10},
+		},
+	}
+	if err := e.bus.Publish(ctx, evt); err != nil {
+		return fmt.Errorf("publish thermostat setpoint for %q: %w", entityKey, err)
+	}
+	return nil
 }
