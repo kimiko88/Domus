@@ -15,6 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
+type activeRun struct {
+	cancel context.CancelFunc
+}
+
 // Engine evaluates incoming events against registered automation rules and executes actions.
 type Engine struct {
 	autoRepo   automation.Repository
@@ -28,7 +32,9 @@ type Engine struct {
 	schedulerDone    chan struct{}
 	scheduleMu       sync.Mutex
 	scheduledDates   map[string]string
-	activeRuns       sync.Map // map[string]context.CancelFunc
+	activeRuns       sync.Map // map[string]*activeRun
+	queuedRuns       sync.Map // map[string]chan struct{}
+
 }
 
 // NewEngine creates an automation Engine instance.
@@ -224,25 +230,47 @@ func (e *Engine) launchRuleExecution(rule *automation.Automation, triggerID stri
 		mode = "single"
 	}
 
+	runCtx, cancel := context.WithCancel(context.Background())
+	currentRun := &activeRun{cancel: cancel}
+	var releaseQueue func()
+
 	switch mode {
 	case "single":
-		if _, loaded := e.activeRuns.Load(rule.ID); loaded {
+		if _, loaded := e.activeRuns.LoadOrStore(rule.ID, currentRun); loaded {
+			cancel()
 			slog.Debug("automation: execution mode single, skipping run", "automation_id", rule.ID)
 			return
 		}
+		defer e.activeRuns.CompareAndDelete(rule.ID, currentRun)
+
 	case "restart":
-		if prevCancel, loaded := e.activeRuns.Load(rule.ID); loaded {
-			slog.Debug("automation: execution mode restart, aborting previous run", "automation_id", rule.ID)
-			if cancelFn, ok := prevCancel.(context.CancelFunc); ok {
-				cancelFn()
+		previous, loaded := e.activeRuns.Swap(rule.ID, currentRun)
+		if loaded {
+			if prevRun, ok := previous.(*activeRun); ok && prevRun.cancel != nil {
+				prevRun.cancel()
 			}
 		}
+		defer e.activeRuns.CompareAndDelete(rule.ID, currentRun)
+
+	case "queued":
+		candidate := make(chan struct{}, 1)
+		candidate <- struct{}{}
+		stored, _ := e.queuedRuns.LoadOrStore(rule.ID, candidate)
+		semaphore := stored.(chan struct{})
+		<-semaphore
+		releaseQueue = func() { semaphore <- struct{}{} }
+		defer releaseQueue()
+
+	case "parallel":
+		// Each invocation runs independently; no per-automation lock is held.
+
+	default:
+		cancel()
+		slog.Warn("automation: unknown execution mode; skipping run", "automation_id", rule.ID, "execution_mode", mode)
+		return
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
-	e.activeRuns.Store(rule.ID, cancel)
-	defer e.activeRuns.Delete(rule.ID)
-
+	defer cancel()
 	e.executeRule(runCtx, rule, triggerID, triggerContext)
 }
 
