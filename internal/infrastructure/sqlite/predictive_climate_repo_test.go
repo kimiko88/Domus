@@ -76,6 +76,8 @@ func TestPredictiveClimateRepository_CRUDAndEvaluations(t *testing.T) {
 	}
 	if len(list) != 1 {
 		t.Errorf("expected 1 zone, got %d", len(list))
+	} else if list[0].PresenceSensorKey != "binary_sensor.presenza_salone" || list[0].AwayTemperature != 16.5 {
+		t.Errorf("unexpected occupancy settings in list result: %+v", list[0])
 	}
 
 	// 4. Save and Retrieve Evaluation
