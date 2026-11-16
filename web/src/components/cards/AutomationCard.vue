@@ -374,4 +374,17 @@ async function handleTrigger() {
   background: rgba(244, 63, 94, 0.1);
   color: var(--color-danger);
 }
+
+@media (max-width: 520px) {
+  .automation-card { padding: 14px; gap: 14px; }
+  .card-top { gap: 8px; }
+  .icon-box { width: 36px; height: 36px; }
+  .automation-name { white-space: normal; overflow-wrap: anywhere; }
+  .card-footer { align-items: stretch; flex-wrap: wrap; gap: 10px; }
+  .primary-buttons { flex: 1 1 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .btn-action { justify-content: center; min-height: 38px; padding-inline: 6px; }
+  .secondary-buttons { justify-content: flex-end; width: 100%; }
+  .btn-icon { width: 38px; height: 38px; }
+}
+
 </style>
