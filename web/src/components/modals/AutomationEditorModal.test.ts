@@ -186,13 +186,13 @@ it('supports multiple daily thermostat schedule slots using the same live temper
   await wrapper.find('#climate-cold-setpoint-slot-2').setValue('20')
   await wrapper.find('#climate-warm-setpoint-slot-2').setValue('16')
 
-  await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
-
-  const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
   const weekdayCheckboxes = wrapper.findAll('.climate-weekday input')
   for (const checkbox of weekdayCheckboxes.slice(12)) {
     await checkbox.setValue(false)
   }
+  await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
+
+  const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
   expect(dsl.triggers).toEqual([
     { id: 'climate_slot_1', platform: 'time', at: '07:00:00', days: [1, 2, 3, 4, 5, 6, 7] },
     { id: 'climate_slot_2', platform: 'time', at: '18:30:00', days: [1, 2, 3, 4, 5] }
