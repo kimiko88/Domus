@@ -512,6 +512,8 @@ export interface ClimateCompensatorConfig {
   trv_entity_key: string
   room_temp_sensor_key: string
   window_sensor_key?: string
+  presence_sensor_key?: string
+  away_temperature?: number
   target_temperature: number
   delta_factor: number
   current_room_temp?: number
