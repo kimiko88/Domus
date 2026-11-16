@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,6 +30,7 @@ type commandWaiter struct {
 	ack chan error
 	reported chan map[string]any
 	confirmed chan map[string]any
+	observed  map[string]any
 }
 
 type DeviceClient struct {
@@ -45,6 +49,9 @@ type DeviceClient struct {
 	closed   atomic.Bool
 	stopCh   chan struct{}
 	onStatus func(dps map[string]any)
+
+	stateMu   sync.RWMutex
+	latestDPS map[string]any
 }
 
 // NewDeviceClient creates a new client for a Tuya device.
@@ -95,6 +102,11 @@ func (c *DeviceClient) Connect(ctx context.Context) error {
 
 	go c.readLoop()
 	go c.heartbeatLoop()
+	go func() {
+		statusCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = c.requestStatus(statusCtx)
+	}()
 
 	return nil
 }
@@ -131,7 +143,11 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 	if err != nil {
 		return nil, err
 	}
-	waiter := &commandWaiter{sequence: seq, command: CmdControl, expected: cloneDPS(dps), ack: make(chan error, 1), reported: make(chan map[string]any, 1), confirmed: make(chan map[string]any, 1)}
+	waiter := &commandWaiter{
+		sequence: seq, command: CmdControl, expected: cloneDPS(dps),
+		ack: make(chan error, 1), reported: make(chan map[string]any, 1),
+		confirmed: make(chan map[string]any, 1), observed: make(map[string]any),
+	}
 	c.pendingMu.Lock()
 	c.pending = waiter
 	c.pendingMu.Unlock()
@@ -163,7 +179,7 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 		return nil, fmt.Errorf("tuya: command write failed: %w", err)
 	}
 	c.mu.Unlock()
-	timer := time.NewTimer(5*time.Second)
+	timer := time.NewTimer(7*time.Second)
 	defer timer.Stop()
 	ackReceived := false
 	var reported map[string]any
@@ -175,6 +191,7 @@ func (c *DeviceClient) SendCommand(ctx context.Context, dps map[string]any) (map
 				return reported, ackErr
 			}
 			ackReceived = true
+			_ = c.requestStatus(ctx)
 		case status := <-waiter.reported:
 			reported = status
 		case status := <-waiter.confirmed:
@@ -207,6 +224,50 @@ func cloneDPS(dps map[string]any) map[string]any {
 	return copy
 }
 
+// LatestDPS returns the most recently observed merged DPS snapshot.
+func (c *DeviceClient) LatestDPS() map[string]any {
+	c.stateMu.RLock()
+	defer c.stateMu.RUnlock()
+	return cloneDPS(c.latestDPS)
+}
+
+// requestStatus asks the device for an updated DPS snapshot.
+func (c *DeviceClient) requestStatus(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	command := CmdDpQuery
+	if c.Version == "3.4" || c.Version == "3.5" {
+		command = CmdDpQueryNew
+	}
+	sequence := c.seq.Add(1)
+	frame, err := EncodePacket(sequence, command, nil, c.LocalKey, c.Version)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn == nil || c.closed.Load() {
+		return errors.New("tuya: cannot query status on a closed connection")
+	}
+	_ = c.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
+	if _, err := c.conn.Write(frame); err != nil {
+		return fmt.Errorf("tuya: status query failed: %w", err)
+	}
+	return nil
+}
+
+func publishLatestDPS(ch chan map[string]any, state map[string]any) {
+	select {
+	case <-ch:
+	default:
+	}
+	select {
+	case ch <- cloneDPS(state):
+	default:
+	}
+}
+
 func dpsContainsKeys(expected, actual map[string]any) bool {
 	for key := range expected {
 		if _, ok := actual[key]; !ok {
@@ -229,7 +290,7 @@ func dpsMatch(expected, actual map[string]any) bool {
 func sameDPSValue(a, b any) bool {
 	if af, ok := numericDPSValue(a); ok {
 		if bf, ok := numericDPSValue(b); ok {
-			return af == bf
+			return math.Abs(af-bf) < 0.000001
 		}
 	}
 	return fmt.Sprint(a) == fmt.Sprint(b)
@@ -245,6 +306,9 @@ func numericDPSValue(value any) (float64, bool) {
 		return number, true
 	case float32:
 		return float64(number), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(number), 64)
+		return parsed, err == nil
 	default:
 		return 0, false
 	}
@@ -358,8 +422,18 @@ func (c *DeviceClient) handleResponsePacket(packet *Packet) {
 			}
 		}
 	}
-	if len(dps) > 0 && c.onStatus != nil {
-		c.onStatus(dps)
+	if len(dps) > 0 {
+		c.stateMu.Lock()
+		if c.latestDPS == nil {
+			c.latestDPS = make(map[string]any)
+		}
+		for key, value := range dps {
+			c.latestDPS[key] = value
+		}
+		c.stateMu.Unlock()
+		if c.onStatus != nil {
+			c.onStatus(dps)
+		}
 	}
 
 	c.pendingMu.Lock()
@@ -373,21 +447,20 @@ func (c *DeviceClient) handleResponsePacket(packet *Packet) {
 				}
 			} else {
 				select {
-					case waiter.ack <- nil:
-					default:
-					}
-			}
-		}
-		if len(dps) > 0 && dpsContainsKeys(waiter.expected, dps) {
-			select {
-			case waiter.reported <- cloneDPS(dps):
-			default:
-			}
-			if dpsMatch(waiter.expected, dps) {
-				select {
-				case waiter.confirmed <- cloneDPS(dps):
+				case waiter.ack <- nil:
 				default:
 				}
+			}
+		}
+		if len(dps) > 0 {
+			// Tuya firmware can split a logical status report into several frames.
+			for key, value := range dps {
+				waiter.observed[key] = value
+			}
+			publishLatestDPS(waiter.reported, waiter.observed)
+			if dpsContainsKeys(waiter.expected, waiter.observed) &&
+				dpsMatch(waiter.expected, waiter.observed) {
+				publishLatestDPS(waiter.confirmed, waiter.observed)
 			}
 		}
 	}
