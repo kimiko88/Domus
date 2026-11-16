@@ -552,7 +552,11 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
     let localOutcome: { acknowledged?: boolean; confirmed?: boolean; message?: string } | undefined
     if (device.local_configured) {
       const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
-      localOutcome = await apiClient.post(
+      localOutcome = await apiClient.post<{
+        acknowledged?: boolean
+        confirmed?: boolean
+        message?: string
+      }>(
         `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
         {
           command: 'set_temperature',
