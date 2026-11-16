@@ -5,9 +5,9 @@ import ClimateCard from './ClimateCard.vue'
 import { useEntitiesStore } from '../../stores/entities'
 import type { Entity } from '../../api/types'
 
-describe('ClimateCard.vue', () => {
-  let entitiesStore: ReturnType<typeof useEntitiesStore>
+let entitiesStore: ReturnType<typeof useEntitiesStore>
 
+describe('ClimateCard.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     entitiesStore = useEntitiesStore()
