@@ -393,7 +393,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		if srv.repos != nil {
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
-			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
+			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
@@ -476,8 +476,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					entRouter.Get("/{id}", entityH.GetByID)
 					if srv.authService != nil {
 						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/command", entityH.Command)
+						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/climate-profile", entityH.ApplyClimateProfile)
 					} else {
 						entRouter.Post("/{id}/command", entityH.Command)
+						entRouter.Post("/{id}/climate-profile", entityH.ApplyClimateProfile)
 					}
 					if srv.repos.History != nil {
 						var rollupSvc *apphist.RollupService
