@@ -681,12 +681,42 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 		}
 	}
 
+	if targetCfg.Category == CategoryClimate && command == "set_temperature" {
+		// Prefer the device's observed target DP when it advertises DPS 16
+		// instead of the common DPS 2 mapping.
+		latest := client.LatestDPS()
+		if _, hasDP2 := latest["2"]; !hasDP2 {
+			if _, hasDP16 := latest["16"]; hasDP16 {
+				if params == nil {
+					params = make(map[string]any)
+				}
+				params["dp_id"] = 16
+			}
+		}
+	}
+
 	dps, err := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
 	if err != nil {
 		return nil, err
 	}
-
-	return client.SendCommand(ctx, dps)
+	response, err := client.SendCommand(ctx, dps)
+	// If an older configuration guessed DPS 2 but the thermostat reports
+	// its setpoint on DPS 16, retry once against the actually advertised point.
+	if err != nil && targetCfg.Category == CategoryClimate && command == "set_temperature" {
+		if _, hasDP2 := response["2"]; !hasDP2 {
+			if _, hasDP16 := response["16"]; hasDP16 {
+				if params == nil {
+					params = make(map[string]any)
+				}
+				params["dp_id"] = 16
+				retryDPS, mapErr := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
+				if mapErr == nil {
+					return client.SendCommand(ctx, retryDPS)
+				}
+			}
+		}
+	}
+	return response, err
 }
 
 func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) error {
