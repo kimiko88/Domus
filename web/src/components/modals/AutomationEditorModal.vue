@@ -67,13 +67,14 @@ const temperatureSources = computed(() => climateEntities.value.filter(entity =>
   const attributes = entity.attributes || {}
   const deviceClass = String(attributes.device_class || '').toLowerCase()
   const unit = String(attributes.unit_of_measurement || entity.unit_of_measurement || '').toLowerCase()
-  const hasTemperatureUnit = ['°c', 'c', 'celsius', '°f', 'f', 'fahrenheit'].includes(unit)
+  const hasTemperatureUnit = ['°c', 'c', 'celsius'].includes(unit)
+  const isFahrenheit = ['°f', 'f', 'fahrenheit'].includes(unit)
   const hasTemperatureAttribute =
     typeof attributes.current_temperature === 'number' ||
     typeof attributes.temperature === 'number'
 
   if (entity.domain === 'climate') return typeof attributes.current_temperature === 'number'
-  return entity.domain === 'sensor' &&
+  return entity.domain === 'sensor' && !isFahrenheit &&
     (deviceClass === 'temperature' || hasTemperatureUnit || hasTemperatureAttribute)
 }))
 const climateTargets = computed(() => climateEntities.value.filter(entity => entity.domain === 'climate'))
@@ -106,10 +107,13 @@ watch(climateSensorKey, key => {
 })
 
 function addClimateTimeSlot() {
+  const usedTimes = new Set(climateTimeSlots.value.map(slot => slot.time))
+  const suggestedTime = ['12:00', '18:00', '22:00', '06:00', '09:00', '15:00']
+    .find(time => !usedTimes.has(time)) || ''
   const lastSlot = climateTimeSlots.value[climateTimeSlots.value.length - 1]
   climateTimeSlots.value.push({
     id: `slot-${nextClimateSlotNumber++}`,
-    time: lastSlot?.time === '07:00' ? '18:00' : '12:00',
+    time: suggestedTime,
     threshold: lastSlot?.threshold ?? 19,
     coldSetpoint: lastSlot?.coldSetpoint ?? 21,
     warmSetpoint: lastSlot?.warmSetpoint ?? 18
