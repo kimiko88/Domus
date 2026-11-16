@@ -158,6 +158,9 @@ export interface AutomationAction {
   type: string // 'service' | 'delay' | 'event' | 'choose' | 'if' | 'repeat' | 'parallel'
   service?: string
   target_entity_key?: string
+  profile?: 'comfort' | 'eco' | 'night' | 'away'
+  temperature?: number
+  duration_minutes?: number
   params?: Record<string, any>
   delay_ms?: number
   event_type?: string
