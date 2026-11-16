@@ -250,7 +250,11 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 		if !window.Available {
 			return nil, fmt.Errorf("configured window sensor %q is unavailable; refusing predictive heating command", cfg.WindowSensorKey)
 		}
-		windowOpen = parseBooleanState(window.State)
+		var recognized bool
+		windowOpen, recognized = parseBooleanState(window.State)
+		if !recognized {
+			return nil, fmt.Errorf("configured window sensor %q has an unrecognized state %q; refusing predictive heating command", cfg.WindowSensorKey, window.State)
+		}
 	}
 
 	// 2. Barometric trend
@@ -446,10 +450,10 @@ func (s *PredictiveService) GetZoneProfile(ctx context.Context, zoneID string) (
 	return &defProfile, nil
 }
 
-// TrainFromCycle incorporates a real-world heating or cooling observation into the zone's thermal profile using EMA.
+// TrainFromCycle incorporates a validated real-world heating or cooling observation into the zone's thermal profile using EMA.
 func (s *PredictiveService) TrainFromCycle(ctx context.Context, obs domclimate.ThermalCycleObservation) (*domclimate.ThermalProfile, error) {
-	if obs.ZoneID == "" {
-		return nil, errors.New("cannot train without zone_id")
+	if err := validateThermalCycleObservation(obs); err != nil {
+		return nil, err
 	}
 	profile, err := s.GetZoneProfile(ctx, obs.ZoneID)
 	if err != nil {
@@ -469,6 +473,51 @@ func (s *PredictiveService) TrainFromCycle(ctx context.Context, obs domclimate.T
 		"samples", profile.SamplesCount,
 	)
 	return profile, nil
+}
+
+
+// validateThermalCycleObservation rejects implausible or incomplete manual samples
+// before they can contaminate the learned thermal model.
+func validateThermalCycleObservation(obs domclimate.ThermalCycleObservation) error {
+	if strings.TrimSpace(obs.ZoneID) == "" {
+		return errors.New("cannot train without zone_id")
+	}
+	if obs.CycleType != "heating" && obs.CycleType != "cooling" {
+		return fmt.Errorf("unsupported thermal cycle type %q", obs.CycleType)
+	}
+	if obs.DurationMinutes < 15 || obs.DurationMinutes > 720 {
+		return errors.New("thermal cycle duration must be between 15 and 720 minutes")
+	}
+	for name, value := range map[string]float64{
+		"start_temp": obs.StartTemp, "end_temp": obs.EndTemp,
+		"avg_outdoor_temp": obs.AvgOutdoorTemp, "solar_radiation": obs.SolarRadiation,
+	} {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return fmt.Errorf("%s must be a finite number", name)
+		}
+	}
+	if obs.StartTemp < -20 || obs.StartTemp > 50 || obs.EndTemp < -20 || obs.EndTemp > 50 {
+		return errors.New("indoor temperatures must be between -20 and 50°C")
+	}
+	if obs.AvgOutdoorTemp < -50 || obs.AvgOutdoorTemp > 60 {
+		return errors.New("average outdoor temperature must be between -50 and 60°C")
+	}
+	if obs.SolarRadiation < 0 || obs.SolarRadiation > 1400 {
+		return errors.New("solar radiation must be between 0 and 1400 W/m²")
+	}
+	delta := obs.EndTemp - obs.StartTemp
+	if (obs.CycleType == "heating" && delta <= 0) || (obs.CycleType == "cooling" && delta >= 0) {
+		return fmt.Errorf("%s cycle must show a temperature %s", obs.CycleType, map[string]string{"heating":"increase", "cooling":"decrease"}[obs.CycleType])
+	}
+	maxRate := 8.0
+	if obs.CycleType == "cooling" { maxRate = 3.0 }
+	if math.Abs(delta)/(float64(obs.DurationMinutes)/60) > maxRate {
+		return fmt.Errorf("observed temperature change exceeds the plausible %s rate", obs.CycleType)
+	}
+	if !obs.ObservedAt.IsZero() && obs.ObservedAt.After(time.Now().Add(5*time.Minute)) {
+		return errors.New("observation timestamp cannot be in the future")
+	}
+	return nil
 }
 
 // CalculateOptimalStart computes the preheating advance duration and start time to reach target temperature on schedule.
@@ -783,7 +832,14 @@ func parseNumericState(raw string) (float64, bool) {
 	return 0.0, false
 }
 
-func parseBooleanState(raw string) bool {
-	lower := strings.ToLower(strings.TrimSpace(raw))
-	return lower == "on" || lower == "open" || lower == "true" || lower == "1"
+func parseBooleanState(raw string) (bool, bool) {
+	lower := strings.ToLower(strings.TrimSpace(strings.Trim(raw, `"`)))
+	switch lower {
+	case "on", "open", "true", "1", "detected":
+		return true, true
+	case "off", "closed", "false", "0", "clear":
+		return false, true
+	default:
+		return false, false
+	}
 }
