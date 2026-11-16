@@ -555,9 +555,8 @@ func TestEngine_ClimateProfileAppliesAndRestoresTemporarySetpoint(t *testing.T) 
 		Triggers: []automation.Trigger{{Platform:"event", EventType:"climate.profile.test"}},
 		Actions: []automation.Action{{Type:"climate_profile", TargetEntityKey:"climate.living_room", Profile:"eco", DurationMinutes:1, Temperature:ptrFloat(18)}},
 	}
-	// Use a short timer in this test by directly verifying the action command and
-	// cancellation path through a 1-minute duration; restoration is covered by the
-	// dedicated helper test below.
+	// The temporary profile publishes immediately; engine cleanup cancels its
+	// one-minute timer so the integration test remains fast.
 	require.NoError(t, repos.Automations.Create(ctx, auto))
 	require.NoError(t, engine.Start(ctx))
 	require.NoError(t, bus.Publish(ctx, events.Event{Type:"climate.profile.test", OccurredAt:time.Now()}))
