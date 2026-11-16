@@ -30,6 +30,9 @@ type Engine struct {
 	running          bool
 	schedulerCancel  context.CancelFunc
 	schedulerDone    chan struct{}
+	executionCtx     context.Context
+	executionCancel context.CancelFunc
+	executionWG     sync.WaitGroup
 	scheduleMu       sync.Mutex
 	scheduledDates   map[string]string
 	activeRuns       sync.Map // map[string]*activeRun
@@ -66,6 +69,7 @@ func (e *Engine) Start(ctx context.Context) error {
 
 	schedulerCtx, cancel := context.WithCancel(ctx)
 	e.schedulerCancel = cancel
+	e.executionCtx, e.executionCancel = context.WithCancel(ctx)
 	e.schedulerDone = make(chan struct{})
 	done := e.schedulerDone
 	go func() {
@@ -91,14 +95,20 @@ func (e *Engine) Stop(ctx context.Context) error {
 	}
 	e.unsubs = nil
 	cancel := e.schedulerCancel
+	executionCancel := e.executionCancel
 	done := e.schedulerDone
 	e.schedulerCancel = nil
 	e.schedulerDone = nil
+	e.executionCancel = nil
+	e.executionCtx = nil
 	e.running = false
 	e.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
+	}
+	if executionCancel != nil {
+		executionCancel()
 	}
 	if done != nil {
 		select {
@@ -106,6 +116,13 @@ func (e *Engine) Stop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	waitDone := make(chan struct{})
+	go func() { e.executionWG.Wait(); close(waitDone) }()
+	select {
+	case <-waitDone:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 	slog.Info("automation engine stopped")
 	return nil
@@ -139,6 +156,15 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 
 	localNow := now.In(time.Local)
 	dateKey := localNow.Format("2006-01-02")
+	// Keep only today's fire markers; otherwise each recurring schedule leaks
+	// one map entry per day for the lifetime of the engine.
+	e.scheduleMu.Lock()
+	for key, firedDate := range e.scheduledDates {
+		if firedDate != dateKey {
+			delete(e.scheduledDates, key)
+		}
+	}
+	e.scheduleMu.Unlock()
 	for _, rule := range rules {
 		for index, trigger := range rule.Triggers {
 			if !e.evaluator.EvaluateTimeTrigger(trigger, localNow) {
@@ -169,7 +195,7 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 				"trigger":      trigger,
 				"scheduled_at": localNow.Format(time.RFC3339),
 			})
-			go e.launchRuleExecution(rule, triggerID, string(triggerContextBytes))
+			go e.launchRuleExecution(ctx, rule, triggerID, string(triggerContextBytes))
 		}
 	}
 }
@@ -205,7 +231,7 @@ func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
 					"trigger": trig,
 					"event":   evt,
 				})
-				go e.launchRuleExecution(rule, trig.ID, string(triggerContextBytes))
+				go e.launchRuleExecution(e.executionContext(ctx), rule, trig.ID, string(triggerContextBytes))
 				break
 			}
 		}
@@ -220,17 +246,44 @@ func (e *Engine) TriggerAutomation(ctx context.Context, id string) error {
 		return err
 	}
 	triggerContext := `{"manual":true}`
-	go e.launchRuleExecution(rule, "", triggerContext)
+	go e.launchRuleExecution(e.executionContext(ctx), rule, "", triggerContext)
 	return nil
 }
 
-func (e *Engine) launchRuleExecution(rule *automation.Automation, triggerID string, triggerContext string) {
+func (e *Engine) executionContext(fallback context.Context) context.Context {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.running && e.executionCtx != nil {
+		return e.executionCtx
+	}
+	return fallback
+}
+
+func (e *Engine) launchRuleExecution(parent context.Context, rule *automation.Automation, triggerID string, triggerContext string) {
+	// Register under the lifecycle mutex so Stop cannot begin Wait while a new
+	// tracked execution is being added.
+	tracked := false
+	e.mu.Lock()
+	if e.running {
+		if e.executionCtx != nil {
+			parent = e.executionCtx
+		}
+		e.executionWG.Add(1)
+		tracked = true
+	}
+	e.mu.Unlock()
+	if tracked {
+		defer e.executionWG.Done()
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
 	mode := rule.ExecutionMode
 	if mode == "" {
 		mode = "single"
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(parent)
 	currentRun := &activeRun{cancel: cancel}
 	var releaseQueue func()
 
@@ -257,7 +310,12 @@ func (e *Engine) launchRuleExecution(rule *automation.Automation, triggerID stri
 		candidate <- struct{}{}
 		stored, _ := e.queuedRuns.LoadOrStore(rule.ID, candidate)
 		semaphore := stored.(chan struct{})
-		<-semaphore
+		select {
+		case <-runCtx.Done():
+			cancel()
+			return
+		case <-semaphore:
+		}
 		releaseQueue = func() { semaphore <- struct{}{} }
 		defer releaseQueue()
 
