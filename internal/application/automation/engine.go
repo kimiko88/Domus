@@ -806,10 +806,16 @@ func (e *Engine) ApplyClimateProfile(ctx context.Context, entityKey, profile str
 	if durationMinutes > 0 {
 		e.mu.Lock()
 		running := e.running && e.executionCtx != nil && e.executionCtx.Err() == nil
+		if running {
+			// Register the request before releasing the lifecycle lock. Stop may
+			// start waiting immediately after it marks the engine as stopped.
+			e.executionWG.Add(1)
+		}
 		e.mu.Unlock()
 		if !running {
 			return fmt.Errorf("temporary thermostat overrides require the automation engine to be running")
 		}
+		defer e.executionWG.Done()
 	}
 	action := automation.Action{
 		Type: "climate_profile", TargetEntityKey: entityKey,
