@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import AutomationEditorModal from './AutomationEditorModal.vue'
+import { apiClient } from '../../api/client'
 
 describe('AutomationEditorModal.vue', () => {
   it('renders modal with initial values for editing', () => {
@@ -86,4 +87,56 @@ describe('AutomationEditorModal.vue', () => {
     expect(saved.triggers).toHaveLength(1)
     expect(saved.actions).toHaveLength(1)
   })
+})
+
+it('generates a daily thermostat rule from a temperature sensor', async () => {
+  const entities = [
+    {
+      id: 'sensor-uuid',
+      entity_key: 'sensor.room_temperature',
+      domain: 'sensor',
+      name: 'Temperatura soggiorno',
+      state: '18.5',
+      attributes: { device_class: 'temperature', unit_of_measurement: '°C' },
+      last_changed: '',
+      last_updated: ''
+    },
+    {
+      id: 'climate-uuid',
+      entity_key: 'climate.living_room',
+      domain: 'climate',
+      name: 'Termostato soggiorno',
+      state: 'auto',
+      attributes: { current_temperature: 18.5 },
+      last_changed: '',
+      last_updated: ''
+    }
+  ]
+  const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue(entities as any)
+  const wrapper = mount(AutomationEditorModal, { props: { isOpen: true } })
+
+  await wrapper.find('[data-testid="climate-program-toggle"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.find('select[name="climate-sensor"]').exists()).toBe(true)
+
+  await wrapper.find('input[name="climate-time"]').setValue('06:45')
+  await wrapper.find('#climate-threshold').setValue('18')
+  await wrapper.find('#climate-cold-setpoint').setValue('21.5')
+  await wrapper.find('#climate-warm-setpoint').setValue('17.5')
+  await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
+
+  const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
+  expect(dsl.triggers).toEqual([{ id: 'daily_climate_schedule', platform: 'time', at: '06:45:00' }])
+  expect(dsl.conditions[0]).toMatchObject({ condition: 'numeric_state', entity_key: 'sensor.room_temperature' })
+  expect(dsl.actions[0].choose[0].conditions[0]).toMatchObject({ below: 18 })
+  expect(dsl.actions[0].choose[0].sequence[0]).toMatchObject({
+    type: 'service',
+    service: 'set_temperature',
+    target_entity_key: 'climate.living_room',
+    params: { temperature: 21.5 }
+  })
+  expect(dsl.actions[0].default[0].params.temperature).toBe(17.5)
+
+  getSpy.mockRestore()
+  wrapper.unmount()
 })
