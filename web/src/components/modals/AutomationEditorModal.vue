@@ -221,10 +221,14 @@ function buildClimateProgram() {
   dslJson.value = JSON.stringify(dsl, null, 2)
   if (!name.value.trim()) name.value = 'Programma termostato ' + target.name
   if (!description.value.trim()) {
-    const scheduleSummary = slots.map(slot =>
-      `${slot.time}: sotto ${slot.threshold} °C → ${slot.coldSetpoint} °C, altrimenti ${slot.warmSetpoint} °C`
-    ).join('; ')
-    description.value = `Ogni giorno legge ${source.name} e regola ${target.name}: ${scheduleSummary}.`
+    const scheduleSummary = slots.map(slot => {
+      const days = slot.days
+        .map(day => climateWeekdays.find(item => item.value === day)?.label)
+        .filter(Boolean)
+        .join(', ')
+      return `${days} ${slot.time}: sotto ${slot.threshold} °C → ${slot.coldSetpoint} °C, altrimenti ${slot.warmSetpoint} °C`
+    }).join('; ')
+    description.value = `Legge ${source.name} e regola ${target.name} secondo la programmazione settimanale: ${scheduleSummary}.`
   }
   jsonValid.value = true
   climateBuilderOpen.value = false
