@@ -97,7 +97,7 @@ function buildClimateProgram() {
     validationError.value = 'Seleziona un sensore di temperatura e un termostato.'
     return
   }
-  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(climateScheduleTime.value)) {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(climateScheduleTime.value)) {
     validationError.value = 'Inserisci un orario valido nel formato HH:MM.'
     return
   }
