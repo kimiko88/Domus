@@ -78,7 +78,7 @@ function entityKey(entity: Entity): string {
 const temperatureSources = computed(() => climateEntities.value.filter(entity => {
   const attributes = entity.attributes || {}
   const deviceClass = String(attributes.device_class || '').toLowerCase()
-  const unit = String(attributes.unit_of_measurement || entity.unit_of_measurement || '').toLowerCase()
+  const unit = String(attributes.unit_of_measurement || '').toLowerCase()
   const hasTemperatureUnit = ['°c', 'c', 'celsius'].includes(unit)
   const isFahrenheit = ['°f', 'f', 'fahrenheit'].includes(unit)
   const hasTemperatureAttribute =
