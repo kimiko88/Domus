@@ -570,6 +570,22 @@ func TestEngine_ClimateProfileAppliesAndRestoresTemporarySetpoint(t *testing.T) 
 	require.NotEmpty(t, commands)
 	assert.Equal(t, 18.0, commands[0])
 	commandMu.Unlock()
+
+	// Stopping the engine cancels the timer and restores the setpoint that was
+	// active before the temporary profile.
+	require.NoError(t, engine.Stop(ctx))
+	restoreDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(restoreDeadline) {
+		commandMu.Lock()
+		restored := len(commands) >= 2
+		commandMu.Unlock()
+		if restored { break }
+		time.Sleep(20 * time.Millisecond)
+	}
+	commandMu.Lock()
+	require.GreaterOrEqual(t, len(commands), 2, "shutdown should publish the previous setpoint")
+	assert.Equal(t, 20.0, commands[1])
+	commandMu.Unlock()
 }
 
 func ptrFloat(v float64) *float64 { return &v }
