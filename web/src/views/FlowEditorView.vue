@@ -98,6 +98,13 @@ const dragOffset = ref({ x: 0, y: 0 })
 const isWiring = ref(false)
 const wireStartNodeId = ref<string | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
+const activeTouchPointers = new Map<number, { x: number; y: number }>()
+let pinchOrigin: {
+  distance: number
+  zoom: number
+  contentX: number
+  contentY: number
+} | null = null
 
 // --- Available Node Palette Items ---
 interface PaletteItem {
@@ -278,7 +285,30 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
 }
 
 // --- Wire Connections (Curves of Bézier) ---
-function startWiring(nodeId: string, e: MouseEvent) {
+function commitWire(targetNodeId: string) {
+  const sourceNodeId = wireStartNodeId.value
+  if (!sourceNodeId || sourceNodeId === targetNodeId) return
+
+  const exists = wires.value.some(
+    (wire) => wire.fromNodeId === sourceNodeId && wire.toNodeId === targetNodeId
+  )
+  if (!exists) {
+    wires.value.push({
+      id: `wire_${sourceNodeId}_${targetNodeId}`,
+      fromNodeId: sourceNodeId,
+      toNodeId: targetNodeId
+    })
+    soundEffects.playSuccessChime()
+  }
+}
+
+function finishWiring() {
+  isWiring.value = false
+  wireStartNodeId.value = null
+}
+
+function startWiring(nodeId: string, e: PointerEvent) {
+  if (activeTouchPointers.size > 1) return
   e.stopPropagation()
   soundEffects.playClick()
   isWiring.value = true
@@ -286,27 +316,45 @@ function startWiring(nodeId: string, e: MouseEvent) {
   updateMousePos(e)
 }
 
-function endWiring(targetNodeId: string, e: MouseEvent) {
+function endWiring(targetNodeId: string, e: PointerEvent) {
   e.stopPropagation()
   if (!isWiring.value || !wireStartNodeId.value) return
+  commitWire(targetNodeId)
+  finishWiring()
+}
 
-  if (wireStartNodeId.value !== targetNodeId) {
-    // Avoid duplicate wires
-    const exists = wires.value.some(
-      (w) => w.fromNodeId === wireStartNodeId.value && w.toNodeId === targetNodeId
-    )
-    if (!exists) {
-      wires.value.push({
-        id: `wire_${wireStartNodeId.value}_${targetNodeId}`,
-        fromNodeId: wireStartNodeId.value,
-        toNodeId: targetNodeId
-      })
-      soundEffects.playSuccessChime()
-    }
+// Tap/click connection mode makes wiring usable without a drag gesture.
+function toggleWireStart(nodeId: string) {
+  if (isWiring.value && wireStartNodeId.value === nodeId) {
+    finishWiring()
+    return
   }
 
-  isWiring.value = false
-  wireStartNodeId.value = null
+  if (isWiring.value && wireStartNodeId.value) {
+    commitWire(nodeId)
+    finishWiring()
+    return
+  }
+
+  const node = nodes.value.find((item) => item.id === nodeId)
+  if (node) {
+    mousePos.value = {
+      x: panX.value + (node.x + 230) * zoom.value,
+      y: panY.value + (node.y + 45) * zoom.value
+    }
+  }
+  selectedNodeId.value = nodeId
+  isWiring.value = true
+  wireStartNodeId.value = nodeId
+}
+
+function completeWiringByClick(nodeId: string) {
+  if (!isWiring.value || !wireStartNodeId.value) {
+    selectedNodeId.value = nodeId
+    return
+  }
+  commitWire(nodeId)
+  finishWiring()
 }
 
 function deleteWire(wireId: string) {
@@ -353,7 +401,7 @@ function getDraftWirePath(): string {
   return `M ${x1} ${y1} C ${x1 + Math.max(dx, 40)} ${y1}, ${x2 - Math.max(dx, 40)} ${y2}, ${x2} ${y2}`
 }
 
-function updateMousePos(e: MouseEvent) {
+function updateMousePos(e: PointerEvent) {
   const canvasEl = document.querySelector('.flow-canvas')
   if (canvasEl) {
     const rect = canvasEl.getBoundingClientRect()
@@ -364,8 +412,59 @@ function updateMousePos(e: MouseEvent) {
   }
 }
 
+function handleCanvasPointerDown(e: PointerEvent) {
+  if (e.pointerType !== 'touch') return
+  const canvas = e.currentTarget as HTMLElement
+  const rect = canvas.getBoundingClientRect()
+  activeTouchPointers.set(e.pointerId, {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  })
+
+  if (activeTouchPointers.size === 2) {
+    const points = [...activeTouchPointers.values()]
+    const centerX = (points[0].x + points[1].x) / 2
+    const centerY = (points[0].y + points[1].y) / 2
+    pinchOrigin = {
+      distance: Math.max(1, Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)),
+      zoom: zoom.value,
+      contentX: (centerX - panX.value) / zoom.value,
+      contentY: (centerY - panY.value) / zoom.value
+    }
+    isPanning.value = false
+    draggingNodeId.value = null
+    finishWiring()
+  }
+}
+
+function handleCanvasPointerMove(e: PointerEvent) {
+  if (e.pointerType !== 'touch' || !activeTouchPointers.has(e.pointerId)) return
+  const canvas = e.currentTarget as HTMLElement
+  const rect = canvas.getBoundingClientRect()
+  activeTouchPointers.set(e.pointerId, {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  })
+
+  if (activeTouchPointers.size !== 2 || !pinchOrigin) return
+  const points = [...activeTouchPointers.values()]
+  const centerX = (points[0].x + points[1].x) / 2
+  const centerY = (points[0].y + points[1].y) / 2
+  const distance = Math.max(1, Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y))
+  const nextZoom = Math.min(Math.max(pinchOrigin.zoom * distance / pinchOrigin.distance, 0.4), 2)
+  zoom.value = Number(nextZoom.toFixed(2))
+  panX.value = centerX - pinchOrigin.contentX * zoom.value
+  panY.value = centerY - pinchOrigin.contentY * zoom.value
+}
+
+function handleCanvasPointerEnd(e: PointerEvent) {
+  activeTouchPointers.delete(e.pointerId)
+  if (activeTouchPointers.size < 2) pinchOrigin = null
+}
+
 // --- Canvas Dragging & Panning ---
-function handleCanvasMouseDown(e: MouseEvent) {
+function handleCanvasMouseDown(e: PointerEvent) {
+  if (activeTouchPointers.size > 1) return
   if ((e.target as HTMLElement).closest('.flow-node') || (e.target as HTMLElement).closest('.node-port')) {
     return
   }
@@ -377,8 +476,8 @@ function handleCanvasMouseDown(e: MouseEvent) {
   selectedNodeId.value = null
 }
 
-function handleNodeMouseDown(node: FlowNode, e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('.node-port')) return
+function handleNodeMouseDown(node: FlowNode, e: PointerEvent) {
+  if (activeTouchPointers.size > 1 || (e.target as HTMLElement).closest('.node-port')) return
   e.stopPropagation()
   selectedNodeId.value = node.id
   draggingNodeId.value = node.id
@@ -388,7 +487,8 @@ function handleNodeMouseDown(node: FlowNode, e: MouseEvent) {
   }
 }
 
-function handleMouseMove(e: MouseEvent) {
+function handleMouseMove(e: PointerEvent) {
+  if (e.pointerType === 'touch' && activeTouchPointers.size > 1) return
   updateMousePos(e)
 
   if (isPanning.value) {
@@ -805,9 +905,14 @@ onMounted(async () => {
       <!-- Center: Infinite Canvas & SVG Wires -->
       <main
         class="flow-canvas"
-        @mousedown="handleCanvasMouseDown"
-        @mousemove="handleMouseMove"
-        @mouseup="handleMouseUp"
+        @pointerdown.capture="handleCanvasPointerDown"
+        @pointermove.capture="handleCanvasPointerMove"
+        @pointerup.capture="handleCanvasPointerEnd"
+        @pointercancel.capture="handleCanvasPointerEnd"
+        @pointerdown="handleCanvasMouseDown"
+        @pointermove="handleMouseMove"
+        @pointerup="handleMouseUp"
+        @pointercancel="handleMouseUp"
         @wheel="handleWheel"
         @dragover.prevent
         @drop="handleCanvasDrop"
@@ -873,13 +978,19 @@ onMounted(async () => {
             :style="{
               transform: `translate(${node.x}px, ${node.y}px)`
             }"
-            @mousedown="handleNodeMouseDown(node, $event)"
+            @pointerdown="handleNodeMouseDown(node, $event)"
           >
             <!-- Node Input Port (Left) -->
             <div
               v-if="node.type !== 'trigger'"
               class="node-port port-input"
-              @mouseup="endWiring(node.id, $event)"
+              role="button"
+              tabindex="0"
+              @pointerup="endWiring(node.id, $event)"
+              @click.stop="completeWiringByClick(node.id)"
+              @keydown.enter.prevent.stop="completeWiringByClick(node.id)"
+              @keydown.space.prevent.stop="completeWiringByClick(node.id)"
+              :aria-label="t('flowchart.view.connectInput')"
               :title="t('flowchart.view.connectInput')"
             >
               <div class="port-dot"></div>
@@ -915,7 +1026,13 @@ onMounted(async () => {
             <!-- Node Output Port (Right) -->
             <div
               class="node-port port-output"
-              @mousedown="startWiring(node.id, $event)"
+              role="button"
+              tabindex="0"
+              @pointerdown="startWiring(node.id, $event)"
+              @click.stop="toggleWireStart(node.id)"
+              @keydown.enter.prevent.stop="toggleWireStart(node.id)"
+              @keydown.space.prevent.stop="toggleWireStart(node.id)"
+              :aria-label="t('flowchart.view.dragToConnect')"
               :title="t('flowchart.view.dragToConnect')"
             >
               <div class="port-dot"></div>
@@ -1120,7 +1237,10 @@ onMounted(async () => {
 .flow-editor-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
+  width: 100%;
+  min-width: 0;
+  height: calc(100dvh - 80px);
+  min-height: 420px;
   overflow: hidden;
   position: relative;
 }
@@ -1424,9 +1544,13 @@ onMounted(async () => {
 
 /* ================= INFINITE CANVAS ================= */
 .flow-canvas {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
   background-color: #0b0f19;
   background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 24px 24px;
@@ -1910,4 +2034,372 @@ onMounted(async () => {
   font-size: 13px;
   cursor: pointer;
 }
+ 
+/* ================= RESPONSIVE / TOUCH ================= */
+.editor-header,
+.header-left,
+.header-right,
+.title-group,
+.workspace-layout,
+.node-palette,
+.node-inspector,
+.inspector-content {
+  min-width: 0;
+}
+
+.title-input {
+  width: min(42vw, 420px);
+  max-width: 100%;
+}
+
+.btn-back,
+.btn-tool,
+.btn-save,
+.btn-ctl,
+.btn-delete-node,
+.btn-close-inspector,
+.btn-modal-close {
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.node-port {
+  width: 28px;
+  height: 28px;
+  touch-action: none;
+}
+
+.node-port:focus-visible,
+.btn-ctl:focus-visible,
+.btn-tool:focus-visible,
+.btn-save:focus-visible,
+.btn-back:focus-visible,
+.btn-delete-node:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.node-subtitle {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
+  .node-palette { width: 240px; flex: 0 0 240px; }
+  .node-inspector { width: 280px; flex: 0 0 280px; }
+  .editor-header { padding-inline: 14px; }
+  .header-right { gap: 6px; }
+  .btn-tool, .btn-save { padding-inline: 10px; }
+}
+
+@media (max-width: 900px) {
+  .flow-editor-page {
+    height: calc(100dvh - 64px);
+    min-height: 460px;
+  }
+
+  .editor-header {
+    height: auto;
+    min-height: 0;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .header-left {
+    flex: 1 1 100%;
+    gap: 10px;
+  }
+
+  .title-group {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .title-input {
+    width: 100%;
+    font-size: 15px;
+  }
+
+  .header-right {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .btn-tool,
+  .btn-save {
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
+
+  .workspace-layout {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .node-palette {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 184px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .palette-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px 6px;
+  }
+
+  .palette-desc {
+    margin: 0;
+    text-align: right;
+  }
+
+  .palette-categories {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 12px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .palette-group {
+    flex: 0 0 min(72vw, 270px);
+    min-width: 0;
+  }
+
+  .category-title {
+    margin-bottom: 6px;
+    font-size: 10px;
+  }
+
+  .palette-items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .palette-item {
+    min-width: 0;
+    padding: 6px;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .palette-item:hover { transform: none; }
+
+  .palette-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .item-name {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .item-desc { display: none; }
+
+  .btn-add-mini {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+  }
+
+  .flow-canvas {
+    width: 100%;
+    min-height: 280px;
+  }
+
+  .canvas-floating-controls {
+    top: 10px;
+    bottom: auto;
+    left: 10px;
+    padding: 5px;
+  }
+
+  .btn-ctl {
+    width: 40px;
+    height: 40px;
+  }
+
+  .node-inspector {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: auto;
+    max-height: min(48%, 420px);
+    flex: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.38);
+  }
+
+  .inspector-header {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+  }
+
+  .inspector-content {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+    gap: 12px;
+  }
+
+  .prop-input,
+  .prop-select,
+  .prop-textarea {
+    min-height: 42px;
+    font-size: 16px;
+  }
+
+  .btn-close-inspector {
+    width: 40px;
+    height: 40px;
+  }
+
+  .btn-remove-selected {
+    min-height: 44px;
+  }
+
+  .modal-backdrop {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal-container {
+    width: 100%;
+    max-width: 720px;
+    max-height: 92dvh;
+  }
+
+  .modal-header,
+  .modal-actions {
+    padding-inline: 14px;
+  }
+
+  .modal-body {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .json-code-box {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .modal-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .modal-actions > * {
+    min-height: 44px;
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .flow-editor-page {
+    height: calc(100dvh - 56px);
+    min-height: 440px;
+  }
+
+  .editor-header { padding: 8px 10px; gap: 8px; }
+  .btn-back { width: 42px; height: 42px; }
+
+  .badge-status-row {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .header-right {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .btn-tool,
+  .btn-save {
+    min-width: 0;
+    min-height: 44px;
+    gap: 5px;
+    font-size: 11px;
+    padding-inline: 4px;
+  }
+
+  .btn-tool span,
+  .btn-save span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .node-palette { max-height: 174px; }
+  .palette-desc { display: none; }
+  .palette-group { flex-basis: min(78vw, 250px); }
+  .palette-categories { padding-inline: 10px; }
+  .flow-canvas { min-height: 260px; }
+
+  .canvas-floating-controls { top: 8px; left: 8px; }
+  .btn-ctl { width: 38px; height: 38px; }
+
+  .node-port {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(14, 165, 233, 0.13);
+  }
+
+  .port-dot { width: 12px; height: 12px; }
+  .port-input { left: -20px; }
+  .port-output { right: -20px; }
+
+  .node-inspector {
+    left: 8px;
+    right: 8px;
+    max-height: min(50%, 390px);
+  }
+
+  .inspector-content {
+    padding-inline: 12px;
+  }
+
+  .prop-row { flex-wrap: wrap; }
+  .prop-col { min-width: min(100%, 130px); }
+
+  .modal-container { border-radius: var(--radius-lg); }
+  .modal-header h3 { font-size: 14px; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions > * { width: 100%; flex: 1 1 auto; }
+}
+
+@media (max-height: 560px) and (max-width: 900px) {
+  .flow-editor-page { min-height: 0; }
+  .node-palette { max-height: 126px; }
+  .palette-header { padding-block: 5px; }
+  .palette-categories { padding-block: 5px 8px; }
+  .flow-canvas { min-height: 180px; }
+  .node-inspector { max-height: 42%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wire-path-draft { animation: none; }
+}
+
 </style>
