@@ -46,6 +46,8 @@ const formTempKey = ref('')
 const formPressureKey = ref('')
 const formHumidityKey = ref('')
 const formWindowKey = ref('')
+const formPresenceKey = ref('')
+const formAwayTemp = ref(17.0)
 const formTargetTemp = ref(21.0)
 const formOrientation = ref<RoomOrientation>('south')
 const formWindowArea = ref(4.0)
@@ -147,6 +149,8 @@ function openCreateModal() {
   formPressureKey.value = ''
   formHumidityKey.value = ''
   formWindowKey.value = ''
+  formPresenceKey.value = ''
+  formAwayTemp.value = 17.0
   formTargetTemp.value = 21.0
   formOrientation.value = 'south'
   formWindowArea.value = 4.0
@@ -167,6 +171,8 @@ function openEditModal(cfg: PredictiveZoneConfig) {
   formPressureKey.value = cfg.pressure_sensor_key || ''
   formHumidityKey.value = cfg.humidity_sensor_key || ''
   formWindowKey.value = cfg.window_sensor_key || ''
+  formPresenceKey.value = cfg.presence_sensor_key || ''
+  formAwayTemp.value = cfg.away_temperature || 17.0
   formTargetTemp.value = cfg.target_temperature
   formOrientation.value = cfg.orientation
   formWindowArea.value = cfg.window_area_sqm
@@ -190,6 +196,8 @@ async function handleSaveZone() {
     pressure_sensor_key: formPressureKey.value.trim() || undefined,
     humidity_sensor_key: formHumidityKey.value.trim() || undefined,
     window_sensor_key: formWindowKey.value.trim() || undefined,
+    presence_sensor_key: formPresenceKey.value.trim() || undefined,
+    away_temperature: Number(formAwayTemp.value),
     target_temperature: Number(formTargetTemp.value),
     orientation: formOrientation.value,
     window_area_sqm: Number(formWindowArea.value),
@@ -595,6 +603,32 @@ function getEmitterLabel(emitter: EmitterType): string {
               class="form-control"
               placeholder="binary_sensor.finestra_salone"
             />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="zone-presence">Sensore di presenza (opzionale)</label>
+              <input
+                id="zone-presence"
+                v-model="formPresenceKey"
+                type="text"
+                class="form-control"
+                placeholder="binary_sensor.presenza_salone"
+              />
+              <small>Se la stanza è vuota viene applicato il setpoint risparmio.</small>
+            </div>
+            <div class="form-group col">
+              <label for="zone-away-temp">Temperatura in assenza (°C)</label>
+              <input
+                id="zone-away-temp"
+                v-model.number="formAwayTemp"
+                type="number"
+                min="15"
+                max="28"
+                step="0.5"
+                class="form-control"
+              />
+            </div>
           </div>
 
           <div class="form-row">
