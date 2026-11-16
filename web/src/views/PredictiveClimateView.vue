@@ -101,6 +101,16 @@ function formatEvaluationTime(value?: string): string {
   return 'Ultima valutazione: ' + date.toLocaleString()
 }
 
+function nextLocalTime(timeValue: string, fallbackHour: number, fallbackMinute: number): Date {
+  const parts = timeValue.split(':').map(Number)
+  const hour = Number.isInteger(parts[0]) ? parts[0] : fallbackHour
+  const minute = Number.isInteger(parts[1]) ? parts[1] : fallbackMinute
+  const date = new Date()
+  date.setHours(hour, minute, 0, 0)
+  if (date.getTime() <= Date.now()) date.setDate(date.getDate() + 1)
+  return date
+}
+
 onMounted(async () => {
   await Promise.all([
     store.fetchStatus(),
@@ -136,11 +146,7 @@ async function openThermalProfileModal(zone: PredictiveZoneConfig) {
 async function handleCalculateOptimalStart() {
   if (!selectedProfileZone.value?.id) return
   try {
-    const today = new Date()
-    const parts = calcTargetTime.value.split(':').map(Number)
-    const hours = parts[0] ?? 7
-    const minutes = parts[1] ?? 30
-    const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    const targetDate = nextLocalTime(calcTargetTime.value, 7, 30)
     preheatResult.value = await store.getOptimalStart(
       selectedProfileZone.value.id,
       targetDate.toISOString(),
@@ -154,11 +160,7 @@ async function handleCalculateOptimalStart() {
 async function handleCalculateCoastDown() {
   if (!selectedProfileZone.value?.id) return
   try {
-    const today = new Date()
-    const parts = calcDepartureTime.value.split(':').map(Number)
-    const hours = parts[0] ?? 8
-    const minutes = parts[1] ?? 30
-    const depDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    const depDate = nextLocalTime(calcDepartureTime.value, 8, 30)
     coastResult.value = await store.getOptimalStop(
       selectedProfileZone.value.id,
       depDate.toISOString()
