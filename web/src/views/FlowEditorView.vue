@@ -330,12 +330,6 @@ function toggleWireStart(nodeId: string) {
     return
   }
 
-  if (isWiring.value && wireStartNodeId.value) {
-    commitWire(nodeId)
-    finishWiring()
-    return
-  }
-
   const node = nodes.value.find((item) => item.id === nodeId)
   if (node) {
     mousePos.value = {
@@ -795,6 +789,14 @@ onMounted(async () => {
       return
     }
   }
+})
+
+onBeforeUnmount(() => {
+  activeTouchPointers.clear()
+  pinchOrigin = null
+  isPanning.value = false
+  draggingNodeId.value = null
+  finishWiring()
 })
 </script>
 
