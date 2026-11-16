@@ -265,3 +265,22 @@ func TestEvaluator_UnknownConditionFailsClosed(t *testing.T) {
 	assert.False(t, ok)
 	assert.Contains(t, err.Error(), "unsupported automation condition")
 }
+
+func TestEvaluator_TimeTriggerHonorsISOWeekdays(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	monday := time.Date(2026, time.November, 16, 7, 30, 0, 0, time.Local)
+	sunday := time.Date(2026, time.November, 22, 7, 30, 0, 0, time.Local)
+
+	assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{1, 2, 3, 4, 5},
+	}, monday), "Monday should match a weekday schedule")
+	assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{1, 2, 3, 4, 5},
+	}, sunday), "Sunday should not match a weekday schedule")
+	assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{7},
+	}, sunday), "Sunday is ISO weekday 7")
+	assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{0},
+	}, monday), "invalid weekday must fail closed")
+}
