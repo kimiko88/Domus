@@ -96,7 +96,7 @@ describe('PredictiveClimateView.vue', () => {
   })
 
   it('triggers manual evaluate zone action', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus).mockResolvedValueOnce([])
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       ...mockStatus.zones[0].latest_evaluation,
       calculated_setpoint: 23.0
