@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePredictiveClimateStore } from '../stores/predictiveClimate'
+import { apiClient } from '../api/client'
 import type {
   PredictiveZoneConfig,
+  Entity,
   RoomOrientation,
   EmitterType,
   ThermalProfile,
@@ -17,6 +19,11 @@ const store = usePredictiveClimateStore()
 
 const showModal = ref(false)
 const editingZone = ref<PredictiveZoneConfig | null>(null)
+const availableEntities = ref<Entity[]>([])
+const entityLoadError = ref('')
+const formError = ref('')
+const formSaving = ref(false)
+const profileError = ref('')
 
 // Thermal Profile Modal state
 const showProfileModal = ref(false)
@@ -58,11 +65,43 @@ const formSolarCutoff = ref(true)
 const formPressureBoost = ref(true)
 const formEnabled = ref(true)
 
+const climateEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'climate' && entityKey(entity)))
+const temperatureEntityOptions = computed(() => availableEntities.value.filter(entity => {
+  if (entity.domain !== 'sensor' || !entityKey(entity)) return false
+  const unit = String(entity.attributes?.unit_of_measurement || '').toLowerCase()
+  return String(entity.attributes?.device_class || '').toLowerCase() === 'temperature' ||
+    ['°c', 'c', 'celsius', '°f', 'f', 'fahrenheit'].includes(unit)
+}))
+const sensorEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'sensor' && entityKey(entity)))
+const contactEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'binary_sensor' && entityKey(entity)))
+
+function entityKey(entity: Entity): string {
+  if (entity.entity_key) return entity.entity_key
+  return entity.id.startsWith(entity.domain + '.') ? entity.id : ''
+}
+
+function entityOptionLabel(entity: Entity): string {
+  return entity.name ? entity.name + ' (' + entityKey(entity) + ')' : entityKey(entity)
+}
+
+function formatEvaluationTime(value?: string): string {
+  if (!value) return 'Mai valutata'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Data non disponibile'
+  return 'Ultima valutazione: ' + date.toLocaleString()
+}
+
 onMounted(async () => {
-  await store.fetchStatus()
+  await Promise.all([
+    store.fetchStatus(),
+    apiClient.get<Entity[]>('/api/v1/entities').then(items => { availableEntities.value = items || [] }).catch(() => {
+      entityLoadError.value = 'Elenco dispositivi non disponibile: puoi comunque inserire manualmente gli ID delle entità.'
+    })
+  ])
 })
 
 async function openThermalProfileModal(zone: PredictiveZoneConfig) {
+  profileError.value = ''
   if (!zone.id) return
   selectedProfileZone.value = zone
   calcTargetTemp.value = zone.target_temperature || 21.0
@@ -76,7 +115,8 @@ async function openThermalProfileModal(zone: PredictiveZoneConfig) {
     currentProfile.value = await store.fetchProfile(zone.id)
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
-  } catch (e) {
+  } catch (e: any) {
+    profileError.value = e?.message || 'Impossibile caricare il modello termico.'
     console.error('Failed to load thermal profile', e)
   } finally {
     profileLoading.value = false
@@ -186,7 +226,23 @@ function openEditModal(cfg: PredictiveZoneConfig) {
 }
 
 async function handleSaveZone() {
-  if (!formName.value || !formTRVKey.value || !formTempKey.value) return
+  formError.value = ''
+  if (!formName.value.trim() || !formTRVKey.value.trim() || !formTempKey.value.trim()) {
+    formError.value = 'Inserisci nome, termostato e sensore di temperatura.'
+    return
+  }
+  if (!Number.isFinite(formTargetTemp.value) || formTargetTemp.value < 10 || formTargetTemp.value > 30) {
+    formError.value = 'La temperatura obiettivo deve essere compresa tra 10 e 30 °C.'
+    return
+  }
+  if (!Number.isFinite(formAwayTemp.value) || formAwayTemp.value < 15 || formAwayTemp.value > 28) {
+    formError.value = 'La temperatura in assenza deve essere compresa tra 15 e 28 °C.'
+    return
+  }
+  if (!Number.isFinite(formWindowArea.value) || formWindowArea.value < 0 || formWindowArea.value > 50) {
+    formError.value = 'La superficie vetrata deve essere compresa tra 0 e 50 m².'
+    return
+  }
 
   const payload: PredictiveZoneConfig = {
     id: editingZone.value?.id,
@@ -209,8 +265,15 @@ async function handleSaveZone() {
     enabled: formEnabled.value
   }
 
-  await store.saveZone(payload)
-  showModal.value = false
+  formSaving.value = true
+  try {
+    await store.saveZone(payload)
+    showModal.value = false
+  } catch (err: any) {
+    formError.value = err?.message || 'Salvataggio non riuscito. Controlla i dispositivi e riprova.'
+  } finally {
+    formSaving.value = false
+  }
 }
 
 async function handleDeleteZone(id: string) {
@@ -288,6 +351,8 @@ function getEmitterLabel(emitter: EmitterType): string {
 
 <template>
   <div class="predictive-climate-container" role="main" :aria-label="t('predictiveClimate.view.mainLabel')">
+    <p v-if="store.error" class="climate-feedback climate-feedback-error" role="alert">{{ store.error }}</p>
+    <p v-if="entityLoadError" class="climate-feedback" role="status">{{ entityLoadError }}</p>
     <!-- Header -->
     <header class="view-header">
       <div class="title-section">
@@ -460,6 +525,10 @@ function getEmitterLabel(emitter: EmitterType): string {
           </div>
         </div>
 
+        <div class="evaluation-freshness">
+          {{ formatEvaluationTime(item.latest_evaluation?.evaluated_at) }}
+        </div>
+
         <!-- Explainability Note -->
         <div v-if="item.latest_evaluation?.reason" class="zone-reason">
           <span class="reason-icon">💡</span>
@@ -553,8 +622,13 @@ function getEmitterLabel(emitter: EmitterType): string {
                 type="text"
                 class="form-control"
                 placeholder="climate.valvola_salone"
+                list="climate-entity-options"
+                autocomplete="off"
                 required
               />
+              <datalist id="climate-entity-options">
+                <option v-for="entity in climateEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
 
             <div class="form-group col">
@@ -565,8 +639,13 @@ function getEmitterLabel(emitter: EmitterType): string {
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_temperatura"
+                list="temperature-entity-options"
+                autocomplete="off"
                 required
               />
+              <datalist id="temperature-entity-options">
+                <option v-for="entity in temperatureEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
           </div>
 
@@ -579,7 +658,12 @@ function getEmitterLabel(emitter: EmitterType): string {
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_pressione"
+                list="sensor-entity-options"
+                autocomplete="off"
               />
+              <datalist id="sensor-entity-options">
+                <option v-for="entity in sensorEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
 
             <div class="form-group col">
@@ -590,6 +674,8 @@ function getEmitterLabel(emitter: EmitterType): string {
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_umidita"
+                list="sensor-entity-options"
+                autocomplete="off"
               />
             </div>
           </div>
@@ -602,7 +688,12 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="text"
               class="form-control"
               placeholder="binary_sensor.finestra_salone"
+              list="contact-entity-options"
+              autocomplete="off"
             />
+            <datalist id="contact-entity-options">
+              <option v-for="entity in contactEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+            </datalist>
           </div>
 
           <div class="form-row">
@@ -614,6 +705,8 @@ function getEmitterLabel(emitter: EmitterType): string {
                 type="text"
                 class="form-control"
                 placeholder="binary_sensor.presenza_salone"
+                list="contact-entity-options"
+                autocomplete="off"
               />
               <small>Se la stanza è vuota viene applicato il setpoint risparmio.</small>
             </div>
@@ -704,12 +797,13 @@ function getEmitterLabel(emitter: EmitterType): string {
             </label>
           </div>
 
+          <p v-if="formError" class="climate-feedback climate-feedback-error" role="alert">{{ formError }}</p>
           <footer class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showModal = false">
+            <button type="button" class="btn btn-secondary" @click="showModal = false" :disabled="formSaving">
               Annulla
             </button>
-            <button type="submit" class="btn btn-primary">
-              Salva Configurazione
+            <button type="submit" class="btn btn-primary" :disabled="formSaving">
+              {{ formSaving ? 'Salvataggio...' : 'Salva Configurazione' }}
             </button>
           </footer>
         </form>
@@ -745,6 +839,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           </button>
         </header>
 
+        <p v-if="profileError" class="climate-feedback climate-feedback-error" role="alert">{{ profileError }}</p>
         <div v-if="profileLoading" class="modal-body modal-loading">
           Caricamento parametri termici in corso...
         </div>
@@ -1011,6 +1106,10 @@ function getEmitterLabel(emitter: EmitterType): string {
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 1.5rem;
 }
+
+.climate-feedback { padding: 0.75rem 1rem; border-radius: 0.5rem; margin: 0.75rem 0; background: var(--surface-secondary, #f3f4f6); }
+.climate-feedback-error { color: var(--color-danger, #b42318); background: var(--surface-danger, #fef3f2); }
+.evaluation-freshness { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary, #667085); }
 
 .zone-card {
   border-radius: var(--radius-lg, 12px);
