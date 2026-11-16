@@ -490,6 +490,23 @@ func (s *Service) handleAlexaReportState(ctx context.Context, dir cloud_assistan
 				UncertaintyInMilliseconds: 1000,
 			})
 		}
+		mode, _ := attrs["hvac_mode"].(string)
+		if mode == "" {
+			mode = strings.Trim(strings.TrimSpace(ent.State), `"`)
+		}
+		switch strings.ToLower(strings.TrimSpace(mode)) {
+		case "off", "heat", "heating", "cool", "cooling", "auto", "automatic":
+			switch strings.ToLower(strings.TrimSpace(mode)) {
+			case "heating": mode = "heat"
+			case "cooling": mode = "cool"
+			case "automatic": mode = "auto"
+			}
+			properties = append(properties, cloud_assistant.AlexaResponseContextProperty{
+				Namespace: "Alexa.ThermostatController", Name: "thermostatMode",
+				Value: map[string]any{"value": strings.ToUpper(mode)},
+				TimeOfSample: nowISO, UncertaintyInMilliseconds: 1000,
+			})
+		}
 	} else {
 		powerVal := "OFF"
 		if isEntityOn(ent) {
