@@ -126,7 +126,7 @@ it('generates a daily thermostat rule from a temperature sensor', async () => {
   await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
 
   const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
-  expect(dsl.triggers).toEqual([{ id: 'daily_climate_schedule', platform: 'time', at: '06:45:00' }])
+  expect(dsl.triggers).toEqual([{ id: 'climate_slot_1', platform: 'time', at: '06:45:00' }])
   expect(dsl.conditions[0]).toMatchObject({ condition: 'numeric_state', entity_key: 'sensor.room_temperature' })
   expect(dsl.actions[0].choose[0].conditions).toEqual([
     { condition: 'trigger', trigger_id: 'climate_slot_1' }
