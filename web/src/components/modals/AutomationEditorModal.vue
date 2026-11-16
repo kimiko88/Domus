@@ -41,10 +41,21 @@ const jsonValid = ref(true)
 interface ClimateScheduleSlot {
   id: string
   time: string
+  days: number[]
   threshold: number
   coldSetpoint: number
   warmSetpoint: number
 }
+
+const climateWeekdays = [
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mer' },
+  { value: 4, label: 'Gio' },
+  { value: 5, label: 'Ven' },
+  { value: 6, label: 'Sab' },
+  { value: 7, label: 'Dom' }
+]
 
 const climateBuilderOpen = ref(false)
 const climateEntities = ref<Entity[]>([])
@@ -54,7 +65,7 @@ const climateSensorKey = ref('')
 const climateSensorAttribute = ref('')
 const climateTargetKey = ref('')
 const climateTimeSlots = ref<ClimateScheduleSlot[]>([
-  { id: 'slot-1', time: '07:00', threshold: 19, coldSetpoint: 21, warmSetpoint: 18 }
+  { id: 'slot-1', time: '07:00', days: [1, 2, 3, 4, 5, 6, 7], threshold: 19, coldSetpoint: 21, warmSetpoint: 18 }
 ])
 let nextClimateSlotNumber = 2
 
@@ -114,6 +125,7 @@ function addClimateTimeSlot() {
   climateTimeSlots.value.push({
     id: `slot-${nextClimateSlotNumber++}`,
     time: suggestedTime,
+    days: [...(lastSlot?.days ?? [1, 2, 3, 4, 5, 6, 7])],
     threshold: lastSlot?.threshold ?? 19,
     coldSetpoint: lastSlot?.coldSetpoint ?? 21,
     warmSetpoint: lastSlot?.warmSetpoint ?? 18
@@ -153,6 +165,10 @@ function buildClimateProgram() {
       return
     }
     seenTimes.add(slot.time)
+    if (!slot.days.length || slot.days.some(day => !Number.isInteger(day) || day < 1 || day > 7)) {
+      validationError.value = 'Seleziona almeno un giorno valido per ogni fascia.'
+      return
+    }
     const values = [slot.threshold, slot.coldSetpoint, slot.warmSetpoint]
     if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
       validationError.value = 'Soglie e setpoint devono essere compresi tra 5 e 35 °C.'
@@ -180,7 +196,8 @@ function buildClimateProgram() {
     triggers: slots.map((slot, index) => ({
       id: `climate_slot_${index + 1}`,
       platform: 'time',
-      at: slot.time + ':00'
+      at: slot.time + ':00',
+      days: [...slot.days].sort((a, b) => a - b)
     })),
     // Missing or non-numeric sensor data skips the automation instead of
     // silently applying a fallback setpoint.
@@ -467,8 +484,8 @@ function handleSubmit() {
 
               <div class="climate-slots-heading">
                 <div>
-                  <strong>Fasce orarie giornaliere</strong>
-                  <p class="builder-hint">A ogni orario Domus legge l'ultimo valore ricevuto dal sensore e sceglie il setpoint.</p>
+                  <strong>Programmazione settimanale</strong>
+                  <p class="builder-hint">Scegli i giorni e l'orario. A ogni esecuzione Domus legge la temperatura aggiornata e regola il termostato.</p>
                 </div>
                 <button type="button" class="btn-template" data-testid="add-climate-slot" @click="addClimateTimeSlot">
                   <Plus :size="13" />
@@ -515,6 +532,13 @@ function handleSubmit() {
                   </div>
                 </div>
 
+                <div class="climate-weekdays" role="group" :aria-label="`Giorni attivi fascia ${index + 1}`">
+                  <label v-for="day in climateWeekdays" :key="day.value" class="climate-weekday">
+                    <input v-model="slot.days" type="checkbox" :value="day.value" />
+                    <span>{{ day.label }}</span>
+                  </label>
+                </div>
+
                 <div class="form-row">
                   <div class="form-group flex-1">
                     <label :for="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`">Se è sotto soglia (°C)</label>
@@ -543,7 +567,7 @@ function handleSubmit() {
 
               <div class="climate-rule-preview">
                 <p v-for="slot in orderedClimateTimeSlots" :key="slot.id">
-                  Alle <strong>{{ slot.time }}</strong>, se la temperatura è sotto <strong>{{ slot.threshold }} °C</strong>
+                  {{ slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', ') }} alle <strong>{{ slot.time }}</strong>, se la temperatura è sotto <strong>{{ slot.threshold }} °C</strong>
                   imposta <strong>{{ slot.coldSetpoint }} °C</strong>, altrimenti <strong>{{ slot.warmSetpoint }} °C</strong>.
                 </p>
               </div>
@@ -786,6 +810,29 @@ input:focus, select:focus {
 }
 
 .climate-slots-heading,
+.climate-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.9rem;
+}
+
+.climate-weekday {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.climate-weekday input {
+  accent-color: var(--color-primary, #2563eb);
+}
+
 .climate-slot-heading {
   display: flex;
   align-items: center;
