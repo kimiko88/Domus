@@ -24,6 +24,9 @@ type activeRun struct {
 
 type climateOverride struct {
 	cancel context.CancelFunc
+	entityKey string
+	automationID string
+	previousSetpoint float64
 }
 
 // Engine evaluates incoming events against registered automation rules and executes actions.
@@ -120,12 +123,25 @@ func (e *Engine) Stop(ctx context.Context) error {
 	if executionCancel != nil {
 		executionCancel()
 	}
+	var restoreOverrides []*climateOverride
 	e.overrideMu.Lock()
 	for key, override := range e.climateOverrides {
 		override.cancel()
+		restoreOverrides = append(restoreOverrides, override)
 		delete(e.climateOverrides, key)
 	}
 	e.overrideMu.Unlock()
+	// A temporary profile cannot keep its timer alive across engine shutdown.
+	// Restore the pre-override target before the event bus is torn down.
+	if len(restoreOverrides) > 0 {
+		restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		for _, override := range restoreOverrides {
+			if err := e.publishClimateSetpoint(restoreCtx, override.automationID, override.entityKey, override.previousSetpoint); err != nil {
+				slog.WarnContext(restoreCtx, "could not restore temporary thermostat setpoint during shutdown", "entity", override.entityKey, "error", err)
+			}
+		}
+		restoreCancel()
+	}
 	if done != nil {
 		select {
 		case <-done:
@@ -665,7 +681,7 @@ func (e *Engine) executeAction(
 		if act.DurationMinutes > 0 {
 			parent := e.executionContext(ctx)
 			overrideCtx, cancel := context.WithCancel(parent)
-			override := &climateOverride{cancel: cancel}
+			override := &climateOverride{cancel: cancel, entityKey: act.TargetEntityKey, automationID: rule.ID, previousSetpoint: previous}
 			e.overrideMu.Lock()
 			// Stop cancels the engine context before clearing overrides. Check
 			// while holding the same mutex so an override cannot be registered
