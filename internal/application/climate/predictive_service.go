@@ -280,14 +280,36 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 		}
 	}
 
-	// 4. Execute domain evaluation
-	eval := domclimate.EvaluateZone(
+	// 4. Presence-aware evaluation. Missing, unavailable or unrecognized
+	// presence data defaults to occupied (comfort), never to an unsafe away mode.
+	occupied := true
+	if cfg.PresenceSensorKey != "" {
+		presence, presenceErr := s.entityRepo.GetByKey(ctx, cfg.PresenceSensorKey)
+		if presenceErr == nil && presence.Available {
+			if presence.Domain != "binary_sensor" && presence.Domain != "sensor" {
+				return nil, fmt.Errorf("configured presence sensor %q is not a sensor entity", cfg.PresenceSensorKey)
+			}
+			state := strings.ToLower(strings.TrimSpace(strings.Trim(presence.State, `"`)))
+			switch state {
+			case "off", "false", "0", "not_home", "not present", "clear":
+				occupied = false
+			case "on", "true", "1", "home", "present", "occupied", "detected":
+				occupied = true
+			default:
+				slog.Warn("climate: unrecognized presence state; retaining comfort setpoint", "sensor", cfg.PresenceSensorKey, "state", state)
+			}
+		}
+	}
+
+	// 5. Execute domain evaluation
+	eval := domclimate.EvaluateZoneWithPresence(
 		cfg,
 		currentTemp,
 		currentHumidity,
 		currentPressure,
 		pressureTrend,
 		windowOpen,
+		occupied,
 		forecastPoints,
 	)
 
