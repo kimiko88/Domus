@@ -64,7 +64,10 @@ describe('ScheduleView.vue', () => {
 })
 
 
-it('sends manual thermostat changes with a server-side override duration', async () => {
+describe('manual thermostat overrides', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('sends manual thermostat changes with a server-side override duration', async () => {
   const thermostat = {
     id: 'climate-uuid',
     entity_key: 'climate.living_room',
@@ -75,13 +78,17 @@ it('sends manual thermostat changes with a server-side override duration', async
     last_changed: '',
     last_updated: ''
   }
-  vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+  const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
     if (url.includes('/api/v1/entities')) return [thermostat] as any
-    if (url.includes('/api/v1/schedules')) return [] as any
+    if (url.includes('/api/v1/schedules')) return [{
+      id: 'sched_climate_living', name: 'Cronotermostato Salotto',
+      entity_key: 'climate.living_room', enabled: true, grid: { monday: [] }
+    }] as any
     if (url.includes('/api/v1/calendar/events')) return [] as any
     return null as any
   })
   const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'accepted' } as any)
+  const serviceSpy = vi.spyOn(useEntitiesStore(), 'callService').mockResolvedValue(undefined)
   const wrapper = mount(ScheduleView)
   await flushPromises()
 
@@ -95,6 +102,9 @@ it('sends manual thermostat changes with a server-side override duration', async
   )
   expect(wrapper.text()).toContain('verrà ripristinato il valore precedente')
 
+  getSpy.mockRestore()
   postSpy.mockRestore()
+  serviceSpy.mockRestore()
   wrapper.unmount()
+  })
 })
