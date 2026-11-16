@@ -706,14 +706,20 @@ func (e *Engine) executeAction(
 					return
 				case <-timer.C:
 				}
-				if err := e.publishClimateSetpoint(overrideCtx, rule.ID, act.TargetEntityKey, previous); err != nil {
-					slog.ErrorContext(overrideCtx, "failed to restore thermostat setpoint after temporary profile", "entity", act.TargetEntityKey, "error", err)
-				}
+				// Claim the restore atomically. A newer profile or Stop may have
+				// already cancelled and removed this override.
 				e.overrideMu.Lock()
-				if e.climateOverrides[act.TargetEntityKey] == override {
-					delete(e.climateOverrides, act.TargetEntityKey)
+				if e.climateOverrides[act.TargetEntityKey] != override {
+					e.overrideMu.Unlock()
+					return
 				}
+				delete(e.climateOverrides, act.TargetEntityKey)
 				e.overrideMu.Unlock()
+				restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer restoreCancel()
+				if err := e.publishClimateSetpoint(restoreCtx, rule.ID, act.TargetEntityKey, previous); err != nil {
+					slog.ErrorContext(restoreCtx, "failed to restore thermostat setpoint after temporary profile", "entity", act.TargetEntityKey, "error", err)
+				}
 			}()
 		}
 		profileName := strings.TrimSpace(act.Profile)
