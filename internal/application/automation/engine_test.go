@@ -473,3 +473,47 @@ func TestEngine_UnknownActionMarksRunFailed(t *testing.T) {
 	}
 	t.Fatal("invalid automation action did not mark the run as failed")
 }
+
+
+func TestEngine_StopCancelsActiveAndQueuedRuns(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Queued cancellation", Enabled: true,
+		ExecutionMode: "queued",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "queued.cancel"}},
+		Actions: []automation.Action{{Type: "delay", DelayMs: 10000}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "queued.cancel", OccurredAt: time.Now()}))
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 10)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusRunning {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	runs, err := repos.Automations.ListRuns(ctx, auto.ID, 10)
+	require.NoError(t, err)
+	require.Len(t, runs, 1)
+	require.Equal(t, automation.RunStatusRunning, runs[0].Status)
+
+	// This invocation must remain queued behind the first one.
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "queued.cancel", OccurredAt: time.Now()}))
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stopCancel()
+	require.NoError(t, engine.Stop(stopCtx))
+
+	runs, err = repos.Automations.ListRuns(ctx, auto.ID, 10)
+	require.NoError(t, err)
+	require.Len(t, runs, 1, "queued invocation must not start after shutdown")
+	require.Equal(t, automation.RunStatusFailed, runs[0].Status)
+	assert.Contains(t, runs[0].Log, "Execution cancelled")
+}
