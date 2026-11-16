@@ -134,6 +134,7 @@ export interface AutomationTrigger {
   above?: number
   below?: number
   at?: string
+  days?: number[] // ISO weekdays: Monday=1 through Sunday=7
   event_type?: string
   for_seconds?: number
 }
