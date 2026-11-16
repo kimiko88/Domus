@@ -521,3 +521,57 @@ func TestCloudAssistant_GoogleRejectsOutOfRangeThermostatSetpoint(t *testing.T) 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "between 5 and 35")
 }
+
+func TestCloudAssistant_GoogleRejectsUnsupportedThermostatMode(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"hvac_modes":["off","heat"]}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "cool"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "unsupported-thermostat-mode",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not support mode")
+}
+
+func TestCloudAssistant_GoogleSyncAdvertisesDeviceSupportedThermostatModes(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"hvac_modes":["off","heat"]}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	response, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "device-modes-sync",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.SYNC"}},
+	})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(response.Payload)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	devices := payload["devices"].([]any)
+	for _, raw := range devices {
+		device := raw.(map[string]any)
+		if device["id"] != "climate.bedroom" {
+			continue
+		}
+		attributes := device["attributes"].(map[string]any)
+		assert.Equal(t, []any{"off", "heat"}, attributes["availableThermostatModes"])
+		return
+	}
+	t.Fatal("thermostat was not included in Google SYNC")
+}
