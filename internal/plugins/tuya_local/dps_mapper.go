@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -288,6 +289,10 @@ func toFloat(v any) (float64, bool) {
 		return float64(n), true
 	case json.Number:
 		if f, err := n.Float64(); err == nil {
+			return f, true
+		}
+	case string:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil {
 			return f, true
 		}
 	}
