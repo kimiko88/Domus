@@ -4,6 +4,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -238,7 +239,7 @@ func (e *Evaluator) EvaluateConditionWithTrigger(
 		return e.EvaluateTimeCondition(cond, time.Now()), nil
 
 	default:
-		return true, nil
+		return false, fmt.Errorf("unsupported automation condition %q", cond.Condition)
 	}
 }
 
