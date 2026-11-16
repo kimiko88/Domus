@@ -704,7 +704,8 @@ func parseNumericAttribute(value any) (float64, bool) {
 	case int:
 		return float64(number), true
 	case string:
-		return strconv.ParseFloat(strings.TrimSpace(number), 64) == nil
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(number), 64)
+		return parsed, err == nil
 	default:
 		return 0, false
 	}
