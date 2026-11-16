@@ -74,10 +74,18 @@ func (h *TuyaLocalHandler) SendCommand(w http.ResponseWriter, r *http.Request) {
 		req.Command = "turn_on"
 	}
 
-	if err := h.adapter.SendCommand(r.Context(), deviceID, req.Command, req.Params); err != nil {
+	deviceResponse, err := h.adapter.SendCommand(r.Context(), deviceID, req.Command, req.Params)
+	if err != nil {
+		if deviceResponse != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{
+				"success": false, "confirmed": false, "transport": "lan_local",
+				"code": "TUYA_LOCAL_ERROR", "message": err.Error(), "device_response": deviceResponse,
+			})
+			return
+		}
 		writeError(w, http.StatusBadGateway, "TUYA_LOCAL_ERROR", err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"success": true, "transport": "lan_local"})
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "confirmed": true, "transport": "lan_local", "device_response": deviceResponse})
 }

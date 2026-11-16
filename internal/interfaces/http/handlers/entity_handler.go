@@ -49,6 +49,15 @@ func (h *EntityHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list entities")
 		return
 	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		visible := make([]*entity.Entity, 0, len(entities))
+		for _, item := range entities {
+			if currentUser.CanAccessEntityInArea(item.ID, item.AreaID) {
+				visible = append(visible, item)
+			}
+		}
+		entities = visible
+	}
 
 	writeJSON(w, http.StatusOK, entities)
 }
@@ -66,6 +75,10 @@ func (h *EntityHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil && !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+		writeError(w, http.StatusForbidden, "forbidden", "entity is outside the member's allowed resources")
+		return
+	}
 	writeJSON(w, http.StatusOK, ent)
 }
 
@@ -90,6 +103,13 @@ func (h *EntityHandler) Command(w http.ResponseWriter, r *http.Request) {
 	if !ent.Writable {
 		writeError(w, http.StatusForbidden, "not_writable", "entity is read-only")
 		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) || permissions == nil || !permissions.CanControlDevices {
+			writeError(w, http.StatusForbidden, "forbidden", "member is not allowed to control this entity")
+			return
+		}
 	}
 
 	var req commandRequest

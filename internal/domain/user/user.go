@@ -60,6 +60,7 @@ type User struct {
 	AllowedViews     []string   `json:"allowed_views,omitempty"`
 	AllowedAreaIDs   []string   `json:"allowed_area_ids,omitempty"`
 	AllowedEntityIDs []string   `json:"allowed_entity_ids,omitempty"`
+	Permissions      *UserPermissions `json:"permissions,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 }

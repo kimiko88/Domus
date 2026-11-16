@@ -180,6 +180,7 @@
     "activeCount": "Aktiv",
     "detectedCount": "Erkannt",
     "filterAll": "Alle",
+    "filterAlarm": "Alarm",
     "filterLights": "Lichter",
     "filterSwitches": "Schalter",
     "filterSensors": "Sensoren",
@@ -419,7 +420,17 @@
       "valueFor": "Wert für {name}",
       "noFilterMatches": "Keine Geräte entsprechen den Filtern",
       "adjustSearchFilters": "Ändere die Suche oder probiere einen anderen Filter. Die aktuelle Auswahl bleibt erhalten.",
-      "resetFilters": "Filter zurücksetzen"
+      "resetFilters": "Filter zurücksetzen",
+      "iot": "IoT-Geräte",
+      "unlockButton": "Entsperren",
+      "filterAll": "Alle ({count})",
+      "filterOnline": "Online ({count})",
+      "filterOffline": "Offline ({count})",
+      "filterSelected": "Ausgewählt ({count})",
+      "filterUnselected": "Nicht ausgewählt ({count})",
+      "clientId": "Client-ID:",
+      "smartLifeUidLabel": "Smart-Life-UID:",
+      "endpointLabel": "Endpunkt:"
     }
   },
   "history": {
@@ -635,13 +646,15 @@
       "admin": "Administrator",
       "operator": "Bediener",
       "viewer": "Beobachter",
-      "guest": "Gast"
+      "guest": "Gast",
+      "kid": "Kind"
     },
     "rolesDesc": {
       "admin": "Vollzugriff: Systemkonfiguration, Mitgliederverwaltung und vollständige Gerätesteuerung.",
       "operator": "Betriebssteuerung: kann Geräte schalten und Szenen/Automatisierungen auslösen.",
       "viewer": "Nur Lesezugriff: kann den Status und Umgebungssensoren in Echtzeit einsehen, keine Befehle ausführen.",
-      "guest": "Temporärer Gastzugang oder Kiosk-Modus mit geplanter zeitlicher Gültigkeit."
+      "guest": "Temporärer Gastzugang oder Kiosk-Modus mit geplanter zeitlicher Gültigkeit.",
+      "kid": "Kindgerechter Zugriff auf freigegebene Bereiche wie Dashboard, Medien und Aufgaben; keine Gerätesteuerung oder Systemeinstellungen."
     },
     "inviteModalTitle": "Neues Familienmitglied Einladen",
     "selectRole": "Zugewiesene Rolle Auswählen",
@@ -657,6 +670,31 @@
     "expiresAt": "Ablaufdatum",
     "revoke": "Widerrufen",
     "noMembers": "Keine Mitglieder gefunden.",
+    "permissions": {
+      "notifications": "Benachrichtigungen",
+      "manage": "Berechtigungen verwalten",
+      "title": "Berechtigungen für {name}",
+      "areasTitle": "Zugängliche Räume",
+      "allAreas": "Alle Räume",
+      "noAreas": "Keine Räume verfügbar.",
+      "entitiesTitle": "Geräte und Entitäten",
+      "allEntities": "Alle Geräte und Entitäten",
+      "noEntities": "Keine Entitäten verfügbar.",
+      "dashboardsTitle": "Benutzerdefinierte Dashboards",
+      "allDashboards": "Alle Dashboards",
+      "noDashboards": "Keine benutzerdefinierten Dashboards verfügbar.",
+      "viewsTitle": "Sichtbare Bereiche",
+      "allViews": "Alle Bereiche",
+      "actionsTitle": "Erlaubte Aktionen",
+      "controlDevices": "Geräte steuern",
+      "manageAutomations": "Automatisierungen verwalten",
+      "automationScopeHint": "Für die Verwaltung von Automatisierungen sind Gerätesteuerung und uneingeschränkter Zugriff auf Räume und Geräte erforderlich.",
+      "viewCameras": "Kameras ansehen",
+      "manageSettings": "Systemeinstellungen verwalten",
+      "hint": "Berechtigungen werden auch serverseitig geprüft.",
+      "cancel": "Abbrechen",
+      "save": "Berechtigungen speichern"
+    },
     "view": {
       "you": "(Du)",
       "guestProfilesTitle": "Gastprofile und temporäre Kiosk-PIN",
@@ -672,7 +710,23 @@
       "dayOne": "24 Stunden (1 Tag)",
       "days": "{value} Tage",
       "oneWeek": "7 Tage (1 Woche)",
-      "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren"
+      "enableKiosk": "Vollbild-Kioskmodus für diese PIN aktivieren",
+      "createGuestButton": "Neuen Gast / Kiosk-PIN anlegen",
+      "guestLabel": "Gast",
+      "guestKioskLabel": "Gast (Kiosk)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Läuft ab"
+    },
+    "tokenLabel": "Token",
+    "errors": {
+      "load": "Familiendaten konnten nicht geladen werden.",
+      "guestRequired": "Geben Sie einen Gastnamen und eine PIN ein.",
+      "createGuest": "Das Gastprofil konnte nicht erstellt werden.",
+      "generateInvite": "Die Einladung konnte nicht erstellt werden.",
+      "updatePermissions": "Die Berechtigungen konnten nicht aktualisiert werden.",
+      "updateRole": "Die Mitgliedsrolle konnte nicht geändert werden.",
+      "removeMember": "Das Mitglied konnte nicht entfernt werden.",
+      "revokeInvite": "Die Einladung konnte nicht widerrufen werden."
     }
   },
   "register": {

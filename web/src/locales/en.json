@@ -180,6 +180,7 @@
     "activeCount": "Active",
     "detectedCount": "Detected",
     "filterAll": "All",
+    "filterAlarm": "Alarm",
     "filterLights": "Lights",
     "filterSwitches": "Switches",
     "filterSensors": "Sensors",
@@ -419,7 +420,17 @@
       "valueFor": "Value for {name}",
       "noFilterMatches": "No devices match the filters",
       "adjustSearchFilters": "Change the search or try another filter. Your current selection will be kept.",
-      "resetFilters": "Reset filters"
+      "resetFilters": "Reset filters",
+      "iot": "IoT devices",
+      "unlockButton": "Unlock",
+      "filterAll": "All ({count})",
+      "filterOnline": "Online ({count})",
+      "filterOffline": "Offline ({count})",
+      "filterSelected": "Selected ({count})",
+      "filterUnselected": "Not selected ({count})",
+      "clientId": "Client ID:",
+      "smartLifeUidLabel": "Smart Life UID:",
+      "endpointLabel": "Endpoint:"
     }
   },
   "history": {
@@ -635,13 +646,15 @@
       "admin": "Administrator",
       "operator": "Operator",
       "viewer": "Viewer",
-      "guest": "Guest"
+      "guest": "Guest",
+      "kid": "Child"
     },
     "rolesDesc": {
       "admin": "Full access: system configuration, member governance, and complete device control.",
       "operator": "Operational control: can toggle devices and trigger scenes/automations, cannot alter system settings.",
       "viewer": "Read-only: can view home status and environmental sensors in real time, cannot issue commands.",
-      "guest": "Temporary guest access or Kiosk mode with scheduled time expiration."
+      "guest": "Temporary guest access or Kiosk mode with scheduled time expiration.",
+      "kid": "Child-safe access to approved areas such as dashboards, media and chores; no device commands or system settings."
     },
     "inviteModalTitle": "Invite a New Family Member",
     "selectRole": "Select Assigned Role",
@@ -657,6 +670,31 @@
     "expiresAt": "Expires",
     "revoke": "Revoke",
     "noMembers": "No members found.",
+    "permissions": {
+      "notifications": "Notifications",
+      "manage": "Manage permissions",
+      "title": "Permissions for {name}",
+      "areasTitle": "Accessible areas",
+      "allAreas": "All areas",
+      "noAreas": "No areas available.",
+      "entitiesTitle": "Devices and entities",
+      "allEntities": "All devices and entities",
+      "noEntities": "No entities available.",
+      "dashboardsTitle": "Custom dashboards",
+      "allDashboards": "All dashboards",
+      "noDashboards": "No custom dashboards available.",
+      "viewsTitle": "Visible sections",
+      "allViews": "All sections",
+      "actionsTitle": "Allowed actions",
+      "controlDevices": "Send commands to devices",
+      "manageAutomations": "Manage automations",
+      "automationScopeHint": "Automation management requires device control and unrestricted access to areas and devices.",
+      "viewCameras": "View cameras",
+      "manageSettings": "Manage system settings",
+      "hint": "Permissions are also enforced by the server.",
+      "cancel": "Cancel",
+      "save": "Save permissions"
+    },
     "view": {
       "you": "(You)",
       "guestProfilesTitle": "Guest profiles & temporary kiosk PIN",
@@ -672,8 +710,24 @@
       "dayOne": "24 hours (1 day)",
       "days": "{value} days",
       "oneWeek": "7 days (1 week)",
-      "enableKiosk": "Enable full-screen kiosk mode for this PIN"
-    }
+      "enableKiosk": "Enable full-screen kiosk mode for this PIN",
+      "createGuestButton": "New Guest / Kiosk PIN",
+      "guestLabel": "Guest",
+      "guestKioskLabel": "Guest (Kiosk)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Expires"
+    },
+    "errors": {
+      "load": "Failed to load family data.",
+      "guestRequired": "Enter a guest name and PIN.",
+      "createGuest": "Could not create the guest profile.",
+      "generateInvite": "Could not generate the invitation.",
+      "updatePermissions": "Could not update permissions.",
+      "updateRole": "Could not update the member role.",
+      "removeMember": "Could not remove the member.",
+      "revokeInvite": "Could not revoke the invitation."
+    },
+    "tokenLabel": "Token"
   },
   "register": {
     "title": "Join the Domus Family",

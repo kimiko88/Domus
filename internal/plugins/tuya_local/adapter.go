@@ -620,7 +620,7 @@ func (a *Adapter) waitForDiscoveredLANIP(ctx context.Context, deviceID string) (
 }
 
 // SendCommand executes a LAN command directly to a device using its local_key.
-func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) error {
+func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) (map[string]any, error) {
 	a.mu.RLock()
 	var targetDevID string
 	var targetCfg DeviceConfig
@@ -635,7 +635,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 	a.mu.RUnlock()
 
 	if targetDevID == "" {
-		return fmt.Errorf("tuya_local: target %q not found in local configurations", target)
+		return nil, fmt.Errorf("tuya_local: target %q not found in local configurations", target)
 	}
 
 	if !exists || client == nil {
@@ -645,7 +645,7 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 		if trustedLANIP(targetCfg.IP) == "" {
 			resolved, found := a.waitForDiscoveredLANIP(ctx, targetDevID)
 			if !found {
-				return fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
+				return nil, fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
 			}
 			targetCfg = resolved
 		}
@@ -676,14 +676,14 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 				}
 				a.mu.Unlock()
 			} else {
-				return fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
+				return nil, fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
 			}
 		}
 	}
 
 	dps, err := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	return client.SendCommand(ctx, dps)
@@ -704,7 +704,8 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 		return nil
 	}
 
-	return a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	_, err = a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	return err
 }
 
 // GetConfiguredDevices returns all devices currently registered for local LAN control.

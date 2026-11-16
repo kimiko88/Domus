@@ -14,6 +14,7 @@ type UserRepository interface {
 	GetByPinCode(ctx context.Context, pin string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
 	UpdateRole(ctx context.Context, id string, role Role) error
+	UpdatePermissions(ctx context.Context, id string, permissions *UserPermissions) error
 	Delete(ctx context.Context, id string) error
 	Count(ctx context.Context) (int, error)
 }

@@ -180,6 +180,7 @@
     "activeCount": "Activas",
     "detectedCount": "Detectados",
     "filterAll": "Todas",
+    "filterAlarm": "Alarma",
     "filterLights": "Luces",
     "filterSwitches": "Interruptores",
     "filterSensors": "Sensores",
@@ -419,7 +420,17 @@
       "valueFor": "Valor para {name}",
       "noFilterMatches": "Ningún dispositivo coincide con los filtros",
       "adjustSearchFilters": "Modifica la búsqueda o prueba otro filtro. Se mantendrá la selección actual.",
-      "resetFilters": "Restablecer filtros"
+      "resetFilters": "Restablecer filtros",
+      "iot": "Dispositivos IoT",
+      "unlockButton": "Desbloquear",
+      "filterAll": "Todos ({count})",
+      "filterOnline": "En línea ({count})",
+      "filterOffline": "Sin conexión ({count})",
+      "filterSelected": "Seleccionados ({count})",
+      "filterUnselected": "No seleccionados ({count})",
+      "clientId": "ID de cliente:",
+      "smartLifeUidLabel": "UID de Smart Life:",
+      "endpointLabel": "Punto de conexión:"
     }
   },
   "history": {
@@ -635,13 +646,15 @@
       "admin": "Administrador",
       "operator": "Operador",
       "viewer": "Visualizador",
-      "guest": "Invitado"
+      "guest": "Invitado",
+      "kid": "Menor"
     },
     "rolesDesc": {
       "admin": "Acceso total: configuración del sistema, administración de miembros y control total de dispositivos.",
       "operator": "Control operativo: puede accionar dispositivos y ejecutar escenas/automatizaciones.",
       "viewer": "Solo lectura: puede consultar el estado del hogar y sensores en tiempo real sin enviar comandos.",
-      "guest": "Acceso de invitado temporal o modo Kiosco con caducidad horaria programada."
+      "guest": "Acceso de invitado temporal o modo Kiosco con caducidad horaria programada.",
+      "kid": "Acceso protegido a secciones permitidas, como panel, contenido multimedia y tareas; sin controles de dispositivos ni ajustes del sistema."
     },
     "inviteModalTitle": "Invitar a un Nuevo Miembro",
     "selectRole": "Seleccionar Rol Asignado",
@@ -657,6 +670,31 @@
     "expiresAt": "Vencimiento",
     "revoke": "Revocar",
     "noMembers": "No se encontraron miembros.",
+    "permissions": {
+      "notifications": "Notificaciones",
+      "manage": "Gestionar permisos",
+      "title": "Permisos de {name}",
+      "areasTitle": "Estancias accesibles",
+      "allAreas": "Todas las estancias",
+      "noAreas": "No hay estancias disponibles.",
+      "entitiesTitle": "Dispositivos y entidades",
+      "allEntities": "Todos los dispositivos y entidades",
+      "noEntities": "No hay entidades disponibles.",
+      "dashboardsTitle": "Paneles personalizados",
+      "allDashboards": "Todos los paneles",
+      "noDashboards": "No hay paneles personalizados disponibles.",
+      "viewsTitle": "Secciones visibles",
+      "allViews": "Todas las secciones",
+      "actionsTitle": "Acciones permitidas",
+      "controlDevices": "Enviar comandos a dispositivos",
+      "manageAutomations": "Gestionar automatizaciones",
+      "automationScopeHint": "Para gestionar automatizaciones se necesita controlar dispositivos y tener acceso sin restricciones a estancias y dispositivos.",
+      "viewCameras": "Ver cámaras",
+      "manageSettings": "Gestionar ajustes del sistema",
+      "hint": "El servidor también aplica estos permisos.",
+      "cancel": "Cancelar",
+      "save": "Guardar permisos"
+    },
     "view": {
       "you": "(Tú)",
       "guestProfilesTitle": "Perfiles de invitados y PIN temporal de quiosco",
@@ -672,7 +710,23 @@
       "dayOne": "24 horas (1 día)",
       "days": "{value} días",
       "oneWeek": "7 días (1 semana)",
-      "enableKiosk": "Habilitar el modo quiosco a pantalla completa para este PIN"
+      "enableKiosk": "Habilitar el modo quiosco a pantalla completa para este PIN",
+      "createGuestButton": "Nuevo invitado / PIN de quiosco",
+      "guestLabel": "Invitado",
+      "guestKioskLabel": "Invitado (quiosco)",
+      "pinLabel": "PIN",
+      "expiresLabel": "Caduca"
+    },
+    "tokenLabel": "Token",
+    "errors": {
+      "load": "No se pudieron cargar los datos de la familia.",
+      "guestRequired": "Introduce el nombre del invitado y el PIN.",
+      "createGuest": "No se pudo crear el perfil de invitado.",
+      "generateInvite": "No se pudo generar la invitación.",
+      "updatePermissions": "No se pudieron actualizar los permisos.",
+      "updateRole": "No se pudo cambiar el rol del miembro.",
+      "removeMember": "No se pudo eliminar al miembro.",
+      "revokeInvite": "No se pudo revocar la invitación."
     }
   },
   "register": {

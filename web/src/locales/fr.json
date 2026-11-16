@@ -180,6 +180,7 @@
     "activeCount": "Actifs",
     "detectedCount": "Détectés",
     "filterAll": "Tous",
+    "filterAlarm": "Alarme",
     "filterLights": "Lumières",
     "filterSwitches": "Interrupteurs",
     "filterSensors": "Capteurs",
@@ -419,7 +420,17 @@
       "valueFor": "Valeur pour {name}",
       "noFilterMatches": "Aucun appareil ne correspond aux filtres",
       "adjustSearchFilters": "Modifiez la recherche ou essayez un autre filtre. La sélection actuelle sera conservée.",
-      "resetFilters": "Réinitialiser les filtres"
+      "resetFilters": "Réinitialiser les filtres",
+      "iot": "Appareils IoT",
+      "unlockButton": "Déverrouiller",
+      "filterAll": "Tous ({count})",
+      "filterOnline": "En ligne ({count})",
+      "filterOffline": "Hors ligne ({count})",
+      "filterSelected": "Sélectionnés ({count})",
+      "filterUnselected": "Non sélectionnés ({count})",
+      "clientId": "ID client:",
+      "smartLifeUidLabel": "UID Smart Life:",
+      "endpointLabel": "Point de terminaison:"
     }
   },
   "history": {
@@ -635,13 +646,15 @@
       "admin": "Administrateur",
       "operator": "Opérateur",
       "viewer": "Lecteur",
-      "guest": "Invité"
+      "guest": "Invité",
+      "kid": "Enfant"
     },
     "rolesDesc": {
       "admin": "Accès complet : configuration du système, gestion des membres et contrôle total des appareils.",
       "operator": "Contrôle opérationnel : peut activer les appareils et déclencher les scènes/automatisations.",
       "viewer": "Lecture seule : peut consulter l'état de la maison et les capteurs en temps réel sans envoyer de commandes.",
-      "guest": "Accès invité temporaire ou mode Kiosque avec expiration horaire programmée."
+      "guest": "Accès invité temporaire ou mode Kiosque avec expiration horaire programmée.",
+      "kid": "Accès adapté aux enfants aux sections autorisées, comme le tableau de bord, les médias et les tâches ; sans commandes d’appareils ni réglages système."
     },
     "inviteModalTitle": "Inviter un Nouveau Membre",
     "selectRole": "Sélectionner le Rôle Attribué",
@@ -657,6 +670,31 @@
     "expiresAt": "Expiration",
     "revoke": "Révoquer",
     "noMembers": "Aucun membre trouvé.",
+    "permissions": {
+      "notifications": "Notifications",
+      "manage": "Gérer les autorisations",
+      "title": "Autorisations de {name}",
+      "areasTitle": "Pièces accessibles",
+      "allAreas": "Toutes les pièces",
+      "noAreas": "Aucune pièce disponible.",
+      "entitiesTitle": "Appareils et entités",
+      "allEntities": "Tous les appareils et entités",
+      "noEntities": "Aucune entité disponible.",
+      "dashboardsTitle": "Tableaux de bord personnalisés",
+      "allDashboards": "Tous les tableaux de bord",
+      "noDashboards": "Aucun tableau de bord personnalisé disponible.",
+      "viewsTitle": "Sections visibles",
+      "allViews": "Toutes les sections",
+      "actionsTitle": "Actions autorisées",
+      "controlDevices": "Envoyer des commandes aux appareils",
+      "manageAutomations": "Gérer les automatisations",
+      "automationScopeHint": "La gestion des automatisations nécessite le contrôle des appareils et un accès sans restriction aux pièces et aux appareils.",
+      "viewCameras": "Voir les caméras",
+      "manageSettings": "Gérer les paramètres système",
+      "hint": "Les autorisations sont également appliquées par le serveur.",
+      "cancel": "Annuler",
+      "save": "Enregistrer les autorisations"
+    },
     "view": {
       "you": "(Vous)",
       "guestProfilesTitle": "Profils invités et code PIN temporaire du mode borne",
@@ -672,7 +710,23 @@
       "dayOne": "24 heures (1 jour)",
       "days": "{value} jours",
       "oneWeek": "7 jours (1 semaine)",
-      "enableKiosk": "Activer le mode borne plein écran pour ce code PIN"
+      "enableKiosk": "Activer le mode borne plein écran pour ce code PIN",
+      "createGuestButton": "Nouveau profil invité / code PIN borne",
+      "guestLabel": "Invité",
+      "guestKioskLabel": "Invité (borne)",
+      "pinLabel": "Code PIN",
+      "expiresLabel": "Expire"
+    },
+    "tokenLabel": "Jeton",
+    "errors": {
+      "load": "Impossible de charger les données de la famille.",
+      "guestRequired": "Saisissez le nom de l’invité et le code PIN.",
+      "createGuest": "Impossible de créer le profil invité.",
+      "generateInvite": "Impossible de générer l’invitation.",
+      "updatePermissions": "Impossible de mettre à jour les autorisations.",
+      "updateRole": "Impossible de modifier le rôle du membre.",
+      "removeMember": "Impossible de supprimer le membre.",
+      "revokeInvite": "Impossible de révoquer l’invitation."
     }
   },
   "register": {
