@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import ScheduleView from './ScheduleView.vue'
 import { apiClient } from '../api/client'
+import { useEntitiesStore } from '../stores/entities'
 
 describe('ScheduleView.vue', () => {
   beforeEach(() => {
@@ -60,4 +61,40 @@ describe('ScheduleView.vue', () => {
     expect(wrapper.text()).toContain('Eventi sincronizzati e trigger delle automazioni')
     expect(wrapper.text()).toContain('Smart Working da Casa')
   })
+})
+
+
+it('sends manual thermostat changes with a server-side override duration', async () => {
+  const thermostat = {
+    id: 'climate-uuid',
+    entity_key: 'climate.living_room',
+    domain: 'climate',
+    name: 'Termostato soggiorno',
+    state: 'heat',
+    attributes: { current_temperature: 19, target_temperature: 20 },
+    last_changed: '',
+    last_updated: ''
+  }
+  vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+    if (url.includes('/api/v1/entities')) return [thermostat] as any
+    if (url.includes('/api/v1/schedules')) return [] as any
+    if (url.includes('/api/v1/calendar/events')) return [] as any
+    return null as any
+  })
+  const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'accepted' } as any)
+  const wrapper = mount(ScheduleView)
+  await flushPromises()
+
+  await wrapper.find('[data-testid="manual-climate-override-duration"]').setValue('120')
+  await wrapper.find('.btn-apply-thermostat').trigger('click')
+  await flushPromises()
+
+  expect(postSpy).toHaveBeenCalledWith(
+    '/api/v1/entities/climate-uuid/climate-profile',
+    { profile: 'custom', temperature: 20.5, duration_minutes: 120 }
+  )
+  expect(wrapper.text()).toContain('verrà ripristinato il valore precedente')
+
+  postSpy.mockRestore()
+  wrapper.unmount()
 })
