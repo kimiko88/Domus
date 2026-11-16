@@ -251,7 +251,13 @@ func TestPredictiveService_ThermalProfileAndOptimalStartStop(t *testing.T) {
 	bus := &mockEventBus{}
 	weatherCli := appweather.NewClient()
 
-	svc := appclimate.NewPredictiveService(repo, nil, weatherCli, bus, nil)
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-camera": {
+			ID: "sensor-camera", EntityKey: "sensor.camera_temp", Domain: "sensor",
+			State: "19.0", Available: true, UnitOfMeasurement: "°C",
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, weatherCli, bus, nil)
 
 	zone := &domclimate.PredictiveZoneConfig{
 		ID:                  "zone_floor_test",
