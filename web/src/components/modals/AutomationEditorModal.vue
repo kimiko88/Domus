@@ -1016,4 +1016,33 @@ input:focus, select:focus {
   padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
 }
+
+/* Mobile-first modal sizing and safe-area handling. */
+.modal-card, .modal-form, .climate-builder, .climate-slot { min-width: 0; }
+.dsl-textarea { max-width: 100%; min-width: 0; }
+.climate-slot-heading { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal-card { width: 100%; max-width: none; max-height: 94dvh; overflow-y: auto; overscroll-behavior: contain; border-radius: 18px 18px 0 0; padding: 18px 14px max(18px, env(safe-area-inset-bottom)); }
+  .modal-header { gap: 10px; margin-bottom: 14px; }
+  .header-title { min-width: 0; }
+  .modal-form { gap: 14px; }
+  .form-row { flex-direction: column; gap: 12px; }
+  .climate-builder { padding: 12px; }
+  .climate-slots-heading { align-items: flex-start; }
+  .climate-weekdays { gap: 6px; }
+  .climate-weekday { min-height: 40px; padding: 7px 9px; }
+  .climate-slot-remove { min-height: 40px; }
+  .dsl-header { align-items: flex-start; }
+  .dsl-actions { flex-wrap: wrap; }
+  .dsl-textarea { font-size: 11px; }
+  .modal-footer { position: sticky; bottom: calc(-1 * max(18px, env(safe-area-inset-bottom))); margin-inline: -14px; padding: 12px 14px max(12px, env(safe-area-inset-bottom)); background: var(--bg-surface); flex-wrap: wrap; }
+  .modal-footer > * { flex: 1 1 120px; }
+}
+@media (max-width: 360px) {
+  .modal-card { padding-inline: 10px; }
+  .climate-builder { padding: 10px; }
+  .modal-footer { margin-inline: -10px; padding-inline: 10px; }
+}
+
 </style>
