@@ -230,6 +230,35 @@ func (s *Service) requireClimateMode(ctx context.Context, entityID, mode string)
 	return fmt.Errorf("thermostat %q does not support mode %q", entityID, mode)
 }
 
+func climateTemperatureRange(attrs map[string]any) (float64, float64) {
+	minTemp, maxTemp := 5.0, 35.0
+	if value, ok := numericAttribute(attrs, "min_temp", "min_temperature"); ok {
+		minTemp = value
+	}
+	if value, ok := numericAttribute(attrs, "max_temp", "max_temperature"); ok {
+		maxTemp = value
+	}
+	if minTemp < 0 || maxTemp <= minTemp {
+		return 5, 35
+	}
+	return minTemp, maxTemp
+}
+
+func (s *Service) requireClimateSetpoint(ctx context.Context, entityID string, temperature float64) error {
+	ent, err := s.entities.GetByID(ctx, entityID)
+	if err != nil {
+		return fmt.Errorf("resolve thermostat %q: %w", entityID, err)
+	}
+	if ent.Domain != "climate" {
+		return fmt.Errorf("entity %q is not a climate entity", entityID)
+	}
+	minTemp, maxTemp := climateTemperatureRange(parseEntityAttributes(ent))
+	if temperature < minTemp || temperature > maxTemp {
+		return fmt.Errorf("thermostat %q setpoint must be between %.1f and %.1f °C", entityID, minTemp, maxTemp)
+	}
+	return nil
+}
+
 func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken string) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	allEntities, err := s.entities.List(ctx, entity.ListFilter{})
 	if err != nil {
@@ -441,10 +470,6 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 		return nil, errors.New("missing endpoint in alexa directive")
 	}
 	entID := dir.Endpoint.EndpointID
-	if err := s.requireClimateEntity(ctx, entID); err != nil {
-		return nil, err
-	}
-
 	var payload struct {
 		TargetSetpoint struct {
 			Value float64 `json:"value"`
@@ -458,8 +483,8 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 		return nil, fmt.Errorf("%w: %s.%s", ErrUnsupportedIntent, dir.Header.Namespace, dir.Header.Name)
 	}
 	targetCelsius := celsius(payload.TargetSetpoint.Value, payload.TargetSetpoint.Scale)
-	if targetCelsius < 5 || targetCelsius > 35 {
-		return nil, errors.New("thermostat setpoint must be between 5 and 35 °C")
+	if err := s.requireClimateSetpoint(ctx, entID, targetCelsius); err != nil {
+		return nil, err
 	}
 
 	if s.bus != nil {
@@ -669,10 +694,10 @@ func (s *Service) handleGoogleSync(ctx context.Context, reqID string) (*cloud_as
 			attributes = map[string]any{
 				"thermostatTemperatureUnit": "C",
 				"availableThermostatModes": climateModeValues(parseEntityAttributes(ent)),
-				"thermostatTemperatureRange": map[string]any{
-					"minThresholdCelsius": 5,
-					"maxThresholdCelsius": 35,
-				},
+				"thermostatTemperatureRange": func() map[string]any {
+					minTemp, maxTemp := climateTemperatureRange(parseEntityAttributes(ent))
+					return map[string]any{"minThresholdCelsius": minTemp, "maxThresholdCelsius": maxTemp}
+				}(),
 			}
 		}
 		devices = append(devices, cloud_assistant.GoogleDevice{
@@ -868,11 +893,11 @@ func (s *Service) handleGoogleExecute(ctx context.Context, reqID string, payload
 
 			case "action.devices.commands.ThermostatTemperatureSetpoint":
 				temp, ok := exec.Params["thermostatTemperatureSetpoint"].(float64)
-				if !ok || temp < 5 || temp > 35 {
-					return nil, errors.New("thermostat setpoint must be between 5 and 35 °C")
+				if !ok {
+					return nil, errors.New("thermostat setpoint is required")
 				}
 				for _, id := range targetIDs {
-					if err := s.requireClimateEntity(ctx, id); err != nil {
+					if err := s.requireClimateSetpoint(ctx, id, temp); err != nil {
 						return nil, err
 					}
 				}
