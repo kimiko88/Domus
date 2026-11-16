@@ -386,3 +386,90 @@ func TestCloudAssistant_AlexaConvertsFahrenheitSetpointToCelsius(t *testing.T) {
 	assert.InDelta(t, 22.2222, value["value"], 0.001)
 	assert.Equal(t, "CELSIUS", value["scale"])
 }
+
+
+func TestCloudAssistant_ThermostatModesAreAdvertisedAndQueryable(t *testing.T) {
+	svc := appCloud.NewService(newMockEntityRepo(), nil, "thermostat-token", true)
+
+	googleSync, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-sync",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.SYNC"}},
+	})
+	require.NoError(t, err)
+	syncPayload, ok := googleSync.Payload.(map[string]any)
+	require.True(t, ok)
+	devices, ok := syncPayload["devices"].([]domainCloud.GoogleDevice)
+	require.True(t, ok)
+	var thermostat *domainCloud.GoogleDevice
+	for i := range devices {
+		if devices[i].ID == "climate.bedroom" {
+			thermostat = &devices[i]
+			break
+		}
+	}
+	require.NotNil(t, thermostat)
+	modes, ok := thermostat.Attributes["availableThermostatModes"].([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"off", "heat", "cool", "auto"}, modes)
+	rangeAttrs, ok := thermostat.Attributes["thermostatTemperatureRange"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 5, rangeAttrs["minThresholdCelsius"])
+	assert.Equal(t, 35, rangeAttrs["maxThresholdCelsius"])
+
+	alexaDiscovery, err := svc.HandleAlexa(context.Background(), []byte(`{
+		"directive":{"header":{"namespace":"Alexa.Discovery","name":"Discover","payloadVersion":"3","messageId":"discover-mode","correlationToken":"mode-token"},"payload":{}}
+	}`))
+	require.NoError(t, err)
+	require.NotEmpty(t, alexaDiscovery.Event.Payload)
+	payload, ok := alexaDiscovery.Event.Payload.(map[string]any)
+	require.True(t, ok)
+	endpoints, ok := payload["endpoints"].([]domainCloud.AlexaDiscoveredEndpoint)
+	require.True(t, ok)
+	var foundModeCapability bool
+	for _, endpoint := range endpoints {
+		if endpoint.EndpointID != "climate.bedroom" {
+			continue
+		}
+		for _, capability := range endpoint.Capabilities {
+			if capability.Interface == "Alexa.ThermostatController" {
+				require.NotNil(t, capability.Configuration)
+				assert.NotEmpty(t, capability.Configuration["supportedModes"])
+				foundModeCapability = true
+			}
+		}
+	}
+	assert.True(t, foundModeCapability, "Alexa discovery should advertise thermostat modes")
+}
+
+func TestCloudAssistant_GoogleCanSetThermostatMode(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "heat"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	response, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-mode-execute",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.NoError(t, err)
+	responsePayload, ok := response.Payload.(map[string]any)
+	require.True(t, ok)
+	commands, ok := responsePayload["commands"].([]any)
+	require.True(t, ok)
+	require.Len(t, commands, 1)
+	command, ok := commands[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "SUCCESS", command["status"])
+	states, ok := command["states"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "heat", states["thermostatMode"])
+}
