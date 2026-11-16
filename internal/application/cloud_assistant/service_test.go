@@ -294,3 +294,95 @@ func TestCloudAssistant_EmptyTokenFailsClosed(t *testing.T) {
 	_, err := svc.HandleAlexa(context.Background(), []byte(`{}`))
 	assert.ErrorIs(t, err, appCloud.ErrCloudDisabled)
 }
+
+
+func TestCloudAssistant_ThermostatStateIsReportedToSmartHome(t *testing.T) {
+	repo := newMockEntityRepo()
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 32, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	alexaPayload := []byte(`{
+		"directive": {
+			"header": {
+				"namespace": "Alexa",
+				"name": "ReportState",
+				"payloadVersion": "3",
+				"messageId": "thermostat-report",
+				"correlationToken": "thermostat-token"
+			},
+			"endpoint": {"endpointId": "climate.bedroom"},
+			"payload": {}
+		}
+	}`)
+	alexaResponse, err := svc.HandleAlexa(context.Background(), alexaPayload)
+	require.NoError(t, err)
+	require.NotNil(t, alexaResponse.Context)
+	require.Len(t, alexaResponse.Context.Properties, 2)
+
+	alexaProperties := make(map[string]any)
+	for _, property := range alexaResponse.Context.Properties {
+		alexaProperties[property.Namespace+"."+property.Name] = property.Value
+	}
+	setpoint, ok := alexaProperties["Alexa.ThermostatController.targetSetpoint"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 21.5, setpoint["value"])
+	assert.Equal(t, "CELSIUS", setpoint["scale"])
+	ambient, ok := alexaProperties["Alexa.TemperatureSensor.temperature"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 20.2, ambient["value"])
+
+	queryPayload, err := json.Marshal(map[string]any{
+		"devices": []map[string]string{{"id": "climate.bedroom"}},
+	})
+	require.NoError(t, err)
+	googleResponse, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-query",
+		Inputs: []domainCloud.GoogleRequestInput{{
+			Intent: "action.devices.QUERY",
+			Payload: queryPayload,
+		}},
+	})
+	require.NoError(t, err)
+
+	googlePayload, ok := googleResponse.Payload.(map[string]any)
+	require.True(t, ok)
+	devices, ok := googlePayload["devices"].(map[string]any)
+	require.True(t, ok)
+	status, ok := devices["climate.bedroom"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 21.5, status["thermostatTemperatureSetpoint"])
+	assert.Equal(t, 20.2, status["thermostatTemperatureAmbient"])
+	assert.Equal(t, "C", status["thermostatTemperatureUnit"])
+}
+
+func TestCloudAssistant_AlexaConvertsFahrenheitSetpointToCelsius(t *testing.T) {
+	repo := newMockEntityRepo()
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload := []byte(`{
+		"directive": {
+			"header": {
+				"namespace": "Alexa.ThermostatController",
+				"name": "SetTargetTemperature",
+				"payloadVersion": "3",
+				"messageId": "fahrenheit-setpoint",
+				"correlationToken": "fahrenheit-token"
+			},
+			"endpoint": {"endpointId": "climate.bedroom"},
+			"payload": {
+				"targetSetpoint": {"value": 72, "scale": "FAHRENHEIT"}
+			}
+		}
+	}`)
+	response, err := svc.HandleAlexa(context.Background(), payload)
+	require.NoError(t, err)
+	require.NotNil(t, response.Context)
+	require.Len(t, response.Context.Properties, 1)
+	value, ok := response.Context.Properties[0].Value.(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 22.2222, value["value"], 0.001)
+	assert.Equal(t, "CELSIUS", value["scale"])
+}
