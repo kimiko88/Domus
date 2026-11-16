@@ -318,7 +318,7 @@ func TestCloudAssistant_ThermostatStateIsReportedToSmartHome(t *testing.T) {
 	alexaResponse, err := svc.HandleAlexa(context.Background(), alexaPayload)
 	require.NoError(t, err)
 	require.NotNil(t, alexaResponse.Context)
-	require.Len(t, alexaResponse.Context.Properties, 2)
+	require.Len(t, alexaResponse.Context.Properties, 3)
 
 	alexaProperties := make(map[string]any)
 	for _, property := range alexaResponse.Context.Properties {
