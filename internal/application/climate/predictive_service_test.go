@@ -607,3 +607,43 @@ func TestPredictiveService_RejectsInvalidThermalTrainingSamples(t *testing.T) {
 	}
 }
 
+
+
+func TestPredictiveService_OptimalStartRequiresLiveTemperatureSensor(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "no-live-temp", Name: "Camera", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.missing", TargetTemperature: 21,
+		WindowAreaSqm: 2, ThermalInertiaHours: 2,
+	}
+	require.NoError(t, repo.Save(ctx, zone))
+	svc := appclimate.NewPredictiveService(repo, nil, nil, nil, nil)
+
+	_, err := svc.CalculateOptimalStart(ctx, zone.ID, time.Now().Add(time.Hour), 21)
+	require.ErrorContains(t, err, "temperature sensor is required")
+	_, err = svc.CalculateCoastDown(ctx, zone.ID, time.Now().Add(time.Hour))
+	require.ErrorContains(t, err, "temperature sensor is required")
+}
+
+func TestPredictiveService_OptimalStartConvertsFahrenheitSensor(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "fahrenheit-zone", Name: "Camera", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temp", TargetTemperature: 21,
+		WindowAreaSqm: 2, ThermalInertiaHours: 2,
+	}
+	require.NoError(t, repo.Save(ctx, zone))
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"room-temp": {
+			ID: "room-temp", EntityKey: "sensor.room_temp", Domain: "sensor",
+			State: "68", Available: true, UnitOfMeasurement: "°F",
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, nil, nil, nil)
+
+	recommendation, err := svc.CalculateOptimalStart(ctx, zone.ID, time.Now().Add(time.Hour), 21)
+	require.NoError(t, err)
+	assert.InDelta(t, 20.0, recommendation.CurrentTemp, 0.01)
+}
