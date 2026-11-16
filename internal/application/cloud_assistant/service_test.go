@@ -475,3 +475,49 @@ func TestCloudAssistant_GoogleCanSetThermostatMode(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "heat", states["thermostatMode"])
 }
+
+func TestCloudAssistant_GoogleRejectsNonClimateThermostatTarget(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "switch.coffee"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "heat"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "invalid-thermostat-target",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a climate entity")
+}
+
+func TestCloudAssistant_GoogleRejectsOutOfRangeThermostatSetpoint(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatTemperatureSetpoint",
+				"params": map[string]any{"thermostatTemperatureSetpoint": 40.0},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "invalid-thermostat-setpoint",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "between 5 and 35")
+}
