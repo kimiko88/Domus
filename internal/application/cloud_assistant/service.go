@@ -156,17 +156,6 @@ func celsius(value float64, scale string) float64 {
 	return value
 }
 
-func (s *Service) requireClimateEntity(ctx context.Context, entityID string) error {
-	ent, err := s.entities.GetByID(ctx, entityID)
-	if err != nil {
-		return fmt.Errorf("resolve thermostat %q: %w", entityID, err)
-	}
-	if ent.Domain != "climate" {
-		return fmt.Errorf("entity %q is not a climate entity", entityID)
-	}
-	return nil
-}
-
 func climateModeValues(attrs map[string]any) []string {
 	allowed := map[string]bool{"off": true, "heat": true, "cool": true, "auto": true}
 	var candidates []string
