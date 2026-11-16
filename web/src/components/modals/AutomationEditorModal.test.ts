@@ -284,3 +284,51 @@ it('requires at least one weekday for every thermostat schedule slot', async () 
   getSpy.mockRestore()
   wrapper.unmount()
 })
+
+it('allows the same time on disjoint weekdays in a thermostat schedule', async () => {
+  const entities = [
+    {
+      id: 'sensor-uuid',
+      entity_key: 'sensor.room_temperature',
+      domain: 'sensor',
+      name: 'Temperatura soggiorno',
+      state: '18.5',
+      attributes: { device_class: 'temperature', unit_of_measurement: '°C' },
+      last_changed: '',
+      last_updated: ''
+    },
+    {
+      id: 'climate-uuid',
+      entity_key: 'climate.living_room',
+      domain: 'climate',
+      name: 'Termostato soggiorno',
+      state: 'auto',
+      attributes: { current_temperature: 18.5 },
+      last_changed: '',
+      last_updated: ''
+    }
+  ]
+  const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue(entities as any)
+  const wrapper = mount(AutomationEditorModal, { props: { isOpen: true } })
+
+  await wrapper.find('[data-testid="climate-program-toggle"]').trigger('click')
+  await flushPromises()
+  await wrapper.find('[data-testid="add-climate-slot"]').trigger('click')
+  await wrapper.findAll('input[name="climate-time"]')[1].setValue('07:00')
+
+  const weekdayCheckboxes = wrapper.findAll('.climate-weekday input')
+  for (const checkbox of weekdayCheckboxes.slice(7, 12)) {
+    await checkbox.setValue(false)
+  }
+  await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
+
+  expect(wrapper.text()).not.toContain('è duplicato')
+  const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
+  expect(dsl.triggers[0].at).toBe('07:00:00')
+  expect(dsl.triggers[0].days).toEqual([1, 2, 3, 4, 5, 6, 7])
+  expect(dsl.triggers[1].at).toBe('07:00:00')
+  expect(dsl.triggers[1].days).toEqual([6, 7])
+
+  getSpy.mockRestore()
+  wrapper.unmount()
+})
