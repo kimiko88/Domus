@@ -218,7 +218,7 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 	if isFahrenheit(sensor.UnitOfMeasurement, sensor.Attributes) {
 		currentTemp = (currentTemp - 32) * 5 / 9
 	}
-	if currentTemp < -50 || currentTemp > 70 {
+	if math.IsNaN(currentTemp) || math.IsInf(currentTemp, 0) || currentTemp < -50 || currentTemp > 70 {
 		return nil, fmt.Errorf("room temperature sensor %q reading %.2f°C is outside the plausible range", cfg.TempSensorKey, currentTemp)
 	}
 
@@ -329,6 +329,7 @@ func (s *PredictiveService) EvaluateAll(ctx context.Context) ([]*domclimate.Pred
 	}
 
 	var results []*domclimate.PredictiveEvaluation
+	var evaluationErrors []error
 	for _, z := range zones {
 		if !z.Enabled {
 			continue
@@ -336,11 +337,12 @@ func (s *PredictiveService) EvaluateAll(ctx context.Context) ([]*domclimate.Pred
 		eval, err := s.EvaluateZone(ctx, z.ID)
 		if err != nil {
 			s.logger.WarnContext(ctx, "error evaluating predictive zone", "zone_id", z.ID, "error", err)
+			evaluationErrors = append(evaluationErrors, fmt.Errorf("zone %q: %w", z.ID, err))
 			continue
 		}
 		results = append(results, eval)
 	}
-	return results, nil
+	return results, errors.Join(evaluationErrors...)
 }
 
 // GetDashboardStatus returns all zones paired with their latest evaluation.
@@ -691,7 +693,7 @@ func climateEntityTemperatureRange(ent *entity.Entity) (float64, float64) {
 		minTemp = (minTemp - 32) * 5 / 9
 		maxTemp = (maxTemp - 32) * 5 / 9
 	}
-	if minTemp < -20 || maxTemp > 60 || maxTemp <= minTemp {
+	if math.IsNaN(minTemp) || math.IsNaN(maxTemp) || math.IsInf(minTemp, 0) || math.IsInf(maxTemp, 0) || minTemp < -20 || maxTemp > 60 || maxTemp <= minTemp {
 		return 5, 35
 	}
 	return minTemp, maxTemp
