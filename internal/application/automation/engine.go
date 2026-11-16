@@ -523,6 +523,9 @@ func (e *Engine) executeAction(
 					}
 					errMu.Unlock()
 				}
+				errMu.Lock()
+				*actionLogs = append(*actionLogs, subLogs...)
+				errMu.Unlock()
 			}(subAct)
 		}
 		wg.Wait()
@@ -531,6 +534,9 @@ func (e *Engine) executeAction(
 		}
 
 	case "service":
+		if act.Service == "" || act.TargetEntityKey == "" {
+			return fmt.Errorf("service action requires both service and target_entity_key")
+		}
 		cmdEvt := events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.CommandRequested,
@@ -556,6 +562,9 @@ func (e *Engine) executeAction(
 		*actionLogs = append(*actionLogs, fmt.Sprintf("Delayed %dms", act.DelayMs))
 
 	case "event":
+		if act.EventType == "" {
+			return fmt.Errorf("event action requires event_type")
+		}
 		evt := events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.EventType(act.EventType),
@@ -563,8 +572,13 @@ func (e *Engine) executeAction(
 			Source:     fmt.Sprintf("automation:%s", rule.ID),
 			Payload:    act.EventPayload,
 		}
-		_ = e.bus.Publish(ctx, evt)
+		if err := e.bus.Publish(ctx, evt); err != nil {
+			return fmt.Errorf("publish automation event %q: %w", act.EventType, err)
+		}
 		*actionLogs = append(*actionLogs, fmt.Sprintf("Fired event %s", act.EventType))
+
+	default:
+		return fmt.Errorf("unsupported automation action type %q", act.Type)
 	}
 
 	return nil
