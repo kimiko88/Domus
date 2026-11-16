@@ -196,12 +196,22 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 
 	// 1. Fetch sensor states
 	currentTemp := 20.0
-	if s.entityRepo != nil && cfg.TempSensorKey != "" {
-		if e, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey); err == nil {
-			if v, ok := parseNumericState(e.State); ok {
-				currentTemp = v
-			}
+	if s.entityRepo != nil {
+		if cfg.TempSensorKey == "" {
+			return nil, errors.New("predictive climate zone has no temperature sensor configured")
 		}
+		sensor, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey)
+		if err != nil {
+			return nil, fmt.Errorf("read room temperature sensor %q: %w", cfg.TempSensorKey, err)
+		}
+		if !sensor.Available {
+			return nil, fmt.Errorf("room temperature sensor %q is unavailable", cfg.TempSensorKey)
+		}
+		value, ok := parseNumericState(sensor.State)
+		if !ok {
+			return nil, fmt.Errorf("room temperature sensor %q has no valid numeric reading", cfg.TempSensorKey)
+		}
+		currentTemp = value
 	}
 
 	currentHumidity := 50.0
