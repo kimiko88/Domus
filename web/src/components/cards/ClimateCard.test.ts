@@ -98,28 +98,35 @@ describe('ClimateCard.vue', () => {
 })
 
 
-it('allows entering an exact thermostat setpoint', async () => {
-  const entity: Entity = {
-    id: 'climate.office',
-    domain: 'climate',
-    name: 'Office Thermostat',
-    state: 'auto',
-    attributes: {
-      target_temperature: 20.0,
-      current_temperature: 19.4,
-      hvac_mode: 'auto'
-    },
-    last_changed: '2026-10-04T00:00:00Z',
-    last_updated: '2026-10-04T00:00:00Z'
-  }
+describe('ClimateCard exact setpoint input', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    entitiesStore = useEntitiesStore()
+  })
 
-  const callServiceSpy = vi.spyOn(entitiesStore, 'callService').mockResolvedValue(undefined)
-  const wrapper = mount(ClimateCard, { props: { entity } })
+  it('allows entering an exact thermostat setpoint', async () => {
+    const entity: Entity = {
+      id: 'climate.office',
+      domain: 'climate',
+      name: 'Office Thermostat',
+      state: 'auto',
+      attributes: {
+        target_temperature: 20.0,
+        current_temperature: 19.4,
+        hvac_mode: 'auto'
+      },
+      last_changed: '2026-10-04T00:00:00Z',
+      last_updated: '2026-10-04T00:00:00Z'
+    }
 
-  await wrapper.find('input[aria-label="Temperatura obiettivo esatta"]').setValue('22.5')
-  await wrapper.find('.btn-temp-apply').trigger('click')
+    const callServiceSpy = vi.spyOn(entitiesStore, 'callService').mockResolvedValue(undefined)
+    const wrapper = mount(ClimateCard, { props: { entity } })
 
-  expect(callServiceSpy).toHaveBeenCalledWith('climate', 'set_temperature', 'climate.office', {
-    temperature: 22.5
+    await wrapper.find('input[aria-label="Temperatura obiettivo esatta"]').setValue('22.5')
+    await wrapper.find('.btn-temp-apply').trigger('click')
+
+    expect(callServiceSpy).toHaveBeenCalledWith('climate', 'set_temperature', 'climate.office', {
+      temperature: 22.5
+    })
   })
 })
