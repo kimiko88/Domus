@@ -502,13 +502,21 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
   if (!device.local_configured) return
   tuyaCloudCommanding.value = `${device.id}:dp4`
   try {
-    await apiClient.post(
+    const result = await apiClient.post<{
+      acknowledged?: boolean
+      confirmed?: boolean
+      message?: string
+    }>(
       `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
       { command: 'set_dp', params: { dp_id: 4, value: mode === 'auto' ? 0 : 1 } }
     )
-    notificationsStore.success('Modalità termostato aggiornata', mode === 'auto'
-      ? 'LocalTuya: device.set_dp(4, 0) — automatico'
-      : 'LocalTuya: device.set_dp(4, 1) — manuale')
+    if (result?.acknowledged && result.confirmed === false) {
+      notificationsStore.warning('Comando accettato, stato non ancora confermato', result.message || 'Il termostato ha ricevuto il comando; attendo il prossimo aggiornamento DPS.')
+    } else {
+      notificationsStore.success('Modalità termostato aggiornata', mode === 'auto'
+        ? 'LocalTuya: DPS 4 — automatico'
+        : 'LocalTuya: DPS 4 — manuale')
+    }
   } catch (err: any) {
     notificationsStore.error('Comando termostato non riuscito', err?.message || 'Errore di comunicazione LAN')
   } finally {
@@ -524,8 +532,9 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
   }
   tuyaCloudCommanding.value = `${device.id}:temperature`
   try {
+    let localOutcome: { acknowledged?: boolean; confirmed?: boolean; message?: string } | undefined
     if (device.local_configured) {
-      await apiClient.post(
+      localOutcome = await apiClient.post(
         `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
         { command: 'set_temperature', params: { temperature } }
       )
@@ -544,7 +553,15 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
         { commands: [{ code: fn.code, value: Math.round(temperature * Math.pow(10, tuyaFunctionScale(fn))) }] }
       )
     }
-    notificationsStore.success('Setpoint aggiornato', `${device.name}: ${temperature.toFixed(1)} °C`)
+
+    if (localOutcome?.acknowledged && localOutcome.confirmed === false) {
+      notificationsStore.warning(
+        'Setpoint inviato, conferma in attesa',
+        localOutcome.message || `${device.name}: il termostato ha accettato il comando, ma non ha ancora pubblicato il nuovo DPS.`
+      )
+    } else {
+      notificationsStore.success('Setpoint confermato', `${device.name}: ${temperature.toFixed(1)} °C`)
+    }
     await fetchTuyaCloudDevices()
   } catch (err: any) {
     notificationsStore.error('Impostazione temperatura non riuscita', err?.message || 'Errore di comunicazione')
