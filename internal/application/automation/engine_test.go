@@ -415,7 +415,7 @@ func TestEngine_SingleModeAllowsOnlyOneConcurrentRun(t *testing.T) {
 		ExecutionMode: "single",
 		Triggers: []automation.Trigger{{Platform: "event", EventType: "single.guard"}},
 		Actions: []automation.Action{
-			{Type: "delay", DelayMs: 250},
+			{Type: "delay", DelayMs: 1000},
 			{Type: "event", EventType: "single.guard.completed"},
 		},
 	}
