@@ -170,10 +170,10 @@ async function applyLiveThermostatSettings() {
     }
 
     notifStore.success(
-      'Termostato Regolato',
+      'Comando termostato inviato',
       duration === 0
-        ? `Impostata temperatura obiettivo a ${liveTargetTemp.value.toFixed(1)}°C fino alla prossima modifica (${liveHvacMode.value.toUpperCase()})`
-        : `Impostata temperatura obiettivo a ${liveTargetTemp.value.toFixed(1)}°C per ${duration} minuti; poi verrà ripristinato il valore precedente.`
+        ? `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C fino alla prossima modifica (${liveHvacMode.value.toUpperCase()}).`
+        : `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C per ${duration} minuti; poi verrà richiesto il ripristino del valore precedente.`
     )
   } catch (err: any) {
     notifStore.error('Errore Regolazione', err?.message || 'Impossibile comunicare con il termostato smart')
