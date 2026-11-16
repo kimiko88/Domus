@@ -153,6 +153,7 @@ async function handleCalculateOptimalStart() {
       Number(calcTargetTemp.value)
     )
   } catch (err: any) {
+    profileError.value = err?.message || 'Impossibile calcolare il pre-riscaldamento.'
     console.error('Error calculating preheat', err)
   }
 }
@@ -166,6 +167,7 @@ async function handleCalculateCoastDown() {
       depDate.toISOString()
     )
   } catch (err: any) {
+    profileError.value = err?.message || 'Impossibile calcolare lo spegnimento anticipato.'
     console.error('Error calculating coast down', err)
   }
 }
@@ -296,16 +298,16 @@ async function handleSaveZone() {
 
 async function handleDeleteZone(id: string) {
   if (confirm('Sei sicuro di voler eliminare questa zona predittiva?')) {
-    await store.deleteZone(id)
+    try { await store.deleteZone(id) } catch { /* store.error is rendered in the page */ }
   }
 }
 
 async function handleEvaluateZone(id: string) {
-  await store.evaluateZone(id)
+  try { await store.evaluateZone(id) } catch { /* store.error is rendered in the page */ }
 }
 
 async function handleEvaluateAll() {
-  await store.evaluateAll()
+  try { await store.evaluateAll() } catch { /* store.error is rendered in the page */ }
 }
 
 function getModeBadgeClass(mode?: string): string {
