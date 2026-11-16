@@ -461,8 +461,10 @@ func TestCloudAssistant_GoogleCanSetThermostatMode(t *testing.T) {
 		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
 	})
 	require.NoError(t, err)
-	responsePayload, ok := response.Payload.(map[string]any)
-	require.True(t, ok)
+	encoded, err := json.Marshal(response.Payload)
+	require.NoError(t, err)
+	var responsePayload map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &responsePayload))
 	commands, ok := responsePayload["commands"].([]any)
 	require.True(t, ok)
 	require.Len(t, commands, 1)
