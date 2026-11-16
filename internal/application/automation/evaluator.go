@@ -151,6 +151,22 @@ func (e *Evaluator) EvaluateTimeTrigger(trig automation.Trigger, now time.Time) 
 	if now.Hour() != scheduled.Hour() || now.Minute() != scheduled.Minute() {
 		return false
 	}
+	if len(trig.Days) > 0 {
+		// ISO-8601 weekday numbering: Monday=1 ... Sunday=7.
+		weekday := (int(now.Weekday())+6)%7 + 1
+		matched := false
+		for _, day := range trig.Days {
+			if day < 1 || day > 7 {
+				return false
+			}
+			if day == weekday {
+				matched = true
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
 	return !hasSeconds || now.Second() == scheduled.Second()
 }
 
