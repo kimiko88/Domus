@@ -8,6 +8,9 @@ import (
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	appweather "github.com/domus-hub/domus/internal/application/weather"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
+	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/domus-hub/domus/internal/domain/events"
 )
 
@@ -93,6 +96,43 @@ func (m *mockPredictiveRepo) ListProfiles(ctx context.Context) ([]*domclimate.Th
 		list = append(list, p)
 	}
 	return list, nil
+}
+
+
+type mockClimateEntityRepo struct {
+	items map[string]*entity.Entity
+}
+
+func (m *mockClimateEntityRepo) Create(_ context.Context, item *entity.Entity) error {
+	m.items[item.ID] = item
+	return nil
+}
+func (m *mockClimateEntityRepo) GetByID(_ context.Context, id string) (*entity.Entity, error) {
+	if item := m.items[id]; item != nil { return item, nil }
+	return nil, entity.ErrEntityNotFound
+}
+func (m *mockClimateEntityRepo) GetByKey(_ context.Context, key string) (*entity.Entity, error) {
+	for _, item := range m.items { if item.EntityKey == key { return item, nil } }
+	return nil, entity.ErrEntityNotFound
+}
+func (m *mockClimateEntityRepo) List(_ context.Context, _ entity.ListFilter) ([]*entity.Entity, error) {
+	items := make([]*entity.Entity, 0, len(m.items))
+	for _, item := range m.items { items = append(items, item) }
+	return items, nil
+}
+func (m *mockClimateEntityRepo) Update(_ context.Context, item *entity.Entity) error {
+	m.items[item.ID] = item
+	return nil
+}
+func (m *mockClimateEntityRepo) UpdateState(_ context.Context, id, state, attributes string, available bool, at time.Time) error {
+	item := m.items[id]
+	if item == nil { return entity.ErrEntityNotFound }
+	item.State, item.Attributes, item.Available, item.LastUpdatedAt = state, attributes, available, at
+	return nil
+}
+func (m *mockClimateEntityRepo) Delete(_ context.Context, id string) error {
+	delete(m.items, id)
+	return nil
 }
 
 type mockEventBus struct {
@@ -273,3 +313,27 @@ func TestPredictiveService_ThermalProfileAndOptimalStartStop(t *testing.T) {
 	}
 }
 
+
+func TestPredictiveService_DoesNotDispatchWhenConfiguredTemperatureSensorIsUnavailable(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: false,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "zone-unavailable-sensor", Name: "Room",
+		TRVEntityKey: "climate.room", TempSensorKey: "sensor.room_temperature",
+		TargetTemperature: 21, EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+
+	_, err := svc.EvaluateZone(ctx, zone.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "is unavailable")
+	assert.Empty(t, bus.published, "predictive control must not use a fabricated fallback temperature")
+}
