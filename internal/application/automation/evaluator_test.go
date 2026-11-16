@@ -188,3 +188,19 @@ func TestEvaluator_Conditions(t *testing.T) {
 		assert.True(t, ok)
 	})
 }
+
+
+func TestEvaluator_TriggerConditionMatchesScheduledTriggerID(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	cond := automation.Condition{
+		Condition: "trigger",
+		TriggerID: "climate_slot_2",
+	}
+	matched, err := evaluator.EvaluateConditionWithTrigger(context.Background(), cond, nil, "climate_slot_2")
+	require.NoError(t, err)
+	assert.True(t, matched)
+
+	mismatched, err := evaluator.EvaluateConditionWithTrigger(context.Background(), cond, nil, "climate_slot_1")
+	require.NoError(t, err)
+	assert.False(t, mismatched)
+}
