@@ -313,7 +313,12 @@ func (s *PredictiveService) EvaluateZone(ctx context.Context, zoneID string) (*d
 			return nil, fmt.Errorf("calculated setpoint %.1f°C is outside thermostat %q range %.1f–%.1f°C",
 				eval.CalculatedSetpoint, cfg.TRVEntityKey, minTemp, maxTemp)
 		}
-		if err := s.dispatchTRVSetpoint(ctx, cfg.TRVEntityKey, eval.CalculatedSetpoint, eval.Reason); err != nil {
+		if currentSetpoint, exists := climateEntitySetpoint(trv); exists &&
+			math.Abs(currentSetpoint-eval.CalculatedSetpoint) < 0.5 {
+			s.logger.DebugContext(ctx, "predictive climate setpoint unchanged; skipping command",
+				"trv_key", cfg.TRVEntityKey, "current_setpoint", currentSetpoint,
+				"calculated_setpoint", eval.CalculatedSetpoint)
+		} else if err := s.dispatchTRVSetpoint(ctx, cfg.TRVEntityKey, eval.CalculatedSetpoint, eval.Reason); err != nil {
 			return nil, fmt.Errorf("dispatch predictive setpoint to %q: %w", cfg.TRVEntityKey, err)
 		}
 	}
@@ -676,6 +681,25 @@ func isFahrenheit(unit, attributes string) bool {
 		}
 	}
 	return false
+}
+
+func climateEntitySetpoint(ent *entity.Entity) (float64, bool) {
+	if ent == nil {
+		return 0, false
+	}
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(ent.Attributes), &attributes); err != nil {
+		return 0, false
+	}
+	for _, key := range []string{"target_temperature", "target_temp", "temperature"} {
+		if value, ok := parseNumericAttribute(attributes[key]); ok {
+			if isFahrenheit(ent.UnitOfMeasurement, ent.Attributes) {
+				value = (value - 32) * 5 / 9
+			}
+			return value, true
+		}
+	}
+	return 0, false
 }
 
 func climateEntityTemperatureRange(ent *entity.Entity) (float64, float64) {
