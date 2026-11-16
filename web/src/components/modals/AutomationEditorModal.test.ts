@@ -332,3 +332,33 @@ it('allows the same time on disjoint weekdays in a thermostat schedule', async (
   getSpy.mockRestore()
   wrapper.unmount()
 })
+
+
+it('generates weekly Comfort Eco Night thermostat profile automations', async () => {
+  const entities = [{
+    id: 'climate-uuid',
+    entity_key: 'climate.living_room',
+    domain: 'climate',
+    name: 'Termostato soggiorno',
+    state: 'heat',
+    attributes: { current_temperature: 19, target_temperature: 20 },
+    last_changed: '',
+    last_updated: ''
+  }]
+  const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue(entities as any)
+  const wrapper = mount(AutomationEditorModal, { props: { isOpen: true } })
+
+  await wrapper.find('[data-testid="climate-program-toggle"]').trigger('click')
+  await flushPromises()
+  await wrapper.find('#profile-override-duration').setValue('90')
+  await wrapper.find('[data-testid="generate-climate-profiles"]').trigger('click')
+
+  const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
+  expect(dsl.triggers.map((trigger: any) => trigger.at)).toEqual(['07:00:00', '09:00:00', '18:00:00', '22:30:00'])
+  expect(dsl.triggers.every((trigger: any) => trigger.days.length === 7)).toBe(true)
+  expect(dsl.actions[0].choose.map((branch: any) => branch.sequence[0].profile)).toEqual(['comfort', 'eco', 'comfort', 'night'])
+  expect(dsl.actions[0].choose[0].sequence[0].duration_minutes).toBe(90)
+
+  getSpy.mockRestore()
+  wrapper.unmount()
+})
