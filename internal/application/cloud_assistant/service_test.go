@@ -575,3 +575,28 @@ func TestCloudAssistant_GoogleSyncAdvertisesDeviceSupportedThermostatModes(t *te
 	}
 	t.Fatal("thermostat was not included in Google SYNC")
 }
+
+func TestCloudAssistant_GoogleHonorsThermostatSpecificTemperatureRange(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"min_temp":16,"max_temp":25}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatTemperatureSetpoint",
+				"params": map[string]any{"thermostatTemperatureSetpoint": 26.0},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "outside-device-range",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "between 16.0 and 25.0")
+}
