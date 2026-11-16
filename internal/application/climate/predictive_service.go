@@ -520,6 +520,31 @@ func validateThermalCycleObservation(obs domclimate.ThermalCycleObservation) err
 	return nil
 }
 
+
+func (s *PredictiveService) readZoneTemperature(ctx context.Context, cfg *domclimate.PredictiveZoneConfig) (float64, error) {
+	if s.entityRepo == nil || cfg.TempSensorKey == "" {
+		return 0, errors.New("a configured room temperature sensor is required for thermal recommendations")
+	}
+	sensor, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey)
+	if err != nil {
+		return 0, fmt.Errorf("read room temperature sensor %q: %w", cfg.TempSensorKey, err)
+	}
+	if sensor.Domain != "sensor" || !sensor.Available {
+		return 0, fmt.Errorf("room temperature sensor %q must be an available sensor", cfg.TempSensorKey)
+	}
+	value, ok := parseNumericState(sensor.State)
+	if !ok {
+		return 0, fmt.Errorf("room temperature sensor %q has no valid numeric reading", cfg.TempSensorKey)
+	}
+	if isFahrenheit(sensor.UnitOfMeasurement, sensor.Attributes) {
+		value = (value - 32) * 5 / 9
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < -50 || value > 70 {
+		return 0, fmt.Errorf("room temperature sensor %q has an implausible reading", cfg.TempSensorKey)
+	}
+	return value, nil
+}
+
 // CalculateOptimalStart computes the preheating advance duration and start time to reach target temperature on schedule.
 func (s *PredictiveService) CalculateOptimalStart(
 	ctx context.Context,
@@ -538,8 +563,14 @@ func (s *PredictiveService) CalculateOptimalStart(
 	if targetTemp <= 0 {
 		targetTemp = 20.0
 	}
+	if math.IsNaN(targetTemp) || math.IsInf(targetTemp, 0) || targetTemp < 5 || targetTemp > 35 {
+		return nil, errors.New("target temperature must be between 5 and 35°C")
+	}
 	if targetTime.IsZero() {
 		targetTime = time.Now().UTC().Add(2 * time.Hour)
+	}
+	if !targetTime.After(time.Now()) {
+		return nil, errors.New("target time must be in the future")
 	}
 
 	profile, err := s.GetZoneProfile(ctx, zoneID)
@@ -547,14 +578,10 @@ func (s *PredictiveService) CalculateOptimalStart(
 		return nil, err
 	}
 
-	// Current indoor temperature
-	currentTemp := 19.0
-	if s.entityRepo != nil && cfg.TempSensorKey != "" {
-		if e, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey); err == nil {
-			if v, ok := parseNumericState(e.State); ok {
-				currentTemp = v
-			}
-		}
+	// A live room reading is essential: never produce a confident schedule from a fabricated default.
+	currentTemp, err := s.readZoneTemperature(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Outdoor temperature & solar radiation forecast
@@ -624,6 +651,9 @@ func (s *PredictiveService) CalculateCoastDown(
 	if departureTime.IsZero() {
 		departureTime = time.Now().UTC().Add(2 * time.Hour)
 	}
+	if !departureTime.After(time.Now()) {
+		return nil, errors.New("departure time must be in the future")
+	}
 
 	profile, err := s.GetZoneProfile(ctx, zoneID)
 	if err != nil {
@@ -635,13 +665,9 @@ func (s *PredictiveService) CalculateCoastDown(
 		targetTemp = 20.0
 	}
 
-	currentTemp := targetTemp
-	if s.entityRepo != nil && cfg.TempSensorKey != "" {
-		if e, err := s.entityRepo.GetByKey(ctx, cfg.TempSensorKey); err == nil {
-			if v, ok := parseNumericState(e.State); ok {
-				currentTemp = v
-			}
-		}
+	currentTemp, err := s.readZoneTemperature(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	outdoorTemp := 10.0
