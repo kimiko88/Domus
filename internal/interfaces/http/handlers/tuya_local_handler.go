@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
@@ -75,6 +76,15 @@ func (h *TuyaLocalHandler) SendCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deviceResponse, err := h.adapter.SendCommand(r.Context(), deviceID, req.Command, req.Params)
+	if errors.Is(err, tuya_local.ErrStateNotReported) {
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"success": true, "acknowledged": true, "confirmed": false,
+			"transport": "lan_local", "code": "TUYA_STATE_NOT_REPORTED",
+			"message": "Il dispositivo ha accettato il comando; l'aggiornamento dello stato non è ancora arrivato.",
+			"device_response": deviceResponse,
+		})
+		return
+	}
 	if err != nil {
 		if deviceResponse != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{
