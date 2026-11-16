@@ -204,3 +204,51 @@ func TestEvaluator_TriggerConditionMatchesScheduledTriggerID(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, mismatched)
 }
+
+func TestEvaluator_TimeConditionSupportsOvernightWindows(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	location := time.FixedZone("Europe/Rome", 1*60*60)
+
+	tests := []struct {
+		name string
+		now time.Time
+		condition automation.Condition
+		want bool
+	}{
+		{
+			name: "inside overnight window before midnight",
+			now: time.Date(2026, 11, 16, 23, 30, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00", Before: "06:00"},
+			want: true,
+		},
+		{
+			name: "inside overnight window after midnight",
+			now: time.Date(2026, 11, 17, 5, 30, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00:00", Before: "06:00:00"},
+			want: true,
+		},
+		{
+			name: "outside overnight window",
+			now: time.Date(2026, 11, 17, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00", Before: "06:00"},
+			want: false,
+		},
+		{
+			name: "inside daytime window",
+			now: time.Date(2026, 11, 16, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "08:00", Before: "18:00"},
+			want: true,
+		},
+		{
+			name: "invalid boundary fails closed",
+			now: time.Date(2026, 11, 16, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "not-a-time"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, evaluator.EvaluateTimeCondition(tt.condition, tt.now))
+		})
+	}
+}
