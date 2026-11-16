@@ -140,7 +140,8 @@ export interface AutomationTrigger {
 
 export interface AutomationCondition {
   id?: string
-  condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not'
+  condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not' | 'trigger'
+  trigger_id?: string
   entity_key?: string
   attribute?: string
   state?: string
