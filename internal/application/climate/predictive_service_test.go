@@ -2,6 +2,7 @@ package climate_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -136,10 +137,14 @@ func (m *mockClimateEntityRepo) Delete(_ context.Context, id string) error {
 }
 
 type mockEventBus struct {
-	published []events.Event
+	published  []events.Event
+	publishErr error
 }
 
 func (b *mockEventBus) Publish(ctx context.Context, event events.Event) error {
+	if b.publishErr != nil {
+		return b.publishErr
+	}
 	b.published = append(b.published, event)
 	return nil
 }
@@ -158,7 +163,17 @@ func TestPredictiveService_LifecycleAndEvaluation(t *testing.T) {
 	bus := &mockEventBus{}
 	weatherCli := appweather.NewClient()
 
-	svc := appclimate.NewPredictiveService(repo, nil, weatherCli, bus, nil)
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-studio": {
+			ID: "sensor-studio", EntityKey: "sensor.studio_temp", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"climate-studio": {
+			ID: "climate-studio", EntityKey: "climate.termostato_studio", Domain: "climate",
+			State: "auto", Available: true, Attributes: `{"min_temp":5,"max_temp":30}`,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, weatherCli, bus, nil)
 
 	// 1. Save Zone
 	zone := &domclimate.PredictiveZoneConfig{
@@ -336,4 +351,90 @@ func TestPredictiveService_DoesNotDispatchWhenConfiguredTemperatureSensorIsUnava
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "is unavailable")
 	assert.Empty(t, bus.published, "predictive control must not use a fabricated fallback temperature")
+}
+
+func TestPredictiveService_ConvertsFahrenheitSensorToCelsius(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "68", Available: true, UnitOfMeasurement: "°F",
+		},
+		"climate-room": {
+			ID: "climate-room", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true, Attributes: `{"min_temp":41,"max_temp":86}`,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "fahrenheit-zone", Name: "Room", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temperature", TargetTemperature: 21,
+		EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+	eval, err := svc.EvaluateZone(ctx, zone.ID)
+	require.NoError(t, err)
+	assert.InDelta(t, 20.0, eval.CurrentTemp, 0.01)
+	require.Len(t, bus.published, 1)
+	params := bus.published[0].Payload.(map[string]any)["params"].(map[string]any)
+	assert.InDelta(t, eval.CalculatedSetpoint, params["temperature"], 0.01)
+}
+
+func TestPredictiveService_RefusesCommandWhenConfiguredWindowSensorIsUnavailable(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"window-room": {
+			ID: "window-room", EntityKey: "binary_sensor.window", Domain: "binary_sensor",
+			State: "off", Available: false,
+		},
+		"climate-room": {
+			ID: "climate-room", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "window-zone", Name: "Room", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temperature", WindowSensorKey: "binary_sensor.window",
+		TargetTemperature: 21, EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+	_, err := svc.EvaluateZone(ctx, zone.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "window sensor")
+	assert.Empty(t, bus.published)
+}
+
+func TestPredictiveService_PropagatesCommandDispatchFailure(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{publishErr: errors.New("event bus unavailable")}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"sensor-room": {
+			ID: "sensor-room", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"climate-room": {
+			ID: "climate-room", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "dispatch-error-zone", Name: "Room", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temperature", TargetTemperature: 21,
+		EmitterType: domclimate.EmitterRadiator, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+	_, err := svc.EvaluateZone(ctx, zone.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event bus unavailable")
 }
