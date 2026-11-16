@@ -495,3 +495,37 @@ func TestPredictiveService_RejectsNonClimateTarget(t *testing.T) {
 	assert.Contains(t, err.Error(), "not a climate entity")
 	assert.Empty(t, bus.published)
 }
+
+
+func TestPredictiveService_AppliesAwaySetpointWhenPresenceIsOff(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"room-temp": {
+			ID: "room-temp", EntityKey: "sensor.room_temperature", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"presence": {
+			ID: "presence", EntityKey: "binary_sensor.room_presence", Domain: "binary_sensor",
+			State: "off", Available: true,
+		},
+		"thermostat": {
+			ID: "thermostat", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true, Attributes: `{"min_temp":5,"max_temp":30}`,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, appweather.NewClient(), bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "presence-zone", Name: "Room", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temperature", PresenceSensorKey: "binary_sensor.room_presence",
+		TargetTemperature: 21, AwayTemperature: 16.5, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+
+	eval, err := svc.EvaluateZone(ctx, zone.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "eco", eval.Mode)
+	assert.Equal(t, 16.5, eval.TargetTemp)
+	assert.Equal(t, 16.5, eval.CalculatedSetpoint)
+}
