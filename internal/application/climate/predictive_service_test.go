@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -529,3 +530,74 @@ func TestPredictiveService_AppliesAwaySetpointWhenPresenceIsOff(t *testing.T) {
 	assert.Equal(t, 16.5, eval.TargetTemp)
 	assert.Equal(t, 16.5, eval.CalculatedSetpoint)
 }
+
+
+func TestPredictiveService_UnknownWindowStateFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	bus := &mockEventBus{}
+	entities := &mockClimateEntityRepo{items: map[string]*entity.Entity{
+		"room-temp": {
+			ID: "room-temp", EntityKey: "sensor.room_temp", Domain: "sensor",
+			State: "19.5", Available: true, UnitOfMeasurement: "°C",
+		},
+		"window": {
+			ID: "window", EntityKey: "binary_sensor.window", Domain: "binary_sensor",
+			State: "unknown", Available: true,
+		},
+		"thermostat": {
+			ID: "thermostat", EntityKey: "climate.room", Domain: "climate",
+			State: "heat", Available: true, Attributes: `{"min_temp":5,"max_temp":30,"target_temperature":20}`,
+		},
+	}}
+	svc := appclimate.NewPredictiveService(repo, entities, nil, bus, nil)
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "window-unknown", Name: "Camera", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temp", WindowSensorKey: "binary_sensor.window",
+		TargetTemperature: 21, WindowAreaSqm: 2, ThermalInertiaHours: 2, Enabled: true,
+	}
+	require.NoError(t, svc.SaveZone(ctx, zone))
+
+	_, err := svc.EvaluateZone(ctx, zone.ID)
+	require.ErrorContains(t, err, "unrecognized state")
+	assert.Empty(t, bus.published, "an unknown window state must never dispatch a heating command")
+}
+
+func TestPredictiveService_RejectsInvalidThermalTrainingSamples(t *testing.T) {
+	ctx := context.Background()
+	repo := newMockPredictiveRepo()
+	zone := &domclimate.PredictiveZoneConfig{
+		ID: "training-zone", Name: "Camera", TRVEntityKey: "climate.room",
+		TempSensorKey: "sensor.room_temp", TargetTemperature: 21,
+		WindowAreaSqm: 2, ThermalInertiaHours: 2,
+	}
+	require.NoError(t, repo.Save(ctx, zone))
+	svc := appclimate.NewPredictiveService(repo, nil, nil, &mockEventBus{}, nil)
+
+	valid := domclimate.ThermalCycleObservation{
+		ZoneID: zone.ID, CycleType: "heating", StartTemp: 19, EndTemp: 20,
+		AvgOutdoorTemp: 8, SolarRadiation: 200, DurationMinutes: 60,
+		ObservedAt: time.Now().UTC(),
+	}
+	cases := []struct {
+		name string
+		edit func(*domclimate.ThermalCycleObservation)
+	}{
+		{name: "unknown cycle", edit: func(o *domclimate.ThermalCycleObservation) { o.CycleType = "idle" }},
+		{name: "too short", edit: func(o *domclimate.ThermalCycleObservation) { o.DurationMinutes = 5 }},
+		{name: "wrong direction", edit: func(o *domclimate.ThermalCycleObservation) { o.EndTemp = 18 }},
+		{name: "implausible rate", edit: func(o *domclimate.ThermalCycleObservation) { o.EndTemp = 35 }},
+		{name: "non finite reading", edit: func(o *domclimate.ThermalCycleObservation) { o.EndTemp = math.NaN() }},
+		{name: "future timestamp", edit: func(o *domclimate.ThermalCycleObservation) { o.ObservedAt = time.Now().Add(time.Hour) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			observation := valid
+			tc.edit(&observation)
+			_, err := svc.TrainFromCycle(ctx, observation)
+			require.Error(t, err)
+			assert.Empty(t, repo.profiles, "invalid observations must not create or update a learned profile")
+		})
+	}
+}
+
