@@ -124,7 +124,7 @@ func (r *PredictiveClimateRepository) List(ctx context.Context) ([]*climate.Pred
 	query := `
 		SELECT id, name, area_id, trv_entity_key, temp_sensor_key,
 		       pressure_sensor_key, humidity_sensor_key, window_sensor_key,
-		       target_temperature, orientation, window_area_sqm, emitter_type,
+		       presence_sensor_key, away_temperature, target_temperature, orientation, window_area_sqm, emitter_type,
 		       thermal_inertia_hours, preheat_enabled, solar_cutoff_enabled,
 		       pressure_boost_enabled, enabled, created_at, updated_at
 		FROM predictive_climate_zones
