@@ -32,6 +32,7 @@ type Trigger struct {
 	Above      *float64 `json:"above,omitempty"`
 	Below      *float64 `json:"below,omitempty"`
 	At         string   `json:"at,omitempty"` // "07:30:00"
+	Days       []int    `json:"days,omitempty"` // ISO weekdays: Monday=1 through Sunday=7; empty means every day
 	EventType  string   `json:"event_type,omitempty"`
 	ForSeconds int      `json:"for_seconds,omitempty"`
 }
