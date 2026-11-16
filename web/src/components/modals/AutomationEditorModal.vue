@@ -64,6 +64,7 @@ const climateEntitiesError = ref('')
 const climateSensorKey = ref('')
 const climateSensorAttribute = ref('')
 const climateTargetKey = ref('')
+const profileOverrideDuration = ref(0)
 const climateTimeSlots = ref<ClimateScheduleSlot[]>([
   { id: 'slot-1', time: '07:00', days: [1, 2, 3, 4, 5, 6, 7], threshold: 19, coldSetpoint: 21, warmSetpoint: 18 }
 ])
@@ -140,6 +141,55 @@ function removeClimateTimeSlot(id: string) {
 const orderedClimateTimeSlots = computed(() =>
   [...climateTimeSlots.value].sort((a, b) => a.time.localeCompare(b.time))
 )
+
+function buildClimateProfileProgram() {
+  validationError.value = ''
+  const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
+  if (!target || !entityKey(target)) {
+    validationError.value = 'Seleziona un termostato prima di generare i profili.'
+    return
+  }
+  const duration = Number(profileOverrideDuration.value)
+  if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
+    validationError.value = 'La durata temporanea deve essere compresa tra 0 e 1440 minuti.'
+    return
+  }
+  const profiles = [
+    { id: 'profile_morning_comfort', at: '07:00:00', profile: 'comfort' },
+    { id: 'profile_day_eco', at: '09:00:00', profile: 'eco' },
+    { id: 'profile_evening_comfort', at: '18:00:00', profile: 'comfort' },
+    { id: 'profile_night', at: '22:30:00', profile: 'night' }
+  ]
+  const dsl = {
+    triggers: profiles.map(item => ({
+      id: item.id,
+      platform: 'time',
+      at: item.at,
+      days: [1, 2, 3, 4, 5, 6, 7]
+    })),
+    conditions: [],
+    actions: [{
+      type: 'choose',
+      choose: profiles.map(item => ({
+        conditions: [{ condition: 'trigger', trigger_id: item.id }],
+        sequence: [{
+          type: 'climate_profile',
+          target_entity_key: entityKey(target),
+          profile: item.profile,
+          duration_minutes: duration
+        }]
+      }))
+    }]
+  }
+  dslJson.value = JSON.stringify(dsl, null, 2)
+  if (!name.value.trim()) name.value = 'Profili termostato ' + target.name
+  if (!description.value.trim()) {
+    description.value = 'Programmazione settimanale Comfort/Eco/Notte. Durata profilo: ' +
+      (duration === 0 ? 'fino al successivo cambio programmato' : duration + ' minuti, poi ripristino del setpoint precedente') + '.'
+  }
+  jsonValid.value = true
+  climateBuilderOpen.value = false
+}
 
 function buildClimateProgram() {
   validationError.value = ''
@@ -486,6 +536,31 @@ function handleSubmit() {
                       {{ entity.name }} · {{ entity.entity_key || entity.id }}
                     </option>
                   </select>
+                </div>
+              </div>
+
+              <div class="climate-builder">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="profile-override-duration">Durata profilo (minuti)</label>
+                    <input
+                      id="profile-override-duration"
+                      v-model.number="profileOverrideDuration"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="5"
+                    />
+                    <small>0 = resta attivo fino al prossimo cambio programmato; un valore maggiore ripristina il setpoint precedente alla scadenza.</small>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label>Profili automatici</label>
+                    <p class="builder-hint">07:00 Comfort · 09:00 Eco · 18:00 Comfort · 22:30 Notte, tutti i giorni.</p>
+                    <button type="button" class="btn-template climate-template" data-testid="generate-climate-profiles" @click="buildClimateProfileProgram">
+                      <Sparkles :size="13" />
+                      <span>Genera programma Comfort/Eco/Notte</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
