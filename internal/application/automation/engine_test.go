@@ -443,3 +443,33 @@ func TestEngine_SingleModeAllowsOnlyOneConcurrentRun(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 	}
 }
+
+func TestEngine_UnknownActionMarksRunFailed(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Invalid action must fail", Enabled: true,
+		ExecutionMode: "single",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "invalid.action.trigger"}},
+		Actions: []automation.Action{{Type: "set_temperatur"}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "invalid.action.trigger", OccurredAt: time.Now()}))
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 1)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusFailed {
+			assert.Contains(t, runs[0].Log, "unsupported automation action type")
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("invalid automation action did not mark the run as failed")
+}
