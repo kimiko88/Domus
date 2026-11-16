@@ -502,9 +502,6 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 
 func (s *Service) handleAlexaThermostatMode(ctx context.Context, dir cloud_assistant.AlexaDirective) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	if dir.Endpoint == nil { return nil, errors.New("missing endpoint in alexa directive") }
-	if err := s.requireClimateMode(ctx, dir.Endpoint.EndpointID, strings.ToLower(strings.TrimSpace(payload.ThermostatMode.Value))); err != nil {
-		return nil, err
-	}
 	var payload struct {
 		ThermostatMode struct { Value string `json:"value"` } `json:"thermostatMode"`
 	}
@@ -514,6 +511,9 @@ func (s *Service) handleAlexaThermostatMode(ctx context.Context, dir cloud_assis
 	mode := strings.ToLower(strings.TrimSpace(payload.ThermostatMode.Value))
 	switch mode { case "off", "heat", "cool", "auto": default:
 		return nil, fmt.Errorf("unsupported thermostat mode %q", payload.ThermostatMode.Value)
+	}
+	if err := s.requireClimateMode(ctx, dir.Endpoint.EndpointID, mode); err != nil {
+		return nil, err
 	}
 	if s.bus != nil {
 		if err := s.bus.Publish(ctx, events.Event{
