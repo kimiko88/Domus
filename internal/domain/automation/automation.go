@@ -26,6 +26,7 @@ type Trigger struct {
 	ID         string   `json:"id,omitempty"` // Unique trigger identifier (e.g. "movimento", "timeout")
 	Platform   string   `json:"platform"`     // "state", "numeric_state", "time", "event"
 	EntityKey  string   `json:"entity_key,omitempty"`
+	Attribute  string   `json:"attribute,omitempty"` // Optional numeric attribute, e.g. current_temperature
 	From       string   `json:"from,omitempty"`
 	To         string   `json:"to,omitempty"`
 	Above      *float64 `json:"above,omitempty"`
@@ -40,6 +41,7 @@ type Condition struct {
 	Condition  string      `json:"condition"` // "state", "numeric_state", "time", "and", "or", "not", "trigger"
 	TriggerID  string      `json:"trigger_id,omitempty"`
 	EntityKey  string      `json:"entity_key,omitempty"`
+	Attribute  string      `json:"attribute,omitempty"` // Numeric attribute to inspect, e.g. current_temperature
 	State      string      `json:"state,omitempty"`
 	Above      *float64    `json:"above,omitempty"`
 	Below      *float64    `json:"below,omitempty"`
