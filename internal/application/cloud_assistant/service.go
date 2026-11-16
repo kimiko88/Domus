@@ -156,6 +156,17 @@ func celsius(value float64, scale string) float64 {
 	return value
 }
 
+func (s *Service) requireClimateEntity(ctx context.Context, entityID string) error {
+	ent, err := s.entities.GetByID(ctx, entityID)
+	if err != nil {
+		return fmt.Errorf("resolve thermostat %q: %w", entityID, err)
+	}
+	if ent.Domain != "climate" {
+		return fmt.Errorf("entity %q is not a climate entity", entityID)
+	}
+	return nil
+}
+
 func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken string) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	allEntities, err := s.entities.List(ctx, entity.ListFilter{})
 	if err != nil {
@@ -372,6 +383,9 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 		return nil, errors.New("missing endpoint in alexa directive")
 	}
 	entID := dir.Endpoint.EndpointID
+	if err := s.requireClimateEntity(ctx, entID); err != nil {
+		return nil, err
+	}
 
 	var payload struct {
 		TargetSetpoint struct {
@@ -430,6 +444,9 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 
 func (s *Service) handleAlexaThermostatMode(ctx context.Context, dir cloud_assistant.AlexaDirective) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	if dir.Endpoint == nil { return nil, errors.New("missing endpoint in alexa directive") }
+	if err := s.requireClimateEntity(ctx, dir.Endpoint.EndpointID); err != nil {
+		return nil, err
+	}
 	var payload struct {
 		ThermostatMode struct { Value string `json:"value"` } `json:"thermostatMode"`
 	}
@@ -773,6 +790,11 @@ func (s *Service) handleGoogleExecute(ctx context.Context, reqID string, payload
 				if mode != "off" && mode != "heat" && mode != "cool" && mode != "auto" {
 					return nil, fmt.Errorf("unsupported thermostat mode %q", mode)
 				}
+				for _, id := range targetIDs {
+					if err := s.requireClimateEntity(ctx, id); err != nil {
+						return nil, err
+					}
+				}
 				states["thermostatMode"] = mode
 				for _, id := range targetIDs {
 					if s.bus != nil {
@@ -787,7 +809,15 @@ func (s *Service) handleGoogleExecute(ctx context.Context, reqID string, payload
 				}
 
 			case "action.devices.commands.ThermostatTemperatureSetpoint":
-				temp, _ := exec.Params["thermostatTemperatureSetpoint"].(float64)
+				temp, ok := exec.Params["thermostatTemperatureSetpoint"].(float64)
+				if !ok || temp < 5 || temp > 35 {
+					return nil, errors.New("thermostat setpoint must be between 5 and 35 °C")
+				}
+				for _, id := range targetIDs {
+					if err := s.requireClimateEntity(ctx, id); err != nil {
+						return nil, err
+					}
+				}
 				states["thermostatTemperatureSetpoint"] = temp
 
 				for _, id := range targetIDs {
