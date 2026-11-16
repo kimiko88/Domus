@@ -45,6 +45,16 @@ const trainEndTemp = ref(20.5)
 const trainDurationMin = ref(60)
 const trainLoading = ref(false)
 const trainSuccessMsg = ref('')
+const trainingSampleValid = computed(() => {
+  const start = Number(trainStartTemp.value)
+  const end = Number(trainEndTemp.value)
+  const duration = Number(trainDurationMin.value)
+  const delta = end - start
+  const maxRate = trainCycleType.value === 'heating' ? 8 : 3
+  return Number.isFinite(start) && Number.isFinite(end) && start >= -20 && start <= 50 && end >= -20 && end <= 50 &&
+    Number.isInteger(duration) && duration >= 15 && duration <= 720 &&
+    (trainCycleType.value === 'heating' ? delta > 0 : delta < 0) && Math.abs(delta) / (duration / 60) <= maxRate
+})
 
 // Form fields
 const formName = ref('')
@@ -94,7 +104,7 @@ function formatEvaluationTime(value?: string): string {
 onMounted(async () => {
   await Promise.all([
     store.fetchStatus(),
-    apiClient.get<Entity[]>('/api/v1/entities').then(items => { availableEntities.value = items || [] }).catch(() => {
+    Promise.resolve().then(() => apiClient.get<Entity[]>('/api/v1/entities')).then(items => { availableEntities.value = items || [] }).catch(() => {
       entityLoadError.value = 'Elenco dispositivi non disponibile: puoi comunque inserire manualmente gli ID delle entità.'
     })
   ])
@@ -160,6 +170,11 @@ async function handleCalculateCoastDown() {
 
 async function handleTrainCycle() {
   if (!selectedProfileZone.value?.id) return
+  profileError.value = ''
+  if (!trainingSampleValid.value) {
+    profileError.value = 'Campione non plausibile: verifica direzione della variazione, temperature e durata (15–720 minuti).'
+    return
+  }
   trainLoading.value = true
   trainSuccessMsg.value = ''
   try {
@@ -175,6 +190,7 @@ async function handleTrainCycle() {
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
   } catch (err: any) {
+    profileError.value = err?.message || 'Non è stato possibile aggiornare il modello termico.'
     console.error('Error training cycle', err)
   } finally {
     trainLoading.value = false
@@ -975,24 +991,24 @@ function getEmitterLabel(emitter: EmitterType): string {
 
               <div class="form-group">
                 <label for="train-start">{{ t('predictiveClimate.view.startTemperature') }} (°C)</label>
-                <input id="train-start" v-model.number="trainStartTemp" type="number" step="0.1" class="form-control form-control-sm" />
+                <input id="train-start" v-model.number="trainStartTemp" type="number" min="-20" max="50" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
                 <label for="train-end">{{ t('predictiveClimate.view.endTemperature') }} (°C)</label>
-                <input id="train-end" v-model.number="trainEndTemp" type="number" step="0.1" class="form-control form-control-sm" />
+                <input id="train-end" v-model.number="trainEndTemp" type="number" min="-20" max="50" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
                 <label for="train-dur">{{ t('predictiveClimate.view.duration') }} ({{ t('predictiveClimate.view.minutes') }})</label>
-                <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" step="5" class="form-control form-control-sm" />
+                <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" max="720" step="5" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group training-btn-group">
                 <button
                   type="button"
                   class="btn btn-sm btn-primary"
-                  :disabled="trainLoading"
+                  :disabled="trainLoading || !trainingSampleValid"
                   @click="handleTrainCycle"
                 >
                   {{ trainLoading ? 'Calcolo...' : '🚀 Registra Ciclo' }}
@@ -1000,7 +1016,8 @@ function getEmitterLabel(emitter: EmitterType): string {
               </div>
             </div>
 
-            <div v-if="trainSuccessMsg" class="train-alert-success" role="alert">
+            <p class="section-subtext">Per il riscaldamento la temperatura finale deve essere maggiore; per il raffreddamento deve essere minore. Sono accettati cicli da 15 a 720 minuti.</p>
+            <div v-if="trainSuccessMsg" class="train-alert-success" role="status">
               {{ trainSuccessMsg }}
             </div>
           </section>
