@@ -167,6 +167,69 @@ func (s *Service) requireClimateEntity(ctx context.Context, entityID string) err
 	return nil
 }
 
+func climateModeValues(attrs map[string]any) []string {
+	allowed := map[string]bool{"off": true, "heat": true, "cool": true, "auto": true}
+	var candidates []string
+	switch values := attrs["hvac_modes"].(type) {
+	case []string:
+		candidates = append(candidates, values...)
+	case []any:
+		for _, value := range values {
+			if mode, ok := value.(string); ok {
+				candidates = append(candidates, mode)
+			}
+		}
+	case string:
+		candidates = strings.Split(values, ",")
+	}
+	modes := make([]string, 0, len(candidates))
+	seen := make(map[string]bool)
+	for _, candidate := range candidates {
+		mode := strings.ToLower(strings.TrimSpace(candidate))
+		switch mode {
+		case "heating":
+			mode = "heat"
+		case "cooling":
+			mode = "cool"
+		case "automatic":
+			mode = "auto"
+		}
+		if allowed[mode] && !seen[mode] {
+			modes = append(modes, mode)
+			seen[mode] = true
+		}
+	}
+	if len(modes) == 0 {
+		return []string{"off", "heat", "cool", "auto"}
+	}
+	return modes
+}
+
+func alexaClimateModes(attrs map[string]any) []map[string]string {
+	modes := climateModeValues(attrs)
+	result := make([]map[string]string, 0, len(modes))
+	for _, mode := range modes {
+		result = append(result, map[string]string{"value": strings.ToUpper(mode)})
+	}
+	return result
+}
+
+func (s *Service) requireClimateMode(ctx context.Context, entityID, mode string) error {
+	ent, err := s.entities.GetByID(ctx, entityID)
+	if err != nil {
+		return fmt.Errorf("resolve thermostat %q: %w", entityID, err)
+	}
+	if ent.Domain != "climate" {
+		return fmt.Errorf("entity %q is not a climate entity", entityID)
+	}
+	for _, supported := range climateModeValues(parseEntityAttributes(ent)) {
+		if supported == mode {
+			return nil
+		}
+	}
+	return fmt.Errorf("thermostat %q does not support mode %q", entityID, mode)
+}
+
 func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken string) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	allEntities, err := s.entities.List(ctx, entity.ListFilter{})
 	if err != nil {
@@ -234,12 +297,7 @@ func (s *Service) handleAlexaDiscovery(ctx context.Context, correlationToken str
 					},
 					Configuration: map[string]any{
 						"supportsScheduling": false,
-						"supportedModes": []map[string]string{
-							{"value": "AUTO"},
-							{"value": "HEAT"},
-							{"value": "COOL"},
-							{"value": "OFF"},
-						},
+						"supportedModes": alexaClimateModes(parseEntityAttributes(ent)),
 					},
 				},
 				cloud_assistant.AlexaCapability{
@@ -444,7 +502,7 @@ func (s *Service) handleAlexaThermostat(ctx context.Context, dir cloud_assistant
 
 func (s *Service) handleAlexaThermostatMode(ctx context.Context, dir cloud_assistant.AlexaDirective) (*cloud_assistant.AlexaResponseEnvelope, error) {
 	if dir.Endpoint == nil { return nil, errors.New("missing endpoint in alexa directive") }
-	if err := s.requireClimateEntity(ctx, dir.Endpoint.EndpointID); err != nil {
+	if err := s.requireClimateMode(ctx, dir.Endpoint.EndpointID, strings.ToLower(strings.TrimSpace(payload.ThermostatMode.Value))); err != nil {
 		return nil, err
 	}
 	var payload struct {
@@ -610,7 +668,7 @@ func (s *Service) handleGoogleSync(ctx context.Context, reqID string) (*cloud_as
 		if ent.Domain == "climate" {
 			attributes = map[string]any{
 				"thermostatTemperatureUnit": "C",
-				"availableThermostatModes": []string{"off", "heat", "cool", "auto"},
+				"availableThermostatModes": climateModeValues(parseEntityAttributes(ent)),
 				"thermostatTemperatureRange": map[string]any{
 					"minThresholdCelsius": 5,
 					"maxThresholdCelsius": 35,
@@ -791,7 +849,7 @@ func (s *Service) handleGoogleExecute(ctx context.Context, reqID string, payload
 					return nil, fmt.Errorf("unsupported thermostat mode %q", mode)
 				}
 				for _, id := range targetIDs {
-					if err := s.requireClimateEntity(ctx, id); err != nil {
+					if err := s.requireClimateMode(ctx, id, mode); err != nil {
 						return nil, err
 					}
 				}
