@@ -317,7 +317,7 @@ it('allows the same time on disjoint weekdays in a thermostat schedule', async (
   await wrapper.findAll('input[name="climate-time"]')[1].setValue('07:00')
 
   const weekdayCheckboxes = wrapper.findAll('.climate-weekday input')
-  for (const checkbox of weekdayCheckboxes.slice(7, 12)) {
+  for (const checkbox of [...weekdayCheckboxes.slice(5, 7), ...weekdayCheckboxes.slice(7, 12)]) {
     await checkbox.setValue(false)
   }
   await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
@@ -325,7 +325,7 @@ it('allows the same time on disjoint weekdays in a thermostat schedule', async (
   expect(wrapper.text()).not.toContain('è duplicato')
   const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
   expect(dsl.triggers[0].at).toBe('07:00:00')
-  expect(dsl.triggers[0].days).toEqual([1, 2, 3, 4, 5, 6, 7])
+  expect(dsl.triggers[0].days).toEqual([1, 2, 3, 4, 5])
   expect(dsl.triggers[1].at).toBe('07:00:00')
   expect(dsl.triggers[1].days).toEqual([6, 7])
 
