@@ -1059,6 +1059,8 @@ export interface PredictiveZoneConfig {
   pressure_sensor_key?: string
   humidity_sensor_key?: string
   window_sensor_key?: string
+  presence_sensor_key?: string
+  away_temperature?: number
   target_temperature: number
   orientation: RoomOrientation
   window_area_sqm: number
