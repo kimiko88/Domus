@@ -402,3 +402,44 @@ func TestEngine_DailyTimeTriggerDispatchesThermostatSetpoint(t *testing.T) {
 	}
 	t.Fatal("scheduled thermostat automation did not complete")
 }
+
+func TestEngine_SingleModeAllowsOnlyOneConcurrentRun(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Single execution guard", Enabled: true,
+		ExecutionMode: "single",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "single.guard"}},
+		Actions: []automation.Action{
+			{Type: "delay", DelayMs: 250},
+			{Type: "event", EventType: "single.guard.completed"},
+		},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	completed := make(chan struct{}, 16)
+	unsub := bus.Subscribe("single.guard.completed", func(_ context.Context, _ events.Event) error {
+		completed <- struct{}{}
+		return nil
+	})
+	defer unsub()
+	require.NoError(t, engine.Start(ctx))
+
+	for i := 0; i < 12; i++ {
+		require.NoError(t, bus.Publish(ctx, events.Event{Type: "single.guard", OccurredAt: time.Now()}))
+	}
+	select {
+	case <-completed:
+	case <-ctx.Done():
+		t.Fatal("single automation did not complete")
+	}
+	select {
+	case <-completed:
+		t.Fatal("single execution mode ran more than once concurrently")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
