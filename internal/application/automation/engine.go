@@ -643,12 +643,16 @@ func (e *Engine) executeAction(
 }
 
 func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *automation.AutomationRun, errMsg string) {
+	// Cancellation should stop device actions, but must not prevent the terminal
+	// run state from being persisted.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
 	finished := time.Now().UTC()
 	run.Fail(finished, errMsg)
-	_ = e.autoRepo.UpdateRun(ctx, run)
-	_ = e.autoRepo.UpdateLastRun(ctx, rule.ID, automation.RunStatusFailed)
+	_ = e.autoRepo.UpdateRun(persistCtx, run)
+	_ = e.autoRepo.UpdateLastRun(persistCtx, rule.ID, automation.RunStatusFailed)
 
-	_ = e.bus.Publish(ctx, events.Event{
+	_ = e.bus.Publish(persistCtx, events.Event{
 		ID:         uuid.NewString(),
 		Type:       events.AutomationRunFailed,
 		OccurredAt: finished,
