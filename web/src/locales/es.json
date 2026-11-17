@@ -397,6 +397,7 @@
       "noLeaksTitle": "No se detectaron fugas",
       "noLeaksDesc": "Todos los dispositivos IoT supervisados cumplen las normas y funcionan estrictamente sin conexión dentro de la red local.",
       "unlock": "Desbloquear",
+      "unblock": "Quitar bloqueo",
       "quarantine": "Poner en cuarentena",
       "hostMapTitle": "Mapa de hosts detectados en LAN (OUI y huella de puertos)",
       "arpCacheEmpty": "No hay hosts en la caché ARP. Haz clic en «Escanear ARP» para detectar nodos.",
@@ -463,7 +464,13 @@
       "filterUnselected": "No seleccionados ({count})",
       "clientId": "ID de cliente:",
       "smartLifeUidLabel": "UID de Smart Life:",
-      "endpointLabel": "Punto de conexión:"
+      "endpointLabel": "Punto de conexión:",
+      "messages": {
+        "tuyaConnectedTitle": "Smart Life conectado",
+        "deviceOfflineDesc": "El dispositivo está desconectado. Comprueba la alimentación y la conexión a la red local.",
+        "arpScanCompleteDesc": "Análisis ARP completado. Dispositivos encontrados: {count}.",
+        "deviceUnblockedTitle": "Dispositivo desbloqueado"
+      }
     }
   },
   "history": {

@@ -397,6 +397,7 @@
       "noLeaksTitle": "No leaks detected",
       "noLeaksDesc": "All monitored IoT devices are compliant and operate strictly offline within the local network.",
       "unlock": "Unlock",
+      "unblock": "Unblock",
       "quarantine": "Quarantine",
       "hostMapTitle": "Detected LAN host map (OUI & port fingerprint)",
       "arpCacheEmpty": "No hosts are recorded in the ARP cache. Click “Scan ARP” to discover nodes.",
@@ -463,7 +464,13 @@
       "filterUnselected": "Not selected ({count})",
       "clientId": "Client ID:",
       "smartLifeUidLabel": "Smart Life UID:",
-      "endpointLabel": "Endpoint:"
+      "endpointLabel": "Endpoint:",
+      "messages": {
+        "tuyaConnectedTitle": "Smart Life connected",
+        "deviceOfflineDesc": "The device is offline. Check its power and local network connection.",
+        "arpScanCompleteDesc": "ARP scan completed. Found {count} devices.",
+        "deviceUnblockedTitle": "Device unblocked"
+      }
     }
   },
   "history": {

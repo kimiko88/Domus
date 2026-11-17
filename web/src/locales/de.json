@@ -397,6 +397,7 @@
       "noLeaksTitle": "Keine Leaks erkannt",
       "noLeaksDesc": "Alle überwachten IoT-Geräte sind konform und arbeiten ausschließlich offline im lokalen Netzwerk.",
       "unlock": "Entsperren",
+      "unblock": "Sperre aufheben",
       "quarantine": "In Quarantäne verschieben",
       "hostMapTitle": "Karte erkannter LAN-Hosts (OUI und Port-Fingerabdruck)",
       "arpCacheEmpty": "Keine Hosts im ARP-Cache. Klicke auf „ARP-Scan“, um Knoten zu erkennen.",
@@ -457,13 +458,19 @@
       "iot": "IoT-Geräte",
       "unlockButton": "Entsperren",
       "filterAll": "Alle ({count})",
-      "filterOnline": "Online ({count})",
-      "filterOffline": "Offline ({count})",
+      "filterOnline": "Verbunden ({count})",
+      "filterOffline": "Nicht verbunden ({count})",
       "filterSelected": "Ausgewählt ({count})",
       "filterUnselected": "Nicht ausgewählt ({count})",
       "clientId": "Client-ID:",
       "smartLifeUidLabel": "Smart-Life-UID:",
-      "endpointLabel": "Endpunkt:"
+      "endpointLabel": "Endpunkt:",
+      "messages": {
+        "tuyaConnectedTitle": "Smart Life verbunden",
+        "deviceOfflineDesc": "Das Gerät ist offline. Prüfe die Stromversorgung und die lokale Netzwerkverbindung.",
+        "arpScanCompleteDesc": "ARP-Scan abgeschlossen. Gefundene Geräte: {count}.",
+        "deviceUnblockedTitle": "Gerätesperre aufgehoben"
+      }
     }
   },
   "history": {
