@@ -248,6 +248,10 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
     defaultData.delay_seconds = 5
   } else if (subType === 'notify') {
     defaultData.message = 'Avviso da Domus Hub: evento rilevato.'
+  } else if (type === 'condition' && subType === 'state') {
+    defaultData.state = 'on'
+  } else if (type === 'condition' && subType === 'logic') {
+    defaultData.logic = 'and'
   }
 
   const newNode: FlowNode = {
@@ -547,7 +551,7 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       if (node.subType === 'state') {
         cond.entity_key = node.data.entity_key
-        cond.state = node.data.state
+        cond.state = node.data.state || 'on'
       } else if (node.subType === 'time') {
         cond.after = node.data.after
         cond.before = node.data.before
@@ -584,9 +588,9 @@ function compileGraphToAutomation(): Partial<Automation> {
     enabled: automationEnabled.value,
     execution_mode: executionMode.value,
     cooldown_seconds: cooldownSeconds.value,
-    triggers: triggers.length > 0 ? triggers : [{ platform: 'state', entity_key: 'light.salotto', to: 'on' }],
-    conditions: conditions.length > 0 ? conditions : undefined,
-    actions: actions.length > 0 ? actions : [{ type: 'service', service: 'turn_on', target_entity_key: 'light.salotto' }]
+    triggers,
+    conditions,
+    actions
   }
 }
 
