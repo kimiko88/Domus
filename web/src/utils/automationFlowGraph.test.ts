@@ -48,7 +48,7 @@ describe('buildAutomationActionGraph', () => {
       expect.objectContaining({ branchKey: 'repeat:while' }),
       expect.objectContaining({ branchKey: 'sequence' })
     ]))
-    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
+    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(1)
     expect(graph.nodes.some((node) => node.type === 'delay')).toBe(true)
 
     const untilGraph = buildAutomationActionGraph([{
