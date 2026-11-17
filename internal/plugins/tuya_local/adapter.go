@@ -288,9 +288,14 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 		initialState := cfg.InitialState
 		if initialState == "" {
 			initialState = `{"state":false}`
+		} else if !json.Valid([]byte(initialState)) {
+			// Cloud inference supplies a plain state value (e.g. "heat"); Domus
+			// stores entity state as a JSON object.
+			stateJSON, _ := json.Marshal(map[string]any{"state": initialState})
+			initialState = string(stateJSON)
 		}
 		initialAttributes := cfg.InitialAttributes
-		if initialAttributes == "" {
+		if initialAttributes == "" || !json.Valid([]byte(initialAttributes)) {
 			initialAttributes = `{}`
 		}
 		if existingEnt == nil {
