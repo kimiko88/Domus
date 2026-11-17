@@ -5,12 +5,24 @@ import AutomationsView from './AutomationsView.vue'
 import { useAutomationsStore } from '../stores/automations'
 import type { Automation } from '../api/types'
 
+const routerMocks = vi.hoisted(() => ({
+  route: { query: {} as Record<string, string> },
+  router: { replace: vi.fn() }
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routerMocks.route,
+  useRouter: () => routerMocks.router
+}))
+
 describe('AutomationsView.vue', () => {
   let automationsStore: ReturnType<typeof useAutomationsStore>
 
   beforeEach(() => {
     setActivePinia(createPinia())
     automationsStore = useAutomationsStore()
+    routerMocks.route.query = {}
+    routerMocks.router.replace.mockReset()
   })
 
   it('renders automations list and controls', async () => {
@@ -111,6 +123,21 @@ describe('AutomationsView.vue', () => {
     expect(wrapper.findComponent({ name: 'AutomationEditorModal' }).props('isOpen')).toBe(true)
   })
 
+  it('opens the sensor thermostat builder for the selected scheduled device', async () => {
+    routerMocks.route.query = { climateProgram: '1', target: 'climate.tuya_hallway' }
+    const wrapper = mount(AutomationsView)
+    await wrapper.vm.$nextTick()
+
+    const editor = wrapper.findComponent({ name: 'AutomationEditorModal' })
+    expect(editor.props('isOpen')).toBe(true)
+    expect(editor.props('openClimateBuilder')).toBe(true)
+    expect(editor.props('initialClimateTarget')).toBe('climate.tuya_hallway')
+
+    editor.vm.$emit('close')
+    await wrapper.vm.$nextTick()
+    expect(routerMocks.router.replace).toHaveBeenCalledWith({ query: {} })
+  })
+
   it('opens runs history modal when view-runs event is emitted from card', async () => {
     const mockAutomations: Automation[] = [
       {
@@ -138,3 +165,4 @@ describe('AutomationsView.vue', () => {
     expect(wrapper.findComponent({ name: 'AutomationRunsModal' }).props('isOpen')).toBe(true)
   })
 })
+

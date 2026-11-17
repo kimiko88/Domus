@@ -148,6 +148,31 @@ it('generates a daily thermostat rule from a temperature sensor', async () => {
   wrapper.unmount()
 })
 
+it('opens the guided sensor program for the thermostat passed from schedules', async () => {
+  const entities = [
+    {
+      id: 'sensor-uuid', entity_key: 'sensor.bedroom_temperature', domain: 'sensor', name: 'Sensore camera', state: '18.5',
+      attributes: { device_class: 'temperature', unit_of_measurement: '°C' }, last_changed: '', last_updated: ''
+    },
+    {
+      id: 'climate-tuya', entity_key: 'climate.tuya_hallway', domain: 'climate', name: 'Termostato Tuya ingresso', state: 'on',
+      attributes: { target_temperature: 20, current_temperature: 19 }, last_changed: '', last_updated: ''
+    }
+  ]
+  const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue(entities as any)
+  const wrapper = mount(AutomationEditorModal, {
+    props: { isOpen: true, openClimateBuilder: true, initialClimateTarget: 'climate.tuya_hallway' }
+  })
+  await flushPromises()
+
+  expect(wrapper.find('[data-testid="climate-program-toggle"]').exists()).toBe(true)
+  expect((wrapper.find('select[name="climate-sensor"]').element as HTMLSelectElement).value).toBe('sensor.bedroom_temperature')
+  expect((wrapper.find('select[name="climate-thermostat"]').element as HTMLSelectElement).value).toBe('climate.tuya_hallway')
+
+  getSpy.mockRestore()
+  wrapper.unmount()
+})
+
 
 it('supports multiple daily thermostat schedule slots using the same live temperature sensor', async () => {
   const entities = [
@@ -362,3 +387,4 @@ it('generates weekly Comfort Eco Night thermostat profile automations', async ()
   getSpy.mockRestore()
   wrapper.unmount()
 })
+

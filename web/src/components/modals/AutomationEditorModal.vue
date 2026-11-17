@@ -9,11 +9,15 @@ import { X, Zap, AlertCircle, CheckCircle, Code2, Sparkles, Plus, Trash2 } from 
 interface Props {
   isOpen: boolean
   automation?: Automation | null
+  openClimateBuilder?: boolean
+  initialClimateTarget?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isOpen: false,
-  automation: null
+  automation: null,
+  openClimateBuilder: false,
+  initialClimateTarget: ''
 })
 
 const emit = defineEmits<{
@@ -91,10 +95,8 @@ const temperatureSources = computed(() => climateEntities.value.filter(entity =>
 }))
 const climateTargets = computed(() => climateEntities.value.filter(entity => entity.domain === 'climate'))
 
-async function toggleClimateBuilder() {
-  climateBuilderOpen.value = !climateBuilderOpen.value
-  if (!climateBuilderOpen.value || climateEntities.value.length || climateEntitiesLoading.value) return
-
+async function loadClimateEntities() {
+  if (climateEntities.value.length || climateEntitiesLoading.value) return
   climateEntitiesLoading.value = true
   climateEntitiesError.value = ''
   try {
@@ -103,8 +105,10 @@ async function toggleClimateBuilder() {
       const firstSource = temperatureSources.value[0]
       if (firstSource) climateSensorKey.value = entityKey(firstSource)
     }
-    if (!climateTargetKey.value && climateTargets.value[0]) {
-      climateTargetKey.value = entityKey(climateTargets.value[0])
+    const requestedTarget = climateTargets.value.find(entity => entityKey(entity) === props.initialClimateTarget)
+    const initialTarget = requestedTarget ?? climateTargets.value[0]
+    if (!climateTargetKey.value && initialTarget) {
+      climateTargetKey.value = entityKey(initialTarget)
     }
   } catch (err: any) {
     climateEntitiesError.value = err?.message || 'Impossibile caricare i dispositivi.'
@@ -112,6 +116,18 @@ async function toggleClimateBuilder() {
     climateEntitiesLoading.value = false
   }
 }
+
+async function toggleClimateBuilder() {
+  climateBuilderOpen.value = !climateBuilderOpen.value
+  if (climateBuilderOpen.value) await loadClimateEntities()
+}
+
+watch(() => [props.isOpen, props.openClimateBuilder] as const, ([isOpen, openBuilder]) => {
+  if (isOpen && openBuilder) {
+    climateBuilderOpen.value = true
+    void loadClimateEntities()
+  }
+}, { immediate: true })
 
 watch(climateSensorKey, key => {
   const source = temperatureSources.value.find(entity => entityKey(entity) === key)
@@ -1046,3 +1062,4 @@ input:focus, select:focus {
 }
 
 </style>
+

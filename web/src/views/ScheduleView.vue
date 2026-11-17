@@ -209,6 +209,30 @@ function openAddSlot(dayKey: string) {
 function saveSlot() {
   if (!selectedSchedule.value) return
   const sched = selectedSchedule.value
+  const toMinutes = (time: string) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(time)
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null
+  }
+  const start = toMinutes(newSlotForm.value.start)
+  const end = toMinutes(newSlotForm.value.end)
+  if (start === null || end === null || start >= end) {
+    notifStore.error('Orario non valido', 'L’orario di fine deve essere successivo all’inizio nella stessa giornata.')
+    return
+  }
+  if (!Number.isFinite(newSlotForm.value.value) || newSlotForm.value.value < setpointMin.value || newSlotForm.value.value > setpointMax.value) {
+    notifStore.error('Setpoint non valido', `Inserisci una temperatura tra ${setpointMin.value} e ${setpointMax.value} °C.`)
+    return
+  }
+  const existingSlots = sched.grid[targetSlotDay.value] || []
+  const overlaps = existingSlots.some(slot => {
+    const slotStart = toMinutes(slot.start)
+    const slotEnd = toMinutes(slot.end)
+    return slotStart !== null && slotEnd !== null && start < slotEnd && slotStart < end
+  })
+  if (overlaps) {
+    notifStore.error('Fasce sovrapposte', 'Modifica l’orario: questa fascia si sovrappone a una già presente nel giorno selezionato.')
+    return
+  }
   if (!sched.grid[targetSlotDay.value]) {
     sched.grid[targetSlotDay.value] = []
   }
@@ -608,6 +632,14 @@ onMounted(async () => {
               <Sparkles :size="14" />
               <span>{{ t('schedules.view.winterWorkProfile') }}</span>
             </button>
+            <router-link
+              class="btn-profile-preset"
+              :to="{ path: '/automations', query: { climateProgram: '1', target: selectedSchedule.entity_key } }"
+              data-testid="sensor-automation-link"
+            >
+              <Sparkles :size="14" />
+              <span>{{ t('schedules.view.externalSensorAutomation') }}</span>
+            </router-link>
             <button class="btn-profile-preset" @click="copyMondayToWorkdays" :title="t('schedules.view.copyMondayToFriday')">
               <Copy :size="14" />
               <span>{{ t('schedules.view.copyMondayToFriday') }}</span>
@@ -735,9 +767,9 @@ onMounted(async () => {
               id="slot-temp"
               v-model.number="newSlotForm.value"
               type="number"
-              step="0.5"
-              min="14"
-              max="28"
+              step="0.1"
+              :min="setpointMin"
+              :max="setpointMax"
               required
             />
           </div>
@@ -1554,3 +1586,4 @@ onMounted(async () => {
 }
 
 </style>
+

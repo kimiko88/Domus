@@ -1338,6 +1338,7 @@
       "sendingCommand": "Envoi de la commande…",
       "adjustThermostatNow": "Régler le thermostat maintenant",
       "weeklyProgrammer": "Programmateur hebdomadaire",
+      "externalSensorAutomation": "Créer une automatisation du thermostat basée sur un capteur",
       "controlledEntity": "Entité contrôlée :",
       "profile": "Profil :",
       "newProfile": "Nouveau profil",
@@ -2117,3 +2118,4 @@
     }
   }
 }
+
