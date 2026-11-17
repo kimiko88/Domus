@@ -362,7 +362,7 @@ function compileActionSequence(
         result.push(action)
       }
     } else if (node.type === 'delay') {
-      result.push({ type: 'delay', delay_ms: Math.max(0, Math.round((Number.isFinite(Number(node.data.delay_seconds)) ? Number(node.data.delay_seconds) : 5) * 1000)) })
+      result.push({ ...(node.data.originalAction || {}), type: 'delay', delay_ms: Math.max(0, Math.round((Number.isFinite(Number(node.data.delay_seconds)) ? Number(node.data.delay_seconds) : 5) * 1000)) })
     } else {
       throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
     }
