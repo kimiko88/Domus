@@ -175,3 +175,16 @@ func TestSimulator_TimeConditionAcrossMidnight(t *testing.T) {
 		})
 	}
 }
+
+
+func TestSimulator_EmptyLogicalGroupsFailClosed(t *testing.T) {
+	sim := NewSimulator(nil, nil)
+	for _, kind := range []string{"and", "or", "not"} {
+		t.Run(kind, func(t *testing.T) {
+			trace := sim.evaluateCondition(context.Background(), domauto.Condition{Condition: kind}, time.Now())
+			if trace.Passed {
+				t.Fatalf("empty %s condition must fail closed", kind)
+			}
+		})
+	}
+}
