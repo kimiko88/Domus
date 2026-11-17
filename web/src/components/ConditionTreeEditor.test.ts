@@ -117,4 +117,20 @@ describe('ConditionTreeEditor', () => {
     expect(wrapper.text()).toContain('vendor_field')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
+  it('preserves all children when converting a multi-condition group to NOT', async () => {
+    const conditions: AutomationCondition[] = [
+      { condition: 'state', entity_key: 'binary_sensor.motion', state: 'on' },
+      { condition: 'time', after: '20:00:00' }
+    ]
+    const wrapper = mount(ConditionTreeEditor, {
+      props: { modelValue: { condition: 'and', conditions }, entities: [] }
+    })
+
+    await wrapper.get('[data-test="condition-type"]').setValue('not')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toEqual({
+      condition: 'not',
+      conditions: [{ condition: 'and', conditions }]
+    })
+  })
+
 })
