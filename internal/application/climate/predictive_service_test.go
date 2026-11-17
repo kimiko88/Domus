@@ -319,7 +319,9 @@ func TestPredictiveService_ThermalProfileAndOptimalStartStop(t *testing.T) {
 		t.Errorf("expected non-empty reason")
 	}
 
-	// 4. Optimal Coast-Down (departure time in 4 hours)
+	// 4. Optimal Coast-Down (departure time in 4 hours).
+	// Coast-down is only recommended when the room is already at comfort temperature.
+	entities.items["sensor-camera"].State = "21.0"
 	departureTime := time.Now().UTC().Add(4 * time.Hour)
 	coastRec, err := svc.CalculateCoastDown(ctx, "zone_floor_test", departureTime)
 	if err != nil {
