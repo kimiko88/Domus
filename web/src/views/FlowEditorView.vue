@@ -355,7 +355,7 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
     if (subType === 'climate_profile') return 'Profilo termostato'
     if (subType === 'event') return 'Pubblica evento'
   } else if (type === 'delay') {
-    return `Attesa ${data.delay_seconds || 5}s`
+    return `Attesa ${data.delay_seconds ?? 5}s`
   }
   return 'Configura proprietà'
 }
