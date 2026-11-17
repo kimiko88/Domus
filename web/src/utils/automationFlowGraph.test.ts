@@ -27,7 +27,7 @@ describe('buildAutomationActionGraph', () => {
       expect.objectContaining({ fromNodeId: 'act_root_0', branchKey: 'else' })
     ]))
     expect(graph.nodes.some((node) => node.subType === 'logic')).toBe(false)
-    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(1)
+    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
     expect(graph.nodes.some((node) => node.subType === 'choose')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0:conditions')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0')).toBe(true)
@@ -48,7 +48,7 @@ describe('buildAutomationActionGraph', () => {
       expect.objectContaining({ branchKey: 'repeat:while' }),
       expect.objectContaining({ branchKey: 'sequence' })
     ]))
-    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
+    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(1)
     expect(graph.nodes.some((node) => node.type === 'delay')).toBe(true)
 
     const untilGraph = buildAutomationActionGraph([{
@@ -93,6 +93,7 @@ describe('buildAutomationActionGraph', () => {
     const actionNode = graph.nodes.find((node) => node.subType === 'if')
 
     expect(logicNode?.data.originalCondition).toEqual(condition)
+    expect(logicNode?.data.logicCondition).toEqual(condition)
     expect(JSON.parse(logicNode?.data.advancedConditionJson)).toEqual(condition)
     expect(JSON.parse(actionNode?.data.advancedJson)).toEqual(action)
   })
@@ -192,6 +193,37 @@ describe('buildAutomationActionGraph', () => {
       branchKey: 'then'
     }]
     expect(() => applyAutomationActionBranches(rootNode, compiled, graph.nodes, multiple)).toThrow('più collegamenti')
+  })
+
+  it('compiles edited typed logical condition models instead of stale JSON snapshots', () => {
+    const source = {
+      type: 'if',
+      if: [{
+        condition: 'and',
+        conditions: [
+          { condition: 'state', entity_key: 'binary_sensor.motion', state: 'on' },
+          { condition: 'time', after: '20:00:00' }
+        ]
+      }],
+      then: [{ type: 'service', service: 'turn_on', target_entity_key: 'light.hall' }]
+    }
+    const graph = buildAutomationActionGraph([source] as any)
+    const rootNode = graph.nodes.find((node) => node.id === 'act_root_0')!
+    const groupNode = graph.nodes.find((node) => node.subType === 'logic')!
+    const editedCondition = {
+      ...(groupNode.data.logicCondition as any),
+      conditions: [
+        { condition: 'state', entity_key: 'binary_sensor.motion', state: 'off' },
+        { condition: 'time', after: '22:00:00' }
+      ]
+    }
+    groupNode.data.logicCondition = editedCondition
+    // Deliberately leave advancedConditionJson unchanged: the visual model is authoritative.
+    const compiled = parseAdvancedAutomationAction(rootNode.data.advancedJson, 'if') as any
+
+    applyAutomationActionBranches(rootNode, compiled, graph.nodes, graph.wires)
+
+    expect(compiled.if[0]).toEqual(editedCondition)
   })
 
 })

@@ -11,6 +11,7 @@ import { apiClient } from '../api/client'
 import type { Automation, AutomationTrigger, AutomationCondition, AutomationAction } from '../api/types'
 import { parseAdvancedAutomationAction } from '../utils/automationActionValidation'
 import { applyAutomationActionBranches, buildAutomationActionGraph } from '../utils/automationFlowGraph'
+import ConditionTreeEditor from '../components/ConditionTreeEditor.vue'
 import {
   ArrowLeft,
   Save,
@@ -354,7 +355,7 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
     if (subType === 'climate_profile') return 'Profilo termostato'
     if (subType === 'event') return 'Pubblica evento'
   } else if (type === 'delay') {
-    return `Attesa ${data.delay_seconds || 5}s`
+    return `Attesa ${data.delay_seconds ?? 5}s`
   }
   return 'Configura proprietà'
 }
@@ -784,11 +785,13 @@ function compileGraphToAutomation(): Partial<Automation> {
       triggers.push(trig)
     } else if (node.type === 'condition') {
       if (node.subType === 'logic') {
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(node.data.advancedConditionJson || '')
-        } catch {
-          throw new Error('La condizione logica contiene un JSON non valido.')
+        let parsed: unknown = node.data.logicCondition
+        if (parsed === undefined) {
+          try {
+            parsed = JSON.parse(node.data.advancedConditionJson || '')
+          } catch {
+            throw new Error('La condizione logica contiene un JSON non valido.')
+          }
         }
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
           throw new Error('La condizione logica deve essere un oggetto JSON.')
@@ -930,6 +933,7 @@ function loadAutomationIntoGraph(auto: Automation) {
           after: cond.after,
           before: cond.before,
           trigger_id: cond.trigger_id,
+          logicCondition: ['and', 'or', 'not'].includes(cond.condition) ? cond : undefined,
           advancedConditionJson: ['and', 'or', 'not'].includes(cond.condition) ? JSON.stringify(cond, null, 2) : undefined
         }
       })
@@ -1074,6 +1078,12 @@ function handleInspectorDataChange() {
       selectedNode.value.data
     )
   }
+}
+
+function updateSelectedLogicCondition(condition: AutomationCondition) {
+  if (!selectedNode.value || selectedNode.value.subType !== 'logic') return
+  selectedNode.value.data.logicCondition = condition
+  handleInspectorDataChange()
 }
 
 onMounted(async () => {
@@ -1498,17 +1508,16 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'logic' && selectedNode.type === 'condition'" class="prop-group">
-            <label class="prop-label">Espressione condizionale (JSON)</label>
+            <label class="prop-label">Condizioni annidate</label>
             <p class="palette-desc">
-              AND, OR e NOT mantengono la struttura annidata originale. Modifica l'oggetto completo per non alterare la semantica del gruppo.
+              Configura i gruppi AND, OR e NOT aggiungendo condizioni e altri gruppi. I tipi non supportati restano conservati senza modifiche.
             </p>
-            <textarea
-              v-model="selectedNode.data.advancedConditionJson"
-              class="prop-textarea advanced-action-json"
-              rows="10"
-              spellcheck="false"
-              @input="handleInspectorDataChange"
-            ></textarea>
+            <ConditionTreeEditor
+              v-if="selectedNode.data.logicCondition"
+              :model-value="selectedNode.data.logicCondition"
+              :entities="entitiesStore.allEntities"
+              @update:model-value="updateSelectedLogicCondition"
+            />
           </div>
 
           <div v-else-if="selectedNode.subType === 'trigger' && selectedNode.type === 'condition'" class="prop-group">

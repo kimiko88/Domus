@@ -128,6 +128,7 @@ export function buildAutomationActionGraph(
           after: condition.after,
           before: condition.before,
           trigger_id: condition.trigger_id,
+          logicCondition: isLogic ? condition : undefined,
           advancedConditionJson: isLogic ? JSON.stringify(condition, null, 2) : undefined
         }
       }
@@ -275,11 +276,13 @@ function compileConditionSequence(
     }
 
     if (node.subType === 'logic') {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(node.data.advancedConditionJson || '')
-      } catch {
-        throw new Error('La condizione logica contiene un JSON non valido.')
+      let parsed: unknown = node.data.logicCondition
+      if (parsed === undefined) {
+        try {
+          parsed = JSON.parse(node.data.advancedConditionJson || '')
+        } catch {
+          throw new Error('La condizione logica contiene un JSON non valido.')
+        }
       }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('La condizione logica deve essere un oggetto JSON.')
