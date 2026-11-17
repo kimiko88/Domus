@@ -524,12 +524,54 @@ function resetZoom() {
 }
 
 // --- AST Compiler (Bidirectional: Graph <-> Automation JSON) ---
+function getGraphExecutionOrder(): FlowNode[] {
+  const nodeById = new Map(nodes.value.map((node) => [node.id, node]))
+  const indegree = new Map(nodes.value.map((node) => [node.id, 0]))
+  const outgoing = new Map<string, string[]>()
+
+  for (const wire of wires.value) {
+    if (!nodeById.has(wire.fromNodeId) || !nodeById.has(wire.toNodeId)) {
+      throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
+    }
+    const targets = outgoing.get(wire.fromNodeId) || []
+    targets.push(wire.toNodeId)
+    outgoing.set(wire.fromNodeId, targets)
+    indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
+  }
+
+  const branchingNode = [...outgoing.entries()].find(([, targets]) => targets.length > 1)
+  if (branchingNode) {
+    throw new Error('I rami multipli non sono ancora supportati dal modello di automazione. Usa un solo collegamento in uscita per nodo.')
+  }
+
+  const ready = nodes.value.filter((node) => indegree.get(node.id) === 0)
+  const ordered: FlowNode[] = []
+  while (ready.length) {
+    const node = ready.shift()!
+    ordered.push(node)
+    for (const targetId of outgoing.get(node.id) || []) {
+      const nextDegree = (indegree.get(targetId) || 0) - 1
+      indegree.set(targetId, nextDegree)
+      if (nextDegree === 0) {
+        const target = nodeById.get(targetId)
+        if (target) ready.push(target)
+      }
+    }
+  }
+
+  if (ordered.length !== nodes.value.length) {
+    throw new Error('Il flusso contiene un ciclo. Rimuovi i collegamenti circolari prima di salvare.')
+  }
+  return ordered
+}
+
 function compileGraphToAutomation(): Partial<Automation> {
   const triggers: AutomationTrigger[] = []
   const conditions: AutomationCondition[] = []
   const actions: AutomationAction[] = []
+  const orderedNodes = getGraphExecutionOrder()
 
-  for (const node of nodes.value) {
+  for (const node of orderedNodes) {
     if (node.type === 'trigger') {
       const trig: AutomationTrigger = {
         platform: node.subType
@@ -700,8 +742,8 @@ function loadAutomationIntoGraph(auto: Automation) {
 
 // --- Action Handlers: Save, Test Run, Export ---
 async function handleSave() {
-  const autoData = compileGraphToAutomation()
   try {
+    const autoData = compileGraphToAutomation()
     if (automationId.value) {
       await automationsStore.updateAutomation(automationId.value, autoData)
       notificationsStore.success('Automazione Aggiornata', `"${autoData.name}" salvata con successo.`)
@@ -773,9 +815,13 @@ async function handleTestRun() {
 
 function handleOpenJson() {
   soundEffects.playClick()
-  const payload = compileGraphToAutomation()
-  compiledJson.value = JSON.stringify(payload, null, 2)
-  isJsonModalOpen.value = true
+  try {
+    const payload = compileGraphToAutomation()
+    compiledJson.value = JSON.stringify(payload, null, 2)
+    isJsonModalOpen.value = true
+  } catch (err: any) {
+    notificationsStore.warning('Flusso non valido', err?.message || 'Correggi i collegamenti prima di esportare.')
+  }
 }
 
 async function handleCopyJson() {
