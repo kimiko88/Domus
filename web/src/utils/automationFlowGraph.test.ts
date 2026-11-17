@@ -102,7 +102,7 @@ describe('buildAutomationActionGraph', () => {
     expect(new Set(ids).size).toBe(ids.length)
     expect(graph.wires.some((wire) => wire.branchKey === 'parallel:0')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'parallel:1')).toBe(true)
-    expect(graph.wires.some((wire) => wire.fromNodeId === 'act_root_0' && !wire.branchKey)).toBe(false)
+    expect(graph.wires.some((wire) => wire.fromNodeId === 'act_root_0' && wire.toNodeId === 'act_root_1' && !wire.branchKey)).toBe(true)
     expect(graph.nodes.find((node) => node.id === 'act_root_1')).toBeDefined()
   })
 })
