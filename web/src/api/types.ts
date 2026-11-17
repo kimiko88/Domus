@@ -72,6 +72,7 @@ export interface EntityAttributes {
 
 export interface Entity {
   id: string
+  entity_key?: string
   device_id?: string
   domain: EntityDomain
   name: string

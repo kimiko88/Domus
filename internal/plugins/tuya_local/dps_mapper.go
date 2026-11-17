@@ -109,12 +109,28 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 		if target, exists := dps["2"]; exists {
 			if num, ok := toFloat(target); ok {
 				result.Attributes["target_temperature"] = num / 10.0
+				result.Attributes["temperature"] = num / 10.0
+			}
+		} else if target, exists := dps["16"]; exists {
+			if num, ok := toFloat(target); ok {
+				if num > 50 {
+					num = num / 10.0
+				}
+				result.Attributes["target_temperature"] = num
+				result.Attributes["temperature"] = num
 			}
 		}
-		// Current temperature: DPS 3
+		// Current temperature: DPS 3 (or 24)
 		if current, exists := dps["3"]; exists {
 			if num, ok := toFloat(current); ok {
 				result.Attributes["current_temperature"] = num / 10.0
+			}
+		} else if current, exists := dps["24"]; exists {
+			if num, ok := toFloat(current); ok {
+				if num > 50 {
+					num = num / 10.0
+				}
+				result.Attributes["current_temperature"] = num
 			}
 		}
 		// Local thermostat mode: DPS 4 (0 = automatic, 1 = manual).
@@ -209,16 +225,21 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 				return nil, errors.New("climate temperature must be a finite number")
 			}
 			dps["2"] = int(math.Round(temp * 10.0))
-		case "set_mode":
+		case "set_mode", "set_hvac_mode":
 			mode, ok := params["mode"].(string)
+			if !ok || mode == "" {
+				mode, ok = params["hvac_mode"].(string)
+			}
 			if !ok {
-				return nil, errors.New("climate mode must be 'auto' or 'manual'")
+				return nil, errors.New("climate mode must be 'auto', 'manual', 'heat', or 'off'")
 			}
 			switch strings.ToLower(strings.TrimSpace(mode)) {
 			case "auto", "automatic", "automatico":
 				dps["4"] = 0
-			case "manual":
+			case "manual", "manuale", "heat":
 				dps["4"] = 1
+			case "off", "spento":
+				dps["1"] = false
 			default:
 				return nil, fmt.Errorf("unsupported climate mode: %s", mode)
 			}

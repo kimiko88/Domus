@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -29,6 +30,17 @@ func NewEntityHandler(repo entity.Repository, bus events.Bus) *EntityHandler {
 	}
 }
 
+func (h *EntityHandler) resolveEntity(ctx context.Context, idOrKey string) (*entity.Entity, error) {
+	ent, err := h.repo.GetByID(ctx, idOrKey)
+	if err == nil && ent != nil {
+		return ent, nil
+	}
+	if errors.Is(err, entity.ErrEntityNotFound) {
+		return h.repo.GetByKey(ctx, idOrKey)
+	}
+	return nil, err
+}
+
 // List returns entities matching optional query filters.
 func (h *EntityHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -53,10 +65,10 @@ func (h *EntityHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entities)
 }
 
-// GetByID returns entity details by path ID parameter.
+// GetByID returns entity details by path ID parameter (supports UUID or entity_key).
 func (h *EntityHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	ent, err := h.repo.GetByID(r.Context(), id)
+	ent, err := h.resolveEntity(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, entity.ErrEntityNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "entity not found")
@@ -77,7 +89,7 @@ type commandRequest struct {
 // Command accepts and dispatches a control command for an entity.
 func (h *EntityHandler) Command(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	ent, err := h.repo.GetByID(r.Context(), id)
+	ent, err := h.resolveEntity(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, entity.ErrEntityNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "entity not found")
@@ -152,7 +164,7 @@ func (h *EntityHandler) CallService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ent, err := h.repo.GetByID(r.Context(), req.EntityID)
+	ent, err := h.resolveEntity(r.Context(), req.EntityID)
 	if err != nil {
 		if errors.Is(err, entity.ErrEntityNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "entity not found")

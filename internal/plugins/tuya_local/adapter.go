@@ -27,13 +27,15 @@ type Config struct {
 
 // DeviceConfig holds settings for a specific configured Tuya device.
 type DeviceConfig struct {
-	DeviceID  string         `json:"device_id"`
-	Name      string         `json:"name,omitempty"`
-	IP        string         `json:"ip"`
-	LocalKey  string         `json:"local_key"`
-	Version   string         `json:"version"`
-	Category  DeviceCategory `json:"category"`
-	EntityKey string         `json:"entity_key"`
+	DeviceID          string         `json:"device_id"`
+	Name              string         `json:"name,omitempty"`
+	IP                string         `json:"ip"`
+	LocalKey          string         `json:"local_key"`
+	Version           string         `json:"version"`
+	Category          DeviceCategory `json:"category"`
+	EntityKey         string         `json:"entity_key"`
+	InitialState      string         `json:"-"`
+	InitialAttributes string         `json:"-"`
 }
 
 // Adapter manages local Tuya integrations and bridges them to Domus domain events.
@@ -196,15 +198,20 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 	cfg.Name = name
 
-	if cfg.Category == "" {
-		cfg.Category = CategorySwitch
+	if cfg.Category == "" || cfg.Category == CategorySwitch {
+		inferred := InferCategory(string(cfg.Category), cfg.Name, "", nil)
+		if inferred != "" {
+			cfg.Category = inferred
+		} else if cfg.Category == "" {
+			cfg.Category = CategorySwitch
+		}
 	}
 	if cfg.Version == "" {
 		cfg.Version = "3.3"
 	}
-	if cfg.EntityKey == "" {
-		domain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
-		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", domain, cfg.DeviceID)
+	expectedDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+	if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, expectedDomain+".") {
+		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", expectedDomain, cfg.DeviceID)
 	}
 
 	// If IP is not provided, look in discovery cache
@@ -261,45 +268,7 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 
 	// 3. Provision Domus core device & entity if repos attached
-	if a.devRepo != nil && a.entRepo != nil {
-		now := time.Now().UTC()
-		devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
-		existingDev, _ := a.devRepo.GetByID(ctx, devRecordID)
-		if existingDev == nil {
-			dev := &device.Device{
-				ID:            devRecordID,
-				IntegrationID: a.id,
-				ExternalID:    cfg.DeviceID,
-				Name:          cfg.Name,
-				Manufacturer:  "Tuya",
-				Model:         string(cfg.Category),
-				Online:        cfg.IP != "",
-				Metadata:      fmt.Sprintf(`{"protocol":"tuya_local","version":%q}`, cfg.Version),
-				CreatedAt:     now,
-				UpdatedAt:     now,
-			}
-			_ = a.devRepo.Create(ctx, dev)
-		}
-
-		existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
-		if existingEnt == nil {
-			entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
-			ent := &entity.Entity{
-				ID:            uuid.NewString(),
-				DeviceID:      devRecordID,
-				EntityKey:     cfg.EntityKey,
-				Domain:        entDomain,
-				Name:          cfg.Name,
-				Writable:      true,
-				State:         `{"state":false}`,
-				Attributes:    `{}`,
-				Available:     true,
-				LastChangedAt: now,
-				LastUpdatedAt: now,
-			}
-			_ = a.entRepo.Create(ctx, ent)
-		}
-	}
+	a.provisionDeviceAndEntity(ctx, cfg)
 
 	// 4. Connect over LAN if IP is known
 	if isActive && cfg.IP != "" {
@@ -307,6 +276,96 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 
 	return nil
+}
+
+func (a *Adapter) provisionDeviceAndEntity(ctx context.Context, cfg DeviceConfig) {
+	if a.devRepo == nil || a.entRepo == nil {
+		return
+	}
+	now := time.Now().UTC()
+	devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
+	existingDev, _ := a.devRepo.GetByID(ctx, devRecordID)
+	if existingDev == nil {
+		dev := &device.Device{
+			ID:            devRecordID,
+			IntegrationID: a.id,
+			ExternalID:    cfg.DeviceID,
+			Name:          cfg.Name,
+			Manufacturer:  "Tuya",
+			Model:         string(cfg.Category),
+			Online:        cfg.IP != "",
+			Metadata:      fmt.Sprintf(`{"protocol":"tuya_local","version":%q}`, cfg.Version),
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		_ = a.devRepo.Create(ctx, dev)
+	} else if existingDev.Model != string(cfg.Category) || existingDev.Name != cfg.Name {
+		existingDev.Name = cfg.Name
+		existingDev.Model = string(cfg.Category)
+		existingDev.UpdatedAt = now
+		_ = a.devRepo.Update(ctx, existingDev)
+	}
+
+	entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+	if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, entDomain+".") {
+		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", entDomain, cfg.DeviceID)
+	}
+
+	// Remove any stale entities for this device if its domain/category changed (e.g. switch.tuya_X -> climate.tuya_X)
+	if existingDevEntities, err := a.entRepo.List(ctx, entity.ListFilter{DeviceID: devRecordID}); err == nil {
+		for _, oldEnt := range existingDevEntities {
+			if oldEnt.EntityKey != cfg.EntityKey {
+				_ = a.entRepo.Delete(ctx, oldEnt.ID)
+			}
+		}
+	}
+
+	stateVal := cfg.InitialState
+	if stateVal == "" {
+		if entDomain == "climate" {
+			stateVal = "heat"
+		} else {
+			stateVal = `{"state":false}`
+		}
+	}
+	attrsVal := cfg.InitialAttributes
+	if attrsVal == "" {
+		if entDomain == "climate" {
+			attrsVal = `{"temperature":21.0,"target_temperature":21.0,"current_temperature":20.5,"hvac_mode":"heat"}`
+		} else {
+			attrsVal = `{}`
+		}
+	}
+
+	existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
+	if existingEnt == nil {
+		ent := &entity.Entity{
+			ID:            uuid.NewString(),
+			DeviceID:      devRecordID,
+			EntityKey:     cfg.EntityKey,
+			Domain:        entDomain,
+			Name:          cfg.Name,
+			Writable:      true,
+			State:         stateVal,
+			Attributes:    attrsVal,
+			Available:     true,
+			LastChangedAt: now,
+			LastUpdatedAt: now,
+		}
+		_ = a.entRepo.Create(ctx, ent)
+	} else {
+		if cfg.InitialState != "" || cfg.InitialAttributes != "" {
+			st := existingEnt.State
+			if cfg.InitialState != "" {
+				st = cfg.InitialState
+			}
+			at := existingEnt.Attributes
+			if cfg.InitialAttributes != "" {
+				at = cfg.InitialAttributes
+			}
+			_ = a.entRepo.UpdateState(ctx, existingEnt.ID, st, at, true, now)
+		}
+	}
 }
 
 func (a *Adapter) loadStoredDevices(ctx context.Context) error {
@@ -335,9 +394,8 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 	}
 	defer rows.Close()
 
+	var loaded []DeviceConfig
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	for rows.Next() {
 		var cfg DeviceConfig
 		var name, keyEnc, catStr string
@@ -345,7 +403,12 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 			continue
 		}
 		cfg.Name = name
-		cfg.Category = DeviceCategory(catStr)
+		cfg.Category = InferCategory(catStr, name, "", nil)
+		expectedDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+		if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, expectedDomain+".") {
+			cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", expectedDomain, cfg.DeviceID)
+			_, _ = a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET category = ?, entity_key = ? WHERE device_id = ?", string(cfg.Category), cfg.EntityKey, cfg.DeviceID)
+		}
 		// Purge legacy public WAN addresses saved by older releases. The device
 		// remains configured but waits for a fresh private LAN discovery packet.
 		if cfg.IP != "" && trustedLANIP(cfg.IP) == "" {
@@ -366,7 +429,14 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 		}
 		cfg.LocalKey = localKey
 		a.configs[cfg.DeviceID] = cfg
+		loaded = append(loaded, cfg)
 	}
+	a.mu.Unlock()
+
+	for _, cfg := range loaded {
+		a.provisionDeviceAndEntity(ctx, cfg)
+	}
+
 	return rows.Err()
 }
 
@@ -421,13 +491,25 @@ func (a *Adapter) connectDevice(cfg DeviceConfig) {
 
 func (a *Adapter) handleDeviceStatus(cfg DeviceConfig, dps map[string]any) {
 	parsed := a.mapper.MapDPSToEntity(cfg.Category, dps)
-	if a.bus == nil {
-		return
-	}
 
 	entityKey := cfg.EntityKey
 	if entityKey == "" {
 		entityKey = fmt.Sprintf("%s.tuya_%s", parsed.Domain, cfg.DeviceID)
+	}
+
+	if a.entRepo != nil {
+		ctx := context.Background()
+		if ent, err := a.entRepo.GetByKey(ctx, entityKey); err == nil && ent != nil {
+			attrsJSON := ent.Attributes
+			if b, err := json.Marshal(parsed.Attributes); err == nil {
+				attrsJSON = string(b)
+			}
+			_ = a.entRepo.UpdateState(ctx, ent.ID, parsed.State, attrsJSON, true, time.Now().UTC())
+		}
+	}
+
+	if a.bus == nil {
+		return
 	}
 
 	_ = a.bus.Publish(context.Background(), events.Event{
@@ -598,13 +680,25 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 	var cmd struct {
 		EntityKey string         `json:"entity_key"`
 		Command   string         `json:"command"`
+		Service   string         `json:"service"`
 		Params    map[string]any `json:"params"`
 	}
 	if err := json.Unmarshal(payloadBytes, &cmd); err != nil {
 		return nil
 	}
 
-	return a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	action := strings.TrimSpace(cmd.Command)
+	if action == "" {
+		action = strings.TrimSpace(cmd.Service)
+	}
+	if idx := strings.LastIndex(action, "."); idx >= 0 {
+		action = action[idx+1:]
+	}
+	if cmd.EntityKey == "" || action == "" {
+		return nil
+	}
+
+	return a.SendCommand(ctx, cmd.EntityKey, action, cmd.Params)
 }
 
 // GetConfiguredDevices returns all devices currently registered for local LAN control.
@@ -648,15 +742,47 @@ func (a *Adapter) GetDeviceIP(deviceID string) string {
 // ParseCategory maps Tuya standard cloud product categories to Domus local categories.
 func ParseCategory(code string) DeviceCategory {
 	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "kg", "switch", "qkg", "wkcz":
+	case "kg", "switch", "qkg":
 		return CategorySwitch
 	case "cz", "plug", "socket", "pc":
 		return CategoryPlug
 	case "dj", "dd", "dc", "xdd", "fwd", "light", "cl":
 		return CategoryLight
-	case "wk", "climate", "thermostat":
+	case "wk", "wkf", "bgl", "qn", "kt", "wkcz", "ktkzq", "rdn", "cn", "rs", "fskg", "climate", "thermostat", "heater", "boiler", "trv", "hvac", "ac":
 		return CategoryClimate
 	default:
 		return CategorySwitch
 	}
+}
+
+// InferCategory inspects Tuya category code, device names, and status datapoint codes
+// to accurately classify Smart Life thermostats, TRVs, boilers, and climate controllers.
+func InferCategory(categoryCode, name, productName string, statusCodes []string) DeviceCategory {
+	cat := ParseCategory(categoryCode)
+	if cat == CategoryClimate {
+		return CategoryClimate
+	}
+
+	for _, dpCode := range statusCodes {
+		c := strings.ToLower(strings.TrimSpace(dpCode))
+		switch c {
+		case "temp_set", "temp_current", "upper_temp", "lower_temp", "target_temp", "current_temp",
+			"target_temperature", "current_temperature", "work_state", "window_check", "frost",
+			"valve_state", "hvac_mode", "set_temp":
+			return CategoryClimate
+		}
+	}
+
+	combinedName := strings.ToLower(name + " " + productName)
+	climateKeywords := []string{
+		"termostato", "thermostat", "cronotermostato", "caldaia", "boiler",
+		"clima", "condizionatore", "valvola termostatica", "trv", "riscaldamento", "heater",
+	}
+	for _, kw := range climateKeywords {
+		if strings.Contains(combinedName, kw) {
+			return CategoryClimate
+		}
+	}
+
+	return cat
 }

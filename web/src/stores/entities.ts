@@ -27,6 +27,15 @@ export const useEntitiesStore = defineStore('entities', () => {
       const data = raw ?? []
       const dict: Record<string, Entity> = {}
       data.forEach((e) => {
+        if (typeof (e as any).attributes === 'string') {
+          try {
+            e.attributes = JSON.parse((e as any).attributes)
+          } catch {
+            e.attributes = {}
+          }
+        } else if (!e.attributes) {
+          e.attributes = {}
+        }
         dict[e.id] = e
       })
       entities.value = dict

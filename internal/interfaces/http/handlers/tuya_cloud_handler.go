@@ -266,6 +266,73 @@ func (h *TuyaCloudHandler) getClient() *tuya_cloud.Client {
 	return h.client
 }
 
+func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.DeviceCategory, string, string, string) {
+	statusCodes := make([]string, 0, len(dev.Status))
+	for _, st := range dev.Status {
+		statusCodes = append(statusCodes, st.Code)
+	}
+	cat := tuya_local.InferCategory(dev.Category, dev.Name, dev.ProductName, statusCodes)
+
+	entityKey := fmt.Sprintf("switch.tuya_%s", dev.ID)
+	switch cat {
+	case tuya_local.CategoryLight:
+		entityKey = fmt.Sprintf("light.tuya_%s", dev.ID)
+	case tuya_local.CategoryClimate:
+		entityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
+	}
+
+	if cat != tuya_local.CategoryClimate {
+		return cat, entityKey, "", ""
+	}
+
+	state := "heat"
+	attrs := map[string]any{
+		"hvac_mode": "heat",
+	}
+	for _, st := range dev.Status {
+		code := strings.ToLower(strings.TrimSpace(st.Code))
+		switch code {
+		case "switch", "power", "switch_1":
+			if b, ok := st.Value.(bool); ok && !b {
+				state = "off"
+				attrs["hvac_mode"] = "off"
+			}
+		case "mode", "work_mode", "hvac_mode":
+			if m, ok := st.Value.(string); ok && m != "" {
+				ml := strings.ToLower(m)
+				if ml == "auto" || ml == "automatic" || ml == "program" {
+					state = "auto"
+					attrs["hvac_mode"] = "auto"
+				} else if ml == "off" {
+					state = "off"
+					attrs["hvac_mode"] = "off"
+				} else {
+					state = "heat"
+					attrs["hvac_mode"] = "heat"
+				}
+			}
+		case "temp_set", "target_temp", "target_temperature", "upper_temp", "set_temp":
+			if num, ok := tuyaNumericValue(st.Value); ok {
+				if num > 50 {
+					num = num / 10.0
+				}
+				attrs["target_temperature"] = num
+				attrs["temperature"] = num
+			}
+		case "temp_current", "current_temp", "current_temperature", "va_temperature", "lower_temp":
+			if num, ok := tuyaNumericValue(st.Value); ok {
+				if num > 50 {
+					num = num / 10.0
+				}
+				attrs["current_temperature"] = num
+			}
+		}
+	}
+
+	attrsBytes, _ := json.Marshal(attrs)
+	return cat, entityKey, state, string(attrsBytes)
+}
+
 func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 	client := h.getClient()
 	if client == nil || client.Config().ClientID == "" {
@@ -281,15 +348,48 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 
 	type enrichedDevice struct {
 		tuya_cloud.Device
-		LocalConfigured bool   `json:"local_configured"`
-		LocalActive     bool   `json:"local_active"`
-		LocalIP         string `json:"local_ip,omitempty"`
+		InferredCategory string `json:"inferred_category"`
+		EntityKey        string `json:"entity_key"`
+		LocalConfigured  bool   `json:"local_configured"`
+		LocalActive      bool   `json:"local_active"`
+		LocalIP          string `json:"local_ip,omitempty"`
 	}
 
 	enriched := make([]enrichedDevice, 0, len(devices))
 	for _, dev := range devices {
-		ed := enrichedDevice{Device: dev}
+		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
+		ed := enrichedDevice{
+			Device:           dev,
+			InferredCategory: string(cat),
+			EntityKey:        entityKey,
+		}
 		if h.tuyaLocal != nil {
+			// If a device is already configured locally, ensure its Domus entity
+			// is updated with the inferred category (e.g. climate) and latest telemetry.
+			if h.tuyaLocal.IsDeviceConfigured(dev.ID) {
+				localKey := dev.LocalKey
+				if localKey == "" {
+					for _, existing := range h.tuyaLocal.GetConfiguredDevices() {
+						if existing.DeviceID == dev.ID {
+							localKey = existing.LocalKey
+							break
+						}
+					}
+				}
+				if localKey != "" {
+					_ = h.tuyaLocal.RegisterAndPersistDevice(r.Context(), tuya_local.DeviceConfig{
+						DeviceID:          dev.ID,
+						Name:              dev.Name,
+						IP:                h.tuyaLocal.GetDeviceIP(dev.ID),
+						LocalKey:          localKey,
+						Version:           "3.3",
+						Category:          cat,
+						EntityKey:         entityKey,
+						InitialState:      initState,
+						InitialAttributes: initAttrs,
+					}, dev.Name)
+				}
+			}
 			ed.LocalConfigured = h.tuyaLocal.IsDeviceConfigured(dev.ID)
 			ed.LocalActive = h.tuyaLocal.IsDeviceConnected(dev.ID)
 			ed.LocalIP = h.tuyaLocal.GetDeviceIP(dev.ID)
@@ -516,21 +616,17 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			continue // cannot pair locally without the encryption key
 		}
 
-		cat := tuya_local.ParseCategory(dev.Category)
+		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		cfg := tuya_local.DeviceConfig{
-			DeviceID: dev.ID,
-			Name: dev.Name,
-			IP: "", // populated only from trusted LAN UDP discovery
-			LocalKey: localKey,
-			Version: "3.3",
-			Category: cat,
-			EntityKey: fmt.Sprintf("switch.tuya_%s", dev.ID),
-		}
-		switch cat {
-		case tuya_local.CategoryLight:
-			cfg.EntityKey = fmt.Sprintf("light.tuya_%s", dev.ID)
-		case tuya_local.CategoryClimate:
-			cfg.EntityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
+			DeviceID:          dev.ID,
+			Name:              dev.Name,
+			IP:                "", // populated only from trusted LAN UDP discovery
+			LocalKey:          localKey,
+			Version:           "3.3",
+			Category:          cat,
+			EntityKey:         entityKey,
+			InitialState:      initState,
+			InitialAttributes: initAttrs,
 		}
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
 			continue

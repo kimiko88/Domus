@@ -50,6 +50,51 @@ export interface CalendarEvent {
   source: string
 }
 
+interface TuyaStatusPoint {
+  code: string
+  value: unknown
+}
+
+interface TuyaCloudDeviceItem {
+  id: string
+  name: string
+  product_name?: string
+  category?: string
+  inferred_category?: string
+  entity_key?: string
+  online?: boolean
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
+  status?: TuyaStatusPoint[]
+}
+
+interface TuyaLocalDeviceItem {
+  device_id: string
+  name: string
+  ip?: string
+  category?: string
+  entity_key?: string
+  connected?: boolean
+}
+
+export interface ThermostatOption {
+  id: string
+  entity_id?: string
+  tuya_device_id?: string
+  name: string
+  source: 'entity' | 'tuya_local' | 'tuya_cloud'
+  online?: boolean
+  local_configured?: boolean
+  current_temperature?: number
+  target_temperature?: number
+  hvac_mode?: 'heat' | 'auto' | 'off'
+  temp_dp_code?: string
+  temp_scale?: number
+  mode_dp_code?: string
+  switch_dp_code?: string
+}
+
 const activeTab = ref<'cronotermostato' | 'calendar'>('cronotermostato')
 
 const daysOfWeek = [
@@ -67,13 +112,282 @@ const selectedScheduleId = ref<string>('')
 const calendarEvents = ref<CalendarEvent[]>([])
 const icsUploadStatus = ref('')
 const isSavingSchedule = ref(false)
+const tuyaCloudDevices = ref<TuyaCloudDeviceItem[]>([])
+const tuyaLocalDevices = ref<TuyaLocalDeviceItem[]>([])
 
-// Connected Smart Thermostats from entities store
-const connectedThermostats = computed(() => {
-  return Object.values(entitiesStore.entities).filter(
-    (e) => e.domain === 'climate' || e.id.startsWith('climate.')
-  )
+const CLIMATE_CATEGORIES = new Set([
+  'wk', 'wkf', 'bgl', 'qn', 'kt', 'wkcz', 'ktkzq', 'rdn', 'cn', 'rs', 'fskg',
+  'climate', 'thermostat', 'heater', 'boiler', 'trv', 'hvac', 'ac'
+])
+
+const CLIMATE_DP_CODES = new Set([
+  'temp_set', 'temp_current', 'upper_temp', 'lower_temp', 'target_temp', 'current_temp',
+  'target_temperature', 'current_temperature', 'work_state', 'window_check', 'frost',
+  'valve_state', 'hvac_mode', 'set_temp', 'va_temperature'
+])
+
+const CLIMATE_KEYWORDS = [
+  'termostato', 'thermostat', 'cronotermostato', 'caldaia', 'boiler',
+  'clima', 'condizionatore', 'valvola termostatica', 'trv', 'riscaldamento', 'heater'
+]
+
+function isClimateDeviceCandidate(
+  name?: string,
+  productName?: string,
+  category?: string,
+  inferredCategory?: string,
+  entityKey?: string,
+  status?: TuyaStatusPoint[]
+): boolean {
+  if (inferredCategory?.toLowerCase() === 'climate') return true
+  if (entityKey?.toLowerCase().startsWith('climate.')) return true
+  if (category && CLIMATE_CATEGORIES.has(category.toLowerCase().trim())) return true
+  if (status && status.some((s) => CLIMATE_DP_CODES.has(s.code.toLowerCase().trim()))) return true
+  const text = `${name || ''} ${productName || ''}`.toLowerCase()
+  return CLIMATE_KEYWORDS.some((kw) => text.includes(kw))
+}
+
+function extractTuyaClimateTelemetry(status?: TuyaStatusPoint[]) {
+  let current_temperature: number | undefined
+  let target_temperature: number | undefined
+  let hvac_mode: 'heat' | 'auto' | 'off' | undefined
+  let temp_dp_code: string | undefined
+  let temp_scale = 0
+  let mode_dp_code: string | undefined
+  let switch_dp_code: string | undefined
+
+  for (const pt of status || []) {
+    const code = pt.code.toLowerCase().trim()
+    if (['switch', 'power', 'switch_1'].includes(code) && typeof pt.value === 'boolean') {
+      switch_dp_code = pt.code
+      if (!pt.value) hvac_mode = 'off'
+      else if (!hvac_mode) hvac_mode = 'heat'
+    } else if (['mode', 'work_mode', 'hvac_mode'].includes(code) && typeof pt.value === 'string') {
+      mode_dp_code = pt.code
+      const val = pt.value.toLowerCase()
+      if (val === 'auto' || val === 'automatic' || val === 'program') hvac_mode = 'auto'
+      else if (val === 'off') hvac_mode = 'off'
+      else hvac_mode = 'heat'
+    } else if (['temp_set', 'target_temp', 'target_temperature', 'upper_temp', 'set_temp'].includes(code)) {
+      const num = Number(pt.value)
+      if (!isNaN(num)) {
+        temp_dp_code = pt.code
+        if (num > 50) {
+          temp_scale = 1
+          target_temperature = num / 10.0
+        } else {
+          temp_scale = 0
+          target_temperature = num
+        }
+      }
+    } else if (['temp_current', 'current_temp', 'current_temperature', 'va_temperature', 'lower_temp'].includes(code)) {
+      const num = Number(pt.value)
+      if (!isNaN(num)) {
+        current_temperature = num > 50 ? num / 10.0 : num
+      }
+    }
+  }
+
+  return {
+    current_temperature,
+    target_temperature,
+    hvac_mode,
+    temp_dp_code,
+    temp_scale,
+    mode_dp_code,
+    switch_dp_code
+  }
+}
+
+// Connected Smart Thermostats merged from Entities Store, Tuya Local, and Tuya Cloud (Smart Life)
+const connectedThermostats = computed<ThermostatOption[]>(() => {
+  const byKey = new Map<string, ThermostatOption>()
+
+  // 1. Entities from store
+  for (const e of Object.values(entitiesStore.entities)) {
+    const entityKey = e.entity_key || e.id
+    const attrs = e.attributes || {}
+    const isClimate =
+      e.domain === 'climate' ||
+      entityKey.startsWith('climate.') ||
+      e.id.startsWith('climate.') ||
+      attrs.target_temperature !== undefined ||
+      attrs.current_temperature !== undefined ||
+      attrs.hvac_mode !== undefined ||
+      isClimateDeviceCandidate(e.name, undefined, e.domain, undefined, entityKey)
+
+    if (!isClimate) continue
+
+    let tuyaDevId: string | undefined
+    if (e.device_id?.startsWith('tuya_')) {
+      tuyaDevId = e.device_id.slice('tuya_'.length)
+    } else if (entityKey.includes('.tuya_')) {
+      tuyaDevId = entityKey.split('.tuya_')[1]
+    }
+
+    const canonicalId = entityKey.startsWith('climate.') || !tuyaDevId
+      ? entityKey
+      : `climate.tuya_${tuyaDevId}`
+
+    const curTemp = attrs.current_temperature !== undefined
+      ? Number(attrs.current_temperature)
+      : attrs.temperature !== undefined
+        ? Number(attrs.temperature)
+        : !isNaN(parseFloat(e.state))
+          ? parseFloat(e.state)
+          : undefined
+
+    const tgtTemp = attrs.target_temperature !== undefined
+      ? Number(attrs.target_temperature)
+      : attrs.temperature !== undefined
+        ? Number(attrs.temperature)
+        : undefined
+
+    const mode: 'heat' | 'auto' | 'off' | undefined =
+      e.state === 'heat' || e.state === 'auto' || e.state === 'off'
+        ? e.state
+        : attrs.hvac_mode === 'auto' || attrs.hvac_mode === 'off' || attrs.hvac_mode === 'heat'
+          ? attrs.hvac_mode
+          : undefined
+
+    byKey.set(canonicalId, {
+      id: canonicalId,
+      entity_id: e.id,
+      tuya_device_id: tuyaDevId,
+      name: e.name,
+      source: 'entity',
+      online: true,
+      current_temperature: curTemp,
+      target_temperature: tgtTemp,
+      hvac_mode: mode
+    })
+  }
+
+  // 2. Tuya Local configured devices
+  for (const d of tuyaLocalDevices.value) {
+    const isClimate = isClimateDeviceCandidate(d.name, undefined, d.category, undefined, d.entity_key)
+    if (!isClimate) continue
+
+    const canonicalId = d.entity_key?.startsWith('climate.')
+      ? d.entity_key
+      : `climate.tuya_${d.device_id}`
+
+    const existing = byKey.get(canonicalId)
+    if (existing) {
+      existing.tuya_device_id = d.device_id
+      existing.local_configured = true
+      if (!existing.name && d.name) existing.name = d.name
+    } else {
+      byKey.set(canonicalId, {
+        id: canonicalId,
+        tuya_device_id: d.device_id,
+        name: d.name || `Termostato ${d.device_id}`,
+        source: 'tuya_local',
+        online: d.connected ?? true,
+        local_configured: true
+      })
+    }
+  }
+
+  // 3. Tuya Cloud (Smart Life) devices
+  for (const d of tuyaCloudDevices.value) {
+    const isClimate = isClimateDeviceCandidate(
+      d.name,
+      d.product_name,
+      d.category,
+      d.inferred_category,
+      d.entity_key,
+      d.status
+    )
+    if (!isClimate) continue
+
+    const canonicalId = d.entity_key?.startsWith('climate.')
+      ? d.entity_key
+      : `climate.tuya_${d.id}`
+
+    const telemetry = extractTuyaClimateTelemetry(d.status)
+    const existing = byKey.get(canonicalId)
+    if (existing) {
+      existing.tuya_device_id = d.id
+      existing.online = d.online ?? existing.online
+      existing.local_configured = d.local_configured ?? existing.local_configured
+      if (telemetry.current_temperature !== undefined) existing.current_temperature = telemetry.current_temperature
+      if (telemetry.target_temperature !== undefined) existing.target_temperature = telemetry.target_temperature
+      if (telemetry.hvac_mode !== undefined) existing.hvac_mode = telemetry.hvac_mode
+      existing.temp_dp_code = telemetry.temp_dp_code
+      existing.temp_scale = telemetry.temp_scale
+      existing.mode_dp_code = telemetry.mode_dp_code
+      existing.switch_dp_code = telemetry.switch_dp_code
+    } else {
+      byKey.set(canonicalId, {
+        id: canonicalId,
+        tuya_device_id: d.id,
+        name: d.name || d.product_name || `Termostato Smart Life (${d.id})`,
+        source: 'tuya_cloud',
+        online: d.online ?? true,
+        local_configured: d.local_configured,
+        ...telemetry
+      })
+    }
+  }
+
+  return Array.from(byKey.values())
 })
+
+// Additional Smart Life / Tuya devices (e.g. boiler relays or custom-named thermostats)
+// so the user can always select any integrated Smart Life device if needed
+const otherSmartLifeDevices = computed<ThermostatOption[]>(() => {
+  const existingTuyaIds = new Set(
+    connectedThermostats.value.map((t) => t.tuya_device_id).filter(Boolean)
+  )
+  const existingKeys = new Set(connectedThermostats.value.map((t) => t.id))
+  const list: ThermostatOption[] = []
+
+  for (const d of tuyaCloudDevices.value) {
+    const key = d.entity_key || `climate.tuya_${d.id}`
+    if (existingTuyaIds.has(d.id) || existingKeys.has(key)) continue
+    const telemetry = extractTuyaClimateTelemetry(d.status)
+    list.push({
+      id: key,
+      tuya_device_id: d.id,
+      name: d.name || d.product_name || d.id,
+      source: 'tuya_cloud',
+      online: d.online ?? true,
+      local_configured: d.local_configured,
+      ...telemetry
+    })
+    existingTuyaIds.add(d.id)
+    existingKeys.add(key)
+  }
+
+  for (const d of tuyaLocalDevices.value) {
+    const key = d.entity_key || `climate.tuya_${d.device_id}`
+    if (existingTuyaIds.has(d.device_id) || existingKeys.has(key)) continue
+    list.push({
+      id: key,
+      tuya_device_id: d.device_id,
+      name: d.name || d.device_id,
+      source: 'tuya_local',
+      online: d.connected ?? true,
+      local_configured: true
+    })
+    existingTuyaIds.add(d.device_id)
+    existingKeys.add(key)
+  }
+
+  return list
+})
+
+const allSelectableThermostats = computed<ThermostatOption[]>(() => [
+  ...connectedThermostats.value,
+  ...otherSmartLifeDevices.value
+])
+
+function findThermostatOption(idOrKey: string): ThermostatOption | undefined {
+  return allSelectableThermostats.value.find(
+    (t) => t.id === idOrKey || t.entity_id === idOrKey || (t.tuya_device_id && `climate.tuya_${t.tuya_device_id}` === idOrKey)
+  )
+}
 
 // Active regulated thermostat (either from connectedThermostats or schedule target)
 const activeThermostatId = ref<string>('')
@@ -99,7 +413,14 @@ const selectedSchedule = computed(() => {
 // Current room temperature from thermostat
 const currentAmbientTemp = computed(() => {
   if (!activeThermostatId.value) return 20.8
-  const ent = entitiesStore.entities[activeThermostatId.value]
+  const opt = findThermostatOption(activeThermostatId.value)
+  if (opt?.current_temperature !== undefined && !isNaN(opt.current_temperature)) {
+    return opt.current_temperature
+  }
+  if (opt?.target_temperature !== undefined && !isNaN(opt.target_temperature)) {
+    return opt.target_temperature
+  }
+  const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
   if (!ent) return 20.8
   if (ent.attributes?.current_temperature) return Number(ent.attributes.current_temperature)
   if (ent.attributes?.temperature) return Number(ent.attributes.temperature)
@@ -110,18 +431,62 @@ const currentAmbientTemp = computed(() => {
 watchThermostatChange()
 
 function watchThermostatChange() {
-  if (connectedThermostats.value.length > 0 && !activeThermostatId.value) {
-    activeThermostatId.value = connectedThermostats.value[0].id
+  const candidates = connectedThermostats.value.length > 0
+    ? connectedThermostats.value
+    : otherSmartLifeDevices.value
+
+  if (candidates.length > 0) {
+    const isPlaceholder =
+      !activeThermostatId.value ||
+      activeThermostatId.value === 'climate.termostato_principale' ||
+      activeThermostatId.value === 'climate.termostato_salotto'
+
+    if (isPlaceholder) {
+      activeThermostatId.value = candidates[0].id
+      syncLiveThermostatValues()
+    }
+    if (
+      selectedSchedule.value &&
+      (!selectedSchedule.value.entity_key ||
+        selectedSchedule.value.entity_key === 'climate.termostato_principale' ||
+        selectedSchedule.value.entity_key === 'climate.termostato_salotto')
+    ) {
+      selectedSchedule.value.entity_key = activeThermostatId.value
+    }
+  }
+}
+
+function onThermostatSelectChange() {
+  syncLiveThermostatValues()
+  if (selectedSchedule.value && activeThermostatId.value) {
+    selectedSchedule.value.entity_key = activeThermostatId.value
+  }
+}
+
+function onScheduleEntityChange() {
+  if (selectedSchedule.value?.entity_key) {
+    activeThermostatId.value = selectedSchedule.value.entity_key
     syncLiveThermostatValues()
   }
 }
 
 function syncLiveThermostatValues() {
   if (!activeThermostatId.value) return
-  const ent = entitiesStore.entities[activeThermostatId.value]
+  const opt = findThermostatOption(activeThermostatId.value)
+  if (opt) {
+    if (opt.target_temperature !== undefined && !isNaN(opt.target_temperature)) {
+      liveTargetTemp.value = Number(opt.target_temperature)
+    }
+    if (opt.hvac_mode === 'heat' || opt.hvac_mode === 'auto' || opt.hvac_mode === 'off') {
+      liveHvacMode.value = opt.hvac_mode
+    }
+  }
+  const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
   if (!ent) return
 
-  if (ent.attributes?.temperature) {
+  if (ent.attributes?.target_temperature !== undefined) {
+    liveTargetTemp.value = Number(ent.attributes.target_temperature)
+  } else if (ent.attributes?.temperature !== undefined) {
     liveTargetTemp.value = Number(ent.attributes.temperature)
   }
   if (ent.state === 'heat' || ent.state === 'auto' || ent.state === 'off') {
@@ -145,21 +510,80 @@ async function applyLiveThermostatSettings() {
 
   try {
     isAdjustingLive.value = true
-    const ent = entitiesStore.entities[activeThermostatId.value]
+    const opt = findThermostatOption(activeThermostatId.value)
+    const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
     const domain = ent?.domain || 'climate'
+    const targetEntityId = ent?.id || activeThermostatId.value
 
-    // Call set_temperature service
-    await entitiesStore.callService(domain, 'set_temperature', activeThermostatId.value, {
-      temperature: liveTargetTemp.value
-    })
+    let dispatched = false
 
-    // Call set_hvac_mode if changed
-    if (liveHvacMode.value) {
+    // 1. If device is a Tuya device configured in LocalTuya, try direct LAN command
+    if (opt?.tuya_device_id && opt.local_configured) {
       try {
-        await entitiesStore.callService(domain, 'set_hvac_mode', activeThermostatId.value, {
-          hvac_mode: liveHvacMode.value
-        })
-      } catch {}
+        await apiClient.post(
+          `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(opt.tuya_device_id)}/command`,
+          {
+            command: liveHvacMode.value === 'off' ? 'turn_off' : 'set_temperature',
+            params: { temperature: liveTargetTemp.value, hvac_mode: liveHvacMode.value }
+          }
+        )
+        dispatched = true
+      } catch {
+        // Fallback to cloud or entity service below
+      }
+    }
+
+    // 2. If device is from Tuya Cloud and not yet dispatched, try Tuya Cloud command endpoint
+    if (!dispatched && opt?.tuya_device_id && opt.source === 'tuya_cloud') {
+      try {
+        const commands: Array<{ code: string; value: unknown }> = []
+        if (liveHvacMode.value === 'off' && opt.switch_dp_code) {
+          commands.push({ code: opt.switch_dp_code, value: false })
+        } else {
+          if (opt.switch_dp_code) {
+            commands.push({ code: opt.switch_dp_code, value: true })
+          }
+          const tempCode = opt.temp_dp_code || 'temp_set'
+          const scaleFactor = opt.temp_scale === 1 ? 10 : 1
+          commands.push({
+            code: tempCode,
+            value: Math.round(liveTargetTemp.value * scaleFactor)
+          })
+          if (opt.mode_dp_code && (liveHvacMode.value === 'auto' || liveHvacMode.value === 'heat')) {
+            commands.push({
+              code: opt.mode_dp_code,
+              value: liveHvacMode.value === 'auto' ? 'auto' : 'manual'
+            })
+          }
+        }
+        await apiClient.post(
+          `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(opt.tuya_device_id)}/commands`,
+          { commands }
+        )
+        dispatched = true
+      } catch {
+        // Fallback to standard entity service call below
+      }
+    }
+
+    // 3. Standard Domus entity service call
+    if (!dispatched) {
+      await entitiesStore.callService(domain, 'set_temperature', targetEntityId, {
+        temperature: liveTargetTemp.value
+      })
+
+      if (liveHvacMode.value) {
+        try {
+          await entitiesStore.callService(domain, 'set_hvac_mode', targetEntityId, {
+            hvac_mode: liveHvacMode.value
+          })
+        } catch {}
+      }
+    }
+
+    if (opt) {
+      opt.target_temperature = liveTargetTemp.value
+      opt.hvac_mode = liveHvacMode.value
     }
 
     notifStore.success(
@@ -267,12 +691,14 @@ function copySaturdayToSunday() {
 async function saveCurrentSchedule() {
   if (!selectedSchedule.value) return
   const sched = selectedSchedule.value
+  const targetEntityKey = sched.entity_key || activeThermostatId.value || 'climate.termostato_principale'
+  sched.entity_key = targetEntityKey
 
   try {
     isSavingSchedule.value = true
     await apiClient.put(`/api/v1/schedules/${sched.id}`, {
       name: sched.name,
-      entity_key: sched.entity_key || activeThermostatId.value || 'climate.termostato_principale',
+      entity_key: targetEntityKey,
       enabled: sched.enabled,
       grid: sched.grid
     })
@@ -325,6 +751,20 @@ async function createNewSchedule() {
   }
 }
 
+async function fetchTuyaThermostats() {
+  const [localRes, cloudRes] = await Promise.allSettled([
+    apiClient.get<{ devices: TuyaLocalDeviceItem[] }>('/api/v1/integrations/tuya-local/devices'),
+    apiClient.get<{ devices: TuyaCloudDeviceItem[] }>('/api/v1/integrations/tuya-cloud/devices')
+  ])
+
+  if (localRes.status === 'fulfilled' && localRes.value?.devices) {
+    tuyaLocalDevices.value = localRes.value.devices
+  }
+  if (cloudRes.status === 'fulfilled' && cloudRes.value?.devices) {
+    tuyaCloudDevices.value = cloudRes.value.devices
+  }
+}
+
 // iCal Upload Handler
 async function handleICalUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -343,7 +783,12 @@ async function handleICalUpload(event: Event) {
 }
 
 onMounted(async () => {
-  await entitiesStore.fetchEntities()
+  await Promise.allSettled([
+    entitiesStore.fetchEntities(),
+    fetchTuyaThermostats()
+  ])
+
+  watchThermostatChange()
 
   try {
     const s = await apiClient.get<Schedule[]>('/api/v1/schedules')
@@ -421,12 +866,20 @@ onMounted(async () => {
               id="thermostat-select"
               v-model="activeThermostatId"
               class="thermostat-select"
-              @change="syncLiveThermostatValues"
+              @change="onThermostatSelectChange"
             >
               <option v-for="t in connectedThermostats" :key="t.id" :value="t.id">
                 🌡️ {{ t.name }} ({{ t.id }})
               </option>
-              <option v-if="connectedThermostats.length === 0" value="climate.termostato_salotto">
+              <optgroup
+                v-if="otherSmartLifeDevices.length > 0"
+                label="Dispositivi Smart Life Integrati"
+              >
+                <option v-for="d in otherSmartLifeDevices" :key="d.id" :value="d.id">
+                  ⚡ {{ d.name }} ({{ d.id }})
+                </option>
+              </optgroup>
+              <option v-if="allSelectableThermostats.length === 0" value="climate.termostato_salotto">
                 🌡️ Termostato Salotto (Simulato)
               </option>
             </select>
