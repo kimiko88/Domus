@@ -82,6 +82,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 
 	switch c.Condition {
 	case "and":
+		if len(c.Conditions) == 0 {
+			trace.Passed = false
+			trace.Reason = "AND block has no child conditions"
+			return trace
+		}
 		passed := true
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
@@ -95,6 +100,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 		return trace
 
 	case "or":
+		if len(c.Conditions) == 0 {
+			trace.Passed = false
+			trace.Reason = "OR block has no child conditions"
+			return trace
+		}
 		passed := false
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
@@ -108,6 +118,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 		return trace
 
 	case "not":
+		if len(c.Conditions) != 1 {
+			trace.Passed = false
+			trace.Reason = "NOT block must contain exactly one child condition"
+			return trace
+		}
 		passed := true
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
