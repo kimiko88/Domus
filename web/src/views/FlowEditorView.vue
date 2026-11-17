@@ -10,6 +10,7 @@ import { soundEffects } from '../utils/audioSynthesizer'
 import { apiClient } from '../api/client'
 import type { Automation, AutomationTrigger, AutomationCondition, AutomationAction } from '../api/types'
 import { parseAdvancedAutomationAction } from '../utils/automationActionValidation'
+import { buildAutomationActionGraph } from '../utils/automationFlowGraph'
 import {
   ArrowLeft,
   Save,
@@ -341,7 +342,9 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
   } else if (type === 'condition') {
     if (subType === 'state') return `Se ${data.entity_key || 'entità'} == ${data.state || 'on'}`
     if (subType === 'time') return `Tra ${data.after || '20:00'} e ${data.before || '06:00'}`
-    if (subType === 'logic') return `Logica ${data.logic || 'AND'}`
+    if (subType === 'numeric_state') return `${data.entity_key || 'sensore'} > ${data.above ?? '—'} / < ${data.below ?? '—'}`
+    if (subType === 'logic') return 'Espressione AND / OR / NOT'
+    if (subType === 'trigger') return `Trigger ${data.trigger_id || 'non specificato'}`
   } else if (type === 'action') {
     if (subType === 'service') return `${data.service || 'turn_on'} -> ${data.target_entity_key || 'entità'}`
     if (subType === 'scene') return `Applica scena`
@@ -363,19 +366,42 @@ function getBranchPorts(node: FlowNode): BranchPort[] {
   try {
     const parsed = JSON.parse(node.data.advancedJson || '{}') as Record<string, any>
     if (parsed.type === 'if' || parsed.type === 'if_then_else') {
-      return [{ key: 'then', label: 'IF / vero' }, { key: 'else', label: 'ELSE / falso' }]
+      return [
+        ...(Array.isArray(parsed.if) && parsed.if.length ? [{ key: 'if:conditions', label: 'Condizioni IF' }] : []),
+        { key: 'then', label: 'IF / vero' },
+        { key: 'else', label: 'ELSE / falso' }
+      ]
     }
     if (parsed.type === 'choose') {
       const branches = Array.isArray(parsed.choose) ? parsed.choose : []
-      return [...branches.map((_: unknown, i: number) => ({ key: `choose:${i}`, label: `Caso ${i + 1}` })), { key: 'default', label: 'Default' }]
+      return [
+        ...branches.flatMap((branch: Record<string, any>, i: number) => [
+          ...(Array.isArray(branch.conditions) && branch.conditions.length ? [{ key: `choose:${i}:conditions`, label: `Condizioni caso ${i + 1}` }] : []),
+          { key: `choose:${i}`, label: `Caso ${i + 1}` }
+        ]),
+        { key: 'default', label: 'Default' }
+      ]
     }
     if (parsed.type === 'parallel') {
       const branches = Array.isArray(parsed.parallel) ? parsed.parallel : []
       return branches.map((_: unknown, i: number) => ({ key: `parallel:${i}`, label: `Parallelo ${i + 1}` }))
     }
-    if (parsed.type === 'repeat') return [{ key: 'sequence', label: 'Corpo ciclo' }]
+    if (parsed.type === 'repeat') {
+      return [
+        ...(Array.isArray(parsed.repeat?.while) && parsed.repeat.while.length ? [{ key: 'repeat:while', label: 'Condizioni WHILE' }] : []),
+        ...(Array.isArray(parsed.repeat?.until) && parsed.repeat.until.length ? [{ key: 'repeat:until', label: 'Condizioni UNTIL' }] : []),
+        { key: 'sequence', label: 'Corpo ciclo' }
+      ]
+    }
   } catch { return [] }
   return []
+}
+
+function isConditionBranchKey(branchKey?: string): boolean {
+  return branchKey === 'if:conditions' ||
+    branchKey === 'repeat:while' ||
+    branchKey === 'repeat:until' ||
+    (!!branchKey && /^choose:\\d+:conditions$/.test(branchKey))
 }
 
 function commitWire(targetNodeId: string) {
@@ -700,8 +726,12 @@ function getGraphExecutionOrder(): FlowNode[] {
     if (!getBranchPorts(source).some((port) => port.key === wire.branchKey)) {
       throw new Error(`L’uscita “${wire.branchKey}” non esiste più nel nodo “${source.title}”.`)
     }
-    if (target.type !== 'action' && target.type !== 'delay') {
-      throw new Error('I rami delle azioni composite possono contenere solo azioni o pause.')
+    if (isConditionBranchKey(wire.branchKey)) {
+      if (target.type !== 'condition') {
+        throw new Error('Le porte delle condizioni possono collegarsi soltanto a nodi condizione.')
+      }
+    } else if (target.type !== 'action' && target.type !== 'delay') {
+      throw new Error('I rami delle azioni composite possono contenere soltanto azioni o pause.')
     }
   }
   const branchNodes = getBranchDescendantIds()
@@ -718,6 +748,59 @@ function getGraphExecutionOrder(): FlowNode[] {
     }
   }
   return ordered
+}
+
+function compileBranchConditions(parentId: string, branchKey: string, visited = new Set<string>()): AutomationCondition[] {
+  const first = wires.value.find((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
+  if (!first) return []
+  const result: AutomationCondition[] = []
+  let currentId: string | undefined = first.toNodeId
+  while (currentId) {
+    if (visited.has(currentId)) throw new Error('La sequenza delle condizioni contiene un ciclo o un nodo riutilizzato.')
+    visited.add(currentId)
+    const node = nodes.value.find((item) => item.id === currentId)
+    if (!node || node.type !== 'condition') {
+      throw new Error('Una porta delle condizioni deve contenere esclusivamente nodi condizione.')
+    }
+    if (node.subType === 'logic') {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(node.data.advancedConditionJson || '')
+      } catch {
+        throw new Error('La condizione logica contiene un JSON non valido.')
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('La condizione logica deve essere un oggetto JSON.')
+      }
+      result.push(parsed as AutomationCondition)
+    } else {
+      const condition: AutomationCondition = {
+        ...(node.data.originalCondition || {}),
+        condition: node.subType
+      }
+      if (node.subType === 'state') {
+        condition.entity_key = node.data.entity_key
+        condition.state = node.data.state || 'on'
+      } else if (node.subType === 'numeric_state') {
+        condition.entity_key = node.data.entity_key
+        if (node.data.above !== undefined && node.data.above !== '') condition.above = Number(node.data.above)
+        if (node.data.below !== undefined && node.data.below !== '') condition.below = Number(node.data.below)
+      } else if (node.subType === 'time') {
+        condition.after = node.data.after
+        condition.before = node.data.before
+      } else if (node.subType === 'trigger') {
+        condition.trigger_id = node.data.trigger_id
+      } else {
+        throw new Error(`La condizione “${node.subType}” non è supportata nell'editor visuale.`)
+      }
+      result.push(condition)
+    }
+
+    const next = wires.value.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
+    if (next.length > 1) throw new Error('Una sequenza di condizioni può avere una sola uscita lineare.')
+    currentId = next[0]?.toNodeId
+  }
+  return result
 }
 
 function compileBranchSequence(parentId: string, branchKey: string, visited = new Set<string>()): AutomationAction[] {
@@ -766,6 +849,9 @@ function compileBranchSequence(parentId: string, branchKey: string, visited = ne
 
 function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & Record<string, any>, visited = new Set<string>()) {
   if (action.type === 'if' || action.type === 'if_then_else') {
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'if:conditions')) {
+      action.if = compileBranchConditions(node.id, 'if:conditions', visited)
+    }
     if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'then')) {
       action.then = compileBranchSequence(node.id, 'then', visited)
     }
@@ -773,18 +859,33 @@ function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & R
       action.else = compileBranchSequence(node.id, 'else', visited)
     }
   } else if (action.type === 'choose') {
-    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => (
-      wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === `choose:${index}`)
-        ? { ...branch, sequence: compileBranchSequence(node.id, `choose:${index}`, visited) }
-        : branch
-    ))
+    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => {
+      const updated = { ...branch }
+      const conditionKey = `choose:${index}:conditions`
+      const sequenceKey = `choose:${index}`
+      if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === conditionKey)) {
+        updated.conditions = compileBranchConditions(node.id, conditionKey, visited)
+      }
+      if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === sequenceKey)) {
+        updated.sequence = compileBranchSequence(node.id, sequenceKey, visited)
+      }
+      return updated
+    })
     if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'default')) {
       action.default = compileBranchSequence(node.id, 'default', visited)
     }
   } else if (action.type === 'repeat') {
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'sequence')) {
-      action.repeat = { ...action.repeat, sequence: compileBranchSequence(node.id, 'sequence', visited) }
+    const repeat = { ...(action.repeat || {}) }
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'repeat:while')) {
+      repeat.while = compileBranchConditions(node.id, 'repeat:while', visited)
     }
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'repeat:until')) {
+      repeat.until = compileBranchConditions(node.id, 'repeat:until', visited)
+    }
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'sequence')) {
+      repeat.sequence = compileBranchSequence(node.id, 'sequence', visited)
+    }
+    action.repeat = repeat
   } else if (action.type === 'parallel') {
     action.parallel = (action.parallel || []).map((original: AutomationAction, index: number) => {
       const branchKey = `parallel:${index}`
@@ -823,7 +924,20 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       triggers.push(trig)
     } else if (node.type === 'condition') {
-      if (!['state', 'time', 'numeric_state'].includes(node.subType)) {
+      if (node.subType === 'logic') {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(node.data.advancedConditionJson || '')
+        } catch {
+          throw new Error('La condizione logica contiene un JSON non valido.')
+        }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('La condizione logica deve essere un oggetto JSON.')
+        }
+        conditions.push(parsed as AutomationCondition)
+        continue
+      }
+      if (!['state', 'time', 'numeric_state', 'trigger'].includes(node.subType)) {
         throw new Error(`La condizione “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
       }
       const cond: AutomationCondition = {
@@ -837,8 +951,11 @@ function compileGraphToAutomation(): Partial<Automation> {
         cond.after = node.data.after
         cond.before = node.data.before
       } else if (node.subType === 'numeric_state') {
-        if (node.data.above !== undefined) cond.above = Number(node.data.above)
-        if (node.data.below !== undefined) cond.below = Number(node.data.below)
+        cond.entity_key = node.data.entity_key
+        if (node.data.above !== undefined && node.data.above !== '') cond.above = Number(node.data.above)
+        if (node.data.below !== undefined && node.data.below !== '') cond.below = Number(node.data.below)
+      } else if (node.subType === 'trigger') {
+        cond.trigger_id = node.data.trigger_id
       }
       conditions.push(cond)
     } else if (node.type === 'action') {
@@ -936,8 +1053,10 @@ function loadAutomationIntoGraph(auto: Automation) {
       newNodes.push({
         id,
         type: 'condition',
-        subType: cond.condition,
-        title: cond.condition === 'time' ? 'Fascia Oraria' : cond.condition === 'numeric_state' ? 'Soglia Numerica' : 'Filtro Stato',
+        subType: ['and', 'or', 'not'].includes(cond.condition) ? 'logic' : cond.condition,
+        title: ['and', 'or', 'not'].includes(cond.condition)
+          ? `Gruppo ${cond.condition.toUpperCase()}`
+          : cond.condition === 'time' ? 'Fascia Oraria' : cond.condition === 'numeric_state' ? 'Soglia Numerica' : 'Filtro Stato',
         subtitle: cond.entity_key ? `${cond.entity_key} == ${cond.state || 'on'}` : 'Condizione',
         x: col2X,
         y: 80 + idx * 130,
@@ -948,7 +1067,9 @@ function loadAutomationIntoGraph(auto: Automation) {
           above: cond.above,
           below: cond.below,
           after: cond.after,
-          before: cond.before
+          before: cond.before,
+          trigger_id: cond.trigger_id,
+          advancedConditionJson: ['and', 'or', 'not'].includes(cond.condition) ? JSON.stringify(cond, null, 2) : undefined
         }
       })
       const conditionParentId = idx > 0 ? `cond_${idx - 1}` : lastTrigId
@@ -962,52 +1083,21 @@ function loadAutomationIntoGraph(auto: Automation) {
     })
   }
 
-  // 3. Actions
-  let prevActionId: string | null = lastCondId || lastTrigId
-  auto.actions.forEach((act, idx) => {
-    const id = `act_${idx}`
-    const isDelay = act.type === 'delay'
-    newNodes.push({
-      id,
-      type: isDelay ? 'delay' : 'action',
-      subType: isDelay
-        ? 'delay'
-        : (['scene', 'service'].includes(act.type)
-          ? act.type
-          : (['event', 'climate_profile', 'choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(act.type)
-            ? act.type
-            : 'unsupported')),
-      title: isDelay
-        ? 'Pausa / Delay'
-        : (act.type === 'scene'
-          ? 'Applica Scena'
-          : act.type === 'service'
-            ? 'Comando'
-            : `Azione avanzata (${act.type})`),
-      subtitle: isDelay ? `Attesa ${(act.delay_ms || 1000) / 1000}s` : `${act.service || 'azione'} -> ${act.target_entity_key || ''}`,
-      x: col3X,
-      y: 80 + idx * 130,
-      data: {
-        originalAction: act,
-        target_entity_key: act.target_entity_key,
-        service: act.service,
-        delay_seconds: (act.delay_ms || 1000) / 1000,
-        scene_id: act.params?.scene_id,
-        advancedJson: ['event', 'climate_profile', 'choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(act.type)
-          ? JSON.stringify(act, null, 2)
-          : undefined
-      }
-    })
+  // 3. Actions: recursively expand existing composite sequences into their
+  // named graph branches instead of leaving them hidden in a single JSON blob.
+  const actionGraph = buildAutomationActionGraph(auto.actions || [], col3X, 80)
+  newNodes.push(...actionGraph.nodes)
+  newWires.push(...actionGraph.wires)
 
-    if (prevActionId) {
-      newWires.push({
-        id: `w_seq_${idx}`,
-        fromNodeId: prevActionId,
-        toNodeId: id
-      })
-    }
-    prevActionId = id
-  })
+  const firstActionId = actionGraph.nodes.find((node) => node.id === 'act_root_0')?.id
+  const previousMainNodeId = lastCondId || lastTrigId
+  if (previousMainNodeId && firstActionId) {
+    newWires.push({
+      id: 'w_last_condition_to_actions',
+      fromNodeId: previousMainNodeId,
+      toNodeId: firstActionId
+    })
+  }
 
   nodes.value = newNodes
   wires.value = newWires
@@ -1114,7 +1204,7 @@ const selectedNode = computed(() => {
 // Update subtitle reactively when inspector modifies data
 function handleInspectorDataChange() {
   if (selectedNode.value) {
-    if (selectedNode.value.type === 'condition' && selectedNode.value.subType === 'state') {
+    if (selectedNode.value.type === 'condition' && selectedNode.value.subType === 'state' && selectedNode.value.data.state === undefined) {
       selectedNode.value.data.state = selectedNode.value.data.to
     }
     selectedNode.value.subtitle = getSubtitleForNode(
@@ -1473,6 +1563,15 @@ onBeforeUnmount(() => {
 
             <label class="prop-label mt-12">{{ t('flowchart.view.expectedState') }}</label>
             <input
+              v-if="selectedNode.type === 'condition'"
+              v-model="selectedNode.data.state"
+              type="text"
+              class="prop-input"
+              :placeholder="t('flowchart.view.expectedStatePlaceholder')"
+              @input="handleInspectorDataChange"
+            />
+            <input
+              v-else
               v-model="selectedNode.data.to"
               type="text"
               class="prop-input"
@@ -1535,6 +1634,25 @@ onBeforeUnmount(() => {
             <input v-model="selectedNode.data.after" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
             <label class="prop-label mt-12">Alle (HH:MM:SS)</label>
             <input v-model="selectedNode.data.before" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
+          </div>
+
+          <div v-else-if="selectedNode.subType === 'logic' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">Espressione condizionale (JSON)</label>
+            <p class="palette-desc">
+              AND, OR e NOT mantengono la struttura annidata originale. Modifica l'oggetto completo per non alterare la semantica del gruppo.
+            </p>
+            <textarea
+              v-model="selectedNode.data.advancedConditionJson"
+              class="prop-textarea advanced-action-json"
+              rows="10"
+              spellcheck="false"
+              @input="handleInspectorDataChange"
+            ></textarea>
+          </div>
+
+          <div v-else-if="selectedNode.subType === 'trigger' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">ID trigger</label>
+            <input v-model="selectedNode.data.trigger_id" type="text" class="prop-input" @input="handleInspectorDataChange" />
           </div>
 
           <div v-else-if="selectedNode.subType === 'service'" class="prop-group">
