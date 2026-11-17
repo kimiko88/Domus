@@ -87,6 +87,22 @@ func TestAutomationHandler_Lifecycle(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
+	// A later partial update must not reset omitted fields or discard empty arrays.
+	body, _ = json.Marshal(map[string]any{
+		"description": "Updated without changing enabled/actions",
+		"conditions":  []any{},
+	})
+	req = httptest.NewRequest(http.MethodPut, "/automations/"+created.ID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var partiallyUpdated automation.Automation
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&partiallyUpdated))
+	assert.False(t, partiallyUpdated.Enabled, "omitted enabled must retain its previous value")
+	assert.Empty(t, partiallyUpdated.Conditions, "an explicit empty conditions array must clear conditions")
+	assert.Len(t, partiallyUpdated.Actions, 1, "omitted actions must be preserved")
+
 	// 5. Trigger Automation
 	req = httptest.NewRequest(http.MethodPost, "/automations/"+created.ID+"/trigger", nil)
 	w = httptest.NewRecorder()
