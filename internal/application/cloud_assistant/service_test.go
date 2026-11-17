@@ -413,8 +413,8 @@ func TestCloudAssistant_ThermostatModesAreAdvertisedAndQueryable(t *testing.T) {
 	assert.Equal(t, []string{"off", "heat", "cool", "auto"}, modes)
 	rangeAttrs, ok := thermostat.Attributes["thermostatTemperatureRange"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, 5, rangeAttrs["minThresholdCelsius"])
-	assert.Equal(t, 35, rangeAttrs["maxThresholdCelsius"])
+	assert.InDelta(t, 5.0, rangeAttrs["minThresholdCelsius"], 0.001)
+	assert.InDelta(t, 35.0, rangeAttrs["maxThresholdCelsius"], 0.001)
 
 	alexaDiscovery, err := svc.HandleAlexa(context.Background(), []byte(`{
 		"directive":{"header":{"namespace":"Alexa.Discovery","name":"Discover","payloadVersion":"3","messageId":"discover-mode","correlationToken":"mode-token"},"payload":{}}
@@ -519,7 +519,7 @@ func TestCloudAssistant_GoogleRejectsOutOfRangeThermostatSetpoint(t *testing.T) 
 		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "between 5 and 35")
+	assert.Contains(t, err.Error(), "between 5.0 and 35.0")
 }
 
 func TestCloudAssistant_GoogleRejectsUnsupportedThermostatMode(t *testing.T) {
