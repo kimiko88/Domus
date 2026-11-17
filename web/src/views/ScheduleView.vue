@@ -419,8 +419,8 @@ const supportedHvacModes = computed<string[]>(() => {
   return fallback
 })
 const supportsSetpoint = computed(() => {
-  const attrs = activeThermostat.value?.attributes || {}
-  const entityHasSetpoint = ['target_temperature', 'temperature', 'target_temp'].some(
+  const attrs = activeThermostat.value?.attributes
+  const entityHasSetpoint = !!attrs && ['target_temperature', 'temperature', 'target_temp'].some(
     key => attrs[key] != null && Number.isFinite(Number(attrs[key]))
   )
   const option = findThermostatOption(activeThermostatId.value)
