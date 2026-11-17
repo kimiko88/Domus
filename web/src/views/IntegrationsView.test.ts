@@ -544,7 +544,7 @@ describe('IntegrationsView.vue', () => {
     await executeButton!.trigger('click')
     expect(postSpy).toHaveBeenCalledWith(
       '/api/v1/integrations/tuya-local/devices/tuya-offline-thermostat/command',
-      { command: 'set_temperature', params: { temperature: 22.5 } }
+      { command: 'set_temperature', params: { temperature: 22.5, scale: 1 } }
     )
     expect(postSpy).not.toHaveBeenCalledWith(
       '/api/v1/integrations/tuya-cloud/devices/tuya-offline-thermostat/commands',
