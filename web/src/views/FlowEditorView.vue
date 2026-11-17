@@ -64,6 +64,7 @@ export interface FlowWire {
   id: string
   fromNodeId: string
   toNodeId: string
+  branchKey?: string
 }
 
 // --- Editor Reactive State ---
@@ -97,6 +98,7 @@ const dragOffset = ref({ x: 0, y: 0 })
 // --- Wiring Interactive State ---
 const isWiring = ref(false)
 const wireStartNodeId = ref<string | null>(null)
+const wireStartBranchKey = ref<string | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
 const activeTouchPointers = new Map<number, { x: number; y: number }>()
 let pinchOrigin: {
@@ -352,34 +354,56 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
 }
 
 // --- Wire Connections (Curves of Bézier) ---
+interface BranchPort { key: string; label: string }
+
+function getBranchPorts(node: FlowNode): BranchPort[] {
+  if (node.type !== 'action' || !['choose', 'if', 'if_then_else', 'parallel', 'repeat'].includes(node.subType)) return []
+  try {
+    const parsed = JSON.parse(node.data.advancedJson || '{}') as Record<string, any>
+    if (parsed.type === 'if' || parsed.type === 'if_then_else') {
+      return [{ key: 'then', label: 'IF / vero' }, { key: 'else', label: 'ELSE / falso' }]
+    }
+    if (parsed.type === 'choose') {
+      const branches = Array.isArray(parsed.choose) ? parsed.choose : []
+      return [...branches.map((_: unknown, i: number) => ({ key: `choose:${i}`, label: `Caso ${i + 1}` })), { key: 'default', label: 'Default' }]
+    }
+    if (parsed.type === 'parallel') {
+      const branches = Array.isArray(parsed.parallel) ? parsed.parallel : []
+      return branches.map((_: unknown, i: number) => ({ key: `parallel:${i}`, label: `Parallelo ${i + 1}` }))
+    }
+    if (parsed.type === 'repeat') return [{ key: 'sequence', label: 'Corpo ciclo' }]
+  } catch { return [] }
+  return []
+}
+
 function commitWire(targetNodeId: string) {
   const sourceNodeId = wireStartNodeId.value
   if (!sourceNodeId || sourceNodeId === targetNodeId) return
-
-  const exists = wires.value.some(
-    (wire) => wire.fromNodeId === sourceNodeId && wire.toNodeId === targetNodeId
-  )
-  if (!exists) {
-    wires.value.push({
-      id: `wire_${sourceNodeId}_${targetNodeId}`,
-      fromNodeId: sourceNodeId,
-      toNodeId: targetNodeId
-    })
-    soundEffects.playSuccessChime()
-  }
+  const branchKey = wireStartBranchKey.value || undefined
+  const occupied = wires.value.some((wire) => wire.fromNodeId === sourceNodeId && wire.branchKey === branchKey)
+  if (occupied) return
+  wires.value.push({
+    id: `wire_${sourceNodeId}_${branchKey || 'next'}_${targetNodeId}`,
+    fromNodeId: sourceNodeId,
+    toNodeId: targetNodeId,
+    branchKey
+  })
+  soundEffects.playSuccessChime()
 }
 
 function finishWiring() {
   isWiring.value = false
   wireStartNodeId.value = null
+  wireStartBranchKey.value = null
 }
 
-function startWiring(nodeId: string, e: PointerEvent) {
+function startWiring(nodeId: string, e: PointerEvent, branchKey?: string) {
   if (activeTouchPointers.size > 1) return
   e.stopPropagation()
   soundEffects.playClick()
   isWiring.value = true
   wireStartNodeId.value = nodeId
+  wireStartBranchKey.value = branchKey || null
   updateMousePos(e)
 }
 
@@ -391,8 +415,8 @@ function endWiring(targetNodeId: string, e: PointerEvent) {
 }
 
 // Tap/click connection mode makes wiring usable without a drag gesture.
-function toggleWireStart(nodeId: string) {
-  if (isWiring.value && wireStartNodeId.value === nodeId) {
+function toggleWireStart(nodeId: string, branchKey?: string) {
+  if (isWiring.value && wireStartNodeId.value === nodeId && wireStartBranchKey.value === (branchKey || null)) {
     finishWiring()
     return
   }
@@ -407,6 +431,7 @@ function toggleWireStart(nodeId: string) {
   selectedNodeId.value = nodeId
   isWiring.value = true
   wireStartNodeId.value = nodeId
+  wireStartBranchKey.value = branchKey || null
 }
 
 function completeWiringByClick(nodeId: string) {
@@ -439,8 +464,10 @@ function getWirePath(wire: FlowWire): string {
   if (!from || !to) return ''
 
   // Node dimensions: 230px width, ~80px height
+  const keys = getBranchPorts(from).map((port) => port.key)
+  const branchIndex = wire.branchKey ? keys.indexOf(wire.branchKey) : -1
   const x1 = from.x + 230
-  const y1 = from.y + 45
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : 45)
   const x2 = to.x
   const y2 = to.y + 45
 
@@ -453,8 +480,10 @@ function getDraftWirePath(): string {
   const from = nodes.value.find((n) => n.id === wireStartNodeId.value)
   if (!from) return ''
 
+  const keys = getBranchPorts(from).map((port) => port.key)
+  const branchIndex = wireStartBranchKey.value ? keys.indexOf(wireStartBranchKey.value) : -1
   const x1 = from.x + 230
-  const y1 = from.y + 45
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : 45)
   const x2 = (mousePos.value.x - panX.value) / zoom.value
   const y2 = (mousePos.value.y - panY.value) / zoom.value
 
@@ -1228,8 +1257,23 @@ onBeforeUnmount(() => {
               <span class="node-subtitle">{{ node.subtitle }}</span>
             </div>
 
-            <!-- Node Output Port (Right) -->
+            <div v-if="getBranchPorts(node).length" class="node-branch-ports">
+              <div v-for="port in getBranchPorts(node)" :key="port.key" class="branch-port-row">
+                <span class="branch-port-label">{{ port.label }}</span>
+                <button
+                  class="node-port port-output branch-port"
+                  type="button"
+                  @pointerdown="startWiring(node.id, $event, port.key)"
+                  @click.stop="toggleWireStart(node.id, port.key)"
+                  @keydown.enter.prevent.stop="toggleWireStart(node.id, port.key)"
+                  @keydown.space.prevent.stop="toggleWireStart(node.id, port.key)"
+                  :aria-label="`Collega uscita ${port.label}`"
+                  :title="`Collega uscita ${port.label}`"
+                ><span class="port-dot"></span></button>
+              </div>
+            </div>
             <div
+              v-else
               class="node-port port-output"
               role="button"
               tabindex="0"
@@ -1239,9 +1283,7 @@ onBeforeUnmount(() => {
               @keydown.space.prevent.stop="toggleWireStart(node.id)"
               :aria-label="t('flowchart.view.dragToConnect')"
               :title="t('flowchart.view.dragToConnect')"
-            >
-              <div class="port-dot"></div>
-            </div>
+            ><div class="port-dot"></div></div>
           </div>
         </div>
       </main>
@@ -2000,6 +2042,17 @@ onBeforeUnmount(() => {
 }
 
 /* Connection Ports */
+.node-branch-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px 8px 12px;
+  border-top: 1px solid var(--border-color, rgba(255,255,255,.08));
+  background: rgba(0,0,0,.08);
+}
+.branch-port-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:24px; }
+.branch-port-label { color:var(--text-secondary); font-size:10px; line-height:1.2; font-weight:600; }
+.branch-port { position:static; flex:0 0 18px; }
 .node-port {
   position: absolute;
   top: 50%;
