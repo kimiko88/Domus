@@ -374,6 +374,7 @@
     "emptyDesc": "Konfigurieren Sie MQTT-, Zigbee2MQTT- oder ESPHome-Adapter in Ihrer Konfigurationsdatei.",
     "view": {
       "genericLanHost": "Allgemeiner LAN-Host",
+"selectedForLocalTuya": "Für LocalTuya ausgewählt: {count}",
       "lanGuardianTitle": "LAN & IoT Guardian",
       "smartLifeCloud": "Smart Life Cloud",
       "bridgeInfo": "Hardware-Bridges und Protokolle, die derzeit mit dem lokalen Domus-System verbunden sind.",

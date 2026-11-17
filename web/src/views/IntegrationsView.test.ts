@@ -465,7 +465,7 @@ describe('IntegrationsView.vue', () => {
             code: 'temp_set',
             name: 'Temperatura obiettivo',
             type: 'Integer',
-            values: '{\"min\":50,\"max\":350,\"scale\":1}'
+            values: '{"min":50,"max":350,"scale":1}'
           }]
         }
       }
