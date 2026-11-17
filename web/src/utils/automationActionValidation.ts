@@ -1,4 +1,4 @@
-import type { AutomationAction, AutomationCondition } from '../api/types'
+import type { AutomationAction } from '../api/types'
 
 type JsonObject = Record<string, unknown>
 
