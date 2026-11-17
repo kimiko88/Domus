@@ -111,6 +111,105 @@ describe('manual thermostat overrides', () => {
   wrapper.unmount()
   })
 
+  it('uses the selected schedule entity UUID when applying a thermostat override', async () => {
+    const firstThermostat = {
+      id: 'first-tuya-uuid', entity_key: 'climate.tuya_room', domain: 'climate',
+      name: 'Termostato soggiorno', state: 'heat',
+      attributes: { target_temperature: 21, current_temperature: 19, hvac_modes: ['heat'] },
+      last_changed: '', last_updated: ''
+    }
+    const secondThermostat = {
+      id: 'second-tuya-uuid', entity_key: 'climate.kitchen', domain: 'climate',
+      name: 'Termostato cucina', state: 'auto',
+      attributes: { target_temperature: 20, current_temperature: 18, hvac_modes: ['auto'] },
+      last_changed: '', last_updated: ''
+    }
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/api/v1/entities')) return [firstThermostat, secondThermostat] as any
+      if (url.includes('/api/v1/schedules')) return [{
+        id: 'sched-kitchen', name: 'Cucina', entity_key: 'climate.tuya_room',
+        enabled: true, grid: { monday: [] }
+      }] as any
+      return [] as any
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'accepted' } as any)
+    const serviceSpy = vi.spyOn(useEntitiesStore(), 'callService').mockResolvedValue(undefined)
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+
+    await wrapper.find('#schedule-thermostat-select').setValue('climate.kitchen')
+    await flushPromises()
+    expect((wrapper.find('#thermostat-select').element as HTMLSelectElement).value).toBe('second-tuya-uuid')
+
+    await wrapper.find('.btn-apply-thermostat').trigger('click')
+    await flushPromises()
+
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/entities/second-tuya-uuid/climate-profile',
+      { profile: 'custom', temperature: 20, duration_minutes: 0 }
+    )
+
+    postSpy.mockRestore()
+    serviceSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('sends immediate commands to a Smart Life thermostat without a Domus entity and rejects timed overrides', async () => {
+    const cloudThermostat = {
+      id: 'cloud-thermostat-uuid',
+      name: 'Termostato Cloud',
+      product_name: 'Smart thermostat',
+      category: 'wk',
+      inferred_category: 'climate',
+      entity_key: 'climate.tuya_cloud_room',
+      online: true,
+      local_configured: false,
+      status: [
+        { code: 'switch', value: true },
+        { code: 'mode', value: 'auto' },
+        { code: 'temp_set', value: 210 },
+        { code: 'temp_current', value: 190 }
+      ]
+    }
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/api/v1/entities')) return [] as any
+      if (url.includes('/api/v1/schedules')) return [{
+        id: 'sched-cloud', name: 'Smart Life Cloud',
+        entity_key: 'climate.tuya_cloud_room', enabled: true, grid: { monday: [] }
+      }] as any
+      if (url.endsWith('/api/v1/integrations/tuya-cloud/devices')) {
+        return { devices: [cloudThermostat] } as any
+      }
+      return { devices: [] } as any
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true } as any)
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+
+    const duration = wrapper.find('[data-testid="manual-climate-override-duration"]')
+    await duration.setValue('15')
+    await wrapper.find('.btn-apply-thermostat').trigger('click')
+    await flushPromises()
+    expect(postSpy).not.toHaveBeenCalled()
+
+    await duration.setValue('0')
+    await wrapper.find('.btn-apply-thermostat').trigger('click')
+    await flushPromises()
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/tuya-cloud/devices/cloud-thermostat-uuid/commands',
+      {
+        commands: [
+          { code: 'switch', value: true },
+          { code: 'temp_set', value: 210 },
+          { code: 'mode', value: 'auto' }
+        ]
+      }
+    )
+
+    postSpy.mockRestore()
+    wrapper.unmount()
+  })
+
   it('uses Smart Life thermostat setpoint and only its reported LocalTuya modes', async () => {
     const thermostat = {
       id: 'tuya-device-uuid', entity_key: 'climate.tuya_room', domain: 'climate',
