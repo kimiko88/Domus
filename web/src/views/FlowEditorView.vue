@@ -279,6 +279,7 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
   if (subType === 'state') {
     defaultData.entity_key = entitiesStore.allEntities[0]?.id || ''
     defaultData.to = 'on'
+    if (type === 'condition') defaultData.state = 'on'
   } else if (subType === 'numeric_state') {
     defaultData.entity_key = 'sensor.temperatura_salotto'
     defaultData.above = 24
@@ -423,6 +424,7 @@ function finishWiring() {
   isWiring.value = false
   wireStartNodeId.value = null
   wireStartBranchKey.value = null
+  wireStartPortElement.value = null
 }
 
 function startWiring(nodeId: string, e: PointerEvent, branchKey?: string) {
@@ -523,7 +525,7 @@ function getDraftWirePath(): string {
   const keys = getBranchPorts(from).map((port) => port.key)
   const branchIndex = wireStartBranchKey.value ? keys.indexOf(wireStartBranchKey.value) : -1
   const x1 = from.x + 230
-  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : 45)
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : keys.length ? 84 + keys.length * 28 : 45)
   const x2 = (mousePos.value.x - panX.value) / zoom.value
   const y2 = (mousePos.value.y - panY.value) / zoom.value
 
@@ -1550,8 +1552,9 @@ onBeforeUnmount(() => {
             <input
               v-model.number="selectedNode.data.delay_seconds"
               type="number"
-              min="1"
+              min="0"
               max="3600"
+              step="0.1"
               class="prop-input"
               @input="handleInspectorDataChange"
             />
