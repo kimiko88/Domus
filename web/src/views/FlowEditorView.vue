@@ -158,14 +158,6 @@ const paletteItems: PaletteItem[] = [
     category: 'Conditions'
   },
   {
-    type: 'condition',
-    subType: 'logic',
-    title: 'Logica AND / OR',
-    desc: 'Combina condizioni multiple',
-    icon: Layers,
-    category: 'Conditions'
-  },
-  {
     type: 'action',
     subType: 'service',
     title: 'Comando Entità',
