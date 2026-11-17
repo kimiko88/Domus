@@ -128,7 +128,30 @@
       "eventPreview": "Aperçu de l’événement"
     },
     "notifications": "Notifications",
-    "dismissNotification": "Ignorer la notification"
+    "dismissNotification": "Ignorer la notification",
+    "wsNotifications": {
+      "alarmTitle": "Alarme",
+      "alarmState": "État de l’alarme : {state}",
+      "alarmTriggeredTitle": "ALARME DÉCLENCHÉE",
+      "alarmTriggeredMessage": "Alarme d’intrusion déclenchée ! Motif : {reason}",
+      "defaultAlarmReason": "Capteur périmétrique",
+      "alarmDisarmedTitle": "Alarme désarmée",
+      "alarmDisarmedMessage": "Le système d’alarme a été désarmé avec succès.",
+      "tagScannedTitle": "Tag scanné",
+      "tagScannedMessage": "Le tag \"{tag}\" a été traité avec succès.",
+      "deviceOnlineTitle": "Appareil en ligne",
+      "deviceOnlineMessage": "{name} est maintenant en ligne.",
+      "deviceOfflineTitle": "Appareil hors ligne",
+      "deviceOfflineMessage": "{name} est hors ligne.",
+      "deviceDiscoveredTitle": "Appareil détecté",
+      "deviceDiscoveredMessage": "Nouvel appareil détecté : {name}",
+      "sceneActivatedTitle": "Scène activée",
+      "sceneActivatedMessage": "{name} a été activée.",
+      "automationFailedTitle": "Échec de l’automatisation",
+      "automationFailedMessage": "L’automatisation \"{name}\" a échoué : {error}",
+      "systemNotification": "Notification système",
+      "updatedState": "mis à jour"
+    }
   },
   "nav": {
     "sectionOverview": "Vue d'ensemble",
@@ -263,7 +286,15 @@
       "installDate": "Date d’installation",
       "wasiPermissions": "Autorisations du bac à sable WASI",
       "viewSourceFor": "Voir le code open source de {name}",
-      "viewSource": "Voir le code source open source"
+      "viewSource": "Voir le code source open source",
+      "climateThermostat": "Climat et thermostat",
+      "batteryLabel": "Batterie ({value} %)",
+      "defaultProfileLivingRoom": "Tablette du salon (principale)",
+      "defaultProfileKitchen": "Tablette cuisine et entrée",
+      "defaultProfileNight": "Tablette chambre et nuit",
+      "roomLivingRoom": "Salon",
+      "roomKitchen": "Cuisine",
+      "roomBedroom": "Chambre"
     }
   },
   "areas": {

@@ -128,7 +128,30 @@
       "eventPreview": "Event preview"
     },
     "notifications": "Notifications",
-    "dismissNotification": "Dismiss notification"
+    "dismissNotification": "Dismiss notification",
+    "wsNotifications": {
+      "alarmTitle": "Alarm",
+      "alarmState": "Alarm status: {state}",
+      "alarmTriggeredTitle": "ALARM TRIGGERED",
+      "alarmTriggeredMessage": "Intrusion alarm triggered! Reason: {reason}",
+      "defaultAlarmReason": "Perimeter sensor",
+      "alarmDisarmedTitle": "Alarm disarmed",
+      "alarmDisarmedMessage": "The alarm system was successfully disarmed.",
+      "tagScannedTitle": "Tag scanned",
+      "tagScannedMessage": "Tag \"{tag}\" processed successfully.",
+      "deviceOnlineTitle": "Device online",
+      "deviceOnlineMessage": "{name} is now online.",
+      "deviceOfflineTitle": "Device offline",
+      "deviceOfflineMessage": "{name} is offline.",
+      "deviceDiscoveredTitle": "Device discovered",
+      "deviceDiscoveredMessage": "New device discovered: {name}",
+      "sceneActivatedTitle": "Scene activated",
+      "sceneActivatedMessage": "{name} was activated.",
+      "automationFailedTitle": "Automation failed",
+      "automationFailedMessage": "Automation \"{name}\" failed: {error}",
+      "systemNotification": "System notification",
+      "updatedState": "updated"
+    }
   },
   "nav": {
     "sectionOverview": "Overview",
@@ -263,7 +286,15 @@
       "installDate": "Installation date",
       "wasiPermissions": "WASI sandbox permissions",
       "viewSourceFor": "View open-source code for {name}",
-      "viewSource": "View open-source source code"
+      "viewSource": "View open-source source code",
+      "climateThermostat": "Climate & Thermostat",
+      "batteryLabel": "Battery ({value}%)",
+      "defaultProfileLivingRoom": "Living room tablet (Main)",
+      "defaultProfileKitchen": "Kitchen & entry tablet",
+      "defaultProfileNight": "Bedroom & night tablet",
+      "roomLivingRoom": "Living room",
+      "roomKitchen": "Kitchen",
+      "roomBedroom": "Bedroom"
     }
   },
   "areas": {

@@ -128,7 +128,30 @@
       "eventPreview": "Vista previa del evento"
     },
     "notifications": "Notificaciones",
-    "dismissNotification": "Descartar notificación"
+    "dismissNotification": "Descartar notificación",
+    "wsNotifications": {
+      "alarmTitle": "Alarma",
+      "alarmState": "Estado de la alarma: {state}",
+      "alarmTriggeredTitle": "ALARMA ACTIVADA",
+      "alarmTriggeredMessage": "¡Alarma de intrusión activada! Motivo: {reason}",
+      "defaultAlarmReason": "Sensor perimetral",
+      "alarmDisarmedTitle": "Alarma desactivada",
+      "alarmDisarmedMessage": "La central de alarma se ha desactivado correctamente.",
+      "tagScannedTitle": "Etiqueta escaneada",
+      "tagScannedMessage": "La etiqueta \"{tag}\" se ha procesado correctamente.",
+      "deviceOnlineTitle": "Dispositivo conectado",
+      "deviceOnlineMessage": "{name} ahora está conectado.",
+      "deviceOfflineTitle": "Dispositivo desconectado",
+      "deviceOfflineMessage": "{name} está desconectado.",
+      "deviceDiscoveredTitle": "Dispositivo detectado",
+      "deviceDiscoveredMessage": "Nuevo dispositivo detectado: {name}",
+      "sceneActivatedTitle": "Escena activada",
+      "sceneActivatedMessage": "{name} se ha activado.",
+      "automationFailedTitle": "Error de automatización",
+      "automationFailedMessage": "La automatización \"{name}\" ha fallado: {error}",
+      "systemNotification": "Notificación del sistema",
+      "updatedState": "actualizado"
+    }
   },
   "nav": {
     "sectionOverview": "Resumen",
@@ -263,7 +286,15 @@
       "installDate": "Fecha de instalación",
       "wasiPermissions": "Permisos del entorno aislado WASI",
       "viewSourceFor": "Ver el código abierto de {name}",
-      "viewSource": "Ver el código fuente abierto"
+      "viewSource": "Ver el código fuente abierto",
+      "climateThermostat": "Clima y termostato",
+      "batteryLabel": "Batería ({value} %)",
+      "defaultProfileLivingRoom": "Tablet del salón (principal)",
+      "defaultProfileKitchen": "Tablet de cocina y entrada",
+      "defaultProfileNight": "Tablet del dormitorio y noche",
+      "roomLivingRoom": "Salón",
+      "roomKitchen": "Cocina",
+      "roomBedroom": "Dormitorio"
     }
   },
   "areas": {

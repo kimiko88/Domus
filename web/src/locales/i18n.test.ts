@@ -47,7 +47,30 @@ describe('Localization (i18n)', () => {
       ['devices', 'view', 'scanLanTitle'],
       ['shopping', 'view', 'receiptIntro'],
       ['chores', 'view', 'googleStep1'],
-      ['media', 'view', 'broadcastDesc']
+      ['media', 'view', 'broadcastDesc'],
+      ['dashboard', 'view', 'climateThermostat'],
+      ['dashboard', 'view', 'batteryLabel'],
+      ['dashboard', 'view', 'defaultProfileLivingRoom'],
+      ['dashboard', 'view', 'defaultProfileKitchen'],
+      ['dashboard', 'view', 'defaultProfileNight'],
+      ['dashboard', 'view', 'roomLivingRoom'],
+      ['dashboard', 'view', 'roomKitchen'],
+      ['dashboard', 'view', 'roomBedroom'],
+      ['integrations', 'view', 'genericLanHost'],
+      ['integrations', 'view', 'selectedForLocalTuya'],
+      ['integrations', 'view', 'filterAll'],
+      ['integrations', 'view', 'filterOnline'],
+      ['integrations', 'view', 'filterOffline'],
+      ['integrations', 'view', 'filterSelected'],
+      ['integrations', 'view', 'filterUnselected'],
+      ['integrations', 'view', 'unblock'],
+      ['integrations', 'view', 'messages', 'tuyaConnectedTitle'],
+      ['integrations', 'view', 'messages', 'deviceOfflineDesc'],
+      ['integrations', 'view', 'messages', 'arpScanCompleteDesc'],
+      ['integrations', 'view', 'messages', 'deviceUnblockedTitle'],
+      ['common', 'wsNotifications', 'deviceDiscoveredTitle'],
+      ['common', 'wsNotifications', 'deviceDiscoveredMessage'],
+      ['common', 'wsNotifications', 'automationFailedMessage']
     ]
 
     for (const catalog of locales) {
