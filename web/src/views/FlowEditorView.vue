@@ -697,10 +697,16 @@ function getGraphExecutionOrder(): FlowNode[] {
   }
   const branchNodes = getBranchDescendantIds()
   const rejoiningWire = wires.value.find((wire) =>
-    !wire.branchKey && branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
+    branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
   )
   if (rejoiningWire) {
     throw new Error('Una sequenza di ramo non può ricongiungersi al flusso principale: duplica le azioni successive in ciascun ramo.')
+  }
+  for (const nodeId of branchNodes) {
+    const incoming = wires.value.filter((wire) => wire.toNodeId === nodeId)
+    if (incoming.length !== 1) {
+      throw new Error('Ogni nodo interno a un ramo deve avere un solo collegamento in ingresso. Non sono supportate convergenze tra rami.')
+    }
   }
   return ordered
 }
