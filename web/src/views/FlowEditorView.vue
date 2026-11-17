@@ -616,17 +616,31 @@ function resetZoom() {
 }
 
 // --- AST Compiler (Bidirectional: Graph <-> Automation JSON) ---
+function getBranchDescendantIds(): Set<string> {
+  const descendants = new Set<string>()
+  const visit = (nodeId: string) => {
+    if (descendants.has(nodeId)) return
+    descendants.add(nodeId)
+    for (const wire of wires.value.filter((item) => item.fromNodeId === nodeId)) {
+      visit(wire.toNodeId)
+    }
+  }
+  for (const wire of wires.value.filter((item) => !!item.branchKey)) visit(wire.toNodeId)
+  return descendants
+}
+
 function getGraphExecutionOrder(): FlowNode[] {
   const nodeById = new Map(nodes.value.map((node) => [node.id, node]))
-  const indegree = new Map(nodes.value.map((node) => [node.id, 0]))
+  const branchNodes = getBranchDescendantIds()
+  const rootNodes = nodes.value.filter((node) => !branchNodes.has(node.id))
+  const indegree = new Map(rootNodes.map((node) => [node.id, 0]))
   const outgoing = new Map<string, string[]>()
 
   for (const wire of wires.value) {
+    if (wire.branchKey || branchNodes.has(wire.fromNodeId) || branchNodes.has(wire.toNodeId)) continue
     const source = nodeById.get(wire.fromNodeId)
     const target = nodeById.get(wire.toNodeId)
-    if (!source || !target) {
-      throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
-    }
+    if (!source || !target) throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
     const stage = (node: FlowNode) => node.type === 'trigger' ? 0 : node.type === 'condition' || node.type === 'logic' ? 1 : 2
     if (stage(source) > stage(target)) {
       throw new Error('Collegamento non valido: trigger, condizioni e azioni devono rispettare l’ordine del flusso.')
@@ -637,17 +651,12 @@ function getGraphExecutionOrder(): FlowNode[] {
     indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
   }
 
-  const disconnectedNode = nodes.value.find((node) => node.type !== 'trigger' && (indegree.get(node.id) || 0) === 0)
+  const disconnectedNode = rootNodes.find((node) => node.type !== 'trigger' && (indegree.get(node.id) || 0) === 0)
   if (disconnectedNode) {
     throw new Error(`Il nodo “${disconnectedNode.title}” non è collegato al flusso. Collega ogni condizione e azione prima di salvare.`)
   }
 
-  const branchingNode = [...outgoing.entries()].find(([, targets]) => targets.length > 1)
-  if (branchingNode) {
-    throw new Error('I rami multipli non sono ancora supportati dal modello di automazione. Usa un solo collegamento in uscita per nodo.')
-  }
-
-  const ready = nodes.value.filter((node) => indegree.get(node.id) === 0)
+  const ready = rootNodes.filter((node) => indegree.get(node.id) === 0)
   const ordered: FlowNode[] = []
   while (ready.length) {
     const node = ready.shift()!
@@ -661,11 +670,87 @@ function getGraphExecutionOrder(): FlowNode[] {
       }
     }
   }
-
-  if (ordered.length !== nodes.value.length) {
+  if (ordered.length !== rootNodes.length) {
     throw new Error('Il flusso contiene un ciclo. Rimuovi i collegamenti circolari prima di salvare.')
   }
+
+  for (const wire of wires.value.filter((item) => !!item.branchKey)) {
+    const source = nodeById.get(wire.fromNodeId)
+    const target = nodeById.get(wire.toNodeId)
+    if (!source || !target) throw new Error('Un ramo punta a un nodo inesistente.')
+    if (!getBranchPorts(source).some((port) => port.key === wire.branchKey)) {
+      throw new Error(`L’uscita “${wire.branchKey}” non esiste più nel nodo “${source.title}”.`)
+    }
+    if (target.type !== 'action' && target.type !== 'delay') {
+      throw new Error('I rami delle azioni composite possono contenere solo azioni o pause.')
+    }
+  }
   return ordered
+}
+
+function compileBranchSequence(parentId: string, branchKey: string, visited = new Set<string>()): AutomationAction[] {
+  const first = wires.value.find((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
+  if (!first) return []
+  const result: AutomationAction[] = []
+  let currentId: string | undefined = first.toNodeId
+  while (currentId) {
+    if (visited.has(currentId)) throw new Error('La sequenza di un ramo contiene un ciclo.')
+    visited.add(currentId)
+    const node = nodes.value.find((item) => item.id === currentId)
+    if (!node) throw new Error('Un ramo contiene un nodo inesistente.')
+    if (node.type === 'action' && ['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
+      const nested = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
+      applyNestedBranchSequences(node, nested, visited)
+      result.push(nested)
+    } else if (node.type === 'action') {
+      if (node.subType === 'unsupported') throw new Error('Un ramo contiene un’azione non supportata.')
+      const action: AutomationAction = {
+        ...(node.data.originalAction || {}),
+        type: node.subType === 'scene' ? 'scene' : 'service'
+      }
+      if (node.subType === 'service') {
+        action.service = node.data.service || 'turn_on'
+        action.target_entity_key = node.data.target_entity_key
+      } else if (node.subType === 'scene') {
+        action.service = 'apply_scene'
+        action.params = { scene_id: node.data.scene_id }
+      } else if (node.subType === 'notify') {
+        action.type = 'event'
+        action.event_type = 'notification.create'
+        action.event_payload = { message: node.data.message }
+      }
+      result.push(action)
+    } else if (node.type === 'delay') {
+      result.push({ type: 'delay', delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000 })
+    } else {
+      throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
+    }
+    const next = wires.value.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
+    if (next.length > 1) throw new Error('Un’azione interna a un ramo può avere una sola uscita lineare.')
+    currentId = next[0]?.toNodeId
+  }
+  return result
+}
+
+function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & Record<string, any>, visited = new Set<string>()) {
+  if (action.type === 'if' || action.type === 'if_then_else') {
+    action.then = compileBranchSequence(node.id, 'then', visited)
+    action.else = compileBranchSequence(node.id, 'else', visited)
+  } else if (action.type === 'choose') {
+    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => ({
+      ...branch,
+      sequence: compileBranchSequence(node.id, `choose:${index}`, visited)
+    }))
+    action.default = compileBranchSequence(node.id, 'default', visited)
+  } else if (action.type === 'repeat') {
+    action.repeat = { ...action.repeat, sequence: compileBranchSequence(node.id, 'sequence', visited) }
+  } else if (action.type === 'parallel') {
+    action.parallel = (action.parallel || []).map((original: AutomationAction, index: number) => {
+      const sequence = compileBranchSequence(node.id, `parallel:${index}`, visited)
+      if (sequence.length > 1) throw new Error('Ogni ramo parallelo deve contenere una singola azione: il motore esegue gli elementi in parallelo.')
+      return sequence[0] || original
+    })
+  }
 }
 
 function compileGraphToAutomation(): Partial<Automation> {
@@ -715,7 +800,9 @@ function compileGraphToAutomation(): Partial<Automation> {
       conditions.push(cond)
     } else if (node.type === 'action') {
       if (['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
-        actions.push(parseAdvancedAutomationAction(node.data.advancedJson, node.subType))
+        const advanced = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
+        applyNestedBranchSequences(node, advanced)
+        actions.push(advanced)
         continue
       }
       if (node.subType === 'unsupported') {
