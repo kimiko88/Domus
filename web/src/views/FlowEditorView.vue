@@ -533,13 +533,24 @@ function getGraphExecutionOrder(): FlowNode[] {
   const outgoing = new Map<string, string[]>()
 
   for (const wire of wires.value) {
-    if (!nodeById.has(wire.fromNodeId) || !nodeById.has(wire.toNodeId)) {
+    const source = nodeById.get(wire.fromNodeId)
+    const target = nodeById.get(wire.toNodeId)
+    if (!source || !target) {
       throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
+    }
+    const stage = (node: FlowNode) => node.type === 'trigger' ? 0 : node.type === 'condition' || node.type === 'logic' ? 1 : 2
+    if (stage(source) > stage(target)) {
+      throw new Error('Collegamento non valido: trigger, condizioni e azioni devono rispettare l’ordine del flusso.')
     }
     const targets = outgoing.get(wire.fromNodeId) || []
     targets.push(wire.toNodeId)
     outgoing.set(wire.fromNodeId, targets)
     indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
+  }
+
+  const disconnectedNode = nodes.value.find((node) => node.type !== 'trigger' && (indegree.get(node.id) || 0) === 0)
+  if (disconnectedNode) {
+    throw new Error(`Il nodo “${disconnectedNode.title}” non è collegato al flusso. Collega ogni condizione e azione prima di salvare.`)
   }
 
   const branchingNode = [...outgoing.entries()].find(([, targets]) => targets.length > 1)
