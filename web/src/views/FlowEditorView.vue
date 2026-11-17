@@ -477,7 +477,7 @@ function getWirePath(wire: FlowWire): string {
   const keys = getBranchPorts(from).map((port) => port.key)
   const branchIndex = wire.branchKey ? keys.indexOf(wire.branchKey) : -1
   const x1 = from.x + 230
-  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : 45)
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : keys.length ? 84 + keys.length * 28 : 45)
   const x2 = to.x
   const y2 = to.y + 45
 
@@ -1390,6 +1390,19 @@ onBeforeUnmount(() => {
                   @keydown.space.prevent.stop="toggleWireStart(node.id, port.key)"
                   :aria-label="`Collega uscita ${port.label}`"
                   :title="`Collega uscita ${port.label}`"
+                ><span class="port-dot"></span></button>
+              </div>
+              <div class="branch-port-row">
+                <span class="branch-port-label">Continua</span>
+                <button
+                  class="node-port port-output branch-port"
+                  type="button"
+                  @pointerdown="startWiring(node.id, $event)"
+                  @click.stop="handlePortClick(node.id)"
+                  @keydown.enter.prevent.stop="toggleWireStart(node.id)"
+                  @keydown.space.prevent.stop="toggleWireStart(node.id)"
+                  aria-label="Collega alla sequenza successiva"
+                  title="Collega alla sequenza successiva"
                 ><span class="port-dot"></span></button>
               </div>
             </div>
