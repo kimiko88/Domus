@@ -137,6 +137,7 @@ function updateTime(event: Event, field: 'after' | 'before') {
         <select
           data-test="condition-type"
           :value="modelValue.condition"
+          :disabled="!isSupported"
           @change="changeType(($event.target as HTMLSelectElement).value)"
         >
           <optgroup v-if="isLogical" label="Operatori logici">
