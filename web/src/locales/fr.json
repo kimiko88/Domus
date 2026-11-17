@@ -397,6 +397,7 @@
       "noLeaksTitle": "Aucune fuite détectée",
       "noLeaksDesc": "Tous les appareils IoT surveillés sont conformes et fonctionnent strictement hors ligne sur le réseau local.",
       "unlock": "Déverrouiller",
+      "unblock": "Lever le blocage",
       "quarantine": "Mettre en quarantaine",
       "hostMapTitle": "Carte des hôtes détectés sur le LAN (OUI et empreinte des ports)",
       "arpCacheEmpty": "Aucun hôte dans le cache ARP. Cliquez sur « Analyser ARP » pour détecter les nœuds.",
@@ -463,7 +464,13 @@
       "filterUnselected": "Non sélectionnés ({count})",
       "clientId": "ID client:",
       "smartLifeUidLabel": "UID Smart Life:",
-      "endpointLabel": "Point de terminaison:"
+      "endpointLabel": "Point de terminaison:",
+      "messages": {
+        "tuyaConnectedTitle": "Smart Life connecté",
+        "deviceOfflineDesc": "L'appareil est hors ligne. Vérifiez son alimentation et sa connexion au réseau local.",
+        "arpScanCompleteDesc": "Analyse ARP terminée. Appareils trouvés : {count}.",
+        "deviceUnblockedTitle": "Appareil débloqué"
+      }
     }
   },
   "history": {
