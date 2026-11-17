@@ -128,7 +128,30 @@
       "eventPreview": "Ereignisvorschau"
     },
     "notifications": "Benachrichtigungen",
-    "dismissNotification": "Benachrichtigung schließen"
+    "dismissNotification": "Benachrichtigung schließen",
+    "wsNotifications": {
+      "alarmTitle": "Alarm",
+      "alarmState": "Alarmstatus: {state}",
+      "alarmTriggeredTitle": "ALARM AUSGELÖST",
+      "alarmTriggeredMessage": "Einbruchalarm ausgelöst! Grund: {reason}",
+      "defaultAlarmReason": "Außensensor",
+      "alarmDisarmedTitle": "Alarm deaktiviert",
+      "alarmDisarmedMessage": "Die Alarmanlage wurde erfolgreich deaktiviert.",
+      "tagScannedTitle": "Tag gescannt",
+      "tagScannedMessage": "Tag \"{tag}\" erfolgreich verarbeitet.",
+      "deviceOnlineTitle": "Gerät online",
+      "deviceOnlineMessage": "{name} ist jetzt online.",
+      "deviceOfflineTitle": "Gerät offline",
+      "deviceOfflineMessage": "{name} ist offline.",
+      "deviceDiscoveredTitle": "Gerät erkannt",
+      "deviceDiscoveredMessage": "Neues Gerät erkannt: {name}",
+      "sceneActivatedTitle": "Szene aktiviert",
+      "sceneActivatedMessage": "{name} wurde aktiviert.",
+      "automationFailedTitle": "Automatisierung fehlgeschlagen",
+      "automationFailedMessage": "Automatisierung \"{name}\" fehlgeschlagen: {error}",
+      "systemNotification": "Systembenachrichtigung",
+      "updatedState": "aktualisiert"
+    }
   },
   "nav": {
     "sectionOverview": "Übersicht",
@@ -263,7 +286,15 @@
       "installDate": "Installationsdatum",
       "wasiPermissions": "WASI-Sandbox-Berechtigungen",
       "viewSourceFor": "Open-Source-Code von {name} anzeigen",
-      "viewSource": "Open-Source-Quellcode anzeigen"
+      "viewSource": "Open-Source-Quellcode anzeigen",
+      "climateThermostat": "Klima und Thermostat",
+      "batteryLabel": "Batterie ({value} %)",
+      "defaultProfileLivingRoom": "Wohnzimmer-Tablet (Hauptgerät)",
+      "defaultProfileKitchen": "Küchen- und Eingangs-Tablet",
+      "defaultProfileNight": "Schlafzimmer- und Nacht-Tablet",
+      "roomLivingRoom": "Wohnzimmer",
+      "roomKitchen": "Küche",
+      "roomBedroom": "Schlafzimmer"
     }
   },
   "areas": {

@@ -42,33 +42,33 @@ interface DashboardProfile {
 const defaultDashboards: DashboardProfile[] = [
   {
     id: 'tablet_living_room',
-    title: 'Tablet Salotto (Principale)',
+    title: t('dashboard.view.defaultProfileLivingRoom'),
     icon: 'layout',
     is_default: true,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 20.0, "room": "Salotto"}'
+    layout_json: JSON.stringify({ target_temp: 20.0, room: t('dashboard.view.roomLivingRoom') })
   },
   {
     id: 'tablet_kitchen',
-    title: 'Tablet Cucina & Ingresso',
+    title: t('dashboard.view.defaultProfileKitchen'),
     icon: 'utensils',
     is_default: false,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 19.5, "room": "Cucina"}'
+    layout_json: JSON.stringify({ target_temp: 19.5, room: t('dashboard.view.roomKitchen') })
   },
   {
     id: 'tablet_night',
-    title: 'Tablet Camera & Notte',
+    title: t('dashboard.view.defaultProfileNight'),
     icon: 'moon',
     is_default: false,
     kiosk_config_json: '{}',
-    layout_json: '{"target_temp": 18.0, "room": "Camera da Letto"}'
+    layout_json: JSON.stringify({ target_temp: 18.0, room: t('dashboard.view.roomBedroom') })
   }
 ]
 
 const dashboards = ref<DashboardProfile[]>([])
 const currentDashboardId = ref('')
-const activeRoomName = ref('Salotto')
+const activeRoomName = ref(t('dashboard.view.roomLivingRoom'))
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
 const inactivityTimer = ref<any>(null)
@@ -106,7 +106,7 @@ function switchDashboardProfile() {
       if (cfg.target_temp) {
         targetTemp.value = cfg.target_temp
       }
-      activeRoomName.value = cfg.room || 'Salotto'
+      activeRoomName.value = cfg.room || t('dashboard.view.roomLivingRoom')
     } catch {}
 
     if (profile.kiosk_config_json) {
@@ -263,6 +263,7 @@ let clockInterval: any = null
 onMounted(async () => {
   clockInterval = setInterval(() => {
     currentTime.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
+    currentDate.value = new Date().toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
   }, 1000)
 
   window.addEventListener('mousemove', resetInactivity)
@@ -373,7 +374,7 @@ onUnmounted(() => {
         <div class="card-header">
           <div class="header-left">
             <Flame :size="20" class="text-warning animate-pulse" />
-            <span class="card-title">Clima & Termostato {{ activeRoomName }}</span>
+            <span class="card-title">{{ t('dashboard.view.climateThermostat') }} {{ activeRoomName }}</span>
           </div>
           <span class="badge heating-badge">{{ t('dashboard.view.heatingActive') }}</span>
         </div>
@@ -488,7 +489,7 @@ onUnmounted(() => {
           <div class="vector-node battery">
             <Battery :size="24" class="text-info" />
             <span class="v-val">{{ Math.abs(batteryWatts) }} W</span>
-            <span class="v-label">Batteria ({{ batterySoc }}%)</span>
+            <span class="v-label">{{ t('dashboard.view.batteryLabel', { value: batterySoc }) }}</span>
           </div>
 
           <div class="vector-node grid">
@@ -614,7 +615,7 @@ onUnmounted(() => {
         />
         <p v-if="pinError" class="pin-error">{{ t('dashboard.view.invalidPin') }}</p>
         <div class="pin-actions">
-          <button class="btn-cancel" @click="isPinModalOpen = false">Annulla</button>
+          <button class="btn-cancel" @click="isPinModalOpen = false">{{ t('common.cancel') }}</button>
           <button class="btn-save" @click="verifyPinAndExit">{{ t('dashboard.view.unlock') }}</button>
         </div>
       </div>
