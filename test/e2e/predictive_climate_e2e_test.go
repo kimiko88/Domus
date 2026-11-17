@@ -5,16 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
-	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	appauth "github.com/domus-hub/domus/internal/application/auth"
-	"github.com/domus-hub/domus/internal/infrastructure/crypto"
+	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
+	domentity "github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
@@ -62,6 +64,47 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	defer bus.Close()
 
 	repos := sqlite.NewRepositories(db)
+
+	// Predictive evaluation and thermal recommendations require genuine, available
+	// entity readings. Seed the thermostat and configured sensors rather than
+	// relying on fabricated room temperatures.
+	now := time.Now().UTC()
+	seedEntities := []*domentity.Entity{
+		{
+			ID: "e2e-room-temperature", EntityKey: "sensor.living_room_temperature",
+			Domain: "sensor", Name: "Living Room Temperature", UnitOfMeasurement: "°C",
+			State: "19.0", Attributes: `{"unit_of_measurement":"°C"}`, Available: true,
+			LastChangedAt: now, LastUpdatedAt: now,
+		},
+		{
+			ID: "e2e-room-pressure", EntityKey: "sensor.living_room_barometer",
+			Domain: "sensor", Name: "Living Room Pressure", UnitOfMeasurement: "hPa",
+			State: "1013.25", Attributes: `{"unit_of_measurement":"hPa"}`, Available: true,
+			LastChangedAt: now, LastUpdatedAt: now,
+		},
+		{
+			ID: "e2e-room-humidity", EntityKey: "sensor.living_room_humidity",
+			Domain: "sensor", Name: "Living Room Humidity", UnitOfMeasurement: "%",
+			State: "50", Attributes: `{"unit_of_measurement":"%"}`, Available: true,
+			LastChangedAt: now, LastUpdatedAt: now,
+		},
+		{
+			ID: "e2e-window-contact", EntityKey: "binary_sensor.living_room_balcony",
+			Domain: "binary_sensor", Name: "Living Room Balcony", State: "off",
+			Attributes: "{}", Available: true, LastChangedAt: now, LastUpdatedAt: now,
+		},
+		{
+			ID: "e2e-radiant-floor", EntityKey: "climate.living_radiant_floor",
+			Domain: "climate", Name: "Living Room Radiant Floor", UnitOfMeasurement: "°C",
+			Writable: true, State: "heat",
+			Attributes: `{"min_temp":5,"max_temp":35,"target_temperature":20}`,
+			Available: true, LastChangedAt: now, LastUpdatedAt: now,
+		},
+	}
+	for _, seeded := range seedEntities {
+		require.NoError(t, repos.Entities.Create(ctx, seeded))
+	}
+
 	hasher := crypto.NewArgon2Hasher(crypto.Argon2Params{
 		Memory: 32 * 1024, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32,
 	})
@@ -120,7 +163,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	bodyBytes, _ := json.Marshal(zonePayload)
 	resp, err := post(ts.URL+"/api/v1/climate/predictive/zones", bodyBytes)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusCreated)
 
 	var createdZone domclimate.PredictiveZoneConfig
 	err = json.NewDecoder(resp.Body).Decode(&createdZone)
@@ -133,7 +176,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// STEP 2: Trigger manual evaluation on the created zone
 	resp, err = post(ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID+"/evaluate", nil)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var eval domclimate.PredictiveEvaluation
 	err = json.NewDecoder(resp.Body).Decode(&eval)
@@ -147,7 +190,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// STEP 3: Fetch real-time system dashboard status
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/status")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var status appclimate.SystemPredictiveStatus
 	err = json.NewDecoder(resp.Body).Decode(&status)
@@ -162,7 +205,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// STEP 4: Fetch historical evaluations for this zone
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/evaluations")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var evalsRes map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&evalsRes)
@@ -174,7 +217,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// 5.1 Fetch initial default thermal profile for Radiant Floor
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/profile")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var initialProfile domclimate.ThermalProfile
 	err = json.NewDecoder(resp.Body).Decode(&initialProfile)
@@ -194,7 +237,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	trainBytes, _ := json.Marshal(trainCycle)
 	resp, err = post(ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID+"/train", trainBytes)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var trainedProfile domclimate.ThermalProfile
 	err = json.NewDecoder(resp.Body).Decode(&trainedProfile)
@@ -207,7 +250,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	targetTime := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-start?target_temp=21.0&target_time=" + targetTime)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var preheatRec domclimate.PreheatRecommendation
 	err = json.NewDecoder(resp.Body).Decode(&preheatRec)
@@ -217,10 +260,18 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	assert.Greater(t, preheatRec.PreheatMinutes, 0)
 	assert.NotEmpty(t, preheatRec.Reason)
 
+	// Simulate the room reaching its comfort temperature after the preheat cycle.
+	// Coast-down is only recommended when a live reading is at or above the comfort target.
+	roomTemperature, err := repos.Entities.GetByKey(ctx, zonePayload.TempSensorKey)
+	require.NoError(t, err)
+	require.NoError(t, repos.Entities.UpdateState(
+		ctx, roomTemperature.ID, "21.0", roomTemperature.Attributes, true, time.Now().UTC(),
+	))
+
 	// 5.4 Optimal Stop (Coast-Down) Recommendation
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-stop")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var coastRec domclimate.CoastDownRecommendation
 	err = json.NewDecoder(resp.Body).Decode(&coastRec)
@@ -235,6 +286,17 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID, nil)
 	resp, err = doRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
+}
+
+
+func requireHTTPStatus(t *testing.T, response *http.Response, expected int) {
+	t.Helper()
+	require.NotNil(t, response)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	_ = response.Body.Close()
+	response.Body = io.NopCloser(bytes.NewReader(body))
+	require.Equalf(t, expected, response.StatusCode, "HTTP response body: %s", string(body))
 }

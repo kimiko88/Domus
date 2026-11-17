@@ -29,7 +29,7 @@ describe('AppTopbar.vue', () => {
     wsStore.setConnected(true)
     const wrapper = mount(AppTopbar)
     expect(wrapper.find('.ws-status').classes()).toContain('is-connected')
-    expect(wrapper.text()).toContain('Live')
+    expect(wrapper.text()).toContain('In diretta')
   })
 
   it('displays user profile info when logged in', () => {

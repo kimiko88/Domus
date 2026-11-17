@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	appauto "github.com/domus-hub/domus/internal/application/automation"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
@@ -18,8 +19,9 @@ import (
 
 // EntityHandler handles HTTP operations for Entity objects.
 type EntityHandler struct {
-	repo entity.Repository
-	bus  events.Bus
+	repo          entity.Repository
+	bus           events.Bus
+	climateEngine *appauto.Engine
 }
 
 // NewEntityHandler constructs an EntityHandler.
@@ -39,6 +41,63 @@ func (h *EntityHandler) resolveEntity(ctx context.Context, idOrKey string) (*ent
 		return h.repo.GetByKey(ctx, idOrKey)
 	}
 	return nil, err
+}
+
+// WithClimateEngine attaches the automation engine used for temporary
+// thermostat profile overrides.
+func (h *EntityHandler) WithClimateEngine(engine *appauto.Engine) *EntityHandler {
+	h.climateEngine = engine
+	return h
+}
+
+type climateProfileRequest struct {
+	Profile         string   `json:"profile"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	DurationMinutes int      `json:"duration_minutes"`
+}
+
+// ApplyClimateProfile applies a thermostat profile. A positive duration restores
+// the previous setpoint automatically; zero leaves the selected setpoint active.
+func (h *EntityHandler) ApplyClimateProfile(w http.ResponseWriter, r *http.Request) {
+	if h.climateEngine == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "thermostat profile service is unavailable")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	ent, err := h.repo.GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, entity.ErrEntityNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "entity not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get thermostat")
+		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil && !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "thermostat is outside the member's allowed resources")
+		return
+	}
+	if ent.Domain != "climate" || !ent.Writable || !ent.Available {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_THERMOSTAT", "target must be an available, writable climate entity")
+		return
+	}
+	var req climateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+		return
+	}
+	if req.DurationMinutes < 0 || req.DurationMinutes > 1440 {
+		writeError(w, http.StatusBadRequest, "INVALID_DURATION", "duration_minutes must be between 0 and 1440")
+		return
+	}
+	if err := h.climateEngine.ApplyClimateProfile(r.Context(), ent.EntityKey, req.Profile, req.Temperature, req.DurationMinutes); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "CLIMATE_PROFILE_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"status": "accepted", "entity_key": ent.EntityKey,
+		"profile": req.Profile, "duration_minutes": req.DurationMinutes,
+	})
 }
 
 // List returns entities matching optional query filters.
@@ -61,6 +120,15 @@ func (h *EntityHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list entities")
 		return
 	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		visible := make([]*entity.Entity, 0, len(entities))
+		for _, item := range entities {
+			if currentUser.CanAccessEntityInArea(item.ID, item.AreaID) {
+				visible = append(visible, item)
+			}
+		}
+		entities = visible
+	}
 
 	writeJSON(w, http.StatusOK, entities)
 }
@@ -78,6 +146,10 @@ func (h *EntityHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil && !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+		writeError(w, http.StatusForbidden, "forbidden", "entity is outside the member's allowed resources")
+		return
+	}
 	writeJSON(w, http.StatusOK, ent)
 }
 
@@ -102,6 +174,13 @@ func (h *EntityHandler) Command(w http.ResponseWriter, r *http.Request) {
 	if !ent.Writable {
 		writeError(w, http.StatusForbidden, "not_writable", "entity is read-only")
 		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) || permissions == nil || !permissions.CanControlDevices {
+			writeError(w, http.StatusForbidden, "forbidden", "member is not allowed to control this entity")
+			return
+		}
 	}
 
 	var req commandRequest

@@ -4,6 +4,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -24,8 +25,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // Create inserts a new user record.
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	query := `
-		INSERT INTO users (id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		INSERT INTO users (id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	var email *string
 	if u.Email != "" {
@@ -60,8 +61,19 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 
 	createdAt := u.CreatedAt.Format(time.RFC3339)
 	updatedAt := u.UpdatedAt.Format(time.RFC3339)
+	permissions := u.Permissions
+	if permissions == nil {
+		permissions = user.DefaultPermissions(u.ID, u.Role)
+	}
+	permissions.UserID = u.ID
+	permissions.Role = u.Role
+	u.Permissions = permissions
+	permissionsJSON, err := json.Marshal(permissions)
+	if err != nil {
+		return fmt.Errorf("sqlite: marshal user permissions: %w", err)
+	}
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = r.db.ExecContext(ctx, query,
 		u.ID,
 		u.Username,
 		email,
@@ -74,6 +86,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		kioskMode,
 		createdAt,
 		updatedAt,
+		string(permissionsJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: failed to insert user: %w", err)
@@ -84,7 +97,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 // GetByID retrieves a user by their unique UUID.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		WHERE id = ?;
 	`
@@ -95,7 +108,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, er
 // GetByUsername retrieves a user by their unique username.
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		WHERE username = ?;
 	`
@@ -106,7 +119,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 // GetByPinCode finds an active user or guest by their numeric PIN code.
 func (r *UserRepository) GetByPinCode(ctx context.Context, pin string) (*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		WHERE pin_code = ? AND pin_code IS NOT NULL AND pin_code != '';
 	`
@@ -127,7 +140,7 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 // List returns all registered users in chronological order.
 func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at
+		SELECT id, username, email, password_hash, role, enabled, is_guest, guest_expires_at, pin_code, kiosk_mode, created_at, updated_at, permissions_json
 		FROM users
 		ORDER BY created_at ASC;
 	`
@@ -150,11 +163,12 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 			kioskMode      int
 			createdAt      string
 			updatedAt      string
+			permissionsJSON string
 		)
 		if err := rows.Scan(
 			&u.ID, &u.Username, &email, &u.PasswordHash, &roleStr, &enabled,
 			&isGuest, &guestExpiresAt, &pinCode, &kioskMode,
-			&createdAt, &updatedAt,
+			&createdAt, &updatedAt, &permissionsJSON,
 		); err != nil {
 			return nil, fmt.Errorf("sqlite: scan user row: %w", err)
 		}
@@ -173,6 +187,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 			u.PinCode = pinCode.String
 		}
 		u.KioskMode = kioskMode == 1
+		u.Permissions = decodePermissions(permissionsJSON, u.ID, u.Role)
 
 		if parsed, err := time.Parse(time.RFC3339, createdAt); err == nil {
 			u.CreatedAt = parsed
@@ -187,13 +202,17 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 
 // UpdateRole updates the authorization role of a user.
 func (r *UserRepository) UpdateRole(ctx context.Context, id string, role user.Role) error {
+	permissionsJSON, err := json.Marshal(user.DefaultPermissions(id, role))
+	if err != nil {
+		return fmt.Errorf("sqlite: marshal default user permissions: %w", err)
+	}
 	query := `
 		UPDATE users
-		SET role = ?, updated_at = ?
+		SET role = ?, permissions_json = ?, updated_at = ?
 		WHERE id = ?;
 	`
 	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := r.db.ExecContext(ctx, query, string(role), now, id)
+	res, err := r.db.ExecContext(ctx, query, string(role), string(permissionsJSON), now, id)
 	if err != nil {
 		return fmt.Errorf("sqlite: update user role: %w", err)
 	}
@@ -205,6 +224,43 @@ func (r *UserRepository) UpdateRole(ctx context.Context, id string, role user.Ro
 		return user.ErrUserNotFound
 	}
 	return nil
+}
+
+// UpdatePermissions stores the granular access policy for a user.
+func (r *UserRepository) UpdatePermissions(ctx context.Context, id string, permissions *user.UserPermissions) error {
+	if permissions == nil {
+		return fmt.Errorf("sqlite: user permissions cannot be nil")
+	}
+	permissions.UserID = id
+	permissionsJSON, err := json.Marshal(permissions)
+	if err != nil {
+		return fmt.Errorf("sqlite: marshal user permissions: %w", err)
+	}
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET permissions_json = ?, updated_at = ? WHERE id = ?`,
+		string(permissionsJSON), time.Now().UTC().Format(time.RFC3339), id,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: update user permissions: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return user.ErrUserNotFound
+	}
+	return nil
+}
+
+func decodePermissions(raw, userID string, role user.Role) *user.UserPermissions {
+	var permissions user.UserPermissions
+	if raw == "" || raw == "{}" || json.Unmarshal([]byte(raw), &permissions) != nil || permissions.Role == "" {
+		return user.DefaultPermissions(userID, role)
+	}
+	permissions.UserID = userID
+	permissions.Role = role
+	return &permissions
 }
 
 // Delete permanently removes a user record and cascades sessions.
@@ -236,6 +292,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		kioskMode      int
 		createdAt      string
 		updatedAt      string
+		permissionsJSON string
 	)
 
 	err := row.Scan(
@@ -251,6 +308,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		&kioskMode,
 		&createdAt,
 		&updatedAt,
+		&permissionsJSON,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -274,6 +332,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		u.PinCode = pinCode.String
 	}
 	u.KioskMode = kioskMode == 1
+	u.Permissions = decodePermissions(permissionsJSON, u.ID, u.Role)
 
 	if parsed, err := time.Parse(time.RFC3339, createdAt); err == nil {
 		u.CreatedAt = parsed

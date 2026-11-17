@@ -18,8 +18,9 @@ type Message struct {
 
 // ClientHandle represents an active registered WebSocket listener.
 type ClientHandle struct {
-	ID   string
-	Send chan Message
+	ID     string
+	Send   chan Message
+	Filter func(Message) bool
 }
 
 // Hub manages active WebSocket clients and broadcasts events.
@@ -58,6 +59,9 @@ func (h *Hub) Run(ctx context.Context) {
 			}
 			h.mu.RLock()
 			for client := range h.clients {
+				if client.Filter != nil && !client.Filter(msg) {
+					continue
+				}
 				select {
 				case client.Send <- msg:
 				default:
@@ -71,7 +75,12 @@ func (h *Hub) Run(ctx context.Context) {
 
 // Register registers a new client channel.
 func (h *Hub) Register(id string, send chan Message) *ClientHandle {
-	handle := &ClientHandle{ID: id, Send: send}
+	return h.RegisterFiltered(id, send, nil)
+}
+
+// RegisterFiltered registers a client with an optional per-message visibility filter.
+func (h *Hub) RegisterFiltered(id string, send chan Message, filter func(Message) bool) *ClientHandle {
+	handle := &ClientHandle{ID: id, Send: send, Filter: filter}
 	h.mu.Lock()
 	h.clients[handle] = true
 	h.mu.Unlock()

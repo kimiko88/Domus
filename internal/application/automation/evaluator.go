@@ -4,6 +4,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -61,7 +62,16 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 			return false
 		}
 
-		val, ok := extractNumericValue(payloadMap["state"])
+		value := payloadMap["state"]
+		if trig.Attribute != "" {
+			attributes, _ := payloadMap["attributes"].(map[string]any)
+			var found bool
+			value, found = attributes[trig.Attribute]
+			if !found {
+				return false
+			}
+		}
+		val, ok := extractNumericValue(value)
 		if !ok {
 			return false
 		}
@@ -74,9 +84,90 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 		}
 		return true
 
+	case "time":
+		return e.EvaluateTimeTrigger(trig, time.Now())
+
 	default:
 		return false
 	}
+}
+
+// EvaluateTimeCondition evaluates a local wall-clock window. Windows spanning
+// midnight (for example 22:00-06:00) are treated as an OR across midnight.
+// Bounds are inclusive and both HH:MM and HH:MM:SS are accepted.
+func (e *Evaluator) EvaluateTimeCondition(cond automation.Condition, now time.Time) bool {
+	if cond.After == "" && cond.Before == "" {
+		return true
+	}
+	parse := func(value string) (int, bool) {
+		if value == "" {
+			return 0, true
+		}
+		parsed, err := time.ParseInLocation("15:04:05", strings.TrimSpace(value), now.Location())
+		if err != nil {
+			parsed, err = time.ParseInLocation("15:04", strings.TrimSpace(value), now.Location())
+		}
+		if err != nil {
+			return 0, false
+		}
+		return parsed.Hour()*3600 + parsed.Minute()*60 + parsed.Second(), true
+	}
+	after, ok := parse(cond.After)
+	if !ok {
+		return false
+	}
+	before, ok := parse(cond.Before)
+	if !ok {
+		return false
+	}
+	current := now.Hour()*3600 + now.Minute()*60 + now.Second()
+	if cond.After == "" {
+		return current <= before
+	}
+	if cond.Before == "" {
+		return current >= after
+	}
+	if after <= before {
+		return current >= after && current <= before
+	}
+	return current >= after || current <= before
+}
+
+// EvaluateTimeTrigger matches a daily local-wall-clock time trigger. Both HH:MM and
+// HH:MM:SS are accepted; minute precision remains active for the whole matching minute.
+func (e *Evaluator) EvaluateTimeTrigger(trig automation.Trigger, now time.Time) bool {
+	if trig.Platform != "time" || strings.TrimSpace(trig.At) == "" {
+		return false
+	}
+	scheduled, err := time.ParseInLocation("15:04:05", strings.TrimSpace(trig.At), now.Location())
+	hasSeconds := true
+	if err != nil {
+		scheduled, err = time.ParseInLocation("15:04", strings.TrimSpace(trig.At), now.Location())
+		hasSeconds = false
+	}
+	if err != nil {
+		return false
+	}
+	if now.Hour() != scheduled.Hour() || now.Minute() != scheduled.Minute() {
+		return false
+	}
+	if len(trig.Days) > 0 {
+		// ISO-8601 weekday numbering: Monday=1 ... Sunday=7.
+		weekday := (int(now.Weekday())+6)%7 + 1
+		matched := false
+		for _, day := range trig.Days {
+			if day < 1 || day > 7 {
+				return false
+			}
+			if day == weekday {
+				matched = true
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return !hasSeconds || now.Second() == scheduled.Second()
 }
 
 // EvaluateCondition evaluates whether a condition rule holds given current system state.
@@ -148,7 +239,7 @@ func (e *Evaluator) EvaluateConditionWithTrigger(
 		if err != nil {
 			return false, err
 		}
-		val, ok := extractNumericValue(ent.State)
+		val, ok := extractEntityNumericValue(ent, cond.Attribute)
 		if !ok {
 			return false, nil
 		}
@@ -161,17 +252,10 @@ func (e *Evaluator) EvaluateConditionWithTrigger(
 		return true, nil
 
 	case "time":
-		nowStr := time.Now().Format("15:04:05")
-		if cond.After != "" && nowStr < cond.After {
-			return false, nil
-		}
-		if cond.Before != "" && nowStr > cond.Before {
-			return false, nil
-		}
-		return true, nil
+		return e.EvaluateTimeCondition(cond, time.Now()), nil
 
 	default:
-		return true, nil
+		return false, fmt.Errorf("unsupported automation condition %q", cond.Condition)
 	}
 }
 
@@ -205,6 +289,22 @@ func extractStateString(v any) string {
 	return fmtString(v)
 }
 
+func extractEntityNumericValue(ent *entity.Entity, attribute string) (float64, bool) {
+	if ent == nil {
+		return 0, false
+	}
+	if attribute != "" && ent.Attributes != "" {
+		var attributes map[string]any
+		if err := json.Unmarshal([]byte(ent.Attributes), &attributes); err == nil {
+			if value, exists := attributes[attribute]; exists {
+				return extractNumericValue(value)
+			}
+		}
+		return 0, false
+	}
+	return extractNumericValue(ent.State)
+}
+
 func extractNumericValue(v any) (float64, bool) {
 	if v == nil {
 		return 0, false
@@ -212,13 +312,23 @@ func extractNumericValue(v any) (float64, bool) {
 	switch val := v.(type) {
 	case float64:
 		return val, true
+	case float32:
+		return float64(val), true
 	case int:
 		return float64(val), true
+	case int64:
+		return float64(val), true
+	case json.Number:
+		f, err := val.Float64()
+		return f, err == nil
 	case string:
 		if strings.HasPrefix(val, "{") {
 			var m map[string]any
 			if err := json.Unmarshal([]byte(val), &m); err == nil {
-				if numVal, ok := m["value"].(float64); ok {
+				if numVal, ok := extractNumericValue(m["value"]); ok {
+					return numVal, true
+				}
+				if numVal, ok := extractNumericValue(m["state"]); ok {
 					return numVal, true
 				}
 			}
@@ -227,7 +337,10 @@ func extractNumericValue(v any) (float64, bool) {
 			return f, true
 		}
 	case map[string]any:
-		if numVal, ok := val["value"].(float64); ok {
+		if numVal, ok := extractNumericValue(val["value"]); ok {
+			return numVal, true
+		}
+		if numVal, ok := extractNumericValue(val["state"]); ok {
 			return numVal, true
 		}
 	}

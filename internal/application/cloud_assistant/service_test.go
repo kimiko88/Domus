@@ -294,3 +294,309 @@ func TestCloudAssistant_EmptyTokenFailsClosed(t *testing.T) {
 	_, err := svc.HandleAlexa(context.Background(), []byte(`{}`))
 	assert.ErrorIs(t, err, appCloud.ErrCloudDisabled)
 }
+
+
+func TestCloudAssistant_ThermostatStateIsReportedToSmartHome(t *testing.T) {
+	repo := newMockEntityRepo()
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 32, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	alexaPayload := []byte(`{
+		"directive": {
+			"header": {
+				"namespace": "Alexa",
+				"name": "ReportState",
+				"payloadVersion": "3",
+				"messageId": "thermostat-report",
+				"correlationToken": "thermostat-token"
+			},
+			"endpoint": {"endpointId": "climate.bedroom"},
+			"payload": {}
+		}
+	}`)
+	alexaResponse, err := svc.HandleAlexa(context.Background(), alexaPayload)
+	require.NoError(t, err)
+	require.NotNil(t, alexaResponse.Context)
+	require.Len(t, alexaResponse.Context.Properties, 3)
+
+	alexaProperties := make(map[string]any)
+	for _, property := range alexaResponse.Context.Properties {
+		alexaProperties[property.Namespace+"."+property.Name] = property.Value
+	}
+	setpoint, ok := alexaProperties["Alexa.ThermostatController.targetSetpoint"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 21.5, setpoint["value"])
+	assert.Equal(t, "CELSIUS", setpoint["scale"])
+	ambient, ok := alexaProperties["Alexa.TemperatureSensor.temperature"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 20.2, ambient["value"])
+
+	queryPayload, err := json.Marshal(map[string]any{
+		"devices": []map[string]string{{"id": "climate.bedroom"}},
+	})
+	require.NoError(t, err)
+	googleResponse, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-query",
+		Inputs: []domainCloud.GoogleRequestInput{{
+			Intent: "action.devices.QUERY",
+			Payload: queryPayload,
+		}},
+	})
+	require.NoError(t, err)
+
+	googlePayload, ok := googleResponse.Payload.(map[string]any)
+	require.True(t, ok)
+	devices, ok := googlePayload["devices"].(map[string]any)
+	require.True(t, ok)
+	status, ok := devices["climate.bedroom"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 21.5, status["thermostatTemperatureSetpoint"])
+	assert.Equal(t, 20.2, status["thermostatTemperatureAmbient"])
+	assert.Equal(t, "C", status["thermostatTemperatureUnit"])
+}
+
+func TestCloudAssistant_AlexaConvertsFahrenheitSetpointToCelsius(t *testing.T) {
+	repo := newMockEntityRepo()
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload := []byte(`{
+		"directive": {
+			"header": {
+				"namespace": "Alexa.ThermostatController",
+				"name": "SetTargetTemperature",
+				"payloadVersion": "3",
+				"messageId": "fahrenheit-setpoint",
+				"correlationToken": "fahrenheit-token"
+			},
+			"endpoint": {"endpointId": "climate.bedroom"},
+			"payload": {
+				"targetSetpoint": {"value": 72, "scale": "FAHRENHEIT"}
+			}
+		}
+	}`)
+	response, err := svc.HandleAlexa(context.Background(), payload)
+	require.NoError(t, err)
+	require.NotNil(t, response.Context)
+	require.Len(t, response.Context.Properties, 1)
+	value, ok := response.Context.Properties[0].Value.(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 22.2222, value["value"], 0.001)
+	assert.Equal(t, "CELSIUS", value["scale"])
+}
+
+
+func TestCloudAssistant_ThermostatModesAreAdvertisedAndQueryable(t *testing.T) {
+	svc := appCloud.NewService(newMockEntityRepo(), nil, "thermostat-token", true)
+
+	googleSync, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-sync",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.SYNC"}},
+	})
+	require.NoError(t, err)
+	syncPayload, ok := googleSync.Payload.(map[string]any)
+	require.True(t, ok)
+	devices, ok := syncPayload["devices"].([]domainCloud.GoogleDevice)
+	require.True(t, ok)
+	var thermostat *domainCloud.GoogleDevice
+	for i := range devices {
+		if devices[i].ID == "climate.bedroom" {
+			thermostat = &devices[i]
+			break
+		}
+	}
+	require.NotNil(t, thermostat)
+	modes, ok := thermostat.Attributes["availableThermostatModes"].([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"off", "heat", "cool", "auto"}, modes)
+	rangeAttrs, ok := thermostat.Attributes["thermostatTemperatureRange"].(map[string]any)
+	require.True(t, ok)
+	assert.InDelta(t, 5.0, rangeAttrs["minThresholdCelsius"], 0.001)
+	assert.InDelta(t, 35.0, rangeAttrs["maxThresholdCelsius"], 0.001)
+
+	alexaDiscovery, err := svc.HandleAlexa(context.Background(), []byte(`{
+		"directive":{"header":{"namespace":"Alexa.Discovery","name":"Discover","payloadVersion":"3","messageId":"discover-mode","correlationToken":"mode-token"},"payload":{}}
+	}`))
+	require.NoError(t, err)
+	require.NotEmpty(t, alexaDiscovery.Event.Payload)
+	payload, ok := alexaDiscovery.Event.Payload.(map[string]any)
+	require.True(t, ok)
+	endpoints, ok := payload["endpoints"].([]domainCloud.AlexaDiscoveredEndpoint)
+	require.True(t, ok)
+	var foundModeCapability bool
+	for _, endpoint := range endpoints {
+		if endpoint.EndpointID != "climate.bedroom" {
+			continue
+		}
+		for _, capability := range endpoint.Capabilities {
+			if capability.Interface == "Alexa.ThermostatController" {
+				require.NotNil(t, capability.Configuration)
+				assert.NotEmpty(t, capability.Configuration["supportedModes"])
+				foundModeCapability = true
+			}
+		}
+	}
+	assert.True(t, foundModeCapability, "Alexa discovery should advertise thermostat modes")
+}
+
+func TestCloudAssistant_GoogleCanSetThermostatMode(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "heat"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	response, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "thermostat-mode-execute",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(response.Payload)
+	require.NoError(t, err)
+	var responsePayload map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &responsePayload))
+	commands, ok := responsePayload["commands"].([]any)
+	require.True(t, ok)
+	require.Len(t, commands, 1)
+	command, ok := commands[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "SUCCESS", command["status"])
+	states, ok := command["states"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "heat", states["thermostatMode"])
+}
+
+func TestCloudAssistant_GoogleRejectsNonClimateThermostatTarget(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "switch.coffee"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "heat"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "invalid-thermostat-target",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a climate entity")
+}
+
+func TestCloudAssistant_GoogleRejectsOutOfRangeThermostatSetpoint(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(newMockEntityRepo(), bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatTemperatureSetpoint",
+				"params": map[string]any{"thermostatTemperatureSetpoint": 40.0},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "invalid-thermostat-setpoint",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "between 5.0 and 35.0")
+}
+
+func TestCloudAssistant_GoogleRejectsUnsupportedThermostatMode(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"hvac_modes":["off","heat"]}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatSetMode",
+				"params": map[string]any{"thermostatMode": "cool"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "unsupported-thermostat-mode",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not support mode")
+}
+
+func TestCloudAssistant_GoogleSyncAdvertisesDeviceSupportedThermostatModes(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"hvac_modes":["off","heat"]}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	response, err := svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "device-modes-sync",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.SYNC"}},
+	})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(response.Payload)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	devices := payload["devices"].([]any)
+	for _, raw := range devices {
+		device := raw.(map[string]any)
+		if device["id"] != "climate.bedroom" {
+			continue
+		}
+		attributes := device["attributes"].(map[string]any)
+		assert.Equal(t, []any{"off", "heat"}, attributes["availableThermostatModes"])
+		return
+	}
+	t.Fatal("thermostat was not included in Google SYNC")
+}
+
+func TestCloudAssistant_GoogleHonorsThermostatSpecificTemperatureRange(t *testing.T) {
+	repo := newMockEntityRepo()
+	repo.items["climate.bedroom"].Attributes = `{"temperature":21.5,"current_temperature":20.2,"min_temp":16,"max_temp":25}`
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	svc := appCloud.NewService(repo, bus, "thermostat-token", true)
+
+	payload, err := json.Marshal(map[string]any{
+		"commands": []map[string]any{{
+			"devices": []map[string]string{{"id": "climate.bedroom"}},
+			"execution": []map[string]any{{
+				"command": "action.devices.commands.ThermostatTemperatureSetpoint",
+				"params": map[string]any{"thermostatTemperatureSetpoint": 26.0},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = svc.HandleGoogle(context.Background(), &domainCloud.GoogleRequest{
+		RequestID: "outside-device-range",
+		Inputs: []domainCloud.GoogleRequestInput{{Intent: "action.devices.EXECUTE", Payload: payload}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "between 16.0 and 25.0")
+}

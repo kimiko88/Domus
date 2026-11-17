@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -102,35 +103,34 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 
 	case CategoryClimate:
 		result.Domain = "climate"
+		// DPS 4 is the only operating-mode control currently mapped for
+		// LocalTuya thermostats. Advertise it only when the device reports it.
+		if _, exists := dps["4"]; exists {
+			result.Attributes["hvac_modes"] = []string{"auto", "manual"}
+		}
 		if val, exists := dps["1"]; exists {
 			result.State = boolToOnOff(val)
 		}
-		// Target temperature: DPS 2 (or 16)
-		if target, exists := dps["2"]; exists {
+		// Target temperature is DPS 2 on common Tuya thermostats; some
+		// products expose the same value as DPS 16.
+		target, exists := dps["2"]
+		if !exists {
+			target, exists = dps["16"]
+		}
+		if exists {
 			if num, ok := toFloat(target); ok {
 				result.Attributes["target_temperature"] = num / 10.0
-				result.Attributes["temperature"] = num / 10.0
-			}
-		} else if target, exists := dps["16"]; exists {
-			if num, ok := toFloat(target); ok {
-				if num > 50 {
-					num = num / 10.0
+				if _, hasPrimary := dps["2"]; !hasPrimary {
+					result.Attributes["target_temperature_dp"] = 16
+				} else {
+					result.Attributes["target_temperature_dp"] = 2
 				}
-				result.Attributes["target_temperature"] = num
-				result.Attributes["temperature"] = num
 			}
 		}
-		// Current temperature: DPS 3 (or 24)
+		// Current temperature: DPS 3
 		if current, exists := dps["3"]; exists {
 			if num, ok := toFloat(current); ok {
 				result.Attributes["current_temperature"] = num / 10.0
-			}
-		} else if current, exists := dps["24"]; exists {
-			if num, ok := toFloat(current); ok {
-				if num > 50 {
-					num = num / 10.0
-				}
-				result.Attributes["current_temperature"] = num
 			}
 		}
 		// Local thermostat mode: DPS 4 (0 = automatic, 1 = manual).
@@ -224,22 +224,40 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 			if !ok || math.IsNaN(temp) || math.IsInf(temp, 0) {
 				return nil, errors.New("climate temperature must be a finite number")
 			}
-			dps["2"] = int(math.Round(temp * 10.0))
-		case "set_mode", "set_hvac_mode":
-			mode, ok := params["mode"].(string)
-			if !ok || mode == "" {
-				mode, ok = params["hvac_mode"].(string)
+			dpID := 2
+			if configuredDP, exists := params["dp_id"]; exists {
+				value, valid := toFloat(configuredDP)
+				if !valid || (value != 2 && value != 16) {
+					return nil, errors.New("climate setpoint dp_id must be 2 or 16")
+				}
+				dpID = int(value)
 			}
+			scale := 1
+			if configuredScale, exists := params["scale"]; exists {
+				value, valid := toFloat(configuredScale)
+				if !valid || value < 0 || value > 4 || math.Trunc(value) != value {
+					return nil, errors.New("climate temperature scale must be an integer between 0 and 4")
+				}
+				scale = int(value)
+			}
+			dps[fmt.Sprint(dpID)] = int(math.Round(temp * math.Pow10(scale)))
+		case "set_hvac_mode":
+			mode, ok := params["hvac_mode"].(string)
 			if !ok {
-				return nil, errors.New("climate mode must be 'auto', 'manual', 'heat', or 'off'")
+				return nil, errors.New("climate hvac_mode must be 'auto' or 'manual'")
+			}
+			params = map[string]any{"mode": mode}
+			fallthrough
+		case "set_mode":
+			mode, ok := params["mode"].(string)
+			if !ok {
+				return nil, errors.New("climate mode must be 'auto' or 'manual'")
 			}
 			switch strings.ToLower(strings.TrimSpace(mode)) {
 			case "auto", "automatic", "automatico":
 				dps["4"] = 0
-			case "manual", "manuale", "heat":
+			case "manual":
 				dps["4"] = 1
-			case "off", "spento":
-				dps["1"] = false
 			default:
 				return nil, fmt.Errorf("unsupported climate mode: %s", mode)
 			}
@@ -283,6 +301,10 @@ func toFloat(v any) (float64, bool) {
 		return float64(n), true
 	case json.Number:
 		if f, err := n.Float64(); err == nil {
+			return f, true
+		}
+	case string:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil {
 			return f, true
 		}
 	}

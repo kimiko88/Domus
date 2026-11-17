@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { useNotificationsStore } from '../../stores/notifications'
 import {
   CheckCircle,
@@ -25,7 +27,7 @@ function getIcon(type: string) {
 </script>
 
 <template>
-  <div class="toast-container" role="region" aria-label="Notifications" aria-live="polite">
+  <div class="toast-container" role="region" :aria-label="t('common.notifications')" aria-live="polite">
     <TransitionGroup name="toast">
       <div
         v-for="item in notificationsStore.notifications"
@@ -39,7 +41,7 @@ function getIcon(type: string) {
         </div>
         <button
           class="toast-dismiss"
-          aria-label="Dismiss notification"
+          :aria-label="t('common.dismissNotification')"
           @click="notificationsStore.removeNotification(item.id)"
         >
           <X :size="16" />

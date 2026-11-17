@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Check, PiggyBank } from '@lucide/vue'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   isOpen: boolean
@@ -60,11 +63,11 @@ function submit() {
       <div class="modal-header">
         <div class="header-left">
           <PiggyBank :size="20" class="piggy-icon" aria-hidden="true" />
-          <h3 id="modal-budget-title" class="modal-title">Imposta Budget Mensile</h3>
+          <h3 id="modal-budget-title" class="modal-title">{{ t('finance.budgetForm.title') }}</h3>
         </div>
         <button
           class="close-btn"
-          aria-label="Chiudi finestra"
+          :aria-label="t('finance.budgetForm.close')"
           @click="emit('close')"
         >
           <X :size="20" aria-hidden="true" />
@@ -73,11 +76,11 @@ function submit() {
 
       <form class="modal-form" @submit.prevent="submit">
         <p class="budget-desc">
-          Imposta il tetto massimo di spesa per il mese corrente. Domus ti avviserà tempestivamente se i tuoi costi superano l'80% o sforano il limite stabilito.
+          {{ t('finance.budgetForm.description') }}
         </p>
 
         <div class="form-group">
-          <label for="budget-limit" class="form-label">Limite Mensile di Spesa (€) *</label>
+          <label for="budget-limit" class="form-label">{{ t('finance.budgetForm.limit') }}</label>
           <input
             id="budget-limit"
             v-model="limit"
@@ -86,17 +89,17 @@ function submit() {
             min="10"
             required
             class="form-input budget-input"
-            placeholder="es. 1500"
+            :placeholder="t('finance.budgetForm.placeholder')"
           />
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" @click="emit('close')">
-            Annulla
+            {{ t('finance.budgetForm.cancel') }}
           </button>
           <button type="submit" class="btn btn-primary">
             <Check :size="16" aria-hidden="true" />
-            <span>Salva Budget</span>
+            <span>{{ t('finance.budgetForm.save') }}</span>
           </button>
         </div>
       </form>

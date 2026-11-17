@@ -131,3 +131,60 @@ func TestBlueprints_CatalogAndInstantiate(t *testing.T) {
 		t.Errorf("unexpected action target: %s", auto.Actions[0].TargetEntityKey)
 	}
 }
+
+
+func TestSimulator_UnknownConditionFailsClosed(t *testing.T) {
+	sim := NewSimulator(nil, nil)
+	rule := &domauto.Automation{
+		ID: "unknown-condition",
+		Conditions: []domauto.Condition{{Condition: "future_condition"}},
+		Actions: []domauto.Action{{Type: "service", Service: "turn_on", TargetEntityKey: "light.test"}},
+	}
+
+	result, err := sim.DryRun(context.Background(), rule, time.Now())
+	if err != nil {
+		t.Fatalf("dry run failed: %v", err)
+	}
+	if result.Passed {
+		t.Fatal("unsupported condition must fail closed")
+	}
+	if len(result.Actions) != 0 {
+		t.Fatalf("unsupported condition must not allow actions, got %d", len(result.Actions))
+	}
+}
+
+func TestSimulator_TimeConditionAcrossMidnight(t *testing.T) {
+	sim := NewSimulator(nil, nil)
+	condition := domauto.Condition{Condition: "time", After: "22:00:00", Before: "06:00:00"}
+
+	for _, tc := range []struct {
+		name string
+		hour int
+		want bool
+	}{
+		{name: "late evening", hour: 23, want: true},
+		{name: "early morning", hour: 5, want: true},
+		{name: "midday", hour: 12, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Date(2026, time.January, 2, tc.hour, 0, 0, 0, time.UTC)
+			trace := sim.evaluateCondition(context.Background(), condition, now)
+			if trace.Passed != tc.want {
+				t.Fatalf("expected passed=%v, got %v (%s)", tc.want, trace.Passed, trace.Reason)
+			}
+		})
+	}
+}
+
+
+func TestSimulator_EmptyLogicalGroupsFailClosed(t *testing.T) {
+	sim := NewSimulator(nil, nil)
+	for _, kind := range []string{"and", "or", "not"} {
+		t.Run(kind, func(t *testing.T) {
+			trace := sim.evaluateCondition(context.Background(), domauto.Condition{Condition: kind}, time.Now())
+			if trace.Passed {
+				t.Fatalf("empty %s condition must fail closed", kind)
+			}
+		})
+	}
+}

@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/domus-hub/domus/internal/application/assistant"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +24,12 @@ func TestAssistantHandler_Chat(t *testing.T) {
 	h := handlers.NewAssistantHandler(svc)
 
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		admin := &user.User{ID: "test-admin", Role: user.RoleAdmin}
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(domusmw.WithUser(req.Context(), admin)))
+		})
+	})
 	h.RegisterRoutes(r)
 
 	// 1. POST /assistant/chat

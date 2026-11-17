@@ -342,12 +342,9 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 	rr = doReq(http.MethodPost, "/api/v1/family/invites", viewSess.ID, inviteBody)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
-	// 5. Viewer: CAN view family members -> 200 OK
+	// 5. Viewer: cannot view family details without an explicit /family grant.
 	rr = doReq(http.MethodGet, "/api/v1/family/members", viewSess.ID, nil)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	var membersResp map[string]any
-	_ = json.Unmarshal(rr.Body.Bytes(), &membersResp)
-	assert.Equal(t, float64(3), membersResp["total"])
+	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	// 6. Operator: CAN execute commands -> 202 Accepted
 	rr = doReq(http.MethodPost, "/api/v1/entities/"+ent.ID+"/command", opSess.ID, cmdBody)
@@ -418,8 +415,15 @@ func TestServer_RBAC_And_FamilyRoutes(t *testing.T) {
 	rr = doReq(http.MethodPut, "/api/v1/family/members/"+kidUser.ID+"/role", adminSess.ID, updateRoleBody)
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	// Kid is now viewer, command should be forbidden
+	// Role changes revoke active sessions immediately. The old cookie must not
+	// continue to carry the former operator permissions.
 	rr = doReq(http.MethodPost, "/api/v1/entities/"+ent.ID+"/command", newSessCookie.Value, cmdBody)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	// After authenticating again as a viewer, command execution is explicitly denied.
+	viewerSession, _, err := authSvc.Login(ctx, "kid_member", "KidPassword123!", "127.0.0.1", "test-agent")
+	require.NoError(t, err)
+	rr = doReq(http.MethodPost, "/api/v1/entities/"+ent.ID+"/command", viewerSession.ID, cmdBody)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	// 14. Admin cannot demote last admin

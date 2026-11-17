@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	appauto "github.com/domus-hub/domus/internal/application/automation"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -232,4 +233,61 @@ func TestEntityHandler_CommandEmitsEvent(t *testing.T) {
 	payloadMap := emittedCmd.Payload.(map[string]any)
 	assert.Equal(t, "light.ceiling", payloadMap["entity_key"])
 	assert.Equal(t, "turn_on", payloadMap["service"])
+}
+
+
+func TestEntityHandler_ApplyClimateProfile(t *testing.T) {
+	repos, bus := setupTestEnvironment(t)
+	ctx := context.Background()
+	in := &integration.Integration{
+		ID: "climate-integration", Type: "test", Name: "Climate", Status: "connected",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Integrations.Create(ctx, in))
+	dev := &device.Device{
+		ID: "climate-device", IntegrationID: in.ID, ExternalID: "climate",
+		Name: "Climate", Online: true, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Devices.Create(ctx, dev))
+	thermostat := &entity.Entity{
+		ID: "climate-entity-id", DeviceID: dev.ID, EntityKey: "climate.living_room",
+		Domain: "climate", Name: "Living room", Writable: true, Available: true,
+		State: `{"state":"heat"}`, Attributes: `{"target_temperature":20,"min_temp":5,"max_temp":30}`,
+	}
+	require.NoError(t, repos.Entities.Create(ctx, thermostat))
+
+	engine := appauto.NewEngine(repos.Automations, repos.Entities, bus)
+	require.NoError(t, engine.Start(ctx))
+	defer func() { _ = engine.Stop(context.Background()) }()
+	handler := handlers.NewEntityHandler(repos.Entities, bus).WithClimateEngine(engine)
+	router := chi.NewRouter()
+	router.Post("/api/v1/entities/{id}/climate-profile", handler.ApplyClimateProfile)
+
+	var received float64
+	commandReceived := make(chan struct{}, 1)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, event events.Event) error {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok { return nil }
+		if payload["entity_key"] == "climate.living_room" {
+			params, _ := payload["params"].(map[string]any)
+			if temperature, ok := params["temperature"].(float64); ok {
+				received = temperature
+				commandReceived <- struct{}{}
+			}
+		}
+		return nil
+	})
+	defer unsub()
+
+	body := bytes.NewBufferString(`{"profile":"custom","temperature":19.5,"duration_minutes":0}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entities/climate-entity-id/climate-profile", body)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code)
+	select {
+	case <-commandReceived:
+		assert.Equal(t, 19.5, received)
+	case <-time.After(2 * time.Second):
+		t.Fatal("thermostat profile command was not published")
+	}
 }

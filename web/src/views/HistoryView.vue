@@ -138,7 +138,7 @@ onMounted(async () => {
           name="history_entity"
           v-model="selectedEntityId"
           class="entity-picker"
-          aria-label="Seleziona entità"
+          :aria-label="t('history.selectEntity')"
         >
           <option v-for="ent in availableEntities" :key="ent.id" :value="ent.id">
             [{{ ent.domain }}] {{ ent.name }}

@@ -2,29 +2,29 @@
   <main class="zones-view" id="main-content" tabindex="-1">
     <header class="view-header">
       <div class="header-content">
-        <h1>Zone Geografiche & Presenza</h1>
-        <p class="subtitle">Geofencing spaziale, perimetri di rilevamento e tracciamento dispositivi familiari</p>
+        <h1>{{ t('zones.title') }}</h1>
+        <p class="subtitle">{{ t('zones.subtitle') }}</p>
       </div>
       <div class="header-actions">
         <button
           class="btn btn-primary"
           @click="openCreateModal"
-          aria-label="Crea nuova zona"
+          :aria-label="t('zones.createZoneAria')"
         >
-          + Nuova Zona
+          {{ t('zones.newZone') }}
         </button>
       </div>
     </header>
 
     <!-- Visual Map Canvas / Radar -->
-    <section class="map-section" aria-label="Mappa visiva delle zone">
+    <section class="map-section" :aria-label="t('zones.mapAria')">
       <div class="map-card">
         <div class="map-header">
-          <h2>Mappa Geofencing Interattiva</h2>
-          <span class="active-count">{{ store.zones.length }} Zone Configurate</span>
+          <h2>{{ t('zones.mapTitle') }}</h2>
+          <span class="active-count">{{ store.zones.length }} {{ t('zones.zonesConfigured') }}</span>
         </div>
         <div class="svg-map-wrapper">
-          <svg class="radar-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mappa delle zone">
+          <svg class="radar-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="t('zones.mapAria')">
             <!-- Grid lines -->
             <defs>
               <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -47,7 +47,7 @@
                 :class="['zone-circle', { active: selectedZone?.id === zone.id, passive: zone.passive }]"
                 @click="selectZone(zone)"
                 role="button"
-                :aria-label="`Zona ${zone.name}, raggio ${zone.radius} metri`"
+                :aria-label="t('zones.zoneAria', { name: zone.name, radius: zone.radius })"
                 tabindex="0"
                 @keydown.enter="selectZone(zone)"
               />
@@ -68,13 +68,13 @@
     <!-- Zones Grid & Person Trackers -->
     <div class="content-grid">
       <!-- Zones List -->
-      <section class="zones-list-section" aria-label="Lista delle zone">
-        <h2>Zone Attive</h2>
+      <section class="zones-list-section" :aria-label="t('zones.zonesListAria')">
+        <h2>{{ t('zones.activeZones') }}</h2>
         <div v-if="store.loading && store.zones.length === 0" class="loading-state">
-          <p>Caricamento zone in corso...</p>
+          <p>{{ t('zones.loading') }}</p>
         </div>
         <div v-else-if="store.zones.length === 0" class="empty-state">
-          <p>Nessuna zona creata. Crea "Casa", "Lavoro" o "Scuola" per iniziare.</p>
+          <p>{{ t('zones.empty') }}</p>
         </div>
         <div v-else class="zones-cards">
           <article
@@ -90,14 +90,14 @@
                 <h3>{{ zone.name }}</h3>
                 <span class="zone-coords">{{ zone.latitude.toFixed(4) }}, {{ zone.longitude.toFixed(4) }}</span>
               </div>
-              <span v-if="zone.passive" class="tag-passive">Passiva</span>
+              <span v-if="zone.passive" class="tag-passive">{{ t('zones.passive') }}</span>
             </div>
             <div class="zone-card-details">
-              <span>Raggio: <strong>{{ zone.radius }} m</strong></span>
+              <span>{{ t('zones.radius', { radius: zone.radius }) }}</span>
               <button
                 class="btn-icon-danger"
                 @click.stop="handleDelete(zone.id)"
-                :aria-label="`Elimina zona ${zone.name}`"
+                :aria-label="t('zones.deleteZoneAria', { name: zone.name })"
               >
                 🗑️
               </button>
@@ -107,10 +107,10 @@
       </section>
 
       <!-- Tracked Persons (Family) -->
-      <section class="persons-section" aria-label="Membri tracciati">
-        <h2>Persone & Rilevamento</h2>
+      <section class="persons-section" :aria-label="t('zones.trackedPeopleAria')">
+        <h2>{{ t('zones.trackedPeople') }}</h2>
         <div v-if="store.persons.length === 0" class="empty-state">
-          <p>Nessun membro con device tracker assegnato.</p>
+          <p>{{ t('zones.noTrackedPeople') }}</p>
         </div>
         <div v-else class="persons-list">
           <article v-for="person in store.persons" :key="person.id" class="person-card">
@@ -134,29 +134,28 @@
     </div>
 
     <!-- Vacation Presence Simulator -->
-    <section class="vacation-section" aria-label="Simulatore di Presenza Vacanza">
+    <section class="vacation-section" :aria-label="t('zones.vacationAria')">
       <div class="vacation-header">
         <div class="vacation-title-box">
           <span class="vacation-icon-badge" aria-hidden="true">🏖️</span>
           <div>
-            <h2 class="vacation-title">Simulatore di Presenza — Modalità Vacanza</h2>
+            <h2 class="vacation-title">{{ t('zones.vacationTitle') }}</h2>
             <p class="vacation-desc">
-              Riproduce le abitudini quotidiane (luci, tapparelle, TV) con ±{{ vacationStatus.jitter_minutes }} min di jitter gaussiano
-              per scoraggiare intrusioni e profilazioni esterne durante l'assenza.
+              {{ t('zones.vacationDesc', { minutes: vacationStatus.jitter_minutes }) }}
             </p>
           </div>
         </div>
 
         <!-- Enable/Disable Toggle -->
         <div class="vacation-toggle-area">
-          <span class="toggle-label">{{ vacationStatus.enabled ? 'Attiva' : 'Disattiva' }}</span>
+          <span class="toggle-label">{{ vacationStatus.enabled ? t('zones.active') : t('zones.inactive') }}</span>
           <button
             type="button"
             class="vacation-toggle"
             :class="{ enabled: vacationStatus.enabled }"
             role="switch"
             :aria-checked="vacationStatus.enabled"
-            aria-label="Attiva o disattiva Modalità Vacanza"
+            :aria-label="t('zones.toggleVacationAria')"
             :disabled="isTogglingVacation"
             @click="toggleVacationMode"
           >
@@ -169,29 +168,29 @@
       <div class="vacation-status-banner" :class="vacationStatus.enabled ? 'banner-active' : 'banner-inactive'">
         <span class="status-dot" />
         <span v-if="vacationStatus.enabled">
-          🛡️ Simulazione attiva — le abitudini familiari vengono riprodotte automaticamente con perturbazione casuale.
+          🛡️ {{ t('zones.activeBanner') }}
         </span>
         <span v-else>
-          Modalità Vacanza disattivata — abilita per attivare il replay intelligente delle abitudini in tua assenza.
+          {{ t('zones.inactiveBanner') }}
         </span>
       </div>
 
       <!-- Simulated Actions List -->
       <div class="vacation-actions-wrap">
         <div class="va-header-row">
-          <h3 class="va-title">Azioni Simulate Registrate</h3>
+          <h3 class="va-title">{{ t('zones.simulatedActionsTitle') }}</h3>
           <button
             type="button"
             class="va-add-btn"
             @click="openAddActionModal"
-            aria-label="Aggiungi azione simulata"
+            :aria-label="t('zones.addActionAria')"
           >
-            + Aggiungi Azione
+            {{ t('zones.addAction') }}
           </button>
         </div>
 
         <div v-if="simulatedActions.length === 0" class="va-empty">
-          <span>Nessuna azione simulata. Aggiungi luci, tapparelle o TV che vuoi replicare durante la vacanza.</span>
+          <span>{{ t('zones.emptyActions') }}</span>
         </div>
         <div v-else class="va-actions-grid">
           <div
@@ -213,23 +212,23 @@
     <!-- Add Simulated Action Modal -->
     <div v-if="showActionModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="action-modal-title" @click.self="showActionModal = false">
       <div class="modal-card">
-        <h2 id="action-modal-title">Aggiungi Azione Simulata</h2>
+        <h2 id="action-modal-title">{{ t('zones.actionModalTitle') }}</h2>
         <form @submit.prevent="saveSimulatedAction" class="modal-form">
           <div class="form-group">
-            <label for="va-entity">Entity ID (es. light.salotto)</label>
-            <input id="va-entity" v-model="actionForm.entity_id" required placeholder="light.salotto" class="input" />
+            <label for="va-entity">{{ t('zones.entityId') }}</label>
+            <input id="va-entity" v-model="actionForm.entity_id" required :placeholder="t('zones.entityId')" class="input" />
           </div>
           <div class="form-group">
-            <label for="va-command">Comando (es. turn_on, turn_off)</label>
-            <input id="va-command" v-model="actionForm.command" required placeholder="turn_on" class="input" />
+            <label for="va-command">{{ t('zones.command') }}</label>
+            <input id="va-command" v-model="actionForm.command" required :placeholder="t('zones.command')" class="input" />
           </div>
           <div class="form-group">
-            <label for="va-time">Orario Tipico (HH:MM)</label>
+            <label for="va-time">{{ t('zones.typicalTime') }}</label>
             <input id="va-time" v-model="actionForm.typical_time" type="time" required class="input" />
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" @click="showActionModal = false">Annulla</button>
-            <button type="submit" class="btn btn-primary" :disabled="savingAction">Salva Azione</button>
+            <button type="button" class="btn btn-secondary" @click="showActionModal = false">{{ t('zones.cancel') }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingAction">{{ t('zones.saveAction') }}</button>
           </div>
         </form>
       </div>
@@ -238,39 +237,39 @@
     <!-- Create/Edit Zone Modal -->
     <div v-if="showModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-card">
-        <h2 id="modal-title">Crea Nuova Zona Geografica</h2>
+        <h2 id="modal-title">{{ t('zones.createModalTitle') }}</h2>
         <form @submit.prevent="saveZone" class="modal-form">
           <div class="form-group">
-            <label for="zone-name">Nome Zona</label>
-            <input id="zone-name" v-model="form.name" required placeholder="Es. Casa, Ufficio, Palestra" class="input" />
+            <label for="zone-name">{{ t('zones.zoneName') }}</label>
+            <input id="zone-name" v-model="form.name" required :placeholder="t('zones.zoneNamePlaceholder')" class="input" />
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="zone-lat">Latitudine</label>
-              <input id="zone-lat" v-model.number="form.latitude" type="number" min="-90" max="90" step="any" required placeholder="es. 45.4642" class="input" />
+              <label for="zone-lat">{{ t('zones.latitude') }}</label>
+              <input id="zone-lat" v-model.number="form.latitude" type="number" min="-90" max="90" step="any" required :placeholder="t('zones.latitudePlaceholder')" class="input" />
             </div>
             <div class="form-group">
-              <label for="zone-lon">Longitudine</label>
-              <input id="zone-lon" v-model.number="form.longitude" type="number" min="-180" max="180" step="any" required placeholder="es. 9.1900" class="input" />
+              <label for="zone-lon">{{ t('zones.longitude') }}</label>
+              <input id="zone-lon" v-model.number="form.longitude" type="number" min="-180" max="180" step="any" required :placeholder="t('zones.longitudePlaceholder')" class="input" />
             </div>
           </div>
 
           <div class="form-group">
-            <label for="zone-radius">Raggio di rilevamento: {{ form.radius }} metri</label>
+            <label for="zone-radius">{{ t('zones.radiusLabel', { radius: form.radius }) }}</label>
             <input id="zone-radius" v-model.number="form.radius" type="range" min="50" max="2000" step="25" class="range" />
           </div>
 
           <div class="form-group checkbox-group">
             <label>
               <input type="checkbox" v-model="form.passive" />
-              Zona Passiva (non altera lo stato di presenza principale)
+              {{ t('zones.passiveZone') }}
             </label>
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" @click="closeModal">Annulla</button>
-            <button type="submit" class="btn btn-primary" :disabled="saving">Salva Zona</button>
+            <button type="button" class="btn btn-secondary" @click="closeModal">{{ t('zones.cancel') }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="saving">{{ t('zones.saveZone') }}</button>
           </div>
         </form>
       </div>
@@ -280,11 +279,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useZonesStore } from '../stores/zones'
 import { apiClient } from '../api/client'
 import type { VacationModeStatus, VacationSimulatedAction } from '../api/types'
 import type { SpatialZone } from '../api/types'
 
+const { t } = useI18n()
 const store = useZonesStore()
 const selectedZone = ref<SpatialZone | null>(null)
 const showModal = ref(false)
@@ -377,7 +378,7 @@ async function saveZone() {
   const longitude = form.value.longitude
   if (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
       typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    window.alert('Inserisci coordinate valide: latitudine da -90 a 90 e longitudine da -180 a 180.')
+    window.alert(t('zones.invalidCoordinates'))
     return
   }
   saving.value = true
@@ -390,7 +391,7 @@ async function saveZone() {
 }
 
 async function handleDelete(id: string) {
-  if (confirm('Sei sicuro di voler eliminare questa zona?')) {
+  if (confirm(t('zones.confirmDelete'))) {
     await store.deleteZone(id)
   }
 }

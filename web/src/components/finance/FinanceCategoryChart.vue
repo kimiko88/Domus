@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Chart from 'chart.js/auto'
 import type { CategoryBreakdown, ExpenseCategory } from '@/api/types'
 
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'select-category', cat: ExpenseCategory | 'all'): void
 }>()
 
+const { t, locale } = useI18n()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let chartInstance: Chart | null = null
 
@@ -29,7 +31,7 @@ const totalSum = computed(() => {
 })
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 2
@@ -47,7 +49,7 @@ function initChart() {
 
   if (props.categories.length === 0) return
 
-  const labels = props.categories.map((c) => c.name)
+  const labels = props.categories.map((c) => t('finance.categories.' + c.category))
   const data = props.categories.map((c) => c.total_amount)
   const bgColors = props.categories.map((c) => categoryColors[c.category] || '#64748b')
 
@@ -117,27 +119,27 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="category-breakdown-card glass-panel" role="region" aria-label="Ripartizione Spese per Categoria">
+  <div class="category-breakdown-card glass-panel" role="region" :aria-label="t('finance.charts.categoriesRegion')">
     <div class="card-header">
-      <h3 class="card-title">Ripartizione Categorie (Ciambella)</h3>
+      <h3 class="card-title">{{ t('finance.charts.categoriesTitle') }}</h3>
       <button
         v-if="selectedCategory !== 'all'"
         class="reset-filter-btn"
         @click="emit('select-category', 'all')"
       >
-        Azzera Filtro
+        {{ t('finance.charts.reset') }}
       </button>
     </div>
 
     <div v-if="categories.length === 0" class="no-data-placeholder">
-      <span>Nessuna spesa registrata per questo periodo.</span>
+      <span>{{ t('finance.charts.emptyCategory') }}</span>
     </div>
 
     <div v-else class="chart-content">
       <div class="canvas-wrapper">
-        <canvas ref="canvasRef" aria-label="Grafico a ciambella spese per categoria" role="img" />
+        <canvas ref="canvasRef" :aria-label="t('finance.charts.chartAria')" role="img" />
         <div class="canvas-center-stat" aria-hidden="true">
-          <span class="center-label">Totale</span>
+          <span class="center-label">{{ t('finance.charts.total') }}</span>
           <span class="center-val">{{ formatCurrency(totalSum) }}</span>
         </div>
       </div>
@@ -156,7 +158,7 @@ onBeforeUnmount(() => {
               class="legend-color-dot"
               :style="{ backgroundColor: categoryColors[cat.category] || '#64748b' }"
             />
-            <span class="legend-name">{{ cat.name }}</span>
+            <span class="legend-name">{{ t('finance.categories.' + cat.category) }}</span>
           </div>
           <div class="legend-right">
             <span class="legend-amount">{{ formatCurrency(cat.total_amount) }}</span>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAutomationsStore } from '../stores/automations'
 import { useNotificationsStore } from '../stores/notifications'
@@ -16,6 +17,8 @@ import type { InboundWebhook } from '../api/types'
 const { t } = useI18n()
 const automationsStore = useAutomationsStore()
 const notificationsStore = useNotificationsStore()
+const route = useRoute()
+const router = useRouter()
 
 const searchQuery = ref('')
 const filterStatus = ref<'all' | 'active' | 'disabled'>('all')
@@ -69,7 +72,7 @@ async function handleCreateWebhook() {
 }
 
 async function handleDeleteWebhook(wh: InboundWebhook) {
-  if (!confirm(`Sei sicuro di voler eliminare il webhook "${wh.name}"?`)) return
+  if (!confirm(t('automations.view.confirmDeleteWebhook', { name: wh.name }))) return
   try {
     await apiClient.delete(`/api/v1/webhook-configs/${wh.id}`)
     webhooks.value = webhooks.value.filter(w => w.id !== wh.id)
@@ -94,6 +97,10 @@ async function handleCopyWebhookUrl(whId: string) {
 onMounted(() => {
   loadAutomations()
   loadWebhooks()
+  if (route.query.climateProgram === '1') {
+    editingAutomation.value = null
+    isEditorOpen.value = true
+  }
 })
 
 const filteredAutomations = computed(() => {
@@ -115,6 +122,16 @@ const filteredAutomations = computed(() => {
 function openNewModal() {
   editingAutomation.value = null
   isEditorOpen.value = true
+}
+
+function closeEditor() {
+  isEditorOpen.value = false
+  if (route.query.climateProgram === '1') {
+    const query = { ...route.query }
+    delete query.climateProgram
+    delete query.target
+    void router.replace({ query })
+  }
 }
 
 function handleEdit(automation: Automation) {
@@ -149,6 +166,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     }
     isEditorOpen.value = false
     editingAutomation.value = null
+    if (route.query.climateProgram === '1') closeEditor()
   } catch (err: any) {
     notificationsStore.error(t('common.error'), err?.message || t('automations.saveError'))
   }
@@ -164,9 +182,9 @@ async function handleSaveAutomation(data: Partial<Automation>) {
       </div>
 
       <div class="header-actions">
-        <router-link to="/automations/flow" class="btn-flow-editor glass-panel" title="Apri Editor Visuale a Nodi">
+        <router-link to="/automations/flow" class="btn-flow-editor glass-panel"  :title="t('automations.view.nodeEditorTitle')">
           <Workflow :size="16" />
-          <span>Editor a Nodi</span>
+          <span>{{ t('automations.view.nodeEditorButton') }}</span>
         </router-link>
         <button class="btn-flowchart glass-panel" @click="isFlowchartOpen = true">
           <Layers :size="16" />
@@ -245,19 +263,19 @@ async function handleSaveAutomation(data: Partial<Automation>) {
             <Globe :size="20" />
           </div>
           <div>
-            <h3 class="wh-title">Webhook Esterni Riceventi (Inbound)</h3>
-            <p class="wh-subtitle">Ricevi payload HTTP protetti da HMAC da IFTTT, n8n, OwnTracks o sensori esterni per innescare eventi</p>
+            <h3 class="wh-title">{{ t('automations.view.webhookTitle') }}</h3>
+            <p class="wh-subtitle">{{ t('automations.view.webhookSubtitle') }}</p>
           </div>
         </div>
         <BaseButton variant="secondary" size="sm" @click="isWebhookModalOpen = true">
           <Plus :size="16" />
-          <span>Nuovo Webhook</span>
+          <span>{{ t('automations.view.newWebhook') }}</span>
         </BaseButton>
       </div>
 
       <div v-if="webhooks.length === 0" class="wh-empty">
         <Globe :size="28" class="empty-icon" />
-        <p>Nessun webhook configurato. Crea un endpoint per ricevere richieste esterne in sicurezza.</p>
+        <p>{{ t('automations.view.webhookEmpty') }}</p>
       </div>
 
       <div v-else class="wh-list">
@@ -272,7 +290,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
             <span class="wh-url">/api/v1/webhooks/{{ wh.webhook_id }}</span>
             <button
               class="wh-copy-btn"
-              :title="copiedWhId === wh.webhook_id ? 'Copiato!' : 'Copia URL Webhook'"
+              :title="copiedWhId === wh.webhook_id ? t('automations.view.webhookCopied') : t('automations.view.copyWebhookUrl')"
               @click="handleCopyWebhookUrl(wh.webhook_id)"
             >
               <Check v-if="copiedWhId === wh.webhook_id" :size="14" class="text-success" />
@@ -282,7 +300,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
 
           <div class="wh-card-bottom">
             <span class="wh-secret">Secret: <code>{{ wh.secret_token ? 'HMAC-SHA256 protetto' : 'Libero' }}</code></span>
-            <button class="wh-delete-btn" title="Elimina" @click="handleDeleteWebhook(wh)">
+            <button class="wh-delete-btn"  :title="t('common.delete')" @click="handleDeleteWebhook(wh)">
               <Trash2 :size="15" />
             </button>
           </div>
@@ -294,8 +312,10 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     <AutomationEditorModal
       :is-open="isEditorOpen"
       :automation="editingAutomation"
+      :open-climate-builder="route.query.climateProgram === '1'"
+      :initial-climate-target="typeof route.query.target === 'string' ? route.query.target : ''"
       @save="handleSaveAutomation"
-      @close="isEditorOpen = false"
+      @close="closeEditor"
     />
 
     <AutomationRunsModal
@@ -317,51 +337,51 @@ async function handleSaveAutomation(data: Partial<Automation>) {
           <div class="modal-header">
             <div class="modal-title-box">
               <Globe :size="20" class="modal-icon" />
-              <h3 class="modal-title">Nuovo Webhook Inbound</h3>
+              <h3 class="modal-title">{{ t('automations.view.newWebhookTitle') }}</h3>
             </div>
-            <button class="modal-close" aria-label="Chiudi" @click="isWebhookModalOpen = false">
+            <button class="modal-close"  :aria-label="t('common.cancel')" @click="isWebhookModalOpen = false">
               <X :size="18" />
             </button>
           </div>
 
           <div class="modal-body">
             <div class="form-group">
-              <label for="webhook-name" class="form-label">Nome Webhook</label>
+              <label for="webhook-name" class="form-label">{{ t('automations.view.webhookName') }}</label>
               <input
                 id="webhook-name"
                 name="webhook_name"
                 v-model="newWhName"
                 type="text"
                 class="text-input"
-                placeholder="es. IFTTT Arrivo a Casa, OwnTracks GPS"
+                 :placeholder="t('automations.view.webhookNamePlaceholder')"
               />
             </div>
 
             <div class="form-group">
-              <label for="webhook-secret" class="form-label">Secret HMAC Token (opzionale per firma X-Domus-Signature)</label>
+              <label for="webhook-secret" class="form-label">{{ t('automations.view.secretToken') }}</label>
               <input
                 id="webhook-secret"
                 name="webhook_secret"
                 v-model="newWhSecret"
                 type="text"
                 class="text-input"
-                placeholder="es. secret_my_token_123"
+                 :placeholder="t('automations.view.secretPlaceholder')"
               />
             </div>
 
             <div class="form-group">
-              <label for="webhook-method" class="form-label">Metodo HTTP Consentito</label>
+              <label for="webhook-method" class="form-label">{{ t('automations.view.allowedHttpMethod') }}</label>
               <select id="webhook-method" name="webhook_method" v-model="newWhMethods" class="select-input">
-                <option value="POST">POST (Standard JSON payload)</option>
-                <option value="GET">GET (Query string parameters)</option>
+                <option value="POST">{{ t('automations.view.postStandard') }}</option>
+                <option value="GET">{{ t('automations.view.getQuery') }}</option>
                 <option value="PUT">PUT</option>
               </select>
             </div>
           </div>
 
           <div class="modal-footer">
-            <BaseButton variant="ghost" size="md" @click="isWebhookModalOpen = false">Annulla</BaseButton>
-            <BaseButton variant="primary" size="md" @click="handleCreateWebhook">Crea Webhook</BaseButton>
+            <BaseButton variant="ghost" size="md" @click="isWebhookModalOpen = false">{{ t('common.cancel') }}</BaseButton>
+            <BaseButton variant="primary" size="md" @click="handleCreateWebhook">{{ t('automations.view.createWebhook') }}</BaseButton>
           </div>
         </div>
       </div>
@@ -825,4 +845,39 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
 }
+
+/* Responsive layout: keep every control usable on narrow screens. */
+.automations-view, .automations-view * { min-width: 0; }
+.automations-grid, .wh-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.header-actions { flex-wrap: wrap; }
+.webhooks-section { padding: clamp(16px, 3vw, 28px); }
+.wh-url { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .header-row { align-items: stretch; }
+  .header-row > div:first-child { width: 100%; }
+  .header-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .header-actions > * { justify-content: center; min-height: 42px; }
+  .header-actions .btn-new-automation { grid-column: 1 / -1; width: 100%; }
+  .toolbar-row { align-items: stretch; flex-direction: column; }
+  .search-box { width: 100%; max-width: none; min-width: 0; }
+  .filter-pills { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding: 2px 1px 8px; scrollbar-width: thin; }
+  .filter-pill { flex: 0 0 auto; white-space: nowrap; }
+  .webhooks-header { align-items: stretch; }
+  .webhooks-header > :deep(button), .webhooks-header > button { align-self: flex-start; }
+  .webhooks-title-group { align-items: flex-start; }
+  .wh-list { grid-template-columns: minmax(0, 1fr); }
+  .empty-state { width: 100%; margin: 8px 0; padding: 32px 18px; }
+}
+@media (max-width: 420px) {
+  .header-actions { grid-template-columns: minmax(0, 1fr); }
+  .header-actions .btn-new-automation { grid-column: auto; }
+  .btn-flow-editor, .btn-flowchart { width: 100%; }
+  .webhooks-header { flex-direction: column; }
+  .webhooks-header > * { width: 100%; }
+  .webhooks-header :deep(button) { justify-content: center; }
+  .wh-card { padding: 14px; }
+  .wh-card-top { align-items: flex-start; }
+  .wh-name { flex-basis: 100%; }
+}
+
 </style>
