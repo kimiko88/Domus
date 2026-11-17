@@ -3,10 +3,12 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import CustomDashboardView from './CustomDashboardView.vue'
 import { apiClient } from '../api/client'
+import { setLanguage } from '../locales'
 
 describe('CustomDashboardView.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    setLanguage('it')
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
       if (url.includes('/api/v1/dashboards')) {
         return [
@@ -34,7 +36,7 @@ describe('CustomDashboardView.vue', () => {
     const wrapper = mount(CustomDashboardView)
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Dashboard Personalizzata')
+    expect(wrapper.text()).toContain('Dashboard personalizzata')
     expect(wrapper.find('.profile-select').exists()).toBe(true)
     expect(wrapper.find('.kiosk-toggle-btn').exists()).toBe(true)
   })
@@ -45,7 +47,7 @@ describe('CustomDashboardView.vue', () => {
 
     const thermostatCard = wrapper.find('.thermostat-card')
     expect(thermostatCard.exists()).toBe(true)
-    expect(thermostatCard.text()).toContain('Clima & Termostato Salotto')
+    expect(thermostatCard.text()).toContain('Clima e termostato Salotto')
 
     // Find + 0.5 button and click
     const plusBtn = wrapper.find('.temp-btn.primary')

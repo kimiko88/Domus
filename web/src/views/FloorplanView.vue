@@ -458,7 +458,7 @@ const unplacedEntities = computed(() => {
           <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} Piani</span>
           <span v-if="rooms.length > 0" class="room-count-badge">{{ rooms.length }} Stanze</span>
         </div>
-        <p class="subtitle">Disegna e posiziona le stanze della tua casa, organizza i dispositivi e visualizza la planimetria in tempo reale.</p>
+        <p class="subtitle">{{ t('floorplan.view.subtitle') }}</p>
       </div>
 
       <div class="header-actions">
@@ -477,7 +477,7 @@ const unplacedEntities = computed(() => {
             @click="activeMode = 'edit_rooms'"
           >
             <LayoutGrid :size="14" />
-            <span>Planimetria Stanze</span>
+            <span>{{ t('floorplan.view.roomPlan') }}</span>
           </button>
           <button
             class="mode-btn btn-mode"
@@ -493,7 +493,7 @@ const unplacedEntities = computed(() => {
           class="btn-heatmap-mode"
           :class="{ active: showHeatmap }"
           @click="toggleHeatmap"
-          title="Mostra gradiente termico o umidità"
+          :title="t('floorplan.view.toggleHeatmap')"
         >
           <Thermometer class="btn-icon" />
           <span>{{ showHeatmap ? 'Chiudi Heatmap' : 'Heatmap 2.5D' }}</span>
@@ -501,7 +501,7 @@ const unplacedEntities = computed(() => {
 
         <button class="btn-primary" @click="showFloorModal = true">
           <Plus class="btn-icon" />
-          <span>Nuovo Piano</span>
+          <span>{{ t('floorplan.view.newFloor') }}</span>
         </button>
       </div>
     </header>
@@ -527,7 +527,7 @@ const unplacedEntities = computed(() => {
           @click="showFloorModal = true"
         >
           <Plus class="tab-icon" />
-          <span>Crea il primo piano</span>
+          <span>{{ t('floorplan.view.createFirstFloor') }}</span>
         </button>
       </div>
     </div>
@@ -537,15 +537,15 @@ const unplacedEntities = computed(() => {
       <div class="toolbar-left">
         <span class="toolbar-title">
           <LayoutGrid :size="18" class="text-primary" />
-          <span>Editor Architettonico Stanze</span>
+          <span>{{ t('floorplan.view.roomEditor') }}</span>
         </span>
         <button class="btn-action-tool" @click="openAddRoomModal">
           <Plus :size="16" />
-          <span>Aggiungi Stanza</span>
+          <span>{{ t('floorplan.view.addRoom') }}</span>
         </button>
         <button class="btn-action-tool secondary" @click="generateStandardFloorplan">
           <Sparkles :size="16" />
-          <span>Genera Planimetria Standard</span>
+          <span>{{ t('floorplan.view.generateStandardPlan') }}</span>
         </button>
       </div>
 
@@ -574,7 +574,7 @@ const unplacedEntities = computed(() => {
           />
         </div>
 
-        <button class="btn-delete-room" title="Elimina questa stanza" @click="deleteSelectedRoom">
+        <button class="btn-delete-room" :title="t('floorplan.view.deleteRoom')" @click="deleteSelectedRoom">
           <Trash2 :size="16" />
         </button>
       </div>
@@ -687,7 +687,7 @@ const unplacedEntities = computed(() => {
           <button
             v-if="activeMode === 'edit_markers'"
             class="marker-del-btn"
-            title="Rimuovi dispositivo dalla mappa"
+            :title="t('floorplan.view.removeDeviceFromMap')"
             @click.stop="removeMarker(marker.id)"
           >
             <X class="del-icon" />
@@ -698,10 +698,10 @@ const unplacedEntities = computed(() => {
       <!-- Right Drawer: Unplaced Devices in Markers Edit Mode -->
       <aside v-if="activeMode === 'edit_markers'" class="edit-sidebar">
         <div class="sidebar-header">
-          <h3>Dispositivi Disponibili</h3>
+          <h3>{{ t('floorplan.view.availableDevices') }}</h3>
           <span class="badge-count">{{ unplacedEntities.length }}</span>
         </div>
-        <p class="sidebar-hint">Seleziona un dispositivo e fai clic sulla mappa per posizionarlo.</p>
+        <p class="sidebar-hint">{{ t('floorplan.view.placeDeviceHint') }}</p>
 
         <div class="unplaced-list">
           <div
@@ -732,7 +732,7 @@ const unplacedEntities = computed(() => {
     <div v-if="showRoomModal" class="modal-backdrop" @click="showRoomModal = false">
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-room-title">
         <div class="modal-header">
-          <h2 id="modal-room-title">Aggiungi Stanza alla Planimetria</h2>
+          <h2 id="modal-room-title">{{ t('floorplan.view.addRoomTitle') }}</h2>
           <button class="modal-close-btn" @click="showRoomModal = false">
             <X class="icon-close" />
           </button>
@@ -740,18 +740,18 @@ const unplacedEntities = computed(() => {
 
         <form @submit.prevent="handleAddRoom" class="modal-body">
           <div class="form-group">
-            <label for="room-name">Nome della Stanza *</label>
+            <label for="room-name">{{ t('floorplan.view.roomName') }} *</label>
             <input
               id="room-name"
               v-model="roomForm.name"
               type="text"
-              placeholder="es. Soggiorno, Cucina, Camera Padronale"
+              :placeholder="t('floorplan.view.roomNamePlaceholder')"
               required
             />
           </div>
 
           <div class="form-group">
-            <label for="room-type">Tipologia Stanza</label>
+            <label for="room-type">{{ t('floorplan.view.roomType') }}</label>
             <select id="room-type" v-model="roomForm.type">
               <option v-for="t in roomTypeOptions" :key="t.key" :value="t.key">
                 {{ t.label }}
@@ -760,7 +760,7 @@ const unplacedEntities = computed(() => {
           </div>
 
           <div class="form-group">
-            <label>Colore / Identificativo Architettonico</label>
+            <label>{{ t('floorplan.view.roomColorIdentifier') }}</label>
             <div class="color-picker-row">
               <button
                 v-for="c in roomColorPresets"
@@ -777,18 +777,18 @@ const unplacedEntities = computed(() => {
 
           <div class="form-row">
             <div class="form-group">
-              <label for="room-w">Larghezza Iniziale (%)</label>
+              <label for="room-w">{{ t('floorplan.view.initialWidth') }} (%)</label>
               <input id="room-w" v-model.number="roomForm.width" type="number" min="15" max="80" />
             </div>
             <div class="form-group">
-              <label for="room-h">Altezza Iniziale (%)</label>
+              <label for="room-h">{{ t('floorplan.view.initialHeight') }} (%)</label>
               <input id="room-h" v-model.number="roomForm.height" type="number" min="15" max="80" />
             </div>
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-cancel" @click="showRoomModal = false">Annulla</button>
-            <button type="submit" class="btn-primary">Posiziona Stanza</button>
+            <button type="button" class="btn-cancel" @click="showRoomModal = false">{{ t('common.cancel') }}</button>
+            <button type="submit" class="btn-primary">{{ t('floorplan.view.placeRoom') }}</button>
           </div>
         </form>
       </div>
@@ -798,7 +798,7 @@ const unplacedEntities = computed(() => {
     <div v-if="showFloorModal" class="modal-backdrop" @click="showFloorModal = false">
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-floor-title">
         <div class="modal-header">
-          <h2 id="modal-floor-title">Nuovo Piano</h2>
+          <h2 id="modal-floor-title">{{ t('floorplan.view.newFloorTitle') }}</h2>
           <button class="modal-close-btn" @click="showFloorModal = false">
             <X class="icon-close" />
           </button>
@@ -806,39 +806,39 @@ const unplacedEntities = computed(() => {
 
         <form @submit.prevent="handleCreateFloor" class="modal-body">
           <div class="form-group">
-            <label for="floor-name">Nome del Piano</label>
+            <label for="floor-name">{{ t('floorplan.view.floorName') }}</label>
             <input
               id="floor-name"
               v-model="floorForm.name"
               type="text"
-              placeholder="es. Piano Terra, Mansarda, Giardino"
+              :placeholder="t('floorplan.view.floorNamePlaceholder')"
               required
             />
           </div>
 
           <div class="form-group">
-            <label for="floor-level">Livello Piano</label>
+            <label for="floor-level">{{ t('floorplan.view.floorLevel') }}</label>
             <input
               id="floor-level"
               v-model.number="floorForm.level"
               type="number"
-              placeholder="0 per Piano Terra, 1 per Primo Piano"
+              :placeholder="t('floorplan.view.floorLevelPlaceholder')"
             />
           </div>
 
           <div class="form-group">
-            <label for="floor-svg">Markup SVG Planimetria (Opzionale)</label>
+            <label for="floor-svg">{{ t('floorplan.view.svgMarkupOptional') }}</label>
             <textarea
               id="floor-svg"
               v-model="floorForm.plan_svg"
               rows="4"
-              placeholder="Incolla il codice vettoriale <svg>...</svg> della planimetria"
+              :placeholder="t('floorplan.view.svgPlaceholder')"
             ></textarea>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn-cancel" @click="showFloorModal = false">Annulla</button>
-            <button type="submit" class="btn-primary">Salva Piano</button>
+            <button type="submit" class="btn-primary">{{ t('floorplan.view.saveFloor') }}</button>
           </div>
         </form>
       </div>

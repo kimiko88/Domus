@@ -155,7 +155,7 @@ onMounted(() => {
 
     <!-- Helpers Grid -->
     <div v-if="helpers.length === 0" class="empty-helpers glass-panel" style="padding: 40px; text-align: center; color: var(--text-muted); border-radius: 16px; border: 1px solid var(--border-color);">
-      <p class="empty-state">Nessun helper configurato nel database. Creane uno nuovo con il pulsante in alto a destra.</p>
+      <p class="empty-state">{{ t('helpers.view.empty') }}</p>
     </div>
     <div v-else class="helpers-grid">
       <div v-for="h in helpers" :key="h.id" class="helper-card glass-panel">
@@ -172,7 +172,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <button class="delete-btn" @click="deleteHelper(h.id)" title="Elimina Helper">
+          <button class="delete-btn" @click="deleteHelper(h.id)" :title="t('helpers.view.delete')">
             <Trash2 :size="16" />
           </button>
         </div>
@@ -180,7 +180,7 @@ onMounted(() => {
         <!-- Body per Domain -->
         <!-- 1. Input Boolean -->
         <div v-if="h.domain === 'input_boolean'" class="card-action boolean-action">
-          <span class="status-text">{{ h.state === 'on' ? 'ATTIVO' : 'SPENTO' }}</span>
+          <span class="status-text">{{ h.state === 'on' ? t('helpers.view.active') : t('helpers.view.off') }}</span>
           <button :class="['toggle-pill', { active: h.state === 'on' }]" @click="toggleBoolean(h)">
             <span class="pill-thumb" />
           </button>
@@ -189,7 +189,7 @@ onMounted(() => {
         <!-- 2. Input Number -->
         <div v-else-if="h.domain === 'input_number'" class="card-action number-action">
           <div class="slider-val-row">
-            <span>Valore:</span>
+            <span>{{ t('helpers.view.value') }}</span>
             <span class="slider-display">{{ h.state }} {{ parseConfig(h).unit || '' }}</span>
           </div>
           <input
@@ -210,13 +210,13 @@ onMounted(() => {
             <span class="timer-time">{{ parseConfig(h).remaining_seconds ?? parseConfig(h).duration_seconds ?? 60 }}s</span>
           </div>
           <div class="timer-controls">
-            <button class="t-btn play" @click="timerAction(h, 'start')" title="Avvia">
+            <button class="t-btn play" @click="timerAction(h, 'start')" :title="t('helpers.view.start')">
               <Play :size="16" />
             </button>
-            <button class="t-btn pause" @click="timerAction(h, 'pause')" title="Pausa">
+            <button class="t-btn pause" @click="timerAction(h, 'pause')" :title="t('helpers.view.pause')">
               <Pause :size="16" />
             </button>
-            <button class="t-btn reset" @click="timerAction(h, 'cancel')" title="Azzera">
+            <button class="t-btn reset" @click="timerAction(h, 'cancel')" :title="t('helpers.view.reset')">
               <RotateCcw :size="16" />
             </button>
           </div>
@@ -226,17 +226,17 @@ onMounted(() => {
         <div v-else-if="h.domain === 'climate_room_compensator'" class="card-action climate-action">
           <div class="climate-metric-row">
             <div>
-              <span class="metric-label">Target Stanza</span>
+              <span class="metric-label">{{ t('helpers.view.roomTarget') }}</span>
               <div class="metric-val">{{ parseConfig(h).target_temperature || 20 }}°C</div>
             </div>
             <div>
-              <span class="metric-label">TRV Dinamico</span>
+              <span class="metric-label">{{ t('helpers.view.dynamicTrv') }}</span>
               <div class="metric-val text-warning">{{ h.state }}°C</div>
             </div>
           </div>
           <div class="climate-targets-info">
-            <span>Sensore: <code>{{ parseConfig(h).room_temp_sensor_key }}</code></span>
-            <span>Valvola: <code>{{ parseConfig(h).trv_entity_key }}</code></span>
+            <span>{{ t('helpers.view.sensor') }} <code>{{ parseConfig(h).room_temp_sensor_key }}</code></span>
+            <span>{{ t('helpers.view.valve') }} <code>{{ parseConfig(h).trv_entity_key }}</code></span>
           </div>
         </div>
       </div>
@@ -245,43 +245,43 @@ onMounted(() => {
     <!-- Modal Crea Helper -->
     <div v-if="showCreateModal" class="modal-backdrop">
       <div class="modal-dialog glass-panel">
-        <h2 class="modal-title">Crea Nuovo Helper Virtuale</h2>
+        <h2 class="modal-title">{{ t('helpers.view.createTitle') }}</h2>
 
         <div class="form-group">
-          <label>Nome Helper</label>
-          <input v-model="newName" type="text" placeholder="Es. Modalità Pulizie" class="form-input" />
+          <label>{{ t('helpers.view.name') }}</label>
+          <input v-model="newName" type="text" :placeholder="t('helpers.view.namePlaceholder')" class="form-input" />
         </div>
 
         <div class="form-group">
-          <label>Tipo di Entità</label>
+          <label>{{ t('helpers.view.entityType') }}</label>
           <select v-model="newDomain" class="form-input">
-            <option value="input_boolean">Interruttore Booleano (input_boolean)</option>
-            <option value="input_number">Cursore Numerico (input_number)</option>
-            <option value="timer">Conto alla Rovescia (timer)</option>
-            <option value="climate_room_compensator">Compensatore Termostati (Better Thermostat)</option>
+            <option value="input_boolean">{{ t('helpers.view.boolean') }}</option>
+            <option value="input_number">{{ t('helpers.view.number') }}</option>
+            <option value="timer">{{ t('helpers.view.timer') }}</option>
+            <option value="climate_room_compensator">{{ t('helpers.view.compensator') }}</option>
           </select>
         </div>
 
         <div v-if="newDomain === 'climate_room_compensator'" class="compensator-opts">
           <div class="form-group">
-            <label>Valvola Termostatica (TRV)</label>
+            <label>{{ t('helpers.view.trv') }}</label>
             <input v-model="newTrvKey" type="text" placeholder="climate.valvola_salotto" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Sensore Temperatura Stanza</label>
+            <label>{{ t('helpers.view.roomSensor') }}</label>
             <input v-model="newRoomTempKey" type="text" placeholder="sensor.temperatura_salotto" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Sensore Finestra Aperta (opzionale)</label>
+            <label>{{ t('helpers.view.windowSensor') }}</label>
             <input v-model="newWindowKey" type="text" placeholder="binary_sensor.finestra_salotto" class="form-input" />
           </div>
           <div class="number-opts-grid">
             <div class="form-group">
-              <label>Temperatura Target (°C)</label>
+              <label>{{ t('helpers.view.targetTemperature') }}</label>
               <input v-model.number="newTargetTemp" type="number" step="0.5" class="form-input" />
             </div>
             <div class="form-group">
-              <label>Fattore Offset (1.0 - 2.5)</label>
+              <label>{{ t('helpers.view.offset') }}</label>
               <input v-model.number="newDeltaFactor" type="number" step="0.1" class="form-input" />
             </div>
           </div>
@@ -289,31 +289,31 @@ onMounted(() => {
 
         <div v-if="newDomain === 'input_number'" class="number-opts-grid">
           <div class="form-group">
-            <label>Minimo</label>
+            <label>{{ t('helpers.view.min') }}</label>
             <input v-model.number="newMin" type="number" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Massimo</label>
+            <label>{{ t('helpers.view.max') }}</label>
             <input v-model.number="newMax" type="number" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Passo (Step)</label>
+            <label>{{ t('helpers.view.step') }}</label>
             <input v-model.number="newStep" type="number" step="0.1" class="form-input" />
           </div>
           <div class="form-group">
-            <label>Unità</label>
-            <input v-model="newUnit" type="text" placeholder="°C, %, kW" class="form-input" />
+            <label>{{ t('helpers.view.unit') }}</label>
+            <input v-model="newUnit" type="text" :placeholder="t('helpers.view.unitPlaceholder')" class="form-input" />
           </div>
         </div>
 
         <div v-if="newDomain === 'timer'" class="form-group">
-          <label>Durata (secondi)</label>
+          <label>{{ t('helpers.view.duration') }}</label>
           <input v-model.number="newDurationSec" type="number" class="form-input" />
         </div>
 
         <div class="modal-actions">
-          <button class="cancel-btn" @click="showCreateModal = false">Annulla</button>
-          <button class="submit-btn" @click="createHelper">Crea Helper</button>
+          <button class="cancel-btn" @click="showCreateModal = false">{{ t('helpers.view.cancel') }}</button>
+          <button class="submit-btn" @click="createHelper">{{ t('helpers.view.create') }}</button>
         </div>
       </div>
     </div>

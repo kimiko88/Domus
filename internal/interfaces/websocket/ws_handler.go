@@ -2,6 +2,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -91,6 +92,40 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var allowedEntityIDs map[string]struct{}
+	filterRestrictedEvents := false
+	canViewNotifications := false
+	if authenticatedUser != nil && authenticatedUser.Role != user.RoleAdmin {
+		permissions := authenticatedUser.EffectivePermissions()
+		if permissions != nil {
+			canViewNotifications = permissions.CanAccessView("/notifications")
+		}
+		if permissions != nil && (permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil || permissions.AllowedViews != nil) {
+			filterRestrictedEvents = true
+			allowedEntityIDs = make(map[string]struct{})
+			canViewEntityData := permissions.AllowedViews == nil
+			for _, view := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+				if permissions.CanAccessView(view) {
+					canViewEntityData = true
+					break
+				}
+			}
+			if canViewEntityData && h.repo != nil {
+				entities, listErr := h.repo.List(r.Context(), entity.ListFilter{})
+				if listErr != nil {
+					http.Error(w, `{"code":"internal_error","message":"unable to load member entity permissions"}`, http.StatusInternalServerError)
+					return
+				}
+				for _, item := range entities {
+					if authenticatedUser.CanAccessEntityInArea(item.ID, item.AreaID) {
+						allowedEntityIDs[item.ID] = struct{}{}
+						allowedEntityIDs[item.EntityKey] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
 	upgrader := gorilla.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -106,7 +141,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	sendCh := make(chan websocket.Message, 64)
-	client := h.hub.Register(sessionID, sendCh)
+	eventFilter := func(msg websocket.Message) bool {
+		// Session revocation on permission changes must stop broadcasts immediately.
+		if h.authService != nil {
+			if _, _, sessionErr := h.authService.ValidateSession(context.Background(), sessionID); sessionErr != nil {
+				return false
+			}
+		}
+		if !filterRestrictedEvents {
+			return true
+		}
+		if msg.Type == string(events.NotificationCreated) {
+			return canViewNotifications
+		}
+		if msg.Type != string(events.EntityStateChanged) {
+			return false
+		}
+		payload, ok := msg.Payload.(map[string]any)
+		if !ok {
+			return false
+		}
+		entityID, _ := payload["entity_id"].(string)
+		if entityID == "" {
+			entityID, _ = payload["entity_key"].(string)
+		}
+		_, allowed := allowedEntityIDs[entityID]
+		return allowed
+	}
+	client := h.hub.RegisterFiltered(sessionID, sendCh, eventFilter)
 	defer h.hub.Unregister(client)
 
 	// Send initial connected acknowledgement frame
@@ -209,9 +271,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				case h.authService == nil || currentUser == nil:
 					result["code"] = "unauthorized"
 					result["message"] = "authentication required"
-				case currentUser.Role != user.RoleAdmin && currentUser.Role != user.RoleOperator:
+				case currentUser.EffectivePermissions() == nil || !currentUser.EffectivePermissions().CanControlDevices:
 					result["code"] = "forbidden"
-					result["message"] = "operator or admin role required"
+					result["message"] = "device control permission required"
 				case entityID == "" || service == "":
 					result["code"] = "bad_request"
 					result["message"] = "entity_id and service are required"
@@ -226,6 +288,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if lookupErr != nil || ent == nil {
 						result["code"] = "not_found"
 						result["message"] = "entity not found"
+					} else if !canAccessEntityViews(currentUser) || !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) {
+						result["code"] = "forbidden"
+						result["message"] = "entity is outside the member's allowed resources"
 					} else if !ent.Writable {
 						result["code"] = "not_writable"
 						result["message"] = "entity is read-only"
@@ -254,4 +319,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	close(writerStop)
 	_ = conn.Close()
 	<-done
+}
+
+func canAccessEntityViews(currentUser *user.User) bool {
+	if currentUser == nil {
+		return false
+	}
+	permissions := currentUser.EffectivePermissions()
+	if permissions == nil {
+		return false
+	}
+	for _, view := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+		if permissions.CanAccessView(view) {
+			return true
+		}
+	}
+	return false
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/domus-hub/domus/internal/application/mesh"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -20,8 +21,8 @@ func NewBindingHandler(svc *mesh.BindingService) *BindingHandler {
 func (h *BindingHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/devices/bindings", func(r chi.Router) {
 		r.Get("/", h.ListBindings)
-		r.Post("/", h.CreateBinding)
-		r.Delete("/{id}", h.RemoveBinding)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", h.CreateBinding)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", h.RemoveBinding)
 	})
 }
 

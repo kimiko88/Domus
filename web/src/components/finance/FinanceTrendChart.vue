@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Chart from 'chart.js/auto'
 import type { MonthlyTrend } from '@/api/types'
 
@@ -7,11 +8,12 @@ const props = defineProps<{
   trends: MonthlyTrend[]
 }>()
 
+const { t, locale } = useI18n()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let chartInstance: Chart | null = null
 
 function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('it-IT', {
+  return new Intl.NumberFormat(locale.value, {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0
@@ -45,25 +47,25 @@ function initChart() {
       labels,
       datasets: [
         {
-          label: '💡 Bollette & Utenze',
+          label: t('finance.charts.legend.utilities'),
           data: utilitiesData,
           backgroundColor: '#0ea5e9',
           borderRadius: 4
         },
         {
-          label: '🛒 Cibo & Spesa',
+          label: t('finance.charts.legend.food'),
           data: foodData,
           backgroundColor: '#10b981',
           borderRadius: 4
         },
         {
-          label: '⛽ Carburante & Auto',
+          label: t('finance.charts.legend.transport'),
           data: transportData,
           backgroundColor: '#f59e0b',
           borderRadius: 4
         },
         {
-          label: '🏷️ Altro & Fisse',
+          label: t('finance.charts.legend.other'),
           data: otherData,
           backgroundColor: '#64748b',
           borderRadius: 4
@@ -94,7 +96,7 @@ function initChart() {
           ticks: {
             color: '#94a3b8',
             callback(val) {
-              return `€${val}`
+              return formatCurrency(Number(val))
             }
           }
         }
@@ -125,7 +127,7 @@ function initChart() {
               items.forEach((item) => {
                 sum += item.parsed.y as number
               })
-              return `Totale Mese: ${formatCurrency(sum)}`
+              return t('finance.charts.monthTotal', { amount: formatCurrency(sum) })
             }
           }
         }
@@ -155,20 +157,20 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="trend-chart-card glass-panel" role="region" aria-label="Andamento Stagionale delle Spese negli Ultimi 12 Mesi">
+  <div class="trend-chart-card glass-panel" role="region" :aria-label="t('finance.charts.trendRegion')">
     <div class="card-header">
       <div>
-        <h3 class="card-title">Andamento Spese Ultimi 12 Mesi</h3>
-        <span class="card-subtitle">Stagionalità bollette e consumi (inverno vs estate)</span>
+        <h3 class="card-title">{{ t('finance.charts.trendTitle') }}</h3>
+        <span class="card-subtitle">{{ t('finance.charts.trendSubtitle') }}</span>
       </div>
     </div>
 
     <div v-if="trends.length === 0" class="no-data-placeholder">
-      <span>Nessun dato storico disponibile.</span>
+      <span>{{ t('finance.charts.emptyTrend') }}</span>
     </div>
 
     <div v-else class="canvas-container">
-      <canvas ref="canvasRef" aria-label="Istogramma andamento mensile 12 mesi" role="img" />
+      <canvas ref="canvasRef" :aria-label="t('finance.charts.monthlyHistogram')" role="img" />
     </div>
   </div>
 </template>

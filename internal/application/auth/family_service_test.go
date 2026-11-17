@@ -100,6 +100,25 @@ func TestFamilyService_Lifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, user.RoleOperator, updatedViewer.Role)
 
+	// 9b. Granular permissions are persisted and active sessions are revoked.
+	memberPermissions := &user.UserPermissions{
+		AllowedAreaIDs: []string{"kitchen"},
+		AllowedEntityIDs: []string{"light-kitchen"},
+		AllowedDashboardIDs: []string{},
+		AllowedViews: []string{"/", "/custom-dashboards"},
+		CanControlDevices: true,
+		CanManageAutomations: false,
+		CanViewCameras: false,
+	}
+	require.NoError(t, svc.UpdateFamilyMemberPermissions(ctx, admin.ID, operatorUser.ID, memberPermissions))
+	updatedOperator, err := repos.Users.GetByID(ctx, operatorUser.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updatedOperator.Permissions)
+	assert.Equal(t, []string{"kitchen"}, updatedOperator.Permissions.AllowedAreaIDs)
+	assert.False(t, updatedOperator.Permissions.CanManageAutomations)
+	_, err = repos.Sessions.GetByID(ctx, opSession.ID)
+	assert.ErrorIs(t, err, user.ErrSessionNotFound)
+
 	// 10. Attempting to demote the sole admin must fail
 	err = svc.UpdateFamilyMemberRole(ctx, admin.ID, admin.ID, user.RoleViewer)
 	assert.ErrorIs(t, err, auth.ErrCannotDemoteLastAdmin)

@@ -27,15 +27,13 @@ type Config struct {
 
 // DeviceConfig holds settings for a specific configured Tuya device.
 type DeviceConfig struct {
-	DeviceID          string         `json:"device_id"`
-	Name              string         `json:"name,omitempty"`
-	IP                string         `json:"ip"`
-	LocalKey          string         `json:"local_key"`
-	Version           string         `json:"version"`
-	Category          DeviceCategory `json:"category"`
-	EntityKey         string         `json:"entity_key"`
-	InitialState      string         `json:"-"`
-	InitialAttributes string         `json:"-"`
+	DeviceID  string         `json:"device_id"`
+	Name      string         `json:"name,omitempty"`
+	IP        string         `json:"ip"`
+	LocalKey  string         `json:"local_key"`
+	Version   string         `json:"version"`
+	Category  DeviceCategory `json:"category"`
+	EntityKey string         `json:"entity_key"`
 }
 
 // Adapter manages local Tuya integrations and bridges them to Domus domain events.
@@ -198,20 +196,15 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 	cfg.Name = name
 
-	if cfg.Category == "" || cfg.Category == CategorySwitch {
-		inferred := InferCategory(string(cfg.Category), cfg.Name, "", nil)
-		if inferred != "" {
-			cfg.Category = inferred
-		} else if cfg.Category == "" {
-			cfg.Category = CategorySwitch
-		}
+	if cfg.Category == "" {
+		cfg.Category = CategorySwitch
 	}
 	if cfg.Version == "" {
 		cfg.Version = "3.3"
 	}
-	expectedDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
-	if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, expectedDomain+".") {
-		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", expectedDomain, cfg.DeviceID)
+	if cfg.EntityKey == "" {
+		domain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", domain, cfg.DeviceID)
 	}
 
 	// If IP is not provided, look in discovery cache
@@ -268,7 +261,45 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 
 	// 3. Provision Domus core device & entity if repos attached
-	a.provisionDeviceAndEntity(ctx, cfg)
+	if a.devRepo != nil && a.entRepo != nil {
+		now := time.Now().UTC()
+		devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
+		existingDev, _ := a.devRepo.GetByID(ctx, devRecordID)
+		if existingDev == nil {
+			dev := &device.Device{
+				ID:            devRecordID,
+				IntegrationID: a.id,
+				ExternalID:    cfg.DeviceID,
+				Name:          cfg.Name,
+				Manufacturer:  "Tuya",
+				Model:         string(cfg.Category),
+				Online:        cfg.IP != "",
+				Metadata:      fmt.Sprintf(`{"protocol":"tuya_local","version":%q}`, cfg.Version),
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+			_ = a.devRepo.Create(ctx, dev)
+		}
+
+		existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
+		if existingEnt == nil {
+			entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+			ent := &entity.Entity{
+				ID:            uuid.NewString(),
+				DeviceID:      devRecordID,
+				EntityKey:     cfg.EntityKey,
+				Domain:        entDomain,
+				Name:          cfg.Name,
+				Writable:      true,
+				State:         `{"state":false}`,
+				Attributes:    `{}`,
+				Available:     true,
+				LastChangedAt: now,
+				LastUpdatedAt: now,
+			}
+			_ = a.entRepo.Create(ctx, ent)
+		}
+	}
 
 	// 4. Connect over LAN if IP is known
 	if isActive && cfg.IP != "" {
@@ -276,96 +307,6 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 	}
 
 	return nil
-}
-
-func (a *Adapter) provisionDeviceAndEntity(ctx context.Context, cfg DeviceConfig) {
-	if a.devRepo == nil || a.entRepo == nil {
-		return
-	}
-	now := time.Now().UTC()
-	devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
-	existingDev, _ := a.devRepo.GetByID(ctx, devRecordID)
-	if existingDev == nil {
-		dev := &device.Device{
-			ID:            devRecordID,
-			IntegrationID: a.id,
-			ExternalID:    cfg.DeviceID,
-			Name:          cfg.Name,
-			Manufacturer:  "Tuya",
-			Model:         string(cfg.Category),
-			Online:        cfg.IP != "",
-			Metadata:      fmt.Sprintf(`{"protocol":"tuya_local","version":%q}`, cfg.Version),
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
-		_ = a.devRepo.Create(ctx, dev)
-	} else if existingDev.Model != string(cfg.Category) || existingDev.Name != cfg.Name {
-		existingDev.Name = cfg.Name
-		existingDev.Model = string(cfg.Category)
-		existingDev.UpdatedAt = now
-		_ = a.devRepo.Update(ctx, existingDev)
-	}
-
-	entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
-	if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, entDomain+".") {
-		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", entDomain, cfg.DeviceID)
-	}
-
-	// Remove any stale entities for this device if its domain/category changed (e.g. switch.tuya_X -> climate.tuya_X)
-	if existingDevEntities, err := a.entRepo.List(ctx, entity.ListFilter{DeviceID: devRecordID}); err == nil {
-		for _, oldEnt := range existingDevEntities {
-			if oldEnt.EntityKey != cfg.EntityKey {
-				_ = a.entRepo.Delete(ctx, oldEnt.ID)
-			}
-		}
-	}
-
-	stateVal := cfg.InitialState
-	if stateVal == "" {
-		if entDomain == "climate" {
-			stateVal = "heat"
-		} else {
-			stateVal = `{"state":false}`
-		}
-	}
-	attrsVal := cfg.InitialAttributes
-	if attrsVal == "" {
-		if entDomain == "climate" {
-			attrsVal = `{"temperature":21.0,"target_temperature":21.0,"current_temperature":20.5,"hvac_mode":"heat"}`
-		} else {
-			attrsVal = `{}`
-		}
-	}
-
-	existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
-	if existingEnt == nil {
-		ent := &entity.Entity{
-			ID:            uuid.NewString(),
-			DeviceID:      devRecordID,
-			EntityKey:     cfg.EntityKey,
-			Domain:        entDomain,
-			Name:          cfg.Name,
-			Writable:      true,
-			State:         stateVal,
-			Attributes:    attrsVal,
-			Available:     true,
-			LastChangedAt: now,
-			LastUpdatedAt: now,
-		}
-		_ = a.entRepo.Create(ctx, ent)
-	} else {
-		if cfg.InitialState != "" || cfg.InitialAttributes != "" {
-			st := existingEnt.State
-			if cfg.InitialState != "" {
-				st = cfg.InitialState
-			}
-			at := existingEnt.Attributes
-			if cfg.InitialAttributes != "" {
-				at = cfg.InitialAttributes
-			}
-			_ = a.entRepo.UpdateState(ctx, existingEnt.ID, st, at, true, now)
-		}
-	}
 }
 
 func (a *Adapter) loadStoredDevices(ctx context.Context) error {
@@ -392,10 +333,13 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	var loaded []DeviceConfig
-	a.mu.Lock()
+	// The write pool intentionally allows only one open connection. Do not issue
+	// UPDATE statements while this result set is open: doing so would wait forever
+	// for the connection held by rows. Collect the sanitized configs first, close
+	// the cursor, and only then persist any IP cleanup.
+	configs := make([]DeviceConfig, 0)
+	untrustedDeviceIDs := make([]string, 0)
 	for rows.Next() {
 		var cfg DeviceConfig
 		var name, keyEnc, catStr string
@@ -403,21 +347,17 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 			continue
 		}
 		cfg.Name = name
-		cfg.Category = InferCategory(catStr, name, "", nil)
-		expectedDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
-		if cfg.EntityKey == "" || !strings.HasPrefix(cfg.EntityKey, expectedDomain+".") {
-			cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", expectedDomain, cfg.DeviceID)
-			_, _ = a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET category = ?, entity_key = ? WHERE device_id = ?", string(cfg.Category), cfg.EntityKey, cfg.DeviceID)
-		}
+		cfg.Category = DeviceCategory(catStr)
+
 		// Purge legacy public WAN addresses saved by older releases. The device
 		// remains configured but waits for a fresh private LAN discovery packet.
-		if cfg.IP != "" && trustedLANIP(cfg.IP) == "" {
-			cfg.IP = ""
-			if _, err := a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET ip = '' WHERE device_id = ?", cfg.DeviceID); err != nil {
-				slog.Warn("tuya_local: could not clear untrusted stored IP", "device_id", cfg.DeviceID, "error", err)
+		if cfg.IP != "" {
+			if trustedIP := trustedLANIP(cfg.IP); trustedIP == "" {
+				cfg.IP = ""
+				untrustedDeviceIDs = append(untrustedDeviceIDs, cfg.DeviceID)
+			} else {
+				cfg.IP = trustedIP
 			}
-		} else {
-			cfg.IP = trustedLANIP(cfg.IP)
 		}
 
 		// Decrypt local_key
@@ -428,16 +368,33 @@ func (a *Adapter) loadStoredDevices(ctx context.Context) error {
 			}
 		}
 		cfg.LocalKey = localKey
+		configs = append(configs, cfg)
+	}
+
+	rowsErr := rows.Err()
+	closeErr := rows.Close()
+	if rowsErr != nil {
+		return fmt.Errorf("read stored Tuya devices: %w", rowsErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close stored Tuya devices query: %w", closeErr)
+	}
+
+	a.mu.Lock()
+	for _, cfg := range configs {
 		a.configs[cfg.DeviceID] = cfg
-		loaded = append(loaded, cfg)
 	}
 	a.mu.Unlock()
 
-	for _, cfg := range loaded {
-		a.provisionDeviceAndEntity(ctx, cfg)
+	// Persist sanitized addresses only after releasing the read cursor so the
+	// update can acquire the single connection in the SQLite write pool.
+	for _, deviceID := range untrustedDeviceIDs {
+		if _, err := a.db.ExecContext(ctx, "UPDATE tuya_local_devices SET ip = '' WHERE device_id = ?", deviceID); err != nil {
+			slog.Warn("tuya_local: could not clear untrusted stored IP", "device_id", deviceID, "error", err)
+		}
 	}
 
-	return rows.Err()
+	return nil
 }
 
 func (a *Adapter) connectDevice(cfg DeviceConfig) {
@@ -491,25 +448,13 @@ func (a *Adapter) connectDevice(cfg DeviceConfig) {
 
 func (a *Adapter) handleDeviceStatus(cfg DeviceConfig, dps map[string]any) {
 	parsed := a.mapper.MapDPSToEntity(cfg.Category, dps)
+	if a.bus == nil {
+		return
+	}
 
 	entityKey := cfg.EntityKey
 	if entityKey == "" {
 		entityKey = fmt.Sprintf("%s.tuya_%s", parsed.Domain, cfg.DeviceID)
-	}
-
-	if a.entRepo != nil {
-		ctx := context.Background()
-		if ent, err := a.entRepo.GetByKey(ctx, entityKey); err == nil && ent != nil {
-			attrsJSON := ent.Attributes
-			if b, err := json.Marshal(parsed.Attributes); err == nil {
-				attrsJSON = string(b)
-			}
-			_ = a.entRepo.UpdateState(ctx, ent.ID, parsed.State, attrsJSON, true, time.Now().UTC())
-		}
-	}
-
-	if a.bus == nil {
-		return
 	}
 
 	_ = a.bus.Publish(context.Background(), events.Event{
@@ -546,9 +491,10 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		})
 	}
 
-	// If device IP has changed for a known device, update connection
+	// If device IP has changed for a known device, update connection.
 	a.mu.Lock()
 	cfg, known := a.configs[dev.DeviceID]
+	isActive := a.active
 	if known && (cfg.IP != dev.IP || a.devices[dev.DeviceID] == nil) {
 		cfg.IP = dev.IP
 		if dev.Version != "" {
@@ -569,7 +515,9 @@ func (a *Adapter) handleDiscoveredDevice(dev DiscoveredDevice) {
 		}
 
 		a.mu.Unlock()
-		go a.connectDevice(cfg)
+		if isActive {
+			go a.connectDevice(cfg)
+		}
 		return
 	}
 	a.mu.Unlock()
@@ -619,8 +567,60 @@ func (a *Adapter) UnregisterDevice(ctx context.Context, deviceID string) error {
 	return nil
 }
 
+// waitForDiscoveredLANIP asks v3.5 devices to identify themselves immediately and
+// waits briefly for the UDP listener to associate a trusted private IP with the
+// configured device. This closes the race between LocalTuya sync and first use.
+func (a *Adapter) waitForDiscoveredLANIP(ctx context.Context, deviceID string) (DeviceConfig, bool) {
+	getConfig := func() (DeviceConfig, bool) {
+		a.mu.RLock()
+		defer a.mu.RUnlock()
+		cfg, ok := a.configs[deviceID]
+		if !ok {
+			return DeviceConfig{}, false
+		}
+		cfg.IP = trustedLANIP(cfg.IP)
+		return cfg, cfg.IP != ""
+	}
+
+	if cfg, found := getConfig(); found {
+		return cfg, true
+	}
+	if a.discovery == nil {
+		return DeviceConfig{}, false
+	}
+
+	// Do not wait for the next six-second background tick: actively solicit
+	// a fresh response now. The UDP listener remains responsible for validating
+	// the packet and extracting the source IP.
+	sent := a.discovery.RequestDiscovery()
+	slog.Info("tuya_local: requesting LAN discovery before command",
+		"device_id", deviceID, "solicitations_sent", sent)
+
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if cfg, found := getConfig(); found {
+			return cfg, true
+		}
+		select {
+		case <-ctx.Done():
+			slog.Warn("tuya_local: LAN discovery cancelled before an IP was found",
+				"device_id", deviceID, "solicitations_sent", sent, "error", ctx.Err())
+			return DeviceConfig{}, false
+		case <-timer.C:
+			slog.Warn("tuya_local: LAN discovery timed out without a matching device reply",
+				"device_id", deviceID, "solicitations_sent", sent, "listening_ports", []int{6666, 6667, 7000})
+			return DeviceConfig{}, false
+		case <-ticker.C:
+		}
+	}
+}
+
 // SendCommand executes a LAN command directly to a device using its local_key.
-func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) error {
+func (a *Adapter) SendCommand(ctx context.Context, target string, command string, params map[string]any) (map[string]any, error) {
 	a.mu.RLock()
 	var targetDevID string
 	var targetCfg DeviceConfig
@@ -635,12 +635,27 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 	a.mu.RUnlock()
 
 	if targetDevID == "" {
-		return fmt.Errorf("tuya_local: target %q not found in local configurations", target)
+		return nil, fmt.Errorf("tuya_local: target %q not found in local configurations", target)
 	}
 
 	if !exists || client == nil {
-		// Attempt on-demand connection if IP is present
-		if targetCfg.IP != "" {
+		// A device can be registered before its first UDP announcement arrives.
+		// Trigger one immediate discovery request instead of failing before the
+		// background listener's next solicitation interval.
+		if trustedLANIP(targetCfg.IP) == "" {
+			resolved, found := a.waitForDiscoveredLANIP(ctx, targetDevID)
+			if !found {
+				return nil, fmt.Errorf("tuya_local: device %q has no discovered private LAN IP; UDP discovery did not return a matching device (check UDP 6666/6667/7000 on the same broadcast network)", targetDevID)
+			}
+			targetCfg = resolved
+		}
+
+		// A discovery callback may have completed the connection while this
+		// command was waiting. Reuse it rather than opening a duplicate socket.
+		a.mu.RLock()
+		client = a.devices[targetDevID]
+		a.mu.RUnlock()
+		if client == nil {
 			client = NewDeviceClient(
 				targetCfg.DeviceID,
 				targetCfg.IP,
@@ -653,22 +668,55 @@ func (a *Adapter) SendCommand(ctx context.Context, target string, command string
 			)
 			if err := client.Connect(ctx); err == nil {
 				a.mu.Lock()
-				a.devices[targetDevID] = client
+				if existing := a.devices[targetDevID]; existing != nil {
+					_ = client.Close()
+					client = existing
+				} else {
+					a.devices[targetDevID] = client
+				}
 				a.mu.Unlock()
 			} else {
-				return fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
+				return nil, fmt.Errorf("tuya_local: device %q at %s is unreachable on LAN: %w", targetDevID, targetCfg.IP, err)
 			}
-		} else {
-			return fmt.Errorf("tuya_local: device %q has unknown LAN IP; waiting for UDP broadcast discovery", targetDevID)
+		}
+	}
+
+	if targetCfg.Category == CategoryClimate && command == "set_temperature" {
+		// Prefer the device's observed target DP when it advertises DPS 16
+		// instead of the common DPS 2 mapping.
+		latest := client.LatestDPS()
+		if _, hasDP2 := latest["2"]; !hasDP2 {
+			if _, hasDP16 := latest["16"]; hasDP16 {
+				if params == nil {
+					params = make(map[string]any)
+				}
+				params["dp_id"] = 16
+			}
 		}
 	}
 
 	dps, err := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	return client.SendCommand(ctx, dps)
+	response, err := client.SendCommand(ctx, dps)
+	// If an older configuration guessed DPS 2 but the thermostat reports
+	// its setpoint on DPS 16, retry once against the actually advertised point.
+	if err != nil && targetCfg.Category == CategoryClimate && command == "set_temperature" {
+		if _, hasDP2 := response["2"]; !hasDP2 {
+			if _, hasDP16 := response["16"]; hasDP16 {
+				if params == nil {
+					params = make(map[string]any)
+				}
+				params["dp_id"] = 16
+				retryDPS, mapErr := a.mapper.MapCommandToDPS(targetCfg.Category, command, params)
+				if mapErr == nil {
+					return client.SendCommand(ctx, retryDPS)
+				}
+			}
+		}
+	}
+	return response, err
 }
 
 func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) error {
@@ -678,27 +726,46 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 	}
 
 	var cmd struct {
+		EntityID  string         `json:"entity_id"`
 		EntityKey string         `json:"entity_key"`
 		Command   string         `json:"command"`
 		Service   string         `json:"service"`
 		Params    map[string]any `json:"params"`
+		// Legacy assistant integrations used a top-level temperature field.
+		Temperature *float64 `json:"temperature"`
 	}
 	if err := json.Unmarshal(payloadBytes, &cmd); err != nil {
 		return nil
 	}
 
-	action := strings.TrimSpace(cmd.Command)
-	if action == "" {
-		action = strings.TrimSpace(cmd.Service)
+	if cmd.Command == "" {
+		cmd.Command = cmd.Service
 	}
-	if idx := strings.LastIndex(action, "."); idx >= 0 {
-		action = action[idx+1:]
+	if cmd.Params == nil {
+		cmd.Params = make(map[string]any)
 	}
-	if cmd.EntityKey == "" || action == "" {
+	if cmd.Temperature != nil {
+		if _, exists := cmd.Params["temperature"]; !exists {
+			cmd.Params["temperature"] = *cmd.Temperature
+		}
+	}
+	if cmd.EntityKey == "" && cmd.EntityID != "" && a.entRepo != nil {
+		if ent, getErr := a.entRepo.GetByID(ctx, cmd.EntityID); getErr == nil && ent != nil {
+			cmd.EntityKey = ent.EntityKey
+		}
+	}
+	if cmd.EntityKey == "" || cmd.Command == "" {
 		return nil
 	}
 
-	return a.SendCommand(ctx, cmd.EntityKey, action, cmd.Params)
+	_, err = a.SendCommand(ctx, cmd.EntityKey, cmd.Command, cmd.Params)
+	if errors.Is(err, ErrStateNotReported) {
+		// The TCP peer acknowledged the command. Do not turn a missing telemetry
+		// update into a failed automation/action; the entity will update when the
+		// device next publishes its state.
+		return nil
+	}
+	return err
 }
 
 // GetConfiguredDevices returns all devices currently registered for local LAN control.
@@ -742,47 +809,15 @@ func (a *Adapter) GetDeviceIP(deviceID string) string {
 // ParseCategory maps Tuya standard cloud product categories to Domus local categories.
 func ParseCategory(code string) DeviceCategory {
 	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "kg", "switch", "qkg":
+	case "kg", "switch", "qkg", "wkcz":
 		return CategorySwitch
 	case "cz", "plug", "socket", "pc":
 		return CategoryPlug
 	case "dj", "dd", "dc", "xdd", "fwd", "light", "cl":
 		return CategoryLight
-	case "wk", "wkf", "bgl", "qn", "kt", "wkcz", "ktkzq", "rdn", "cn", "rs", "fskg", "climate", "thermostat", "heater", "boiler", "trv", "hvac", "ac":
+	case "wk", "climate", "thermostat":
 		return CategoryClimate
 	default:
 		return CategorySwitch
 	}
-}
-
-// InferCategory inspects Tuya category code, device names, and status datapoint codes
-// to accurately classify Smart Life thermostats, TRVs, boilers, and climate controllers.
-func InferCategory(categoryCode, name, productName string, statusCodes []string) DeviceCategory {
-	cat := ParseCategory(categoryCode)
-	if cat == CategoryClimate {
-		return CategoryClimate
-	}
-
-	for _, dpCode := range statusCodes {
-		c := strings.ToLower(strings.TrimSpace(dpCode))
-		switch c {
-		case "temp_set", "temp_current", "upper_temp", "lower_temp", "target_temp", "current_temp",
-			"target_temperature", "current_temperature", "work_state", "window_check", "frost",
-			"valve_state", "hvac_mode", "set_temp":
-			return CategoryClimate
-		}
-	}
-
-	combinedName := strings.ToLower(name + " " + productName)
-	climateKeywords := []string{
-		"termostato", "thermostat", "cronotermostato", "caldaia", "boiler",
-		"clima", "condizionatore", "valvola termostatica", "trv", "riscaldamento", "heater",
-	}
-	for _, kw := range climateKeywords {
-		if strings.Contains(combinedName, kw) {
-			return CategoryClimate
-		}
-	}
-
-	return cat
 }

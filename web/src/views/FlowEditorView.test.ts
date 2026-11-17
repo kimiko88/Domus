@@ -26,13 +26,13 @@ describe('FlowEditorView.vue', () => {
     const wrapper = mount(FlowEditorView)
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Libreria Nodi')
+    expect(wrapper.text()).toContain('Libreria nodi')
     expect(wrapper.text()).toContain('Triggers')
     expect(wrapper.text()).toContain('Conditions')
     expect(wrapper.text()).toContain('Actions & Flow')
     expect(wrapper.text()).toContain('Test Run')
-    expect(wrapper.text()).toContain('Salva Flusso')
-    expect(wrapper.text()).toContain('AST JSON')
+    expect(wrapper.text()).toContain('Salva flusso')
+    expect(wrapper.text()).toContain('JSON AST')
   })
 
   it('creates a new node when clicking on a palette item', async () => {
@@ -65,20 +65,20 @@ describe('FlowEditorView.vue', () => {
 
     const inspector = wrapper.find('.node-inspector')
     expect(inspector.exists()).toBe(true)
-    expect(wrapper.text()).toContain('Titolo Visuale')
+    expect(wrapper.text()).toContain('Titolo visualizzato')
   })
 
-  it('opens AST JSON modal when clicking AST JSON button', async () => {
+  it('opens JSON AST modal when clicking JSON AST button', async () => {
     const wrapper = mount(FlowEditorView)
     await wrapper.vm.$nextTick()
 
-    const astJsonBtn = wrapper.findAll('.btn-tool').find(b => b.text().includes('AST JSON'))
+    const astJsonBtn = wrapper.findAll('.btn-tool').find(b => b.text().includes('JSON AST'))
     expect(astJsonBtn?.exists()).toBe(true)
 
     await astJsonBtn?.trigger('click')
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
-    expect(wrapper.text()).toContain('AST JSON Compilato')
+    expect(wrapper.text()).toContain('JSON AST compilato')
   })
 })

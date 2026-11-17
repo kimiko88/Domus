@@ -51,7 +51,7 @@ describe('LogbookView.vue', () => {
 
     expect(wrapper.findAll('.timeline-item')).toHaveLength(2)
     expect(wrapper.text()).toContain('Luce Salotto')
-    expect(wrapper.text()).toContain('Innescato da "Rientro Casa"')
+    expect(wrapper.text()).toContain("Innescato dall'automazione Rientro Casa")
     expect(wrapper.text()).toContain('Mario Rossi')
     expect(wrapper.text()).toContain('Azionato da Mario Rossi')
   })

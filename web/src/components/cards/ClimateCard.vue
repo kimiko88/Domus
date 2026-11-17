@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Entity } from '../../api/types'
 import { useEntityCommand } from '../../composables/useEntityCommand'
 import { Thermometer, Plus, Minus, Flame, Snowflake, RefreshCw, Power } from '@lucide/vue'
+const { t } = useI18n()
 
 interface Props {
   entity: Entity
@@ -11,26 +13,55 @@ interface Props {
 const props = defineProps<Props>()
 const { setTemperature, isExecuting } = useEntityCommand()
 
+function numericTemperature(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
 const currentTemp = computed(() => {
-  const t = props.entity.attributes?.current_temperature ?? props.entity.attributes?.current_temp
-  return typeof t === 'number' ? t.toFixed(1) : '--'
+  const value = numericTemperature(
+    props.entity.attributes?.current_temperature ?? props.entity.attributes?.current_temp
+  )
+  return value === undefined ? '--' : value.toFixed(1)
 })
 
 const targetTemp = computed(() => {
-  const t = props.entity.attributes?.temperature ?? props.entity.attributes?.target_temperature
-  return typeof t === 'number' ? t : 20.0
+  const value = numericTemperature(
+    props.entity.attributes?.target_temperature ?? props.entity.attributes?.temperature
+  )
+  return value ?? 20.0
+})
+
+const targetTemperatureDraft = ref(targetTemp.value.toFixed(1))
+const targetTemperatureValid = computed(() => {
+  const value = Number(targetTemperatureDraft.value)
+  return Number.isFinite(value) && value >= 5 && value <= 35
+})
+
+watch(targetTemp, value => {
+  targetTemperatureDraft.value = value.toFixed(1)
 })
 
 const unit = computed(() => props.entity.attributes?.unit_of_measurement || '°C')
-const hvacMode = computed(() => props.entity.state || 'off')
+const hvacMode = computed(() =>
+  String(props.entity.attributes?.hvac_mode || props.entity.state || 'off').toLowerCase()
+)
 
 const modeIcon = computed(() => {
   switch (hvacMode.value) {
     case 'heat':
+    case 'heating':
+    case 'manual':
       return Flame
     case 'cool':
+    case 'cooling':
       return Snowflake
     case 'auto':
+    case 'automatic':
       return RefreshCw
     default:
       return Power
@@ -39,7 +70,14 @@ const modeIcon = computed(() => {
 
 async function adjustTemp(delta: number) {
   const newTemp = Math.round((targetTemp.value + delta) * 10) / 10
+  targetTemperatureDraft.value = newTemp.toFixed(1)
   await setTemperature(props.entity, newTemp)
+}
+
+async function applyExactTemperature() {
+  if (!targetTemperatureValid.value) return
+  const value = Math.round(Number(targetTemperatureDraft.value) * 10) / 10
+  await setTemperature(props.entity, value)
 }
 </script>
 
@@ -53,7 +91,7 @@ async function adjustTemp(delta: number) {
         <h4 class="entity-name" :title="entity.name">{{ entity.name }}</h4>
         <div class="mode-badge">
           <span class="mode-text">{{ hvacMode }}</span>
-          <span class="current-label">Current: {{ currentTemp }}{{ unit }}</span>
+          <span class="current-label">Attuale: {{ currentTemp }}{{ unit }}</span>
         </div>
       </div>
     </div>
@@ -63,21 +101,46 @@ async function adjustTemp(delta: number) {
         <button
           class="btn-temp btn-temp-minus"
           :disabled="isExecuting"
-          aria-label="Decrease temperature"
+          :aria-label="t('common.entityCard.decreaseTemperature')"
           @click="adjustTemp(-0.5)"
         >
           <Minus :size="18" />
         </button>
 
         <div class="target-display">
-          <span class="target-value">{{ targetTemp.toFixed(1) }}</span>
-          <span class="target-unit">{{ unit }}</span>
+          <span class="target-label">Obiettivo</span>
+          <div class="target-value-row">
+            <span class="target-value">{{ targetTemp.toFixed(1) }}</span>
+            <span class="target-unit">{{ unit }}</span>
+          </div>
+          <div class="exact-temperature-control">
+            <input
+              v-model="targetTemperatureDraft"
+              type="number"
+              min="5"
+              max="35"
+              step="0.1"
+              inputmode="decimal"
+              aria-label="Temperatura obiettivo esatta"
+              :aria-invalid="!targetTemperatureValid"
+              @keydown.enter.prevent="applyExactTemperature"
+            />
+            <button
+              type="button"
+              class="btn-temp-apply"
+              :disabled="isExecuting || !targetTemperatureValid"
+              aria-label="Applica temperatura obiettivo"
+              @click="applyExactTemperature"
+            >
+              Imposta
+            </button>
+          </div>
         </div>
 
         <button
           class="btn-temp btn-temp-plus"
           :disabled="isExecuting"
-          aria-label="Increase temperature"
+          :aria-label="t('common.entityCard.increaseTemperature')"
           @click="adjustTemp(0.5)"
         >
           <Plus :size="18" />
@@ -179,8 +242,65 @@ async function adjustTemp(delta: number) {
 
 .target-display {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.target-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.target-value-row {
+  display: flex;
   align-items: baseline;
   gap: 3px;
+}
+
+.exact-temperature-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 180px;
+}
+
+.exact-temperature-control input {
+  min-width: 0;
+  width: 86px;
+  min-height: 44px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  font: 600 14px var(--font-mono);
+  text-align: center;
+}
+
+.exact-temperature-control input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.btn-temp-apply {
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(14, 165, 233, 0.14);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-temp-apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .target-value {
@@ -196,8 +316,8 @@ async function adjustTemp(delta: number) {
 }
 
 .btn-temp {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;

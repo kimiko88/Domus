@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { usePredictiveClimateStore } from '../stores/predictiveClimate'
+import { apiClient } from '../api/client'
 import type {
   PredictiveZoneConfig,
+  Entity,
   RoomOrientation,
   EmitterType,
   ThermalProfile,
@@ -10,10 +13,17 @@ import type {
   CoastDownRecommendation
 } from '../api/types'
 
+const { t } = useI18n()
+
 const store = usePredictiveClimateStore()
 
 const showModal = ref(false)
 const editingZone = ref<PredictiveZoneConfig | null>(null)
+const availableEntities = ref<Entity[]>([])
+const entityLoadError = ref('')
+const formError = ref('')
+const formSaving = ref(false)
+const profileError = ref('')
 
 // Thermal Profile Modal state
 const showProfileModal = ref(false)
@@ -35,6 +45,16 @@ const trainEndTemp = ref(20.5)
 const trainDurationMin = ref(60)
 const trainLoading = ref(false)
 const trainSuccessMsg = ref('')
+const trainingSampleValid = computed(() => {
+  const start = Number(trainStartTemp.value)
+  const end = Number(trainEndTemp.value)
+  const duration = Number(trainDurationMin.value)
+  const delta = end - start
+  const maxRate = trainCycleType.value === 'heating' ? 8 : 3
+  return Number.isFinite(start) && Number.isFinite(end) && start >= -20 && start <= 50 && end >= -20 && end <= 50 &&
+    Number.isInteger(duration) && duration >= 15 && duration <= 720 &&
+    (trainCycleType.value === 'heating' ? delta > 0 : delta < 0) && Math.abs(delta) / (duration / 60) <= maxRate
+})
 
 // Form fields
 const formName = ref('')
@@ -43,6 +63,8 @@ const formTempKey = ref('')
 const formPressureKey = ref('')
 const formHumidityKey = ref('')
 const formWindowKey = ref('')
+const formPresenceKey = ref('')
+const formAwayTemp = ref(17.0)
 const formTargetTemp = ref(21.0)
 const formOrientation = ref<RoomOrientation>('south')
 const formWindowArea = ref(4.0)
@@ -53,11 +75,53 @@ const formSolarCutoff = ref(true)
 const formPressureBoost = ref(true)
 const formEnabled = ref(true)
 
+const climateEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'climate' && entityKey(entity)))
+const temperatureEntityOptions = computed(() => availableEntities.value.filter(entity => {
+  if (entity.domain !== 'sensor' || !entityKey(entity)) return false
+  const unit = String(entity.attributes?.unit_of_measurement || '').toLowerCase()
+  return String(entity.attributes?.device_class || '').toLowerCase() === 'temperature' ||
+    ['°c', 'c', 'celsius', '°f', 'f', 'fahrenheit'].includes(unit)
+}))
+const sensorEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'sensor' && entityKey(entity)))
+const contactEntityOptions = computed(() => availableEntities.value.filter(entity => entity.domain === 'binary_sensor' && entityKey(entity)))
+
+function entityKey(entity: Entity): string {
+  if (entity.entity_key) return entity.entity_key
+  return entity.id.startsWith(entity.domain + '.') ? entity.id : ''
+}
+
+function entityOptionLabel(entity: Entity): string {
+  return entity.name ? entity.name + ' (' + entityKey(entity) + ')' : entityKey(entity)
+}
+
+function formatEvaluationTime(value?: string): string {
+  if (!value) return 'Mai valutata'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Data non disponibile'
+  return 'Ultima valutazione: ' + date.toLocaleString()
+}
+
+function nextLocalTime(timeValue: string, fallbackHour: number, fallbackMinute: number): Date {
+  const parts = timeValue.split(':').map(Number)
+  const hour = Number.isInteger(parts[0]) ? parts[0] : fallbackHour
+  const minute = Number.isInteger(parts[1]) ? parts[1] : fallbackMinute
+  const date = new Date()
+  date.setHours(hour, minute, 0, 0)
+  if (date.getTime() <= Date.now()) date.setDate(date.getDate() + 1)
+  return date
+}
+
 onMounted(async () => {
-  await store.fetchStatus()
+  await Promise.all([
+    store.fetchStatus(),
+    Promise.resolve().then(() => apiClient.get<Entity[]>('/api/v1/entities')).then(items => { availableEntities.value = items || [] }).catch(() => {
+      entityLoadError.value = 'Elenco dispositivi non disponibile: puoi comunque inserire manualmente gli ID delle entità.'
+    })
+  ])
 })
 
 async function openThermalProfileModal(zone: PredictiveZoneConfig) {
+  profileError.value = ''
   if (!zone.id) return
   selectedProfileZone.value = zone
   calcTargetTemp.value = zone.target_temperature || 21.0
@@ -71,7 +135,8 @@ async function openThermalProfileModal(zone: PredictiveZoneConfig) {
     currentProfile.value = await store.fetchProfile(zone.id)
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
-  } catch (e) {
+  } catch (e: any) {
+    profileError.value = e?.message || 'Impossibile caricare il modello termico.'
     console.error('Failed to load thermal profile', e)
   } finally {
     profileLoading.value = false
@@ -81,17 +146,14 @@ async function openThermalProfileModal(zone: PredictiveZoneConfig) {
 async function handleCalculateOptimalStart() {
   if (!selectedProfileZone.value?.id) return
   try {
-    const today = new Date()
-    const parts = calcTargetTime.value.split(':').map(Number)
-    const hours = parts[0] ?? 7
-    const minutes = parts[1] ?? 30
-    const targetDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    const targetDate = nextLocalTime(calcTargetTime.value, 7, 30)
     preheatResult.value = await store.getOptimalStart(
       selectedProfileZone.value.id,
       targetDate.toISOString(),
       Number(calcTargetTemp.value)
     )
   } catch (err: any) {
+    profileError.value = err?.message || 'Impossibile calcolare il pre-riscaldamento.'
     console.error('Error calculating preheat', err)
   }
 }
@@ -99,22 +161,24 @@ async function handleCalculateOptimalStart() {
 async function handleCalculateCoastDown() {
   if (!selectedProfileZone.value?.id) return
   try {
-    const today = new Date()
-    const parts = calcDepartureTime.value.split(':').map(Number)
-    const hours = parts[0] ?? 8
-    const minutes = parts[1] ?? 30
-    const depDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes)
+    const depDate = nextLocalTime(calcDepartureTime.value, 8, 30)
     coastResult.value = await store.getOptimalStop(
       selectedProfileZone.value.id,
       depDate.toISOString()
     )
   } catch (err: any) {
+    profileError.value = err?.message || 'Impossibile calcolare lo spegnimento anticipato.'
     console.error('Error calculating coast down', err)
   }
 }
 
 async function handleTrainCycle() {
   if (!selectedProfileZone.value?.id) return
+  profileError.value = ''
+  if (!trainingSampleValid.value) {
+    profileError.value = 'Campione non plausibile: verifica direzione della variazione, temperature e durata (15–720 minuti).'
+    return
+  }
   trainLoading.value = true
   trainSuccessMsg.value = ''
   try {
@@ -130,6 +194,7 @@ async function handleTrainCycle() {
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
   } catch (err: any) {
+    profileError.value = err?.message || 'Non è stato possibile aggiornare il modello termico.'
     console.error('Error training cycle', err)
   } finally {
     trainLoading.value = false
@@ -144,6 +209,8 @@ function openCreateModal() {
   formPressureKey.value = ''
   formHumidityKey.value = ''
   formWindowKey.value = ''
+  formPresenceKey.value = ''
+  formAwayTemp.value = 17.0
   formTargetTemp.value = 21.0
   formOrientation.value = 'south'
   formWindowArea.value = 4.0
@@ -164,6 +231,8 @@ function openEditModal(cfg: PredictiveZoneConfig) {
   formPressureKey.value = cfg.pressure_sensor_key || ''
   formHumidityKey.value = cfg.humidity_sensor_key || ''
   formWindowKey.value = cfg.window_sensor_key || ''
+  formPresenceKey.value = cfg.presence_sensor_key || ''
+  formAwayTemp.value = cfg.away_temperature || 17.0
   formTargetTemp.value = cfg.target_temperature
   formOrientation.value = cfg.orientation
   formWindowArea.value = cfg.window_area_sqm
@@ -177,7 +246,23 @@ function openEditModal(cfg: PredictiveZoneConfig) {
 }
 
 async function handleSaveZone() {
-  if (!formName.value || !formTRVKey.value || !formTempKey.value) return
+  formError.value = ''
+  if (!formName.value.trim() || !formTRVKey.value.trim() || !formTempKey.value.trim()) {
+    formError.value = 'Inserisci nome, termostato e sensore di temperatura.'
+    return
+  }
+  if (!Number.isFinite(formTargetTemp.value) || formTargetTemp.value < 10 || formTargetTemp.value > 30) {
+    formError.value = 'La temperatura obiettivo deve essere compresa tra 10 e 30 °C.'
+    return
+  }
+  if (!Number.isFinite(formAwayTemp.value) || formAwayTemp.value < 15 || formAwayTemp.value > 28) {
+    formError.value = 'La temperatura in assenza deve essere compresa tra 15 e 28 °C.'
+    return
+  }
+  if (!Number.isFinite(formWindowArea.value) || formWindowArea.value < 0 || formWindowArea.value > 50) {
+    formError.value = 'La superficie vetrata deve essere compresa tra 0 e 50 m².'
+    return
+  }
 
   const payload: PredictiveZoneConfig = {
     id: editingZone.value?.id,
@@ -187,6 +272,8 @@ async function handleSaveZone() {
     pressure_sensor_key: formPressureKey.value.trim() || undefined,
     humidity_sensor_key: formHumidityKey.value.trim() || undefined,
     window_sensor_key: formWindowKey.value.trim() || undefined,
+    presence_sensor_key: formPresenceKey.value.trim() || undefined,
+    away_temperature: Number(formAwayTemp.value),
     target_temperature: Number(formTargetTemp.value),
     orientation: formOrientation.value,
     window_area_sqm: Number(formWindowArea.value),
@@ -198,22 +285,29 @@ async function handleSaveZone() {
     enabled: formEnabled.value
   }
 
-  await store.saveZone(payload)
-  showModal.value = false
+  formSaving.value = true
+  try {
+    await store.saveZone(payload)
+    showModal.value = false
+  } catch (err: any) {
+    formError.value = err?.message || 'Salvataggio non riuscito. Controlla i dispositivi e riprova.'
+  } finally {
+    formSaving.value = false
+  }
 }
 
 async function handleDeleteZone(id: string) {
   if (confirm('Sei sicuro di voler eliminare questa zona predittiva?')) {
-    await store.deleteZone(id)
+    try { await store.deleteZone(id) } catch { /* store.error is rendered in the page */ }
   }
 }
 
 async function handleEvaluateZone(id: string) {
-  await store.evaluateZone(id)
+  try { await store.evaluateZone(id) } catch { /* store.error is rendered in the page */ }
 }
 
 async function handleEvaluateAll() {
-  await store.evaluateAll()
+  try { await store.evaluateAll() } catch { /* store.error is rendered in the page */ }
 }
 
 function getModeBadgeClass(mode?: string): string {
@@ -276,11 +370,13 @@ function getEmitterLabel(emitter: EmitterType): string {
 </script>
 
 <template>
-  <div class="predictive-climate-container" role="main" aria-label="Controllo Termostato Predittivo">
+  <div class="predictive-climate-container" role="main" :aria-label="t('predictiveClimate.view.mainLabel')">
+    <p v-if="store.error" class="climate-feedback climate-feedback-error" role="alert">{{ store.error }}</p>
+    <p v-if="entityLoadError" class="climate-feedback" role="status">{{ entityLoadError }}</p>
     <!-- Header -->
     <header class="view-header">
       <div class="title-section">
-        <h1 class="view-title">Termostato Predittivo Multizona</h1>
+        <h1 class="view-title">{{ t('predictiveClimate.view.title') }}</h1>
         <p class="view-subtitle">
           Controllo intelligente con inerzia termica, nowcasting barometrico locale e previsioni solari
         </p>
@@ -292,7 +388,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           class="btn btn-secondary"
           :disabled="store.evaluating"
           @click="handleEvaluateAll"
-          aria-label="Rivaluta tutte le zone"
+          :aria-label="t('predictiveClimate.view.reassessAllZones')"
         >
           {{ store.evaluating ? 'Calcolo in corso...' : '⚡ Valuta Tutte le Zone' }}
         </button>
@@ -300,7 +396,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           type="button"
           class="btn btn-primary"
           @click="openCreateModal"
-          aria-label="Aggiungi nuova zona predittiva"
+          :aria-label="t('predictiveClimate.view.addZone')"
         >
           + Nuova Zona
         </button>
@@ -308,12 +404,12 @@ function getEmitterLabel(emitter: EmitterType): string {
     </header>
 
     <!-- Top KPI Banners -->
-    <section class="kpi-banner-grid" aria-label="Riepilogo condizioni ambientali">
+    <section class="kpi-banner-grid" :aria-label="t('predictiveClimate.view.environmentSummary')">
       <div class="kpi-card">
         <div class="kpi-icon">🌡️</div>
         <div class="kpi-content">
           <div class="kpi-value">{{ store.enabledZones }} / {{ store.totalZones }}</div>
-          <div class="kpi-label">Zone Attive</div>
+          <div class="kpi-label">{{ t('predictiveClimate.view.activeZones') }}</div>
         </div>
       </div>
 
@@ -353,13 +449,13 @@ function getEmitterLabel(emitter: EmitterType): string {
     </section>
 
     <!-- Zone Cards Grid -->
-    <section class="zones-grid" aria-label="Zone termiche predittive">
+    <section class="zones-grid" :aria-label="t('predictiveClimate.view.thermalZones')">
       <div v-if="store.loading && store.zoneStatuses.length === 0" class="empty-state">
         Caricamento zone in corso...
       </div>
 
       <div v-else-if="store.zoneStatuses.length === 0" class="empty-state">
-        <p>Nessuna zona predittiva configurata.</p>
+        <p>{{ t('predictiveClimate.view.noZones') }}</p>
         <button type="button" class="btn btn-primary" @click="openCreateModal">
           Configura la prima zona
         </button>
@@ -396,7 +492,7 @@ function getEmitterLabel(emitter: EmitterType): string {
         <!-- Main Temperature Display -->
         <div class="zone-metrics-row">
           <div class="metric-box">
-            <span class="metric-label">Stanza / Percepita</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.roomPerceived') }}</span>
             <span class="metric-temp">
               {{ item.latest_evaluation ? item.latest_evaluation.current_temp : '--' }} °C
             </span>
@@ -406,12 +502,12 @@ function getEmitterLabel(emitter: EmitterType): string {
           </div>
 
           <div class="metric-box target-box">
-            <span class="metric-label">Target Base</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.baseTarget') }}</span>
             <span class="metric-target">{{ item.config.target_temperature }} °C</span>
           </div>
 
           <div class="metric-box calculated-box">
-            <span class="metric-label">Setpoint Calcolato</span>
+            <span class="metric-label">{{ t('predictiveClimate.view.calculatedSetpoint') }}</span>
             <span class="metric-setpoint">
               {{ item.latest_evaluation ? item.latest_evaluation.calculated_setpoint : item.config.target_temperature }} °C
             </span>
@@ -449,6 +545,10 @@ function getEmitterLabel(emitter: EmitterType): string {
           </div>
         </div>
 
+        <div class="evaluation-freshness">
+          {{ formatEvaluationTime(item.latest_evaluation?.evaluated_at) }}
+        </div>
+
         <!-- Explainability Note -->
         <div v-if="item.latest_evaluation?.reason" class="zone-reason">
           <span class="reason-icon">💡</span>
@@ -463,7 +563,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               class="btn btn-sm btn-outline"
               :disabled="store.evaluating"
               @click="item.config.id && handleEvaluateZone(item.config.id)"
-              aria-label="Calcola setpoint per questa stanza"
+              :aria-label="t('predictiveClimate.view.calculateSetpoint')"
             >
               ⚡ Valuta Ora
             </button>
@@ -471,7 +571,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-secondary"
               @click="openThermalProfileModal(item.config)"
-              aria-label="Visualizza modello termico e start ottimale"
+              :aria-label="t('predictiveClimate.view.viewThermalModel')"
             >
               🧠 Modello & Start
             </button>
@@ -481,7 +581,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-ghost"
               @click="openEditModal(item.config)"
-              aria-label="Modifica parametri zona"
+              :aria-label="t('predictiveClimate.view.editZone')"
             >
               Modifica
             </button>
@@ -489,7 +589,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               type="button"
               class="btn btn-sm btn-ghost text-danger"
               @click="item.config.id && handleDeleteZone(item.config.id)"
-              aria-label="Elimina zona"
+              :aria-label="t('predictiveClimate.view.deleteZone')"
             >
               Elimina
             </button>
@@ -514,7 +614,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             type="button"
             class="btn-close"
             @click="showModal = false"
-            aria-label="Chiudi finestra"
+            :aria-label="t('common.close')"
           >
             &times;
           </button>
@@ -522,81 +622,131 @@ function getEmitterLabel(emitter: EmitterType): string {
 
         <form @submit.prevent="handleSaveZone" class="modal-form">
           <div class="form-group">
-            <label for="zone-name">Nome Zona / Stanza</label>
+            <label for="zone-name">{{ t('predictiveClimate.view.zoneName') }}</label>
             <input
               id="zone-name"
               v-model="formName"
               type="text"
               class="form-control"
-              placeholder="es. Salone Principale"
+              :placeholder="t('predictiveClimate.view.zoneNamePlaceholder')"
               required
             />
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-trv">Entità TRV / Termostato</label>
+              <label for="zone-trv">{{ t('predictiveClimate.view.trvEntity') }}</label>
               <input
                 id="zone-trv"
                 v-model="formTRVKey"
                 type="text"
                 class="form-control"
                 placeholder="climate.valvola_salone"
+                list="climate-entity-options"
+                autocomplete="off"
                 required
               />
+              <datalist id="climate-entity-options">
+                <option v-for="entity in climateEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
 
             <div class="form-group col">
-              <label for="zone-temp">Sensore Temperatura Stanza</label>
+              <label for="zone-temp">{{ t('predictiveClimate.view.roomTemperatureSensor') }}</label>
               <input
                 id="zone-temp"
                 v-model="formTempKey"
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_temperatura"
+                list="temperature-entity-options"
+                autocomplete="off"
                 required
               />
+              <datalist id="temperature-entity-options">
+                <option v-for="entity in temperatureEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-press">Sensore Pressione (Barometro)</label>
+              <label for="zone-press">{{ t('predictiveClimate.view.pressureSensor') }}</label>
               <input
                 id="zone-press"
                 v-model="formPressureKey"
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_pressione"
+                list="sensor-entity-options"
+                autocomplete="off"
               />
+              <datalist id="sensor-entity-options">
+                <option v-for="entity in sensorEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+              </datalist>
             </div>
 
             <div class="form-group col">
-              <label for="zone-hum">Sensore Umidità Relativa</label>
+              <label for="zone-hum">{{ t('predictiveClimate.view.humiditySensor') }}</label>
               <input
                 id="zone-hum"
                 v-model="formHumidityKey"
                 type="text"
                 class="form-control"
                 placeholder="sensor.salone_umidita"
+                list="sensor-entity-options"
+                autocomplete="off"
               />
             </div>
           </div>
 
           <div class="form-group">
-            <label for="zone-win">Sensore Contatto Finestra (Opzionale)</label>
+            <label for="zone-win">{{ t('predictiveClimate.view.windowContactSensor') }}</label>
             <input
               id="zone-win"
               v-model="formWindowKey"
               type="text"
               class="form-control"
               placeholder="binary_sensor.finestra_salone"
+              list="contact-entity-options"
+              autocomplete="off"
             />
+            <datalist id="contact-entity-options">
+              <option v-for="entity in contactEntityOptions" :key="entity.id" :value="entityKey(entity)">{{ entityOptionLabel(entity) }}</option>
+            </datalist>
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-target">Temperatura Obiettivo (°C)</label>
+              <label for="zone-presence">Sensore di presenza (opzionale)</label>
+              <input
+                id="zone-presence"
+                v-model="formPresenceKey"
+                type="text"
+                class="form-control"
+                placeholder="binary_sensor.presenza_salone"
+                list="contact-entity-options"
+                autocomplete="off"
+              />
+              <small>Se la stanza è vuota viene applicato il setpoint risparmio.</small>
+            </div>
+            <div class="form-group col">
+              <label for="zone-away-temp">Temperatura in assenza (°C)</label>
+              <input
+                id="zone-away-temp"
+                v-model.number="formAwayTemp"
+                type="number"
+                min="15"
+                max="28"
+                step="0.5"
+                class="form-control"
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col">
+              <label for="zone-target">{{ t('predictiveClimate.view.targetTemperature') }} (°C)</label>
               <input
                 id="zone-target"
                 v-model.number="formTargetTemp"
@@ -610,28 +760,28 @@ function getEmitterLabel(emitter: EmitterType): string {
             </div>
 
             <div class="form-group col">
-              <label for="zone-orient">Esposizione Principale</label>
+              <label for="zone-orient">{{ t('predictiveClimate.view.mainExposure') }}</label>
               <select id="zone-orient" v-model="formOrientation" class="form-control">
-                <option value="south">Sud (Forte Sole Pomeriggio)</option>
-                <option value="east">Est (Sole Mattutino)</option>
-                <option value="west">Ovest (Sole Tardo Pomeriggio)</option>
-                <option value="north">Nord (Dispersivo, Zero Sole)</option>
+                <option value="south">{{ t('predictiveClimate.view.south') }}</option>
+                <option value="east">{{ t('predictiveClimate.view.east') }}</option>
+                <option value="west">{{ t('predictiveClimate.view.west') }}</option>
+                <option value="north">{{ t('predictiveClimate.view.north') }}</option>
               </select>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-emitter">Tipo Terminale Riscaldamento</label>
+              <label for="zone-emitter">{{ t('predictiveClimate.view.heatingEmitter') }}</label>
               <select id="zone-emitter" v-model="formEmitter" class="form-control">
-                <option value="radiator">Radiatori (Inerzia media 2h)</option>
-                <option value="floor_radiant">Pavimento Radiante (Inerzia alta 4h)</option>
-                <option value="fancoil">Fan-coil (Inerzia rapida 1h)</option>
+                <option value="radiator">{{ t('predictiveClimate.view.radiator') }}</option>
+                <option value="floor_radiant">{{ t('predictiveClimate.view.floorHeating') }}</option>
+                <option value="fancoil">{{ t('predictiveClimate.view.fanCoil') }}</option>
               </select>
             </div>
 
             <div class="form-group col">
-              <label for="zone-area">Superficie Vetrate (m²)</label>
+              <label for="zone-area">{{ t('predictiveClimate.view.glazedArea') }} (m²)</label>
               <input
                 id="zone-area"
                 v-model.number="formWindowArea"
@@ -648,31 +798,32 @@ function getEmitterLabel(emitter: EmitterType): string {
           <div class="toggles-box">
             <label class="toggle-label">
               <input type="checkbox" v-model="formPressureBoost" />
-              <span>Anticipo Fronte Freddo (Nowcasting Barometrico)</span>
+              <span>{{ t('predictiveClimate.view.coldFrontForecast') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formSolarCutoff" />
-              <span>Taglio Solare Preventivo (Anti-Surriscaldamento)</span>
+              <span>{{ t('predictiveClimate.view.solarCutoff') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formPreheat" />
-              <span>Pre-riscaldamento Meteo (Gelo in arrivo)</span>
+              <span>{{ t('predictiveClimate.view.weatherPreheat') }}</span>
             </label>
 
             <label class="toggle-label">
               <input type="checkbox" v-model="formEnabled" />
-              <span>Zona Attiva</span>
+              <span>{{ t('predictiveClimate.view.zoneActive') }}</span>
             </label>
           </div>
 
+          <p v-if="formError" class="climate-feedback climate-feedback-error" role="alert">{{ formError }}</p>
           <footer class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showModal = false">
+            <button type="button" class="btn btn-secondary" @click="showModal = false" :disabled="formSaving">
               Annulla
             </button>
-            <button type="submit" class="btn btn-primary">
-              Salva Configurazione
+            <button type="submit" class="btn btn-primary" :disabled="formSaving">
+              {{ formSaving ? 'Salvataggio...' : 'Salva Configurazione' }}
             </button>
           </footer>
         </form>
@@ -708,57 +859,58 @@ function getEmitterLabel(emitter: EmitterType): string {
           </button>
         </header>
 
+        <p v-if="profileError" class="climate-feedback climate-feedback-error" role="alert">{{ profileError }}</p>
         <div v-if="profileLoading" class="modal-body modal-loading">
           Caricamento parametri termici in corso...
         </div>
 
         <div v-else class="modal-body profile-modal-content">
           <!-- 1. Parametri Appresi -->
-          <section class="profile-section" aria-label="Parametri termici appresi">
-            <h3 class="section-heading">📊 Parametri Appresi (Fisica Grey-Box 1R-1C)</h3>
+          <section class="profile-section" :aria-label="t('predictiveClimate.view.learnedThermalParameters')">
+            <h3 class="section-heading">📊 {{ t('predictiveClimate.view.learnedParametersTitle') }}</h3>
             <div class="profile-metrics-grid">
               <div class="profile-metric-card">
-                <span class="p-label">Velocità Riscaldamento</span>
+                <span class="p-label">{{ t('predictiveClimate.view.heatingRate') }}</span>
                 <span class="p-value heat-val">
                   {{ currentProfile ? currentProfile.heat_rate_per_hr : '--' }} °C/h
                 </span>
-                <span class="p-sub">In potenza attiva nominale</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.nominalActivePower') }}</span>
               </div>
 
               <div class="profile-metric-card">
-                <span class="p-label">Velocità Dispersione</span>
+                <span class="p-label">{{ t('predictiveClimate.view.heatLossRate') }}</span>
                 <span class="p-value cool-val">
                   {{ currentProfile ? currentProfile.cool_rate_per_hr : '--' }} °C/h
                 </span>
-                <span class="p-sub">Normalizzata a Δ10°C esterno</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.normalizedDelta') }}</span>
               </div>
 
               <div class="profile-metric-card">
-                <span class="p-label">Cicli di Apprendimento</span>
+                <span class="p-label">{{ t('predictiveClimate.view.learningCycles') }}</span>
                 <span class="p-value samples-val">
                   {{ currentProfile ? currentProfile.samples_count : 0 }}
                 </span>
-                <span class="p-sub">Aggiornamenti EMA registrati</span>
+                <span class="p-sub">{{ t('predictiveClimate.view.emaUpdates') }}</span>
               </div>
             </div>
           </section>
 
           <!-- 2. Ottimizzatori: Pre-heating e Coast-Down -->
-          <section class="profile-section" aria-label="Calcolatori dinamici">
+          <section class="profile-section" :aria-label="t('predictiveClimate.view.dynamicCalculators')">
             <div class="optimizers-grid">
               <!-- Pre-heating Card -->
               <div class="optimizer-card">
                 <div class="opt-header">
                   <span class="opt-icon">⚡</span>
                   <div>
-                    <h4 class="opt-title">Pre-Heating (Start Ottimale)</h4>
-                    <p class="opt-desc">Anticipa l'accensione per raggiungere il comfort esattamente all'orario prefissato</p>
+                    <h4 class="opt-title">{{ t('predictiveClimate.view.preheatingTitle') }}</h4>
+                    <p class="opt-desc">{{ t('predictiveClimate.view.preheatingDesc') }}</p>
                   </div>
                 </div>
 
                 <div class="opt-inputs">
                   <div class="form-group">
-                    <label for="preheat-time">Orario Desiderato</label>
+                    <label for="preheat-time">{{ t('predictiveClimate.view.desiredTime') }}</label>
                     <input
                       id="preheat-time"
                       v-model="calcTargetTime"
@@ -768,7 +920,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                     />
                   </div>
                   <div class="form-group">
-                    <label for="preheat-temp">Temp Obiettivo (°C)</label>
+                    <label for="preheat-temp">{{ t('predictiveClimate.view.targetTemperature') }} (°C)</label>
                     <input
                       id="preheat-temp"
                       v-model.number="calcTargetTemp"
@@ -794,14 +946,14 @@ function getEmitterLabel(emitter: EmitterType): string {
                 <div class="opt-header">
                   <span class="opt-icon">🛑</span>
                   <div>
-                    <h4 class="opt-title">Coast-Down (Inerzia & Stop)</h4>
-                    <p class="opt-desc">Spegne il riscaldamento prima dell'uscita o del sonno sfruttando il volano termico</p>
+                    <h4 class="opt-title">{{ t('predictiveClimate.view.coastDownTitle') }}</h4>
+                    <p class="opt-desc">{{ t('predictiveClimate.view.coastDownDesc') }}</p>
                   </div>
                 </div>
 
                 <div class="opt-inputs">
                   <div class="form-group">
-                    <label for="coast-time">Orario Uscita / Sonno</label>
+                    <label for="coast-time">{{ t('predictiveClimate.view.departureSleepTime') }}</label>
                     <input
                       id="coast-time"
                       v-model="calcDepartureTime"
@@ -826,41 +978,41 @@ function getEmitterLabel(emitter: EmitterType): string {
           </section>
 
           <!-- 3. Allenatore Cicli (Simulazione o Registrazione) -->
-          <section class="profile-section training-box" aria-label="Simulatore ciclo termico">
-            <h3 class="section-heading">🧪 Allenamento Modello da Ciclo Reale</h3>
+          <section class="profile-section training-box" :aria-label="t('predictiveClimate.view.thermalCycleSimulator')">
+            <h3 class="section-heading">🧪 {{ t('predictiveClimate.view.modelTrainingTitle') }}</h3>
             <p class="section-subtext">
               Inserisci i dati osservati da una sessione per calibrare i parametri con livellamento esponenziale (EMA).
             </p>
 
             <div class="training-form-row">
               <div class="form-group">
-                <label for="train-type">Tipo Ciclo</label>
+                <label for="train-type">{{ t('predictiveClimate.view.cycleType') }}</label>
                 <select id="train-type" v-model="trainCycleType" class="form-control form-control-sm">
-                  <option value="heating">Riscaldamento Attivo</option>
-                  <option value="cooling">Raffreddamento Passivo</option>
+                  <option value="heating">{{ t('predictiveClimate.view.activeHeating') }}</option>
+                  <option value="cooling">{{ t('predictiveClimate.view.passiveCooling') }}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <label for="train-start">Temp Inizio (°C)</label>
-                <input id="train-start" v-model.number="trainStartTemp" type="number" step="0.1" class="form-control form-control-sm" />
+                <label for="train-start">{{ t('predictiveClimate.view.startTemperature') }} (°C)</label>
+                <input id="train-start" v-model.number="trainStartTemp" type="number" min="-20" max="50" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
-                <label for="train-end">Temp Fine (°C)</label>
-                <input id="train-end" v-model.number="trainEndTemp" type="number" step="0.1" class="form-control form-control-sm" />
+                <label for="train-end">{{ t('predictiveClimate.view.endTemperature') }} (°C)</label>
+                <input id="train-end" v-model.number="trainEndTemp" type="number" min="-20" max="50" step="0.1" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group">
-                <label for="train-dur">Durata (Minuti)</label>
-                <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" step="5" class="form-control form-control-sm" />
+                <label for="train-dur">{{ t('predictiveClimate.view.duration') }} ({{ t('predictiveClimate.view.minutes') }})</label>
+                <input id="train-dur" v-model.number="trainDurationMin" type="number" min="15" max="720" step="5" class="form-control form-control-sm" />
               </div>
 
               <div class="form-group training-btn-group">
                 <button
                   type="button"
                   class="btn btn-sm btn-primary"
-                  :disabled="trainLoading"
+                  :disabled="trainLoading || !trainingSampleValid"
                   @click="handleTrainCycle"
                 >
                   {{ trainLoading ? 'Calcolo...' : '🚀 Registra Ciclo' }}
@@ -868,7 +1020,8 @@ function getEmitterLabel(emitter: EmitterType): string {
               </div>
             </div>
 
-            <div v-if="trainSuccessMsg" class="train-alert-success" role="alert">
+            <p class="section-subtext">Per il riscaldamento la temperatura finale deve essere maggiore; per il raffreddamento deve essere minore. Sono accettati cicli da 15 a 720 minuti.</p>
+            <div v-if="trainSuccessMsg" class="train-alert-success" role="status">
               {{ trainSuccessMsg }}
             </div>
           </section>
@@ -974,6 +1127,10 @@ function getEmitterLabel(emitter: EmitterType): string {
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   gap: 1.5rem;
 }
+
+.climate-feedback { padding: 0.75rem 1rem; border-radius: 0.5rem; margin: 0.75rem 0; background: var(--surface-secondary, #f3f4f6); }
+.climate-feedback-error { color: var(--color-danger, #b42318); background: var(--surface-danger, #fef3f2); }
+.evaluation-freshness { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary, #667085); }
 
 .zone-card {
   border-radius: var(--radius-lg, 12px);

@@ -24,11 +24,13 @@ type ConditionTrace struct {
 
 // DryRunResult provides the simulated execution outcome of an automation.
 type DryRunResult struct {
-	AutomationID string           `json:"automation_id"`
-	Passed       bool             `json:"passed"`
-	EvaluatedAt  time.Time        `json:"evaluated_at"`
-	Traces       []ConditionTrace `json:"traces"`
-	Actions      []domauto.Action `json:"actions_would_execute"`
+	AutomationID     string           `json:"automation_id"`
+	Passed           bool             `json:"passed"`
+	TriggersEvaluated bool            `json:"triggers_evaluated"`
+	Warnings         []string         `json:"warnings,omitempty"`
+	EvaluatedAt      time.Time        `json:"evaluated_at"`
+	Traces           []ConditionTrace `json:"traces"`
+	Actions          []domauto.Action `json:"actions_would_execute"`
 }
 
 // Simulator executes What-If evaluations against live or simulated entity states.
@@ -50,7 +52,9 @@ func (s *Simulator) DryRun(ctx context.Context, a *domauto.Automation, evalTime 
 	result := &DryRunResult{
 		AutomationID: a.ID,
 		EvaluatedAt:  evalTime,
-		Traces:       make([]ConditionTrace, 0, len(a.Conditions)),
+		TriggersEvaluated: false,
+		Warnings: []string{"Trigger conditions are not simulated; this result evaluates configured conditions against current entity state only."},
+		Traces: make([]ConditionTrace, 0, len(a.Conditions)),
 	}
 
 	allPassed := true
@@ -78,6 +82,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 
 	switch c.Condition {
 	case "and":
+		if len(c.Conditions) == 0 {
+			trace.Passed = false
+			trace.Reason = "AND block has no child conditions"
+			return trace
+		}
 		passed := true
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
@@ -91,6 +100,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 		return trace
 
 	case "or":
+		if len(c.Conditions) == 0 {
+			trace.Passed = false
+			trace.Reason = "OR block has no child conditions"
+			return trace
+		}
 		passed := false
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
@@ -104,6 +118,11 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 		return trace
 
 	case "not":
+		if len(c.Conditions) != 1 {
+			trace.Passed = false
+			trace.Reason = "NOT block must contain exactly one child condition"
+			return trace
+		}
 		passed := true
 		for _, sub := range c.Conditions {
 			subTrace := s.evaluateCondition(ctx, sub, now)
@@ -164,23 +183,35 @@ func (s *Simulator) evaluateCondition(ctx context.Context, c domauto.Condition, 
 		return trace
 
 	case "time":
-		// Time of day condition
-		curTimeStr := now.Format("15:04:05")
-		trace.ActualValue = curTimeStr
-		passed := true
-		if c.After != "" && curTimeStr < c.After {
-			passed = false
+		curTime := now.Format("15:04:05")
+		trace.ActualValue = curTime
+		if c.After == "" && c.Before == "" {
+			trace.Passed = false
+			trace.Reason = "Time condition has no lower or upper bound"
+			return trace
 		}
-		if c.Before != "" && curTimeStr > c.Before {
-			passed = false
+		passed := true
+		switch {
+		case c.After != "" && c.Before != "":
+			if c.After <= c.Before {
+				passed = curTime >= c.After && curTime <= c.Before
+			} else {
+				// Overnight window, e.g. 22:00–06:00.
+				passed = curTime >= c.After || curTime <= c.Before
+			}
+		case c.After != "":
+			passed = curTime >= c.After
+		case c.Before != "":
+			passed = curTime <= c.Before
 		}
 		trace.Passed = passed
-		trace.Reason = fmt.Sprintf("Current time %s (after: %s, before: %s)", curTimeStr, c.After, c.Before)
+		trace.ExpectedValue = fmt.Sprintf("after=%s before=%s", c.After, c.Before)
+		trace.Reason = fmt.Sprintf("Current time %s (after: %s, before: %s)", curTime, c.After, c.Before)
 		return trace
 
 	default:
-		trace.Passed = true
-		trace.Reason = "Condition type passed by default: " + c.Condition
+		trace.Passed = false
+		trace.Reason = "Unsupported condition type; simulation fails closed: " + c.Condition
 		return trace
 	}
 }

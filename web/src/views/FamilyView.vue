@@ -3,8 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useFamilyStore } from '../stores/family'
+import { apiClient } from '../api/client'
+import type { UserRole, UserPermissions, Area, Entity } from '../api/types'
 import BaseButton from '../components/ui/BaseButton.vue'
-import type { UserRole } from '../api/types'
 import {
   Users,
   UserPlus,
@@ -17,7 +18,8 @@ import {
   Clock,
   X,
   Link,
-  KeyRound
+  KeyRound,
+  Baby
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -44,9 +46,63 @@ const guestHours = ref(24)
 const guestKiosk = ref(true)
 const guests = computed(() => familyStore.guests)
 
+const availableAreas = ref<Area[]>([])
+const availableEntities = ref<Entity[]>([])
+const availableDashboards = ref<Array<{ id: string; title: string }>>([])
+const isPermissionsModalOpen = ref(false)
+const isSavingPermissions = ref(false)
+const permissionsMember = ref<{ id: string; username: string } | null>(null)
+const allAreas = ref(true)
+const allEntities = ref(true)
+const allDashboards = ref(true)
+const allViews = ref(true)
+const selectedAreaIDs = ref<string[]>([])
+const selectedEntityIDs = ref<string[]>([])
+const selectedDashboardIDs = ref<string[]>([])
+const selectedViews = ref<string[]>([])
+const canControlDevices = ref(false)
+const canManageAutomations = ref(false)
+const canManageSettings = ref(false)
+const canViewCameras = ref(false)
+const permissionViews = [
+  { path: '/', labelKey: 'nav.dashboard' },
+  { path: '/areas', labelKey: 'nav.areas' },
+  { path: '/devices', labelKey: 'nav.devices' },
+  { path: '/integrations', labelKey: 'nav.integrations' },
+  { path: '/energy', labelKey: 'nav.energy' },
+  { path: '/climate/predictive', labelKey: 'nav.predictiveClimate' },
+  { path: '/automations', labelKey: 'nav.automations' },
+  { path: '/scenes', labelKey: 'nav.scenes' },
+  { path: '/schedules', labelKey: 'nav.schedules' },
+  { path: '/history', labelKey: 'nav.history' },
+  { path: '/notifications', labelKey: 'family.permissions.notifications' },
+  { path: '/cameras', labelKey: 'nav.cameras' },
+  { path: '/media', labelKey: 'nav.media' },
+  { path: '/chores', labelKey: 'nav.chores' },
+  { path: '/shopping', labelKey: 'nav.shopping' },
+  { path: '/pantry', labelKey: 'nav.pantry' },
+  { path: '/medicines', labelKey: 'nav.medicines' },
+  { path: '/finance', labelKey: 'nav.finance' },
+  { path: '/family', labelKey: 'nav.family' },
+  { path: '/custom-dashboards', labelKey: 'nav.customDashboards' },
+  { path: '/guide', labelKey: 'nav.guide' },
+  { path: '/logbook', labelKey: 'nav.logbook' },
+  { path: '/settings', labelKey: 'nav.settings' }
+]
+
 async function loadData() {
   try {
     await familyStore.fetchMembers()
+    if (isAdmin.value) {
+      const [areas, entities, dashboards] = await Promise.all([
+        apiClient.get<Area[]>('/api/v1/areas'),
+        apiClient.get<Entity[]>('/api/v1/entities'),
+        apiClient.get<Array<{ id: string; title: string }>>('/api/v1/dashboards')
+      ])
+      availableAreas.value = areas || []
+      availableEntities.value = entities || []
+      availableDashboards.value = dashboards || []
+    }
     if (isAdmin.value) {
       await familyStore.fetchInvites()
       try {
@@ -54,7 +110,7 @@ async function loadData() {
       } catch {}
     }
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to load family data'
+    errorMsg.value = err?.message || t('family.errors.load')
   }
 }
 
@@ -72,7 +128,7 @@ function closeGuestModal() {
 
 async function handleCreateGuest() {
   if (!guestUsername.value || !guestPin.value) {
-    errorMsg.value = 'Inserisci nome ospite e PIN'
+    errorMsg.value = t('family.errors.guestRequired')
     return
   }
   try {
@@ -80,7 +136,7 @@ async function handleCreateGuest() {
     await familyStore.createGuest(guestUsername.value, guestPin.value, guestHours.value, guestKiosk.value)
     closeGuestModal()
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Impossibile creare profilo ospite'
+    errorMsg.value = err?.message || t('family.errors.createGuest')
   }
 }
 
@@ -104,7 +160,7 @@ async function handleGenerateInvite() {
     const base = typeof window !== 'undefined' ? window.location.origin : ''
     createdInviteUrl.value = `${base}${res.invite_url}`
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to generate invite'
+    errorMsg.value = err?.message || t('family.errors.generateInvite')
   }
 }
 
@@ -122,6 +178,54 @@ async function handleCopy(url: string) {
   }
 }
 
+function openPermissions(member: { id: string; username: string; permissions?: UserPermissions }) {
+  const permissions = member.permissions
+  permissionsMember.value = { id: member.id, username: member.username }
+  allAreas.value = permissions?.allowed_area_ids == null
+  allEntities.value = permissions?.allowed_entity_ids == null
+  allDashboards.value = permissions?.allowed_dashboard_ids == null
+  allViews.value = permissions?.allowed_views == null
+  selectedAreaIDs.value = [...(permissions?.allowed_area_ids || [])]
+  selectedEntityIDs.value = [...(permissions?.allowed_entity_ids || [])]
+  selectedDashboardIDs.value = [...(permissions?.allowed_dashboard_ids || [])]
+  selectedViews.value = [...(permissions?.allowed_views || [])]
+  canControlDevices.value = permissions?.can_control_devices ?? false
+  canManageAutomations.value = (permissions?.can_manage_automations ?? false) && canControlDevices.value && allAreas.value && allEntities.value
+  canManageSettings.value = permissions?.can_manage_settings ?? false
+  canViewCameras.value = permissions?.can_view_cameras ?? false
+  isPermissionsModalOpen.value = true
+}
+
+function closePermissions() {
+  isPermissionsModalOpen.value = false
+  permissionsMember.value = null
+}
+
+async function savePermissions() {
+  if (!permissionsMember.value) return
+  isSavingPermissions.value = true
+  errorMsg.value = null
+  const payload: UserPermissions = {
+    role: familyStore.members.find(member => member.id === permissionsMember.value?.id)?.role || 'viewer',
+    allowed_area_ids: allAreas.value ? null : [...selectedAreaIDs.value],
+    allowed_entity_ids: allEntities.value ? null : [...selectedEntityIDs.value],
+    allowed_dashboard_ids: allDashboards.value ? null : [...selectedDashboardIDs.value],
+    allowed_views: allViews.value ? null : [...selectedViews.value],
+    can_control_devices: canControlDevices.value,
+    can_manage_automations: canManageAutomations.value && canControlDevices.value && allAreas.value && allEntities.value,
+    can_manage_settings: canManageSettings.value,
+    can_view_cameras: canViewCameras.value
+  }
+  try {
+    await familyStore.updateMemberPermissions(permissionsMember.value.id, payload)
+    closePermissions()
+  } catch (err: any) {
+    errorMsg.value = err?.message || t('family.errors.updatePermissions')
+  } finally {
+    isSavingPermissions.value = false
+  }
+}
+
 async function handleRoleChange(memberId: string, newRole: UserRole) {
   try {
     errorMsg.value = null
@@ -132,7 +236,7 @@ async function handleRoleChange(memberId: string, newRole: UserRole) {
       roleChangeSuccess.value = null
     }, 2500)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to update member role'
+    errorMsg.value = err?.message || t('family.errors.updateRole')
   }
 }
 
@@ -144,7 +248,7 @@ async function handleRemoveMember(memberId: string, username: string) {
     errorMsg.value = null
     await familyStore.removeMember(memberId)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to remove member'
+    errorMsg.value = err?.message || t('family.errors.removeMember')
   }
 }
 
@@ -153,7 +257,7 @@ async function handleRevokeInvite(inviteId: string) {
     errorMsg.value = null
     await familyStore.revokeInvite(inviteId)
   } catch (err: any) {
-    errorMsg.value = err?.message || 'Failed to revoke invite'
+    errorMsg.value = err?.message || t('family.errors.revokeInvite')
   }
 }
 
@@ -245,13 +349,14 @@ onMounted(() => {
             <div class="member-meta">
               <div class="username-row">
                 <span class="username">{{ member.username }}</span>
-                <span v-if="member.id === currentUserId" class="self-tag">(Tu)</span>
+                <span v-if="member.id === currentUserId" class="self-tag">{{ t('family.view.you') }}</span>
               </div>
               <span class="email">{{ member.email || '—' }}</span>
             </div>
             <div class="role-badge" :class="`role-${member.role}`">
               <Shield v-if="member.role === 'admin'" :size="14" />
               <Sliders v-else-if="member.role === 'operator'" :size="14" />
+              <Baby v-else-if="member.role === 'kid'" :size="14" />
               <Eye v-else :size="14" />
               <span>{{ t(`family.roles.${member.role}`) }}</span>
             </div>
@@ -274,8 +379,18 @@ onMounted(() => {
                 <option value="admin">{{ t('family.roles.admin') }}</option>
                 <option value="operator">{{ t('family.roles.operator') }}</option>
                 <option value="viewer">{{ t('family.roles.viewer') }}</option>
+                <option value="guest">{{ t('family.roles.guest') }}</option>
+                <option value="kid">{{ t('family.roles.kid') }}</option>
               </select>
 
+              <button
+                v-if="member.id !== currentUserId && member.role !== 'admin'"
+                class="permissions-btn"
+                :title="t('family.permissions.manage')"
+                @click="openPermissions(member)"
+              >
+                <Sliders :size="16" />
+              </button>
               <button
                 v-if="member.id !== currentUserId"
                 class="remove-btn"
@@ -316,11 +431,12 @@ onMounted(() => {
             <div class="role-badge" :class="`role-${inv.role}`">
               <Shield v-if="inv.role === 'admin'" :size="14" />
               <Sliders v-else-if="inv.role === 'operator'" :size="14" />
+              <Baby v-else-if="inv.role === 'kid'" :size="14" />
               <Eye v-else :size="14" />
               <span>{{ t(`family.roles.${inv.role}`) }}</span>
             </div>
             <div class="invite-details">
-              <span class="invite-token">Token: {{ inv.token.slice(0, 12) }}...</span>
+              <span class="invite-token">{{ t('family.tokenLabel') }}: {{ inv.token.slice(0, 12) }}...</span>
               <span class="invite-expiry">
                 {{ t('family.expiresAt') }}: {{ formatDate(inv.expires_at) }}
               </span>
@@ -353,8 +469,8 @@ onMounted(() => {
         <div class="section-header-left">
           <KeyRound :size="18" class="section-icon" />
           <div>
-            <h3 class="section-subtitle">Profili Ospiti & PIN Kiosk Temporaneo</h3>
-            <p class="section-desc">Crea account ad accesso limitato con codice PIN o sblocco Kiosk temporaneo (es. babysitter, affitti brevi)</p>
+            <h3 class="section-subtitle">{{ t('family.view.guestProfilesTitle') }}</h3>
+            <p class="section-desc">{{ t('family.view.guestProfilesDesc') }}</p>
           </div>
         </div>
         <BaseButton
@@ -364,13 +480,13 @@ onMounted(() => {
           @click="openGuestModal"
         >
           <UserPlus :size="16" />
-          Nuovo Ospite / PIN Kiosk
+          {{ t('family.view.createGuestButton') }}
         </BaseButton>
       </div>
 
       <div v-if="guests.length === 0" class="empty-state">
         <KeyRound :size="32" class="empty-icon" />
-        <p class="empty-text">Nessun profilo ospite attivo. Crea un PIN temporaneo per i tuoi visitatori.</p>
+        <p class="empty-text">{{ t('family.view.guestProfilesEmpty') }}</p>
       </div>
 
       <div v-else class="invites-list">
@@ -382,13 +498,13 @@ onMounted(() => {
           <div class="invite-info">
             <div class="invite-role-badge role-viewer">
               <KeyRound :size="14" />
-              <span>Ospite {{ guest.kiosk_mode ? '(Kiosk)' : '' }}</span>
+              <span>{{ t(guest.kiosk_mode ? 'family.view.guestKioskLabel' : 'family.view.guestLabel') }}</span>
             </div>
             <div class="invite-meta">
               <span class="invite-user"><strong>{{ guest.username }}</strong></span>
-              <span v-if="guest.pin_code" class="invite-pin">PIN: <code>{{ guest.pin_code }}</code></span>
+              <span v-if="guest.pin_code" class="invite-pin">{{ t('family.view.pinLabel') }}: <code>{{ guest.pin_code }}</code></span>
               <span v-if="guest.guest_expires_at" class="invite-expires">
-                Scadenza: {{ formatDate(guest.guest_expires_at) }}
+                {{ t('family.view.expiresLabel') }}: {{ formatDate(guest.guest_expires_at) }}
               </span>
             </div>
           </div>
@@ -396,7 +512,7 @@ onMounted(() => {
           <div class="invite-actions">
             <button
               class="revoke-btn action-icon-btn"
-              title="Rimuovi ospite"
+              :title="t('family.view.removeGuest')"
               @click="handleRemoveMember(guest.id, guest.username)"
             >
               <Trash2 :size="16" />
@@ -412,7 +528,7 @@ onMounted(() => {
         <div class="modal-header">
           <div class="modal-title-box">
             <KeyRound :size="20" />
-            <h3 class="modal-title">Crea Profilo Ospite / Kiosk</h3>
+            <h3 class="modal-title">{{ t('family.view.createGuestProfileTitle') }}</h3>
           </div>
           <button class="modal-close" @click="closeGuestModal">
             <X :size="18" />
@@ -421,17 +537,17 @@ onMounted(() => {
 
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label">Nome Profilo / Visitatore</label>
+            <label class="form-label">{{ t('family.view.profileName') }}</label>
             <input
               v-model="guestUsername"
               type="text"
               class="text-input"
-              placeholder="es. Babysitter, Ospite Salotto"
+              :placeholder="t('family.view.profileNamePlaceholder')"
             />
           </div>
 
           <div class="form-group">
-            <label class="form-label">Codice PIN Numerico (4-8 cifre)</label>
+            <label class="form-label">{{ t('family.view.numericPin') }}</label>
             <input
               v-model="guestPin"
               type="password"
@@ -442,20 +558,20 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Validità Temporanea (Ore)</label>
+            <label class="form-label">{{ t('family.view.temporaryValidity') }}</label>
             <select v-model="guestHours" class="role-select">
-              <option :value="4">4 Ore</option>
-              <option :value="12">12 Ore</option>
-              <option :value="24">24 Ore (1 Giorno)</option>
-              <option :value="72">72 Ore (3 Giorni)</option>
-              <option :value="168">7 Giorni (1 Settimana)</option>
+              <option :value="4">{{ t('family.view.hours', { value: 4 }) }}</option>
+              <option :value="12">{{ t('family.view.hours', { value: 12 }) }}</option>
+              <option :value="24">{{ t('family.view.dayOne') }}</option>
+              <option :value="72">{{ t('family.view.days', { value: 3 }) }}</option>
+              <option :value="168">{{ t('family.view.oneWeek') }}</option>
             </select>
           </div>
 
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" v-model="guestKiosk" />
-              <span>Abilita Modalità Kiosk a Schermo Intero per questo PIN</span>
+              <span>{{ t('family.view.enableKiosk') }}</span>
             </label>
           </div>
         </div>
@@ -524,6 +640,25 @@ onMounted(() => {
                     <span class="role-name">{{ t('family.roles.viewer') }}</span>
                   </div>
                   <p class="role-desc">{{ t('family.rolesDesc.viewer') }}</p>
+                </div>
+              </label>
+
+              <label
+                class="role-card"
+                :class="{ active: selectedRole === 'kid' }"
+              >
+                <input
+                  type="radio"
+                  name="inviteRole"
+                  value="kid"
+                  v-model="selectedRole"
+                />
+                <div class="role-card-content">
+                  <div class="role-card-header">
+                    <Baby :size="16" class="role-icon viewer-icon" />
+                    <span class="role-name">{{ t('family.roles.kid') }}</span>
+                  </div>
+                  <p class="role-desc">{{ t('family.rolesDesc.kid') }}</p>
                 </div>
               </label>
 
@@ -615,6 +750,105 @@ onMounted(() => {
             <Link :size="16" />
             <span>{{ t('family.generateInvite') }}</span>
           </BaseButton>
+        </div>
+      </div>
+    </div>
+    <!-- Granular permissions modal -->
+    <div v-if="isPermissionsModalOpen && permissionsMember" class="modal-overlay" @click.self="closePermissions">
+      <div class="modal-card permission-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <Sliders :size="20" />
+            <h3 class="modal-title">{{ t('family.permissions.title', { name: permissionsMember.username }) }}</h3>
+          </div>
+          <button class="modal-close" @click="closePermissions"><X :size="18" /></button>
+        </div>
+        <div class="modal-body permission-modal-body">
+          <section class="permission-section">
+            <h4>{{ t('family.permissions.areasTitle') }}</h4>
+            <label class="permission-check">
+              <input v-model="allAreas" type="checkbox" />
+              <span>{{ t('family.permissions.allAreas') }}</span>
+            </label>
+            <div v-if="!allAreas" class="permission-options">
+              <label v-for="area in availableAreas" :key="area.id" class="permission-check">
+                <input v-model="selectedAreaIDs" type="checkbox" :value="area.id" />
+                <span>{{ area.name }}</span>
+              </label>
+              <p v-if="availableAreas.length === 0" class="permission-hint">{{ t('family.permissions.noAreas') }}</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>{{ t('family.permissions.entitiesTitle') }}</h4>
+            <label class="permission-check">
+              <input v-model="allEntities" type="checkbox" />
+              <span>{{ t('family.permissions.allEntities') }}</span>
+            </label>
+            <div v-if="!allEntities" class="permission-options permission-options-scroll">
+              <label v-for="entity in availableEntities" :key="entity.id" class="permission-check">
+                <input v-model="selectedEntityIDs" type="checkbox" :value="entity.id" />
+                <span>{{ entity.name || entity.id }}</span>
+                <small>{{ entity.domain }}</small>
+              </label>
+              <p v-if="availableEntities.length === 0" class="permission-hint">{{ t('family.permissions.noEntities') }}</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>{{ t('family.permissions.dashboardsTitle') }}</h4>
+            <label class="permission-check">
+              <input v-model="allDashboards" type="checkbox" />
+              <span>{{ t('family.permissions.allDashboards') }}</span>
+            </label>
+            <div v-if="!allDashboards" class="permission-options">
+              <label v-for="dashboard in availableDashboards" :key="dashboard.id" class="permission-check">
+                <input v-model="selectedDashboardIDs" type="checkbox" :value="dashboard.id" />
+                <span>{{ dashboard.title }}</span>
+              </label>
+              <p v-if="availableDashboards.length === 0" class="permission-hint">{{ t('family.permissions.noDashboards') }}</p>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>{{ t('family.permissions.viewsTitle') }}</h4>
+            <label class="permission-check">
+              <input v-model="allViews" type="checkbox" />
+              <span>{{ t('family.permissions.allViews') }}</span>
+            </label>
+            <div v-if="!allViews" class="permission-options permission-options-grid">
+              <label v-for="view in permissionViews" :key="view.path" class="permission-check">
+                <input v-model="selectedViews" type="checkbox" :value="view.path" />
+                <span>{{ t(view.labelKey) }}</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="permission-section">
+            <h4>{{ t('family.permissions.actionsTitle') }}</h4>
+            <label class="permission-check">
+              <input v-model="canControlDevices" type="checkbox" />
+              <span>{{ t('family.permissions.controlDevices') }}</span>
+            </label>
+            <label class="permission-check">
+              <input v-model="canManageAutomations" type="checkbox" :disabled="!canControlDevices || !allAreas || !allEntities" />
+              <span>{{ t('family.permissions.manageAutomations') }}</span>
+            </label>
+            <p v-if="!canControlDevices || !allAreas || !allEntities" class="permission-hint">{{ t('family.permissions.automationScopeHint') }}</p>
+            <label class="permission-check">
+              <input v-model="canViewCameras" type="checkbox" />
+              <span>{{ t('family.permissions.viewCameras') }}</span>
+            </label>
+            <label class="permission-check">
+              <input v-model="canManageSettings" type="checkbox" />
+              <span>{{ t('family.permissions.manageSettings') }}</span>
+            </label>
+          </section>
+          <p class="permission-hint">{{ t('family.permissions.hint') }}</p>
+        </div>
+        <div class="modal-footer">
+          <BaseButton variant="secondary" @click="closePermissions">{{ t('family.permissions.cancel') }}</BaseButton>
+          <BaseButton variant="primary" :loading="isSavingPermissions" @click="savePermissions">{{ t('family.permissions.save') }}</BaseButton>
         </div>
       </div>
     </div>
@@ -1025,6 +1259,35 @@ onMounted(() => {
   color: var(--text-main);
 }
 
+.permissions-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.permissions-btn:hover { color: var(--text-main); border-color: var(--accent-primary, #6366f1); }
+.permission-modal-card { width: min(760px, calc(100vw - 28px)); max-height: min(88vh, 900px); }
+.permission-modal-body { overflow-y: auto; max-height: calc(88vh - 150px); }
+.permission-section { padding: 0.9rem 0; border-bottom: 1px solid var(--border-subtle); }
+.permission-section h4 { margin: 0 0 0.65rem; font-size: 0.92rem; color: var(--text-main); }
+.permission-check { display: flex; align-items: center; gap: 0.55rem; min-height: 34px; font-size: 0.86rem; color: var(--text-main); cursor: pointer; }
+.permission-check input { accent-color: var(--accent-primary, #6366f1); }
+.permission-check small { margin-left: auto; color: var(--text-muted); }
+.permission-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.2rem 0.8rem; margin: 0.55rem 0 0 1.3rem; }
+.permission-options-scroll { max-height: 190px; overflow: auto; }
+.permission-options-grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+.permission-hint { margin: 0.6rem 0 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
+@media (max-width: 600px) {
+  .permission-modal-card { width: calc(100vw - 16px); max-height: 94vh; }
+  .permission-modal-body { max-height: calc(94vh - 140px); }
+  .permission-options { grid-template-columns: 1fr; margin-left: 0.5rem; }
+}
 .role-options {
   display: flex;
   flex-direction: column;

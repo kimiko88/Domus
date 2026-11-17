@@ -1,5 +1,18 @@
 export type UserRole = 'admin' | 'operator' | 'viewer' | 'guest' | 'kid'
 
+export interface UserPermissions {
+  user_id?: string
+  role: UserRole
+  allowed_area_ids: string[] | null
+  allowed_entity_ids: string[] | null
+  allowed_dashboard_ids: string[] | null
+  allowed_views: string[] | null
+  can_control_devices: boolean
+  can_manage_automations: boolean
+  can_manage_settings: boolean
+  can_view_cameras: boolean
+}
+
 export interface User {
   id: string
   username: string
@@ -12,6 +25,7 @@ export interface User {
   allowed_views?: string[]
   allowed_area_ids?: string[]
   allowed_entity_ids?: string[]
+  permissions?: UserPermissions
   created_at: string
   updated_at: string
 }
@@ -114,19 +128,23 @@ export interface AutomationTrigger {
   id?: string
   platform: string // 'state' | 'numeric_state' | 'time' | 'event'
   entity_key?: string
+  attribute?: string
   from?: string
   to?: string
   above?: number
   below?: number
   at?: string
+  days?: number[] // ISO weekdays: Monday=1 through Sunday=7
   event_type?: string
   for_seconds?: number
 }
 
 export interface AutomationCondition {
   id?: string
-  condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not'
+  condition: string // 'state' | 'numeric_state' | 'time' | 'and' | 'or' | 'not' | 'trigger'
+  trigger_id?: string
   entity_key?: string
+  attribute?: string
   state?: string
   above?: number
   below?: number
@@ -137,9 +155,12 @@ export interface AutomationCondition {
 
 export interface AutomationAction {
   id?: string
-  type: string // 'service' | 'delay' | 'event' | 'choose' | 'if' | 'repeat' | 'parallel'
+  type: string // includes 'climate_profile' for Comfort/Eco/Night/Away thermostat actions
   service?: string
   target_entity_key?: string
+  profile?: 'comfort' | 'eco' | 'night' | 'away'
+  temperature?: number
+  duration_minutes?: number
   params?: Record<string, any>
   delay_ms?: number
   event_type?: string
@@ -293,6 +314,7 @@ export interface FamilyMember {
   guest_expires_at?: string
   pin_code?: string
   kiosk_mode?: boolean
+  permissions?: UserPermissions
   created_at: string
 }
 
@@ -493,6 +515,8 @@ export interface ClimateCompensatorConfig {
   trv_entity_key: string
   room_temp_sensor_key: string
   window_sensor_key?: string
+  presence_sensor_key?: string
+  away_temperature?: number
   target_temperature: number
   delta_factor: number
   current_room_temp?: number
@@ -1035,6 +1059,8 @@ export interface PredictiveZoneConfig {
   pressure_sensor_key?: string
   humidity_sensor_key?: string
   window_sensor_key?: string
+  presence_sensor_key?: string
+  away_temperature?: number
   target_temperature: number
   orientation: RoomOrientation
   window_area_sqm: number

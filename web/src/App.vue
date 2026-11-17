@@ -93,7 +93,7 @@ onMounted(() => {
 
     <!-- Main Dashboard Layout -->
     <div v-else class="main-layout">
-      <a href="#main-content" class="skip-link">Salta al contenuto principale</a>
+      <a href="#main-content" class="skip-link">{{ $t('common.skipToContent') }}</a>
       <AppSidebar
         :is-open="isSidebarOpen"
         :current-path="route?.path || '/'"
@@ -114,7 +114,7 @@ onMounted(() => {
             aria-live="polite"
           >
             <WifiOff :size="16" class="offline-icon" />
-            <span class="offline-text">Connessione all'hub locale interrotta. Riconnessione automatica in corso...</span>
+            <span class="offline-text">{{ $t('common.offlineReconnecting') }}</span>
           </div>
         </Transition>
 

@@ -176,7 +176,7 @@ onMounted(() => {
                 type="text"
                 autocomplete="username"
                 required
-                placeholder="es. marco_rossi"
+                :placeholder="t('register.usernamePlaceholder')"
               />
             </div>
           </div>
@@ -191,7 +191,7 @@ onMounted(() => {
                 v-model="email"
                 type="email"
                 autocomplete="email"
-                placeholder="es. marco@email.it"
+                :placeholder="t('register.emailPlaceholder')"
               />
             </div>
           </div>

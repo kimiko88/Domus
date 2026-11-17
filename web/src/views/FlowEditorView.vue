@@ -9,6 +9,9 @@ import { useNotificationsStore } from '../stores/notifications'
 import { soundEffects } from '../utils/audioSynthesizer'
 import { apiClient } from '../api/client'
 import type { Automation, AutomationTrigger, AutomationCondition, AutomationAction } from '../api/types'
+import { parseAdvancedAutomationAction } from '../utils/automationActionValidation'
+import { applyAutomationActionBranches, buildAutomationActionGraph } from '../utils/automationFlowGraph'
+import ConditionTreeEditor from '../components/ConditionTreeEditor.vue'
 import {
   ArrowLeft,
   Save,
@@ -24,7 +27,6 @@ import {
   Clock,
   Sliders,
   Send,
-  Layers,
   Code,
   Copy,
   Check,
@@ -64,6 +66,7 @@ export interface FlowWire {
   id: string
   fromNodeId: string
   toNodeId: string
+  branchKey?: string
 }
 
 // --- Editor Reactive State ---
@@ -97,7 +100,17 @@ const dragOffset = ref({ x: 0, y: 0 })
 // --- Wiring Interactive State ---
 const isWiring = ref(false)
 const wireStartNodeId = ref<string | null>(null)
+const wireStartBranchKey = ref<string | null>(null)
+const suppressNextPortClick = ref(false)
+const wireStartPortElement = ref<HTMLElement | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
+const activeTouchPointers = new Map<number, { x: number; y: number }>()
+let pinchOrigin: {
+  distance: number
+  zoom: number
+  contentX: number
+  contentY: number
+} | null = null
 
 // --- Available Node Palette Items ---
 interface PaletteItem {
@@ -122,7 +135,7 @@ const paletteItems: PaletteItem[] = [
     type: 'trigger',
     subType: 'numeric_state',
     title: 'Soglia Numerica',
-    desc: 'Temperatura, potenza o luminosità > o <',
+    desc: t('flowchart.view.sensorTriggerDesc'),
     icon: Activity,
     category: 'Triggers'
   },
@@ -148,14 +161,6 @@ const paletteItems: PaletteItem[] = [
     title: 'Finestra Oraria',
     desc: 'Solo tra orari specifici (es. Notte)',
     icon: Sun,
-    category: 'Conditions'
-  },
-  {
-    type: 'condition',
-    subType: 'logic',
-    title: 'Logica AND / OR',
-    desc: 'Combina condizioni multiple',
-    icon: Layers,
     category: 'Conditions'
   },
   {
@@ -187,6 +192,54 @@ const paletteItems: PaletteItem[] = [
     subType: 'notify',
     title: 'Invia Notifica',
     desc: 'Alert push prioritario su smartphone',
+    icon: Send,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'choose',
+    title: 'Scelta condizionale',
+    desc: 'Primo ramo che soddisfa le condizioni, con fallback',
+    icon: Filter,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'if',
+    title: 'If / Else',
+    desc: 'Esegui sequenze distinte in base alle condizioni',
+    icon: Activity,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'repeat',
+    title: 'Ripeti',
+    desc: 'Ripetizione per conteggio, mentre o fino a',
+    icon: RotateCcw,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'parallel',
+    title: 'Esecuzione parallela',
+    desc: 'Avvia più azioni concorrenti',
+    icon: Copy,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'climate_profile',
+    title: 'Profilo climatico',
+    desc: 'Comfort, Eco, Notte, Away o setpoint personalizzato',
+    icon: Sliders,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'event',
+    title: 'Emetti evento',
+    desc: 'Pubblica un evento applicativo con payload',
     icon: Send,
     category: 'Actions & Flow'
   }
@@ -225,15 +278,16 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
 
   const defaultData: Record<string, any> = {}
   if (subType === 'state') {
-    defaultData.entity_key = entitiesStore.allEntities[0]?.id || 'light.salotto'
+    defaultData.entity_key = entitiesStore.allEntities[0]?.id || ''
     defaultData.to = 'on'
+    if (type === 'condition') defaultData.state = 'on'
   } else if (subType === 'numeric_state') {
     defaultData.entity_key = 'sensor.temperatura_salotto'
     defaultData.above = 24
   } else if (subType === 'time') {
     defaultData.at = '22:30:00'
   } else if (subType === 'service') {
-    defaultData.target_entity_key = entitiesStore.allEntities[0]?.id || 'light.salotto'
+    defaultData.target_entity_key = entitiesStore.allEntities[0]?.id || ''
     defaultData.service = 'turn_on'
   } else if (subType === 'scene') {
     defaultData.scene_id = scenesStore.scenes[0]?.id || ''
@@ -241,6 +295,30 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
     defaultData.delay_seconds = 5
   } else if (subType === 'notify') {
     defaultData.message = 'Avviso da Domus Hub: evento rilevato.'
+  } else if (subType === 'choose') {
+    defaultData.advancedJson = JSON.stringify({ type: 'choose', choose: [], default: [] }, null, 2)
+  } else if (subType === 'if') {
+    defaultData.advancedJson = JSON.stringify({ type: 'if', if: [], then: [], else: [] }, null, 2)
+  } else if (subType === 'repeat') {
+    defaultData.advancedJson = JSON.stringify({ type: 'repeat', repeat: { count: 1, sequence: [] } }, null, 2)
+  } else if (subType === 'parallel') {
+    defaultData.advancedJson = JSON.stringify({ type: 'parallel', parallel: [] }, null, 2)
+  } else if (subType === 'climate_profile') {
+    defaultData.advancedJson = JSON.stringify({
+      type: 'climate_profile',
+      target_entity_key: entitiesStore.allEntities.find((entity) => entity.domain === 'climate')?.id || '',
+      profile: 'comfort',
+      duration_minutes: 0
+    }, null, 2)
+  } else if (subType === 'event') {
+    defaultData.advancedJson = JSON.stringify({ type: 'event', event_type: '', event_payload: {} }, null, 2)
+  } else if (type === 'condition' && subType === 'state') {
+    defaultData.state = 'on'
+  } else if (type === 'condition' && subType === 'time') {
+    defaultData.after = '20:00:00'
+    defaultData.before = '06:00:00'
+  } else if (type === 'condition' && subType === 'logic') {
+    defaultData.logic = 'and'
   }
 
   const newNode: FlowNode = {
@@ -266,47 +344,146 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
   } else if (type === 'condition') {
     if (subType === 'state') return `Se ${data.entity_key || 'entità'} == ${data.state || 'on'}`
     if (subType === 'time') return `Tra ${data.after || '20:00'} e ${data.before || '06:00'}`
-    if (subType === 'logic') return `Logica ${data.logic || 'AND'}`
+    if (subType === 'numeric_state') return `${data.entity_key || 'sensore'} > ${data.above ?? '—'} / < ${data.below ?? '—'}`
+    if (subType === 'logic') return 'Espressione AND / OR / NOT'
+    if (subType === 'trigger') return `Trigger ${data.trigger_id || 'non specificato'}`
   } else if (type === 'action') {
     if (subType === 'service') return `${data.service || 'turn_on'} -> ${data.target_entity_key || 'entità'}`
     if (subType === 'scene') return `Applica scena`
     if (subType === 'notify') return `Notifica smartphone`
+    if (['choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(subType)) return `Controllo: ${subType}`
+    if (subType === 'climate_profile') return 'Profilo termostato'
+    if (subType === 'event') return 'Pubblica evento'
   } else if (type === 'delay') {
-    return `Attesa ${data.delay_seconds || 5}s`
+    return `Attesa ${data.delay_seconds ?? 5}s`
   }
   return 'Configura proprietà'
 }
 
 // --- Wire Connections (Curves of Bézier) ---
-function startWiring(nodeId: string, e: MouseEvent) {
+interface BranchPort { key: string; label: string }
+
+function getBranchPorts(node: FlowNode): BranchPort[] {
+  if (node.type !== 'action' || !['choose', 'if', 'if_then_else', 'parallel', 'repeat'].includes(node.subType)) return []
+  try {
+    const parsed = JSON.parse(node.data.advancedJson || '{}') as Record<string, any>
+    if (parsed.type === 'if' || parsed.type === 'if_then_else') {
+      return [
+        ...(Array.isArray(parsed.if) && parsed.if.length ? [{ key: 'if:conditions', label: 'Condizioni IF' }] : []),
+        { key: 'then', label: 'IF / vero' },
+        { key: 'else', label: 'ELSE / falso' }
+      ]
+    }
+    if (parsed.type === 'choose') {
+      const branches = Array.isArray(parsed.choose) ? parsed.choose : []
+      return [
+        ...branches.flatMap((branch: Record<string, any>, i: number) => [
+          ...(Array.isArray(branch.conditions) && branch.conditions.length ? [{ key: `choose:${i}:conditions`, label: `Condizioni caso ${i + 1}` }] : []),
+          { key: `choose:${i}`, label: `Caso ${i + 1}` }
+        ]),
+        { key: 'default', label: 'Default' }
+      ]
+    }
+    if (parsed.type === 'parallel') {
+      const branches = Array.isArray(parsed.parallel) ? parsed.parallel : []
+      return branches.map((_: unknown, i: number) => ({ key: `parallel:${i}`, label: `Parallelo ${i + 1}` }))
+    }
+    if (parsed.type === 'repeat') {
+      return [
+        ...(Array.isArray(parsed.repeat?.while) && parsed.repeat.while.length ? [{ key: 'repeat:while', label: 'Condizioni WHILE' }] : []),
+        ...(Array.isArray(parsed.repeat?.until) && parsed.repeat.until.length ? [{ key: 'repeat:until', label: 'Condizioni UNTIL' }] : []),
+        { key: 'sequence', label: 'Corpo ciclo' }
+      ]
+    }
+  } catch { return [] }
+  return []
+}
+
+function isConditionBranchKey(branchKey?: string): boolean {
+  return branchKey === 'if:conditions' ||
+    branchKey === 'repeat:while' ||
+    branchKey === 'repeat:until' ||
+    (!!branchKey && /^choose:\d+:conditions$/.test(branchKey))
+}
+
+function commitWire(targetNodeId: string) {
+  const sourceNodeId = wireStartNodeId.value
+  if (!sourceNodeId || sourceNodeId === targetNodeId) return
+  const branchKey = wireStartBranchKey.value || undefined
+  const occupied = wires.value.some((wire) => wire.fromNodeId === sourceNodeId && wire.branchKey === branchKey)
+  if (occupied) return
+  wires.value.push({
+    id: `wire_${sourceNodeId}_${branchKey || 'next'}_${targetNodeId}`,
+    fromNodeId: sourceNodeId,
+    toNodeId: targetNodeId,
+    branchKey
+  })
+  soundEffects.playSuccessChime()
+}
+
+function finishWiring() {
+  isWiring.value = false
+  wireStartNodeId.value = null
+  wireStartBranchKey.value = null
+  wireStartPortElement.value = null
+}
+
+function startWiring(nodeId: string, e: PointerEvent, branchKey?: string) {
+  if (activeTouchPointers.size > 1) return
+  suppressNextPortClick.value = true
+  wireStartPortElement.value = e.currentTarget as HTMLElement
   e.stopPropagation()
   soundEffects.playClick()
   isWiring.value = true
   wireStartNodeId.value = nodeId
+  wireStartBranchKey.value = branchKey || null
   updateMousePos(e)
 }
 
-function endWiring(targetNodeId: string, e: MouseEvent) {
+function endWiring(targetNodeId: string, e: PointerEvent) {
   e.stopPropagation()
   if (!isWiring.value || !wireStartNodeId.value) return
+  commitWire(targetNodeId)
+  finishWiring()
+  suppressNextPortClick.value = false
+  wireStartPortElement.value = null
+}
 
-  if (wireStartNodeId.value !== targetNodeId) {
-    // Avoid duplicate wires
-    const exists = wires.value.some(
-      (w) => w.fromNodeId === wireStartNodeId.value && w.toNodeId === targetNodeId
-    )
-    if (!exists) {
-      wires.value.push({
-        id: `wire_${wireStartNodeId.value}_${targetNodeId}`,
-        fromNodeId: wireStartNodeId.value,
-        toNodeId: targetNodeId
-      })
-      soundEffects.playSuccessChime()
-    }
+// Tap/click connection mode makes wiring usable without a drag gesture.
+function toggleWireStart(nodeId: string, branchKey?: string) {
+  if (isWiring.value && wireStartNodeId.value === nodeId && wireStartBranchKey.value === (branchKey || null)) {
+    finishWiring()
+    return
   }
 
-  isWiring.value = false
-  wireStartNodeId.value = null
+  const node = nodes.value.find((item) => item.id === nodeId)
+  if (node) {
+    mousePos.value = {
+      x: panX.value + (node.x + 230) * zoom.value,
+      y: panY.value + (node.y + 45) * zoom.value
+    }
+  }
+  selectedNodeId.value = nodeId
+  isWiring.value = true
+  wireStartNodeId.value = nodeId
+  wireStartBranchKey.value = branchKey || null
+}
+
+function handlePortClick(nodeId: string, branchKey?: string) {
+  if (suppressNextPortClick.value) {
+    suppressNextPortClick.value = false
+    return
+  }
+  toggleWireStart(nodeId, branchKey)
+}
+
+function completeWiringByClick(nodeId: string) {
+  if (!isWiring.value || !wireStartNodeId.value) {
+    selectedNodeId.value = nodeId
+    return
+  }
+  commitWire(nodeId)
+  finishWiring()
 }
 
 function deleteWire(wireId: string) {
@@ -330,8 +507,10 @@ function getWirePath(wire: FlowWire): string {
   if (!from || !to) return ''
 
   // Node dimensions: 230px width, ~80px height
+  const keys = getBranchPorts(from).map((port) => port.key)
+  const branchIndex = wire.branchKey ? keys.indexOf(wire.branchKey) : -1
   const x1 = from.x + 230
-  const y1 = from.y + 45
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : keys.length ? 84 + keys.length * 28 : 45)
   const x2 = to.x
   const y2 = to.y + 45
 
@@ -344,8 +523,10 @@ function getDraftWirePath(): string {
   const from = nodes.value.find((n) => n.id === wireStartNodeId.value)
   if (!from) return ''
 
+  const keys = getBranchPorts(from).map((port) => port.key)
+  const branchIndex = wireStartBranchKey.value ? keys.indexOf(wireStartBranchKey.value) : -1
   const x1 = from.x + 230
-  const y1 = from.y + 45
+  const y1 = from.y + (branchIndex >= 0 ? 84 + branchIndex * 28 : keys.length ? 84 + keys.length * 28 : 45)
   const x2 = (mousePos.value.x - panX.value) / zoom.value
   const y2 = (mousePos.value.y - panY.value) / zoom.value
 
@@ -353,7 +534,7 @@ function getDraftWirePath(): string {
   return `M ${x1} ${y1} C ${x1 + Math.max(dx, 40)} ${y1}, ${x2 - Math.max(dx, 40)} ${y2}, ${x2} ${y2}`
 }
 
-function updateMousePos(e: MouseEvent) {
+function updateMousePos(e: PointerEvent) {
   const canvasEl = document.querySelector('.flow-canvas')
   if (canvasEl) {
     const rect = canvasEl.getBoundingClientRect()
@@ -364,8 +545,59 @@ function updateMousePos(e: MouseEvent) {
   }
 }
 
+function handleCanvasPointerDown(e: PointerEvent) {
+  if (e.pointerType !== 'touch') return
+  const canvas = e.currentTarget as HTMLElement
+  const rect = canvas.getBoundingClientRect()
+  activeTouchPointers.set(e.pointerId, {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  })
+
+  if (activeTouchPointers.size === 2) {
+    const points = [...activeTouchPointers.values()]
+    const centerX = (points[0].x + points[1].x) / 2
+    const centerY = (points[0].y + points[1].y) / 2
+    pinchOrigin = {
+      distance: Math.max(1, Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)),
+      zoom: zoom.value,
+      contentX: (centerX - panX.value) / zoom.value,
+      contentY: (centerY - panY.value) / zoom.value
+    }
+    isPanning.value = false
+    draggingNodeId.value = null
+    finishWiring()
+  }
+}
+
+function handleCanvasPointerMove(e: PointerEvent) {
+  if (e.pointerType !== 'touch' || !activeTouchPointers.has(e.pointerId)) return
+  const canvas = e.currentTarget as HTMLElement
+  const rect = canvas.getBoundingClientRect()
+  activeTouchPointers.set(e.pointerId, {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  })
+
+  if (activeTouchPointers.size !== 2 || !pinchOrigin) return
+  const points = [...activeTouchPointers.values()]
+  const centerX = (points[0].x + points[1].x) / 2
+  const centerY = (points[0].y + points[1].y) / 2
+  const distance = Math.max(1, Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y))
+  const nextZoom = Math.min(Math.max(pinchOrigin.zoom * distance / pinchOrigin.distance, 0.4), 2)
+  zoom.value = Number(nextZoom.toFixed(2))
+  panX.value = centerX - pinchOrigin.contentX * zoom.value
+  panY.value = centerY - pinchOrigin.contentY * zoom.value
+}
+
+function handleCanvasPointerEnd(e: PointerEvent) {
+  activeTouchPointers.delete(e.pointerId)
+  if (activeTouchPointers.size < 2) pinchOrigin = null
+}
+
 // --- Canvas Dragging & Panning ---
-function handleCanvasMouseDown(e: MouseEvent) {
+function handleCanvasMouseDown(e: PointerEvent) {
+  if (activeTouchPointers.size > 1) return
   if ((e.target as HTMLElement).closest('.flow-node') || (e.target as HTMLElement).closest('.node-port')) {
     return
   }
@@ -377,8 +609,8 @@ function handleCanvasMouseDown(e: MouseEvent) {
   selectedNodeId.value = null
 }
 
-function handleNodeMouseDown(node: FlowNode, e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('.node-port')) return
+function handleNodeMouseDown(node: FlowNode, e: PointerEvent) {
+  if (activeTouchPointers.size > 1 || (e.target as HTMLElement).closest('.node-port')) return
   e.stopPropagation()
   selectedNodeId.value = node.id
   draggingNodeId.value = node.id
@@ -388,7 +620,8 @@ function handleNodeMouseDown(node: FlowNode, e: MouseEvent) {
   }
 }
 
-function handleMouseMove(e: MouseEvent) {
+function handleMouseMove(e: PointerEvent) {
+  if (e.pointerType === 'touch' && activeTouchPointers.size > 1) return
   updateMousePos(e)
 
   if (isPanning.value) {
@@ -403,13 +636,15 @@ function handleMouseMove(e: MouseEvent) {
   }
 }
 
-function handleMouseUp() {
+function handleMouseUp(e: PointerEvent) {
   isPanning.value = false
   draggingNodeId.value = null
-  if (isWiring.value) {
-    isWiring.value = false
-    wireStartNodeId.value = null
+  const releasedPort = (e.target as HTMLElement).closest('.node-port')
+  if (releasedPort !== wireStartPortElement.value) {
+    suppressNextPortClick.value = false
+    wireStartPortElement.value = null
   }
+  if (isWiring.value) finishWiring()
 }
 
 function handleWheel(e: WheelEvent) {
@@ -426,14 +661,114 @@ function resetZoom() {
 }
 
 // --- AST Compiler (Bidirectional: Graph <-> Automation JSON) ---
+function getBranchDescendantIds(): Set<string> {
+  const descendants = new Set<string>()
+  const visit = (nodeId: string) => {
+    if (descendants.has(nodeId)) return
+    descendants.add(nodeId)
+    for (const wire of wires.value.filter((item) => item.fromNodeId === nodeId)) {
+      visit(wire.toNodeId)
+    }
+  }
+  for (const wire of wires.value.filter((item) => !!item.branchKey)) visit(wire.toNodeId)
+  return descendants
+}
+
+function getGraphExecutionOrder(): FlowNode[] {
+  const nodeById = new Map(nodes.value.map((node) => [node.id, node]))
+  const branchNodes = getBranchDescendantIds()
+  const rootNodes = nodes.value.filter((node) => !branchNodes.has(node.id))
+  const indegree = new Map(rootNodes.map((node) => [node.id, 0]))
+  const outgoing = new Map<string, string[]>()
+
+  for (const wire of wires.value) {
+    if (wire.branchKey || branchNodes.has(wire.fromNodeId) || branchNodes.has(wire.toNodeId)) continue
+    const source = nodeById.get(wire.fromNodeId)
+    const target = nodeById.get(wire.toNodeId)
+    if (!source || !target) throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
+    const stage = (node: FlowNode) => node.type === 'trigger' ? 0 : node.type === 'condition' || node.type === 'logic' ? 1 : 2
+    if (stage(source) > stage(target)) {
+      throw new Error('Collegamento non valido: trigger, condizioni e azioni devono rispettare l’ordine del flusso.')
+    }
+    const targets = outgoing.get(wire.fromNodeId) || []
+    targets.push(wire.toNodeId)
+    if (targets.length > 1) {
+      throw new Error('Un nodo della sequenza principale può avere una sola uscita. Usa le porte nominate di IF/ELSE o CHOOSE per creare rami.')
+    }
+    outgoing.set(wire.fromNodeId, targets)
+    indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
+  }
+
+  const disconnectedNode = rootNodes.find((node) => node.type !== 'trigger' && (indegree.get(node.id) || 0) === 0)
+  if (disconnectedNode) {
+    throw new Error(`Il nodo “${disconnectedNode.title}” non è collegato al flusso. Collega ogni condizione e azione prima di salvare.`)
+  }
+
+  const ready = rootNodes.filter((node) => indegree.get(node.id) === 0)
+  const ordered: FlowNode[] = []
+  while (ready.length) {
+    const node = ready.shift()!
+    ordered.push(node)
+    for (const targetId of outgoing.get(node.id) || []) {
+      const nextDegree = (indegree.get(targetId) || 0) - 1
+      indegree.set(targetId, nextDegree)
+      if (nextDegree === 0) {
+        const target = nodeById.get(targetId)
+        if (target) ready.push(target)
+      }
+    }
+  }
+  if (ordered.length !== rootNodes.length) {
+    throw new Error('Il flusso contiene un ciclo. Rimuovi i collegamenti circolari prima di salvare.')
+  }
+
+  for (const wire of wires.value.filter((item) => !!item.branchKey)) {
+    const source = nodeById.get(wire.fromNodeId)
+    const target = nodeById.get(wire.toNodeId)
+    if (!source || !target) throw new Error('Un ramo punta a un nodo inesistente.')
+    if (!getBranchPorts(source).some((port) => port.key === wire.branchKey)) {
+      throw new Error(`L’uscita “${wire.branchKey}” non esiste più nel nodo “${source.title}”.`)
+    }
+    if (isConditionBranchKey(wire.branchKey)) {
+      if (target.type !== 'condition') {
+        throw new Error('Le porte delle condizioni possono collegarsi soltanto a nodi condizione.')
+      }
+    } else if (target.type !== 'action' && target.type !== 'delay') {
+      throw new Error('I rami delle azioni composite possono contenere soltanto azioni o pause.')
+    }
+  }
+  const rejoiningWire = wires.value.find((wire) =>
+    branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
+  )
+  if (rejoiningWire) {
+    throw new Error('Una sequenza di ramo non può ricongiungersi al flusso principale: duplica le azioni successive in ciascun ramo.')
+  }
+  for (const nodeId of branchNodes) {
+    const incoming = wires.value.filter((wire) => wire.toNodeId === nodeId)
+    if (incoming.length !== 1) {
+      throw new Error('Ogni nodo interno a un ramo deve avere un solo collegamento in ingresso. Non sono supportate convergenze tra rami.')
+    }
+  }
+  return ordered
+}
+
+function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & Record<string, any>, visited = new Set<string>()) {
+  applyAutomationActionBranches(node, action, nodes.value, wires.value, visited)
+}
+
 function compileGraphToAutomation(): Partial<Automation> {
   const triggers: AutomationTrigger[] = []
   const conditions: AutomationCondition[] = []
   const actions: AutomationAction[] = []
+  const orderedNodes = getGraphExecutionOrder()
 
-  for (const node of nodes.value) {
+  for (const node of orderedNodes) {
     if (node.type === 'trigger') {
+      if (!['state', 'numeric_state', 'time'].includes(node.subType)) {
+        throw new Error(`Il trigger “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+      }
       const trig: AutomationTrigger = {
+        ...(node.data.originalTrigger || {}),
         platform: node.subType
       }
       if (node.subType === 'state') {
@@ -448,19 +783,54 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       triggers.push(trig)
     } else if (node.type === 'condition') {
+      if (node.subType === 'logic') {
+        let parsed: unknown = node.data.logicCondition
+        if (parsed === undefined) {
+          try {
+            parsed = JSON.parse(node.data.advancedConditionJson || '')
+          } catch {
+            throw new Error('La condizione logica contiene un JSON non valido.')
+          }
+        }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('La condizione logica deve essere un oggetto JSON.')
+        }
+        conditions.push(parsed as AutomationCondition)
+        continue
+      }
+      if (!['state', 'time', 'numeric_state', 'trigger'].includes(node.subType)) {
+        throw new Error(`La condizione “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+      }
       const cond: AutomationCondition = {
+        ...(node.data.originalCondition || {}),
         condition: node.subType
       }
       if (node.subType === 'state') {
         cond.entity_key = node.data.entity_key
-        cond.state = node.data.state
+        cond.state = node.data.state || 'on'
       } else if (node.subType === 'time') {
         cond.after = node.data.after
         cond.before = node.data.before
+      } else if (node.subType === 'numeric_state') {
+        cond.entity_key = node.data.entity_key
+        if (node.data.above !== undefined && node.data.above !== '') cond.above = Number(node.data.above)
+        if (node.data.below !== undefined && node.data.below !== '') cond.below = Number(node.data.below)
+      } else if (node.subType === 'trigger') {
+        cond.trigger_id = node.data.trigger_id
       }
       conditions.push(cond)
     } else if (node.type === 'action') {
+      if (['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
+        const advanced = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
+        applyNestedBranchSequences(node, advanced)
+        actions.push(advanced)
+        continue
+      }
+      if (node.subType === 'unsupported') {
+        throw new Error('Questa azione avanzata non è modificabile nell’editor visuale. Il salvataggio è bloccato per preservare la configurazione originale.')
+      }
       const act: AutomationAction = {
+        ...(node.data.originalAction || {}),
         type: node.subType === 'scene' ? 'scene' : 'service'
       }
       if (node.subType === 'service') {
@@ -476,9 +846,11 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       actions.push(act)
     } else if (node.type === 'delay') {
+      const delaySeconds = Number(node.data.delay_seconds)
       actions.push({
+        ...(node.data.originalAction || {}),
         type: 'delay',
-        delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000
+        delay_ms: Math.max(0, Math.round((Number.isFinite(delaySeconds) ? delaySeconds : 5) * 1000))
       })
     }
   }
@@ -490,9 +862,9 @@ function compileGraphToAutomation(): Partial<Automation> {
     enabled: automationEnabled.value,
     execution_mode: executionMode.value,
     cooldown_seconds: cooldownSeconds.value,
-    triggers: triggers.length > 0 ? triggers : [{ platform: 'state', entity_key: 'light.salotto', to: 'on' }],
-    conditions: conditions.length > 0 ? conditions : undefined,
-    actions: actions.length > 0 ? actions : [{ type: 'service', service: 'turn_on', target_entity_key: 'light.salotto' }]
+    triggers,
+    conditions,
+    actions
   }
 }
 
@@ -525,6 +897,7 @@ function loadAutomationIntoGraph(auto: Automation) {
       x: col1X,
       y: 80 + idx * 130,
       data: {
+        originalTrigger: trig,
         entity_key: trig.entity_key,
         to: trig.to,
         above: trig.above,
@@ -543,58 +916,52 @@ function loadAutomationIntoGraph(auto: Automation) {
       newNodes.push({
         id,
         type: 'condition',
-        subType: cond.condition,
-        title: cond.condition === 'time' ? 'Fascia Oraria' : 'Filtro Stato',
+        subType: ['and', 'or', 'not'].includes(cond.condition) ? 'logic' : cond.condition,
+        title: ['and', 'or', 'not'].includes(cond.condition)
+          ? `Gruppo ${cond.condition.toUpperCase()}`
+          : cond.condition === 'time' ? 'Fascia Oraria' : cond.condition === 'numeric_state' ? 'Soglia Numerica' : 'Filtro Stato',
         subtitle: cond.entity_key ? `${cond.entity_key} == ${cond.state || 'on'}` : 'Condizione',
         x: col2X,
         y: 80 + idx * 130,
         data: {
+          originalCondition: cond,
           entity_key: cond.entity_key,
           state: cond.state,
+          above: cond.above,
+          below: cond.below,
           after: cond.after,
-          before: cond.before
+          before: cond.before,
+          trigger_id: cond.trigger_id,
+          logicCondition: ['and', 'or', 'not'].includes(cond.condition) ? cond : undefined,
+          advancedConditionJson: ['and', 'or', 'not'].includes(cond.condition) ? JSON.stringify(cond, null, 2) : undefined
         }
       })
-      if (lastTrigId) {
+      const conditionParentId = idx > 0 ? `cond_${idx - 1}` : lastTrigId
+      if (conditionParentId) {
         newWires.push({
           id: `w_trig_cond_${idx}`,
-          fromNodeId: lastTrigId,
+          fromNodeId: conditionParentId,
           toNodeId: id
         })
       }
     })
   }
 
-  // 3. Actions
-  let prevActionId: string | null = lastCondId || lastTrigId
-  auto.actions.forEach((act, idx) => {
-    const id = `act_${idx}`
-    const isDelay = act.type === 'delay'
-    newNodes.push({
-      id,
-      type: isDelay ? 'delay' : 'action',
-      subType: isDelay ? 'delay' : (act.type === 'scene' ? 'scene' : 'service'),
-      title: isDelay ? 'Pausa / Delay' : (act.type === 'scene' ? 'Applica Scena' : 'Comando'),
-      subtitle: isDelay ? `Attesa ${(act.delay_ms || 1000) / 1000}s` : `${act.service || 'azione'} -> ${act.target_entity_key || ''}`,
-      x: col3X,
-      y: 80 + idx * 130,
-      data: {
-        target_entity_key: act.target_entity_key,
-        service: act.service,
-        delay_seconds: (act.delay_ms || 1000) / 1000,
-        scene_id: act.params?.scene_id
-      }
-    })
+  // 3. Actions: recursively expand existing composite sequences into their
+  // named graph branches instead of leaving them hidden in a single JSON blob.
+  const actionGraph = buildAutomationActionGraph(auto.actions || [], col3X, 80)
+  newNodes.push(...actionGraph.nodes)
+  newWires.push(...actionGraph.wires)
 
-    if (prevActionId) {
-      newWires.push({
-        id: `w_seq_${idx}`,
-        fromNodeId: prevActionId,
-        toNodeId: id
-      })
-    }
-    prevActionId = id
-  })
+  const firstActionId = actionGraph.nodes.find((node) => node.id === 'act_root_0')?.id
+  const previousMainNodeId = lastCondId || lastTrigId
+  if (previousMainNodeId && firstActionId) {
+    newWires.push({
+      id: 'w_last_condition_to_actions',
+      fromNodeId: previousMainNodeId,
+      toNodeId: firstActionId
+    })
+  }
 
   nodes.value = newNodes
   wires.value = newWires
@@ -602,8 +969,8 @@ function loadAutomationIntoGraph(auto: Automation) {
 
 // --- Action Handlers: Save, Test Run, Export ---
 async function handleSave() {
-  const autoData = compileGraphToAutomation()
   try {
+    const autoData = compileGraphToAutomation()
     if (automationId.value) {
       await automationsStore.updateAutomation(automationId.value, autoData)
       notificationsStore.success('Automazione Aggiornata', `"${autoData.name}" salvata con successo.`)
@@ -619,28 +986,68 @@ async function handleSave() {
 }
 
 async function handleTestRun() {
-  isTestingRun.value = true
-  soundEffects.playClick()
-  notificationsStore.info('Test Run Avviato', 'Esecuzione sequenziale dei nodi del flusso...')
-
-  // Step-by-step visual animation through nodes
-  for (let i = 0; i < nodes.value.length; i++) {
-    activeRunStepNodeId.value = nodes.value[i].id
-    soundEffects.playClick()
-    await new Promise((r) => setTimeout(r, 600))
+  if (!automationId.value) {
+    notificationsStore.info(
+      'Salva prima il flusso',
+      'Per simulare l’automazione devi prima salvarla. Il test non esegue comandi sui dispositivi.'
+    )
+    return
   }
 
+  isTestingRun.value = true
   activeRunStepNodeId.value = null
-  isTestingRun.value = false
-  soundEffects.playSuccessChime()
-  notificationsStore.success('Test Run Concluso', 'Tutti i rami del flusso hanno restituito ACK positivo.')
+  soundEffects.playClick()
+  try {
+    // Send the current draft to the read-only simulator without saving it.
+    const payload = compileGraphToAutomation()
+    const result = await apiClient.post<{
+      automation_id: string
+      passed: boolean
+      triggers_evaluated: boolean
+      warnings?: string[]
+      traces: Array<{ condition_type: string; passed: boolean; reason: string; sub_traces?: unknown[] }>
+      actions_would_execute: AutomationAction[]
+    }>(`/api/v1/automations/${automationId.value}/dry-run`, payload)
+
+    if (result.passed) {
+      soundEffects.playSuccessChime()
+      notificationsStore.success(
+        'Simulazione completata',
+        result.triggers_evaluated
+          ? 'Le condizioni risultano verificate.'
+          : 'Le condizioni risultano verificate. I trigger non sono stati simulati.'
+      )
+    } else {
+      notificationsStore.warning(
+        'Simulazione non superata',
+        'Una o più condizioni non risultano verificate. Consulta il dettaglio per individuare il blocco.'
+      )
+    }
+
+    const details = (result.traces || []).map((trace) =>
+      `${trace.passed ? '✓' : '✕'} ${trace.condition_type}: ${trace.reason}`
+    )
+    const warnings = result.warnings || []
+    if (details.length || warnings.length) {
+      notificationsStore.info('Risultato simulazione', [...warnings, ...details].join(' · '))
+    }
+  } catch (err: any) {
+    notificationsStore.error('Errore simulazione', err?.message || 'Impossibile simulare il flusso.')
+  } finally {
+    isTestingRun.value = false
+    activeRunStepNodeId.value = null
+  }
 }
 
 function handleOpenJson() {
   soundEffects.playClick()
-  const payload = compileGraphToAutomation()
-  compiledJson.value = JSON.stringify(payload, null, 2)
-  isJsonModalOpen.value = true
+  try {
+    const payload = compileGraphToAutomation()
+    compiledJson.value = JSON.stringify(payload, null, 2)
+    isJsonModalOpen.value = true
+  } catch (err: any) {
+    notificationsStore.warning('Flusso non valido', err?.message || 'Correggi i collegamenti prima di esportare.')
+  }
 }
 
 async function handleCopyJson() {
@@ -661,12 +1068,21 @@ const selectedNode = computed(() => {
 // Update subtitle reactively when inspector modifies data
 function handleInspectorDataChange() {
   if (selectedNode.value) {
+    if (selectedNode.value.type === 'condition' && selectedNode.value.subType === 'state' && selectedNode.value.data.state === undefined) {
+      selectedNode.value.data.state = selectedNode.value.data.to
+    }
     selectedNode.value.subtitle = getSubtitleForNode(
       selectedNode.value.type,
       selectedNode.value.subType,
       selectedNode.value.data
     )
   }
+}
+
+function updateSelectedLogicCondition(condition: AutomationCondition) {
+  if (!selectedNode.value || selectedNode.value.subType !== 'logic') return
+  selectedNode.value.data.logicCondition = condition
+  handleInspectorDataChange()
 }
 
 onMounted(async () => {
@@ -696,6 +1112,14 @@ onMounted(async () => {
     }
   }
 })
+
+onBeforeUnmount(() => {
+  activeTouchPointers.clear()
+  pinchOrigin = null
+  isPanning.value = false
+  draggingNodeId.value = null
+  finishWiring()
+})
 </script>
 
 <template>
@@ -706,8 +1130,8 @@ onMounted(async () => {
         <button
           class="btn-back glass-panel"
           @click="router.push('/automations')"
-          title="Torna alle Automazioni"
-          aria-label="Torna alle Automazioni"
+          :title="t('flowchart.view.backToAutomations')"
+          :aria-label="t('flowchart.view.backToAutomations')"
         >
           <ArrowLeft :size="18" />
         </button>
@@ -717,7 +1141,7 @@ onMounted(async () => {
             v-model="automationName"
             type="text"
             class="title-input"
-            placeholder="Nome automazione..."
+            :placeholder="t('flowchart.view.automationNamePlaceholder')"
           />
           <div class="badge-status-row">
             <label class="toggle-enabled">
@@ -735,7 +1159,7 @@ onMounted(async () => {
           class="btn-tool glass-panel"
           @click="handleTestRun"
           :disabled="isTestingRun"
-          title="Simula l'esecuzione del flusso"
+          :title="t('flowchart.view.simulateFlow')"
         >
           <Play :size="16" :class="{ 'animate-pulse': isTestingRun }" />
           <span>{{ isTestingRun ? 'In Esecuzione...' : 'Test Run' }}</span>
@@ -744,15 +1168,15 @@ onMounted(async () => {
         <button
           class="btn-tool glass-panel"
           @click="handleOpenJson"
-          title="Visualizza o esporta il JSON AST"
+          :title="t('flowchart.view.viewExportAst')"
         >
           <Code :size="16" />
-          <span>AST JSON</span>
+          <span>{{ t('flowchart.view.astJson') }}</span>
         </button>
 
-        <button class="btn-save" @click="handleSave" title="Salva automazione su Domus Hub">
+        <button class="btn-save" @click="handleSave" :title="t('flowchart.view.saveToDomusHub')">
           <Save :size="16" />
-          <span>Salva Flusso</span>
+          <span>{{ t('flowchart.view.saveFlow') }}</span>
         </button>
       </div>
     </header>
@@ -762,8 +1186,8 @@ onMounted(async () => {
       <!-- Left: Node Library Palette -->
       <aside class="node-palette glass-panel">
         <div class="palette-header">
-          <h4 class="palette-title">Libreria Nodi</h4>
-          <span class="palette-desc">Trascina sul canvas o clicca (+) per inserire.</span>
+          <h4 class="palette-title">{{ t('flowchart.view.nodeLibrary') }}</h4>
+          <span class="palette-desc">{{ t('flowchart.view.nodeLibraryHint') }}</span>
         </div>
 
         <div class="palette-categories">
@@ -792,7 +1216,7 @@ onMounted(async () => {
                 <button
                   class="btn-add-mini"
                   @click.stop="createNode(item.type, item.subType, item.title)"
-                  aria-label="Aggiungi nodo"
+                  :aria-label="t('flowchart.view.addNode')"
                 >
                   <Plus :size="14" />
                 </button>
@@ -805,23 +1229,28 @@ onMounted(async () => {
       <!-- Center: Infinite Canvas & SVG Wires -->
       <main
         class="flow-canvas"
-        @mousedown="handleCanvasMouseDown"
-        @mousemove="handleMouseMove"
-        @mouseup="handleMouseUp"
+        @pointerdown.capture="handleCanvasPointerDown"
+        @pointermove.capture="handleCanvasPointerMove"
+        @pointerup.capture="handleCanvasPointerEnd"
+        @pointercancel.capture="handleCanvasPointerEnd"
+        @pointerdown="handleCanvasMouseDown"
+        @pointermove="handleMouseMove"
+        @pointerup="handleMouseUp"
+        @pointercancel="handleMouseUp"
         @wheel="handleWheel"
         @dragover.prevent
         @drop="handleCanvasDrop"
       >
         <!-- Canvas Toolbar Overlay (Zoom & Controls) -->
         <div class="canvas-floating-controls glass-panel">
-          <button class="btn-ctl" @click="zoom = Math.min(zoom + 0.15, 2)" title="Ingrandisci">
+          <button class="btn-ctl" @click="zoom = Math.min(zoom + 0.15, 2)" :title="t('flowchart.view.zoomIn')">
             <ZoomIn :size="16" />
           </button>
           <span class="zoom-level">{{ Math.round(zoom * 100) }}%</span>
-          <button class="btn-ctl" @click="zoom = Math.max(zoom - 0.15, 0.4)" title="Riduci">
+          <button class="btn-ctl" @click="zoom = Math.max(zoom - 0.15, 0.4)" :title="t('flowchart.view.zoomOut')">
             <ZoomOut :size="16" />
           </button>
-          <button class="btn-ctl" @click="resetZoom" title="Centra vista (100%)">
+          <button class="btn-ctl" @click="resetZoom" :title="t('flowchart.view.resetZoom')">
             <RotateCcw :size="16" />
           </button>
         </div>
@@ -842,7 +1271,7 @@ onMounted(async () => {
                 :d="getWirePath(wire)"
                 class="wire-path-hitbox"
                 @click.stop="deleteWire(wire.id)"
-                title="Clicca per rimuovere il collegamento"
+                :title="t('flowchart.view.removeConnection')"
               />
               <path
                 :d="getWirePath(wire)"
@@ -873,14 +1302,20 @@ onMounted(async () => {
             :style="{
               transform: `translate(${node.x}px, ${node.y}px)`
             }"
-            @mousedown="handleNodeMouseDown(node, $event)"
+            @pointerdown="handleNodeMouseDown(node, $event)"
           >
             <!-- Node Input Port (Left) -->
             <div
               v-if="node.type !== 'trigger'"
               class="node-port port-input"
-              @mouseup="endWiring(node.id, $event)"
-              title="Collega qui il segnale di ingresso"
+              role="button"
+              tabindex="0"
+              @pointerup="endWiring(node.id, $event)"
+              @click.stop="completeWiringByClick(node.id)"
+              @keydown.enter.prevent.stop="completeWiringByClick(node.id)"
+              @keydown.space.prevent.stop="completeWiringByClick(node.id)"
+              :aria-label="t('flowchart.view.connectInput')"
+              :title="t('flowchart.view.connectInput')"
             >
               <div class="port-dot"></div>
             </div>
@@ -900,8 +1335,8 @@ onMounted(async () => {
               <button
                 class="btn-delete-node"
                 @click.stop="deleteNode(node.id)"
-                title="Elimina nodo"
-                aria-label="Elimina nodo"
+                :title="t('flowchart.view.deleteNode')"
+                :aria-label="t('flowchart.view.deleteNode')"
               >
                 <Trash2 :size="13" />
               </button>
@@ -912,14 +1347,46 @@ onMounted(async () => {
               <span class="node-subtitle">{{ node.subtitle }}</span>
             </div>
 
-            <!-- Node Output Port (Right) -->
-            <div
-              class="node-port port-output"
-              @mousedown="startWiring(node.id, $event)"
-              title="Trascina verso un altro nodo per collegare"
-            >
-              <div class="port-dot"></div>
+            <div v-if="getBranchPorts(node).length" class="node-branch-ports">
+              <div v-for="port in getBranchPorts(node)" :key="port.key" class="branch-port-row">
+                <span class="branch-port-label">{{ port.label }}</span>
+                <button
+                  class="node-port port-output branch-port"
+                  type="button"
+                  @pointerdown="startWiring(node.id, $event, port.key)"
+                  @click.stop="handlePortClick(node.id, port.key)"
+                  @keydown.enter.prevent.stop="toggleWireStart(node.id, port.key)"
+                  @keydown.space.prevent.stop="toggleWireStart(node.id, port.key)"
+                  :aria-label="`Collega uscita ${port.label}`"
+                  :title="`Collega uscita ${port.label}`"
+                ><span class="port-dot"></span></button>
+              </div>
+              <div class="branch-port-row">
+                <span class="branch-port-label">Continua</span>
+                <button
+                  class="node-port port-output branch-port"
+                  type="button"
+                  @pointerdown="startWiring(node.id, $event)"
+                  @click.stop="handlePortClick(node.id)"
+                  @keydown.enter.prevent.stop="toggleWireStart(node.id)"
+                  @keydown.space.prevent.stop="toggleWireStart(node.id)"
+                  aria-label="Collega alla sequenza successiva"
+                  title="Collega alla sequenza successiva"
+                ><span class="port-dot"></span></button>
+              </div>
             </div>
+            <div
+              v-else
+              class="node-port port-output"
+              role="button"
+              tabindex="0"
+              @pointerdown="startWiring(node.id, $event)"
+              @click.stop="handlePortClick(node.id)"
+              @keydown.enter.prevent.stop="toggleWireStart(node.id)"
+              @keydown.space.prevent.stop="toggleWireStart(node.id)"
+              :aria-label="t('flowchart.view.dragToConnect')"
+              :title="t('flowchart.view.dragToConnect')"
+            ><div class="port-dot"></div></div>
           </div>
         </div>
       </main>
@@ -938,7 +1405,7 @@ onMounted(async () => {
 
         <div class="inspector-content">
           <div class="prop-group">
-            <label class="prop-label">Titolo Visuale</label>
+            <label class="prop-label">{{ t('flowchart.view.visualTitle') }}</label>
             <input
               v-model="selectedNode.title"
               type="text"
@@ -949,7 +1416,7 @@ onMounted(async () => {
 
           <!-- Dynamic Form based on SubType -->
           <div v-if="selectedNode.subType === 'state'" class="prop-group">
-            <label class="prop-label">Entità Target</label>
+            <label class="prop-label">{{ t('flowchart.view.targetEntity') }}</label>
             <select
               v-model="selectedNode.data.entity_key"
               class="prop-select"
@@ -964,18 +1431,27 @@ onMounted(async () => {
               </option>
             </select>
 
-            <label class="prop-label mt-12">Stato Previsto (To / State)</label>
+            <label class="prop-label mt-12">{{ t('flowchart.view.expectedState') }}</label>
             <input
+              v-if="selectedNode.type === 'condition'"
+              v-model="selectedNode.data.state"
+              type="text"
+              class="prop-input"
+              :placeholder="t('flowchart.view.expectedStatePlaceholder')"
+              @input="handleInspectorDataChange"
+            />
+            <input
+              v-else
               v-model="selectedNode.data.to"
               type="text"
               class="prop-input"
-              placeholder="es. on, off, open, closed"
+              :placeholder="t('flowchart.view.expectedStatePlaceholder')"
               @input="handleInspectorDataChange"
             />
           </div>
 
           <div v-else-if="selectedNode.subType === 'numeric_state'" class="prop-group">
-            <label class="prop-label">Sensore Numerico</label>
+            <label class="prop-label">{{ t('flowchart.view.numericSensor') }}</label>
             <select
               v-model="selectedNode.data.entity_key"
               class="prop-select"
@@ -992,7 +1468,7 @@ onMounted(async () => {
 
             <div class="prop-row mt-12">
               <div class="prop-col">
-                <label class="prop-label">Soglia Superiore (&gt;)</label>
+                <label class="prop-label">{{ t('flowchart.view.upperThreshold') }} (&gt;)</label>
                 <input
                   v-model.number="selectedNode.data.above"
                   type="number"
@@ -1001,7 +1477,7 @@ onMounted(async () => {
                 />
               </div>
               <div class="prop-col">
-                <label class="prop-label">Soglia Inferiore (&lt;)</label>
+                <label class="prop-label">{{ t('flowchart.view.lowerThreshold') }} (&lt;)</label>
                 <input
                   v-model.number="selectedNode.data.below"
                   type="number"
@@ -1012,8 +1488,8 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div v-else-if="selectedNode.subType === 'time'" class="prop-group">
-            <label class="prop-label">Orario Esatto (HH:MM:SS)</label>
+          <div v-else-if="selectedNode.subType === 'time' && selectedNode.type === 'trigger'" class="prop-group">
+            <label class="prop-label">{{ t('flowchart.view.exactTime') }} (HH:MM:SS)</label>
             <input
               v-model="selectedNode.data.at"
               type="time"
@@ -1023,8 +1499,33 @@ onMounted(async () => {
             />
           </div>
 
+          <div v-else-if="selectedNode.subType === 'time' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">Dalle (HH:MM:SS)</label>
+            <input v-model="selectedNode.data.after" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
+            <label class="prop-label mt-12">Alle (HH:MM:SS)</label>
+            <input v-model="selectedNode.data.before" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
+          </div>
+
+          <div v-else-if="selectedNode.subType === 'logic' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">Condizioni annidate</label>
+            <p class="palette-desc">
+              Configura i gruppi AND, OR e NOT aggiungendo condizioni e altri gruppi. I tipi non supportati restano conservati senza modifiche.
+            </p>
+            <ConditionTreeEditor
+              v-if="selectedNode.data.logicCondition"
+              :model-value="selectedNode.data.logicCondition"
+              :entities="entitiesStore.allEntities"
+              @update:model-value="updateSelectedLogicCondition"
+            />
+          </div>
+
+          <div v-else-if="selectedNode.subType === 'trigger' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">ID trigger</label>
+            <input v-model="selectedNode.data.trigger_id" type="text" class="prop-input" @input="handleInspectorDataChange" />
+          </div>
+
           <div v-else-if="selectedNode.subType === 'service'" class="prop-group">
-            <label class="prop-label">Entità da Controllare</label>
+            <label class="prop-label">{{ t('flowchart.view.entityToControl') }}</label>
             <select
               v-model="selectedNode.data.target_entity_key"
               class="prop-select"
@@ -1039,35 +1540,36 @@ onMounted(async () => {
               </option>
             </select>
 
-            <label class="prop-label mt-12">Servizio / Azione</label>
+            <label class="prop-label mt-12">{{ t('flowchart.view.serviceAction') }}</label>
             <select
               v-model="selectedNode.data.service"
               class="prop-select"
               @change="handleInspectorDataChange"
             >
-              <option value="turn_on">Accendi (turn_on)</option>
-              <option value="turn_off">Spegni (turn_off)</option>
-              <option value="toggle">Commuta (toggle)</option>
-              <option value="close_cover">Chiudi Tapparella</option>
-              <option value="open_cover">Apri Tapparella</option>
-              <option value="set_temperature">Imposta Clima</option>
+              <option value="turn_on">{{ t('flowchart.view.turnOn') }}</option>
+              <option value="turn_off">{{ t('flowchart.view.turnOff') }}</option>
+              <option value="toggle">{{ t('flowchart.view.toggle') }}</option>
+              <option value="close_cover">{{ t('flowchart.view.closeCover') }}</option>
+              <option value="open_cover">{{ t('flowchart.view.openCover') }}</option>
+              <option value="set_temperature">{{ t('flowchart.view.setTemperature') }}</option>
             </select>
           </div>
 
           <div v-else-if="selectedNode.subType === 'delay'" class="prop-group">
-            <label class="prop-label">Secondi di Attesa (Pausa)</label>
+            <label class="prop-label">{{ t('flowchart.view.waitSeconds') }}</label>
             <input
               v-model.number="selectedNode.data.delay_seconds"
               type="number"
-              min="1"
+              min="0"
               max="3600"
+              step="0.1"
               class="prop-input"
               @input="handleInspectorDataChange"
             />
           </div>
 
           <div v-else-if="selectedNode.subType === 'notify'" class="prop-group">
-            <label class="prop-label">Messaggio Notifica</label>
+            <label class="prop-label">{{ t('flowchart.view.notificationMessage') }}</label>
             <textarea
               v-model="selectedNode.data.message"
               class="prop-textarea"
@@ -1076,10 +1578,29 @@ onMounted(async () => {
             ></textarea>
           </div>
 
+          <div
+            v-else-if="['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(selectedNode.subType)"
+            class="prop-group"
+          >
+            <label class="prop-label">Configurazione annidata (JSON)</label>
+            <p class="palette-desc">
+              Modifica qui rami, condizioni e sequenze. Domus conserva la struttura annidata; un JSON non valido o un'azione non supportata blocca il salvataggio.
+            </p>
+            <textarea
+              v-model="selectedNode.data.advancedJson"
+              class="prop-textarea advanced-action-json"
+              rows="14"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              @input="handleInspectorDataChange"
+            ></textarea>
+          </div>
+
           <div class="inspector-footer">
             <button class="btn-remove-selected" @click="deleteNode(selectedNode.id)">
               <Trash2 :size="15" />
-              <span>Elimina Nodo</span>
+              <span>{{ t('flowchart.view.deleteNodeButton') }}</span>
             </button>
           </div>
         </div>
@@ -1092,7 +1613,7 @@ onMounted(async () => {
         <div class="modal-header">
           <div class="modal-title-row">
             <Code :size="20" class="text-primary" />
-            <h3>AST JSON Compilato</h3>
+            <h3>{{ t('flowchart.view.compiledAstTitle') }}</h3>
           </div>
           <button class="btn-modal-close" @click="isJsonModalOpen = false">
             <X :size="18" />
@@ -1109,7 +1630,7 @@ onMounted(async () => {
             <Copy v-else :size="16" />
             <span>{{ jsonCopied ? 'Copiato!' : 'Copia negli Appunti' }}</span>
           </button>
-          <button class="btn-done" @click="isJsonModalOpen = false">Chiudi</button>
+          <button class="btn-done" @click="isJsonModalOpen = false">{{ t('common.close') }}</button>
         </div>
       </div>
     </div>
@@ -1120,7 +1641,10 @@ onMounted(async () => {
 .flow-editor-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
+  width: 100%;
+  min-width: 0;
+  height: calc(100dvh - 80px);
+  min-height: 420px;
   overflow: hidden;
   position: relative;
 }
@@ -1424,9 +1948,13 @@ onMounted(async () => {
 
 /* ================= INFINITE CANVAS ================= */
 .flow-canvas {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
   background-color: #0b0f19;
   background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: 24px 24px;
@@ -1645,6 +2173,17 @@ onMounted(async () => {
 }
 
 /* Connection Ports */
+.node-branch-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px 8px 12px;
+  border-top: 1px solid var(--border-color, rgba(255,255,255,.08));
+  background: rgba(0,0,0,.08);
+}
+.branch-port-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:24px; }
+.branch-port-label { color:var(--text-secondary); font-size:10px; line-height:1.2; font-weight:600; }
+.branch-port { position:static; flex:0 0 18px; }
 .node-port {
   position: absolute;
   top: 50%;
@@ -1758,6 +2297,7 @@ onMounted(async () => {
 .prop-input,
 .prop-select,
 .prop-textarea {
+
   width: 100%;
   padding: 8px 12px;
   border-radius: var(--radius-md);
@@ -1767,6 +2307,16 @@ onMounted(async () => {
   font-size: 13px;
   outline: none;
   transition: border var(--transition-fast);
+}
+
+.advanced-action-json {
+  min-height: 260px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
 }
 
 .prop-input:focus,
@@ -1910,4 +2460,372 @@ onMounted(async () => {
   font-size: 13px;
   cursor: pointer;
 }
+ 
+/* ================= RESPONSIVE / TOUCH ================= */
+.editor-header,
+.header-left,
+.header-right,
+.title-group,
+.workspace-layout,
+.node-palette,
+.node-inspector,
+.inspector-content {
+  min-width: 0;
+}
+
+.title-input {
+  width: min(42vw, 420px);
+  max-width: 100%;
+}
+
+.btn-back,
+.btn-tool,
+.btn-save,
+.btn-ctl,
+.btn-delete-node,
+.btn-close-inspector,
+.btn-modal-close {
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.node-port {
+  width: 28px;
+  height: 28px;
+  touch-action: none;
+}
+
+.node-port:focus-visible,
+.btn-ctl:focus-visible,
+.btn-tool:focus-visible,
+.btn-save:focus-visible,
+.btn-back:focus-visible,
+.btn-delete-node:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.node-subtitle {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
+  .node-palette { width: 240px; flex: 0 0 240px; }
+  .node-inspector { width: 280px; flex: 0 0 280px; }
+  .editor-header { padding-inline: 14px; }
+  .header-right { gap: 6px; }
+  .btn-tool, .btn-save { padding-inline: 10px; }
+}
+
+@media (max-width: 900px) {
+  .flow-editor-page {
+    height: calc(100dvh - 64px);
+    min-height: 460px;
+  }
+
+  .editor-header {
+    height: auto;
+    min-height: 0;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .header-left {
+    flex: 1 1 100%;
+    gap: 10px;
+  }
+
+  .title-group {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .title-input {
+    width: 100%;
+    font-size: 15px;
+  }
+
+  .header-right {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .btn-tool,
+  .btn-save {
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
+
+  .workspace-layout {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .node-palette {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 184px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .palette-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px 6px;
+  }
+
+  .palette-desc {
+    margin: 0;
+    text-align: right;
+  }
+
+  .palette-categories {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 12px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .palette-group {
+    flex: 0 0 min(72vw, 270px);
+    min-width: 0;
+  }
+
+  .category-title {
+    margin-bottom: 6px;
+    font-size: 10px;
+  }
+
+  .palette-items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .palette-item {
+    min-width: 0;
+    padding: 6px;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .palette-item:hover { transform: none; }
+
+  .palette-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .item-name {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .item-desc { display: none; }
+
+  .btn-add-mini {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+  }
+
+  .flow-canvas {
+    width: 100%;
+    min-height: 280px;
+  }
+
+  .canvas-floating-controls {
+    top: 10px;
+    bottom: auto;
+    left: 10px;
+    padding: 5px;
+  }
+
+  .btn-ctl {
+    width: 40px;
+    height: 40px;
+  }
+
+  .node-inspector {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: auto;
+    max-height: min(48%, 420px);
+    flex: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.38);
+  }
+
+  .inspector-header {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+  }
+
+  .inspector-content {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+    gap: 12px;
+  }
+
+  .prop-input,
+  .prop-select,
+  .prop-textarea {
+    min-height: 42px;
+    font-size: 16px;
+  }
+
+  .btn-close-inspector {
+    width: 40px;
+    height: 40px;
+  }
+
+  .btn-remove-selected {
+    min-height: 44px;
+  }
+
+  .modal-backdrop {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal-container {
+    width: 100%;
+    max-width: 720px;
+    max-height: 92dvh;
+  }
+
+  .modal-header,
+  .modal-actions {
+    padding-inline: 14px;
+  }
+
+  .modal-body {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .json-code-box {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .modal-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .modal-actions > * {
+    min-height: 44px;
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .flow-editor-page {
+    height: calc(100dvh - 56px);
+    min-height: 440px;
+  }
+
+  .editor-header { padding: 8px 10px; gap: 8px; }
+  .btn-back { width: 42px; height: 42px; }
+
+  .badge-status-row {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .header-right {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .btn-tool,
+  .btn-save {
+    min-width: 0;
+    min-height: 44px;
+    gap: 5px;
+    font-size: 11px;
+    padding-inline: 4px;
+  }
+
+  .btn-tool span,
+  .btn-save span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .node-palette { max-height: 174px; }
+  .palette-desc { display: none; }
+  .palette-group { flex-basis: min(78vw, 250px); }
+  .palette-categories { padding-inline: 10px; }
+  .flow-canvas { min-height: 260px; }
+
+  .canvas-floating-controls { top: 8px; left: 8px; }
+  .btn-ctl { width: 38px; height: 38px; }
+
+  .node-port {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(14, 165, 233, 0.13);
+  }
+
+  .port-dot { width: 12px; height: 12px; }
+  .port-input { left: -20px; }
+  .port-output { right: -20px; }
+
+  .node-inspector {
+    left: 8px;
+    right: 8px;
+    max-height: min(50%, 390px);
+  }
+
+  .inspector-content {
+    padding-inline: 12px;
+  }
+
+  .prop-row { flex-wrap: wrap; }
+  .prop-col { min-width: min(100%, 130px); }
+
+  .modal-container { border-radius: var(--radius-lg); }
+  .modal-header h3 { font-size: 14px; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions > * { width: 100%; flex: 1 1 auto; }
+}
+
+@media (max-height: 560px) and (max-width: 900px) {
+  .flow-editor-page { min-height: 0; }
+  .node-palette { max-height: 126px; }
+  .palette-header { padding-block: 5px; }
+  .palette-categories { padding-block: 5px 8px; }
+  .flow-canvas { min-height: 180px; }
+  .node-inspector { max-height: 42%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wire-path-draft { animation: none; }
+}
+
 </style>

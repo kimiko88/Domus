@@ -157,10 +157,12 @@ func (s *Service) RegisterWithInvite(
 		PasswordHash: hash,
 		Role:         invite.Role, // Enforce role decided by family creator
 		Enabled:      true,
+		Permissions:  user.DefaultPermissions("", invite.Role),
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
 
+	newUser.Permissions.UserID = newUser.ID
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
 		return nil, nil, fmt.Errorf("auth: create user: %w", err)
 	}
@@ -235,6 +237,10 @@ func (s *Service) UpdateFamilyMemberRole(ctx context.Context, adminID, targetUse
 		}
 	}
 
+	// Revoke active sessions so long-lived WebSocket connections cannot retain stale grants.
+	if err := s.sessionRepo.DeleteByUserID(ctx, targetUserID); err != nil {
+		return fmt.Errorf("auth: revoke member sessions before role update: %w", err)
+	}
 	if err := s.userRepo.UpdateRole(ctx, targetUserID, newRole); err != nil {
 		return fmt.Errorf("auth: update role: %w", err)
 	}
@@ -249,6 +255,44 @@ func (s *Service) UpdateFamilyMemberRole(ctx context.Context, adminID, targetUse
 		CreatedAt:  time.Now().UTC(),
 	})
 
+	return nil
+}
+
+// UpdateFamilyMemberPermissions replaces a member's granular access policy.
+func (s *Service) UpdateFamilyMemberPermissions(ctx context.Context, adminID, targetUserID string, permissions *user.UserPermissions) error {
+	if permissions == nil {
+		return fmt.Errorf("auth: permissions are required")
+	}
+	if adminID == targetUserID {
+		return fmt.Errorf("auth: administrators cannot restrict their own account")
+	}
+	target, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+	if target.Role == user.RoleAdmin {
+		return fmt.Errorf("auth: administrator permissions are fixed")
+	}
+	permissions.UserID = targetUserID
+	permissions.Role = target.Role
+	// Revoke existing sessions before changing grants; clients must reconnect with the new policy.
+	if err := s.sessionRepo.DeleteByUserID(ctx, targetUserID); err != nil {
+		return fmt.Errorf("auth: revoke member sessions before permission update: %w", err)
+	}
+	if err := s.userRepo.UpdatePermissions(ctx, targetUserID, permissions); err != nil {
+		return fmt.Errorf("auth: update member permissions: %w", err)
+	}
+	_ = s.auditRepo.Record(ctx, &audit.Entry{
+		ActorType: audit.ActorLocalUser,
+		ActorID: adminID,
+		Action: "family.permissions_updated",
+		TargetType: "user",
+		TargetID: targetUserID,
+		Payload: fmt.Sprintf(`{"role":%q,"allowed_areas":%d,"allowed_entities":%d,"allowed_views":%d,"can_control_devices":%t,"can_manage_automations":%t,"can_manage_settings":%t,"can_view_cameras":%t}`,
+			string(target.Role), len(permissions.AllowedAreaIDs), len(permissions.AllowedEntityIDs), len(permissions.AllowedViews),
+			permissions.CanControlDevices, permissions.CanManageAutomations, permissions.CanManageSettings, permissions.CanViewCameras),
+		CreatedAt: time.Now().UTC(),
+	})
 	return nil
 }
 

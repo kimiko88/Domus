@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/domus-hub/domus/internal/application/assistant"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -19,12 +20,12 @@ func NewAssistantHandler(svc *assistant.Service) *AssistantHandler {
 
 func (h *AssistantHandler) RegisterRoutes(r chi.Router) {
 	r.Route("/assistant", func(r chi.Router) {
-		r.Post("/chat", h.Chat)
-		r.Get("/config", h.GetConfig)
-		r.Put("/config", h.UpdateConfig)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/chat", h.Chat)
+		r.With(domusmw.RequireSettingsPermission()).Get("/config", h.GetConfig)
+		r.With(domusmw.RequireSettingsPermission()).Put("/config", h.UpdateConfig)
 		r.Get("/satellites", h.ListSatellites)
-		r.Post("/satellites", h.RegisterSatellite)
-		r.Post("/satellites/{id}/stream", h.StreamVoice)
+		r.With(domusmw.RequireSettingsPermission()).Post("/satellites", h.RegisterSatellite)
+		r.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/satellites/{id}/stream", h.StreamVoice)
 	})
 }
 

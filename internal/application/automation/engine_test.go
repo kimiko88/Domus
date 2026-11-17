@@ -4,6 +4,7 @@ package automation_test
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -354,3 +355,239 @@ func TestEngine_RestartMode(t *testing.T) {
 	// Only 1 event should have been emitted because the first was canceled
 	assert.Equal(t, 1, offEvents)
 }
+
+func TestEngine_DailyTimeTriggerDispatchesThermostatSetpoint(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	triggerAt := time.Now().Add(2 * time.Second).Format("15:04:05")
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Timed thermostat program", Enabled: true, ExecutionMode: "single",
+		Triggers: []automation.Trigger{{ID: "daily", Platform: "time", At: triggerAt}},
+		Conditions: []automation.Condition{},
+		Actions: []automation.Action{{
+			Type: "service", Service: "set_temperature", TargetEntityKey: "climate.living_room",
+			Params: map[string]any{"temperature": 21.5},
+		}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	commands := make(chan events.Event, 1)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, evt events.Event) error {
+		select { case commands <- evt: default: }
+		return nil
+	})
+	defer unsub()
+	require.NoError(t, engine.Start(ctx))
+
+	select {
+	case evt := <-commands:
+		payload := evt.Payload.(map[string]any)
+		assert.Equal(t, "climate.living_room", payload["entity_key"])
+		assert.Equal(t, "set_temperature", payload["service"])
+		assert.Equal(t, 21.5, payload["params"].(map[string]any)["temperature"])
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for daily time trigger to dispatch thermostat setpoint")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 1)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusCompleted {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("scheduled thermostat automation did not complete")
+}
+
+func TestEngine_SingleModeAllowsOnlyOneConcurrentRun(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Single execution guard", Enabled: true,
+		ExecutionMode: "single",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "single.guard"}},
+		Actions: []automation.Action{
+			{Type: "delay", DelayMs: 1000},
+			{Type: "event", EventType: "single.guard.completed"},
+		},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	completed := make(chan struct{}, 16)
+	unsub := bus.Subscribe("single.guard.completed", func(_ context.Context, _ events.Event) error {
+		completed <- struct{}{}
+		return nil
+	})
+	defer unsub()
+	require.NoError(t, engine.Start(ctx))
+
+	for i := 0; i < 12; i++ {
+		require.NoError(t, bus.Publish(ctx, events.Event{Type: "single.guard", OccurredAt: time.Now()}))
+	}
+	select {
+	case <-completed:
+	case <-ctx.Done():
+		t.Fatal("single automation did not complete")
+	}
+	select {
+	case <-completed:
+		t.Fatal("single execution mode ran more than once concurrently")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func TestEngine_UnknownActionMarksRunFailed(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Invalid action must fail", Enabled: true,
+		ExecutionMode: "single",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "invalid.action.trigger"}},
+		Actions: []automation.Action{{Type: "set_temperatur"}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "invalid.action.trigger", OccurredAt: time.Now()}))
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 1)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusFailed {
+			assert.Contains(t, runs[0].Log, "unsupported automation action type")
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("invalid automation action did not mark the run as failed")
+}
+
+
+func TestEngine_StopCancelsActiveAndQueuedRuns(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Queued cancellation", Enabled: true,
+		ExecutionMode: "queued",
+		Triggers: []automation.Trigger{{Platform: "event", EventType: "queued.cancel"}},
+		Actions: []automation.Action{{Type: "delay", DelayMs: 10000}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "queued.cancel", OccurredAt: time.Now()}))
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 10)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusRunning {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	runs, err := repos.Automations.ListRuns(ctx, auto.ID, 10)
+	require.NoError(t, err)
+	require.Len(t, runs, 1)
+	require.Equal(t, automation.RunStatusRunning, runs[0].Status)
+
+	// This invocation must remain queued behind the first one.
+	require.NoError(t, bus.Publish(ctx, events.Event{Type: "queued.cancel", OccurredAt: time.Now()}))
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stopCancel()
+	require.NoError(t, engine.Stop(stopCtx))
+
+	runs, err = repos.Automations.ListRuns(ctx, auto.ID, 10)
+	require.NoError(t, err)
+	require.Len(t, runs, 1, "queued invocation must not start after shutdown")
+	require.Equal(t, automation.RunStatusFailed, runs[0].Status)
+	assert.Contains(t, runs[0].Log, "Execution cancelled")
+}
+
+
+func TestEngine_ClimateProfileAppliesAndRestoresTemporarySetpoint(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now().UTC()
+	in := &integration.Integration{ID: "climate-integration", Type: "test", Name: "Climate", Status: "connected", CreatedAt: now, UpdatedAt: now}
+	require.NoError(t, repos.Integrations.Create(ctx, in))
+	dev := &device.Device{ID: "climate-device", IntegrationID: in.ID, ExternalID: "climate", Name: "Climate", Online: true, CreatedAt: now, UpdatedAt: now}
+	require.NoError(t, repos.Devices.Create(ctx, dev))
+	thermostat := &entity.Entity{
+		ID: uuid.NewString(), DeviceID: dev.ID, EntityKey: "climate.living_room",
+		Domain: "climate", Name: "Living room", Writable: true, Available: true,
+		State: `{"state":"heat"}`, Attributes: `{"target_temperature":20,"min_temp":5,"max_temp":30}`,
+	}
+	require.NoError(t, repos.Entities.Create(ctx, thermostat))
+
+	var commands []float64
+	var commandMu sync.Mutex
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, event events.Event) error {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok { return nil }
+		params, ok := payload["params"].(map[string]any)
+		if !ok { return nil }
+		if temperature, ok := params["temperature"].(float64); ok {
+			commandMu.Lock(); commands = append(commands, temperature); commandMu.Unlock()
+		}
+		return nil
+	})
+	defer unsub()
+
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Temporary eco profile", Enabled: true,
+		Triggers: []automation.Trigger{{Platform:"event", EventType:"climate.profile.test"}},
+		Actions: []automation.Action{{Type:"climate_profile", TargetEntityKey:"climate.living_room", Profile:"eco", DurationMinutes:1, Temperature:ptrFloat(18)}},
+	}
+	// The temporary profile publishes immediately; engine cleanup cancels its
+	// one-minute timer so the integration test remains fast.
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+	require.NoError(t, bus.Publish(ctx, events.Event{Type:"climate.profile.test", OccurredAt:time.Now()}))
+	deadline:=time.Now().Add(2*time.Second)
+	for time.Now().Before(deadline) {
+		commandMu.Lock(); count:=len(commands); commandMu.Unlock()
+		if count>0 { break }
+		time.Sleep(20*time.Millisecond)
+	}
+	commandMu.Lock()
+	require.NotEmpty(t, commands)
+	assert.Equal(t, 18.0, commands[0])
+	commandMu.Unlock()
+
+	// Stopping the engine cancels the timer and restores the setpoint that was
+	// active before the temporary profile.
+	require.NoError(t, engine.Stop(ctx))
+	restoreDeadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(restoreDeadline) {
+		commandMu.Lock()
+		restored := len(commands) >= 2
+		commandMu.Unlock()
+		if restored { break }
+		time.Sleep(20 * time.Millisecond)
+	}
+	commandMu.Lock()
+	require.GreaterOrEqual(t, len(commands), 2, "shutdown should publish the previous setpoint")
+	assert.Equal(t, 20.0, commands[1])
+	commandMu.Unlock()
+}
+
+func ptrFloat(v float64) *float64 { return &v }

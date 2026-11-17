@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Check, ShoppingBag, Zap, Fuel, Wrench, Shield, Tag } from '@lucide/vue'
 import type { Expense, ExpenseCategory, ExpenseSubcategory } from '@/api/types'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   isOpen: boolean
@@ -230,11 +233,11 @@ function submitForm() {
     >
       <div class="modal-header">
         <h3 id="modal-expense-title" class="modal-title">
-          {{ expenseToEdit ? 'Modifica Spesa' : 'Registra Nuova Spesa' }}
+          {{ expenseToEdit ? t('finance.expenseForm.editTitle') : t('finance.expenseForm.createTitle') }}
         </h3>
         <button
           class="close-btn"
-          aria-label="Chiudi finestra"
+          :aria-label="t('finance.expenseForm.close')"
           @click="emit('close')"
         >
           <X :size="20" aria-hidden="true" />
@@ -244,8 +247,8 @@ function submitForm() {
       <form class="modal-form" @submit.prevent="submitForm">
         <!-- Category selector pills -->
         <div class="form-group">
-          <label class="form-label">Categoria</label>
-          <div class="category-pills" role="radiogroup" aria-label="Seleziona Categoria">
+          <label class="form-label">{{ t('finance.expenseForm.category') }}</label>
+          <div class="category-pills" role="radiogroup" :aria-label="t('finance.expenseForm.selectCategory')">
             <button
               v-for="cat in categoriesConfig"
               :key="cat.category"
@@ -257,7 +260,7 @@ function submitForm() {
               @click="category = cat.category"
             >
               <component :is="cat.icon" :size="16" aria-hidden="true" />
-              <span>{{ cat.label }}</span>
+              <span>{{ t('finance.categories.' + cat.category) }}</span>
             </button>
           </div>
         </div>
@@ -265,25 +268,25 @@ function submitForm() {
         <!-- Subcategory selector -->
         <div class="form-row">
           <div class="form-group flex-1">
-            <label for="exp-subcategory" class="form-label">Sottocategoria</label>
+            <label for="exp-subcategory" class="form-label">{{ t('finance.expenseForm.subcategory') }}</label>
             <select id="exp-subcategory" v-model="subcategory" class="form-input form-select">
               <option
                 v-for="sub in currentSubcategories"
                 :key="sub.value"
                 :value="sub.value"
               >
-                {{ sub.label }}
+                {{ t('finance.expenseForm.subcategories.' + sub.value) }}
               </option>
             </select>
           </div>
 
           <div class="form-group flex-1">
-            <label for="exp-payment" class="form-label">Metodo di Pagamento</label>
+            <label for="exp-payment" class="form-label">{{ t('finance.expenseForm.paymentMethod') }}</label>
             <select id="exp-payment" v-model="paymentMethod" class="form-input form-select">
-              <option value="card">Carta di Credito / Bancomat</option>
-              <option value="cash">Contanti</option>
-              <option value="bank_transfer">Bonifico Bancario</option>
-              <option value="direct_debit">RID / Addebito Diretto</option>
+              <option value="card">{{ t('finance.expenseForm.paymentMethods.card') }}</option>
+              <option value="cash">{{ t('finance.expenseForm.paymentMethods.cash') }}</option>
+              <option value="bank_transfer">{{ t('finance.expenseForm.paymentMethods.bank_transfer') }}</option>
+              <option value="direct_debit">{{ t('finance.expenseForm.paymentMethods.direct_debit') }}</option>
             </select>
           </div>
         </div>
@@ -291,19 +294,19 @@ function submitForm() {
         <!-- Title & Amount -->
         <div class="form-row">
           <div class="form-group flex-2">
-            <label for="exp-title" class="form-label">Descrizione / Titolo *</label>
+            <label for="exp-title" class="form-label">{{ t('finance.expenseForm.description') }}</label>
             <input
               id="exp-title"
               v-model="title"
               type="text"
               required
               class="form-input"
-              placeholder="es. Spesa settimanale, Bolletta Enel..."
+              :placeholder="t('finance.expenseForm.descriptionPlaceholder')"
             />
           </div>
 
           <div class="form-group flex-1">
-            <label for="exp-amount" class="form-label">Importo (€) *</label>
+            <label for="exp-amount" class="form-label">{{ t('finance.expenseForm.amount') }}</label>
             <input
               id="exp-amount"
               v-model="amount"
@@ -320,12 +323,12 @@ function submitForm() {
         <!-- Date & Fixed switch -->
         <div class="form-row align-center">
           <div class="form-group flex-1">
-            <label for="exp-date" class="form-label">Data Spesa</label>
+            <label for="exp-date" class="form-label">{{ t('finance.expenseForm.date') }}</label>
             <input id="exp-date" v-model="expenseDate" type="date" class="form-input" />
           </div>
 
           <div class="form-group flex-1 switch-group">
-            <label class="form-label">Tipo di Costo</label>
+            <label class="form-label">{{ t('finance.expenseForm.costType') }}</label>
             <button
               type="button"
               class="cost-type-toggle"
@@ -334,9 +337,9 @@ function submitForm() {
               :aria-checked="isFixed"
               @click="isFixed = !isFixed"
             >
-              <span class="toggle-pill">{{ isFixed ? 'Costo Fisso' : 'Costo Variabile' }}</span>
+              <span class="toggle-pill">{{ isFixed ? t('finance.expenseForm.fixed') : t('finance.expenseForm.variable') }}</span>
               <span class="toggle-hint">
-                {{ isFixed ? 'Incomprimibile (mutuo, assicurazioni, canoni)' : 'Flessibile (spesa, consumi, svago)' }}
+                {{ isFixed ? t('finance.expenseForm.fixedHint') : t('finance.expenseForm.variableHint') }}
               </span>
             </button>
           </div>
@@ -345,7 +348,7 @@ function submitForm() {
         <!-- Contextual: Energy kWh for Utilities -->
         <div v-if="category === 'utilities'" class="form-row contextual-box">
           <div class="form-group flex-1">
-            <label for="exp-kwh" class="form-label">Energia Fatturata (kWh) — Correlazione Domus</label>
+            <label for="exp-kwh" class="form-label">{{ t('finance.expenseForm.energy') }}</label>
             <input
               id="exp-kwh"
               v-model="energyKWh"
@@ -353,11 +356,11 @@ function submitForm() {
               step="1"
               min="0"
               class="form-input"
-              placeholder="es. 360 kWh per calcolo tariffa"
+              :placeholder="t('finance.expenseForm.energyPlaceholder')"
             />
           </div>
           <div class="form-group flex-1">
-            <label for="exp-smc" class="form-label">Gas Consumato (Smc)</label>
+            <label for="exp-smc" class="form-label">{{ t('finance.expenseForm.gas') }}</label>
             <input
               id="exp-smc"
               v-model="gasSmc"
@@ -365,26 +368,26 @@ function submitForm() {
               step="1"
               min="0"
               class="form-input"
-              placeholder="es. 85 Smc"
+              :placeholder="t('finance.expenseForm.gasPlaceholder')"
             />
           </div>
         </div>
 
         <!-- Contextual: Insurance or Contracts Expiry -->
         <div v-if="category === 'insurance' || isFixed" class="form-group contextual-box">
-          <label for="exp-contract-expiry" class="form-label">Scadenza Contratto (Promemoria 30gg prima)</label>
+          <label for="exp-contract-expiry" class="form-label">{{ t('finance.expenseForm.contractExpiry') }}</label>
           <input
             id="exp-contract-expiry"
             v-model="contractExpiryDate"
             type="date"
             class="form-input"
           />
-          <span class="input-tip">Domus ti avviserà 30 giorni prima per consentirti di rinegoziare la tariffa.</span>
+          <span class="input-tip">{{ t('finance.expenseForm.contractHint') }}</span>
         </div>
 
         <!-- Contextual: Food waste tracking -->
         <div v-if="category === 'food'" class="form-group contextual-box">
-          <label for="exp-food-waste" class="form-label">Di cui Cibo Scaduto / Buttato (€)</label>
+          <label for="exp-food-waste" class="form-label">{{ t('finance.expenseForm.foodWaste') }}</label>
           <input
             id="exp-food-waste"
             v-model="foodWasteValue"
@@ -392,29 +395,29 @@ function submitForm() {
             step="0.01"
             min="0"
             class="form-input"
-            placeholder="0,00 € (calcolo spreco alimentare monetizzato)"
+            :placeholder="t('finance.expenseForm.foodWastePlaceholder')"
           />
         </div>
 
         <!-- Notes -->
         <div class="form-group">
-          <label for="exp-notes" class="form-label">Note Aggiuntive</label>
+          <label for="exp-notes" class="form-label">{{ t('finance.expenseForm.notes') }}</label>
           <textarea
             id="exp-notes"
             v-model="notes"
             rows="2"
             class="form-input form-textarea"
-            placeholder="Dettagli sullo scontrino o acquisto..."
+            :placeholder="t('finance.expenseForm.notesPlaceholder')"
           />
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" @click="emit('close')">
-            Annulla
+            {{ t('finance.expenseForm.cancel') }}
           </button>
           <button type="submit" class="btn btn-primary">
             <Check :size="16" aria-hidden="true" />
-            <span>{{ expenseToEdit ? 'Aggiorna Spesa' : 'Salva Spesa' }}</span>
+            <span>{{ expenseToEdit ? t('finance.expenseForm.update') : t('finance.expenseForm.save') }}</span>
           </button>
         </div>
       </form>

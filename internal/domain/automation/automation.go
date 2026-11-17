@@ -26,11 +26,13 @@ type Trigger struct {
 	ID         string   `json:"id,omitempty"` // Unique trigger identifier (e.g. "movimento", "timeout")
 	Platform   string   `json:"platform"`     // "state", "numeric_state", "time", "event"
 	EntityKey  string   `json:"entity_key,omitempty"`
+	Attribute  string   `json:"attribute,omitempty"` // Optional numeric attribute, e.g. current_temperature
 	From       string   `json:"from,omitempty"`
 	To         string   `json:"to,omitempty"`
 	Above      *float64 `json:"above,omitempty"`
 	Below      *float64 `json:"below,omitempty"`
 	At         string   `json:"at,omitempty"` // "07:30:00"
+	Days       []int    `json:"days,omitempty"` // ISO weekdays: Monday=1 through Sunday=7; empty means every day
 	EventType  string   `json:"event_type,omitempty"`
 	ForSeconds int      `json:"for_seconds,omitempty"`
 }
@@ -40,6 +42,7 @@ type Condition struct {
 	Condition  string      `json:"condition"` // "state", "numeric_state", "time", "and", "or", "not", "trigger"
 	TriggerID  string      `json:"trigger_id,omitempty"`
 	EntityKey  string      `json:"entity_key,omitempty"`
+	Attribute  string      `json:"attribute,omitempty"` // Numeric attribute to inspect, e.g. current_temperature
 	State      string      `json:"state,omitempty"`
 	Above      *float64    `json:"above,omitempty"`
 	Below      *float64    `json:"below,omitempty"`
@@ -67,6 +70,9 @@ type Action struct {
 	Type            string         `json:"type"`              // "service", "delay", "event", "choose", "if", "repeat", "parallel"
 	Service         string         `json:"service,omitempty"` // "turn_on", "turn_off", "toggle"
 	TargetEntityKey string         `json:"target_entity_key,omitempty"`
+	Profile         string         `json:"profile,omitempty"` // climate profile: comfort, eco, night, away
+	Temperature     *float64       `json:"temperature,omitempty"`
+	DurationMinutes int            `json:"duration_minutes,omitempty"` // restore previous setpoint after this many minutes
 	Params          map[string]any `json:"params,omitempty"`
 	DelayMs         int            `json:"delay_ms,omitempty"`
 	EventType       string         `json:"event_type,omitempty"`

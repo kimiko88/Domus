@@ -97,3 +97,33 @@ func TestEvaluateZone_SolarCutoff(t *testing.T) {
 		t.Errorf("expected reduced setpoint <= 20.0 due to solar cutoff, got %f", eval.CalculatedSetpoint)
 	}
 }
+
+
+func TestEvaluateZoneWithPresence_AwayProfile(t *testing.T) {
+	cfg := &climate.PredictiveZoneConfig{
+		ID: "zone_presence", Name: "Studio", TargetTemperature: 21.0,
+		AwayTemperature: 16.5, Orientation: climate.OrientationNorth,
+		EmitterType: climate.EmitterRadiator,
+	}
+	eval := climate.EvaluateZoneWithPresence(cfg, 19.0, 45.0, 1013.25, -3.0, false, false, nil)
+	if eval.Mode != "eco" {
+		t.Fatalf("expected eco mode while unoccupied, got %q", eval.Mode)
+	}
+	if eval.TargetTemp != 16.5 || eval.CalculatedSetpoint != 16.5 {
+		t.Fatalf("expected away setpoint 16.5°C, got target %.1f and setpoint %.1f", eval.TargetTemp, eval.CalculatedSetpoint)
+	}
+	if eval.ColdFrontDetected {
+		t.Fatal("away profile must not activate comfort-oriented cold-front boost")
+	}
+}
+
+func TestEvaluateZoneWithPresence_WindowSafetyOverridesAwayProfile(t *testing.T) {
+	cfg := &climate.PredictiveZoneConfig{
+		ID: "zone_presence_window", Name: "Studio", TargetTemperature: 21.0,
+		AwayTemperature: 16.5,
+	}
+	eval := climate.EvaluateZoneWithPresence(cfg, 19.0, 45.0, 1013.25, 0, true, false, nil)
+	if eval.Mode != "frost_protection" || eval.CalculatedSetpoint != 5.0 {
+		t.Fatalf("open-window protection must override away profile, got %+v", eval)
+	}
+}

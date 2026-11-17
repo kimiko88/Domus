@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAlarmStore } from '../../stores/alarm'
 import {
   Shield,
@@ -15,6 +16,7 @@ import {
   Bell
 } from '@lucide/vue'
 import BaseButton from '../ui/BaseButton.vue'
+const { t } = useI18n()
 
 const alarmStore = useAlarmStore()
 
@@ -52,10 +54,10 @@ async function handleArm(mode: 'armed_home' | 'armed_away' | 'armed_night') {
   try {
     await alarmStore.arm(mode, pinInput.value)
     pinInput.value = ''
-    actionSuccess.value = `Allarme armato in modalità ${getModeLabel(mode)}`
+    actionSuccess.value = t('common.alarmPanel.armedSuccess', { mode: getModeLabel(mode) })
     setTimeout(() => { actionSuccess.value = null }, 3000)
   } catch (err: any) {
-    actionError.value = err?.message || 'Errore durante l\'inserimento allarme'
+    actionError.value = err?.message || t('common.alarmPanel.armError')
   }
 }
 
@@ -63,38 +65,38 @@ async function handleDisarm() {
   actionError.value = null
   actionSuccess.value = null
   if (!pinInput.value) {
-    actionError.value = 'Inserisci il PIN per disarmare'
+    actionError.value = t('common.alarmPanel.enterPinToDisarm')
     return
   }
   try {
     await alarmStore.disarm(pinInput.value)
     pinInput.value = ''
-    actionSuccess.value = 'Allarme disarmato con successo'
+    actionSuccess.value = t('common.alarmPanel.disarmedSuccess')
     setTimeout(() => { actionSuccess.value = null }, 3000)
   } catch (err: any) {
-    actionError.value = err?.message || 'PIN errato o non valido'
+    actionError.value = err?.message || t('common.alarmPanel.invalidPin')
   }
 }
 
 async function handlePanic() {
-  if (!confirm('ATTENZIONE: Stai per innescare l\'allarme SOS manuale con sirene. Confermi?')) {
+  if (!confirm(t('common.alarmPanel.confirmPanic'))) {
     return
   }
   try {
     await alarmStore.trigger('SOS Manuale da Pannello')
   } catch (err: any) {
-    actionError.value = err?.message || 'Errore innesco SOS'
+    actionError.value = err?.message || t('common.alarmPanel.panicError')
   }
 }
 
 function getModeLabel(state: string): string {
   switch (state) {
-    case 'disarmed': return 'Disarmato'
-    case 'armed_home': return 'In Casa'
-    case 'armed_away': return 'Fuori Casa'
-    case 'armed_night': return 'Notte'
-    case 'pending': return 'Ritardo Uscita/Ingresso'
-    case 'triggered': return 'ALLARME IN CORSO!'
+    case 'disarmed': return t('alarm.disarmed')
+    case 'armed_home': return t('alarm.armedHome')
+    case 'armed_away': return t('alarm.armedAway')
+    case 'armed_night': return t('alarm.armedNight')
+    case 'pending': return t('common.alarmPanel.exitEntryDelay')
+    case 'triggered': return t('common.alarmPanel.triggered')
     default: return state
   }
 }
@@ -123,7 +125,7 @@ const statusClass = computed(() => {
           <Shield v-else :size="24" />
         </div>
         <div>
-          <h3 class="panel-name">{{ panel?.name || 'Sistema Antifurto' }}</h3>
+          <h3 class="panel-name">{{ panel?.name || t('common.alarmPanel.defaultName') }}</h3>
           <p class="panel-sensors-info">
             Perimetro: {{ panel?.perimeter_sensors?.length || 0 }} sensori | Interno: {{ panel?.interior_sensors?.length || 0 }} sensori
           </p>
@@ -140,15 +142,15 @@ const statusClass = computed(() => {
     <div v-if="isTriggered" class="triggered-banner">
       <Siren :size="22" class="siren-animate" />
       <div class="triggered-info">
-        <strong>ALLARME ATTIVO - SIRENE ACCESE!</strong>
-        <p>Causa: {{ panel?.last_triggered_reason || 'Rilevamento intrusione' }}</p>
+        <strong>{{ t('common.alarmPanel.sirensActive') }}</strong>
+        <p>Causa: {{ panel?.last_triggered_reason || t('common.alarmPanel.intrusionDetected') }}</p>
       </div>
     </div>
 
     <!-- Delay Countdown Banner -->
     <div v-if="isPending" class="pending-banner">
       <Bell :size="20" class="pulse-icon" />
-      <span>Ritardo di attivazione / disattivazione in corso... Inserisci il PIN!</span>
+      <span>{{ t('common.alarmPanel.pendingHint') }}</span>
     </div>
 
     <!-- Feedback alerts -->
@@ -163,7 +165,7 @@ const statusClass = computed(() => {
 
     <!-- PIN Display Dots -->
     <div class="pin-display-container">
-      <label class="pin-label">Codice PIN Tastierino</label>
+      <label class="pin-label">{{ t('common.alarmPanel.keypadPin') }}</label>
       <div class="pin-dots">
         <span
           v-for="i in 6"
@@ -179,13 +181,13 @@ const statusClass = computed(() => {
       <button v-for="d in ['1','2','3','4','5','6','7','8','9']" :key="d" type="button" class="key-btn" @click="appendDigit(d)">
         {{ d }}
       </button>
-      <button type="button" class="key-btn key-action" title="Azzera" @click="clearPin">
+      <button type="button" class="key-btn key-action" :title="t('common.alarmPanel.clearPin')" @click="clearPin">
         <RotateCcw :size="18" />
       </button>
       <button type="button" class="key-btn" @click="appendDigit('0')">
         0
       </button>
-      <button type="button" class="key-btn key-action" title="Cancella" @click="backspacePin">
+      <button type="button" class="key-btn key-action" :title="t('common.alarmPanel.deleteDigit')" @click="backspacePin">
         <Delete :size="18" />
       </button>
     </div>

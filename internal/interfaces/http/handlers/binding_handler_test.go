@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/domus-hub/domus/internal/application/mesh"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +44,12 @@ func TestBindingHandler_Routes(t *testing.T) {
 	defer db.Close()
 
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		admin := &user.User{ID: "test-admin", Role: user.RoleAdmin}
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(domusmw.WithUser(req.Context(), admin)))
+		})
+	})
 	h.RegisterRoutes(r)
 
 	// 1. Create binding
@@ -52,7 +60,7 @@ func TestBindingHandler_Routes(t *testing.T) {
 		"target_device_name": "Bulb 1",
 		"clusters":           []string{"genOnOff"},
 	})
-	req := httptest.NewRequest(http.MethodPost, "/devices/bindings", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/devices/bindings/", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusCreated, rr.Code)
@@ -63,7 +71,7 @@ func TestBindingHandler_Routes(t *testing.T) {
 	assert.NotEmpty(t, created.ID)
 
 	// 2. List bindings
-	req = httptest.NewRequest(http.MethodGet, "/devices/bindings", nil)
+	req = httptest.NewRequest(http.MethodGet, "/devices/bindings/", nil)
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)

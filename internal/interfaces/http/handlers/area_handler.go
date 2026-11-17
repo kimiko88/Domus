@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/area"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -28,6 +29,18 @@ func (h *AreaHandler) List(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list areas")
 		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions != nil && permissions.AllowedAreaIDs != nil {
+			visible := make([]*area.Area, 0, len(areas))
+			for _, item := range areas {
+				if permissions.CanAccessArea(item.ID) {
+					visible = append(visible, item)
+				}
+			}
+			areas = visible
+		}
 	}
 	writeJSON(w, http.StatusOK, areas)
 }
@@ -90,6 +103,13 @@ func (h *AreaHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions == nil || !permissions.CanAccessArea(a.ID) {
+			writeError(w, http.StatusForbidden, "forbidden", "area is outside the member's allowed resources")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, a)
 }
 

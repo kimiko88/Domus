@@ -44,6 +44,8 @@ type PredictiveZoneConfig struct {
 	PressureSensorKey    string          `json:"pressure_sensor_key,omitempty"`
 	HumiditySensorKey    string          `json:"humidity_sensor_key,omitempty"`
 	WindowSensorKey      string          `json:"window_sensor_key,omitempty"`
+	PresenceSensorKey    string          `json:"presence_sensor_key,omitempty"`
+	AwayTemperature      float64         `json:"away_temperature,omitempty"`
 	TargetTemperature    float64         `json:"target_temperature"`
 	Orientation          RoomOrientation `json:"orientation"`
 	WindowAreaSqm        float64         `json:"window_area_sqm"`
@@ -156,6 +158,22 @@ func EvaluateZone(
 	windowOpen bool,
 	forecast []WeatherForecastPoint,
 ) PredictiveEvaluation {
+	return EvaluateZoneWithPresence(cfg, currentTemp, humidity, currentPressure, pressureTrendHpaHr, windowOpen, true, forecast)
+}
+
+// EvaluateZoneWithPresence applies a conservative away setpoint when a configured
+// presence sensor reports that the room is unoccupied. Unknown presence is treated
+// as occupied by the application service, avoiding accidental under-heating.
+func EvaluateZoneWithPresence(
+	cfg *PredictiveZoneConfig,
+	currentTemp float64,
+	humidity float64,
+	currentPressure float64,
+	pressureTrendHpaHr float64,
+	windowOpen bool,
+	occupied bool,
+	forecast []WeatherForecastPoint,
+) PredictiveEvaluation {
 	now := time.Now().UTC()
 	target := cfg.TargetTemperature
 	if target <= 0 {
@@ -182,6 +200,19 @@ func EvaluateZone(
 		eval.CalculatedSetpoint = 5.0
 		eval.Mode = "frost_protection"
 		eval.Reason = "Finestra aperta: riscaldamento spento per prevenire sprechi"
+		return eval
+	}
+
+	if !occupied {
+		awayTarget := cfg.AwayTemperature
+		if awayTarget <= 0 {
+			awayTarget = 17.0
+		}
+		awayTarget = math.Max(15.0, math.Min(28.0, awayTarget))
+		eval.TargetTemp = awayTarget
+		eval.CalculatedSetpoint = math.Round(awayTarget*2) / 2
+		eval.Mode = "eco"
+		eval.Reason = "Assenza rilevata: setpoint ridotto al profilo risparmio"
 		return eval
 	}
 

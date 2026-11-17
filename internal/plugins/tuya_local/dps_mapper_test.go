@@ -108,8 +108,88 @@ func TestDPSMapper_MapClimateModeState(t *testing.T) {
 	if parsed.Attributes["hvac_mode"] != "auto" {
 		t.Fatalf("expected DP4=0 to map to auto, got %+v", parsed.Attributes)
 	}
+	if got := parsed.Attributes["hvac_modes"]; len(got.([]string)) != 2 || got.([]string)[0] != "auto" || got.([]string)[1] != "manual" {
+		t.Fatalf("expected only supported LocalTuya modes to be advertised, got %+v", got)
+	}
 	manual := mapper.MapDPSToEntity(CategoryClimate, map[string]any{"4": 1})
 	if manual.Attributes["hvac_mode"] != "manual" {
 		t.Fatalf("expected DP4=1 to map to manual, got %+v", manual.Attributes)
+	}
+}
+
+func TestDPSMapper_MapSetHVACModeToLocalTuyaDP4(t *testing.T) {
+	dps, err := NewDPSMapper().MapCommandToDPS(CategoryClimate, "set_hvac_mode", map[string]any{"hvac_mode": "manual"})
+	if err != nil || dps["4"] != 1 {
+		t.Fatalf("manual HVAC mode must map to DPS 4=1, got %v, err=%v", dps, err)
+	}
+	if _, err := NewDPSMapper().MapCommandToDPS(CategoryClimate, "set_hvac_mode", map[string]any{"hvac_mode": "heat"}); err == nil {
+		t.Fatal("unsupported generic heat mode must be rejected")
+	}
+}
+
+func TestDPSMapper_MapClimateSetpointDPS16(t *testing.T) {
+	mapper := NewDPSMapper()
+	parsed := mapper.MapDPSToEntity(CategoryClimate, map[string]any{"16": 225, "3": 205})
+	if parsed.Attributes["target_temperature"] != 22.5 {
+		t.Fatalf("expected DPS 16 setpoint 22.5°C, got %+v", parsed.Attributes)
+	}
+	if parsed.Attributes["target_temperature_dp"] != 16 {
+		t.Fatalf("expected target_temperature_dp=16, got %+v", parsed.Attributes)
+	}
+
+	dps, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 22.5,
+		"dp_id":       16,
+	})
+	if err != nil {
+		t.Fatalf("map DPS 16 command: %v", err)
+	}
+	if dps["16"] != 225 {
+		t.Fatalf("expected DPS 16=225, got %+v", dps)
+	}
+	if _, exists := dps["2"]; exists {
+		t.Fatalf("DPS 16 command must not also write DPS 2: %+v", dps)
+	}
+}
+
+func TestDPSMapper_RejectsUnsupportedClimateSetpointDP(t *testing.T) {
+	_, err := NewDPSMapper().MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.0,
+		"dp_id":       3,
+	})
+	if err == nil {
+		t.Fatal("expected unsupported setpoint datapoint to be rejected")
+	}
+}
+
+func TestDPSMapper_MapClimateSetpointScale(t *testing.T) {
+	mapper := NewDPSMapper()
+	dps, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.0,
+		"scale":       0,
+	})
+	if err != nil {
+		t.Fatalf("map integer-degree thermostat: %v", err)
+	}
+	if dps["2"] != 21 {
+		t.Fatalf("expected scale 0 to write DPS2=21, got %+v", dps)
+	}
+
+	dps, err = mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.5,
+		"scale":       2,
+	})
+	if err != nil {
+		t.Fatalf("map centi-degree thermostat: %v", err)
+	}
+	if dps["2"] != 2150 {
+		t.Fatalf("expected scale 2 to write DPS2=2150, got %+v", dps)
+	}
+
+	if _, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.0,
+		"scale":       5,
+	}); err == nil {
+		t.Fatal("unsupported temperature scales must be rejected")
 	}
 }

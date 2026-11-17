@@ -3,10 +3,12 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useWsStore } from './ws'
 import { useEntitiesStore } from './entities'
 import { useNotificationsStore } from './notifications'
+import { setLanguage } from '../locales'
 
 describe('useWsStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    setLanguage('en')
   })
 
   it('initializes with disconnected state', () => {
@@ -46,13 +48,16 @@ describe('useWsStore', () => {
     const wsStore = useWsStore()
     const notificationsStore = useNotificationsStore()
 
+    // The locale is shared across test modules; set it immediately before translation.
+    setLanguage('en')
     wsStore.handleIncomingEvent('device.online', { device_id: 'dev1', name: 'Kitchen Sensor' })
     expect(notificationsStore.notifications.length).toBe(1)
-    expect(notificationsStore.notifications[0].title).toBe('Device Online')
+    expect(notificationsStore.notifications[0].title).toBe('Device online')
     expect(notificationsStore.notifications[0].message).toContain('Kitchen Sensor')
 
+    setLanguage('en')
     wsStore.handleIncomingEvent('device.offline', { device_id: 'dev1', name: 'Kitchen Sensor' })
     expect(notificationsStore.notifications.length).toBe(2)
-    expect(notificationsStore.notifications[1].title).toBe('Device Offline')
+    expect(notificationsStore.notifications[1].title).toBe('Device offline')
   })
 })

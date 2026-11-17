@@ -1,11 +1,11 @@
 <template>
-  <div class="statistics-card" role="region" aria-label="Statistiche di lungo periodo">
+  <div class="statistics-card" role="region" :aria-label="t('common.longTermStats.region')">
     <div class="card-header">
       <div class="title-group">
-        <h3>{{ title || 'Statistiche di Lungo Periodo' }}</h3>
+        <h3>{{ title || t('common.longTermStats.title') }}</h3>
         <span v-if="entityKey" class="entity-sub">{{ entityKey }}</span>
       </div>
-      <div class="range-selector" role="group" aria-label="Seleziona intervallo">
+      <div class="range-selector" role="group" :aria-label="t('common.longTermStats.rangeLabel')">
         <button
           v-for="r in ranges"
           :key="r.id"
@@ -22,26 +22,26 @@
     <!-- Summary Metrics -->
     <div class="metrics-grid">
       <div class="metric-box">
-        <span class="metric-label">Media</span>
+        <span class="metric-label">{{ t('common.longTermStats.average') }}</span>
         <span class="metric-val">{{ stats.mean !== undefined ? stats.mean.toFixed(1) : '-' }} <small>{{ unit }}</small></span>
       </div>
       <div class="metric-box">
-        <span class="metric-label">Minimo</span>
+        <span class="metric-label">{{ t('common.longTermStats.minimum') }}</span>
         <span class="metric-val min">{{ stats.min !== undefined ? stats.min.toFixed(1) : '-' }} <small>{{ unit }}</small></span>
       </div>
       <div class="metric-box">
-        <span class="metric-label">Massimo</span>
+        <span class="metric-label">{{ t('common.longTermStats.maximum') }}</span>
         <span class="metric-val max">{{ stats.max !== undefined ? stats.max.toFixed(1) : '-' }} <small>{{ unit }}</small></span>
       </div>
       <div class="metric-box">
-        <span class="metric-label">Totale</span>
+        <span class="metric-label">{{ t('common.longTermStats.total') }}</span>
         <span class="metric-val">{{ stats.sum !== undefined ? stats.sum.toFixed(1) : '-' }} <small>{{ unit }}</small></span>
       </div>
     </div>
 
     <!-- Aggregate SVG Chart -->
     <div class="chart-container">
-      <svg class="stats-svg" viewBox="0 0 500 160" preserveAspectRatio="none" role="img" aria-label="Grafico a barre delle statistiche">
+      <svg class="stats-svg" viewBox="0 0 500 160" preserveAspectRatio="none" role="img" :aria-label="t('common.longTermStats.chartAria')">
         <g v-for="(item, index) in series" :key="index">
           <rect
             :x="index * (500 / series.length) + 4"
@@ -67,6 +67,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{
@@ -76,7 +78,7 @@ const props = withDefaults(
     initialRange?: string
   }>(),
   {
-    title: 'Statistiche Storiche',
+    title: '',
     entityKey: '',
     unit: 'kWh',
     initialRange: 'month',
@@ -91,9 +93,9 @@ const selectedRange = ref(props.initialRange)
 
 const ranges = [
   { id: 'day', label: '24h' },
-  { id: 'week', label: '7 Giorni' },
-  { id: 'month', label: 'Mese' },
-  { id: 'year', label: 'Anno' },
+  { id: 'week', label: t('common.longTermStats.sevenDays') },
+  { id: 'month', label: t('common.longTermStats.month') },
+  { id: 'year', label: t('common.longTermStats.year') },
 ]
 
 // Mocked/reactive statistics

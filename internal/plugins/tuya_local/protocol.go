@@ -42,7 +42,8 @@ const (
 	CmdEnableWifi uint32 = 0x0E
 	CmdDpQueryNew uint32 = 0x10
 	CmdSceneExec  uint32 = 0x11
-	CmdUpdateDPS  uint32 = 0x12
+	CmdUpdateDPS    uint32 = 0x12
+	CmdReqDevInfo  uint32 = 0x25 // v3.5 UDP discovery solicitation (UDP/7000)
 )
 
 // Packet represents a decoded Tuya protocol frame.
@@ -96,6 +97,17 @@ func EncodePacket(seq, cmd uint32, payload []byte, localKey []byte, version stri
 
 // DecodePacket unpacks and verifies a Tuya binary frame.
 func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
+	return decodePacket(data, localKey, false)
+}
+
+// DecodeResponsePacket decodes a device-to-client frame, whose payload starts
+// with the Tuya 32-bit return code. The return code is not part of the
+// encrypted application payload.
+func DecodeResponsePacket(data []byte, localKey []byte) (*Packet, error) {
+	return decodePacket(data, localKey, true)
+}
+
+func decodePacket(data []byte, localKey []byte, hasReturnCode bool) (*Packet, error) {
 	if len(data) < 24 {
 		return nil, ErrPayloadTooShort
 	}
@@ -128,6 +140,15 @@ func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
 	}
 	body := data[16:bodyEnd]
 
+	var returnCode uint32
+	if hasReturnCode {
+		if len(body) < 4 {
+			return nil, ErrPayloadTooShort
+		}
+		returnCode = binary.BigEndian.Uint32(body[:4])
+		body = body[4:]
+	}
+
 	// Verify CRC
 	expectedCRC := binary.BigEndian.Uint32(data[bodyEnd : bodyEnd+4])
 	calculatedCRC := crc32.ChecksumIEEE(data[:bodyEnd])
@@ -154,9 +175,10 @@ func DecodePacket(data []byte, localKey []byte) (*Packet, error) {
 	}
 
 	return &Packet{
-		Sequence: seq,
-		Command:  cmd,
-		Payload:  decrypted,
+		Sequence:   seq,
+		Command:    cmd,
+		Payload:    decrypted,
+		ReturnCode: returnCode,
 	}, nil
 }
 
