@@ -142,6 +142,7 @@ const ru = {
     noMarketplaceResults: 'Расширения не найдены', noMarketplaceResultsDesc: 'Измените поисковый запрос или фильтр категорий.',
     noEntities: 'Объекты не найдены', noEntitiesDesc: 'Для этого фильтра нет настроенных устройств. Подключите интеграцию или добавьте устройства, чтобы они появились здесь.',
     view: {
+      ...en.dashboard.view,
       customTitle: 'Пользовательская панель', customSubtitle: 'Интерактивные виджеты для настенных планшетов и режима киоска',
       selectTabletProfile: 'Выбрать профиль планшета', configureKiosk: 'Настроить режим киоска и заставку',
       configureKioskButton: 'Настроить киоск', startWallTablet: 'Включить режим настенного планшета',

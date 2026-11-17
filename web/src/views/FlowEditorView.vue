@@ -737,7 +737,6 @@ function getGraphExecutionOrder(): FlowNode[] {
       throw new Error('I rami delle azioni composite possono contenere soltanto azioni o pause.')
     }
   }
-  const branchNodes = getBranchDescendantIds()
   const rejoiningWire = wires.value.find((wire) =>
     branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
   )

@@ -100,7 +100,7 @@ describe('manual thermostat overrides', () => {
     '/api/v1/entities/climate-uuid/climate-profile',
     { profile: 'custom', temperature: 20.5, duration_minutes: 120 }
   )
-  expect(wrapper.text()).toContain('verrà richiesto il ripristino del valore precedente')
+  expect(wrapper.text()).toContain('Alla scadenza Domus ripristina il setpoint precedente.')
 
   getSpy.mockRestore()
   postSpy.mockRestore()

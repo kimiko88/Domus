@@ -90,7 +90,7 @@ describe('ConditionTreeEditor', () => {
     expect(time.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
       condition: 'time',
       after: '20:00:00',
-      before: '06:00:00'
+      before: '06:00'
     })
 
     const trigger = mount(ConditionTreeEditor, {
