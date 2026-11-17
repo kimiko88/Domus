@@ -775,9 +775,8 @@ async function handleTestRun() {
   activeRunStepNodeId.value = null
   soundEffects.playClick()
   try {
-    // Ensure the server evaluates the latest graph instead of an older saved copy.
+    // Send the current draft to the read-only simulator without saving it.
     const payload = compileGraphToAutomation()
-    await automationsStore.updateAutomation(automationId.value, payload)
     const result = await apiClient.post<{
       automation_id: string
       passed: boolean
@@ -785,7 +784,7 @@ async function handleTestRun() {
       warnings?: string[]
       traces: Array<{ condition_type: string; passed: boolean; reason: string; sub_traces?: unknown[] }>
       actions_would_execute: AutomationAction[]
-    }>(`/api/v1/automations/${automationId.value}/dry-run`)
+    }>(`/api/v1/automations/${automationId.value}/dry-run`, payload)
 
     if (result.passed) {
       soundEffects.playSuccessChime()
