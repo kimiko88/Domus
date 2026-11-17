@@ -24,7 +24,6 @@ import {
   Clock,
   Sliders,
   Send,
-  Layers,
   Code,
   Copy,
   Check,
