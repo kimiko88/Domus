@@ -106,33 +106,52 @@ func (h *AutomationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req automation.Automation
+	// Pointer fields preserve the distinction between an omitted field and an
+	// explicit zero/false/empty value. This endpoint is used for partial updates
+	// by the UI, even though it uses the PUT method for compatibility.
+	var req struct {
+		Name            *string                  `json:"name"`
+		Description     *string                  `json:"description"`
+		Enabled         *bool                    `json:"enabled"`
+		Triggers        *[]automation.Trigger    `json:"triggers"`
+		Conditions      *[]automation.Condition  `json:"conditions"`
+		Actions         *[]automation.Action     `json:"actions"`
+		ExecutionMode   *string                  `json:"execution_mode"`
+		CooldownSeconds *int                     `json:"cooldown_seconds"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
 		return
 	}
 
-	if req.Name != "" {
-		existing.Name = req.Name
+	if req.Name != nil {
+		existing.Name = *req.Name
 	}
-	if req.Description != "" {
-		existing.Description = req.Description
+	if req.Description != nil {
+		existing.Description = *req.Description
 	}
-	existing.Enabled = req.Enabled
-	if len(req.Triggers) > 0 {
-		existing.Triggers = req.Triggers
+	if req.Enabled != nil {
+		existing.Enabled = *req.Enabled
 	}
-	if len(req.Conditions) > 0 {
-		existing.Conditions = req.Conditions
+	if req.Triggers != nil {
+		existing.Triggers = *req.Triggers
 	}
-	if len(req.Actions) > 0 {
-		existing.Actions = req.Actions
+	if req.Conditions != nil {
+		existing.Conditions = *req.Conditions
 	}
-	if req.ExecutionMode != "" {
-		existing.ExecutionMode = req.ExecutionMode
+	if req.Actions != nil {
+		existing.Actions = *req.Actions
 	}
-	if req.CooldownSeconds >= 0 {
-		existing.CooldownSeconds = req.CooldownSeconds
+	if req.ExecutionMode != nil {
+		existing.ExecutionMode = *req.ExecutionMode
+	}
+	if req.CooldownSeconds != nil {
+		existing.CooldownSeconds = *req.CooldownSeconds
+	}
+
+	if err := existing.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		return
 	}
 
 	if err := h.repo.Update(r.Context(), existing); err != nil {
