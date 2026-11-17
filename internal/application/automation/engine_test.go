@@ -540,8 +540,10 @@ func TestEngine_ClimateProfileAppliesAndRestoresTemporarySetpoint(t *testing.T) 
 
 	var commands []float64
 	var commandMu sync.Mutex
-	unsub := bus.Subscribe(string(events.CommandRequested), func(_ context.Context, event events.Event) error {
-		params, ok := event.Payload["params"].(map[string]any)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, event events.Event) error {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok { return nil }
+		params, ok := payload["params"].(map[string]any)
 		if !ok { return nil }
 		if temperature, ok := params["temperature"].(float64); ok {
 			commandMu.Lock(); commands = append(commands, temperature); commandMu.Unlock()
