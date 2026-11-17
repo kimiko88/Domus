@@ -125,7 +125,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 	var eval domclimate.PredictiveEvaluation
 	err = json.NewDecoder(rec.Body).Decode(&eval)
 	require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 	var status appclimate.SystemPredictiveStatus
 	err = json.NewDecoder(rec.Body).Decode(&status)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/profile", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 
 	var profile domclimate.ThermalProfile
 	err = json.NewDecoder(rec.Body).Decode(&profile)
@@ -167,7 +167,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/climate/predictive/zones/"+created.ID+"/train", bytes.NewReader(trainBody))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 
 	var trainedProfile domclimate.ThermalProfile
 	err = json.NewDecoder(rec.Body).Decode(&trainedProfile)
@@ -179,7 +179,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/optimal-start?target_temp=21.0", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 
 	var preheat domclimate.PreheatRecommendation
 	err = json.NewDecoder(rec.Body).Decode(&preheat)
@@ -202,7 +202,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/optimal-stop", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 
 	var coast domclimate.CoastDownRecommendation
 	err = json.NewDecoder(rec.Body).Decode(&coast)
@@ -215,5 +215,5 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/climate/predictive/zones/"+created.ID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 }
