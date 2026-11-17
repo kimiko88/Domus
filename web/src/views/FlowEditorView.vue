@@ -588,6 +588,7 @@ function compileGraphToAutomation(): Partial<Automation> {
   for (const node of orderedNodes) {
     if (node.type === 'trigger') {
       const trig: AutomationTrigger = {
+        ...(node.data.originalTrigger || {}),
         platform: node.subType
       }
       if (node.subType === 'state') {
@@ -602,7 +603,11 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       triggers.push(trig)
     } else if (node.type === 'condition') {
+      if (!['state', 'time', 'numeric_state'].includes(node.subType)) {
+        throw new Error(`La condizione “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+      }
       const cond: AutomationCondition = {
+        ...(node.data.originalCondition || {}),
         condition: node.subType
       }
       if (node.subType === 'state') {
@@ -611,10 +616,17 @@ function compileGraphToAutomation(): Partial<Automation> {
       } else if (node.subType === 'time') {
         cond.after = node.data.after
         cond.before = node.data.before
+      } else if (node.subType === 'numeric_state') {
+        if (node.data.above !== undefined) cond.above = Number(node.data.above)
+        if (node.data.below !== undefined) cond.below = Number(node.data.below)
       }
       conditions.push(cond)
     } else if (node.type === 'action') {
+      if (node.subType === 'unsupported') {
+        throw new Error('Questa azione avanzata non è modificabile nell’editor visuale. Il salvataggio è bloccato per preservare la configurazione originale.')
+      }
       const act: AutomationAction = {
+        ...(node.data.originalAction || {}),
         type: node.subType === 'scene' ? 'scene' : 'service'
       }
       if (node.subType === 'service') {
@@ -679,6 +691,7 @@ function loadAutomationIntoGraph(auto: Automation) {
       x: col1X,
       y: 80 + idx * 130,
       data: {
+        originalTrigger: trig,
         entity_key: trig.entity_key,
         to: trig.to,
         above: trig.above,
@@ -703,6 +716,7 @@ function loadAutomationIntoGraph(auto: Automation) {
         x: col2X,
         y: 80 + idx * 130,
         data: {
+          originalCondition: cond,
           entity_key: cond.entity_key,
           state: cond.state,
           after: cond.after,
@@ -728,12 +742,13 @@ function loadAutomationIntoGraph(auto: Automation) {
     newNodes.push({
       id,
       type: isDelay ? 'delay' : 'action',
-      subType: isDelay ? 'delay' : (act.type === 'scene' ? 'scene' : 'service'),
-      title: isDelay ? 'Pausa / Delay' : (act.type === 'scene' ? 'Applica Scena' : 'Comando'),
+      subType: isDelay ? 'delay' : (act.type === 'scene' ? 'scene' : act.type === 'service' ? 'service' : 'unsupported'),
+      title: isDelay ? 'Pausa / Delay' : (act.type === 'scene' ? 'Applica Scena' : act.type === 'service' ? 'Comando' : `Azione avanzata (${act.type})`),
       subtitle: isDelay ? `Attesa ${(act.delay_ms || 1000) / 1000}s` : `${act.service || 'azione'} -> ${act.target_entity_key || ''}`,
       x: col3X,
       y: 80 + idx * 130,
       data: {
+        originalAction: act,
         target_entity_key: act.target_entity_key,
         service: act.service,
         delay_seconds: (act.delay_ms || 1000) / 1000,
