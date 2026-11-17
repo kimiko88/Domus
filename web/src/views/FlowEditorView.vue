@@ -9,6 +9,7 @@ import { useNotificationsStore } from '../stores/notifications'
 import { soundEffects } from '../utils/audioSynthesizer'
 import { apiClient } from '../api/client'
 import type { Automation, AutomationTrigger, AutomationCondition, AutomationAction } from '../api/types'
+import { parseAdvancedAutomationAction } from '../utils/automationActionValidation'
 import {
   ArrowLeft,
   Save,
@@ -187,6 +188,54 @@ const paletteItems: PaletteItem[] = [
     desc: 'Alert push prioritario su smartphone',
     icon: Send,
     category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'choose',
+    title: 'Scelta condizionale',
+    desc: 'Primo ramo che soddisfa le condizioni, con fallback',
+    icon: Filter,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'if',
+    title: 'If / Else',
+    desc: 'Esegui sequenze distinte in base alle condizioni',
+    icon: Activity,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'repeat',
+    title: 'Ripeti',
+    desc: 'Ripetizione per conteggio, mentre o fino a',
+    icon: RotateCcw,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'parallel',
+    title: 'Esecuzione parallela',
+    desc: 'Avvia più azioni concorrenti',
+    icon: Copy,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'climate_profile',
+    title: 'Profilo climatico',
+    desc: 'Comfort, Eco, Notte, Away o setpoint personalizzato',
+    icon: Sliders,
+    category: 'Actions & Flow'
+  },
+  {
+    type: 'action',
+    subType: 'event',
+    title: 'Emetti evento',
+    desc: 'Pubblica un evento applicativo con payload',
+    icon: Send,
+    category: 'Actions & Flow'
   }
 ]
 
@@ -239,6 +288,23 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
     defaultData.delay_seconds = 5
   } else if (subType === 'notify') {
     defaultData.message = 'Avviso da Domus Hub: evento rilevato.'
+  } else if (subType === 'choose') {
+    defaultData.advancedJson = JSON.stringify({ type: 'choose', choose: [], default: [] }, null, 2)
+  } else if (subType === 'if') {
+    defaultData.advancedJson = JSON.stringify({ type: 'if', if: [], then: [], else: [] }, null, 2)
+  } else if (subType === 'repeat') {
+    defaultData.advancedJson = JSON.stringify({ type: 'repeat', repeat: { count: 1, sequence: [] } }, null, 2)
+  } else if (subType === 'parallel') {
+    defaultData.advancedJson = JSON.stringify({ type: 'parallel', parallel: [] }, null, 2)
+  } else if (subType === 'climate_profile') {
+    defaultData.advancedJson = JSON.stringify({
+      type: 'climate_profile',
+      target_entity_key: entitiesStore.allEntities.find((entity) => entity.domain === 'climate')?.id || '',
+      profile: 'comfort',
+      duration_minutes: 0
+    }, null, 2)
+  } else if (subType === 'event') {
+    defaultData.advancedJson = JSON.stringify({ type: 'event', event_type: '', event_payload: {} }, null, 2)
   } else if (type === 'condition' && subType === 'state') {
     defaultData.state = 'on'
   } else if (type === 'condition' && subType === 'time') {
@@ -276,6 +342,9 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
     if (subType === 'service') return `${data.service || 'turn_on'} -> ${data.target_entity_key || 'entità'}`
     if (subType === 'scene') return `Applica scena`
     if (subType === 'notify') return `Notifica smartphone`
+    if (['choose', 'if', 'repeat', 'parallel'].includes(subType)) return `Controllo: ${subType}`
+    if (subType === 'climate_profile') return 'Profilo termostato'
+    if (subType === 'event') return 'Pubblica evento'
   } else if (type === 'delay') {
     return `Attesa ${data.delay_seconds || 5}s`
   }
@@ -616,6 +685,10 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       conditions.push(cond)
     } else if (node.type === 'action') {
+      if (['choose', 'if', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
+        actions.push(parseAdvancedAutomationAction(node.data.advancedJson, node.subType))
+        continue
+      }
       if (node.subType === 'unsupported') {
         throw new Error('Questa azione avanzata non è modificabile nell’editor visuale. Il salvataggio è bloccato per preservare la configurazione originale.')
       }
@@ -738,8 +811,20 @@ function loadAutomationIntoGraph(auto: Automation) {
     newNodes.push({
       id,
       type: isDelay ? 'delay' : 'action',
-      subType: isDelay ? 'delay' : (act.type === 'scene' ? 'scene' : act.type === 'service' ? 'service' : 'unsupported'),
-      title: isDelay ? 'Pausa / Delay' : (act.type === 'scene' ? 'Applica Scena' : act.type === 'service' ? 'Comando' : `Azione avanzata (${act.type})`),
+      subType: isDelay
+        ? 'delay'
+        : (['scene', 'service'].includes(act.type)
+          ? act.type
+          : (['event', 'climate_profile', 'choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(act.type)
+            ? act.type
+            : 'unsupported')),
+      title: isDelay
+        ? 'Pausa / Delay'
+        : (act.type === 'scene'
+          ? 'Applica Scena'
+          : act.type === 'service'
+            ? 'Comando'
+            : `Azione avanzata (${act.type})`),
       subtitle: isDelay ? `Attesa ${(act.delay_ms || 1000) / 1000}s` : `${act.service || 'azione'} -> ${act.target_entity_key || ''}`,
       x: col3X,
       y: 80 + idx * 130,
@@ -748,7 +833,10 @@ function loadAutomationIntoGraph(auto: Automation) {
         target_entity_key: act.target_entity_key,
         service: act.service,
         delay_seconds: (act.delay_ms || 1000) / 1000,
-        scene_id: act.params?.scene_id
+        scene_id: act.params?.scene_id,
+        advancedJson: ['event', 'climate_profile', 'choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(act.type)
+          ? JSON.stringify(act, null, 2)
+          : undefined
       }
     })
 
@@ -1313,6 +1401,25 @@ onBeforeUnmount(() => {
               v-model="selectedNode.data.message"
               class="prop-textarea"
               rows="3"
+              @input="handleInspectorDataChange"
+            ></textarea>
+          </div>
+
+          <div
+            v-else-if="['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(selectedNode.subType)"
+            class="prop-group"
+          >
+            <label class="prop-label">Configurazione annidata (JSON)</label>
+            <p class="palette-desc">
+              Modifica qui rami, condizioni e sequenze. Domus conserva la struttura annidata; un JSON non valido o un'azione non supportata blocca il salvataggio.
+            </p>
+            <textarea
+              v-model="selectedNode.data.advancedJson"
+              class="prop-textarea advanced-action-json"
+              rows="14"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
               @input="handleInspectorDataChange"
             ></textarea>
           </div>
@@ -2006,6 +2113,7 @@ onBeforeUnmount(() => {
 .prop-input,
 .prop-select,
 .prop-textarea {
+
   width: 100%;
   padding: 8px 12px;
   border-radius: var(--radius-md);
@@ -2015,6 +2123,16 @@ onBeforeUnmount(() => {
   font-size: 13px;
   outline: none;
   transition: border var(--transition-fast);
+}
+
+.advanced-action-json {
+  min-height: 260px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
 }
 
 .prop-input:focus,
