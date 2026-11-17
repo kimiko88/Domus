@@ -285,15 +285,19 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 		statusCodes = append(statusCodes, st.Code)
 	}
 	cat := tuya_local.DeviceCategory(strings.ToLower(strings.TrimSpace(dev.Category)))
-	if cat == "" {
+	switch cat {
+	case tuya_local.CategoryClimate, tuya_local.CategoryLight, tuya_local.CategoryPlug,
+		tuya_local.CategorySensor, tuya_local.CategorySwitch:
+		// The Cloud category already matches a supported Domus profile.
+	default:
 		name := strings.ToLower(dev.Name + " " + dev.ProductName)
 		switch {
 		case containsAnyTuyaCode(statusCodes, "temp_set", "target_temp", "target_temperature", "temp_current", "current_temp", "hvac_mode", "work_mode") ||
 			strings.Contains(name, "thermostat") ||
-			strings.Contains(name, "climate") || strings.Contains(name, "radiator"):
+			strings.Contains(name, "climate") || strings.Contains(name, "radiator") ||
+			strings.Contains(name, "heater"):
 			cat = tuya_local.CategoryClimate
-		case strings.Contains(strings.ToLower(dev.Category), "dj") ||
-			strings.Contains(name, "light") || strings.Contains(name, "lamp") || strings.Contains(name, "bulb"):
+		case strings.Contains(name, "light") || strings.Contains(name, "lamp") || strings.Contains(name, "bulb"):
 			cat = tuya_local.CategoryLight
 		case strings.Contains(name, "plug") || strings.Contains(name, "socket"):
 			cat = tuya_local.CategoryPlug
