@@ -290,4 +290,17 @@ func TestEntityHandler_ApplyClimateProfile(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("thermostat profile command was not published")
 	}
+
+	// Stable entity_key paths must resolve to the same persisted entity as UUID paths.
+	body = bytes.NewBufferString(`{"profile":"custom","temperature":18.5,"duration_minutes":0}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/entities/climate.living_room/climate-profile", body)
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code)
+	select {
+	case <-commandReceived:
+		assert.Equal(t, 18.5, received)
+	case <-time.After(2 * time.Second):
+		t.Fatal("thermostat profile command by entity_key was not published")
+	}
 }
