@@ -374,7 +374,7 @@
     "emptyDesc": "Konfigurieren Sie MQTT-, Zigbee2MQTT- oder ESPHome-Adapter in Ihrer Konfigurationsdatei.",
     "view": {
       "genericLanHost": "Allgemeiner LAN-Host",
-"selectedForLocalTuya": "Für LocalTuya ausgewählt: {count}",
+      "selectedForLocalTuya": "Für LocalTuya ausgewählt: {count}",
       "lanGuardianTitle": "LAN & IoT Guardian",
       "smartLifeCloud": "Smart Life Cloud",
       "bridgeInfo": "Hardware-Bridges und Protokolle, die derzeit mit dem lokalen Domus-System verbunden sind.",
@@ -397,7 +397,6 @@
       "noLeaksTitle": "Keine Leaks erkannt",
       "noLeaksDesc": "Alle überwachten IoT-Geräte sind konform und arbeiten ausschließlich offline im lokalen Netzwerk.",
       "unlock": "Entsperren",
-      "unblock": "Sperre aufheben",
       "quarantine": "In Quarantäne verschieben",
       "hostMapTitle": "Karte erkannter LAN-Hosts (OUI und Port-Fingerabdruck)",
       "arpCacheEmpty": "Keine Hosts im ARP-Cache. Klicke auf „ARP-Scan“, um Knoten zu erkennen.",
@@ -464,13 +463,7 @@
       "filterUnselected": "Nicht ausgewählt ({count})",
       "clientId": "Client-ID:",
       "smartLifeUidLabel": "Smart-Life-UID:",
-      "endpointLabel": "Endpunkt:",
-      "messages": {
-        "tuyaConnectedTitle": "Smart Life verbunden",
-        "deviceOfflineDesc": "Das Gerät ist offline. Prüfe die Stromversorgung und die lokale Netzwerkverbindung.",
-        "arpScanCompleteDesc": "ARP-Scan abgeschlossen. Gefundene Geräte: {count}.",
-        "deviceUnblockedTitle": "Gerätesperre aufgehoben"
-      }
+      "endpointLabel": "Endpunkt:"
     }
   },
   "history": {
