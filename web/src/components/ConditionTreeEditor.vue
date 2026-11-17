@@ -47,12 +47,14 @@ function createDefaultCondition(): AutomationCondition {
   }
 }
 
-function removeDiscriminatorFields(condition: AutomationCondition): AutomationCondition {
-  const next = { ...condition } as Record<string, unknown>
+type ConditionWithoutDiscriminator = Omit<AutomationCondition, 'condition'> & Record<string, unknown>
+
+function removeDiscriminatorFields(condition: AutomationCondition): ConditionWithoutDiscriminator {
+  const next = { ...condition } as ConditionWithoutDiscriminator
   for (const field of ['condition', 'conditions', 'entity_key', 'state', 'above', 'below', 'after', 'before', 'trigger_id']) {
     delete next[field]
   }
-  return next as AutomationCondition
+  return next
 }
 
 function changeType(type: string) {
@@ -76,7 +78,10 @@ function changeType(type: string) {
   }
 
   if (!leafTypes.some((item) => item.value === type)) return
-  const next = { ...removeDiscriminatorFields(props.modelValue), condition: type } as AutomationCondition
+  const next: AutomationCondition = {
+    ...removeDiscriminatorFields(props.modelValue),
+    condition: type
+  }
   if (type === 'state') {
     next.entity_key = props.modelValue.entity_key || props.entities[0]?.id || ''
     next.state = props.modelValue.state || 'on'
