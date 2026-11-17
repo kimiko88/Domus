@@ -86,4 +86,22 @@ describe('parseAdvancedAutomationAction', () => {
     expect(() => parseAdvancedAutomationAction(JSON.stringify(unboundedRepeat), 'repeat')).toThrow('sequence non può essere vuota')
     expect(() => parseAdvancedAutomationAction(JSON.stringify(emptyParallel), 'parallel')).toThrow('almeno 1 elemento')
   })
+
+  it('requires integer milliseconds, duration minutes and repeat counts', () => {
+    const fractionalDelay = { type: 'delay', delay_ms: 1.5 }
+    const fractionalDuration = {
+      type: 'climate_profile',
+      target_entity_key: 'climate.hall',
+      profile: 'eco',
+      duration_minutes: 1.5
+    }
+    const fractionalRepeat = {
+      type: 'repeat',
+      repeat: { count: 1.5, sequence: [{ type: 'delay', delay_ms: 1000 }] }
+    }
+
+    expect(() => parseAdvancedAutomationAction(JSON.stringify(fractionalDelay), 'delay')).toThrow('numero intero')
+    expect(() => parseAdvancedAutomationAction(JSON.stringify(fractionalDuration), 'climate_profile')).toThrow('numero intero')
+    expect(() => parseAdvancedAutomationAction(JSON.stringify(fractionalRepeat), 'repeat')).toThrow('numero intero')
+  })
 })
