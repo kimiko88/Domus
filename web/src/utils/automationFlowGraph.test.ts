@@ -194,4 +194,35 @@ describe('buildAutomationActionGraph', () => {
     expect(() => applyAutomationActionBranches(rootNode, compiled, graph.nodes, multiple)).toThrow('più collegamenti')
   })
 
+  it('compiles edited typed logical condition models instead of stale JSON snapshots', () => {
+    const source = {
+      type: 'if',
+      if: [{
+        condition: 'and',
+        conditions: [
+          { condition: 'state', entity_key: 'binary_sensor.motion', state: 'on' },
+          { condition: 'time', after: '20:00:00' }
+        ]
+      }],
+      then: [{ type: 'service', service: 'turn_on', target_entity_key: 'light.hall' }]
+    }
+    const graph = buildAutomationActionGraph([source] as any)
+    const rootNode = graph.nodes.find((node) => node.id === 'act_root_0')!
+    const groupNode = graph.nodes.find((node) => node.subType === 'logic')!
+    const editedCondition = {
+      ...(groupNode.data.logicCondition as any),
+      conditions: [
+        { condition: 'state', entity_key: 'binary_sensor.motion', state: 'off' },
+        { condition: 'time', after: '22:00:00' }
+      ]
+    }
+    groupNode.data.logicCondition = editedCondition
+    // Deliberately leave advancedConditionJson unchanged: the visual model is authoritative.
+    const compiled = parseAdvancedAutomationAction(rootNode.data.advancedJson, 'if') as any
+
+    applyAutomationActionBranches(rootNode, compiled, graph.nodes, graph.wires)
+
+    expect(compiled.if[0]).toEqual(editedCondition)
+  })
+
 })
