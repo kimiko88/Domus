@@ -38,8 +38,7 @@ describe('buildAutomationActionGraph', () => {
       type: 'repeat',
       repeat: {
         while: [{ condition: 'state', entity_key: 'binary_sensor.window', state: 'on' }],
-        sequence: [{ type: 'delay', delay_ms: 1000 }],
-        until: [{ condition: 'numeric_state', entity_key: 'sensor.temperature', below: 19 }]
+        sequence: [{ type: 'delay', delay_ms: 1000 }]
       }
     }]
 
