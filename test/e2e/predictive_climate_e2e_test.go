@@ -190,7 +190,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// STEP 3: Fetch real-time system dashboard status
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/status")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var status appclimate.SystemPredictiveStatus
 	err = json.NewDecoder(resp.Body).Decode(&status)
@@ -205,7 +205,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// STEP 4: Fetch historical evaluations for this zone
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/evaluations")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var evalsRes map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&evalsRes)
@@ -217,7 +217,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// 5.1 Fetch initial default thermal profile for Radiant Floor
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/profile")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var initialProfile domclimate.ThermalProfile
 	err = json.NewDecoder(resp.Body).Decode(&initialProfile)
@@ -237,7 +237,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	trainBytes, _ := json.Marshal(trainCycle)
 	resp, err = post(ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID+"/train", trainBytes)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var trainedProfile domclimate.ThermalProfile
 	err = json.NewDecoder(resp.Body).Decode(&trainedProfile)
@@ -250,7 +250,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	targetTime := time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339)
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-start?target_temp=21.0&target_time=" + targetTime)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var preheatRec domclimate.PreheatRecommendation
 	err = json.NewDecoder(resp.Body).Decode(&preheatRec)
@@ -271,7 +271,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	// 5.4 Optimal Stop (Coast-Down) Recommendation
 	resp, err = get(ts.URL + "/api/v1/climate/predictive/zones/" + createdZone.ID + "/optimal-stop")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 
 	var coastRec domclimate.CoastDownRecommendation
 	err = json.NewDecoder(resp.Body).Decode(&coastRec)
@@ -286,7 +286,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/climate/predictive/zones/"+createdZone.ID, nil)
 	resp, err = doRequest(req)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	requireHTTPStatus(t, resp, http.StatusOK)
 	resp.Body.Close()
 }
 
