@@ -657,6 +657,9 @@ function getGraphExecutionOrder(): FlowNode[] {
     }
     const targets = outgoing.get(wire.fromNodeId) || []
     targets.push(wire.toNodeId)
+    if (targets.length > 1) {
+      throw new Error('Un nodo della sequenza principale può avere una sola uscita. Usa le porte nominate di IF/ELSE o CHOOSE per creare rami.')
+    }
     outgoing.set(wire.fromNodeId, targets)
     indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
   }
