@@ -842,9 +842,10 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       actions.push(act)
     } else if (node.type === 'delay') {
+      const delaySeconds = Number(node.data.delay_seconds)
       actions.push({
         type: 'delay',
-        delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000
+        delay_ms: Math.max(0, Math.round((Number.isFinite(delaySeconds) ? delaySeconds : 5) * 1000))
       })
     }
   }
