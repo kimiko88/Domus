@@ -713,21 +713,58 @@ async function handleSave() {
 }
 
 async function handleTestRun() {
-  isTestingRun.value = true
-  soundEffects.playClick()
-  notificationsStore.info('Test Run Avviato', 'Esecuzione sequenziale dei nodi del flusso...')
-
-  // Step-by-step visual animation through nodes
-  for (let i = 0; i < nodes.value.length; i++) {
-    activeRunStepNodeId.value = nodes.value[i].id
-    soundEffects.playClick()
-    await new Promise((r) => setTimeout(r, 600))
+  if (!automationId.value) {
+    notificationsStore.info(
+      'Salva prima il flusso',
+      'Per simulare l’automazione devi prima salvarla. Il test non esegue comandi sui dispositivi.'
+    )
+    return
   }
 
+  isTestingRun.value = true
   activeRunStepNodeId.value = null
-  isTestingRun.value = false
-  soundEffects.playSuccessChime()
-  notificationsStore.success('Test Run Concluso', 'Tutti i rami del flusso hanno restituito ACK positivo.')
+  soundEffects.playClick()
+  try {
+    // Ensure the server evaluates the latest graph instead of an older saved copy.
+    const payload = compileGraphToAutomation()
+    await automationsStore.updateAutomation(automationId.value, payload)
+    const result = await apiClient.post<{
+      automation_id: string
+      passed: boolean
+      triggers_evaluated: boolean
+      warnings?: string[]
+      traces: Array<{ condition_type: string; passed: boolean; reason: string; sub_traces?: unknown[] }>
+      actions_would_execute: AutomationAction[]
+    }>(`/api/v1/automations/${automationId.value}/dry-run`)
+
+    if (result.passed) {
+      soundEffects.playSuccessChime()
+      notificationsStore.success(
+        'Simulazione completata',
+        result.triggers_evaluated
+          ? 'Le condizioni risultano verificate.'
+          : 'Le condizioni risultano verificate. I trigger non sono stati simulati.'
+      )
+    } else {
+      notificationsStore.warning(
+        'Simulazione non superata',
+        'Una o più condizioni non risultano verificate. Consulta il dettaglio per individuare il blocco.'
+      )
+    }
+
+    const details = (result.traces || []).map((trace) =>
+      `${trace.passed ? '✓' : '✕'} ${trace.condition_type}: ${trace.reason}`
+    )
+    const warnings = result.warnings || []
+    if (details.length || warnings.length) {
+      notificationsStore.info('Risultato simulazione', [...warnings, ...details].join(' · '))
+    }
+  } catch (err: any) {
+    notificationsStore.error('Errore simulazione', err?.message || 'Impossibile simulare il flusso.')
+  } finally {
+    isTestingRun.value = false
+    activeRunStepNodeId.value = null
+  }
 }
 
 function handleOpenJson() {
