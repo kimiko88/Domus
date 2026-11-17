@@ -64,7 +64,7 @@ func (h *EntityHandler) ApplyClimateProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	id := chi.URLParam(r, "id")
-	ent, err := h.repo.GetByID(r.Context(), id)
+	ent, err := h.resolveEntity(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, entity.ErrEntityNotFound) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "entity not found")
