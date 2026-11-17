@@ -342,7 +342,7 @@ function getSubtitleForNode(type: FlowNodeType, subType: string, data: Record<st
     if (subType === 'service') return `${data.service || 'turn_on'} -> ${data.target_entity_key || 'entità'}`
     if (subType === 'scene') return `Applica scena`
     if (subType === 'notify') return `Notifica smartphone`
-    if (['choose', 'if', 'repeat', 'parallel'].includes(subType)) return `Controllo: ${subType}`
+    if (['choose', 'if', 'if_then_else', 'repeat', 'parallel'].includes(subType)) return `Controllo: ${subType}`
     if (subType === 'climate_profile') return 'Profilo termostato'
     if (subType === 'event') return 'Pubblica evento'
   } else if (type === 'delay') {
