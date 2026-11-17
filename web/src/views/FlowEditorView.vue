@@ -99,6 +99,7 @@ const dragOffset = ref({ x: 0, y: 0 })
 const isWiring = ref(false)
 const wireStartNodeId = ref<string | null>(null)
 const wireStartBranchKey = ref<string | null>(null)
+const suppressNextPortClick = ref(false)
 const mousePos = ref({ x: 0, y: 0 })
 const activeTouchPointers = new Map<number, { x: number; y: number }>()
 let pinchOrigin: {
@@ -399,6 +400,7 @@ function finishWiring() {
 
 function startWiring(nodeId: string, e: PointerEvent, branchKey?: string) {
   if (activeTouchPointers.size > 1) return
+  suppressNextPortClick.value = true
   e.stopPropagation()
   soundEffects.playClick()
   isWiring.value = true
@@ -432,6 +434,14 @@ function toggleWireStart(nodeId: string, branchKey?: string) {
   isWiring.value = true
   wireStartNodeId.value = nodeId
   wireStartBranchKey.value = branchKey || null
+}
+
+function handlePortClick(nodeId: string, branchKey?: string) {
+  if (suppressNextPortClick.value) {
+    suppressNextPortClick.value = false
+    return
+  }
+  toggleWireStart(nodeId, branchKey)
 }
 
 function completeWiringByClick(nodeId: string) {
@@ -685,6 +695,13 @@ function getGraphExecutionOrder(): FlowNode[] {
       throw new Error('I rami delle azioni composite possono contenere solo azioni o pause.')
     }
   }
+  const branchNodes = getBranchDescendantIds()
+  const rejoiningWire = wires.value.find((wire) =>
+    !wire.branchKey && branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
+  )
+  if (rejoiningWire) {
+    throw new Error('Una sequenza di ramo non può ricongiungersi al flusso principale: duplica le azioni successive in ciascun ramo.')
+  }
   return ordered
 }
 
@@ -734,19 +751,30 @@ function compileBranchSequence(parentId: string, branchKey: string, visited = ne
 
 function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & Record<string, any>, visited = new Set<string>()) {
   if (action.type === 'if' || action.type === 'if_then_else') {
-    action.then = compileBranchSequence(node.id, 'then', visited)
-    action.else = compileBranchSequence(node.id, 'else', visited)
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'then')) {
+      action.then = compileBranchSequence(node.id, 'then', visited)
+    }
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'else')) {
+      action.else = compileBranchSequence(node.id, 'else', visited)
+    }
   } else if (action.type === 'choose') {
-    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => ({
-      ...branch,
-      sequence: compileBranchSequence(node.id, `choose:${index}`, visited)
-    }))
-    action.default = compileBranchSequence(node.id, 'default', visited)
+    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => (
+      wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === `choose:${index}`)
+        ? { ...branch, sequence: compileBranchSequence(node.id, `choose:${index}`, visited) }
+        : branch
+    ))
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'default')) {
+      action.default = compileBranchSequence(node.id, 'default', visited)
+    }
   } else if (action.type === 'repeat') {
-    action.repeat = { ...action.repeat, sequence: compileBranchSequence(node.id, 'sequence', visited) }
+    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'sequence')) {
+      action.repeat = { ...action.repeat, sequence: compileBranchSequence(node.id, 'sequence', visited) }
+    }
   } else if (action.type === 'parallel') {
     action.parallel = (action.parallel || []).map((original: AutomationAction, index: number) => {
-      const sequence = compileBranchSequence(node.id, `parallel:${index}`, visited)
+      const branchKey = `parallel:${index}`
+      if (!wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === branchKey)) return original
+      const sequence = compileBranchSequence(node.id, branchKey, visited)
       if (sequence.length > 1) throw new Error('Ogni ramo parallelo deve contenere una singola azione: il motore esegue gli elementi in parallelo.')
       return sequence[0] || original
     })
@@ -1351,7 +1379,7 @@ onBeforeUnmount(() => {
                   class="node-port port-output branch-port"
                   type="button"
                   @pointerdown="startWiring(node.id, $event, port.key)"
-                  @click.stop="toggleWireStart(node.id, port.key)"
+                  @click.stop="handlePortClick(node.id, port.key)"
                   @keydown.enter.prevent.stop="toggleWireStart(node.id, port.key)"
                   @keydown.space.prevent.stop="toggleWireStart(node.id, port.key)"
                   :aria-label="`Collega uscita ${port.label}`"
@@ -1365,7 +1393,7 @@ onBeforeUnmount(() => {
               role="button"
               tabindex="0"
               @pointerdown="startWiring(node.id, $event)"
-              @click.stop="toggleWireStart(node.id)"
+              @click.stop="handlePortClick(node.id)"
               @keydown.enter.prevent.stop="toggleWireStart(node.id)"
               @keydown.space.prevent.stop="toggleWireStart(node.id)"
               :aria-label="t('flowchart.view.dragToConnect')"
