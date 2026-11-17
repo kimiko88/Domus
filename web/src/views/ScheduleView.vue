@@ -389,18 +389,6 @@ function findThermostatOption(idOrKey: string): ThermostatOption | undefined {
   )
 }
 
-// Connected Smart Thermostats from entities store
-const connectedThermostats = computed(() => {
-  return Object.values(entitiesStore.entities).filter(
-    (e) => {
-      const domain = String(e.domain || '').trim().toLowerCase()
-      const entityKey = String(e.entity_key || '').trim().toLowerCase()
-      const id = String(e.id || '').trim().toLowerCase()
-      return domain === 'climate' || entityKey.startsWith('climate.') || id.startsWith('climate.')
-    }
-  )
-})
-
 // Active regulated thermostat (either from connectedThermostats or schedule target)
 const activeThermostatId = ref<string>('')
 
