@@ -170,70 +170,70 @@ export function buildAutomationActionGraph(
       cursorY += 130
       if (!COMPOSITE_ACTIONS.has(action.type)) return
 
-      let branchIndex = 0
-      let deepestY = cursorY
-      const branchStart = (offset: number) => node.y + 120 + offset * 150
+      let branchCursorY = node.y + 120
 
       if (action.type === 'if' || action.type === 'if_then_else') {
-        const conditionsEnd = addConditionSequence(
-          action.if,
-          node,
-          'if:conditions',
-          `${nodePath}_if_conditions`,
-          branchStart(branchIndex++)
-        )
-        deepestY = Math.max(deepestY, conditionsEnd)
-        deepestY = Math.max(deepestY, appendSequence(action.then || [], node, 'then', depth + 1, branchStart(branchIndex++), `${nodePath}_then`))
-        deepestY = Math.max(deepestY, appendSequence(action.else || [], node, 'else', depth + 1, branchStart(branchIndex++), `${nodePath}_else`))
+        if (action.if?.length) {
+          branchCursorY = addConditionSequence(
+            action.if,
+            node,
+            'if:conditions',
+            `${nodePath}_if_conditions`,
+            branchCursorY
+          ) + 30
+        }
+        branchCursorY = appendSequence(action.then || [], node, 'then', depth + 1, branchCursorY, `${nodePath}_then`) + 30
+        branchCursorY = appendSequence(action.else || [], node, 'else', depth + 1, branchCursorY, `${nodePath}_else`) + 30
       } else if (action.type === 'choose') {
         ;(action.choose || []).forEach((branch, branchNumber) => {
-          const conditionsEnd = addConditionSequence(
-            branch.conditions,
-            node,
-            `choose:${branchNumber}:conditions`,
-            `${nodePath}_choose_${branchNumber}_conditions`,
-            branchStart(branchIndex++)
-          )
-          deepestY = Math.max(deepestY, conditionsEnd)
-          deepestY = Math.max(deepestY, appendSequence(
+          if (branch.conditions?.length) {
+            branchCursorY = addConditionSequence(
+              branch.conditions,
+              node,
+              `choose:${branchNumber}:conditions`,
+              `${nodePath}_choose_${branchNumber}_conditions`,
+              branchCursorY
+            ) + 30
+          }
+          branchCursorY = appendSequence(
             branch.sequence || [],
             node,
             `choose:${branchNumber}`,
             depth + 1,
-            branchStart(branchIndex++),
+            branchCursorY,
             `${nodePath}_choose_${branchNumber}`
-          ))
+          ) + 30
         })
-        deepestY = Math.max(deepestY, appendSequence(action.default || [], node, 'default', depth + 1, branchStart(branchIndex++), `${nodePath}_default`))
+        branchCursorY = appendSequence(action.default || [], node, 'default', depth + 1, branchCursorY, `${nodePath}_default`) + 30
       } else if (action.type === 'repeat') {
         const repeat = action.repeat
         if (repeat?.while?.length) {
-          deepestY = Math.max(deepestY, addConditionSequence(
-            repeat.while, node, 'repeat:while', `${nodePath}_repeat_while`, branchStart(branchIndex++)
-          ))
+          branchCursorY = addConditionSequence(
+            repeat.while, node, 'repeat:while', `${nodePath}_repeat_while`, branchCursorY
+          ) + 30
         }
         if (repeat?.until?.length) {
-          deepestY = Math.max(deepestY, addConditionSequence(
-            repeat.until, node, 'repeat:until', `${nodePath}_repeat_until`, branchStart(branchIndex++)
-          ))
+          branchCursorY = addConditionSequence(
+            repeat.until, node, 'repeat:until', `${nodePath}_repeat_until`, branchCursorY
+          ) + 30
         }
-        deepestY = Math.max(deepestY, appendSequence(
-          repeat?.sequence || [], node, 'sequence', depth + 1, branchStart(branchIndex++), `${nodePath}_repeat_sequence`
-        ))
+        branchCursorY = appendSequence(
+          repeat?.sequence || [], node, 'sequence', depth + 1, branchCursorY, `${nodePath}_repeat_sequence`
+        ) + 30
       } else if (action.type === 'parallel') {
         ;(action.parallel || []).forEach((parallelAction, parallelIndex) => {
-          deepestY = Math.max(deepestY, appendSequence(
+          branchCursorY = appendSequence(
             [parallelAction],
             node,
             `parallel:${parallelIndex}`,
             depth + 1,
-            branchStart(branchIndex++),
+            branchCursorY,
             `${nodePath}_parallel_${parallelIndex}`
-          ))
+          ) + 30
         })
       }
 
-      cursorY = Math.max(cursorY, deepestY + 40)
+      cursorY = Math.max(cursorY, branchCursorY + 10)
       previousId = node.id
     })
 
