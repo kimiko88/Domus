@@ -93,6 +93,7 @@ describe('buildAutomationActionGraph', () => {
     const actionNode = graph.nodes.find((node) => node.subType === 'if')
 
     expect(logicNode?.data.originalCondition).toEqual(condition)
+    expect(logicNode?.data.logicCondition).toEqual(condition)
     expect(JSON.parse(logicNode?.data.advancedConditionJson)).toEqual(condition)
     expect(JSON.parse(actionNode?.data.advancedJson)).toEqual(action)
   })
