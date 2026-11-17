@@ -182,6 +182,21 @@ function tuyaFunctionKey(deviceId: string, code: string) {
   return `${deviceId}:${code}`
 }
 
+function tuyaBooleanState(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') {
+    if (value === 1) return true
+    if (value === 0) return false
+    return undefined
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'on', 'enabled', 'active', 'yes'].includes(normalized)) return true
+    if (['false', '0', 'off', 'disabled', 'inactive', 'no'].includes(normalized)) return false
+  }
+  return undefined
+}
+
 function tuyaFunctionValues(fn: TuyaDeviceFunction): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(fn.values || '{}')
@@ -203,9 +218,10 @@ function tuyaFunctionScale(fn: TuyaDeviceFunction) {
 }
 
 function tuyaTemperatureFunction(deviceId: string) {
-  return (tuyaDeviceFunctions.value[deviceId] || []).find(fn =>
-    /temp/i.test(fn.code) && !/current|cur_|indoor/i.test(fn.code)
-  )
+  return (tuyaDeviceFunctions.value[deviceId] || []).find(fn => {
+    const code = fn.code.trim().toLowerCase()
+    return ['temp_set', 'target_temp', 'target_temperature'].includes(code)
+  })
 }
 
 function isTuyaClimateDevice(device: TuyaCloudDevice) {
@@ -420,9 +436,17 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
   try {
     const current = (device.status || []).find(point => point.code === fn.code)?.value
     let value: unknown
-    const type = fn.type.toLowerCase()
+    const type = fn.type.trim().toLowerCase()
     if (type === 'boolean') {
-      value = current === true ? false : true
+      const currentBoolean = tuyaBooleanState(current)
+      if (currentBoolean === undefined) {
+        notificationsStore.warning(
+          'Stato non disponibile',
+          `Impossibile invertire ${fn.name || fn.code}: aggiorna lo stato del dispositivo e riprova.`
+        )
+        return
+      }
+      value = !currentBoolean
     } else if (isNumericTuyaFunction(fn)) {
       const parsed = Number(tuyaFunctionInputs[key])
       if (!Number.isFinite(parsed)) {
@@ -443,7 +467,7 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       if ((code.includes('switch') || code.includes('power')) && typeof value === 'boolean') {
         await apiClient.post(localPath, { command: value ? 'turn_on' : 'turn_off' })
         sentLocally = true
-      } else if (code.includes('temp') && !code.includes('current') && !code.includes('cur_') && typeof value === 'number') {
+      } else if (code === 'temp_set' && typeof value === 'number') {
         await apiClient.post(localPath, {
           command: 'set_temperature',
           params: { temperature: value / Math.pow(10, tuyaFunctionScale(fn)) }
@@ -1168,7 +1192,7 @@ onMounted(() => {
               </div>
               <div v-else-if="host.is_iot" class="badge-iot">
                 <Zap :size="12" />
-                <span>IoT</span>
+                <span>{{ t('integrations.view.iot') }}</span>
               </div>
             </div>
 
@@ -1208,7 +1232,7 @@ onMounted(() => {
                 @click="unblockDevice(host.mac, host.ip)"
               >
                 <Unlock :size="14" />
-                <span>{{ t('integrations.view.unblock') }}</span>
+                <span>{{ t('integrations.view.unlockButton') }}</span>
               </button>
               <button
                 v-else
@@ -1260,9 +1284,9 @@ onMounted(() => {
         <div class="tuya-status-left">
           <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>{{ t('integrations.view.serverToServer') }}</span></div>
           <div class="tuya-meta-chips">
-            <span class="meta-chip"><strong>Client ID:</strong> {{ tuyaConfig.client_id_masked || tuyaConfig.client_id }}</span>
-            <span class="meta-chip"><strong>Smart Life UID:</strong> {{ tuyaConfig.uid }}</span>
-            <span class="meta-chip"><strong>Endpoint:</strong> {{ tuyaConfig.endpoint }}</span>
+            <span class="meta-chip"><strong>{{ t('integrations.view.clientId') }}</strong> {{ tuyaConfig.client_id_masked || tuyaConfig.client_id }}</span>
+            <span class="meta-chip"><strong>{{ t('integrations.view.smartLifeUidLabel') }}</strong> {{ tuyaConfig.uid }}</span>
+            <span class="meta-chip"><strong>{{ t('integrations.view.endpointLabel') }}</strong> {{ tuyaConfig.endpoint }}</span>
           </div>
         </div>
       </div>
@@ -1391,11 +1415,11 @@ onMounted(() => {
             <input id="tuya-device-search" v-model="tuyaSearchQuery" type="search" :placeholder="t('integrations.view.searchDevicesPlaceholder')" />
           </label>
           <div class="tuya-device-filters" role="group" :aria-label="t('integrations.view.filterTuyaDevices')">
-            <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">{{ t('integrations.view.filterAll') }} ({{ tuyaCloudDevices.length }})</button>
-            <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">{{ t('integrations.view.filterOnline') }} ({{ tuyaOnlineCount }})</button>
-            <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">{{ t('integrations.view.filterOffline') }} ({{ tuyaOfflineCount }})</button>
-            <button type="button" data-filter="selected" :aria-pressed="tuyaDeviceFilter === 'selected'" :class="{ active: tuyaDeviceFilter === 'selected' }" @click="tuyaDeviceFilter = 'selected'">{{ t('integrations.view.filterSelected') }} ({{ tuyaSelectedCount }})</button>
-            <button type="button" data-filter="unselected" :aria-pressed="tuyaDeviceFilter === 'unselected'" :class="{ active: tuyaDeviceFilter === 'unselected' }" @click="tuyaDeviceFilter = 'unselected'">{{ t('integrations.view.filterUnselected') }} ({{ tuyaUnselectedCount }})</button>
+            <button type="button" data-filter="all" :aria-pressed="tuyaDeviceFilter === 'all'" :class="{ active: tuyaDeviceFilter === 'all' }" @click="tuyaDeviceFilter = 'all'">{{ t('integrations.view.filterAll', { count: tuyaCloudDevices.length }) }}</button>
+            <button type="button" data-filter="online" :aria-pressed="tuyaDeviceFilter === 'online'" :class="{ active: tuyaDeviceFilter === 'online' }" @click="tuyaDeviceFilter = 'online'">{{ t('integrations.view.filterOnline', { count: tuyaOnlineCount }) }}</button>
+            <button type="button" data-filter="offline" :aria-pressed="tuyaDeviceFilter === 'offline'" :class="{ active: tuyaDeviceFilter === 'offline' }" @click="tuyaDeviceFilter = 'offline'">{{ t('integrations.view.filterOffline', { count: tuyaOfflineCount }) }}</button>
+            <button type="button" data-filter="selected" :aria-pressed="tuyaDeviceFilter === 'selected'" :class="{ active: tuyaDeviceFilter === 'selected' }" @click="tuyaDeviceFilter = 'selected'">{{ t('integrations.view.filterSelected', { count: tuyaSelectedCount }) }}</button>
+            <button type="button" data-filter="unselected" :aria-pressed="tuyaDeviceFilter === 'unselected'" :class="{ active: tuyaDeviceFilter === 'unselected' }" @click="tuyaDeviceFilter = 'unselected'">{{ t('integrations.view.filterUnselected', { count: tuyaUnselectedCount }) }}</button>
           </div>
         </div>
         <div class="tuya-device-bulk-actions">

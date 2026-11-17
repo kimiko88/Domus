@@ -8,6 +8,7 @@ import (
 
 	appDash "github.com/domus-hub/domus/internal/application/dashboard"
 	domainDash "github.com/domus-hub/domus/internal/domain/dashboard"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -30,6 +31,18 @@ func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if dashboards == nil {
 		dashboards = []*domainDash.Dashboard{}
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil && currentUser.Role != "admin" {
+		permissions := currentUser.EffectivePermissions()
+		if permissions == nil || permissions.AllowedDashboardIDs != nil {
+			visible := make([]*domainDash.Dashboard, 0, len(dashboards))
+			for _, dashboard := range dashboards {
+				if permissions != nil && permissions.CanAccessDashboard(dashboard.ID) {
+					visible = append(visible, dashboard)
+				}
+			}
+			dashboards = visible
+		}
 	}
 	writeJSON(w, http.StatusOK, dashboards)
 }
@@ -64,6 +77,13 @@ func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if permissions == nil || !permissions.CanAccessDashboard(d.ID) {
+			writeError(w, http.StatusForbidden, "FORBIDDEN", "dashboard is not assigned to this member")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, d)
 }

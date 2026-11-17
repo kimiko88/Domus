@@ -366,16 +366,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 			// Family management routes (authenticated)
 			api.Route("/family", func(famRouter chi.Router) {
-				famRouter.Use(domusmw.RequireAuth())
+				famRouter.Use(domusmw.RequireAuth(), domusmw.RequireViewAccess())
 				// All authenticated members can view other family members
 				famRouter.Get("/members", familyH.ListMembers)
 
 				// Guest profiles management
-				famRouter.Get("/guests", familyH.ListGuests)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Get("/guests", familyH.ListGuests)
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/guests", familyH.CreateGuest)
 
 				// Role modifications and member removal restricted to Admin
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/role", familyH.UpdateMemberRole)
+				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/members/{id}/permissions", familyH.UpdateMemberPermissions)
 				famRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/members/{id}", familyH.RemoveMember)
 
 				// Invites management restricted to Admin
@@ -388,7 +389,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// Domain repository routes (Areas, Devices, Entities)
 		if srv.repos != nil {
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
-			deviceH := handlers.NewDeviceHandler(srv.repos.Devices)
+			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
@@ -406,16 +407,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 
 			api.Group(func(domainRouter chi.Router) {
-				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireOperatorForWrites())
+				domainRouter.Use(domusmw.RequireAuth(), domusmw.RequireViewAccess(), domusmw.RequireOperatorForWrites())
 
 				domainRouter.Route("/integrations", func(intRouter chi.Router) {
 					intRouter.Get("/", integrationH.List)
 					intRouter.Get("/catalog", integrationH.GetCatalog)
 					intRouter.Get("/discovery/devices", integrationH.ListDiscovered)
-					intRouter.Post("/discovery/scan", integrationH.Scan)
-					intRouter.Post("/discovery/pair", integrationH.Pair)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/discovery/scan", integrationH.Scan)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/discovery/pair", integrationH.Pair)
 					intRouter.Get("/{id}", integrationH.GetByID)
-					intRouter.Post("/{id}/reconnect", integrationH.Reconnect)
+					intRouter.With(domusmw.RequireSettingsPermission()).Post("/{id}/reconnect", integrationH.Reconnect)
 				})
 				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
 				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
@@ -471,7 +472,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					entRouter.Get("/", entityH.List)
 					entRouter.Get("/{id}", entityH.GetByID)
 					if srv.authService != nil {
-						entRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/command", entityH.Command)
+						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/command", entityH.Command)
 					} else {
 						entRouter.Post("/{id}/command", entityH.Command)
 					}
@@ -500,22 +501,23 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Mobile & ecosystem services endpoint (/api/v1/services/{domain}/{service})
 				if srv.authService != nil {
-					domainRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/services/{domain}/{service}", entityH.CallService)
+					domainRouter.With(domusmw.RequireDeviceControl()).Post("/services/{domain}/{service}", entityH.CallService)
 				} else {
 					domainRouter.Post("/services/{domain}/{service}", entityH.CallService)
 				}
 
 				autoH := handlers.NewAutomationHandler(srv.repos.Automations, srv.autoEngine).WithEntities(srv.repos.Entities)
 				domainRouter.Route("/automations", func(autoRouter chi.Router) {
+					autoRouter.Use(domusmw.RequireAutomationManagement())
 					autoRouter.Get("/", autoH.List)
 					autoRouter.Get("/blueprints", autoH.ListBlueprints)
 					if srv.authService != nil {
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", autoH.Create)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/", autoH.Create)
 						autoRouter.Get("/{id}", autoH.Get)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", autoH.Update)
-						autoRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", autoH.Delete)
-						autoRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/trigger", autoH.Trigger)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", autoH.Update)
+						autoRouter.With(domusmw.RequireAutomationManagement()).Delete("/{id}", autoH.Delete)
+						autoRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/trigger", autoH.Trigger)
 						autoRouter.Post("/{id}/dry-run", autoH.DryRun)
 					} else {
 						autoRouter.Post("/blueprints/{id}/instantiate", autoH.InstantiateBlueprint)
@@ -537,7 +539,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						sceneRouter.Get("/{id}", sceneH.Get)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", sceneH.Update)
 						sceneRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", sceneH.Delete)
-						sceneRouter.With(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin)).Post("/{id}/apply", sceneH.Apply)
+						sceneRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/apply", sceneH.Apply)
 					} else {
 						sceneRouter.Post("/", sceneH.Create)
 						sceneRouter.Get("/{id}", sceneH.Get)
@@ -591,14 +593,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					eRouter.Get("/flow", advH.GetEnergyFlow)
 					eRouter.Get("/tariffs", advH.GetTariffs)
 					eRouter.Get("/dynamic-tariffs", advH.GetDynamicTariffs)
-					eRouter.Put("/flexible-loads", advH.UpdateFlexibleLoad)
+					eRouter.With(domusmw.RequireSettingsPermission()).Put("/flexible-loads", advH.UpdateFlexibleLoad)
 					eRouter.Post("/evaluate-tariffs", advH.EvaluateTariffs)
 					eRouter.Get("/bess/schedule", advH.GetBESSSchedule)
 					eRouter.Post("/bess/optimize", advH.OptimizeBESS)
-					eRouter.Put("/bess/config", advH.UpdateBESSConfig)
+					eRouter.With(domusmw.RequireSettingsPermission()).Put("/bess/config", advH.UpdateBESSConfig)
 					eRouter.Get("/wallbox", advH.GetWallboxStatus)
-					eRouter.Post("/wallbox/mode", advH.SetWallboxMode)
-					eRouter.Post("/wallbox/modulate", advH.CalculateOptimalWallboxCurrent)
+					eRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/wallbox/mode", advH.SetWallboxMode)
+					eRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/wallbox/modulate", advH.CalculateOptimalWallboxCurrent)
 					if srv.authService != nil {
 						eRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/load-shedding", advH.UpdateLoadShedding)
 					} else {
@@ -607,10 +609,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					if srv.repos.UtilityMeters != nil {
 						umH := handlers.NewUtilityMeterHandler(srv.repos.UtilityMeters, srv.repos.Entities)
 						eRouter.Get("/utility-meters", umH.List)
-						eRouter.Post("/utility-meters", umH.Create)
+						eRouter.With(domusmw.RequireSettingsPermission()).Post("/utility-meters", umH.Create)
 						eRouter.Get("/utility-meters/{id}", umH.Get)
-						eRouter.Put("/utility-meters/{id}", umH.Update)
-						eRouter.Delete("/utility-meters/{id}", umH.Delete)
+						eRouter.With(domusmw.RequireSettingsPermission()).Put("/utility-meters/{id}", umH.Update)
+						eRouter.With(domusmw.RequireSettingsPermission()).Delete("/utility-meters/{id}", umH.Delete)
 						eRouter.Get("/multi-utility-summary", umH.Summary)
 					}
 				})
@@ -660,8 +662,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					pRouter.Post("/room", advH.UpdateRoomPresence)
 					pRouter.Get("/status", advH.GetPresenceStatus)
 					pRouter.Get("/vacation", advH.GetVacationMode)
-					pRouter.Post("/vacation", advH.SetVacationMode)
-					pRouter.Post("/vacation/actions", advH.RegisterVacationAction)
+					pRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/vacation", advH.SetVacationMode)
+					pRouter.With(domusmw.RequireAutomationManagement(), domusmw.RequireUnrestrictedDeviceControl()).Post("/vacation/actions", advH.RegisterVacationAction)
 					pRouter.Post("/commute", advH.UpdateCommuteLocation)
 					pRouter.Get("/commute/{userId}", advH.GetCommuteStatus)
 					if zoneH != nil {
@@ -681,14 +683,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					dashService := appdash.NewService(srv.repos.Dashboards)
 					dashH := handlers.NewDashboardHandler(dashService)
 					domainRouter.Route("/dashboards", func(dRouter chi.Router) {
-						dRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						dRouter.Get("/", dashH.List)
-						dRouter.Post("/", dashH.Create)
 						dRouter.Get("/{id}", dashH.Get)
-						dRouter.Put("/{id}", dashH.Update)
-						dRouter.Delete("/{id}", dashH.Delete)
-						dRouter.Post("/{id}/default", dashH.SetDefault)
-						dRouter.Post("/{id}/share", dashH.Share)
+						dRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", dashH.Create)
+						dRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}", dashH.Update)
+						dRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/{id}", dashH.Delete)
+						dRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/default", dashH.SetDefault)
+						dRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/share", dashH.Share)
 					})
 					api.Get("/dashboards/shared/{token}", dashH.GetShared)
 				}
@@ -757,42 +758,43 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					WithBus(srv.bus)
 
 				domainRouter.Route("/intercom", func(iRouter chi.Router) {
-					iRouter.Post("/ring", ecoH.RingIntercomDoorbell)
-					iRouter.Post("/{id}/unlock", ecoH.UnlockIntercomGate)
+					iRouter.Use(domusmw.RequireCameraView())
+					iRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/ring", ecoH.RingIntercomDoorbell)
+					iRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/unlock", ecoH.UnlockIntercomGate)
 					iRouter.Post("/{id}/audio", ecoH.NegotiateIntercomAudio)
 				})
 
 				domainRouter.Route("/cameras", func(cRouter chi.Router) {
-						cRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+					cRouter.Use(domusmw.RequireCameraView())
 					cRouter.Get("/", ecoH.ListCameras)
-					cRouter.Post("/", ecoH.CreateCamera)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/", ecoH.CreateCamera)
 					cRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 					cRouter.Get("/faces", ecoH.ListFamilyFaces)
-					cRouter.Post("/faces", ecoH.RegisterFamilyFace)
-					cRouter.Delete("/faces/{id}", ecoH.DeleteFamilyFace)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/faces", ecoH.RegisterFamilyFace)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/faces/{id}", ecoH.DeleteFamilyFace)
 					cRouter.Get("/plates", ecoH.ListAuthorizedPlates)
-					cRouter.Post("/plates", ecoH.RegisterAuthorizedPlate)
-					cRouter.Delete("/plates/{plate}", ecoH.DeleteAuthorizedPlate)
-					cRouter.Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/plates", ecoH.RegisterAuthorizedPlate)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Delete("/plates/{plate}", ecoH.DeleteAuthorizedPlate)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/webrtc", ecoH.NegotiateWebRTC)
 					cRouter.Get("/{id}/zones", ecoH.GetCameraZones)
-					cRouter.Post("/{id}/zones", ecoH.AddCameraZone)
-					cRouter.Post("/{id}/detect", ecoH.ProcessAIDetection)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/zones", ecoH.AddCameraZone)
+					cRouter.With(domusmw.RequireRole(user.RoleAdmin)).Post("/{id}/detect", ecoH.ProcessAIDetection)
 					cRouter.Get("/events", ecoH.ListCameraEvents)
 					cRouter.Get("/events/{id}/clip", ecoH.GetEventClip)
 				})
 
-				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
+				domainRouter.With(domusmw.RequireCameraView()).Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/tags", func(tRouter chi.Router) {
 					tRouter.Get("/", ecoH.ListTags)
-					tRouter.Post("/", ecoH.CreateTag)
-					tRouter.Post("/{id}/scan", ecoH.ScanTag)
+					tRouter.With(domusmw.RequireSettingsPermission()).Post("/", ecoH.CreateTag)
+					tRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/{id}/scan", ecoH.ScanTag)
 				})
 
 				domainRouter.Route("/notifications/actionable", func(nRouter chi.Router) {
 					nRouter.Get("/", ecoH.ListActionableNotifications)
-					nRouter.Post("/", ecoH.CreateActionableNotification)
-					nRouter.Post("/actions/{action_id}", ecoH.HandleNotificationAction)
+					nRouter.With(domusmw.RequireSettingsPermission()).Post("/", ecoH.CreateActionableNotification)
+					nRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/actions/{action_id}", ecoH.HandleNotificationAction)
 				})
 				domainRouter.Get("/notifications", ecoH.ListActionableNotifications)
 
@@ -803,15 +805,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						pRouter.Post("/tokens", pushH.RegisterToken)
 						pRouter.Delete("/tokens", pushH.RevokeToken)
 						pRouter.Get("/tokens", pushH.ListTokens)
-						pRouter.Post("/send", pushH.Send)
+						pRouter.With(domusmw.RequireSettingsPermission()).Post("/send", pushH.Send)
 					})
 				}
 
 				domainRouter.Route("/schedules", func(sRouter chi.Router) {
 					sRouter.Get("/", ecoH.ListSchedules)
-					sRouter.Post("/", ecoH.CreateSchedule)
-					sRouter.Put("/{id}", ecoH.UpdateSchedule)
-					sRouter.Delete("/{id}", ecoH.DeleteSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", ecoH.CreateSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", ecoH.UpdateSchedule)
+					sRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", ecoH.DeleteSchedule)
 				})
 
 				if srv.repos.WeeklySchedules != nil {
@@ -819,11 +821,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					weeklyH := handlers.NewWeeklyScheduleHandler(weeklySvc)
 					domainRouter.Route("/schedules/weekly", func(wRouter chi.Router) {
 						wRouter.Get("/", weeklyH.List)
-						wRouter.Post("/", weeklyH.Create)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", weeklyH.Create)
 						wRouter.Get("/{id}", weeklyH.Get)
-						wRouter.Put("/{id}", weeklyH.Update)
-						wRouter.Delete("/{id}", weeklyH.Delete)
-						wRouter.Post("/evaluate", weeklyH.Evaluate)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", weeklyH.Update)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", weeklyH.Delete)
+						wRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/evaluate", weeklyH.Evaluate)
 					})
 				}
 
@@ -856,10 +858,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						climateH := handlers.NewClimateCompensatorHandler(climateSvc)
 						domainRouter.Route("/climate/compensations", func(cRouter chi.Router) {
 							cRouter.Get("/", climateH.List)
-							cRouter.Post("/", climateH.Create)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/", climateH.Create)
 							cRouter.Get("/{id}", climateH.Get)
-							cRouter.Put("/{id}", climateH.Update)
-							cRouter.Delete("/{id}", climateH.Delete)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Put("/{id}", climateH.Update)
+							cRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Delete("/{id}", climateH.Delete)
 						})
 					}
 				}
@@ -879,14 +881,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				domainRouter.Route("/media", func(mRouter chi.Router) {
 					mRouter.Get("/players", ecoH.ListMediaPlayers)
-					mRouter.Post("/players", ecoH.CreateMediaPlayer)
-					mRouter.Post("/players/{id}/volume", ecoH.SetPlayerVolume)
-					mRouter.Post("/players/{id}/state", ecoH.SetPlayerState)
-					mRouter.Delete("/players/{id}", ecoH.DeleteMediaPlayer)
-					mRouter.Post("/broadcast", ecoH.BroadcastAnnouncement)
+					mRouter.With(domusmw.RequireSettingsPermission()).Post("/players", ecoH.CreateMediaPlayer)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/volume", ecoH.SetPlayerVolume)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/players/{id}/state", ecoH.SetPlayerState)
+					mRouter.With(domusmw.RequireSettingsPermission()).Delete("/players/{id}", ecoH.DeleteMediaPlayer)
+					mRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/broadcast", ecoH.BroadcastAnnouncement)
 				})
 
-				domainRouter.Get("/nvr/status", ecoH.GetNVRStatus)
 
 				domainRouter.Route("/weather", func(wRouter chi.Router) {
 					wRouter.Get("/forecast", ecoH.GetWeatherForecast)
@@ -919,7 +920,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				domainRouter.Route("/voice", func(vRouter chi.Router) {
-					vRouter.Post("/process", ecoH.ProcessVoiceSpeech)
+					vRouter.With(domusmw.RequireUnrestrictedDeviceControl()).Post("/process", ecoH.ProcessVoiceSpeech)
 				})
 
 				domainRouter.Route("/ota", func(otaRouter chi.Router) {
@@ -970,7 +971,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					financeSvc := appfinance.NewService(srv.repos.Finance, srv.bus)
 					financeH := handlers.NewFinanceHandler(financeSvc)
 					domainRouter.Route("/finance", func(finRouter chi.Router) {
-						finRouter.Use(domusmw.RequireRole(user.RoleOperator, user.RoleAdmin))
 						finRouter.Get("/expenses", financeH.List)
 						finRouter.Post("/expenses", financeH.Create)
 						finRouter.Get("/expenses/{id}", financeH.GetByID)

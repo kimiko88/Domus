@@ -354,3 +354,51 @@ func TestEngine_RestartMode(t *testing.T) {
 	// Only 1 event should have been emitted because the first was canceled
 	assert.Equal(t, 1, offEvents)
 }
+
+func TestEngine_DailyTimeTriggerDispatchesThermostatSetpoint(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	triggerAt := time.Now().Add(2 * time.Second).Format("15:04:05")
+	auto := &automation.Automation{
+		ID: uuid.NewString(), Name: "Timed thermostat program", Enabled: true, ExecutionMode: "single",
+		Triggers: []automation.Trigger{{ID: "daily", Platform: "time", At: triggerAt}},
+		Conditions: []automation.Condition{},
+		Actions: []automation.Action{{
+			Type: "service", Service: "set_temperature", TargetEntityKey: "climate.living_room",
+			Params: map[string]any{"temperature": 21.5},
+		}},
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+
+	commands := make(chan events.Event, 1)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, evt events.Event) error {
+		select { case commands <- evt: default: }
+		return nil
+	})
+	defer unsub()
+	require.NoError(t, engine.Start(ctx))
+
+	select {
+	case evt := <-commands:
+		payload := evt.Payload.(map[string]any)
+		assert.Equal(t, "climate.living_room", payload["entity_key"])
+		assert.Equal(t, "set_temperature", payload["service"])
+		assert.Equal(t, 21.5, payload["params"].(map[string]any)["temperature"])
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for daily time trigger to dispatch thermostat setpoint")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := repos.Automations.ListRuns(ctx, auto.ID, 1)
+		require.NoError(t, err)
+		if len(runs) == 1 && runs[0].Status == automation.RunStatusCompleted {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("scheduled thermostat automation did not complete")
+}

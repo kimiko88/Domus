@@ -1,8 +1,8 @@
 package tuya_local
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -254,5 +254,35 @@ func TestAdapter_LoadStoredDevicesClearsUntrustedIPWithSingleConnection(t *testi
 	devices := adapter.GetConfiguredDevices()
 	if len(devices) != 1 || devices[0].LocalKey != "0123456789abcdef" {
 		t.Fatalf("device credentials should be retained after IP cleanup, got %+v", devices)
+	}
+}
+
+func TestAdapter_WaitForDiscoveredLANIPUsesFreshAnnouncement(t *testing.T) {
+	adapter := NewAdapter("tuya_test", &mockBus{})
+	adapter.RegisterDevice(DeviceConfig{
+		DeviceID: "dev_lan_refresh",
+		LocalKey: "0123456789abcdef",
+		Version:  "3.3",
+		Category: CategoryClimate,
+	})
+
+	// Simulate the UDP listener receiving a packet after LocalTuya sync.
+	adapter.handleDiscoveredDevice(DiscoveredDevice{
+		DeviceID: "dev_lan_refresh",
+		IP:       "192.168.1.88",
+		Version:  "3.5",
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cfg, found := adapter.waitForDiscoveredLANIP(ctx, "dev_lan_refresh")
+	if !found {
+		t.Fatal("expected a fresh private LAN discovery address")
+	}
+	if cfg.IP != "192.168.1.88" {
+		t.Fatalf("resolved IP = %q, want 192.168.1.88", cfg.IP)
+	}
+	if cfg.Version != "3.5" {
+		t.Fatalf("resolved version = %q, want 3.5", cfg.Version)
 	}
 }

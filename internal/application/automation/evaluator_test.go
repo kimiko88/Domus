@@ -85,6 +85,14 @@ func TestEvaluator_Triggers(t *testing.T) {
 		}
 		assert.True(t, evaluator.EvaluateTrigger(trig, evt))
 	})
+
+	t.Run("daily time trigger supports minute and second precision", func(t *testing.T) {
+		now := time.Date(2026, time.November, 16, 7, 30, 15, 0, time.Local)
+		assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{Platform: "time", At: "07:30"}, now))
+		assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{Platform: "time", At: "07:30:15"}, now))
+		assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{Platform: "time", At: "07:30:16"}, now))
+		assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{Platform: "time", At: "invalid"}, now))
+	})
 }
 
 func TestEvaluator_Conditions(t *testing.T) {
@@ -123,6 +131,13 @@ func TestEvaluator_Conditions(t *testing.T) {
 	}
 	require.NoError(t, repos.Entities.Create(ctx, entTemp))
 
+	entClimate := &entity.Entity{
+		ID: uuid.NewString(), DeviceID: dev.ID, EntityKey: "climate.living_room",
+		Domain: "climate", Name: "Room Thermostat", State: `"auto"`,
+		Attributes: `{"current_temperature":18.5}`, Available: true,
+	}
+	require.NoError(t, repos.Entities.Create(ctx, entClimate))
+
 	evaluator := appauto.NewEvaluator()
 
 	t.Run("numeric_state condition below threshold", func(t *testing.T) {
@@ -132,6 +147,14 @@ func TestEvaluator_Conditions(t *testing.T) {
 			EntityKey: "sensor.temperature",
 			Below:     &below,
 		}
+		ok, err := evaluator.EvaluateCondition(ctx, cond, repos.Entities)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("numeric_state condition reads a climate attribute", func(t *testing.T) {
+		above := 18.0
+		cond := automation.Condition{Condition: "numeric_state", EntityKey: "climate.living_room", Attribute: "current_temperature", Above: &above}
 		ok, err := evaluator.EvaluateCondition(ctx, cond, repos.Entities)
 		require.NoError(t, err)
 		assert.True(t, ok)

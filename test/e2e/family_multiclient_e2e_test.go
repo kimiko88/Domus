@@ -318,6 +318,20 @@ func TestFamily_MultiClient_RBAC_EndToEnd(t *testing.T) {
 	assert.Equal(t, http.StatusOK, respRole.StatusCode)
 	respRole.Body.Close()
 
+	// The role change revokes the previous viewer session, so its cookie
+	// cannot be reused to inherit the newly granted operator permissions.
+	resp, _ = postJSON(fmt.Sprintf("/api/v1/entities/%s/command", testEnt.ID), map[string]any{
+		"service": "turn_off",
+	}, kidCookie)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	// Re-authenticate to obtain a session carrying the new operator role.
+	promotedKidSession, _, err := authService.Login(
+		ctx, "kid_viewer", "KidPassword123!", "127.0.0.1", "KidBrowserAfterPromotion",
+	)
+	require.NoError(t, err)
+	kidCookie = promotedKidSession.ID
+
 	// 12. Kid (now operator) can successfully turn off the lamp!
 	resp, _ = postJSON(fmt.Sprintf("/api/v1/entities/%s/command", testEnt.ID), map[string]any{
 		"service": "turn_off",

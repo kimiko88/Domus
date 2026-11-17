@@ -112,6 +112,42 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 
 			path := strings.TrimSuffix(r.URL.Path, "/")
 			hasSuffix := func(suffix string) bool { return path == suffix || strings.HasSuffix(path, suffix) }
+			deviceCommand := strings.Contains(path, "/entities/") && strings.HasSuffix(path, "/command")
+			serviceCall := strings.Contains(path, "/services/")
+			sceneExecution := strings.Contains(path, "/scenes/") && strings.HasSuffix(path, "/apply")
+			mediaControl := strings.Contains(path, "/media/players/") &&
+				(strings.HasSuffix(path, "/volume") || strings.HasSuffix(path, "/state")) ||
+				strings.HasSuffix(path, "/media/broadcast")
+			cameraSession := strings.Contains(path, "/cameras/") && strings.HasSuffix(path, "/webrtc") ||
+				strings.Contains(path, "/intercom/") && strings.HasSuffix(path, "/audio")
+			automationMutation := strings.Contains(path, "/automations/") || strings.HasSuffix(path, "/automations")
+			if deviceCommand || serviceCall || sceneExecution || mediaControl {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanControlDevices {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
+			if cameraSession {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanViewCameras {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "camera viewing permission required")
+				return
+			}
+			if automationMutation {
+				permissions := u.EffectivePermissions()
+				if permissions != nil && permissions.CanManageAutomations {
+					next.ServeHTTP(w, r)
+					return
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "automation management permission required")
+				return
+			}
 			presenceSelfService := hasSuffix("/presence/gps") ||
 				hasSuffix("/presence/room")
 			choreCompletion := strings.Contains(path, "/chores/") && strings.HasSuffix(path, "/complete")
@@ -126,6 +162,199 @@ func RequireOperatorForWrites() func(http.Handler) http.Handler {
 			}
 			if u.Role != user.RoleOperator && u.Role != user.RoleAdmin {
 				writeJSONError(w, http.StatusForbidden, "forbidden", "operator or admin role required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireViewAccess maps API resources to their corresponding UI section and applies the member allow-list.
+func RequireViewAccess() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil || u.Role == user.RoleAdmin {
+				next.ServeHTTP(w, r)
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "view access denied")
+				return
+			}
+			path := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1"), "/")
+			required := ""
+			if path == "/presence/gps" || path == "/presence/room" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			switch {
+			case strings.HasPrefix(path, "/alarm"):
+				required = "/"
+			case strings.HasPrefix(path, "/assistant/config"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/assistant/satellites"):
+				required = "/media"
+			case strings.HasPrefix(path, "/assistant/chat"):
+				required = "/"
+			case strings.HasPrefix(path, "/family"):
+				required = "/family"
+			case strings.HasPrefix(path, "/dashboards"):
+				required = "/custom-dashboards"
+			case strings.HasPrefix(path, "/automations"):
+				required = "/automations"
+			case strings.HasPrefix(path, "/scenes"):
+				required = "/scenes"
+			case strings.HasPrefix(path, "/areas"):
+				required = "/areas"
+			case strings.HasPrefix(path, "/energy"):
+				required = "/energy"
+			case strings.HasPrefix(path, "/climate"):
+				required = "/climate/predictive"
+			case strings.HasPrefix(path, "/logbook"):
+				required = "/logbook"
+			case strings.HasPrefix(path, "/guide"):
+				required = "/guide"
+			case strings.HasPrefix(path, "/floors"):
+				required = "/floorplan"
+			case strings.HasPrefix(path, "/presence/vacation"):
+				required = "/automations"
+			case strings.HasPrefix(path, "/persons") || strings.HasPrefix(path, "/presence"):
+				required = "/family"
+			case strings.HasPrefix(path, "/template-entities"):
+				required = "/templates"
+			case strings.HasPrefix(path, "/hardware") || strings.HasPrefix(path, "/ota") || strings.HasPrefix(path, "/tags"):
+				required = "/devices"
+			case strings.HasPrefix(path, "/helpers"):
+				required = "/helpers"
+			case strings.HasPrefix(path, "/intercom") || strings.HasPrefix(path, "/nvr"):
+				required = "/cameras"
+			case strings.HasPrefix(path, "/notifications"):
+				required = "/notifications"
+			case strings.HasPrefix(path, "/schedules") || strings.HasPrefix(path, "/calendar"):
+				required = "/schedules"
+			case strings.HasPrefix(path, "/scripts"):
+				required = "/automations"
+			case strings.HasPrefix(path, "/weather"):
+				required = "/"
+			case strings.HasPrefix(path, "/voice"):
+				required = "/media"
+			case strings.HasPrefix(path, "/safety") || strings.HasPrefix(path, "/anomalies"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/webhook-configs") || strings.HasPrefix(path, "/webhooks"):
+				required = "/integrations"
+			case strings.HasPrefix(path, "/devices"):
+				required = "/devices"
+			case strings.HasPrefix(path, "/integrations"):
+				required = "/integrations"
+			case strings.HasPrefix(path, "/history"):
+				required = "/history"
+			case strings.HasPrefix(path, "/audit"):
+				required = "/audit"
+			case strings.HasPrefix(path, "/cameras"):
+				required = "/cameras"
+			case strings.HasPrefix(path, "/chores"):
+				required = "/chores"
+			case strings.HasPrefix(path, "/shopping"):
+				required = "/shopping"
+			case strings.HasPrefix(path, "/pantry"):
+				required = "/pantry"
+			case strings.HasPrefix(path, "/medicines"):
+				required = "/medicines"
+			case strings.HasPrefix(path, "/finance"):
+				required = "/finance"
+			case strings.HasPrefix(path, "/media"):
+				required = "/media"
+			case strings.HasPrefix(path, "/zones"):
+				required = "/zones"
+			case strings.HasPrefix(path, "/mesh"):
+				required = "/mesh"
+			case strings.HasPrefix(path, "/store"):
+				required = "/store"
+			case strings.HasPrefix(path, "/floorplan"):
+				required = "/floorplan"
+			case strings.HasPrefix(path, "/system"):
+				required = "/settings"
+			case strings.HasPrefix(path, "/entities"):
+				for _, candidate := range []string{"/", "/areas", "/devices", "/energy", "/custom-dashboards", "/floorplan", "/history", "/climate/predictive", "/zones"} {
+					if permissions.CanAccessView(candidate) {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				writeJSONError(w, http.StatusForbidden, "forbidden", "entity view access denied")
+				return
+			}
+			if required != "" && !permissions.CanAccessView(required) {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "view access denied")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireDeviceControl allows authenticated members with the explicit device-control grant.
+func RequireDeviceControl() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !permissions.CanControlDevices {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "device control permission required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireUnrestrictedDeviceControl protects bulk actions that may target multiple entities.
+func RequireUnrestrictedDeviceControl() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !permissions.CanControlDevices ||
+				permissions.AllowedAreaIDs != nil || permissions.AllowedEntityIDs != nil {
+				writeJSONError(w, http.StatusForbidden, "forbidden", "bulk device actions require unrestricted device scope")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireAutomationManagement checks the explicit automation-management grant.
+func RequireAutomationManagement() func(http.Handler) http.Handler {
+	return requirePermission(func(p *user.UserPermissions) bool { return p.CanManageAutomations }, "automation management permission required")
+}
+
+// RequireCameraView checks the explicit camera viewing grant.
+func RequireCameraView() func(http.Handler) http.Handler {
+	return requirePermission(func(p *user.UserPermissions) bool { return p.CanViewCameras }, "camera viewing permission required")
+}
+
+func requirePermission(check func(*user.UserPermissions) bool, message string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u := GetUser(r.Context())
+			if u == nil {
+				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			permissions := u.EffectivePermissions()
+			if permissions == nil || !check(permissions) {
+				writeJSONError(w, http.StatusForbidden, "forbidden", message)
 				return
 			}
 			next.ServeHTTP(w, r)
