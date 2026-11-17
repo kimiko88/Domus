@@ -10,7 +10,7 @@ import { soundEffects } from '../utils/audioSynthesizer'
 import { apiClient } from '../api/client'
 import type { Automation, AutomationTrigger, AutomationCondition, AutomationAction } from '../api/types'
 import { parseAdvancedAutomationAction } from '../utils/automationActionValidation'
-import { buildAutomationActionGraph } from '../utils/automationFlowGraph'
+import { applyAutomationActionBranches, buildAutomationActionGraph } from '../utils/automationFlowGraph'
 import {
   ArrowLeft,
   Save,
@@ -750,151 +750,8 @@ function getGraphExecutionOrder(): FlowNode[] {
   return ordered
 }
 
-function compileBranchConditions(parentId: string, branchKey: string, visited = new Set<string>()): AutomationCondition[] {
-  const first = wires.value.find((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
-  if (!first) return []
-  const result: AutomationCondition[] = []
-  let currentId: string | undefined = first.toNodeId
-  while (currentId) {
-    if (visited.has(currentId)) throw new Error('La sequenza delle condizioni contiene un ciclo o un nodo riutilizzato.')
-    visited.add(currentId)
-    const node = nodes.value.find((item) => item.id === currentId)
-    if (!node || node.type !== 'condition') {
-      throw new Error('Una porta delle condizioni deve contenere esclusivamente nodi condizione.')
-    }
-    if (node.subType === 'logic') {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(node.data.advancedConditionJson || '')
-      } catch {
-        throw new Error('La condizione logica contiene un JSON non valido.')
-      }
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('La condizione logica deve essere un oggetto JSON.')
-      }
-      result.push(parsed as AutomationCondition)
-    } else {
-      const condition: AutomationCondition = {
-        ...(node.data.originalCondition || {}),
-        condition: node.subType
-      }
-      if (node.subType === 'state') {
-        condition.entity_key = node.data.entity_key
-        condition.state = node.data.state || 'on'
-      } else if (node.subType === 'numeric_state') {
-        condition.entity_key = node.data.entity_key
-        if (node.data.above !== undefined && node.data.above !== '') condition.above = Number(node.data.above)
-        if (node.data.below !== undefined && node.data.below !== '') condition.below = Number(node.data.below)
-      } else if (node.subType === 'time') {
-        condition.after = node.data.after
-        condition.before = node.data.before
-      } else if (node.subType === 'trigger') {
-        condition.trigger_id = node.data.trigger_id
-      } else {
-        throw new Error(`La condizione “${node.subType}” non è supportata nell'editor visuale.`)
-      }
-      result.push(condition)
-    }
-
-    const next = wires.value.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
-    if (next.length > 1) throw new Error('Una sequenza di condizioni può avere una sola uscita lineare.')
-    currentId = next[0]?.toNodeId
-  }
-  return result
-}
-
-function compileBranchSequence(parentId: string, branchKey: string, visited = new Set<string>()): AutomationAction[] {
-  const first = wires.value.find((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
-  if (!first) return []
-  const result: AutomationAction[] = []
-  let currentId: string | undefined = first.toNodeId
-  while (currentId) {
-    if (visited.has(currentId)) throw new Error('La sequenza di un ramo contiene un ciclo.')
-    visited.add(currentId)
-    const node = nodes.value.find((item) => item.id === currentId)
-    if (!node) throw new Error('Un ramo contiene un nodo inesistente.')
-    if (node.type === 'action' && ['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
-      const nested = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
-      applyNestedBranchSequences(node, nested, visited)
-      result.push(nested)
-    } else if (node.type === 'action') {
-      if (node.subType === 'unsupported') throw new Error('Un ramo contiene un’azione non supportata.')
-      const action: AutomationAction = {
-        ...(node.data.originalAction || {}),
-        type: node.subType === 'scene' ? 'scene' : 'service'
-      }
-      if (node.subType === 'service') {
-        action.service = node.data.service || 'turn_on'
-        action.target_entity_key = node.data.target_entity_key
-      } else if (node.subType === 'scene') {
-        action.service = 'apply_scene'
-        action.params = { scene_id: node.data.scene_id }
-      } else if (node.subType === 'notify') {
-        action.type = 'event'
-        action.event_type = 'notification.create'
-        action.event_payload = { message: node.data.message }
-      }
-      result.push(action)
-    } else if (node.type === 'delay') {
-      result.push({ type: 'delay', delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000 })
-    } else {
-      throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
-    }
-    const next = wires.value.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
-    if (next.length > 1) throw new Error('Un’azione interna a un ramo può avere una sola uscita lineare.')
-    currentId = next[0]?.toNodeId
-  }
-  return result
-}
-
 function applyNestedBranchSequences(node: FlowNode, action: AutomationAction & Record<string, any>, visited = new Set<string>()) {
-  if (action.type === 'if' || action.type === 'if_then_else') {
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'if:conditions')) {
-      action.if = compileBranchConditions(node.id, 'if:conditions', visited)
-    }
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'then')) {
-      action.then = compileBranchSequence(node.id, 'then', visited)
-    }
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'else')) {
-      action.else = compileBranchSequence(node.id, 'else', visited)
-    }
-  } else if (action.type === 'choose') {
-    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => {
-      const updated = { ...branch }
-      const conditionKey = `choose:${index}:conditions`
-      const sequenceKey = `choose:${index}`
-      if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === conditionKey)) {
-        updated.conditions = compileBranchConditions(node.id, conditionKey, visited)
-      }
-      if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === sequenceKey)) {
-        updated.sequence = compileBranchSequence(node.id, sequenceKey, visited)
-      }
-      return updated
-    })
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'default')) {
-      action.default = compileBranchSequence(node.id, 'default', visited)
-    }
-  } else if (action.type === 'repeat') {
-    const repeat = { ...(action.repeat || {}) }
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'repeat:while')) {
-      repeat.while = compileBranchConditions(node.id, 'repeat:while', visited)
-    }
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'repeat:until')) {
-      repeat.until = compileBranchConditions(node.id, 'repeat:until', visited)
-    }
-    if (wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === 'sequence')) {
-      repeat.sequence = compileBranchSequence(node.id, 'sequence', visited)
-    }
-    action.repeat = repeat
-  } else if (action.type === 'parallel') {
-    action.parallel = (action.parallel || []).map((original: AutomationAction, index: number) => {
-      const branchKey = `parallel:${index}`
-      if (!wires.value.some((wire) => wire.fromNodeId === node.id && wire.branchKey === branchKey)) return original
-      const sequence = compileBranchSequence(node.id, branchKey, visited)
-      if (sequence.length > 1) throw new Error('Ogni ramo parallelo deve contenere una singola azione: il motore esegue gli elementi in parallelo.')
-      return sequence[0] || original
-    })
-  }
+  applyAutomationActionBranches(node, action, nodes.value, wires.value, visited)
 }
 
 function compileGraphToAutomation(): Partial<Automation> {
