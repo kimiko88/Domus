@@ -245,4 +245,28 @@ func TestAutomationHandler_BlueprintsAndDryRun(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&dryRunRes))
 	assert.Contains(t, dryRunRes, "passed")
 	assert.Contains(t, dryRunRes, "traces")
+
+	// A draft can be evaluated without being persisted.
+	draftBody, _ := json.Marshal(map[string]any{
+		"name": "Draft with unsupported condition",
+		"triggers": []map[string]any{{"platform": "time", "at": "12:00:00"}},
+		"conditions": []map[string]any{{"condition": "unsupported_future_condition"}},
+		"actions": []map[string]any{{"type": "service", "service": "turn_on", "target_entity_key": "switch.test"}},
+	})
+	req = httptest.NewRequest(http.MethodPost, "/automations/"+instantiated.ID+"/dry-run", bytes.NewReader(draftBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var draftResult struct {
+		Passed bool `json:"passed"`
+		Actions []automation.Action `json:"actions_would_execute"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&draftResult))
+	assert.False(t, draftResult.Passed, "unknown conditions must fail closed")
+	assert.Empty(t, draftResult.Actions, "failed drafts must not advertise actions for execution")
+
+	persisted, err := repos.Automations.GetByID(context.Background(), instantiated.ID)
+	require.NoError(t, err)
+	assert.NotEqual(t, "Draft with unsupported condition", persisted.Name, "dry-run must not persist the draft")
 }
