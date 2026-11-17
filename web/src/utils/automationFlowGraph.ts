@@ -78,7 +78,7 @@ function actionNode(action: AutomationAction, id: string, x: number, y: number):
       originalAction: action,
       target_entity_key: action.target_entity_key,
       service: action.service,
-      delay_seconds: (action.delay_ms || 1000) / 1000,
+      delay_seconds: (action.delay_ms ?? 1000) / 1000,
       scene_id: action.params?.scene_id,
       advancedJson: isAdvanced ? JSON.stringify(action, null, 2) : undefined
     }
