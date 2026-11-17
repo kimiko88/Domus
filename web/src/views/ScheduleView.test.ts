@@ -111,6 +111,30 @@ describe('manual thermostat overrides', () => {
   wrapper.unmount()
   })
 
+  it('normalizes legacy schedule UUIDs to stable entity keys', async () => {
+    const thermostat = {
+      id: 'legacy-thermostat-uuid', entity_key: 'climate.legacy_room', domain: 'climate',
+      name: 'Termostato legacy', state: 'heat',
+      attributes: { target_temperature: 20, current_temperature: 19, hvac_modes: ['heat'] },
+      last_changed: '', last_updated: ''
+    }
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/api/v1/entities')) return [thermostat] as any
+      if (url.includes('/api/v1/schedules')) return [{
+        id: 'sched-legacy', name: 'Profilo legacy',
+        entity_key: 'legacy-thermostat-uuid', enabled: true, grid: { monday: [] }
+      }] as any
+      return [] as any
+    })
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+
+    expect((wrapper.find('#thermostat-select').element as HTMLSelectElement).value).toBe('legacy-thermostat-uuid')
+    expect((wrapper.find('#schedule-thermostat-select').element as HTMLSelectElement).value).toBe('climate.legacy_room')
+
+    wrapper.unmount()
+  })
+
   it('uses the selected schedule entity UUID when applying a thermostat override', async () => {
     const firstThermostat = {
       id: 'first-tuya-uuid', entity_key: 'climate.tuya_room', domain: 'climate',
