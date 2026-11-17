@@ -27,7 +27,7 @@ describe('buildAutomationActionGraph', () => {
       expect.objectContaining({ fromNodeId: 'act_root_0', branchKey: 'else' })
     ]))
     expect(graph.nodes.some((node) => node.subType === 'logic')).toBe(false)
-    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(1)
+    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
     expect(graph.nodes.some((node) => node.subType === 'choose')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0:conditions')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0')).toBe(true)
