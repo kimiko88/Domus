@@ -32,8 +32,10 @@ type DeviceConfig struct {
 	IP        string         `json:"ip"`
 	LocalKey  string         `json:"local_key"`
 	Version   string         `json:"version"`
-	Category  DeviceCategory `json:"category"`
-	EntityKey string         `json:"entity_key"`
+	Category          DeviceCategory  `json:"category"`
+	EntityKey         string          `json:"entity_key"`
+	InitialState      string          `json:"initial_state,omitempty"`
+	InitialAttributes string          `json:"initial_attributes,omitempty"`
 }
 
 // Adapter manages local Tuya integrations and bridges them to Domus domain events.
@@ -282,8 +284,16 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 		}
 
 		existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
+		entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+		initialState := cfg.InitialState
+		if initialState == "" {
+			initialState = `{"state":false}`
+		}
+		initialAttributes := cfg.InitialAttributes
+		if initialAttributes == "" {
+			initialAttributes = `{}`
+		}
 		if existingEnt == nil {
-			entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
 			ent := &entity.Entity{
 				ID:            uuid.NewString(),
 				DeviceID:      devRecordID,
@@ -291,13 +301,23 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 				Domain:        entDomain,
 				Name:          cfg.Name,
 				Writable:      true,
-				State:         `{"state":false}`,
-				Attributes:    `{}`,
+				State:         initialState,
+				Attributes:    initialAttributes,
 				Available:     true,
 				LastChangedAt: now,
 				LastUpdatedAt: now,
 			}
 			_ = a.entRepo.Create(ctx, ent)
+		} else {
+			existingEnt.DeviceID = devRecordID
+			existingEnt.Domain = entDomain
+			existingEnt.Name = cfg.Name
+			existingEnt.Writable = true
+			existingEnt.State = initialState
+			existingEnt.Attributes = initialAttributes
+			existingEnt.Available = true
+			existingEnt.LastUpdatedAt = now
+			_ = a.entRepo.Update(ctx, existingEnt)
 		}
 	}
 
