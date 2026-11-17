@@ -265,9 +265,11 @@ func TestEntityHandler_ApplyClimateProfile(t *testing.T) {
 
 	var received float64
 	commandReceived := make(chan struct{}, 1)
-	unsub := bus.Subscribe(string(events.CommandRequested), func(_ context.Context, event events.Event) error {
-		if event.Payload["entity_key"] == "climate.living_room" {
-			params, _ := event.Payload["params"].(map[string]any)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, event events.Event) error {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok { return nil }
+		if payload["entity_key"] == "climate.living_room" {
+			params, _ := payload["params"].(map[string]any)
 			if temperature, ok := params["temperature"].(float64); ok {
 				received = temperature
 				commandReceived <- struct{}{}
