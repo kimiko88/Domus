@@ -401,7 +401,7 @@ function isConditionBranchKey(branchKey?: string): boolean {
   return branchKey === 'if:conditions' ||
     branchKey === 'repeat:while' ||
     branchKey === 'repeat:until' ||
-    (!!branchKey && /^choose:\\d+:conditions$/.test(branchKey))
+    (!!branchKey && /^choose:\d+:conditions$/.test(branchKey))
 }
 
 function commitWire(targetNodeId: string) {
