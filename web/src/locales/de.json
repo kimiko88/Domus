@@ -1331,6 +1331,7 @@
       "sendingCommand": "Befehl wird gesendet…",
       "adjustThermostatNow": "Thermostat jetzt regeln",
       "weeklyProgrammer": "Wochenplaner",
+      "externalSensorAutomation": "Thermostatautomation mit einem Sensor erstellen",
       "controlledEntity": "Gesteuerte Entität:",
       "profile": "Profil:",
       "newProfile": "Neues Profil",

@@ -1338,6 +1338,7 @@
       "sendingCommand": "Sending command…",
       "adjustThermostatNow": "Adjust thermostat now",
       "weeklyProgrammer": "Weekly scheduler",
+      "externalSensorAutomation": "Create a sensor-based thermostat automation",
       "controlledEntity": "Controlled entity:",
       "profile": "Profile:",
       "newProfile": "New profile",

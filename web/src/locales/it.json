@@ -1331,6 +1331,7 @@
       "sendingCommand": "Invio comando…",
       "adjustThermostatNow": "Regola termostato ora",
       "weeklyProgrammer": "Programmazione settimanale",
+      "externalSensorAutomation": "Crea un’automazione del termostato basata su un sensore",
       "controlledEntity": "Entità controllata:",
       "profile": "Profilo:",
       "newProfile": "Nuovo profilo",

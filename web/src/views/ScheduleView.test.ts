@@ -48,6 +48,9 @@ describe('ScheduleView.vue', () => {
     expect(wrapper.text()).toContain('climate.living_room')
     expect(wrapper.text()).toContain('06:30 - 08:30')
     expect(wrapper.text()).toContain('21.0°C')
+    expect(wrapper.find('[data-testid="sensor-automation-link"]').exists()).toBe(true)
+    await wrapper.find('.btn-add-slot').trigger('click')
+    expect(wrapper.find('#slot-temp').attributes('step')).toBe('0.1')
   })
 
   it('switches to calendar view and shows events', async () => {

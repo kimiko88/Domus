@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAutomationsStore } from '../stores/automations'
 import { useNotificationsStore } from '../stores/notifications'
@@ -16,6 +17,8 @@ import type { InboundWebhook } from '../api/types'
 const { t } = useI18n()
 const automationsStore = useAutomationsStore()
 const notificationsStore = useNotificationsStore()
+const route = useRoute()
+const router = useRouter()
 
 const searchQuery = ref('')
 const filterStatus = ref<'all' | 'active' | 'disabled'>('all')
@@ -94,6 +97,10 @@ async function handleCopyWebhookUrl(whId: string) {
 onMounted(() => {
   loadAutomations()
   loadWebhooks()
+  if (route.query.climateProgram === '1') {
+    editingAutomation.value = null
+    isEditorOpen.value = true
+  }
 })
 
 const filteredAutomations = computed(() => {
@@ -115,6 +122,16 @@ const filteredAutomations = computed(() => {
 function openNewModal() {
   editingAutomation.value = null
   isEditorOpen.value = true
+}
+
+function closeEditor() {
+  isEditorOpen.value = false
+  if (route.query.climateProgram === '1') {
+    const query = { ...route.query }
+    delete query.climateProgram
+    delete query.target
+    void router.replace({ query })
+  }
 }
 
 function handleEdit(automation: Automation) {
@@ -149,6 +166,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     }
     isEditorOpen.value = false
     editingAutomation.value = null
+    if (route.query.climateProgram === '1') closeEditor()
   } catch (err: any) {
     notificationsStore.error(t('common.error'), err?.message || t('automations.saveError'))
   }
@@ -294,8 +312,10 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     <AutomationEditorModal
       :is-open="isEditorOpen"
       :automation="editingAutomation"
+      :open-climate-builder="route.query.climateProgram === '1'"
+      :initial-climate-target="typeof route.query.target === 'string' ? route.query.target : ''"
       @save="handleSaveAutomation"
-      @close="isEditorOpen = false"
+      @close="closeEditor"
     />
 
     <AutomationRunsModal
