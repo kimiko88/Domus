@@ -108,12 +108,24 @@ func TestDPSMapper_MapClimateModeState(t *testing.T) {
 	if parsed.Attributes["hvac_mode"] != "auto" {
 		t.Fatalf("expected DP4=0 to map to auto, got %+v", parsed.Attributes)
 	}
+	if got := parsed.Attributes["hvac_modes"]; len(got.([]string)) != 2 || got.([]string)[0] != "auto" || got.([]string)[1] != "manual" {
+		t.Fatalf("expected only supported LocalTuya modes to be advertised, got %+v", got)
+	}
 	manual := mapper.MapDPSToEntity(CategoryClimate, map[string]any{"4": 1})
 	if manual.Attributes["hvac_mode"] != "manual" {
 		t.Fatalf("expected DP4=1 to map to manual, got %+v", manual.Attributes)
 	}
 }
 
+func TestDPSMapper_MapSetHVACModeToLocalTuyaDP4(t *testing.T) {
+	dps, err := NewDPSMapper().MapCommandToDPS(CategoryClimate, "set_hvac_mode", map[string]any{"hvac_mode": "manual"})
+	if err != nil || dps["4"] != 1 {
+		t.Fatalf("manual HVAC mode must map to DPS 4=1, got %v, err=%v", dps, err)
+	}
+	if _, err := NewDPSMapper().MapCommandToDPS(CategoryClimate, "set_hvac_mode", map[string]any{"hvac_mode": "heat"}); err == nil {
+		t.Fatal("unsupported generic heat mode must be rejected")
+	}
+}
 
 func TestDPSMapper_MapClimateSetpointDPS16(t *testing.T) {
 	mapper := NewDPSMapper()
@@ -149,7 +161,6 @@ func TestDPSMapper_RejectsUnsupportedClimateSetpointDP(t *testing.T) {
 		t.Fatal("expected unsupported setpoint datapoint to be rejected")
 	}
 }
-
 
 func TestDPSMapper_MapClimateSetpointScale(t *testing.T) {
 	mapper := NewDPSMapper()

@@ -80,7 +80,19 @@ const activeThermostatId = ref<string>('')
 
 // Live thermostat regulation state
 const liveTargetTemp = ref<number>(20.5)
-const liveHvacMode = ref<'heat' | 'auto' | 'off'>('heat')
+const liveHvacMode = ref('')
+const activeThermostat = computed(() => activeThermostatId.value ? entitiesStore.entities[activeThermostatId.value] : undefined)
+const activeThermostatEntityKey = computed(() => activeThermostat.value?.entity_key || activeThermostat.value?.id || '')
+const supportedHvacModes = computed<string[]>(() => {
+  const modes = activeThermostat.value?.attributes?.hvac_modes
+  return Array.isArray(modes) ? modes.filter((mode): mode is string => typeof mode === 'string') : []
+})
+const supportsSetpoint = computed(() => {
+  const attrs = activeThermostat.value?.attributes
+  return !!attrs && ['target_temperature', 'temperature', 'target_temp'].some((key) => attrs[key] != null && Number.isFinite(Number(attrs[key])))
+})
+const setpointMin = computed(() => Number(activeThermostat.value?.attributes?.min_temp ?? 5))
+const setpointMax = computed(() => Number(activeThermostat.value?.attributes?.max_temp ?? 35))
 const manualOverrideDuration = ref(0)
 const isAdjustingLive = ref(false)
 
@@ -122,12 +134,12 @@ function syncLiveThermostatValues() {
   const ent = entitiesStore.entities[activeThermostatId.value]
   if (!ent) return
 
-  if (ent.attributes?.temperature) {
-    liveTargetTemp.value = Number(ent.attributes.temperature)
+  const target = ent.attributes?.target_temperature ?? ent.attributes?.temperature ?? ent.attributes?.target_temp
+  if (target !== undefined && Number.isFinite(Number(target))) {
+    liveTargetTemp.value = Number(target)
   }
-  if (ent.state === 'heat' || ent.state === 'auto' || ent.state === 'off') {
-    liveHvacMode.value = ent.state as any
-  }
+  const currentMode = String(ent.attributes?.hvac_mode ?? ent.state)
+  liveHvacMode.value = supportedHvacModes.value.includes(currentMode) ? currentMode : (supportedHvacModes.value[0] || '')
 }
 
 function adjustLiveTemp(delta: number) {
@@ -135,7 +147,7 @@ function adjustLiveTemp(delta: number) {
 }
 
 function setLivePreset(temp: number) {
-  liveTargetTemp.value = temp
+  liveTargetTemp.value = Math.min(setpointMax.value, Math.max(setpointMin.value, temp))
 }
 
 async function applyLiveThermostatSettings() {
@@ -154,6 +166,7 @@ async function applyLiveThermostatSettings() {
 
     // The backend owns the override timer, so it survives navigation and the
     // previous target is restored even if this page is closed.
+    if (!supportsSetpoint.value) throw new Error('Il dispositivo non espone un setpoint programmabile')
     await apiClient.post(
       `/api/v1/entities/${encodeURIComponent(activeThermostatId.value)}/climate-profile`,
       {
@@ -163,7 +176,7 @@ async function applyLiveThermostatSettings() {
       }
     )
 
-    if (liveHvacMode.value) {
+    if (liveHvacMode.value && supportedHvacModes.value.includes(liveHvacMode.value)) {
       await entitiesStore.callService(ent?.domain || 'climate', 'set_hvac_mode', activeThermostatId.value, {
         hvac_mode: liveHvacMode.value
       })
@@ -188,7 +201,7 @@ function openAddSlot(dayKey: string) {
   newSlotForm.value = {
     start: '07:00',
     end: '09:00',
-    value: 21.0
+    value: Math.min(setpointMax.value, Math.max(setpointMin.value, liveTargetTemp.value))
   }
   showAddSlotModal.value = true
 }
@@ -281,7 +294,7 @@ async function saveCurrentSchedule() {
     isSavingSchedule.value = true
     await apiClient.put(`/api/v1/schedules/${sched.id}`, {
       name: sched.name,
-      entity_key: sched.entity_key || activeThermostatId.value || 'climate.termostato_principale',
+      entity_key: sched.entity_key || activeThermostatEntityKey.value || 'climate.termostato_principale',
       enabled: sched.enabled,
       grid: sched.grid
     })
@@ -295,7 +308,7 @@ async function saveCurrentSchedule() {
 
 async function createNewSchedule() {
   const newSchedName = `Cronotermostato ${schedules.value.length + 1}`
-  const targetEntity = activeThermostatId.value || 'climate.termostato_principale'
+  const targetEntity = activeThermostatEntityKey.value || 'climate.termostato_principale'
 
   try {
     const created = await apiClient.post<Schedule>('/api/v1/schedules', {
@@ -456,11 +469,12 @@ onMounted(async () => {
           </div>
 
           <!-- Interactive Setpoint Control -->
-          <div class="temp-display-block target">
+          <div v-if="supportsSetpoint" class="temp-display-block target">
             <span class="temp-sublabel">{{ t('schedules.view.desiredSetpoint') }}</span>
 
             <div class="setpoint-adjust-row">
               <button
+                v-if="liveTargetTemp - 0.5 >= setpointMin"
                 class="btn-temp-circle"
                 @click="adjustLiveTemp(-0.5)"
                 :title="t('schedules.view.decreaseHalfDegree')"
@@ -473,6 +487,7 @@ onMounted(async () => {
                 <span class="unit">°C</span>
               </div>
               <button
+                v-if="liveTargetTemp + 0.5 <= setpointMax"
                 class="btn-temp-circle"
                 @click="adjustLiveTemp(0.5)"
                 :title="t('schedules.view.increaseHalfDegree')"
@@ -523,30 +538,18 @@ onMounted(async () => {
           <div class="temp-display-block actions-col">
             <span class="temp-sublabel">{{ t('schedules.view.operatingMode') }}</span>
 
-            <div class="hvac-mode-buttons">
+            <div v-if="supportedHvacModes.length" class="hvac-mode-buttons">
               <button
+                v-for="mode in supportedHvacModes"
+                :key="mode"
                 class="mode-btn"
-                :class="{ active: liveHvacMode === 'heat' }"
-                @click="liveHvacMode = 'heat'"
+                :class="{ active: liveHvacMode === mode }"
+                @click="liveHvacMode = mode"
               >
-                <Flame :size="14" />
-                <span>{{ t('schedules.view.heating') }}</span>
-              </button>
-              <button
-                class="mode-btn"
-                :class="{ active: liveHvacMode === 'auto' }"
-                @click="liveHvacMode = 'auto'"
-              >
-                <Clock :size="14" />
-                <span>{{ t('schedules.view.automatic') }}</span>
-              </button>
-              <button
-                class="mode-btn off"
-                :class="{ active: liveHvacMode === 'off' }"
-                @click="liveHvacMode = 'off'"
-              >
-                <Power :size="14" />
-                <span>{{ t('schedules.view.off') }}</span>
+                <Clock v-if="mode === 'auto'" :size="14" />
+                <Flame v-else-if="mode === 'heat' || mode === 'manual'" :size="14" />
+                <Power v-else-if="mode === 'off'" :size="14" />
+                <span>{{ mode === 'auto' ? t('schedules.view.automatic') : mode === 'heat' ? t('schedules.view.heating') : mode === 'off' ? t('schedules.view.off') : mode }}</span>
               </button>
             </div>
 
@@ -580,6 +583,7 @@ onMounted(async () => {
           <div class="schedule-title-block">
             <h2 class="schedule-title">{{ selectedSchedule.name }}</h2>
             <span class="schedule-target">{{ t('schedules.view.controlledEntity') }} {{ selectedSchedule.entity_key }}</span>
+            <small v-if="activeThermostatEntityKey === selectedSchedule.entity_key && !supportsSetpoint">Questo dispositivo non espone un setpoint programmabile.</small>
           </div>
 
           <div class="schedule-selector-row">

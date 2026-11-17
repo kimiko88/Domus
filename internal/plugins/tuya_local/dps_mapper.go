@@ -103,6 +103,11 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 
 	case CategoryClimate:
 		result.Domain = "climate"
+		// DPS 4 is the only operating-mode control currently mapped for
+		// LocalTuya thermostats. Advertise it only when the device reports it.
+		if _, exists := dps["4"]; exists {
+			result.Attributes["hvac_modes"] = []string{"auto", "manual"}
+		}
 		if val, exists := dps["1"]; exists {
 			result.State = boolToOnOff(val)
 		}
@@ -236,6 +241,13 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 				scale = int(value)
 			}
 			dps[fmt.Sprint(dpID)] = int(math.Round(temp * math.Pow10(scale)))
+		case "set_hvac_mode":
+			mode, ok := params["hvac_mode"].(string)
+			if !ok {
+				return nil, errors.New("climate hvac_mode must be 'auto' or 'manual'")
+			}
+			params = map[string]any{"mode": mode}
+			fallthrough
 		case "set_mode":
 			mode, ok := params["mode"].(string)
 			if !ok {
