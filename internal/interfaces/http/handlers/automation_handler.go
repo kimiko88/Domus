@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -286,6 +287,22 @@ func (h *AutomationHandler) DryRun(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
+	}
+
+	// A request body may provide an unsaved draft. Evaluate it in memory only:
+	// dry-run must never persist changes or dispatch device commands.
+	var draft automation.Automation
+	if err := json.NewDecoder(r.Body).Decode(&draft); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed dry-run request body")
+		return
+	}
+	if draft.Name != "" || len(draft.Triggers) > 0 || len(draft.Actions) > 0 || draft.Conditions != nil {
+		draft.ID = a.ID
+		if err := draft.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+			return
+		}
+		a = &draft
 	}
 
 	sim := appauto.NewSimulator(h.entityRepo, nil)
