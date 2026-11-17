@@ -100,6 +100,7 @@ const isWiring = ref(false)
 const wireStartNodeId = ref<string | null>(null)
 const wireStartBranchKey = ref<string | null>(null)
 const suppressNextPortClick = ref(false)
+const wireStartPortElement = ref<HTMLElement | null>(null)
 const mousePos = ref({ x: 0, y: 0 })
 const activeTouchPointers = new Map<number, { x: number; y: number }>()
 let pinchOrigin: {
@@ -401,6 +402,7 @@ function finishWiring() {
 function startWiring(nodeId: string, e: PointerEvent, branchKey?: string) {
   if (activeTouchPointers.size > 1) return
   suppressNextPortClick.value = true
+  wireStartPortElement.value = e.currentTarget as HTMLElement
   e.stopPropagation()
   soundEffects.playClick()
   isWiring.value = true
@@ -414,6 +416,8 @@ function endWiring(targetNodeId: string, e: PointerEvent) {
   if (!isWiring.value || !wireStartNodeId.value) return
   commitWire(targetNodeId)
   finishWiring()
+  suppressNextPortClick.value = false
+  wireStartPortElement.value = null
 }
 
 // Tap/click connection mode makes wiring usable without a drag gesture.
@@ -603,13 +607,15 @@ function handleMouseMove(e: PointerEvent) {
   }
 }
 
-function handleMouseUp() {
+function handleMouseUp(e: PointerEvent) {
   isPanning.value = false
   draggingNodeId.value = null
-  if (isWiring.value) {
-    isWiring.value = false
-    wireStartNodeId.value = null
+  const releasedPort = (e.target as HTMLElement).closest('.node-port')
+  if (releasedPort !== wireStartPortElement.value) {
+    suppressNextPortClick.value = false
+    wireStartPortElement.value = null
   }
+  if (isWiring.value) finishWiring()
 }
 
 function handleWheel(e: WheelEvent) {
