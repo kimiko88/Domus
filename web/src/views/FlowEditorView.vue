@@ -685,7 +685,7 @@ function compileGraphToAutomation(): Partial<Automation> {
       }
       conditions.push(cond)
     } else if (node.type === 'action') {
-      if (['choose', 'if', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
+      if (['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(node.subType)) {
         actions.push(parseAdvancedAutomationAction(node.data.advancedJson, node.subType))
         continue
       }
