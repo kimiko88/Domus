@@ -481,6 +481,11 @@ function watchThermostatChange() {
   if (scheduleTarget) {
     const scheduledOption = findThermostatOption(scheduleTarget)
     if (scheduledOption) {
+      // Older schedules may have stored the entity UUID in the entity_key
+      // column. Normalize it to the stable key so both selectors stay aligned.
+      if (selectedSchedule.value && selectedSchedule.value.entity_key !== scheduledOption.id) {
+        selectedSchedule.value.entity_key = scheduledOption.id
+      }
       activeThermostatId.value = scheduledOption.entity_id || scheduledOption.id
       syncLiveThermostatValues()
       return
@@ -526,6 +531,10 @@ function syncThermostatFromSchedule() {
   const option = findThermostatOption(target)
   if (!option) return
 
+  // Normalize legacy schedules that stored an entity UUID instead of its key.
+  if (selectedSchedule.value && selectedSchedule.value.entity_key !== option.id) {
+    selectedSchedule.value.entity_key = option.id
+  }
   activeThermostatId.value = option.entity_id || option.id
   syncLiveThermostatValues()
 }
