@@ -32,6 +32,32 @@ describe('parseAdvancedAutomationAction', () => {
     expect(parseAdvancedAutomationAction(JSON.stringify(source), 'if')).toEqual(source)
   })
 
+  it('accepts the legacy if_then_else alias and nested AND/OR/NOT conditions', () => {
+    const source = {
+      type: 'if_then_else',
+      if: [{
+        condition: 'and',
+        conditions: [
+          { condition: 'state', entity_key: 'binary_sensor.motion', state: 'on' },
+          {
+            condition: 'not',
+            conditions: [{
+              condition: 'or',
+              conditions: [
+                { condition: 'state', entity_key: 'input_boolean.guest_mode', state: 'on' },
+                { condition: 'time', before: '06:00:00' }
+              ]
+            }]
+          }
+        ]
+      }],
+      then: [{ type: 'service', service: 'turn_on', target_entity_key: 'light.hall' }],
+      else: [{ type: 'service', service: 'turn_off', target_entity_key: 'light.hall' }]
+    }
+
+    expect(parseAdvancedAutomationAction(JSON.stringify(source), 'if_then_else')).toEqual(source)
+  })
+
   it('accepts bounded repeat and parallel actions', () => {
     const repeat = {
       type: 'repeat',
