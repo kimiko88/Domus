@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
 	appweather "github.com/domus-hub/domus/internal/application/weather"
 	domclimate "github.com/domus-hub/domus/internal/domain/climate"
+	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
@@ -21,21 +23,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupPredictiveHandlerTest(t *testing.T) (*chi.Mux, *appclimate.PredictiveService) {
+func setupPredictiveHandlerTest(t *testing.T) (*chi.Mux, *sqlite.EntityRepository) {
 	t.Helper()
 	db, err := sqlite.Open(config.DatabaseConfig{
 		Path:    ":memory:",
 		WALMode: false,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
 
 	ctx := context.Background()
 	err = sqlite.Migrate(ctx, db)
 	require.NoError(t, err)
 
+	entities := sqlite.NewEntityRepository(db)
+	now := time.Now().UTC()
+	for _, seeded := range []*entity.Entity{
+		{
+			ID: "predictive-handler-room-temperature", EntityKey: "sensor.cucina_temp",
+			Domain: "sensor", Name: "Temperatura cucina", UnitOfMeasurement: "°C",
+			State: "19.0", Attributes: "{}", Available: true,
+			LastChangedAt: now, LastUpdatedAt: now,
+		},
+		{
+			ID: "predictive-handler-room-pressure", EntityKey: "sensor.cucina_pressione",
+			Domain: "sensor", Name: "Pressione cucina", UnitOfMeasurement: "hPa",
+			State: "1013.25", Attributes: "{}", Available: true,
+			LastChangedAt: now, LastUpdatedAt: now,
+		},
+	} {
+		require.NoError(t, entities.Create(ctx, seeded))
+	}
+
 	repo := sqlite.NewPredictiveClimateRepository(db)
 	weatherCli := appweather.NewClient()
-	svc := appclimate.NewPredictiveService(repo, nil, weatherCli, nil, nil)
+	svc := appclimate.NewPredictiveService(repo, entities, weatherCli, nil, nil)
 	handler := handlers.NewPredictiveClimateHandler(svc)
 
 	r := chi.NewRouter()
@@ -48,11 +70,16 @@ func setupPredictiveHandlerTest(t *testing.T) (*chi.Mux, *appclimate.PredictiveS
 	r.Route("/api/v1/climate/predictive", func(sub chi.Router) {
 		handler.RegisterRoutes(sub)
 	})
-	return r, svc
+	return r, entities
+}
+
+func requirePredictiveHTTPStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int) {
+	t.Helper()
+	require.Equalf(t, expected, rec.Code, "HTTP response body: %s", rec.Body.String())
 }
 
 func TestPredictiveClimateHandler_Flow(t *testing.T) {
-	router, _ := setupPredictiveHandlerTest(t)
+	router, entities := setupPredictiveHandlerTest(t)
 
 	// 1. Create Zone
 	zonePayload := domclimate.PredictiveZoneConfig{
@@ -75,7 +102,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusCreated, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusCreated)
 	var created domclimate.PredictiveZoneConfig
 	err := json.NewDecoder(rec.Body).Decode(&created)
 	require.NoError(t, err)
@@ -87,7 +114,7 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	requirePredictiveHTTPStatus(t, rec, http.StatusOK)
 	var listRes map[string]any
 	err = json.NewDecoder(rec.Body).Decode(&listRes)
 	require.NoError(t, err)
@@ -160,6 +187,16 @@ func TestPredictiveClimateHandler_Flow(t *testing.T) {
 	assert.Equal(t, created.ID, preheat.ZoneID)
 	assert.Greater(t, preheat.PreheatMinutes, 0)
 	assert.NotEmpty(t, preheat.Reason)
+
+	// Coast-down is only useful once the room has reached its comfort target.
+	require.NoError(t, entities.UpdateState(
+		context.Background(),
+		"predictive-handler-room-temperature",
+		"20.5",
+		"{}",
+		true,
+		time.Now().UTC(),
+	))
 
 	// 8. Get Optimal Stop
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/climate/predictive/zones/"+created.ID+"/optimal-stop", nil)
