@@ -1,4 +1,5 @@
 import type { AutomationAction, AutomationCondition } from '../api/types'
+import { parseAdvancedAutomationAction } from './automationActionValidation'
 
 export type FlowGraphNodeType = 'trigger' | 'condition' | 'action' | 'delay' | 'logic'
 
@@ -242,4 +243,194 @@ export function buildAutomationActionGraph(
 
   appendSequence(actions, null, undefined, 0, startY, 'root')
   return graph
+}
+
+
+function firstBranchWire(parentId: string, branchKey: string, wires: FlowGraphWire[]): FlowGraphWire | undefined {
+  const matches = wires.filter((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
+  if (matches.length > 1) {
+    throw new Error(`L'uscita "${branchKey}" ha più collegamenti. Ogni porta può avere una sola destinazione.`)
+  }
+  return matches[0]
+}
+
+function compileConditionSequence(
+  parentId: string,
+  branchKey: string,
+  nodes: FlowGraphNode[],
+  wires: FlowGraphWire[],
+  visited: Set<string>
+): AutomationCondition[] {
+  const first = firstBranchWire(parentId, branchKey, wires)
+  if (!first) return []
+  const result: AutomationCondition[] = []
+  let currentId: string | undefined = first.toNodeId
+
+  while (currentId) {
+    if (visited.has(currentId)) throw new Error('La sequenza delle condizioni contiene un ciclo o un nodo riutilizzato.')
+    visited.add(currentId)
+    const node = nodes.find((item) => item.id === currentId)
+    if (!node || node.type !== 'condition') {
+      throw new Error('Una porta delle condizioni deve contenere esclusivamente nodi condizione.')
+    }
+
+    if (node.subType === 'logic') {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(node.data.advancedConditionJson || '')
+      } catch {
+        throw new Error('La condizione logica contiene un JSON non valido.')
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('La condizione logica deve essere un oggetto JSON.')
+      }
+      result.push(parsed as AutomationCondition)
+    } else {
+      const condition: AutomationCondition = {
+        ...(node.data.originalCondition || {}),
+        condition: node.subType
+      }
+      if (node.subType === 'state') {
+        condition.entity_key = node.data.entity_key
+        condition.state = node.data.state || 'on'
+      } else if (node.subType === 'numeric_state') {
+        condition.entity_key = node.data.entity_key
+        if (node.data.above !== undefined && node.data.above !== '') condition.above = Number(node.data.above)
+        if (node.data.below !== undefined && node.data.below !== '') condition.below = Number(node.data.below)
+      } else if (node.subType === 'time') {
+        condition.after = node.data.after
+        condition.before = node.data.before
+      } else if (node.subType === 'trigger') {
+        condition.trigger_id = node.data.trigger_id
+      } else {
+        throw new Error(`La condizione "${node.subType}" non è supportata nell'editor visuale.`)
+      }
+      result.push(condition)
+    }
+
+    const next = wires.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
+    if (next.length > 1) throw new Error('Una sequenza di condizioni può avere una sola uscita lineare.')
+    currentId = next[0]?.toNodeId
+  }
+
+  return result
+}
+
+function compileActionSequence(
+  parentId: string,
+  branchKey: string,
+  nodes: FlowGraphNode[],
+  wires: FlowGraphWire[],
+  visited: Set<string>
+): AutomationAction[] {
+  const first = firstBranchWire(parentId, branchKey, wires)
+  if (!first) return []
+  const result: AutomationAction[] = []
+  let currentId: string | undefined = first.toNodeId
+
+  while (currentId) {
+    if (visited.has(currentId)) throw new Error('La sequenza di un ramo contiene un ciclo o un nodo riutilizzato.')
+    visited.add(currentId)
+    const node = nodes.find((item) => item.id === currentId)
+    if (!node) throw new Error('Un ramo contiene un nodo inesistente.')
+
+    if (node.type === 'action' && ADVANCED_ACTIONS.has(node.subType)) {
+      const nested = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
+      applyAutomationActionBranches(node, nested, nodes, wires, visited)
+      result.push(nested)
+    } else if (node.type === 'action') {
+      if (node.subType === 'unsupported') throw new Error('Un ramo contiene un’azione non supportata.')
+      if (node.subType === 'notify') {
+        result.push({
+          ...(node.data.originalAction || {}),
+          type: 'event',
+          event_type: 'notification.create',
+          event_payload: { message: node.data.message }
+        })
+      } else {
+        const action: AutomationAction = {
+          ...(node.data.originalAction || {}),
+          type: node.subType === 'scene' ? 'scene' : 'service'
+        }
+        if (node.subType === 'service') {
+          action.service = node.data.service || 'turn_on'
+          action.target_entity_key = node.data.target_entity_key
+        } else if (node.subType === 'scene') {
+          action.service = 'apply_scene'
+          action.params = { scene_id: node.data.scene_id }
+        }
+        result.push(action)
+      }
+    } else if (node.type === 'delay') {
+      result.push({ type: 'delay', delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000 })
+    } else {
+      throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
+    }
+
+    const next = wires.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
+    if (next.length > 1) throw new Error('Un’azione interna a un ramo può avere una sola uscita lineare.')
+    currentId = next[0]?.toNodeId
+  }
+
+  return result
+}
+
+/**
+ * Replaces only connected condition/action branches in a composite action.
+ * Unconnected branches retain their original JSON, including unknown metadata.
+ */
+export function applyAutomationActionBranches(
+  node: FlowGraphNode,
+  action: AutomationAction & Record<string, any>,
+  nodes: FlowGraphNode[],
+  wires: FlowGraphWire[],
+  visited = new Set<string>()
+): void {
+  const hasBranch = (branchKey: string) => !!firstBranchWire(node.id, branchKey, wires)
+
+  if (action.type === 'if' || action.type === 'if_then_else') {
+    if (hasBranch('if:conditions')) {
+      action.if = compileConditionSequence(node.id, 'if:conditions', nodes, wires, visited)
+    }
+    if (hasBranch('then')) action.then = compileActionSequence(node.id, 'then', nodes, wires, visited)
+    if (hasBranch('else')) action.else = compileActionSequence(node.id, 'else', nodes, wires, visited)
+  } else if (action.type === 'choose') {
+    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => {
+      const updated = { ...branch }
+      const conditionKey = `choose:${index}:conditions`
+      const sequenceKey = `choose:${index}`
+      if (hasBranch(conditionKey)) {
+        updated.conditions = compileConditionSequence(node.id, conditionKey, nodes, wires, visited)
+      }
+      if (hasBranch(sequenceKey)) {
+        updated.sequence = compileActionSequence(node.id, sequenceKey, nodes, wires, visited)
+      }
+      return updated
+    })
+    if (hasBranch('default')) {
+      action.default = compileActionSequence(node.id, 'default', nodes, wires, visited)
+    }
+  } else if (action.type === 'repeat') {
+    const repeat = { ...(action.repeat || {}) }
+    if (hasBranch('repeat:while')) {
+      repeat.while = compileConditionSequence(node.id, 'repeat:while', nodes, wires, visited)
+    }
+    if (hasBranch('repeat:until')) {
+      repeat.until = compileConditionSequence(node.id, 'repeat:until', nodes, wires, visited)
+    }
+    if (hasBranch('sequence')) {
+      repeat.sequence = compileActionSequence(node.id, 'sequence', nodes, wires, visited)
+    }
+    action.repeat = repeat
+  } else if (action.type === 'parallel') {
+    action.parallel = (action.parallel || []).map((original: AutomationAction, index: number) => {
+      const branchKey = `parallel:${index}`
+      if (!hasBranch(branchKey)) return original
+      const sequence = compileActionSequence(node.id, branchKey, nodes, wires, visited)
+      if (sequence.length > 1) {
+        throw new Error('Ogni ramo parallelo deve contenere una singola azione: il motore esegue gli elementi in parallelo.')
+      }
+      return sequence[0] || original
+    })
+  }
 }
