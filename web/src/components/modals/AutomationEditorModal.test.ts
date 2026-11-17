@@ -387,4 +387,3 @@ it('generates weekly Comfort Eco Night thermostat profile automations', async ()
   getSpy.mockRestore()
   wrapper.unmount()
 })
-

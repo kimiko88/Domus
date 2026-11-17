@@ -165,4 +165,3 @@ describe('AutomationsView.vue', () => {
     expect(wrapper.findComponent({ name: 'AutomationRunsModal' }).props('isOpen')).toBe(true)
   })
 })
-

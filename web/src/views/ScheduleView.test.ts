@@ -139,4 +139,3 @@ describe('manual thermostat overrides', () => {
     wrapper.unmount()
   })
 })
-

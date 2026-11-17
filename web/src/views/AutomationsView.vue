@@ -881,4 +881,3 @@ async function handleSaveAutomation(data: Partial<Automation>) {
 }
 
 </style>
-
