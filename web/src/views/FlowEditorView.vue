@@ -587,6 +587,9 @@ function compileGraphToAutomation(): Partial<Automation> {
 
   for (const node of orderedNodes) {
     if (node.type === 'trigger') {
+      if (!['state', 'numeric_state', 'time'].includes(node.subType)) {
+        throw new Error(`Il trigger “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+      }
       const trig: AutomationTrigger = {
         ...(node.data.originalTrigger || {}),
         platform: node.subType
@@ -711,7 +714,7 @@ function loadAutomationIntoGraph(auto: Automation) {
         id,
         type: 'condition',
         subType: cond.condition,
-        title: cond.condition === 'time' ? 'Fascia Oraria' : 'Filtro Stato',
+        title: cond.condition === 'time' ? 'Fascia Oraria' : cond.condition === 'numeric_state' ? 'Soglia Numerica' : 'Filtro Stato',
         subtitle: cond.entity_key ? `${cond.entity_key} == ${cond.state || 'on'}` : 'Condizione',
         x: col2X,
         y: 80 + idx * 130,
@@ -719,6 +722,8 @@ function loadAutomationIntoGraph(auto: Automation) {
           originalCondition: cond,
           entity_key: cond.entity_key,
           state: cond.state,
+          above: cond.above,
+          below: cond.below,
           after: cond.after,
           before: cond.before
         }
