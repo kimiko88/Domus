@@ -70,7 +70,7 @@ function actionNode(action: AutomationAction, id: string, x: number, y: number):
           ? 'Comando'
           : `Azione avanzata (${action.type})`,
     subtitle: isDelay
-      ? `Attesa ${(action.delay_ms || 1000) / 1000}s`
+      ? `Attesa ${(action.delay_ms ?? 1000) / 1000}s`
       : `${action.service || action.type} -> ${action.target_entity_key || ''}`,
     x,
     y,
@@ -362,7 +362,7 @@ function compileActionSequence(
         result.push(action)
       }
     } else if (node.type === 'delay') {
-      result.push({ type: 'delay', delay_ms: (parseInt(node.data.delay_seconds) || 5) * 1000 })
+      result.push({ type: 'delay', delay_ms: Math.max(0, Math.round((Number.isFinite(Number(node.data.delay_seconds)) ? Number(node.data.delay_seconds) : 5) * 1000)) })
     } else {
       throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
     }
