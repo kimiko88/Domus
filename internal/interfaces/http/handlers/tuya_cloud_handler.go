@@ -266,12 +266,41 @@ func (h *TuyaCloudHandler) getClient() *tuya_cloud.Client {
 	return h.client
 }
 
+func containsAnyTuyaCode(codes []string, wanted ...string) bool {
+	set := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		set[strings.ToLower(strings.TrimSpace(code))] = struct{}{}
+	}
+	for _, code := range wanted {
+		if _, ok := set[strings.ToLower(code)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.DeviceCategory, string, string, string) {
 	statusCodes := make([]string, 0, len(dev.Status))
 	for _, st := range dev.Status {
 		statusCodes = append(statusCodes, st.Code)
 	}
-	cat := tuya_local.InferCategory(dev.Category, dev.Name, dev.ProductName, statusCodes)
+	cat := tuya_local.DeviceCategory(strings.ToLower(strings.TrimSpace(dev.Category)))
+	if cat == "" {
+		name := strings.ToLower(dev.Name + " " + dev.ProductName)
+		switch {
+		case containsAnyTuyaCode(statusCodes, "temp_set", "target_temp", "target_temperature", "temp_current", "current_temp", "hvac_mode", "work_mode") ||
+			strings.Contains(name, "thermostat") ||
+			strings.Contains(name, "climate") || strings.Contains(name, "radiator"):
+			cat = tuya_local.CategoryClimate
+		case strings.Contains(strings.ToLower(dev.Category), "dj") ||
+			strings.Contains(name, "light") || strings.Contains(name, "lamp") || strings.Contains(name, "bulb"):
+			cat = tuya_local.CategoryLight
+		case strings.Contains(name, "plug") || strings.Contains(name, "socket"):
+			cat = tuya_local.CategoryPlug
+		default:
+			cat = tuya_local.CategorySwitch
+		}
+	}
 
 	entityKey := fmt.Sprintf("switch.tuya_%s", dev.ID)
 	switch cat {
