@@ -463,7 +463,14 @@
       "filterUnselected": "Nicht ausgewählt ({count})",
       "clientId": "Client-ID:",
       "smartLifeUidLabel": "Smart-Life-UID:",
-      "endpointLabel": "Endpunkt:"
+      "endpointLabel": "Endpunkt:",
+      "unblock": "Sperre aufheben",
+      "messages": {
+        "tuyaConnectedTitle": "Smart Life verbunden",
+        "deviceOfflineDesc": "Das Gerät ist offline. Prüfe Stromversorgung und lokale Netzwerkverbindung.",
+        "arpScanCompleteDesc": "ARP-Scan abgeschlossen. Gefundene Geräte: {count}.",
+        "deviceUnblockedTitle": "Gerätesperre aufgehoben"
+      }
     }
   },
   "history": {
