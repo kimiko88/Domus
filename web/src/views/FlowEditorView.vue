@@ -844,6 +844,7 @@ function compileGraphToAutomation(): Partial<Automation> {
     } else if (node.type === 'delay') {
       const delaySeconds = Number(node.data.delay_seconds)
       actions.push({
+        ...(node.data.originalAction || {}),
         type: 'delay',
         delay_ms: Math.max(0, Math.round((Number.isFinite(delaySeconds) ? delaySeconds : 5) * 1000))
       })
