@@ -165,7 +165,7 @@ function updateTime(event: Event, field: 'after' | 'before') {
           @update:model-value="updateChild(index, $event)"
         />
         <button
-          v-if="modelValue.condition !== 'not' || children.length > 1"
+          v-if="children.length > 1"
           class="condition-remove-button"
           type="button"
           :aria-label="`Rimuovi condizione ${index + 1}`"
