@@ -6,7 +6,11 @@ import { useAlarmStore } from './alarm'
 import type { EntityStateEventPayload } from '../api/types'
 import i18n from '../locales'
 
-const t = (...args: Parameters<typeof i18n.global.t>) => i18n.global.t(...args)
+const translate = i18n.global.t as unknown as (
+  key: string,
+  params?: Record<string, unknown>
+) => string
+const t = (key: string, params?: Record<string, unknown>): string => translate(key, params)
 
 const DISCOVERY_NOTIFICATION_COOLDOWN_MS = 10 * 60 * 1000
 
