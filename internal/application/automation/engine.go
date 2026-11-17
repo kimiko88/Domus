@@ -4,6 +4,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -417,7 +418,11 @@ func (e *Engine) executeRule(ctx context.Context, rule *automation.Automation, t
 			return
 		}
 		if err := e.executeAction(ctx, act, rule, run, triggerID, &actionLogs); err != nil {
-			e.failRun(ctx, rule, run, fmt.Sprintf("Action error: %v", err))
+			if errors.Is(err, context.Canceled) {
+				e.failRun(ctx, rule, run, "Execution cancelled")
+			} else {
+				e.failRun(ctx, rule, run, fmt.Sprintf("Action error: %v", err))
+			}
 			return
 		}
 	}
