@@ -3,10 +3,12 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useWsStore } from './ws'
 import { useEntitiesStore } from './entities'
 import { useNotificationsStore } from './notifications'
+import { setLanguage } from '../locales'
 
 describe('useWsStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    setLanguage('en')
   })
 
   it('initializes with disconnected state', () => {
