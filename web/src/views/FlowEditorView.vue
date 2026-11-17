@@ -232,7 +232,7 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
 
   const defaultData: Record<string, any> = {}
   if (subType === 'state') {
-    defaultData.entity_key = entitiesStore.allEntities[0]?.id || 'light.salotto'
+    defaultData.entity_key = entitiesStore.allEntities[0]?.id || ''
     defaultData.to = 'on'
   } else if (subType === 'numeric_state') {
     defaultData.entity_key = 'sensor.temperatura_salotto'
@@ -240,7 +240,7 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
   } else if (subType === 'time') {
     defaultData.at = '22:30:00'
   } else if (subType === 'service') {
-    defaultData.target_entity_key = entitiesStore.allEntities[0]?.id || 'light.salotto'
+    defaultData.target_entity_key = entitiesStore.allEntities[0]?.id || ''
     defaultData.service = 'turn_on'
   } else if (subType === 'scene') {
     defaultData.scene_id = scenesStore.scenes[0]?.id || ''
