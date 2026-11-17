@@ -398,7 +398,7 @@ export function applyAutomationActionBranches(
     if (hasBranch('then')) action.then = compileActionSequence(node.id, 'then', nodes, wires, visited)
     if (hasBranch('else')) action.else = compileActionSequence(node.id, 'else', nodes, wires, visited)
   } else if (action.type === 'choose') {
-    action.choose = (action.choose || []).map((branch: Record<string, any>, index: number) => {
+    action.choose = (action.choose || []).map((branch, index) => {
       const updated = { ...branch }
       const conditionKey = `choose:${index}:conditions`
       const sequenceKey = `choose:${index}`
@@ -414,7 +414,9 @@ export function applyAutomationActionBranches(
       action.default = compileActionSequence(node.id, 'default', nodes, wires, visited)
     }
   } else if (action.type === 'repeat') {
-    const repeat = { ...(action.repeat || {}) }
+    const repeat: NonNullable<AutomationAction['repeat']> = action.repeat
+      ? { ...action.repeat }
+      : { sequence: [] }
     if (hasBranch('repeat:while')) {
       repeat.while = compileConditionSequence(node.id, 'repeat:while', nodes, wires, visited)
     }
