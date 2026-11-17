@@ -53,10 +53,15 @@ function requireNonEmptyString(value: unknown, path: string): string {
 }
 
 function requireFiniteNumber(value: unknown, path: string, min: number, max: number): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
-    throw new Error(`${path} deve essere un numero compreso tra ${min} e ${max}.`)
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`${path} deve essere un numero JSON compreso tra ${min} e ${max}.`)
   }
+  return value
+}
+
+function requireInteger(value: unknown, path: string, min: number, max: number): number {
+  const parsed = requireFiniteNumber(value, path, min, max)
+  if (!Number.isInteger(parsed)) throw new Error(`${path} deve essere un numero intero.`)
   return parsed
 }
 
@@ -141,7 +146,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
       break
 
     case 'delay':
-      requireFiniteNumber(action.delay_ms, `${path}.delay_ms`, 0, 86_400_000)
+      requireInteger(action.delay_ms, `${path}.delay_ms`, 0, 86_400_000)
       break
 
     case 'event':
@@ -163,7 +168,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
         }
       }
       if (action.duration_minutes !== undefined) {
-        requireFiniteNumber(action.duration_minutes, `${path}.duration_minutes`, 0, 1440)
+        requireInteger(action.duration_minutes, `${path}.duration_minutes`, 0, 1440)
       }
       break
     }
@@ -204,7 +209,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
       if ([hasCount, hasWhile, hasUntil].filter(Boolean).length !== 1) {
         throw new Error(`${path}.repeat: scegli una sola modalità tra count, while e until.`)
       }
-      if (hasCount) requireFiniteNumber(countValue, `${path}.repeat.count`, 1, MAX_REPEAT_COUNT)
+      if (hasCount) requireInteger(countValue, `${path}.repeat.count`, 1, MAX_REPEAT_COUNT)
       if (hasWhile) validateConditionList(repeat.while, `${path}.repeat.while`, depth + 1)
       if (hasUntil) validateConditionList(repeat.until, `${path}.repeat.until`, depth + 1)
       validateActionList(repeat.sequence, `${path}.repeat.sequence`, depth, count)
