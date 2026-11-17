@@ -200,7 +200,7 @@ function extractTuyaClimateTelemetry(status?: TuyaStatusPoint[]) {
 }
 
 // Connected Smart Thermostats merged from Entities Store, Tuya Local, and Tuya Cloud (Smart Life)
-const connectedThermostats = computed<ThermostatOption[]>(() => {
+const mergedThermostats = computed<ThermostatOption[]>(() => {
   const byKey = new Map<string, ThermostatOption>()
 
   // 1. Entities from store
@@ -338,9 +338,9 @@ const connectedThermostats = computed<ThermostatOption[]>(() => {
 // so the user can always select any integrated Smart Life device if needed
 const otherSmartLifeDevices = computed<ThermostatOption[]>(() => {
   const existingTuyaIds = new Set(
-    connectedThermostats.value.map((t) => t.tuya_device_id).filter(Boolean)
+    mergedThermostats.value.map((t) => t.tuya_device_id).filter(Boolean)
   )
-  const existingKeys = new Set(connectedThermostats.value.map((t) => t.id))
+  const existingKeys = new Set(mergedThermostats.value.map((t) => t.id))
   const list: ThermostatOption[] = []
 
   for (const d of tuyaCloudDevices.value) {
@@ -379,7 +379,7 @@ const otherSmartLifeDevices = computed<ThermostatOption[]>(() => {
 })
 
 const allSelectableThermostats = computed<ThermostatOption[]>(() => [
-  ...connectedThermostats.value,
+  ...mergedThermostats.value,
   ...otherSmartLifeDevices.value
 ])
 
@@ -407,18 +407,47 @@ const activeThermostatId = ref<string>('')
 // Live thermostat regulation state
 const liveTargetTemp = ref<number>(20.5)
 const liveHvacMode = ref('')
-const activeThermostat = computed(() => activeThermostatId.value ? entitiesStore.entities[activeThermostatId.value] : undefined)
-const activeThermostatEntityKey = computed(() => activeThermostat.value?.entity_key || activeThermostat.value?.id || '')
+const activeThermostat = computed(() => {
+  const option = findThermostatOption(activeThermostatId.value)
+  return entitiesStore.entities[activeThermostatId.value] ||
+    (option?.entity_id ? entitiesStore.entities[option.entity_id] : undefined)
+})
+const activeThermostatEntityKey = computed(() =>
+  activeThermostat.value?.entity_key ||
+  findThermostatOption(activeThermostatId.value)?.id ||
+  activeThermostatId.value ||
+  ''
+)
 const supportedHvacModes = computed<string[]>(() => {
   const modes = activeThermostat.value?.attributes?.hvac_modes
-  return Array.isArray(modes) ? modes.filter((mode): mode is string => typeof mode === 'string') : []
+  if (Array.isArray(modes)) {
+    return modes.filter((mode): mode is string => typeof mode === 'string')
+  }
+
+  const option = findThermostatOption(activeThermostatId.value)
+  const fallback: string[] = []
+  if (option?.mode_dp_code) fallback.push('heat', 'auto')
+  if (option?.switch_dp_code) fallback.push('off')
+  return fallback
 })
 const supportsSetpoint = computed(() => {
-  const attrs = activeThermostat.value?.attributes
-  return !!attrs && ['target_temperature', 'temperature', 'target_temp'].some((key) => attrs[key] != null && Number.isFinite(Number(attrs[key])))
+  const attrs = activeThermostat.value?.attributes || {}
+  const entityHasSetpoint = ['target_temperature', 'temperature', 'target_temp'].some(
+    key => attrs[key] != null && Number.isFinite(Number(attrs[key]))
+  )
+  const option = findThermostatOption(activeThermostatId.value)
+  const optionHasSetpoint = option?.target_temperature != null &&
+    Number.isFinite(Number(option.target_temperature))
+  return entityHasSetpoint || optionHasSetpoint
 })
-const setpointMin = computed(() => Number(activeThermostat.value?.attributes?.min_temp ?? 5))
-const setpointMax = computed(() => Number(activeThermostat.value?.attributes?.max_temp ?? 35))
+const setpointMin = computed(() => {
+  const value = Number(activeThermostat.value?.attributes?.min_temp ?? 5)
+  return Number.isFinite(value) ? value : 5
+})
+const setpointMax = computed(() => {
+  const value = Number(activeThermostat.value?.attributes?.max_temp ?? 35)
+  return Number.isFinite(value) ? value : 35
+})
 const manualOverrideDuration = ref(0)
 const isAdjustingLive = ref(false)
 
@@ -436,122 +465,111 @@ const selectedSchedule = computed(() => {
 })
 const selectedScheduleThermostatAvailable = computed(() => {
   const target = selectedSchedule.value?.entity_key
-  return connectedThermostats.value.some(entity => (entity.entity_key || entity.id) === target)
+  return !!target && !!findThermostatOption(target)
 })
 
-// Current room temperature from thermostat
+// Current room temperature from the best available source: merged Tuya
+// telemetry first, then the persisted Domus entity.
 const currentAmbientTemp = computed(() => {
   if (!activeThermostatId.value) return 20.8
-  const opt = findThermostatOption(activeThermostatId.value)
-  if (opt?.current_temperature !== undefined && !isNaN(opt.current_temperature)) {
-    return opt.current_temperature
+  const option = findThermostatOption(activeThermostatId.value)
+  if (option?.current_temperature != null && Number.isFinite(Number(option.current_temperature))) {
+    return Number(option.current_temperature)
   }
-  if (opt?.target_temperature !== undefined && !isNaN(opt.target_temperature)) {
-    return opt.target_temperature
-  }
-  const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
-  if (!ent) return 20.8
-  if (ent.attributes?.current_temperature) return Number(ent.attributes.current_temperature)
-  if (ent.attributes?.temperature) return Number(ent.attributes.temperature)
-  const parsed = parseFloat(ent.state)
-  return isNaN(parsed) ? 20.8 : parsed
+
+  const entity = activeThermostat.value
+  const value = entity?.attributes?.current_temperature ?? entity?.attributes?.temperature
+  if (value != null && Number.isFinite(Number(value))) return Number(value)
+
+  const parsed = Number.parseFloat(entity?.state || '')
+  return Number.isFinite(parsed) ? parsed : 20.8
 })
+
 
 watchThermostatChange()
 
 function watchThermostatChange() {
   const scheduleTarget = selectedSchedule.value?.entity_key
-  const scheduleThermostat = connectedThermostats.value.find(
-    entity => (entity.entity_key || entity.id) === scheduleTarget
-  )
-  if (scheduleThermostat) {
-    activeThermostatId.value = scheduleThermostat.id
-    syncLiveThermostatValues()
-    return
-  }
-
-  const candidates = connectedThermostats.value.length > 0
-    ? connectedThermostats.value
-    : otherSmartLifeDevices.value
-
-  if (candidates.length > 0) {
-    const isPlaceholder =
-      !activeThermostatId.value ||
-      activeThermostatId.value === 'climate.termostato_principale' ||
-      activeThermostatId.value === 'climate.termostato_salotto'
-
-    if (isPlaceholder) {
-      activeThermostatId.value = candidates[0].id
+  if (scheduleTarget) {
+    const scheduledOption = findThermostatOption(scheduleTarget)
+    if (scheduledOption) {
+      activeThermostatId.value = scheduledOption.entity_id || scheduledOption.id
       syncLiveThermostatValues()
-    }
-    if (
-      selectedSchedule.value &&
-      (!selectedSchedule.value.entity_key ||
-        selectedSchedule.value.entity_key === 'climate.termostato_principale' ||
-        selectedSchedule.value.entity_key === 'climate.termostato_salotto')
-    ) {
-      selectedSchedule.value.entity_key = activeThermostatId.value
+      return
     }
   }
-}
 
-function onThermostatSelectChange() {
-  syncLiveThermostatValues()
-  if (selectedSchedule.value && activeThermostatId.value) {
-    selectedSchedule.value.entity_key = activeThermostatId.value
-  }
-}
+  const candidates = allSelectableThermostats.value
+  if (candidates.length === 0) return
 
-function onScheduleEntityChange() {
-  if (selectedSchedule.value?.entity_key) {
-    activeThermostatId.value = selectedSchedule.value.entity_key
+  const isPlaceholder =
+    !activeThermostatId.value ||
+    activeThermostatId.value === 'climate.termostato_principale' ||
+    activeThermostatId.value === 'climate.termostato_salotto'
+
+  if (isPlaceholder) {
+    activeThermostatId.value = candidates[0].entity_id || candidates[0].id
     syncLiveThermostatValues()
+  }
+
+  if (
+    selectedSchedule.value &&
+    (!selectedSchedule.value.entity_key ||
+      selectedSchedule.value.entity_key === 'climate.termostato_principale' ||
+      selectedSchedule.value.entity_key === 'climate.termostato_salotto')
+  ) {
+    selectedSchedule.value.entity_key = activeThermostatEntityKey.value ||
+      activeThermostatId.value
   }
 }
 
 function handleThermostatSelection() {
   syncLiveThermostatValues()
-  if (selectedSchedule.value && activeThermostatEntityKey.value) {
-    selectedSchedule.value.entity_key = activeThermostatEntityKey.value
+  if (selectedSchedule.value && activeThermostatId.value) {
+    selectedSchedule.value.entity_key =
+      activeThermostatEntityKey.value || activeThermostatId.value
   }
 }
 
 function syncThermostatFromSchedule() {
-  const selected = connectedThermostats.value.find(
-    entity => (entity.entity_key || entity.id) === selectedSchedule.value?.entity_key
-  )
-  if (selected) {
-    activeThermostatId.value = selected.id
-    syncLiveThermostatValues()
-  }
+  const target = selectedSchedule.value?.entity_key
+  if (!target) return
+
+  const option = findThermostatOption(target)
+  if (!option) return
+
+  activeThermostatId.value = option.entity_id || option.id
+  syncLiveThermostatValues()
 }
 
 watch(selectedScheduleId, syncThermostatFromSchedule)
 
 function syncLiveThermostatValues() {
   if (!activeThermostatId.value) return
-  const opt = findThermostatOption(activeThermostatId.value)
-  if (opt) {
-    if (opt.target_temperature !== undefined && !isNaN(opt.target_temperature)) {
-      liveTargetTemp.value = Number(opt.target_temperature)
-    }
-    if (opt.hvac_mode === 'heat' || opt.hvac_mode === 'auto' || opt.hvac_mode === 'off') {
-      liveHvacMode.value = opt.hvac_mode
-    }
-  }
-  const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
-  if (!ent) return
 
-  if (ent.attributes?.target_temperature !== undefined) {
-    liveTargetTemp.value = Number(ent.attributes.target_temperature)
-  } else if (ent.attributes?.temperature !== undefined) {
-    liveTargetTemp.value = Number(ent.attributes.temperature)
-  const target = ent.attributes?.target_temperature ?? ent.attributes?.temperature ?? ent.attributes?.target_temp
-  if (target !== undefined && Number.isFinite(Number(target))) {
+  const option = findThermostatOption(activeThermostatId.value)
+  const entity = activeThermostat.value
+  const target = option?.target_temperature ??
+    entity?.attributes?.target_temperature ??
+    entity?.attributes?.temperature ??
+    entity?.attributes?.target_temp
+
+  if (target != null && Number.isFinite(Number(target))) {
     liveTargetTemp.value = Number(target)
   }
-  const currentMode = String(ent.attributes?.hvac_mode ?? ent.state)
-  liveHvacMode.value = supportedHvacModes.value.includes(currentMode) ? currentMode : (supportedHvacModes.value[0] || '')
+
+  const currentMode = String(
+    option?.hvac_mode ??
+    entity?.attributes?.hvac_mode ??
+    entity?.state ??
+    ''
+  )
+  const supportedModes = supportedHvacModes.value
+  if (supportedModes.length === 0 || supportedModes.includes(currentMode)) {
+    liveHvacMode.value = currentMode
+  } else {
+    liveHvacMode.value = supportedModes[0] || ''
+  }
 }
 
 function adjustLiveTemp(delta: number) {
@@ -570,108 +588,103 @@ async function applyLiveThermostatSettings() {
 
   try {
     isAdjustingLive.value = true
-    const opt = findThermostatOption(activeThermostatId.value)
-    const ent = entitiesStore.entities[activeThermostatId.value] || (opt?.entity_id ? entitiesStore.entities[opt.entity_id] : undefined)
-    const domain = ent?.domain || 'climate'
-    const targetEntityId = ent?.id || activeThermostatId.value
-
-    let dispatched = false
-
-    // 1. If device is a Tuya device configured in LocalTuya, try direct LAN command
-    if (opt?.tuya_device_id && opt.local_configured) {
-      try {
-        await apiClient.post(
-          `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(opt.tuya_device_id)}/command`,
-          {
-            command: liveHvacMode.value === 'off' ? 'turn_off' : 'set_temperature',
-            params: { temperature: liveTargetTemp.value, hvac_mode: liveHvacMode.value }
-          }
-        )
-        dispatched = true
-      } catch {
-        // Fallback to cloud or entity service below
-      }
-    }
-
-    // 2. If device is from Tuya Cloud and not yet dispatched, try Tuya Cloud command endpoint
-    if (!dispatched && opt?.tuya_device_id && opt.source === 'tuya_cloud') {
-      try {
-        const commands: Array<{ code: string; value: unknown }> = []
-        if (liveHvacMode.value === 'off' && opt.switch_dp_code) {
-          commands.push({ code: opt.switch_dp_code, value: false })
-        } else {
-          if (opt.switch_dp_code) {
-            commands.push({ code: opt.switch_dp_code, value: true })
-          }
-          const tempCode = opt.temp_dp_code || 'temp_set'
-          const scaleFactor = opt.temp_scale === 1 ? 10 : 1
-          commands.push({
-            code: tempCode,
-            value: Math.round(liveTargetTemp.value * scaleFactor)
-          })
-          if (opt.mode_dp_code && (liveHvacMode.value === 'auto' || liveHvacMode.value === 'heat')) {
-            commands.push({
-              code: opt.mode_dp_code,
-              value: liveHvacMode.value === 'auto' ? 'auto' : 'manual'
-            })
-          }
-        }
-        await apiClient.post(
-          `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(opt.tuya_device_id)}/commands`,
-          { commands }
-        )
-        dispatched = true
-      } catch {
-        // Fallback to standard entity service call below
-      }
-    }
-
-    // 3. Standard Domus entity service call
-    if (!dispatched) {
-      await entitiesStore.callService(domain, 'set_temperature', targetEntityId, {
-        temperature: liveTargetTemp.value
-      })
-    const ent = entitiesStore.entities[activeThermostatId.value]
+    const option = findThermostatOption(activeThermostatId.value)
+    const entity = activeThermostat.value
     const duration = Number(manualOverrideDuration.value)
+
     if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
       throw new Error('La durata della modifica deve essere compresa tra 0 e 1440 minuti')
     }
-
-    // The backend owns the override timer, so it survives navigation and the
-    // previous target is restored even if this page is closed.
-    if (!supportsSetpoint.value) throw new Error('Il dispositivo non espone un setpoint programmabile')
-    await apiClient.post(
-      `/api/v1/entities/${encodeURIComponent(activeThermostatId.value)}/climate-profile`,
-      {
-        profile: 'custom',
-        temperature: liveTargetTemp.value,
-        duration_minutes: duration
-      }
-    )
-
-      if (liveHvacMode.value) {
-        try {
-          await entitiesStore.callService(domain, 'set_hvac_mode', targetEntityId, {
-            hvac_mode: liveHvacMode.value
-          })
-        } catch {}
-      }
+    if (!supportsSetpoint.value) {
+      throw new Error('Il dispositivo non espone un setpoint programmabile')
+    }
+    if (!Number.isFinite(liveTargetTemp.value) ||
+      liveTargetTemp.value < setpointMin.value ||
+      liveTargetTemp.value > setpointMax.value) {
+      throw new Error('La temperatura richiesta è fuori dai limiti supportati dal termostato')
     }
 
-    if (opt) {
-      opt.target_temperature = liveTargetTemp.value
-      opt.hvac_mode = liveHvacMode.value
-    if (liveHvacMode.value && supportedHvacModes.value.includes(liveHvacMode.value)) {
-      await entitiesStore.callService(ent?.domain || 'climate', 'set_hvac_mode', activeThermostatId.value, {
-        hvac_mode: liveHvacMode.value
-      })
+    if (entity) {
+      // The backend owns the restore timer and dispatches through the Domus
+      // entity bus, so the override survives navigation and page closure.
+      await apiClient.post(
+        '/api/v1/entities/' + encodeURIComponent(entity.id) + '/climate-profile',
+        {
+          profile: 'custom',
+          temperature: liveTargetTemp.value,
+          duration_minutes: duration
+        }
+      )
+
+      if (liveHvacMode.value && supportedHvacModes.value.includes(liveHvacMode.value)) {
+        await entitiesStore.callService(entity.domain || 'climate', 'set_hvac_mode', entity.id, {
+          hvac_mode: liveHvacMode.value
+        })
+      }
+    } else if (option?.tuya_device_id && option.source === 'tuya_cloud') {
+      // A cloud-only device has no persisted Domus entity for the backend
+      // restore scheduler. Permit immediate control, but never promise a timer.
+      if (duration > 0) {
+        throw new Error('Il ripristino temporizzato richiede un dispositivo associato a un’entità Domus')
+      }
+
+      const commands: Array<{ code: string; value: unknown }> = []
+      if (liveHvacMode.value === 'off') {
+        if (!option.switch_dp_code) {
+          throw new Error('Il dispositivo Smart Life non espone un comando di spegnimento riconosciuto')
+        }
+        commands.push({ code: option.switch_dp_code, value: false })
+      } else {
+        if (option.switch_dp_code) {
+          commands.push({ code: option.switch_dp_code, value: true })
+        }
+        const temperatureCode = option.temp_dp_code || 'temp_set'
+        const scaleFactor = option.temp_scale === 1 ? 10 : 1
+        commands.push({
+          code: temperatureCode,
+          value: Math.round(liveTargetTemp.value * scaleFactor)
+        })
+        if (option.mode_dp_code && (liveHvacMode.value === 'auto' || liveHvacMode.value === 'heat')) {
+          commands.push({
+            code: option.mode_dp_code,
+            value: liveHvacMode.value === 'auto' ? 'auto' : 'manual'
+          })
+        }
+      }
+
+      await apiClient.post(
+        '/api/v1/integrations/tuya-cloud/devices/' +
+          encodeURIComponent(option.tuya_device_id) + '/commands',
+        { commands }
+      )
+    } else if (option?.tuya_device_id && option.source === 'tuya_local') {
+      if (duration > 0) {
+        throw new Error('Il ripristino temporizzato richiede un dispositivo associato a un’entità Domus')
+      }
+      await apiClient.post(
+        '/api/v1/integrations/tuya-local/devices/' +
+          encodeURIComponent(option.tuya_device_id) + '/command',
+        {
+          command: liveHvacMode.value === 'off' ? 'turn_off' : 'set_temperature',
+          params: { temperature: liveTargetTemp.value, hvac_mode: liveHvacMode.value }
+        }
+      )
+    } else {
+      throw new Error('Il dispositivo selezionato non è associato a un’entità Domus controllabile')
+    }
+
+    if (option) {
+      option.target_temperature = liveTargetTemp.value
+      option.hvac_mode = liveHvacMode.value as ThermostatOption['hvac_mode']
     }
 
     notifStore.success(
       'Comando termostato inviato',
       duration === 0
-        ? `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C fino alla prossima modifica (${liveHvacMode.value.toUpperCase()}).`
-        : `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C per ${duration} minuti; poi verrà richiesto il ripristino del valore precedente.`
+        ? 'Richiesto setpoint di ' + liveTargetTemp.value.toFixed(1) +
+          '°C fino alla prossima modifica.'
+        : 'Richiesto setpoint di ' + liveTargetTemp.value.toFixed(1) +
+          '°C per ' + duration + ' minuti; poi verrà richiesto il ripristino del valore precedente.'
     )
   } catch (err: any) {
     notifStore.error('Errore Regolazione', err?.message || 'Impossibile comunicare con il termostato smart')
@@ -797,20 +810,25 @@ function copySaturdayToSunday() {
 
 async function saveCurrentSchedule() {
   if (!selectedSchedule.value) return
-  const sched = selectedSchedule.value
-  const targetEntityKey = sched.entity_key || activeThermostatId.value || 'climate.termostato_principale'
-  sched.entity_key = targetEntityKey
+  const schedule = selectedSchedule.value
+  const targetEntityKey = schedule.entity_key ||
+    activeThermostatEntityKey.value ||
+    'climate.termostato_principale'
+
+  schedule.entity_key = targetEntityKey
 
   try {
     isSavingSchedule.value = true
-    await apiClient.put(`/api/v1/schedules/${sched.id}`, {
-      name: sched.name,
+    await apiClient.put('/api/v1/schedules/' + encodeURIComponent(schedule.id), {
+      name: schedule.name,
       entity_key: targetEntityKey,
-      entity_key: sched.entity_key || activeThermostatEntityKey.value || 'climate.termostato_principale',
-      enabled: sched.enabled,
-      grid: sched.grid
+      enabled: schedule.enabled,
+      grid: schedule.grid
     })
-    notifStore.success('Cronotermostato Salvato', `Programmazione oraria per "${sched.name}" aggiornata con successo`)
+    notifStore.success(
+      'Cronotermostato Salvato',
+      'Programmazione oraria per "' + schedule.name + '" aggiornata con successo'
+    )
   } catch (err: any) {
     notifStore.error('Errore Salvataggio', err?.message || 'Impossibile salvare la programmazione')
   } finally {
@@ -974,20 +992,15 @@ onMounted(async () => {
               id="thermostat-select"
               v-model="activeThermostatId"
               class="thermostat-select"
-              @change="onThermostatSelectChange"
               @change="handleThermostatSelection"
             >
-              <option v-for="t in connectedThermostats" :key="t.id" :value="t.id">
-                🌡️ {{ t.name }} ({{ t.id }})
-              </option>
-              <optgroup
-                v-if="otherSmartLifeDevices.length > 0"
-                label="Dispositivi Smart Life Integrati"
+              <option
+                v-for="thermostat in allSelectableThermostats"
+                :key="thermostat.id"
+                :value="thermostat.entity_id || thermostat.id"
               >
-                <option v-for="d in otherSmartLifeDevices" :key="d.id" :value="d.id">
-                  ⚡ {{ d.name }} ({{ d.id }})
-                </option>
-              </optgroup>
+                🌡️ {{ thermostat.name }} ({{ thermostat.id }})
+              </option>
               <option v-if="allSelectableThermostats.length === 0" value="climate.termostato_salotto">
                 🌡️ {{ t('schedules.view.simulatedThermostat') }}
               </option>
@@ -1145,11 +1158,11 @@ onMounted(async () => {
                 @change="syncThermostatFromSchedule"
               >
                 <option
-                  v-for="thermostat in connectedThermostats"
+                  v-for="thermostat in allSelectableThermostats"
                   :key="thermostat.id"
-                  :value="thermostat.entity_key || thermostat.id"
+                  :value="thermostat.id"
                 >
-                  {{ thermostat.name }} ({{ thermostat.entity_key || thermostat.id }})
+                  {{ thermostat.name }} ({{ thermostat.id }})
                 </option>
                 <option
                   v-if="!selectedScheduleThermostatAvailable"
