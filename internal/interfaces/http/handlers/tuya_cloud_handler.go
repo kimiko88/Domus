@@ -375,6 +375,7 @@ func (h *TuyaCloudHandler) SendCommands(w http.ResponseWriter, r *http.Request) 
 					temperature := value / math.Pow10(spec.Scale)
 					localCmd = "set_temperature"
 					params["temperature"] = temperature
+					params["scale"] = spec.Scale
 				}
 			case code == "mode" || code == "work_mode" || strings.HasSuffix(code, "_mode"):
 				switch value := cmd.Value.(type) {
@@ -564,7 +565,12 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func isLocalTuyaSetpointFunction(code string) bool {
-	return strings.EqualFold(strings.TrimSpace(code), "temp_set")
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "temp_set", "target_temp", "target_temperature":
+		return true
+	default:
+		return false
+	}
 }
 
 func tuyaNumericValue(value any) (float64, bool) {

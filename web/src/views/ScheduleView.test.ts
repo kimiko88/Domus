@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import ScheduleView from './ScheduleView.vue'
 import { apiClient } from '../api/client'
+import { useEntitiesStore } from '../stores/entities'
 
 describe('ScheduleView.vue', () => {
   beforeEach(() => {
@@ -59,5 +60,51 @@ describe('ScheduleView.vue', () => {
 
     expect(wrapper.text()).toContain('Eventi sincronizzati e trigger delle automazioni')
     expect(wrapper.text()).toContain('Smart Working da Casa')
+  })
+})
+
+
+describe('manual thermostat overrides', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('sends manual thermostat changes with a server-side override duration', async () => {
+  const thermostat = {
+    id: 'climate-uuid',
+    entity_key: 'climate.living_room',
+    domain: 'climate',
+    name: 'Termostato soggiorno',
+    state: 'heat',
+    attributes: { current_temperature: 19, target_temperature: 20 },
+    last_changed: '',
+    last_updated: ''
+  }
+  const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+    if (url.includes('/api/v1/entities')) return [thermostat] as any
+    if (url.includes('/api/v1/schedules')) return [{
+      id: 'sched_climate_living', name: 'Cronotermostato Salotto',
+      entity_key: 'climate.living_room', enabled: true, grid: { monday: [] }
+    }] as any
+    if (url.includes('/api/v1/calendar/events')) return [] as any
+    return null as any
+  })
+  const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 'accepted' } as any)
+  const serviceSpy = vi.spyOn(useEntitiesStore(), 'callService').mockResolvedValue(undefined)
+  const wrapper = mount(ScheduleView)
+  await flushPromises()
+
+  await wrapper.find('[data-testid="manual-climate-override-duration"]').setValue('120')
+  await wrapper.find('.btn-apply-thermostat').trigger('click')
+  await flushPromises()
+
+  expect(postSpy).toHaveBeenCalledWith(
+    '/api/v1/entities/climate-uuid/climate-profile',
+    { profile: 'custom', temperature: 20.5, duration_minutes: 120 }
+  )
+  expect(wrapper.text()).toContain('verrà richiesto il ripristino del valore precedente')
+
+  getSpy.mockRestore()
+  postSpy.mockRestore()
+  serviceSpy.mockRestore()
+  wrapper.unmount()
   })
 })

@@ -149,3 +149,36 @@ func TestDPSMapper_RejectsUnsupportedClimateSetpointDP(t *testing.T) {
 		t.Fatal("expected unsupported setpoint datapoint to be rejected")
 	}
 }
+
+
+func TestDPSMapper_MapClimateSetpointScale(t *testing.T) {
+	mapper := NewDPSMapper()
+	dps, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.0,
+		"scale":       0,
+	})
+	if err != nil {
+		t.Fatalf("map integer-degree thermostat: %v", err)
+	}
+	if dps["2"] != 21 {
+		t.Fatalf("expected scale 0 to write DPS2=21, got %+v", dps)
+	}
+
+	dps, err = mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.5,
+		"scale":       2,
+	})
+	if err != nil {
+		t.Fatalf("map centi-degree thermostat: %v", err)
+	}
+	if dps["2"] != 2150 {
+		t.Fatalf("expected scale 2 to write DPS2=2150, got %+v", dps)
+	}
+
+	if _, err := mapper.MapCommandToDPS(CategoryClimate, "set_temperature", map[string]any{
+		"temperature": 21.0,
+		"scale":       5,
+	}); err == nil {
+		t.Fatal("unsupported temperature scales must be rejected")
+	}
+}

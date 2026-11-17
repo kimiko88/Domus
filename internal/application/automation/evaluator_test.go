@@ -188,3 +188,99 @@ func TestEvaluator_Conditions(t *testing.T) {
 		assert.True(t, ok)
 	})
 }
+
+
+func TestEvaluator_TriggerConditionMatchesScheduledTriggerID(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	cond := automation.Condition{
+		Condition: "trigger",
+		TriggerID: "climate_slot_2",
+	}
+	matched, err := evaluator.EvaluateConditionWithTrigger(context.Background(), cond, nil, "climate_slot_2")
+	require.NoError(t, err)
+	assert.True(t, matched)
+
+	mismatched, err := evaluator.EvaluateConditionWithTrigger(context.Background(), cond, nil, "climate_slot_1")
+	require.NoError(t, err)
+	assert.False(t, mismatched)
+}
+
+func TestEvaluator_TimeConditionSupportsOvernightWindows(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	location := time.FixedZone("Europe/Rome", 1*60*60)
+
+	tests := []struct {
+		name string
+		now time.Time
+		condition automation.Condition
+		want bool
+	}{
+		{
+			name: "inside overnight window before midnight",
+			now: time.Date(2026, 11, 16, 23, 30, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00", Before: "06:00"},
+			want: true,
+		},
+		{
+			name: "inside overnight window after midnight",
+			now: time.Date(2026, 11, 17, 5, 30, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00:00", Before: "06:00:00"},
+			want: true,
+		},
+		{
+			name: "outside overnight window",
+			now: time.Date(2026, 11, 17, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "22:00", Before: "06:00"},
+			want: false,
+		},
+		{
+			name: "inside daytime window",
+			now: time.Date(2026, 11, 16, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "08:00", Before: "18:00"},
+			want: true,
+		},
+		{
+			name: "invalid boundary fails closed",
+			now: time.Date(2026, 11, 16, 12, 0, 0, 0, location),
+			condition: automation.Condition{Condition: "time", After: "not-a-time"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, evaluator.EvaluateTimeCondition(tt.condition, tt.now))
+		})
+	}
+}
+
+func TestEvaluator_UnknownConditionFailsClosed(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	ok, err := evaluator.EvaluateConditionWithTrigger(
+		context.Background(),
+		automation.Condition{Condition: "numeric_sttae", EntityKey: "sensor.temperature"},
+		nil,
+		"",
+	)
+	require.Error(t, err)
+	assert.False(t, ok)
+	assert.Contains(t, err.Error(), "unsupported automation condition")
+}
+
+func TestEvaluator_TimeTriggerHonorsISOWeekdays(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	monday := time.Date(2026, time.November, 16, 7, 30, 0, 0, time.Local)
+	sunday := time.Date(2026, time.November, 22, 7, 30, 0, 0, time.Local)
+
+	assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{1, 2, 3, 4, 5},
+	}, monday), "Monday should match a weekday schedule")
+	assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{1, 2, 3, 4, 5},
+	}, sunday), "Sunday should not match a weekday schedule")
+	assert.True(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{7},
+	}, sunday), "Sunday is ISO weekday 7")
+	assert.False(t, evaluator.EvaluateTimeTrigger(automation.Trigger{
+		Platform: "time", At: "07:30", Days: []int{0},
+	}, monday), "invalid weekday must fail closed")
+}

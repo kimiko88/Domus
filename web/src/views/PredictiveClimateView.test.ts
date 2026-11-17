@@ -96,7 +96,7 @@ describe('PredictiveClimateView.vue', () => {
   })
 
   it('triggers manual evaluate zone action', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus).mockResolvedValueOnce([])
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       ...mockStatus.zones[0].latest_evaluation,
       calculated_setpoint: 23.0
@@ -113,4 +113,36 @@ describe('PredictiveClimateView.vue', () => {
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/v1/climate/predictive/zones/zone-1/evaluate', {})
   })
+
+  it('offers matching devices as autocomplete choices in the zone editor', async () => {
+    const entities = [
+      {
+        id: 'climate-id', entity_key: 'climate.living_room', domain: 'climate',
+        name: 'Termostato soggiorno', state: 'heat', attributes: {},
+        last_changed: '', last_updated: ''
+      },
+      {
+        id: 'temp-id', entity_key: 'sensor.living_room_temperature', domain: 'sensor',
+        name: 'Temperatura soggiorno', state: '19', attributes: { device_class: 'temperature', unit_of_measurement: '°C' },
+        last_changed: '', last_updated: ''
+      },
+      {
+        id: 'window-id', entity_key: 'binary_sensor.living_room_window', domain: 'binary_sensor',
+        name: 'Finestra soggiorno', state: 'off', attributes: {},
+        last_changed: '', last_updated: ''
+      }
+    ]
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus).mockResolvedValueOnce(entities as any)
+
+    const wrapper = mount(PredictiveClimateView)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const createBtn = wrapper.findAll('button').find((b) => b.text().includes('Nuova Zona'))
+    await createBtn!.trigger('click')
+
+    expect(wrapper.find('datalist#climate-entity-options option[value="climate.living_room"]').exists()).toBe(true)
+    expect(wrapper.find('datalist#temperature-entity-options option[value="sensor.living_room_temperature"]').exists()).toBe(true)
+    expect(wrapper.find('datalist#contact-entity-options option[value="binary_sensor.living_room_window"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
 })

@@ -4,6 +4,7 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -91,6 +92,47 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 	}
 }
 
+// EvaluateTimeCondition evaluates a local wall-clock window. Windows spanning
+// midnight (for example 22:00-06:00) are treated as an OR across midnight.
+// Bounds are inclusive and both HH:MM and HH:MM:SS are accepted.
+func (e *Evaluator) EvaluateTimeCondition(cond automation.Condition, now time.Time) bool {
+	if cond.After == "" && cond.Before == "" {
+		return true
+	}
+	parse := func(value string) (int, bool) {
+		if value == "" {
+			return 0, true
+		}
+		parsed, err := time.ParseInLocation("15:04:05", strings.TrimSpace(value), now.Location())
+		if err != nil {
+			parsed, err = time.ParseInLocation("15:04", strings.TrimSpace(value), now.Location())
+		}
+		if err != nil {
+			return 0, false
+		}
+		return parsed.Hour()*3600 + parsed.Minute()*60 + parsed.Second(), true
+	}
+	after, ok := parse(cond.After)
+	if !ok {
+		return false
+	}
+	before, ok := parse(cond.Before)
+	if !ok {
+		return false
+	}
+	current := now.Hour()*3600 + now.Minute()*60 + now.Second()
+	if cond.After == "" {
+		return current <= before
+	}
+	if cond.Before == "" {
+		return current >= after
+	}
+	if after <= before {
+		return current >= after && current <= before
+	}
+	return current >= after || current <= before
+}
+
 // EvaluateTimeTrigger matches a daily local-wall-clock time trigger. Both HH:MM and
 // HH:MM:SS are accepted; minute precision remains active for the whole matching minute.
 func (e *Evaluator) EvaluateTimeTrigger(trig automation.Trigger, now time.Time) bool {
@@ -108,6 +150,22 @@ func (e *Evaluator) EvaluateTimeTrigger(trig automation.Trigger, now time.Time) 
 	}
 	if now.Hour() != scheduled.Hour() || now.Minute() != scheduled.Minute() {
 		return false
+	}
+	if len(trig.Days) > 0 {
+		// ISO-8601 weekday numbering: Monday=1 ... Sunday=7.
+		weekday := (int(now.Weekday())+6)%7 + 1
+		matched := false
+		for _, day := range trig.Days {
+			if day < 1 || day > 7 {
+				return false
+			}
+			if day == weekday {
+				matched = true
+			}
+		}
+		if !matched {
+			return false
+		}
 	}
 	return !hasSeconds || now.Second() == scheduled.Second()
 }
@@ -194,17 +252,10 @@ func (e *Evaluator) EvaluateConditionWithTrigger(
 		return true, nil
 
 	case "time":
-		nowStr := time.Now().Format("15:04:05")
-		if cond.After != "" && nowStr < cond.After {
-			return false, nil
-		}
-		if cond.Before != "" && nowStr > cond.Before {
-			return false, nil
-		}
-		return true, nil
+		return e.EvaluateTimeCondition(cond, time.Now()), nil
 
 	default:
-		return true, nil
+		return false, fmt.Errorf("unsupported automation condition %q", cond.Condition)
 	}
 }
 

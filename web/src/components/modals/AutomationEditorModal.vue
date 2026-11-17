@@ -4,7 +4,7 @@ import type { Automation, Entity } from '../../api/types'
 import { apiClient } from '../../api/client'
 import BaseButton from '../ui/BaseButton.vue'
 import { useModalA11y } from '../../composables/useModalA11y'
-import { X, Zap, AlertCircle, CheckCircle, Code2, Sparkles } from '@lucide/vue'
+import { X, Zap, AlertCircle, CheckCircle, Code2, Sparkles, Plus, Trash2 } from '@lucide/vue'
 
 interface Props {
   isOpen: boolean
@@ -36,8 +36,27 @@ const dslJson = ref('')
 const validationError = ref<string | null>(null)
 const jsonValid = ref(true)
 
-// Guided daily thermostat program: read a sensor at a chosen time, then
-// select one of two setpoints according to the measured temperature.
+// Guided weekly thermostat program: at each configured time, read the latest
+// temperature reported by a sensor and choose a setpoint for the thermostat.
+interface ClimateScheduleSlot {
+  id: string
+  time: string
+  days: number[]
+  threshold: number
+  coldSetpoint: number
+  warmSetpoint: number
+}
+
+const climateWeekdays = [
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mer' },
+  { value: 4, label: 'Gio' },
+  { value: 5, label: 'Ven' },
+  { value: 6, label: 'Sab' },
+  { value: 7, label: 'Dom' }
+]
+
 const climateBuilderOpen = ref(false)
 const climateEntities = ref<Entity[]>([])
 const climateEntitiesLoading = ref(false)
@@ -45,20 +64,31 @@ const climateEntitiesError = ref('')
 const climateSensorKey = ref('')
 const climateSensorAttribute = ref('')
 const climateTargetKey = ref('')
-const climateScheduleTime = ref('07:00')
-const climateThreshold = ref(19)
-const climateColdSetpoint = ref(21)
-const climateWarmSetpoint = ref(18)
+const profileOverrideDuration = ref(0)
+const climateTimeSlots = ref<ClimateScheduleSlot[]>([
+  { id: 'slot-1', time: '07:00', days: [1, 2, 3, 4, 5, 6, 7], threshold: 19, coldSetpoint: 21, warmSetpoint: 18 }
+])
+let nextClimateSlotNumber = 2
 
 function entityKey(entity: Entity): string {
   if (entity.entity_key) return entity.entity_key
   return entity.id.startsWith(entity.domain + '.') ? entity.id : ''
 }
 
-const temperatureSources = computed(() => climateEntities.value.filter(entity =>
-  entity.domain === 'sensor' ||
-  (entity.domain === 'climate' && typeof entity.attributes?.current_temperature === 'number')
-))
+const temperatureSources = computed(() => climateEntities.value.filter(entity => {
+  const attributes = entity.attributes || {}
+  const deviceClass = String(attributes.device_class || '').toLowerCase()
+  const unit = String(attributes.unit_of_measurement || '').toLowerCase()
+  const hasTemperatureUnit = ['°c', 'c', 'celsius'].includes(unit)
+  const isFahrenheit = ['°f', 'f', 'fahrenheit'].includes(unit)
+  const hasTemperatureAttribute =
+    typeof attributes.current_temperature === 'number' ||
+    typeof attributes.temperature === 'number'
+
+  if (entity.domain === 'climate') return typeof attributes.current_temperature === 'number'
+  return entity.domain === 'sensor' && !isFahrenheit &&
+    (deviceClass === 'temperature' || hasTemperatureUnit || hasTemperatureAttribute)
+}))
 const climateTargets = computed(() => climateEntities.value.filter(entity => entity.domain === 'climate'))
 
 async function toggleClimateBuilder() {
@@ -88,22 +118,115 @@ watch(climateSensorKey, key => {
   climateSensorAttribute.value = source?.domain === 'climate' ? 'current_temperature' : ''
 })
 
+function addClimateTimeSlot() {
+  const usedTimes = new Set(climateTimeSlots.value.map(slot => slot.time))
+  const suggestedTime = ['12:00', '18:00', '22:00', '06:00', '09:00', '15:00']
+    .find(time => !usedTimes.has(time)) || ''
+  const lastSlot = climateTimeSlots.value[climateTimeSlots.value.length - 1]
+  climateTimeSlots.value.push({
+    id: `slot-${nextClimateSlotNumber++}`,
+    time: suggestedTime,
+    days: [...(lastSlot?.days ?? [1, 2, 3, 4, 5, 6, 7])],
+    threshold: lastSlot?.threshold ?? 19,
+    coldSetpoint: lastSlot?.coldSetpoint ?? 21,
+    warmSetpoint: lastSlot?.warmSetpoint ?? 18
+  })
+}
+
+function removeClimateTimeSlot(id: string) {
+  if (climateTimeSlots.value.length <= 1) return
+  climateTimeSlots.value = climateTimeSlots.value.filter(slot => slot.id !== id)
+}
+
+const orderedClimateTimeSlots = computed(() =>
+  [...climateTimeSlots.value].sort((a, b) => a.time.localeCompare(b.time))
+)
+
+function buildClimateProfileProgram() {
+  validationError.value = ''
+  const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
+  if (!target || !entityKey(target)) {
+    validationError.value = 'Seleziona un termostato prima di generare i profili.'
+    return
+  }
+  const duration = Number(profileOverrideDuration.value)
+  if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
+    validationError.value = 'La durata temporanea deve essere compresa tra 0 e 1440 minuti.'
+    return
+  }
+  const profiles = [
+    { id: 'profile_morning_comfort', at: '07:00:00', profile: 'comfort' },
+    { id: 'profile_day_eco', at: '09:00:00', profile: 'eco' },
+    { id: 'profile_evening_comfort', at: '18:00:00', profile: 'comfort' },
+    { id: 'profile_night', at: '22:30:00', profile: 'night' }
+  ]
+  const dsl = {
+    triggers: profiles.map(item => ({
+      id: item.id,
+      platform: 'time',
+      at: item.at,
+      days: [1, 2, 3, 4, 5, 6, 7]
+    })),
+    conditions: [],
+    actions: [{
+      type: 'choose',
+      choose: profiles.map(item => ({
+        conditions: [{ condition: 'trigger', trigger_id: item.id }],
+        sequence: [{
+          type: 'climate_profile',
+          target_entity_key: entityKey(target),
+          profile: item.profile,
+          duration_minutes: duration
+        }]
+      }))
+    }]
+  }
+  dslJson.value = JSON.stringify(dsl, null, 2)
+  if (!name.value.trim()) name.value = 'Profili termostato ' + target.name
+  if (!description.value.trim()) {
+    description.value = 'Programmazione settimanale Comfort/Eco/Notte. Durata profilo: ' +
+      (duration === 0 ? 'fino al successivo cambio programmato' : duration + ' minuti, poi ripristino del setpoint precedente') + '.'
+  }
+  jsonValid.value = true
+  climateBuilderOpen.value = false
+}
+
 function buildClimateProgram() {
   validationError.value = ''
   const source = temperatureSources.value.find(entity => entityKey(entity) === climateSensorKey.value)
   const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
-  const values = [climateThreshold.value, climateColdSetpoint.value, climateWarmSetpoint.value]
   if (!source || !target || !entityKey(source) || !entityKey(target)) {
     validationError.value = 'Seleziona un sensore di temperatura e un termostato.'
     return
   }
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(climateScheduleTime.value)) {
-    validationError.value = 'Inserisci un orario valido nel formato HH:MM.'
+  if (climateTimeSlots.value.length === 0) {
+    validationError.value = 'Aggiungi almeno una fascia oraria.'
     return
   }
-  if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
-    validationError.value = 'Le temperature devono essere comprese tra 5 e 35 °C.'
-    return
+
+  const seenTimes = new Set<string>()
+  for (const slot of climateTimeSlots.value) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.time)) {
+      validationError.value = 'Inserisci orari validi nel formato HH:MM.'
+      return
+    }
+    if (!slot.days.length || slot.days.some(day => !Number.isInteger(day) || day < 1 || day > 7)) {
+      validationError.value = 'Seleziona almeno un giorno valido per ogni fascia.'
+      return
+    }
+    for (const day of slot.days) {
+      const dayTime = `${day}:${slot.time}`
+      if (seenTimes.has(dayTime)) {
+        validationError.value = `L'orario ${slot.time} è duplicato per almeno uno dei giorni selezionati.`
+        return
+      }
+      seenTimes.add(dayTime)
+    }
+    const values = [slot.threshold, slot.coldSetpoint, slot.warmSetpoint]
+    if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
+      validationError.value = 'Soglie e setpoint devono essere compresi tra 5 e 35 °C.'
+      return
+    }
   }
 
   const numericCondition: Record<string, any> = {
@@ -119,25 +242,46 @@ function buildClimateProgram() {
     params: { temperature: Math.round(temperature * 10) / 10 }
   })
 
+  // The time-trigger ID selects the matching schedule row; its nested choose
+  // then evaluates the latest measured temperature for that time of day.
+  const slots = orderedClimateTimeSlots.value
   const dsl = {
-    triggers: [{ id: 'daily_climate_schedule', platform: 'time', at: climateScheduleTime.value + ':00' }],
-    // A missing or non-numeric sensor value skips the automation instead of
-    // falling through to the default temperature branch.
+    triggers: slots.map((slot, index) => ({
+      id: `climate_slot_${index + 1}`,
+      platform: 'time',
+      at: slot.time + ':00',
+      days: [...slot.days].sort((a, b) => a - b)
+    })),
+    // Missing or non-numeric sensor data skips the automation instead of
+    // silently applying a fallback setpoint.
     conditions: [numericCondition],
     actions: [{
       type: 'choose',
-      choose: [{
-        conditions: [{ ...numericCondition, below: climateThreshold.value }],
-        sequence: [serviceAction(climateColdSetpoint.value)]
-      }],
-      default: [serviceAction(climateWarmSetpoint.value)]
+      choose: slots.map((slot, index) => ({
+        conditions: [{ condition: 'trigger', trigger_id: `climate_slot_${index + 1}` }],
+        sequence: [{
+          type: 'choose',
+          choose: [{
+            conditions: [{ ...numericCondition, below: slot.threshold }],
+            sequence: [serviceAction(slot.coldSetpoint)]
+          }],
+          default: [serviceAction(slot.warmSetpoint)]
+        }]
+      }))
     }]
   }
 
   dslJson.value = JSON.stringify(dsl, null, 2)
   if (!name.value.trim()) name.value = 'Programma termostato ' + target.name
   if (!description.value.trim()) {
-    description.value = `Ogni giorno alle ${climateScheduleTime.value}, legge ${source.name}: sotto ${climateThreshold.value} °C imposta ${climateColdSetpoint.value} °C, altrimenti ${climateWarmSetpoint.value} °C su ${target.name}.`
+    const scheduleSummary = slots.map(slot => {
+      const days = slot.days
+        .map(day => climateWeekdays.find(item => item.value === day)?.label)
+        .filter(Boolean)
+        .join(', ')
+      return `${days} ${slot.time}: sotto ${slot.threshold} °C → ${slot.coldSetpoint} °C, altrimenti ${slot.warmSetpoint} °C`
+    }).join('; ')
+    description.value = `Legge ${source.name} e regola ${target.name} secondo la programmazione settimanale: ${scheduleSummary}.`
   }
   jsonValid.value = true
   climateBuilderOpen.value = false
@@ -395,33 +539,120 @@ function handleSubmit() {
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label for="climate-time">Orario quotidiano</label>
-                  <input id="climate-time" name="climate-time" v-model="climateScheduleTime" type="time" />
-                </div>
-                <div class="form-group flex-1">
-                  <label for="climate-threshold">Soglia del sensore (°C)</label>
-                  <input id="climate-threshold" v-model.number="climateThreshold" type="number" min="5" max="35" step="0.1" />
+              <div class="climate-builder">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="profile-override-duration">Durata profilo (minuti)</label>
+                    <input
+                      id="profile-override-duration"
+                      v-model.number="profileOverrideDuration"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="5"
+                    />
+                    <small>0 = resta attivo fino al prossimo cambio programmato; un valore maggiore ripristina il setpoint precedente alla scadenza.</small>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label>Profili automatici</label>
+                    <p class="builder-hint">07:00 Comfort · 09:00 Eco · 18:00 Comfort · 22:30 Notte, tutti i giorni.</p>
+                    <button type="button" class="btn-template climate-template" data-testid="generate-climate-profiles" @click="buildClimateProfileProgram">
+                      <Sparkles :size="13" />
+                      <span>Genera programma Comfort/Eco/Notte</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label for="climate-cold-setpoint">Se è sotto soglia, imposta (°C)</label>
-                  <input id="climate-cold-setpoint" v-model.number="climateColdSetpoint" type="number" min="5" max="35" step="0.1" />
+              <div class="climate-slots-heading">
+                <div>
+                  <strong>Programmazione settimanale</strong>
+                  <p class="builder-hint">Scegli i giorni e l'orario. A ogni esecuzione Domus legge la temperatura aggiornata e regola il termostato.</p>
                 </div>
-                <div class="form-group flex-1">
-                  <label for="climate-warm-setpoint">Altrimenti imposta (°C)</label>
-                  <input id="climate-warm-setpoint" v-model.number="climateWarmSetpoint" type="number" min="5" max="35" step="0.1" />
+                <button type="button" class="btn-template" data-testid="add-climate-slot" @click="addClimateTimeSlot">
+                  <Plus :size="13" />
+                  <span>Aggiungi fascia</span>
+                </button>
+              </div>
+
+              <div v-for="(slot, index) in climateTimeSlots" :key="slot.id" class="climate-slot">
+                <div class="climate-slot-heading">
+                  <strong>Fascia {{ index + 1 }}</strong>
+                  <button
+                    v-if="climateTimeSlots.length > 1"
+                    type="button"
+                    class="climate-slot-remove"
+                    :aria-label="`Rimuovi fascia ${index + 1}`"
+                    :data-testid="`remove-climate-slot-${slot.id}`"
+                    @click="removeClimateTimeSlot(slot.id)"
+                  >
+                    <Trash2 :size="14" />
+                    <span>Rimuovi</span>
+                  </button>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label :for="index === 0 ? 'climate-time' : `climate-time-${slot.id}`">Orario</label>
+                    <input
+                      :id="index === 0 ? 'climate-time' : `climate-time-${slot.id}`"
+                      name="climate-time"
+                      v-model="slot.time"
+                      type="time"
+                    />
+                  </div>
+                  <div class="form-group flex-1">
+                    <label :for="index === 0 ? 'climate-threshold' : `climate-threshold-${slot.id}`">Soglia del sensore (°C)</label>
+                    <input
+                      :id="index === 0 ? 'climate-threshold' : `climate-threshold-${slot.id}`"
+                      v-model.number="slot.threshold"
+                      type="number"
+                      min="5"
+                      max="35"
+                      step="0.1"
+                    />
+                  </div>
+                </div>
+
+                <div class="climate-weekdays" role="group" :aria-label="`Giorni attivi fascia ${index + 1}`">
+                  <label v-for="day in climateWeekdays" :key="day.value" class="climate-weekday">
+                    <input v-model="slot.days" type="checkbox" :value="day.value" />
+                    <span>{{ day.label }}</span>
+                  </label>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label :for="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`">Se è sotto soglia (°C)</label>
+                    <input
+                      :id="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`"
+                      v-model.number="slot.coldSetpoint"
+                      type="number"
+                      min="5"
+                      max="35"
+                      step="0.1"
+                    />
+                  </div>
+                  <div class="form-group flex-1">
+                    <label :for="index === 0 ? 'climate-warm-setpoint' : `climate-warm-setpoint-${slot.id}`">Altrimenti imposta (°C)</label>
+                    <input
+                      :id="index === 0 ? 'climate-warm-setpoint' : `climate-warm-setpoint-${slot.id}`"
+                      v-model.number="slot.warmSetpoint"
+                      type="number"
+                      min="5"
+                      max="35"
+                      step="0.1"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <p class="climate-rule-preview">
-                Ogni giorno alle <strong>{{ climateScheduleTime }}</strong>, Domus legge il sensore:
-                se è sotto <strong>{{ climateThreshold }} °C</strong> imposta <strong>{{ climateColdSetpoint }} °C</strong>,
-                altrimenti <strong>{{ climateWarmSetpoint }} °C</strong>.
-              </p>
+              <div class="climate-rule-preview">
+                <p v-for="slot in orderedClimateTimeSlots" :key="slot.id">
+                  {{ slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', ') }} alle <strong>{{ slot.time }}</strong>, se la temperatura è sotto <strong>{{ slot.threshold }} °C</strong>
+                  imposta <strong>{{ slot.coldSetpoint }} °C</strong>, altrimenti <strong>{{ slot.warmSetpoint }} °C</strong>.
+                </p>
+              </div>
               <div class="builder-actions">
                 <button type="button" class="btn-template" data-testid="generate-climate-program" @click="buildClimateProgram">
                   Genera regola DSL
@@ -660,6 +891,76 @@ input:focus, select:focus {
   font-size: 12px;
 }
 
+.climate-slots-heading,
+.climate-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.9rem;
+}
+
+.climate-weekday {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.climate-weekday input {
+  accent-color: var(--color-primary, #2563eb);
+}
+
+.climate-slot-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.climate-slots-heading > div {
+  min-width: 0;
+}
+
+.climate-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.climate-slot-heading strong,
+.climate-slots-heading strong {
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.climate-slot-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.climate-slot-remove:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
 .climate-rule-preview {
   margin: 0;
   padding: 10px 12px;
@@ -715,4 +1016,33 @@ input:focus, select:focus {
   padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
 }
+
+/* Mobile-first modal sizing and safe-area handling. */
+.modal-card, .modal-form, .climate-builder, .climate-slot { min-width: 0; }
+.dsl-textarea { max-width: 100%; min-width: 0; }
+.climate-slot-heading { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal-card { width: 100%; max-width: none; max-height: 94dvh; overflow-y: auto; overscroll-behavior: contain; border-radius: 18px 18px 0 0; padding: 18px 14px max(18px, env(safe-area-inset-bottom)); }
+  .modal-header { gap: 10px; margin-bottom: 14px; }
+  .header-title { min-width: 0; }
+  .modal-form { gap: 14px; }
+  .form-row { flex-direction: column; gap: 12px; }
+  .climate-builder { padding: 12px; }
+  .climate-slots-heading { align-items: flex-start; }
+  .climate-weekdays { gap: 6px; }
+  .climate-weekday { min-height: 40px; padding: 7px 9px; }
+  .climate-slot-remove { min-height: 40px; }
+  .dsl-header { align-items: flex-start; }
+  .dsl-actions { flex-wrap: wrap; }
+  .dsl-textarea { font-size: 11px; }
+  .modal-footer { position: sticky; bottom: calc(-1 * max(18px, env(safe-area-inset-bottom))); margin-inline: -14px; padding: 12px 14px max(12px, env(safe-area-inset-bottom)); background: var(--bg-surface); flex-wrap: wrap; }
+  .modal-footer > * { flex: 1 1 120px; }
+}
+@media (max-width: 360px) {
+  .modal-card { padding-inline: 10px; }
+  .climate-builder { padding: 10px; }
+  .modal-footer { margin-inline: -10px; padding-inline: 10px; }
+}
+
 </style>

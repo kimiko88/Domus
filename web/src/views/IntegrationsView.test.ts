@@ -491,7 +491,7 @@ describe('IntegrationsView.vue', () => {
     await setTemperature!.trigger('click')
     expect(postSpy).toHaveBeenCalledWith(
       '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
-      { command: 'set_temperature', params: { temperature: 22.5 } }
+      { command: 'set_temperature', params: { temperature: 22.5, scale: 1 } }
     )
   })
 

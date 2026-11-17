@@ -58,10 +58,10 @@ func (r *PredictiveClimateRepository) Save(ctx context.Context, cfg *climate.Pre
 		INSERT INTO predictive_climate_zones (
 			id, name, area_id, trv_entity_key, temp_sensor_key,
 			pressure_sensor_key, humidity_sensor_key, window_sensor_key,
-			target_temperature, orientation, window_area_sqm, emitter_type,
+			presence_sensor_key, away_temperature, target_temperature, orientation, window_area_sqm, emitter_type,
 			thermal_inertia_hours, preheat_enabled, solar_cutoff_enabled,
 			pressure_boost_enabled, enabled, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			area_id = excluded.area_id,
@@ -70,6 +70,8 @@ func (r *PredictiveClimateRepository) Save(ctx context.Context, cfg *climate.Pre
 			pressure_sensor_key = excluded.pressure_sensor_key,
 			humidity_sensor_key = excluded.humidity_sensor_key,
 			window_sensor_key = excluded.window_sensor_key,
+			presence_sensor_key = excluded.presence_sensor_key,
+			away_temperature = excluded.away_temperature,
 			target_temperature = excluded.target_temperature,
 			orientation = excluded.orientation,
 			window_area_sqm = excluded.window_area_sqm,
@@ -85,7 +87,7 @@ func (r *PredictiveClimateRepository) Save(ctx context.Context, cfg *climate.Pre
 	_, err := r.db.ExecContext(ctx, query,
 		cfg.ID, cfg.Name, cfg.AreaID, cfg.TRVEntityKey, cfg.TempSensorKey,
 		cfg.PressureSensorKey, cfg.HumiditySensorKey, cfg.WindowSensorKey,
-		cfg.TargetTemperature, string(cfg.Orientation), cfg.WindowAreaSqm, string(cfg.EmitterType),
+		cfg.PresenceSensorKey, cfg.AwayTemperature, cfg.TargetTemperature, string(cfg.Orientation), cfg.WindowAreaSqm, string(cfg.EmitterType),
 		cfg.ThermalInertiaHours, preheat, solarCutoff,
 		pressureBoost, enabled, cfg.CreatedAt.Format(time.RFC3339), cfg.UpdatedAt.Format(time.RFC3339),
 	)
@@ -100,7 +102,7 @@ func (r *PredictiveClimateRepository) GetByID(ctx context.Context, id string) (*
 	query := `
 		SELECT id, name, area_id, trv_entity_key, temp_sensor_key,
 		       pressure_sensor_key, humidity_sensor_key, window_sensor_key,
-		       target_temperature, orientation, window_area_sqm, emitter_type,
+		       presence_sensor_key, away_temperature, target_temperature, orientation, window_area_sqm, emitter_type,
 		       thermal_inertia_hours, preheat_enabled, solar_cutoff_enabled,
 		       pressure_boost_enabled, enabled, created_at, updated_at
 		FROM predictive_climate_zones
@@ -122,7 +124,7 @@ func (r *PredictiveClimateRepository) List(ctx context.Context) ([]*climate.Pred
 	query := `
 		SELECT id, name, area_id, trv_entity_key, temp_sensor_key,
 		       pressure_sensor_key, humidity_sensor_key, window_sensor_key,
-		       target_temperature, orientation, window_area_sqm, emitter_type,
+		       presence_sensor_key, away_temperature, target_temperature, orientation, window_area_sqm, emitter_type,
 		       thermal_inertia_hours, preheat_enabled, solar_cutoff_enabled,
 		       pressure_boost_enabled, enabled, created_at, updated_at
 		FROM predictive_climate_zones
@@ -296,7 +298,7 @@ func (r *PredictiveClimateRepository) scanZone(s rowScanner) (*climate.Predictiv
 	err := s.Scan(
 		&cfg.ID, &cfg.Name, &cfg.AreaID, &cfg.TRVEntityKey, &cfg.TempSensorKey,
 		&cfg.PressureSensorKey, &cfg.HumiditySensorKey, &cfg.WindowSensorKey,
-		&cfg.TargetTemperature, &orientStr, &cfg.WindowAreaSqm, &emitterStr,
+		&cfg.PresenceSensorKey, &cfg.AwayTemperature, &cfg.TargetTemperature, &orientStr, &cfg.WindowAreaSqm, &emitterStr,
 		&cfg.ThermalInertiaHours, &preheat, &solarCutoff,
 		&pressureBoost, &enabled, &createdStr, &updatedStr,
 	)

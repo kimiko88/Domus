@@ -146,6 +146,9 @@ type Server struct {
 	sunEngine      *appauto.SunEngine
 	commuteTracker *presence.CommuteTracker
 	tuyaLocalAdapter *tuya_local.Adapter
+	predictiveClimate *appclimate.PredictiveService
+	predictiveCancel context.CancelFunc
+	predictiveDone chan struct{}
 }
 
 // NewServer builds and configures the HTTP server and router.
@@ -390,7 +393,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		if srv.repos != nil {
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
-			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus)
+			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
@@ -473,8 +476,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					entRouter.Get("/{id}", entityH.GetByID)
 					if srv.authService != nil {
 						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/command", entityH.Command)
+						entRouter.With(domusmw.RequireDeviceControl()).Post("/{id}/climate-profile", entityH.ApplyClimateProfile)
 					} else {
 						entRouter.Post("/{id}/command", entityH.Command)
+						entRouter.Post("/{id}/climate-profile", entityH.ApplyClimateProfile)
 					}
 					if srv.repos.History != nil {
 						var rollupSvc *apphist.RollupService
@@ -868,6 +873,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				if srv.repos.PredictiveClimate != nil {
 					predSvc := appclimate.NewPredictiveService(srv.repos.PredictiveClimate, srv.repos.Entities, weatherCli, srv.bus, nil)
+					srv.predictiveClimate = predSvc
 					predH := handlers.NewPredictiveClimateHandler(predSvc)
 					domainRouter.Route("/climate/predictive", func(pRouter chi.Router) {
 						predH.RegisterRoutes(pRouter)
@@ -1159,15 +1165,63 @@ func (s *Server) Start() error {
 		return fmt.Errorf("http server failed to listen on %s: %w", addr, err)
 	}
 	s.listener = ln
+	s.startPredictiveClimateScheduler()
 
 	if err := s.httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
+		s.stopPredictiveClimateScheduler(context.Background())
 		return fmt.Errorf("http server error: %w", err)
 	}
 	return nil
 }
 
+func (s *Server) startPredictiveClimateScheduler() {
+	if s.predictiveClimate == nil || s.predictiveCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.predictiveCancel = cancel
+	s.predictiveDone = make(chan struct{})
+	done := s.predictiveDone
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		evaluate := func() {
+			evalCtx, evalCancel := context.WithTimeout(ctx, 2*time.Minute)
+			defer evalCancel()
+			if _, err := s.predictiveClimate.EvaluateAll(evalCtx); err != nil {
+				slog.WarnContext(evalCtx, "predictive climate scheduled evaluation failed", "error", err)
+			}
+		}
+		evaluate()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				evaluate()
+			}
+		}
+	}()
+}
+
+func (s *Server) stopPredictiveClimateScheduler(ctx context.Context) {
+	if s.predictiveCancel == nil {
+		return
+	}
+	s.predictiveCancel()
+	select {
+	case <-s.predictiveDone:
+	case <-ctx.Done():
+		slog.WarnContext(ctx, "timed out waiting for predictive climate scheduler to stop")
+	}
+	s.predictiveCancel = nil
+	s.predictiveDone = nil
+}
+
 // Shutdown gracefully stops the HTTP server without interrupting active connections.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.stopPredictiveClimateScheduler(ctx)
 	if s.tuyaLocalAdapter != nil {
 		_ = s.tuyaLocalAdapter.Stop(ctx)
 	}

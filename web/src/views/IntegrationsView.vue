@@ -224,6 +224,20 @@ function tuyaTemperatureFunction(deviceId: string) {
   })
 }
 
+async function loadTuyaTemperatureFunction(deviceId: string): Promise<TuyaDeviceFunction | undefined> {
+  const cached = tuyaTemperatureFunction(deviceId)
+  if (cached) return cached
+  try {
+    const result = await apiClient.get<{ functions: TuyaDeviceFunction[] }>(
+      `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(deviceId)}/functions`
+    )
+    tuyaDeviceFunctions.value[deviceId] = result.functions || []
+    return tuyaTemperatureFunction(deviceId)
+  } catch {
+    return undefined
+  }
+}
+
 function isTuyaClimateDevice(device: TuyaCloudDevice) {
   const category = (device.category || '').toLowerCase()
   const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
@@ -467,10 +481,13 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       if ((code.includes('switch') || code.includes('power')) && typeof value === 'boolean') {
         await apiClient.post(localPath, { command: value ? 'turn_on' : 'turn_off' })
         sentLocally = true
-      } else if (code === 'temp_set' && typeof value === 'number') {
+      } else if (['temp_set', 'target_temp', 'target_temperature'].includes(code) && typeof value === 'number') {
         await apiClient.post(localPath, {
           command: 'set_temperature',
-          params: { temperature: value / Math.pow(10, tuyaFunctionScale(fn)) }
+          params: {
+            temperature: value / Math.pow(10, tuyaFunctionScale(fn)),
+            scale: tuyaFunctionScale(fn)
+          }
         })
         sentLocally = true
       } else if (code === 'mode' || code === 'work_mode' || code.endsWith('_mode')) {
@@ -502,7 +519,11 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
   if (!device.local_configured) return
   tuyaCloudCommanding.value = `${device.id}:dp4`
   try {
-    await apiClient.post(
+    const result = await apiClient.post<{
+      acknowledged?: boolean
+      confirmed?: boolean
+      message?: string
+    }>(
       `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
       { command: 'set_dp', params: { dp_id: 4, value: mode === 'auto' ? 0 : 1 } }
     )
@@ -522,10 +543,22 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
   }
   tuyaCloudCommanding.value = `${device.id}:temperature`
   try {
+    let localOutcome: { acknowledged?: boolean; confirmed?: boolean; message?: string } | undefined
     if (device.local_configured) {
-      await apiClient.post(
+      const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
+      localOutcome = await apiClient.post<{
+        acknowledged?: boolean
+        confirmed?: boolean
+        message?: string
+      }>(
         `/api/v1/integrations/tuya-local/devices/${encodeURIComponent(device.id)}/command`,
-        { command: 'set_temperature', params: { temperature } }
+        {
+          command: 'set_temperature',
+          params: {
+            temperature,
+            ...(temperatureFunction ? { scale: tuyaFunctionScale(temperatureFunction) } : {})
+          }
+        }
       )
     } else {
       const fn = tuyaTemperatureFunction(device.id)

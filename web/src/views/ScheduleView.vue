@@ -81,6 +81,7 @@ const activeThermostatId = ref<string>('')
 // Live thermostat regulation state
 const liveTargetTemp = ref<number>(20.5)
 const liveHvacMode = ref<'heat' | 'auto' | 'off'>('heat')
+const manualOverrideDuration = ref(0)
 const isAdjustingLive = ref(false)
 
 // Modal for adding a time slot
@@ -146,25 +147,33 @@ async function applyLiveThermostatSettings() {
   try {
     isAdjustingLive.value = true
     const ent = entitiesStore.entities[activeThermostatId.value]
-    const domain = ent?.domain || 'climate'
+    const duration = Number(manualOverrideDuration.value)
+    if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
+      throw new Error('La durata della modifica deve essere compresa tra 0 e 1440 minuti')
+    }
 
-    // Call set_temperature service
-    await entitiesStore.callService(domain, 'set_temperature', activeThermostatId.value, {
-      temperature: liveTargetTemp.value
-    })
+    // The backend owns the override timer, so it survives navigation and the
+    // previous target is restored even if this page is closed.
+    await apiClient.post(
+      `/api/v1/entities/${encodeURIComponent(activeThermostatId.value)}/climate-profile`,
+      {
+        profile: 'custom',
+        temperature: liveTargetTemp.value,
+        duration_minutes: duration
+      }
+    )
 
-    // Call set_hvac_mode if changed
     if (liveHvacMode.value) {
-      try {
-        await entitiesStore.callService(domain, 'set_hvac_mode', activeThermostatId.value, {
-          hvac_mode: liveHvacMode.value
-        })
-      } catch {}
+      await entitiesStore.callService(ent?.domain || 'climate', 'set_hvac_mode', activeThermostatId.value, {
+        hvac_mode: liveHvacMode.value
+      })
     }
 
     notifStore.success(
-      'Termostato Regolato',
-      `Impostata temperatura obiettivo a ${liveTargetTemp.value.toFixed(1)}°C (${liveHvacMode.value.toUpperCase()})`
+      'Comando termostato inviato',
+      duration === 0
+        ? `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C fino alla prossima modifica (${liveHvacMode.value.toUpperCase()}).`
+        : `Richiesto setpoint di ${liveTargetTemp.value.toFixed(1)}°C per ${duration} minuti; poi verrà richiesto il ripristino del valore precedente.`
     )
   } catch (err: any) {
     notifStore.error('Errore Regolazione', err?.message || 'Impossibile comunicare con il termostato smart')
@@ -541,6 +550,18 @@ onMounted(async () => {
               </button>
             </div>
 
+            <div class="manual-override-duration">
+              <label for="manual-climate-override-duration">Durata modifica manuale</label>
+              <select id="manual-climate-override-duration" data-testid="manual-climate-override-duration" v-model.number="manualOverrideDuration">
+                <option :value="0">Fino alla prossima modifica</option>
+                <option :value="30">30 minuti</option>
+                <option :value="60">1 ora</option>
+                <option :value="120">2 ore</option>
+                <option :value="240">4 ore</option>
+                <option :value="480">8 ore</option>
+              </select>
+              <small>Alla scadenza Domus ripristina il setpoint precedente.</small>
+            </div>
             <button
               class="btn-apply-thermostat"
               :disabled="isAdjustingLive"
@@ -1032,6 +1053,26 @@ onMounted(async () => {
   background: rgba(239, 68, 68, 0.2);
   border-color: #ef4444;
   color: #f87171;
+}
+
+.manual-override-duration {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.manual-override-duration select {
+  min-height: 38px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-main);
+}
+.manual-override-duration small {
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .btn-apply-thermostat {

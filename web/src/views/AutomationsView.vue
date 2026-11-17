@@ -825,4 +825,39 @@ async function handleSaveAutomation(data: Partial<Automation>) {
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
 }
+
+/* Responsive layout: keep every control usable on narrow screens. */
+.automations-view, .automations-view * { min-width: 0; }
+.automations-grid, .wh-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.header-actions { flex-wrap: wrap; }
+.webhooks-section { padding: clamp(16px, 3vw, 28px); }
+.wh-url { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .header-row { align-items: stretch; }
+  .header-row > div:first-child { width: 100%; }
+  .header-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .header-actions > * { justify-content: center; min-height: 42px; }
+  .header-actions .btn-new-automation { grid-column: 1 / -1; width: 100%; }
+  .toolbar-row { align-items: stretch; flex-direction: column; }
+  .search-box { width: 100%; max-width: none; min-width: 0; }
+  .filter-pills { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding: 2px 1px 8px; scrollbar-width: thin; }
+  .filter-pill { flex: 0 0 auto; white-space: nowrap; }
+  .webhooks-header { align-items: stretch; }
+  .webhooks-header > :deep(button), .webhooks-header > button { align-self: flex-start; }
+  .webhooks-title-group { align-items: flex-start; }
+  .wh-list { grid-template-columns: minmax(0, 1fr); }
+  .empty-state { width: 100%; margin: 8px 0; padding: 32px 18px; }
+}
+@media (max-width: 420px) {
+  .header-actions { grid-template-columns: minmax(0, 1fr); }
+  .header-actions .btn-new-automation { grid-column: auto; }
+  .btn-flow-editor, .btn-flowchart { width: 100%; }
+  .webhooks-header { flex-direction: column; }
+  .webhooks-header > * { width: 100%; }
+  .webhooks-header :deep(button) { justify-content: center; }
+  .wh-card { padding: 14px; }
+  .wh-card-top { align-items: flex-start; }
+  .wh-name { flex-basis: 100%; }
+}
+
 </style>

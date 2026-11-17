@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -226,7 +227,15 @@ func (m *DPSMapper) MapCommandToDPS(category DeviceCategory, command string, par
 				}
 				dpID = int(value)
 			}
-			dps[fmt.Sprint(dpID)] = int(math.Round(temp * 10.0))
+			scale := 1
+			if configuredScale, exists := params["scale"]; exists {
+				value, valid := toFloat(configuredScale)
+				if !valid || value < 0 || value > 4 || math.Trunc(value) != value {
+					return nil, errors.New("climate temperature scale must be an integer between 0 and 4")
+				}
+				scale = int(value)
+			}
+			dps[fmt.Sprint(dpID)] = int(math.Round(temp * math.Pow10(scale)))
 		case "set_mode":
 			mode, ok := params["mode"].(string)
 			if !ok {
@@ -280,6 +289,10 @@ func toFloat(v any) (float64, bool) {
 		return float64(n), true
 	case json.Number:
 		if f, err := n.Float64(); err == nil {
+			return f, true
+		}
+	case string:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil {
 			return f, true
 		}
 	}

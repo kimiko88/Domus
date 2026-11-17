@@ -328,4 +328,21 @@ h3 {
 .empty-icon {
   opacity: 0.5;
 }
+
+.runs-list { min-height: 0; }
+.run-item-top { gap: 10px; flex-wrap: wrap; }
+.run-timing { flex-wrap: wrap; overflow-wrap: anywhere; }
+.run-context, .run-log { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal-card { width: 100%; max-width: none; max-height: 92dvh; border-radius: 18px 18px 0 0; padding: 18px 14px max(18px, env(safe-area-inset-bottom)); }
+  .modal-header { gap: 10px; margin-bottom: 14px; }
+  .header-title { min-width: 0; gap: 8px; }
+  .header-title > div { min-width: 0; }
+  .subtitle { display: block; overflow-wrap: anywhere; }
+  .run-item { padding: 12px; }
+  .run-item-top { align-items: flex-start; }
+  .run-timing { flex-direction: column; align-items: flex-end; gap: 3px; }
+}
+
 </style>

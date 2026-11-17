@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +17,17 @@ import (
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/google/uuid"
 )
+
+type activeRun struct {
+	cancel context.CancelFunc
+}
+
+type climateOverride struct {
+	cancel context.CancelFunc
+	entityKey string
+	automationID string
+	previousSetpoint float64
+}
 
 // Engine evaluates incoming events against registered automation rules and executes actions.
 type Engine struct {
@@ -26,9 +40,16 @@ type Engine struct {
 	running          bool
 	schedulerCancel  context.CancelFunc
 	schedulerDone    chan struct{}
+	executionCtx     context.Context
+	executionCancel context.CancelFunc
+	executionWG     sync.WaitGroup
 	scheduleMu       sync.Mutex
 	scheduledDates   map[string]string
-	activeRuns       sync.Map // map[string]context.CancelFunc
+	activeRuns       sync.Map // map[string]*activeRun
+	queuedRuns       sync.Map // map[string]chan struct{}
+	overrideMu       sync.Mutex
+	climateOverrides map[string]*climateOverride
+
 }
 
 // NewEngine creates an automation Engine instance.
@@ -60,6 +81,8 @@ func (e *Engine) Start(ctx context.Context) error {
 
 	schedulerCtx, cancel := context.WithCancel(ctx)
 	e.schedulerCancel = cancel
+	e.executionCtx, e.executionCancel = context.WithCancel(ctx)
+	e.climateOverrides = make(map[string]*climateOverride)
 	e.schedulerDone = make(chan struct{})
 	done := e.schedulerDone
 	go func() {
@@ -85,14 +108,39 @@ func (e *Engine) Stop(ctx context.Context) error {
 	}
 	e.unsubs = nil
 	cancel := e.schedulerCancel
+	executionCancel := e.executionCancel
 	done := e.schedulerDone
 	e.schedulerCancel = nil
 	e.schedulerDone = nil
+	e.executionCancel = nil
+	e.executionCtx = nil
 	e.running = false
 	e.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
+	}
+	if executionCancel != nil {
+		executionCancel()
+	}
+	var restoreOverrides []*climateOverride
+	e.overrideMu.Lock()
+	for key, override := range e.climateOverrides {
+		override.cancel()
+		restoreOverrides = append(restoreOverrides, override)
+		delete(e.climateOverrides, key)
+	}
+	e.overrideMu.Unlock()
+	// A temporary profile cannot keep its timer alive across engine shutdown.
+	// Restore the pre-override target before the event bus is torn down.
+	if len(restoreOverrides) > 0 {
+		restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		for _, override := range restoreOverrides {
+			if err := e.publishClimateSetpoint(restoreCtx, override.automationID, override.entityKey, override.previousSetpoint); err != nil {
+				slog.WarnContext(restoreCtx, "could not restore temporary thermostat setpoint during shutdown", "entity", override.entityKey, "error", err)
+			}
+		}
+		restoreCancel()
 	}
 	if done != nil {
 		select {
@@ -100,6 +148,13 @@ func (e *Engine) Stop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	waitDone := make(chan struct{})
+	go func() { e.executionWG.Wait(); close(waitDone) }()
+	select {
+	case <-waitDone:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 	slog.Info("automation engine stopped")
 	return nil
@@ -133,6 +188,15 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 
 	localNow := now.In(time.Local)
 	dateKey := localNow.Format("2006-01-02")
+	// Keep only today's fire markers; otherwise each recurring schedule leaks
+	// one map entry per day for the lifetime of the engine.
+	e.scheduleMu.Lock()
+	for key, firedDate := range e.scheduledDates {
+		if firedDate != dateKey {
+			delete(e.scheduledDates, key)
+		}
+	}
+	e.scheduleMu.Unlock()
 	for _, rule := range rules {
 		for index, trigger := range rule.Triggers {
 			if !e.evaluator.EvaluateTimeTrigger(trigger, localNow) {
@@ -163,7 +227,7 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 				"trigger":      trigger,
 				"scheduled_at": localNow.Format(time.RFC3339),
 			})
-			go e.launchRuleExecution(rule, triggerID, string(triggerContextBytes))
+			go e.launchRuleExecution(ctx, rule, triggerID, string(triggerContextBytes))
 		}
 	}
 }
@@ -199,7 +263,7 @@ func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
 					"trigger": trig,
 					"event":   evt,
 				})
-				go e.launchRuleExecution(rule, trig.ID, string(triggerContextBytes))
+				go e.launchRuleExecution(e.executionContext(ctx), rule, trig.ID, string(triggerContextBytes))
 				break
 			}
 		}
@@ -214,35 +278,89 @@ func (e *Engine) TriggerAutomation(ctx context.Context, id string) error {
 		return err
 	}
 	triggerContext := `{"manual":true}`
-	go e.launchRuleExecution(rule, "", triggerContext)
+	go e.launchRuleExecution(e.executionContext(ctx), rule, "", triggerContext)
 	return nil
 }
 
-func (e *Engine) launchRuleExecution(rule *automation.Automation, triggerID string, triggerContext string) {
+func (e *Engine) executionContext(fallback context.Context) context.Context {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.running && e.executionCtx != nil {
+		return e.executionCtx
+	}
+	return fallback
+}
+
+func (e *Engine) launchRuleExecution(parent context.Context, rule *automation.Automation, triggerID string, triggerContext string) {
+	// Register under the lifecycle mutex so Stop cannot begin Wait while a new
+	// tracked execution is being added.
+	tracked := false
+	e.mu.Lock()
+	if e.running {
+		if e.executionCtx != nil {
+			parent = e.executionCtx
+		}
+		e.executionWG.Add(1)
+		tracked = true
+	}
+	e.mu.Unlock()
+	if tracked {
+		defer e.executionWG.Done()
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
 	mode := rule.ExecutionMode
 	if mode == "" {
 		mode = "single"
 	}
 
+	runCtx, cancel := context.WithCancel(parent)
+	currentRun := &activeRun{cancel: cancel}
+	var releaseQueue func()
+
 	switch mode {
 	case "single":
-		if _, loaded := e.activeRuns.Load(rule.ID); loaded {
+		if _, loaded := e.activeRuns.LoadOrStore(rule.ID, currentRun); loaded {
+			cancel()
 			slog.Debug("automation: execution mode single, skipping run", "automation_id", rule.ID)
 			return
 		}
+		defer e.activeRuns.CompareAndDelete(rule.ID, currentRun)
+
 	case "restart":
-		if prevCancel, loaded := e.activeRuns.Load(rule.ID); loaded {
-			slog.Debug("automation: execution mode restart, aborting previous run", "automation_id", rule.ID)
-			if cancelFn, ok := prevCancel.(context.CancelFunc); ok {
-				cancelFn()
+		previous, loaded := e.activeRuns.Swap(rule.ID, currentRun)
+		if loaded {
+			if prevRun, ok := previous.(*activeRun); ok && prevRun.cancel != nil {
+				prevRun.cancel()
 			}
 		}
+		defer e.activeRuns.CompareAndDelete(rule.ID, currentRun)
+
+	case "queued":
+		candidate := make(chan struct{}, 1)
+		candidate <- struct{}{}
+		stored, _ := e.queuedRuns.LoadOrStore(rule.ID, candidate)
+		semaphore := stored.(chan struct{})
+		select {
+		case <-runCtx.Done():
+			cancel()
+			return
+		case <-semaphore:
+		}
+		releaseQueue = func() { semaphore <- struct{}{} }
+		defer releaseQueue()
+
+	case "parallel":
+		// Each invocation runs independently; no per-automation lock is held.
+
+	default:
+		cancel()
+		slog.Warn("automation: unknown execution mode; skipping run", "automation_id", rule.ID, "execution_mode", mode)
+		return
 	}
 
-	runCtx, cancel := context.WithCancel(context.Background())
-	e.activeRuns.Store(rule.ID, cancel)
-	defer e.activeRuns.Delete(rule.ID)
-
+	defer cancel()
 	e.executeRule(runCtx, rule, triggerID, triggerContext)
 }
 
@@ -495,6 +613,9 @@ func (e *Engine) executeAction(
 					}
 					errMu.Unlock()
 				}
+				errMu.Lock()
+				*actionLogs = append(*actionLogs, subLogs...)
+				errMu.Unlock()
 			}(subAct)
 		}
 		wg.Wait()
@@ -502,7 +623,113 @@ func (e *Engine) executeAction(
 			return parallelErr
 		}
 
+	case "climate_profile":
+		if act.TargetEntityKey == "" {
+			return fmt.Errorf("climate_profile action requires target_entity_key")
+		}
+		target, err := e.entityRepo.GetByKey(ctx, act.TargetEntityKey)
+		if err != nil {
+			return fmt.Errorf("read thermostat %q: %w", act.TargetEntityKey, err)
+		}
+		if target.Domain != "climate" || !target.Available || !target.Writable {
+			return fmt.Errorf("thermostat %q must be an available, writable climate entity", act.TargetEntityKey)
+		}
+		profileSetpoints := map[string]float64{"comfort": 21, "eco": 18, "night": 17, "away": 16}
+		setpoint, ok := profileSetpoints[strings.ToLower(strings.TrimSpace(act.Profile))]
+		if act.Temperature != nil {
+			setpoint, ok = *act.Temperature, true
+		}
+		if !ok {
+			return fmt.Errorf("unsupported climate profile %q", act.Profile)
+		}
+		if math.IsNaN(setpoint) || math.IsInf(setpoint, 0) || setpoint < 5 || setpoint > 35 {
+			return fmt.Errorf("climate setpoint %.2f°C is outside the supported safety range 5–35°C", setpoint)
+		}
+		if act.DurationMinutes < 0 || act.DurationMinutes > 1440 {
+			return fmt.Errorf("climate override duration must be between 0 and 1440 minutes")
+		}
+		var attributes map[string]any
+		if err := json.Unmarshal([]byte(target.Attributes), &attributes); err != nil {
+			return fmt.Errorf("parse thermostat attributes: %w", err)
+		}
+		minTemp, maxTemp := 5.0, 35.0
+		if v, ok := numericAttribute(attributes, "min_temp"); ok { minTemp = v }
+		if v, ok := numericAttribute(attributes, "max_temp"); ok { maxTemp = v }
+		if minTemp < 5 || maxTemp > 35 || minTemp > maxTemp || setpoint < minTemp || setpoint > maxTemp {
+			return fmt.Errorf("climate setpoint %.1f°C is outside thermostat range %.1f–%.1f°C", setpoint, minTemp, maxTemp)
+		}
+		var previous float64
+		hasPrevious := false
+		for _, key := range []string{"target_temperature", "target_temp", "temperature"} {
+			if value, found := numericAttribute(attributes, key); found {
+				previous, hasPrevious = value, true
+				break
+			}
+		}
+		if act.DurationMinutes > 0 && !hasPrevious {
+			return fmt.Errorf("cannot create a temporary override: thermostat %q has no readable previous setpoint", act.TargetEntityKey)
+		}
+		e.overrideMu.Lock()
+		if current := e.climateOverrides[act.TargetEntityKey]; current != nil {
+			current.cancel()
+			delete(e.climateOverrides, act.TargetEntityKey)
+		}
+		e.overrideMu.Unlock()
+		if err := e.publishClimateSetpoint(ctx, rule.ID, act.TargetEntityKey, setpoint); err != nil {
+			return err
+		}
+		if act.DurationMinutes > 0 {
+			parent := e.executionContext(ctx)
+			overrideCtx, cancel := context.WithCancel(parent)
+			override := &climateOverride{cancel: cancel, entityKey: act.TargetEntityKey, automationID: rule.ID, previousSetpoint: previous}
+			e.overrideMu.Lock()
+			// Stop cancels the engine context before clearing overrides. Check
+			// while holding the same mutex so an override cannot be registered
+			// after shutdown has already drained the map.
+			if err := parent.Err(); err != nil {
+				e.overrideMu.Unlock()
+				cancel()
+				return err
+			}
+			e.climateOverrides[act.TargetEntityKey] = override
+			e.overrideMu.Unlock()
+			e.mu.Lock()
+			e.executionWG.Add(1)
+			e.mu.Unlock()
+			go func() {
+				defer e.executionWG.Done()
+				defer cancel()
+				timer := time.NewTimer(time.Duration(act.DurationMinutes) * time.Minute)
+				defer timer.Stop()
+				select {
+				case <-overrideCtx.Done():
+					return
+				case <-timer.C:
+				}
+				// Claim the restore atomically. A newer profile or Stop may have
+				// already cancelled and removed this override.
+				e.overrideMu.Lock()
+				if e.climateOverrides[act.TargetEntityKey] != override {
+					e.overrideMu.Unlock()
+					return
+				}
+				delete(e.climateOverrides, act.TargetEntityKey)
+				e.overrideMu.Unlock()
+				restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer restoreCancel()
+				if err := e.publishClimateSetpoint(restoreCtx, rule.ID, act.TargetEntityKey, previous); err != nil {
+					slog.ErrorContext(restoreCtx, "failed to restore thermostat setpoint after temporary profile", "entity", act.TargetEntityKey, "error", err)
+				}
+			}()
+		}
+		profileName := strings.TrimSpace(act.Profile)
+		if profileName == "" { profileName = "custom" }
+		*actionLogs = append(*actionLogs, fmt.Sprintf("Climate profile %s applied to %s at %.1f°C (duration %d min)", profileName, act.TargetEntityKey, setpoint, act.DurationMinutes))
+
 	case "service":
+		if act.Service == "" || act.TargetEntityKey == "" {
+			return fmt.Errorf("service action requires both service and target_entity_key")
+		}
 		cmdEvt := events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.CommandRequested,
@@ -528,6 +755,9 @@ func (e *Engine) executeAction(
 		*actionLogs = append(*actionLogs, fmt.Sprintf("Delayed %dms", act.DelayMs))
 
 	case "event":
+		if act.EventType == "" {
+			return fmt.Errorf("event action requires event_type")
+		}
 		evt := events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.EventType(act.EventType),
@@ -535,20 +765,29 @@ func (e *Engine) executeAction(
 			Source:     fmt.Sprintf("automation:%s", rule.ID),
 			Payload:    act.EventPayload,
 		}
-		_ = e.bus.Publish(ctx, evt)
+		if err := e.bus.Publish(ctx, evt); err != nil {
+			return fmt.Errorf("publish automation event %q: %w", act.EventType, err)
+		}
 		*actionLogs = append(*actionLogs, fmt.Sprintf("Fired event %s", act.EventType))
+
+	default:
+		return fmt.Errorf("unsupported automation action type %q", act.Type)
 	}
 
 	return nil
 }
 
 func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *automation.AutomationRun, errMsg string) {
+	// Cancellation should stop device actions, but must not prevent the terminal
+	// run state from being persisted.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
 	finished := time.Now().UTC()
 	run.Fail(finished, errMsg)
-	_ = e.autoRepo.UpdateRun(ctx, run)
-	_ = e.autoRepo.UpdateLastRun(ctx, rule.ID, automation.RunStatusFailed)
+	_ = e.autoRepo.UpdateRun(persistCtx, run)
+	_ = e.autoRepo.UpdateLastRun(persistCtx, rule.ID, automation.RunStatusFailed)
 
-	_ = e.bus.Publish(ctx, events.Event{
+	_ = e.bus.Publish(persistCtx, events.Event{
 		ID:         uuid.NewString(),
 		Type:       events.AutomationRunFailed,
 		OccurredAt: finished,
@@ -559,4 +798,65 @@ func (e *Engine) failRun(ctx context.Context, rule *automation.Automation, run *
 			"error":         errMsg,
 		},
 	})
+}
+
+// ApplyClimateProfile applies a profile from a direct thermostat control and,
+// when requested, restores the previous target after the configured duration.
+func (e *Engine) ApplyClimateProfile(ctx context.Context, entityKey, profile string, temperature *float64, durationMinutes int) error {
+	if durationMinutes > 0 {
+		e.mu.Lock()
+		engineCtx := e.executionCtx
+		running := e.running && engineCtx != nil && engineCtx.Err() == nil
+		if running {
+			// Register the request before releasing the lifecycle lock. Stop may
+			// start waiting immediately after it marks the engine as stopped.
+			e.executionWG.Add(1)
+			ctx = engineCtx
+		}
+		e.mu.Unlock()
+		if !running {
+			return fmt.Errorf("temporary thermostat overrides require the automation engine to be running")
+		}
+		defer e.executionWG.Done()
+	}
+	action := automation.Action{
+		Type: "climate_profile", TargetEntityKey: entityKey,
+		Profile: profile, Temperature: temperature, DurationMinutes: durationMinutes,
+	}
+	rule := &automation.Automation{ID: "manual-climate-profile", Name: "Manual thermostat profile"}
+	var logs []string
+	return e.executeAction(ctx, action, rule, &automation.AutomationRun{}, "", &logs)
+}
+
+func numericAttribute(attributes map[string]any, key string) (float64, bool) {
+	value, ok := attributes[key]
+	if !ok { return 0, false }
+	switch v := value.(type) {
+	case float64:
+		return v, !math.IsNaN(v) && !math.IsInf(v, 0)
+	case json.Number:
+		n, err := v.Float64()
+		return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return n, err == nil && !math.IsNaN(n) && !math.IsInf(n, 0)
+	default:
+		return 0, false
+	}
+}
+
+func (e *Engine) publishClimateSetpoint(ctx context.Context, automationID, entityKey string, temperature float64) error {
+	if err := ctx.Err(); err != nil { return err }
+	evt := events.Event{
+		ID: uuid.NewString(), Type: events.CommandRequested, OccurredAt: time.Now().UTC(),
+		Source: fmt.Sprintf("automation:%s", automationID),
+		Payload: map[string]any{
+			"entity_key": entityKey, "service": "set_temperature",
+			"params": map[string]any{"temperature": math.Round(temperature*10)/10},
+		},
+	}
+	if err := e.bus.Publish(ctx, evt); err != nil {
+		return fmt.Errorf("publish thermostat setpoint for %q: %w", entityKey, err)
+	}
+	return nil
 }
