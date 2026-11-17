@@ -47,13 +47,17 @@ function createDefaultCondition(): AutomationCondition {
   }
 }
 
-type ConditionWithoutDiscriminator = Omit<AutomationCondition, 'condition'> & Record<string, unknown>
-
-function removeDiscriminatorFields(condition: AutomationCondition): ConditionWithoutDiscriminator {
-  const next = { ...condition } as ConditionWithoutDiscriminator
-  for (const field of ['condition', 'conditions', 'entity_key', 'state', 'above', 'below', 'after', 'before', 'trigger_id']) {
-    delete next[field]
-  }
+function removeDiscriminatorFields(condition: AutomationCondition): Partial<AutomationCondition> {
+  const next: Partial<AutomationCondition> = { ...condition }
+  delete next.condition
+  delete next.conditions
+  delete next.entity_key
+  delete next.state
+  delete next.above
+  delete next.below
+  delete next.after
+  delete next.before
+  delete next.trigger_id
   return next
 }
 
