@@ -27,7 +27,7 @@ describe('buildAutomationActionGraph', () => {
       expect.objectContaining({ fromNodeId: 'act_root_0', branchKey: 'else' })
     ]))
     expect(graph.nodes.some((node) => node.subType === 'logic')).toBe(false)
-    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
+    expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(1)
     expect(graph.nodes.some((node) => node.subType === 'choose')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0:conditions')).toBe(true)
     expect(graph.wires.some((wire) => wire.branchKey === 'choose:0')).toBe(true)
@@ -46,11 +46,19 @@ describe('buildAutomationActionGraph', () => {
 
     expect(graph.wires).toEqual(expect.arrayContaining([
       expect.objectContaining({ branchKey: 'repeat:while' }),
-      expect.objectContaining({ branchKey: 'repeat:until' }),
       expect.objectContaining({ branchKey: 'sequence' })
     ]))
     expect(graph.nodes.filter((node) => node.type === 'condition')).toHaveLength(2)
     expect(graph.nodes.some((node) => node.type === 'delay')).toBe(true)
+
+    const untilGraph = buildAutomationActionGraph([{
+      type: 'repeat',
+      repeat: {
+        until: [{ condition: 'numeric_state', entity_key: 'sensor.temperature', below: 19 }],
+        sequence: [{ type: 'delay', delay_ms: 1000 }]
+      }
+    }] as any)
+    expect(untilGraph.wires.some((wire) => wire.branchKey === 'repeat:until')).toBe(true)
   })
 
   it('expands parallel entries as independent single-action branches', () => {
