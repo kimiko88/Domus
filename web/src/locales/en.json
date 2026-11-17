@@ -373,6 +373,7 @@
     "emptyTitle": "No integrations configured",
     "emptyDesc": "Configure MQTT, Zigbee2MQTT, or ESPHome adapters in your configuration file to connect them.",
     "view": {
+      "genericLanHost": "Generic LAN host",
       "lanGuardianTitle": "LAN & IoT Guardian",
       "smartLifeCloud": "Smart Life Cloud",
       "bridgeInfo": "Hardware bridges and protocols currently connected to the local Domus system.",

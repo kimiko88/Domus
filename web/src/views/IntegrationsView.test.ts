@@ -454,11 +454,21 @@ describe('IntegrationsView.vue', () => {
       local_ip: '192.168.1.88',
       status: [{ code: 'temp_set', value: 215 }, { code: 'temp_current', value: 205 }]
     }]
-    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
       if (url === '/api/v1/integrations/tuya-cloud/config') {
         return { configured: true, client_id: 'test-cid', uid: 'test-uid', endpoint: 'https://openapi.tuyaeu.com' }
       }
       if (url === '/api/v1/integrations/tuya-cloud/devices') return { devices: cloudDevices }
+      if (url.endsWith('/tuya-thermostat-1/functions')) {
+        return {
+          functions: [{
+            code: 'temp_set',
+            name: 'Temperatura obiettivo',
+            type: 'Integer',
+            values: '{\"min\":50,\"max\":350,\"scale\":1}'
+          }]
+        }
+      }
       return []
     })
     const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true })
@@ -489,6 +499,7 @@ describe('IntegrationsView.vue', () => {
     await temperature.setValue('22.5')
     const setTemperature = wrapper.findAll('button').find(button => button.text().includes('Imposta temperatura'))
     await setTemperature!.trigger('click')
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-thermostat-1/functions')
     expect(postSpy).toHaveBeenCalledWith(
       '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
       { command: 'set_temperature', params: { temperature: 22.5, scale: 1 } }
