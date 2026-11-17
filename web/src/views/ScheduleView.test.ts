@@ -113,13 +113,19 @@ describe('manual thermostat overrides', () => {
 
   it('uses Smart Life thermostat setpoint and only its reported LocalTuya modes', async () => {
     const thermostat = {
-      id: 'climate.tuya_room', entity_key: 'climate.tuya_room', domain: 'climate',
+      id: 'tuya-device-uuid', entity_key: 'climate.tuya_room', domain: 'climate',
       name: 'Termostato Smart Life', state: 'on',
       attributes: { target_temperature: 21, current_temperature: 19, hvac_mode: 'auto', hvac_modes: ['auto', 'manual'] },
       last_changed: '', last_updated: ''
     }
+    const secondThermostat = {
+      id: 'second-tuya-uuid', entity_key: 'climate.kitchen', domain: 'climate',
+      name: 'Termostato cucina', state: 'on',
+      attributes: { target_temperature: 20, current_temperature: 18, hvac_modes: ['auto'] },
+      last_changed: '', last_updated: ''
+    }
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
-      if (url.includes('/api/v1/entities')) return [thermostat] as any
+      if (url.includes('/api/v1/entities')) return [thermostat, secondThermostat] as any
       if (url.includes('/api/v1/schedules')) return [{ id: 'sched-tuya', name: 'Smart Life', entity_key: 'climate.tuya_room', enabled: true, grid: { monday: [] } }] as any
       return [] as any
     })
@@ -127,6 +133,15 @@ describe('manual thermostat overrides', () => {
     const serviceSpy = vi.spyOn(useEntitiesStore(), 'callService').mockResolvedValue(undefined)
     const wrapper = mount(ScheduleView)
     await flushPromises()
+
+    expect((wrapper.find('#thermostat-select').element as HTMLSelectElement).value).toBe('tuya-device-uuid')
+    const scheduleThermostat = wrapper.find('#schedule-thermostat-select')
+    expect(scheduleThermostat.exists()).toBe(true)
+    expect(scheduleThermostat.text()).toContain('Termostato cucina (climate.kitchen)')
+    await scheduleThermostat.setValue('climate.kitchen')
+    expect((wrapper.find('#thermostat-select').element as HTMLSelectElement).value).toBe('second-tuya-uuid')
+    await scheduleThermostat.setValue('climate.tuya_room')
+    expect((wrapper.find('#thermostat-select').element as HTMLSelectElement).value).toBe('tuya-device-uuid')
 
     expect(wrapper.find('.temp-display-block.target').exists()).toBe(true)
     const modeButtons = wrapper.findAll('.hvac-mode-buttons .mode-btn')

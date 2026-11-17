@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Calendar as CalendarIcon,
@@ -71,7 +71,12 @@ const isSavingSchedule = ref(false)
 // Connected Smart Thermostats from entities store
 const connectedThermostats = computed(() => {
   return Object.values(entitiesStore.entities).filter(
-    (e) => e.domain === 'climate' || e.id.startsWith('climate.')
+    (e) => {
+      const domain = String(e.domain || '').trim().toLowerCase()
+      const entityKey = String(e.entity_key || '').trim().toLowerCase()
+      const id = String(e.id || '').trim().toLowerCase()
+      return domain === 'climate' || entityKey.startsWith('climate.') || id.startsWith('climate.')
+    }
   )
 })
 
@@ -108,6 +113,10 @@ const newSlotForm = ref<TimeSlot>({
 const selectedSchedule = computed(() => {
   return schedules.value.find((s) => s.id === selectedScheduleId.value) || null
 })
+const selectedScheduleThermostatAvailable = computed(() => {
+  const target = selectedSchedule.value?.entity_key
+  return connectedThermostats.value.some(entity => (entity.entity_key || entity.id) === target)
+})
 
 // Current room temperature from thermostat
 const currentAmbientTemp = computed(() => {
@@ -123,11 +132,40 @@ const currentAmbientTemp = computed(() => {
 watchThermostatChange()
 
 function watchThermostatChange() {
+  const scheduleTarget = selectedSchedule.value?.entity_key
+  const scheduleThermostat = connectedThermostats.value.find(
+    entity => (entity.entity_key || entity.id) === scheduleTarget
+  )
+  if (scheduleThermostat) {
+    activeThermostatId.value = scheduleThermostat.id
+    syncLiveThermostatValues()
+    return
+  }
+
   if (connectedThermostats.value.length > 0 && !activeThermostatId.value) {
     activeThermostatId.value = connectedThermostats.value[0].id
     syncLiveThermostatValues()
   }
 }
+
+function handleThermostatSelection() {
+  syncLiveThermostatValues()
+  if (selectedSchedule.value && activeThermostatEntityKey.value) {
+    selectedSchedule.value.entity_key = activeThermostatEntityKey.value
+  }
+}
+
+function syncThermostatFromSchedule() {
+  const selected = connectedThermostats.value.find(
+    entity => (entity.entity_key || entity.id) === selectedSchedule.value?.entity_key
+  )
+  if (selected) {
+    activeThermostatId.value = selected.id
+    syncLiveThermostatValues()
+  }
+}
+
+watch(selectedScheduleId, syncThermostatFromSchedule)
 
 function syncLiveThermostatValues() {
   if (!activeThermostatId.value) return
@@ -467,7 +505,7 @@ onMounted(async () => {
               id="thermostat-select"
               v-model="activeThermostatId"
               class="thermostat-select"
-              @change="syncLiveThermostatValues"
+              @change="handleThermostatSelection"
             >
               <option v-for="t in connectedThermostats" :key="t.id" :value="t.id">
                 🌡️ {{ t.name }} ({{ t.id }})
@@ -616,6 +654,30 @@ onMounted(async () => {
               <select id="sched-picker" v-model="selectedScheduleId" class="sched-select">
                 <option v-for="s in schedules" :key="s.id" :value="s.id">
                   {{ s.name }} ({{ s.entity_key }})
+                </option>
+              </select>
+            </div>
+
+            <div v-if="selectedSchedule" class="form-group inline">
+              <label for="schedule-thermostat-select">{{ t('schedules.view.deviceLabel') }}</label>
+              <select
+                id="schedule-thermostat-select"
+                v-model="selectedSchedule.entity_key"
+                class="sched-select"
+                @change="syncThermostatFromSchedule"
+              >
+                <option
+                  v-for="thermostat in connectedThermostats"
+                  :key="thermostat.id"
+                  :value="thermostat.entity_key || thermostat.id"
+                >
+                  {{ thermostat.name }} ({{ thermostat.entity_key || thermostat.id }})
+                </option>
+                <option
+                  v-if="!selectedScheduleThermostatAvailable"
+                  :value="selectedSchedule?.entity_key || ''"
+                >
+                  {{ selectedSchedule?.entity_key }}
                 </option>
               </select>
             </div>
