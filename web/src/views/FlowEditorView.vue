@@ -1080,6 +1080,12 @@ function handleInspectorDataChange() {
   }
 }
 
+function updateSelectedLogicCondition(condition: AutomationCondition) {
+  if (!selectedNode.value || selectedNode.value.subType !== 'logic') return
+  selectedNode.value.data.logicCondition = condition
+  handleInspectorDataChange()
+}
+
 onMounted(async () => {
   if (!automationId.value) {
     // Default initial starter template flow
@@ -1508,9 +1514,9 @@ onBeforeUnmount(() => {
             </p>
             <ConditionTreeEditor
               v-if="selectedNode.data.logicCondition"
-              v-model="selectedNode.data.logicCondition"
+              :model-value="selectedNode.data.logicCondition"
               :entities="entitiesStore.allEntities"
-              @update:model-value="handleInspectorDataChange"
+              @update:model-value="updateSelectedLogicCondition"
             />
           </div>
 
