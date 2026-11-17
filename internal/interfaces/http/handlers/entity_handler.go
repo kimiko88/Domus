@@ -34,11 +34,21 @@ func NewEntityHandler(repo entity.Repository, bus events.Bus) *EntityHandler {
 
 func (h *EntityHandler) resolveEntity(ctx context.Context, idOrKey string) (*entity.Entity, error) {
 	ent, err := h.repo.GetByID(ctx, idOrKey)
-	if err == nil && ent != nil {
-		return ent, nil
+	if err == nil {
+		if ent != nil {
+			return ent, nil
+		}
+		err = entity.ErrEntityNotFound
 	}
 	if errors.Is(err, entity.ErrEntityNotFound) {
-		return h.repo.GetByKey(ctx, idOrKey)
+		ent, keyErr := h.repo.GetByKey(ctx, idOrKey)
+		if keyErr != nil {
+			return nil, keyErr
+		}
+		if ent == nil {
+			return nil, entity.ErrEntityNotFound
+		}
+		return ent, nil
 	}
 	return nil, err
 }
@@ -64,7 +74,7 @@ func (h *EntityHandler) ApplyClimateProfile(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	id := chi.URLParam(r, "id")
-	ent, err := h.repo.GetByID(r.Context(), id)
+	ent, err := h.resolveEntity(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, entity.ErrEntityNotFound) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "entity not found")
