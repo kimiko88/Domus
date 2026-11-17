@@ -250,6 +250,9 @@ function createNode(type: FlowNodeType, subType: string, title: string, x?: numb
     defaultData.message = 'Avviso da Domus Hub: evento rilevato.'
   } else if (type === 'condition' && subType === 'state') {
     defaultData.state = 'on'
+  } else if (type === 'condition' && subType === 'time') {
+    defaultData.after = '20:00:00'
+    defaultData.before = '06:00:00'
   } else if (type === 'condition' && subType === 'logic') {
     defaultData.logic = 'and'
   }
@@ -695,10 +698,11 @@ function loadAutomationIntoGraph(auto: Automation) {
           before: cond.before
         }
       })
-      if (lastTrigId) {
+      const conditionParentId = idx > 0 ? `cond_${idx - 1}` : lastTrigId
+      if (conditionParentId) {
         newWires.push({
           id: `w_trig_cond_${idx}`,
-          fromNodeId: lastTrigId,
+          fromNodeId: conditionParentId,
           toNodeId: id
         })
       }
@@ -842,6 +846,9 @@ const selectedNode = computed(() => {
 // Update subtitle reactively when inspector modifies data
 function handleInspectorDataChange() {
   if (selectedNode.value) {
+    if (selectedNode.value.type === 'condition' && selectedNode.value.subType === 'state') {
+      selectedNode.value.data.state = selectedNode.value.data.to
+    }
     selectedNode.value.subtitle = getSubtitleForNode(
       selectedNode.value.type,
       selectedNode.value.subType,
@@ -1218,7 +1225,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div v-else-if="selectedNode.subType === 'time'" class="prop-group">
+          <div v-else-if="selectedNode.subType === 'time' && selectedNode.type === 'trigger'" class="prop-group">
             <label class="prop-label">{{ t('flowchart.view.exactTime') }} (HH:MM:SS)</label>
             <input
               v-model="selectedNode.data.at"
@@ -1227,6 +1234,13 @@ onBeforeUnmount(() => {
               class="prop-input"
               @input="handleInspectorDataChange"
             />
+          </div>
+
+          <div v-else-if="selectedNode.subType === 'time' && selectedNode.type === 'condition'" class="prop-group">
+            <label class="prop-label">Dalle (HH:MM:SS)</label>
+            <input v-model="selectedNode.data.after" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
+            <label class="prop-label mt-12">Alle (HH:MM:SS)</label>
+            <input v-model="selectedNode.data.before" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
           </div>
 
           <div v-else-if="selectedNode.subType === 'service'" class="prop-group">
