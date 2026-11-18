@@ -65,24 +65,24 @@ const activeTab = ref<'chat' | 'satellites'>('chat')
 const satellites = ref<VoiceSatellite[]>([
   {
     id: 'sat_living',
-    name: 'Tablet Parete Soggiorno',
-    area_name: 'Soggiorno',
+    name: t('satellites.fallbackSatellites.livingRoom'),
+    area_name: t('areas.icons.livingRoom'),
     status: 'listening',
     wake_word: 'Ehi Domus',
     mic_muted: false
   },
   {
     id: 'sat_kitchen',
-    name: 'Smart Display Cucina',
-    area_name: 'Cucina',
+    name: t('satellites.fallbackSatellites.kitchen'),
+    area_name: t('areas.icons.kitchen'),
     status: 'listening',
     wake_word: 'Ehi Domus',
     mic_muted: false
   },
   {
     id: 'sat_bedroom',
-    name: 'Tablet Comodino Notte',
-    area_name: 'Camera da Letto',
+    name: t('satellites.fallbackSatellites.bedroom'),
+    area_name: t('areas.icons.bedroom'),
     status: 'muted',
     wake_word: 'Ehi Domus',
     mic_muted: true
@@ -110,19 +110,19 @@ function toggleMute(sat: VoiceSatellite) {
 
 async function sendSatelliteTest(sat: VoiceSatellite) {
   testingSatId.value = sat.id
-  const prompt = testPrompt.value.trim() || 'Accendi la luce'
-  testResult.value = `Elaborazione per [${sat.area_name}]: "${prompt}"...`
+  const prompt = testPrompt.value.trim() || t('satellites.defaultTestPrompt')
+  testResult.value = t('satellites.processingForRoom', { room: sat.area_name, prompt })
   try {
     const res = await apiClient.post<any>(`/api/v1/assistant/satellites/${sat.id}/stream`, {
       prompt: prompt
     })
     if (res && res.response_text) {
-      testResult.value = `[${sat.area_name}] Risposta vocale: "${res.response_text}"`
+      testResult.value = t('satellites.voiceResponse', { room: sat.area_name, response: res.response_text })
     } else {
-      testResult.value = `[${sat.area_name}] Comando "${prompt}" eseguito con successo nel contesto della stanza!`
+      testResult.value = t('satellites.commandSucceeded', { room: sat.area_name, prompt })
     }
   } catch {
-    testResult.value = `[${sat.area_name}] Risoluzione contestuale locale: comando "${prompt}" applicato a ${sat.area_name}!`
+    testResult.value = t('satellites.contextApplied', { room: sat.area_name, prompt })
   } finally {
     testingSatId.value = null
   }
@@ -131,13 +131,7 @@ async function sendSatelliteTest(sat: VoiceSatellite) {
 const messages = computed(() => assistantStore.messages)
 const isProcessing = computed(() => assistantStore.isProcessing)
 
-const quickChips = [
-  'Spegni tutte le luci',
-  'Accendi la luce in cucina',
-  'Imposta la temperatura a 21 gradi',
-  'Attiva la scena Buonanotte',
-  'Avvia timer pasta per 10 minuti'
-]
+const quickChips = computed(() => [\n  t('satellites.quickChips.lightsOff'),\n  t('satellites.quickChips.kitchenLight'),\n  t('satellites.quickChips.temperature'),\n  t('satellites.quickChips.goodnight'),\n  t('satellites.quickChips.pastaTimer')\n])
 
 async function handleSend() {
   if (!inputPrompt.value.trim() || isProcessing.value) return
@@ -231,10 +225,10 @@ onMounted(() => {
             <Sparkles :size="20" class="sparkle-anim" />
           </div>
           <div>
-            <h3 id="assistant-modal-title" class="modal-title">Domus AI Assistant</h3>
+            <h3 id="assistant-modal-title" class="modal-title">{{ t('satellites.assistantTitle') }}</h3>
             <div class="engine-badge">
               <Cpu :size="12" />
-              <span>Offline-First (Ollama LLM & Heuristic NLP)</span>
+              <span>{{ t('satellites.engineBadge') }}</span>
             </div>
           </div>
         </div>
@@ -243,8 +237,8 @@ onMounted(() => {
           <button
             type="button"
             class="icon-btn"
-            title="Azzera conversazione"
-            aria-label="Azzera cronologia conversazione"
+            :title="t('satellites.resetConversation')"
+            :aria-label="t('satellites.clearHistory')"
             @click="assistantStore.clearHistory"
           >
             <RotateCcw :size="16" />
@@ -252,8 +246,8 @@ onMounted(() => {
           <button
             type="button"
             class="icon-btn"
-            title="Chiudi"
-            aria-label="Chiudi assistente vocale"
+            :title="t('common.close')"
+            :aria-label="t('satellites.closeAssistant')"
             @click="emit('close')"
           >
             <X :size="18" />
@@ -262,7 +256,7 @@ onMounted(() => {
       </div>
 
       <!-- Assistant Navigation Tabs -->
-      <div class="assistant-tabs" role="tablist" aria-label="Sezioni assistente vocale">
+      <div class="assistant-tabs" role="tablist" :aria-label="t('satellites.sectionNavigation')">
         <button
           id="assistant-tab-chat"
           type="button"
@@ -288,7 +282,7 @@ onMounted(() => {
         >
           <Radio :size="16" />
           <span>{{ t('satellites.tabSatellites') }}</span>
-          <span class="tab-badge">{{ satellites.length }} nodi</span>
+          <span class="tab-badge">{{ t('satellites.nodesCount', { count: satellites.length }) }}</span>
         </button>
       </div>
 
@@ -302,7 +296,7 @@ onMounted(() => {
       >
         <!-- Quick Chips -->
         <div class="quick-chips-wrapper">
-          <div class="quick-chips" role="list" aria-label="Comandi rapidi suggeriti">
+          <div class="quick-chips" role="list" :aria-label="t('satellites.suggestedCommands')">
             <button
               v-for="chip in quickChips"
               :key="chip"
@@ -372,8 +366,8 @@ onMounted(() => {
             type="button"
             class="mic-btn"
             :class="{ 'is-listening': isListening }"
-            :title="isListening ? 'In ascolto... clicca per fermare' : 'Attiva dettatura vocale'"
-            :aria-label="isListening ? 'Interrompi dettatura vocale' : 'Attiva dettatura vocale'"
+            :title="isListening ? t('satellites.listeningTitle') : t('satellites.activateDictation')"
+            :aria-label="isListening ? t('satellites.stopDictation') : t('satellites.activateDictation')"
             @click="toggleVoiceListening"
           >
             <Mic :size="20" v-if="!isListening" />
@@ -386,7 +380,7 @@ onMounted(() => {
             v-model="inputPrompt"
             type="text"
             class="prompt-input"
-            placeholder="Chiedi a Domus... (es. 'Spegni le luci ovunque tranne in cucina')"
+            :placeholder="t('satellites.askPlaceholder')"
             :disabled="isProcessing"
             autocomplete="off"
             autofocus
@@ -395,8 +389,8 @@ onMounted(() => {
           <button
             type="submit"
             class="send-btn"
-            title="Invia comando"
-            aria-label="Invia comando all'assistente vocale"
+            :title="t('satellites.sendCommand')"
+            :aria-label="t('satellites.sendCommand')"
             :disabled="!inputPrompt.trim() || isProcessing"
           >
             <Send :size="18" />
@@ -480,7 +474,7 @@ onMounted(() => {
                   type="button"
                   class="btn-mute-sat"
                   :class="{ muted: sat.mic_muted }"
-                  :title="sat.mic_muted ? 'Riattiva microfono satellite' : 'Muta microfono satellite'"
+                  :title="sat.mic_muted ? t('satellites.unmuteSatellite') : t('satellites.muteSatellite')"
                   @click="toggleMute(sat)"
                 >
                   <Mic :size="14" v-if="!sat.mic_muted" />
@@ -492,7 +486,7 @@ onMounted(() => {
 
             <!-- Sat card meta -->
             <div class="sat-meta-row">
-              <span class="sat-wake-tag font-mono">Wake: "{{ sat.wake_word }}"</span>
+              <span class="sat-wake-tag font-mono">{{ t('satellites.wakeWord') }}: "{{ sat.wake_word }}"</span>
               <span class="sat-state-pill" :class="sat.status">
                 <span class="status-pulse-dot" v-if="sat.status === 'listening'" />
                 {{ sat.status === 'listening' ? t('satellites.listening') : t('satellites.muted') }}
@@ -507,7 +501,7 @@ onMounted(() => {
                 v-model="testPrompt"
                 type="text"
                 class="test-prompt-input"
-                :placeholder="'Comando da testare in ' + sat.area_name + '...'"
+                :placeholder="t('satellites.testCommandPlaceholder', { room: sat.area_name })"
                 autocomplete="off"
               />
               <button
@@ -517,7 +511,7 @@ onMounted(() => {
                 @click="sendSatelliteTest(sat)"
               >
                 <Activity :size="14" />
-                <span>{{ testingSatId === sat.id ? 'Invio...' : t('satellites.testRoom') + ' (' + sat.area_name + ')' }}</span>
+                <span>{{ testingSatId === sat.id ? t('satellites.sending') : t('satellites.testRoom') + ' (' + sat.area_name + ')' }}</span>
               </button>
             </div>
           </div>
