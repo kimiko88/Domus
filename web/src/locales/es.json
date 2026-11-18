@@ -169,7 +169,8 @@
       "actionFailed": "No se ha podido completar la acción. Inténtalo de nuevo.",
       "syncFailed": "La sincronización ha fallado. Inténtalo de nuevo.",
       "exportFailed": "La exportación ha fallado. Inténtalo de nuevo."
-    }
+    },
+    "close": "Cerrar"
   },
   "nav": {
     "sectionOverview": "Resumen",
