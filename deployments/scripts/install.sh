@@ -460,7 +460,7 @@ fi
 cfg_host="$(awk -F= '/^[[:space:]]*host[[:space:]]*=/ {gsub(/[[:space:]"]/, "", $2); print $2; exit}' "${CONFIG_TARGET}")"
 
 if (( TAILSCALE_SERVES_DOMUS )); then
-    if (( DOMUS_HOST_EXPLICIT )) && [[ "${DOMUS_HOST}" != "127.0.0.1" && "${DOMUS_HOST}" != "localhost" ]]; then
+    if (( DOMUS_HOST_EXPLICIT )) && [[ "${DOMUS_HOST}" != "127.0.0.1" ]]; then
         log_error "Tailscale Serve listens on TCP ${DOMUS_PORT} and proxies to 127.0.0.1:${DOMUS_PORT}."
         log_error "DOMUS_HOST=${DOMUS_HOST} conflicts with that setup. Re-run with DOMUS_HOST=127.0.0.1 or change the Tailscale Serve backend."
         exit 1
@@ -497,10 +497,10 @@ port_conflict_info() {
     listeners="$(ss -H -ltnp "sport = :${port}" 2>/dev/null || true)"
     case "${host}" in
         127.0.0.1)
-            awk -v suffix=":${port}" '$4 == "127.0.0.1" suffix || $4 == "0.0.0.0" suffix || $4 == "[::]" suffix || $4 == "*" suffix { print }' <<< "${listeners}"
+            awk -v suffix=":${port}" '$4 == ("127.0.0.1" suffix) || $4 == ("0.0.0.0" suffix) || $4 == ("[::]" suffix) || $4 == ("*" suffix) { print }' <<< "${listeners}"
             ;;
         localhost)
-            awk -v suffix=":${port}" '$4 == "127.0.0.1" suffix || $4 == "[::1]" suffix || $4 == "0.0.0.0" suffix || $4 == "[::]" suffix || $4 == "*" suffix { print }' <<< "${listeners}"
+            awk -v suffix=":${port}" '$4 == ("127.0.0.1" suffix) || $4 == ("[::1]" suffix) || $4 == ("0.0.0.0" suffix) || $4 == ("[::]" suffix) || $4 == ("*" suffix) { print }' <<< "${listeners}"
             ;;
         *)
             printf '%s\n' "${listeners}"
@@ -532,6 +532,19 @@ EOF
 fi
 chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
+
+# The application applies DOMUS_SERVER_HOST after reading domus.toml, so keep
+# the systemd environment file aligned with the loopback binding as well.
+if (( TAILSCALE_SERVES_DOMUS )); then
+    if grep -Eq '^[[:space:]]*DOMUS_SERVER_HOST[[:space:]]*=' "${ENV_FILE}"; then
+        sed -i -E "s|^[[:space:]]*DOMUS_SERVER_HOST[[:space:]]*=.*|DOMUS_SERVER_HOST=${cfg_host}|" "${ENV_FILE}"
+    else
+        printf 'DOMUS_SERVER_HOST=%s\\n' "${cfg_host}" >> "${ENV_FILE}"
+    fi
+    chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
+    chmod 0640 "${ENV_FILE}"
+    log_info "Set DOMUS_SERVER_HOST=${cfg_host} for the Tailscale Serve upstream"
+fi
 
 # Generate and persist one stable VAPID P-256 keypair. Never rotate these keys
 # on upgrades: browser subscriptions are bound to the public key.
