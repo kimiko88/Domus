@@ -1,3 +1,4 @@
+import { i18n } from '../locales'
 import type { AutomationAction, AutomationCondition } from '../api/types'
 import { parseAdvancedAutomationAction } from './automationActionValidation'
 
@@ -35,14 +36,14 @@ function safeSegment(value: string): string {
 
 function conditionTitle(condition: AutomationCondition): string {
   switch (condition.condition) {
-    case 'state': return 'Condizione: stato'
-    case 'numeric_state': return 'Condizione: soglia numerica'
-    case 'time': return 'Condizione: fascia oraria'
-    case 'trigger': return 'Condizione: trigger'
-    case 'and': return 'Gruppo AND'
-    case 'or': return 'Gruppo OR'
-    case 'not': return 'Gruppo NOT'
-    default: return `Condizione: ${condition.condition}`
+    case 'state': return i18n.global.t('automations.graphErrors.conditionTitles.state')
+    case 'numeric_state': return i18n.global.t('automations.graphErrors.conditionTitles.numeric')
+    case 'time': return i18n.global.t('automations.graphErrors.conditionTitles.time')
+    case 'trigger': return i18n.global.t('automations.graphErrors.conditionTitles.trigger')
+    case 'and': return i18n.global.t('automations.graphErrors.conditionTitles.and')
+    case 'or': return i18n.global.t('automations.graphErrors.conditionTitles.or')
+    case 'not': return i18n.global.t('automations.graphErrors.conditionTitles.not')
+    default: return i18n.global.t('automations.graphErrors.conditionTitles.nested')
   }
 }
 
@@ -63,15 +64,15 @@ function actionNode(action: AutomationAction, id: string, x: number, y: number):
     type: isDelay ? 'delay' : 'action',
     subType,
     title: isDelay
-      ? 'Pausa / Delay'
+      ? i18n.global.t('automations.graphErrors.actionTitles.delay')
       : action.type === 'scene'
-        ? 'Applica Scena'
+        ? i18n.global.t('automations.graphErrors.actionTitles.scene')
         : action.type === 'service'
-          ? 'Comando'
-          : `Azione avanzata (${action.type})`,
+          ? i18n.global.t('automations.graphErrors.actionTitles.service')
+          : i18n.global.t('automations.graphErrors.actionTitles.advanced', { type: action.type }),
     subtitle: isDelay
-      ? `Attesa ${(action.delay_ms ?? 1000) / 1000}s`
-      : `${action.service || action.type} -> ${action.target_entity_key || ''}`,
+      ? i18n.global.t('automations.graphErrors.delaySubtitle', { seconds: (action.delay_ms ?? 1000) / 1000 })
+      : i18n.global.t('automations.graphErrors.actionSubtitle', { service: action.service || action.type, target: action.target_entity_key || '' }),
     x,
     y,
     data: {
@@ -116,7 +117,7 @@ export function buildAutomationActionGraph(
         title: conditionTitle(condition),
         subtitle: condition.entity_key
           ? `${condition.entity_key} ${condition.state ? `= ${condition.state}` : ''}`.trim()
-          : condition.after || condition.before || 'Condizione annidata',
+          : condition.after || condition.before || i18n.global.t('automations.graphErrors.conditionTitles.nested'),
         x: parent.x + 300,
         y: branchY + index * 118,
         data: {
@@ -250,7 +251,7 @@ export function buildAutomationActionGraph(
 function firstBranchWire(parentId: string, branchKey: string, wires: FlowGraphWire[]): FlowGraphWire | undefined {
   const matches = wires.filter((wire) => wire.fromNodeId === parentId && wire.branchKey === branchKey)
   if (matches.length > 1) {
-    throw new Error(`L'uscita "${branchKey}" ha più collegamenti. Ogni porta può avere una sola destinazione.`)
+    throw new Error(i18n.global.t('automations.graphErrors.duplicatePort', { port: branchKey }))
   }
   return matches[0]
 }
@@ -268,11 +269,11 @@ function compileConditionSequence(
   let currentId: string | undefined = first.toNodeId
 
   while (currentId) {
-    if (visited.has(currentId)) throw new Error('La sequenza delle condizioni contiene un ciclo o un nodo riutilizzato.')
+    if (visited.has(currentId)) throw new Error(i18n.global.t('automations.graphErrors.conditionCycle'))
     visited.add(currentId)
     const node = nodes.find((item) => item.id === currentId)
     if (!node || node.type !== 'condition') {
-      throw new Error('Una porta delle condizioni deve contenere esclusivamente nodi condizione.')
+      throw new Error(i18n.global.t('automations.graphErrors.conditionTarget'))
     }
 
     if (node.subType === 'logic') {
@@ -281,11 +282,11 @@ function compileConditionSequence(
         try {
           parsed = JSON.parse(node.data.advancedConditionJson || '')
         } catch {
-          throw new Error('La condizione logica contiene un JSON non valido.')
+          throw new Error(i18n.global.t('automations.graphErrors.logicJson'))
         }
       }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('La condizione logica deve essere un oggetto JSON.')
+        throw new Error(i18n.global.t('automations.graphErrors.logicObject'))
       }
       result.push(parsed as AutomationCondition)
     } else {
@@ -306,13 +307,13 @@ function compileConditionSequence(
       } else if (node.subType === 'trigger') {
         condition.trigger_id = node.data.trigger_id
       } else {
-        throw new Error(`La condizione "${node.subType}" non è supportata nell'editor visuale.`)
+        throw new Error(i18n.global.t('automations.graphErrors.unsupportedCondition', { type: node.subType }))
       }
       result.push(condition)
     }
 
     const next = wires.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
-    if (next.length > 1) throw new Error('Una sequenza di condizioni può avere una sola uscita lineare.')
+    if (next.length > 1) throw new Error(i18n.global.t('automations.graphErrors.conditionSingleOutput'))
     currentId = next[0]?.toNodeId
   }
 
@@ -332,17 +333,17 @@ function compileActionSequence(
   let currentId: string | undefined = first.toNodeId
 
   while (currentId) {
-    if (visited.has(currentId)) throw new Error('La sequenza di un ramo contiene un ciclo o un nodo riutilizzato.')
+    if (visited.has(currentId)) throw new Error(i18n.global.t('automations.graphErrors.actionCycle'))
     visited.add(currentId)
     const node = nodes.find((item) => item.id === currentId)
-    if (!node) throw new Error('Un ramo contiene un nodo inesistente.')
+    if (!node) throw new Error(i18n.global.t('automations.graphErrors.missingNode'))
 
     if (node.type === 'action' && ADVANCED_ACTIONS.has(node.subType)) {
       const nested = parseAdvancedAutomationAction(node.data.advancedJson, node.subType) as AutomationAction & Record<string, any>
       applyAutomationActionBranches(node, nested, nodes, wires, visited)
       result.push(nested)
     } else if (node.type === 'action') {
-      if (node.subType === 'unsupported') throw new Error('Un ramo contiene un’azione non supportata.')
+      if (node.subType === 'unsupported') throw new Error(i18n.global.t('automations.graphErrors.unsupportedAction'))
       if (node.subType === 'notify') {
         result.push({
           ...(node.data.originalAction || {}),
@@ -367,11 +368,11 @@ function compileActionSequence(
     } else if (node.type === 'delay') {
       result.push({ ...(node.data.originalAction || {}), type: 'delay', delay_ms: Math.max(0, Math.round((Number.isFinite(Number(node.data.delay_seconds)) ? Number(node.data.delay_seconds) : 5) * 1000)) })
     } else {
-      throw new Error('Un ramo contiene un nodo non eseguibile come azione.')
+      throw new Error(i18n.global.t('automations.graphErrors.notExecutable'))
     }
 
     const next = wires.filter((wire) => wire.fromNodeId === currentId && !wire.branchKey)
-    if (next.length > 1) throw new Error('Un’azione interna a un ramo può avere una sola uscita lineare.')
+    if (next.length > 1) throw new Error(i18n.global.t('automations.graphErrors.actionSingleOutput'))
     currentId = next[0]?.toNodeId
   }
 
@@ -433,7 +434,7 @@ export function applyAutomationActionBranches(
       if (!hasBranch(branchKey)) return original
       const sequence = compileActionSequence(node.id, branchKey, nodes, wires, visited)
       if (sequence.length > 1) {
-        throw new Error('Ogni ramo parallelo deve contenere una singola azione: il motore esegue gli elementi in parallelo.')
+        throw new Error(i18n.global.t('automations.graphErrors.parallelSingle'))
       }
       return sequence[0] || original
     })
