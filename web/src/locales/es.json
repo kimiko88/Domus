@@ -1140,7 +1140,8 @@
       "filterVehicle": "Vehículo",
       "filterPackage": "Paquete",
       "aiOverviewDescription": "Reconocimiento facial local de residentes mediante similitud coseno y lectura automática de matrículas para el control de acceso.",
-      "subSecondDelay": "Latencia inferior a un segundo"
+      "subSecondDelay": "Latencia inferior a un segundo",
+      "detectionTooltip": "{label} detectado a las {time} — cámara {camera}"
     }
   },
   "shopping": {
