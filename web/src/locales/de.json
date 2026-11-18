@@ -496,7 +496,18 @@
         "deviceOfflineDesc": "Das Gerät ist offline. Prüfe Stromversorgung und lokale Netzwerkverbindung.",
         "arpScanCompleteDesc": "ARP-Scan abgeschlossen. Gefundene Geräte: {count}.",
         "deviceUnblockedTitle": "Gerätesperre aufgehoben"
-      }
+      },
+      "devicesShown": "{count} angezeigt",
+      "deviceOnline": "Online",
+      "deviceOffline": "Offline",
+      "turnOff": "Ausschalten",
+      "turnOn": "Einschalten",
+      "chooseTemperature": "Temperatur auswählen",
+      "encodedValue": "sendet",
+      "valueToSend": "Zu sendender Wert",
+      "setpointMapAria": "Umrechnungstabelle für Thermostat-Sollwerte",
+      "hideCommands": "Befehle ausblenden",
+      "availableApiCommands": "Über die API verfügbare Befehle"
     }
   },
   "history": {
