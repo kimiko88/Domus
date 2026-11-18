@@ -1118,7 +1118,9 @@
       "registerPlate": "Registrar matrícula",
       "filterPerson": "Persona",
       "filterVehicle": "Vehículo",
-      "filterPackage": "Paquete"
+      "filterPackage": "Paquete",
+      "aiOverviewDescription": "Reconocimiento facial local de residentes mediante similitud coseno y lectura automática de matrículas para el control de acceso.",
+      "subSecondDelay": "Latencia inferior a un segundo"
     }
   },
   "shopping": {
@@ -2328,7 +2330,23 @@
       "sections": "Secciones de la despensa",
       "inventoryTab": "Despensa e inventario",
       "recipesTab": "Recetario",
-      "mealCalendarTab": "Calendario de comidas"
+      "mealCalendarTab": "Calendario de comidas",
+      "subtitle": "Controla las existencias de alimentos, crea recetas, planifica comidas e importa recibos.",
+      "itemUpdated": "Alimento actualizado correctamente.",
+      "itemCreated": "Alimento añadido a la despensa.",
+      "confirmDeleteItem": "¿Eliminar este artículo de la despensa?",
+      "itemDeleted": "Alimento eliminado.",
+      "lowStockToast": "Pocas existencias de {name} ({quantity} {unit}).",
+      "stockAdjustFailed": "No se pudo actualizar el stock.",
+      "recipeUpdated": "Receta actualizada.",
+      "recipeCreated": "Nueva receta guardada.",
+      "confirmDeleteRecipe": "¿Eliminar esta receta?",
+      "recipeDeleted": "Receta eliminada.",
+      "mealCreated": "Comida añadida al calendario.",
+      "mealConsumed": "Comida consumida. Los ingredientes se descontaron según el número de comensales.",
+      "mealConsumeFailed": "No se pudo consumir la comida planificada.",
+      "confirmDeleteMeal": "¿Eliminar esta comida del calendario?",
+      "mealDeleted": "Comida eliminada del calendario."
     }
   },
   "predictiveClimate": {
@@ -2457,7 +2475,23 @@
       "standardSolarGain": "Aporte solar estándar",
       "pressureTrend": "Tendencia",
       "saveConfiguration": "Guardar configuración",
-      "estimated": "Estim."
+      "estimated": "Estim.",
+      "subtitle": "Control inteligente con inercia térmica, previsión barométrica local y previsiones solares",
+      "addZoneCta": "Nueva zona",
+      "loadingZones": "Cargando zonas...",
+      "configureFirstZone": "Configurar la primera zona",
+      "glazedAreaLabel": "superficie acristalada",
+      "perceived": "percibida",
+      "gain": "Ganancia",
+      "evaluateNow": "Evaluar ahora",
+      "thermalModelStart": "Modelo térmico e inicio óptimo",
+      "editAction": "Editar",
+      "deleteAction": "Eliminar",
+      "requiredPreheat": "Precalentamiento necesario",
+      "startsAt": "Inicio",
+      "earlyShutdown": "Apagado anticipado",
+      "stopsAt": "Parada",
+      "cycleTrainingDescription": "Introduce los datos observados durante una sesión para calibrar los parámetros mediante media móvil exponencial (EMA)."
     }
   },
   "sharedDashboard": {
