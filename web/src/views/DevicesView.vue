@@ -77,10 +77,10 @@ async function triggerNetworkScan() {
     const res = await apiClient.post<{ count: number; hosts: DiscoveredHost[] }>('/api/v1/network/scan', {})
     if (res && Array.isArray(res.hosts)) {
       discoveredHosts.value = res.hosts.filter(h => h.is_iot)
-      notifStore.success('Scansione Rete Completata', `Trovati ${res.hosts.length} dispositivi sulla rete locale`)
+      notifStore.success(t('devices.view.scanCompletedTitle'), t('devices.view.scanCompletedMessage', { count: res.hosts.length }))
     }
   } catch (err: any) {
-    notifStore.error('Errore Scansione', err?.message || 'Impossibile completare la scansione')
+    notifStore.error(t('devices.view.scanErrorTitle'), t('devices.view.scanErrorMessage'))
   } finally {
     isScanning.value = false
   }
@@ -106,12 +106,12 @@ async function confirmAddDiscoveredDevice() {
       model: host.hostname || host.ip,
       status: 'online'
     })
-    notifStore.success('Dispositivo Aggiunto', `${newDeviceName.value} è ora configurato in Domus!`)
+    notifStore.success(t('devices.view.deviceAddedTitle'), t('devices.view.deviceAddedMessage', { name: newDeviceName.value }))
     isSetupModalOpen.value = false
     await devicesStore.fetchDevices()
     discoveredHosts.value = discoveredHosts.value.filter(h => h.ip !== host.ip)
   } catch (err: any) {
-    notifStore.error('Errore Aggiunta', err?.message || 'Impossibile aggiungere il dispositivo')
+    notifStore.error(t('devices.view.addDeviceErrorTitle'), t('devices.view.addDeviceErrorMessage'))
   } finally {
     isAddingDevice.value = false
   }
@@ -126,7 +126,7 @@ async function startMatterCommissioning() {
   setTimeout(() => {
     matterCommissionStep.value = 3
     matterCommissioning.value = false
-    notifStore.success('Matter Connesso', 'Dispositivo commissionato su rete Thread locale')
+    notifStore.success(t('devices.view.matterConnectedTitle'), t('devices.view.matterConnectedMessage'))
     devicesStore.fetchDevices()
   }, 2200)
 }
@@ -164,9 +164,9 @@ async function refreshAllDevices() {
     if (results[0].status === 'rejected') {
       throw results[0].reason
     }
-    notifStore.success('Dispositivi aggiornati', 'Elenco dispositivi e stato delle integrazioni aggiornati.')
+    notifStore.success(t('devices.view.devicesUpdatedTitle'), t('devices.view.devicesUpdatedMessage'))
   } catch (err: any) {
-    notifStore.error('Aggiornamento non riuscito', err?.message || 'Impossibile aggiornare i dispositivi.')
+    notifStore.error(t('devices.view.refreshErrorTitle'), t('devices.view.refreshErrorMessage'))
   } finally {
     isRefreshing.value = false
   }
