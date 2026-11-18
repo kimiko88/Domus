@@ -1356,11 +1356,11 @@ onMounted(() => {
           <h4 class="guide-title"><QrCode :size="18" /> {{ t('integrations.view.tuyaConnectTitle') }}</h4>
           <ol class="guide-steps">
             <li>
-              Entra nel tuo progetto su 
+              {{ t('integrations.view.tuyaProjectIntro') }} 
               <a href="https://iot.tuya.com" target="_blank" rel="noopener noreferrer" class="link-external">
                 iot.tuya.com <ExternalLink :size="12" />
               </a>
-              (Cloud → Development → apri il progetto Domus).
+              ({{ t('integrations.view.tuyaProjectPath') }}).
             </li>
             <li>{{ t('integrations.view.dataCenterInstruction') }}</li>
             <li>{{ t('integrations.view.devicesAccountInstruction') }}</li>
@@ -1436,7 +1436,7 @@ onMounted(() => {
               class="btn-action glass-panel"
               @click="isEditingTuyaConfig = false"
             >
-              Annulla
+              {{ t('common.cancel') }}
             </button>
           </div>
         </form>
