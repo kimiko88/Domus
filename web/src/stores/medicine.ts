@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type {
@@ -104,7 +105,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       const data = await apiClient.get<Medicine[]>('/api/v1/medicines')
       medicines.value = data || []
     } catch (err: any) {
-      error.value = err.message || 'Errore nel caricamento dei farmaci'
+      error.value = i18n.global.t('common.errors.loadFailed')
     } finally {
       loading.value = false
     }
@@ -128,7 +129,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       medicines.value.unshift(created)
       return created
     } catch (err: any) {
-      error.value = err.message || 'Errore nella creazione del farmaco'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -146,7 +147,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err.message || 'Errore nell\'aggiornamento del farmaco'
+      error.value = i18n.global.t('common.errors.actionFailed')aggiornamento del farmaco'
       throw err
     } finally {
       loading.value = false
@@ -160,7 +161,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       await apiClient.delete(`/api/v1/medicines/${id}`)
       medicines.value = medicines.value.filter((m) => m.id !== id)
     } catch (err: any) {
-      error.value = err.message || 'Errore nella cancellazione del farmaco'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -178,7 +179,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err.message || 'Errore nella registrazione apertura'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     }
   }
@@ -194,7 +195,7 @@ export const useMedicineStore = defineStore('medicine', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err.message || 'Errore nel consumo della dose'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     }
   }
