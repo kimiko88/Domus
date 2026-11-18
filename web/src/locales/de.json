@@ -1118,7 +1118,9 @@
       "registerPlate": "Kennzeichen registrieren",
       "filterPerson": "Person",
       "filterVehicle": "Fahrzeug",
-      "filterPackage": "Paket"
+      "filterPackage": "Paket",
+      "aiOverviewDescription": "Lokale Gesichtserkennung von Bewohnern mittels Kosinusähnlichkeit und automatische Kennzeichenerkennung zur Zugangskontrolle.",
+      "subSecondDelay": "Latenz unter einer Sekunde"
     }
   },
   "shopping": {
@@ -2328,7 +2330,23 @@
       "sections": "Bereiche des Vorratsschranks",
       "inventoryTab": "Vorrat und Bestände",
       "recipesTab": "Rezeptbuch",
-      "mealCalendarTab": "Speiseplan"
+      "mealCalendarTab": "Speiseplan",
+      "subtitle": "Lebensmittelbestände verwalten, Rezepte erstellen, Mahlzeiten planen und Belege importieren.",
+      "itemUpdated": "Lebensmittel erfolgreich aktualisiert.",
+      "itemCreated": "Lebensmittel zur Vorratskammer hinzugefügt.",
+      "confirmDeleteItem": "Diesen Artikel aus der Vorratskammer entfernen?",
+      "itemDeleted": "Lebensmittel entfernt.",
+      "lowStockToast": "Niedriger Bestand für {name} ({quantity} {unit}).",
+      "stockAdjustFailed": "Bestand konnte nicht angepasst werden.",
+      "recipeUpdated": "Rezept aktualisiert.",
+      "recipeCreated": "Neues Rezept gespeichert.",
+      "confirmDeleteRecipe": "Dieses Rezept löschen?",
+      "recipeDeleted": "Rezept gelöscht.",
+      "mealCreated": "Mahlzeit zum Kalender hinzugefügt.",
+      "mealConsumed": "Mahlzeit verzehrt. Zutaten wurden entsprechend der Personenzahl abgezogen.",
+      "mealConsumeFailed": "Geplante Mahlzeit konnte nicht verbraucht werden.",
+      "confirmDeleteMeal": "Diese Mahlzeit aus dem Kalender entfernen?",
+      "mealDeleted": "Mahlzeit aus dem Kalender entfernt."
     }
   },
   "predictiveClimate": {
@@ -2457,7 +2475,23 @@
       "standardSolarGain": "Standard-Solarertrag",
       "pressureTrend": "Trend",
       "saveConfiguration": "Konfiguration speichern",
-      "estimated": "Geschätzt"
+      "estimated": "Geschätzt",
+      "subtitle": "Intelligente Regelung mit thermischer Trägheit, lokaler barometrischer Vorhersage und Solarprognosen",
+      "addZoneCta": "Neue Zone",
+      "loadingZones": "Zonen werden geladen...",
+      "configureFirstZone": "Erste Zone konfigurieren",
+      "glazedAreaLabel": "Fensterfläche",
+      "perceived": "gefühlt",
+      "gain": "Gewinn",
+      "evaluateNow": "Jetzt bewerten",
+      "thermalModelStart": "Wärmemodell und optimaler Start",
+      "editAction": "Bearbeiten",
+      "deleteAction": "Löschen",
+      "requiredPreheat": "Erforderliches Vorheizen",
+      "startsAt": "Start",
+      "earlyShutdown": "Vorzeitiges Abschalten",
+      "stopsAt": "Stopp",
+      "cycleTrainingDescription": "Gib Messwerte aus einer Sitzung ein, um die Parameter mit exponentieller Glättung (EMA) zu kalibrieren."
     }
   },
   "sharedDashboard": {
