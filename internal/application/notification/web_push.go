@@ -226,27 +226,34 @@ func (s *WebPushService) SendOnce(ctx context.Context, userID, dedupeKey, title,
 // RegisterEventHandlers connects task due notifications to browser push delivery.
 func (s *WebPushService) RegisterEventHandlers(bus events.Bus) func() {
 	if bus == nil || !s.Enabled() { return func() {} }
-	return bus.Subscribe(events.NotificationCreated, func(ctx context.Context, event events.Event) error {
+	return bus.Subscribe(events.NotificationCreated, func(_ context.Context, event events.Event) error {
 		payload, ok := event.Payload.(map[string]any)
 		if !ok || payload["notification_kind"] != "task_due" { return nil }
 		choreID, _ := payload["chore_id"].(string)
 		taskName, _ := payload["task_name"].(string)
-		if choreID == "" { return nil }
 		targetUser, _ := payload["user_id"].(string)
-		recipients, err := s.Recipients(ctx, "task_alerts")
-		if err != nil { return err }
-		seen := make(map[string]struct{})
-		for _, recipient := range recipients {
-			if targetUser != "" && recipient.UserID != targetUser { continue }
-			if _, exists := seen[recipient.UserID]; exists { continue }
-			seen[recipient.UserID] = struct{}{}
-			key := "task:due:" + choreID
-			if err := s.SendOnce(ctx, recipient.UserID, key, "Promemoria faccenda", "La faccenda è arrivata alla scadenza: "+taskName, "task_alerts", map[string]any{"kind":"task_due","name":taskName,"task_id":choreID,"url":"/chores"}); err != nil {
-				s.logger.WarnContext(ctx, "task Web Push reminder failed", "user_id", recipient.UserID, "chore_id", choreID, "error", err)
-			}
-		}
+		if choreID == "" { return nil }
+		go s.sendTaskDueReminder(choreID, taskName, targetUser)
 		return nil
 	})
+}
+
+func (s *WebPushService) sendTaskDueReminder(choreID, taskName, targetUser string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	recipients, err := s.Recipients(ctx, "task_alerts")
+	if err != nil { s.logger.WarnContext(ctx, "could not load task Web Push recipients", "error", err); return }
+	seen := make(map[string]struct{})
+	for _, recipient := range recipients {
+		if targetUser != "" && recipient.UserID != targetUser { continue }
+		if _, exists := seen[recipient.UserID]; exists { continue }
+		seen[recipient.UserID] = struct{}{}
+		key := "task:due:" + choreID
+		data := map[string]any{"kind":"task_due","name":taskName,"task_id":choreID,"url":"/chores"}
+		if err := s.SendOnce(ctx, recipient.UserID, key, "Promemoria faccenda", "La faccenda è arrivata alla scadenza: "+taskName, "task_alerts", data); err != nil {
+			s.logger.WarnContext(ctx, "task Web Push reminder failed", "user_id", recipient.UserID, "chore_id", choreID, "error", err)
+		}
+	}
 }
 
 func validatePushEndpoint(raw string) error {
