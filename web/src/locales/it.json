@@ -457,7 +457,8 @@
       "devicesUpdatedTitle": "Dispositivi aggiornati",
       "devicesUpdatedMessage": "Elenco dispositivi e stato delle integrazioni aggiornati.",
       "refreshErrorTitle": "Aggiornamento non riuscito",
-      "refreshErrorMessage": "Impossibile aggiornare i dispositivi."
+      "refreshErrorMessage": "Impossibile aggiornare i dispositivi.",
+      "filteredCount": "{filtered} di {total} dispositivi"
     }
   },
   "integrations": {
@@ -646,7 +647,9 @@
       "anomaliesRegistered": "anomalie registrate",
       "noWritableFunctions": "L'API non ha restituito funzioni scrivibili per questo dispositivo.",
       "host": "Host",
-      "deviceTotals": "totali · online · offline"
+      "deviceTotals": "totali · online · offline",
+      "ipLabel": "IP",
+      "firmwareLabel": "Firmware"
     }
   },
   "history": {
@@ -1113,7 +1116,25 @@
     "tariffF1": "F1 (punta: lun–ven 08–19)",
     "tariffF2": "F2 (intermedia: lun–ven 07–08 e 19–23, sab 07–23)",
     "tariffF3": "F3 (fuori punta: notti, domeniche e festivi)",
-    "electricity": "Elettricità"
+    "electricity": "Elettricità",
+    "nodeSolar": "SOLARE",
+    "nodeGrid": "RETE",
+    "nodeHomeLoads": "CARICHI CASA",
+    "nodeBattery": "BATTERIA",
+    "nodeWallbox": "WALLBOX EV",
+    "standby": "0 W (In attesa)",
+    "recalculateArbitrage": "Ricalcola arbitraggio ottimale",
+    "wallboxSubtitle": "Modulazione dinamica IEC 61851 sull'eccedenza fotovoltaica netta con protezione dal sovraccarico del contatore",
+    "recalculateSolarModulation": "Ricalcola la modulazione fotovoltaica",
+    "updating": "Aggiornamento...",
+    "recalculateModulation": "Ricalcola modulazione",
+    "target": "Obiettivo",
+    "pwmAvailableCurrent": "Corrente PWM disponibile",
+    "station": "Stazione",
+    "solarSurplus": "Surplus fotovoltaico",
+    "homeLoads": "Carichi domestici",
+    "total": "Totale",
+    "cost": "Costo"
   },
   "cameras": {
     "title": "Videosorveglianza & Visione AI (Local NVR)",
@@ -1307,7 +1328,11 @@
       "filterSupermarket": "Filtra per {name}",
       "justNow": "Adesso",
       "toBuy": "da comprare",
-      "bought": "acquistato"
+      "bought": "acquistato",
+      "itemsAdded": "{count} nuovi prodotti",
+      "itemsUpdated": "{count} prodotti aggiornati",
+      "itemsTransferred": "Prodotti trasferiti",
+      "transferCompleted": "Spesa registrata in dispensa ({summary})!"
     }
   },
   "chores": {
@@ -1557,7 +1582,10 @@
         "kitchen": "Cucina",
         "masterBedroom": "Camera matrimoniale",
         "bathroom": "Bagno",
-        "office": "Studio / Ufficio"
+        "office": "Studio / Ufficio",
+        "kitchenDining": "Cucina e sala da pranzo",
+        "bedroom": "Camera da letto",
+        "masterBathroom": "Bagno padronale"
       },
       "roomCreatedTitle": "Stanza creata",
       "roomCreatedMessage": "Stanza “{name}” aggiunta alla planimetria",
