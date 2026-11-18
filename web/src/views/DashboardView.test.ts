@@ -180,10 +180,11 @@ describe('DashboardView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    // Click Marketplace filter pill
-    const mpPill = wrapper.findAll('.filter-pill').find((p) => p.text().includes('Marketplace'))
-    expect(mpPill).toBeDefined()
-    await mpPill!.trigger('click')
+    // The marketplace is opened from its summary card, not from the domain filter pills.
+    const marketplaceCard = wrapper.find('.summary-card-clickable')
+    expect(marketplaceCard.exists()).toBe(true)
+    await marketplaceCard.trigger('click')
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Modbus TCP Reader')
     expect(wrapper.find('#dash-marketplace-search').exists()).toBe(true)
