@@ -70,7 +70,11 @@ describe('Localization (i18n)', () => {
       ['integrations', 'view', 'messages', 'deviceUnblockedTitle'],
       ['common', 'wsNotifications', 'deviceDiscoveredTitle'],
       ['common', 'wsNotifications', 'deviceDiscoveredMessage'],
-      ['common', 'wsNotifications', 'automationFailedMessage']
+      ['common', 'wsNotifications', 'automationFailedMessage'],
+      ['common', 'pwa', 'updateAvailableTitle'],
+      ['common', 'pwa', 'updateAvailableDescription'],
+      ['common', 'pwa', 'updateNow'],
+      ['common', 'pwa', 'later']
     ]
 
     for (const catalog of locales) {
