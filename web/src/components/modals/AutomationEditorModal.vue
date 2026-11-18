@@ -390,7 +390,7 @@ function handleSubmit() {
     parsed = JSON.parse(dslJson.value)
     jsonValid.value = true
   } catch (err: any) {
-    validationError.value = `Sintassi JSON non valida: ${err.message}`
+    validationError.value = t('automations.editor.errors.invalidJson')
     jsonValid.value = false
     return
   }
@@ -519,7 +519,7 @@ function handleSubmit() {
                 <span>{{ t('automations.editor.schedulePreset') }}</span>
               </button>
               <button type="button" class="btn-format" @click="formatJson">
-                Formatta
+                {{ t('automations.editor.format') }}
               </button>
             </div>
           </div>
@@ -669,8 +669,7 @@ function handleSubmit() {
 
               <div class="climate-rule-preview">
                 <p v-for="slot in orderedClimateTimeSlots" :key="slot.id">
-                  {{ slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', ') }} alle <strong>{{ slot.time }}</strong>, se la temperatura è sotto <strong>{{ slot.threshold }} °C</strong>
-                  imposta <strong>{{ slot.coldSetpoint }} °C</strong>, altrimenti <strong>{{ slot.warmSetpoint }} °C</strong>.
+                  {{ t('automations.editor.scheduleSummary', { days: slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', '), time: slot.time, threshold: slot.threshold, cold: slot.coldSetpoint, warm: slot.warmSetpoint }) }}
                 </p>
               </div>
               <div class="builder-actions">
