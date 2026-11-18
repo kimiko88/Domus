@@ -2443,7 +2443,27 @@
       "mealConsumed": "Repas consommé. Les ingrédients ont été déduits selon le nombre de convives.",
       "mealConsumeFailed": "Impossible de consommer le repas.",
       "confirmDeleteMeal": "Supprimer ce repas du calendrier ?",
-      "mealDeleted": "Repas supprimé du calendrier."
+      "mealDeleted": "Repas supprimé du calendrier.",
+      "mealCalendar": {
+        "previousWeek": "Semaine précédente",
+        "nextWeek": "Semaine suivante",
+        "today": "Aujourd’hui",
+        "planMeal": "Planifier un repas",
+        "addMealForDay": "Ajouter {meal} pour {day}",
+        "addMeal": "Ajouter {meal}",
+        "deleteMeal": "Supprimer le repas",
+        "scaledIngredients": "Ingrédients adaptés pour {count} personnes",
+        "consumed": "Consommé",
+        "consumeTitle": "Consommer ce repas et déduire automatiquement ses ingrédients du garde-manger.",
+        "consume": "Consommer",
+        "mealTypes": {
+          "breakfast": "Petit-déjeuner",
+          "lunch": "Déjeuner",
+          "snack": "Collation",
+          "dinner": "Dîner",
+          "dessert": "Dessert"
+        }
+      }
     }
   },
   "predictiveClimate": {
