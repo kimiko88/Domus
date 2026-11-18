@@ -1223,7 +1223,7 @@ onMounted(() => {
             <Globe :size="18" class="text-primary" />
             <h4 class="subhead-title">{{ t('integrations.view.hostMapTitle') }}</h4>
           </div>
-          <span class="subhead-badge">{{ networkHosts.length }} Host</span>
+          <span class="subhead-badge">{{ networkHosts.length }} {{ t('integrations.view.host') }}</span>
         </div>
 
         <div v-if="networkHosts.length === 0" class="empty-guardian-state glass-card">
