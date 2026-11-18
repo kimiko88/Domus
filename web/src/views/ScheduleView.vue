@@ -1104,16 +1104,16 @@ onMounted(async () => {
             </div>
 
             <div class="manual-override-duration">
-              <label for="manual-climate-override-duration">Durata modifica manuale</label>
+              <label for="manual-climate-override-duration">{{ t('schedules.view.manualOverrideDuration') }}</label>
               <select id="manual-climate-override-duration" data-testid="manual-climate-override-duration" v-model.number="manualOverrideDuration">
-                <option :value="0">Fino alla prossima modifica</option>
+                <option :value="0">{{ t('schedules.view.untilNextChange') }}</option>
                 <option :value="30">30 minuti</option>
                 <option :value="60">1 ora</option>
                 <option :value="120">2 ore</option>
                 <option :value="240">4 ore</option>
                 <option :value="480">8 ore</option>
               </select>
-              <small>Alla scadenza Domus ripristina il setpoint precedente.</small>
+              <small>{{ t('schedules.view.manualOverrideExpiryHint') }}</small>
             </div>
             <button
               class="btn-apply-thermostat"
@@ -1133,7 +1133,7 @@ onMounted(async () => {
           <div class="schedule-title-block">
             <h2 class="schedule-title">{{ selectedSchedule.name }}</h2>
             <span class="schedule-target">{{ t('schedules.view.controlledEntity') }} {{ selectedSchedule.entity_key }}</span>
-            <small v-if="activeThermostatEntityKey === selectedSchedule.entity_key && !supportsSetpoint">Questo dispositivo non espone un setpoint programmabile.</small>
+            <small v-if="activeThermostatEntityKey === selectedSchedule.entity_key && !supportsSetpoint">{{ t('schedules.view.noProgrammableSetpoint') }}</small>
           </div>
 
           <div class="schedule-selector-row">
@@ -1231,8 +1231,8 @@ onMounted(async () => {
                 <button
                   class="btn-del-slot"
                   @click="removeSlot(day.key, idx)"
-                  title="Elimina fascia"
-                  aria-label="Elimina fascia oraria"
+                   :title="t('schedules.view.deleteTimeSlot')"
+                  :aria-label="t('schedules.view.deleteTimeSlotAria')"
                 >
                   <X :size="12" />
                 </button>
