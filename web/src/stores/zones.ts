@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { SpatialZone, TrackedPerson } from '../api/types'
@@ -17,7 +18,7 @@ export const useZonesStore = defineStore('zones', () => {
       zones.value = data.zones || []
       return zones.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch zones'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -32,7 +33,7 @@ export const useZonesStore = defineStore('zones', () => {
       zones.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create zone'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -48,7 +49,7 @@ export const useZonesStore = defineStore('zones', () => {
       if (idx !== -1) zones.value[idx] = updated
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update zone'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -62,7 +63,7 @@ export const useZonesStore = defineStore('zones', () => {
       await apiClient.delete(`/api/v1/zones/${id}`)
       zones.value = zones.value.filter((z) => z.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete zone'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
