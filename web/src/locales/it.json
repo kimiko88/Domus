@@ -336,7 +336,8 @@
     "saveError": "Impossibile salvare l'area",
     "deleteSuccess": "Area eliminata con successo",
     "deleteError": "Impossibile eliminare l'area",
-    "nameRequired": "Il nome dell'area è obbligatorio."
+    "nameRequired": "Il nome dell'area è obbligatorio.",
+    "createArea": "Crea area"
   },
   "devices": {
     "title": "Dispositivi",
@@ -2309,7 +2310,19 @@
       "trainingHelp": "Durante il riscaldamento la temperatura finale deve essere maggiore di quella iniziale; durante il raffreddamento deve essere minore. Sono accettati cicli da 15 a 720 minuti.",
       "neverEvaluated": "Mai valutata",
       "dateUnavailable": "Data non disponibile",
-      "lastEvaluated": "Ultima valutazione: {date}"
+      "lastEvaluated": "Ultima valutazione: {date}",
+      "calculating": "Calcolo in corso...",
+      "evaluateAllZones": "Valuta tutte le zone",
+      "coldFrontDetected": "Fronte freddo rilevato",
+      "pressureStable": "Pressione stabile",
+      "barometricPreheatActive": "Anticipo termico barometrico attivo",
+      "noBarometricDrop": "Nessun calo barometrico",
+      "solarCutoffActive": "Taglio solare attivo",
+      "moderateSun": "Sole moderato",
+      "solarSavingsActive": "Risparmio attivo nelle stanze esposte",
+      "standardSolarGain": "Apporto solare standard",
+      "pressureTrend": "Tendenza",
+      "saveConfiguration": "Salva configurazione"
     }
   },
   "sharedDashboard": {
