@@ -496,7 +496,18 @@
         "deviceOfflineDesc": "El dispositivo está desconectado. Comprueba la alimentación y la conexión a la red local.",
         "arpScanCompleteDesc": "Análisis ARP completado. Dispositivos encontrados: {count}.",
         "deviceUnblockedTitle": "Dispositivo desbloqueado"
-      }
+      },
+      "devicesShown": "{count} mostrados",
+      "deviceOnline": "En línea",
+      "deviceOffline": "Desconectado",
+      "turnOff": "Apagar",
+      "turnOn": "Encender",
+      "chooseTemperature": "Selecciona una temperatura",
+      "encodedValue": "envía",
+      "valueToSend": "Valor que se enviará",
+      "setpointMapAria": "Tabla de conversión de consigna del termostato",
+      "hideCommands": "Ocultar comandos",
+      "availableApiCommands": "Comandos disponibles a través de la API"
     }
   },
   "history": {
