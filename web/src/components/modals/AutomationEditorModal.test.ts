@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AutomationEditorModal from './AutomationEditorModal.vue'
 import { apiClient } from '../../api/client'
+import { i18n } from '../../locales'
 
 describe('AutomationEditorModal.vue', () => {
   it('renders modal with initial values for editing', () => {
@@ -61,7 +62,7 @@ describe('AutomationEditorModal.vue', () => {
     }))
     await wrapper.find('form').trigger('submit.prevent')
 
-    expect(wrapper.text()).toContain('Almeno un trigger è richiesto')
+    expect(wrapper.text()).toContain(i18n.global.t('automations.editor.errors.triggerRequired'))
     expect(wrapper.emitted('save')).toBeUndefined()
   })
 
