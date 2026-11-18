@@ -127,7 +127,7 @@ async function approvePackage(pkg: StorePackage, event?: Event) {
 async function rejectPackage(pkg: StorePackage, event?: Event) {
   if (event) event.stopPropagation()
   try {
-    await apiClient.post(`/api/v1/store/community/${pkg.id}/reject`, { reason: 'Rifiutato dall\'amministratore' })
+    await apiClient.post(`/api/v1/store/community/${pkg.id}/reject`, { reason: t('store.view.rejectedByAdministrator') })
     pkg.review_status = 'rejected'
   } catch (err) {
     console.error('Failed to reject package:', err)
