@@ -441,37 +441,37 @@ async function handleOptimizeBESS() {
           <!-- Node: Solar Fotovoltaico (Top-Left) -->
           <g transform="translate(100, 60)" class="sankey-node node-solar">
             <rect width="140" height="70" rx="12" class="sankey-node-box" />
-            <text x="70" y="28" class="sankey-node-title">☀️ SOLARE</text>
+            <text x="70" y="28" class="sankey-node-title">☀️ {{ t('energy.nodeSolar') }}</text>
             <text x="70" y="52" class="sankey-node-val">{{ flow.solar_watts }} W</text>
           </g>
 
           <!-- Node: Grid Rete Elettrica (Bottom-Left) -->
           <g transform="translate(100, 270)" class="sankey-node node-grid">
             <rect width="140" height="70" rx="12" class="sankey-node-box" />
-            <text x="70" y="28" class="sankey-node-title">🌐 RETE</text>
+            <text x="70" y="28" class="sankey-node-title">🌐 {{ t('energy.nodeGrid') }}</text>
             <text x="70" y="52" class="sankey-node-val">{{ Math.abs(flow.grid_watts) }} W</text>
           </g>
 
           <!-- Node: House Casa (Top-Right) -->
           <g transform="translate(560, 60)" class="sankey-node node-house">
             <rect width="140" height="70" rx="12" class="sankey-node-box" />
-            <text x="70" y="28" class="sankey-node-title">🏠 CARICHI CASA</text>
+            <text x="70" y="28" class="sankey-node-title">🏠 {{ t('energy.nodeHomeLoads') }}</text>
             <text x="70" y="52" class="sankey-node-val">{{ flow.house_consumption_watts }} W</text>
           </g>
 
           <!-- Node: Battery Accumulo BESS (Bottom-Right) -->
           <g transform="translate(560, 270)" class="sankey-node node-battery">
             <rect width="140" height="70" rx="12" class="sankey-node-box" />
-            <text x="70" y="28" class="sankey-node-title">🔋 BATTERIA ({{ flow.battery_soc }}%)</text>
+            <text x="70" y="28" class="sankey-node-title">🔋 {{ t('energy.nodeBattery') }} ({{ flow.battery_soc }}%)</text>
             <text x="70" y="52" class="sankey-node-val">{{ Math.abs(flow.battery_watts) }} W</text>
           </g>
 
           <!-- Node: Wallbox EV (Bottom-Center) -->
           <g transform="translate(330, 310)" class="sankey-node node-wallbox">
             <rect width="140" height="58" rx="10" class="sankey-node-box" />
-            <text x="70" y="24" class="sankey-node-title">🚗 WALLBOX EV</text>
+            <text x="70" y="24" class="sankey-node-title">🚗 {{ t('energy.nodeWallbox') }}</text>
             <text x="70" y="44" class="sankey-node-val">
-              {{ (wallboxData?.telemetry?.active_power_w ?? 0) > 0 ? (wallboxData?.telemetry?.active_power_w + ' W') : (flow.house_consumption_watts > 1500 ? '1800 W' : '0 W (Standby)') }}
+              {{ (wallboxData?.telemetry?.active_power_w ?? 0) > 0 ? (wallboxData?.telemetry?.active_power_w + ' W') : (flow.house_consumption_watts > 1500 ? '1800 W' : t('energy.standby')) }}
             </text>
           </g>
         </svg>
@@ -499,7 +499,7 @@ async function handleOptimizeBESS() {
         </div>
         <button class="bess-action-btn" :disabled="isOptimizingBESS" @click="handleOptimizeBESS">
           <Sparkles :size="16" />
-          <span>{{ isOptimizingBESS ? 'Ottimizzazione in corso...' : 'Ricalcola Arbitraggio Ottimale' }}</span>
+          <span>{{ isOptimizingBESS ? t('energy.optimizing') : t('energy.recalculateArbitrage') }}</span>
         </button>
       </div>
     </section>
@@ -524,7 +524,7 @@ async function handleOptimizeBESS() {
               </span>
             </div>
             <p class="section-subtitle">
-              Modulazione dinamica IEC 61851 su eccedenza fotovoltaica netta con protezione anti-blackout contatore
+              {{ t('energy.wallboxSubtitle') }}
             </p>
           </div>
         </div>
@@ -534,10 +534,10 @@ async function handleOptimizeBESS() {
           class="wb-recalc-btn"
           :disabled="isUpdatingWallbox"
           @click="recalculateModulation"
-          title="Ricalcola modulazione fotovoltaica"
+           :title="t('energy.recalculateSolarModulation')"
         >
           <RefreshCw :size="16" :class="{ 'spin-icon': isUpdatingWallbox }" />
-          <span>{{ isUpdatingWallbox ? 'Aggiornamento...' : 'Ricalcola Modulazione' }}</span>
+          <span>{{ isUpdatingWallbox ? t('energy.updating') : t('energy.recalculateModulation') }}</span>
         </button>
       </div>
 
@@ -552,7 +552,7 @@ async function handleOptimizeBESS() {
             {{ wallboxData?.telemetry?.active_power_w ?? 0 }} <span class="unit">W</span>
           </div>
           <div class="wb-stat-sub">
-            Target: <strong>{{ wallboxData?.modulation?.target_amps ?? 16 }}A</strong> ({{ (((wallboxData?.modulation?.expected_power_w ?? 3680)) / 1000).toFixed(1) }} kW)
+            {{ t('energy.target') }}: <strong>{{ wallboxData?.modulation?.target_amps ?? 16 }}A</strong> ({{ (((wallboxData?.modulation?.expected_power_w ?? 3680)) / 1000).toFixed(1) }} kW)
           </div>
         </div>
 
@@ -565,7 +565,7 @@ async function handleOptimizeBESS() {
             {{ wallboxData?.telemetry?.delivered_amps ?? 0 }} <span class="unit">A</span>
           </div>
           <div class="wb-stat-sub">
-            Pilota PWM: {{ wallboxData?.telemetry?.offered_amps ?? 16 }}A erogabili
+            {{ t('energy.pwmAvailableCurrent') }}: {{ wallboxData?.telemetry?.offered_amps ?? 16 }} A
           </div>
         </div>
 
@@ -594,7 +594,7 @@ async function handleOptimizeBESS() {
             {{ (((wallboxData?.telemetry?.energy_wh ?? 14200)) / 1000).toFixed(2) }} <span class="unit">kWh</span>
           </div>
           <div class="wb-stat-sub">
-            Stazione: {{ wallboxData?.charge_point_id ?? 'domus_wallbox_1' }}
+            {{ t('energy.station') }}: {{ wallboxData?.charge_point_id ?? 'domus_wallbox_1' }}
           </div>
         </div>
       </div>
@@ -685,8 +685,8 @@ async function handleOptimizeBESS() {
           <span class="decision-text">{{ wallboxData.modulation.reason }}</span>
         </div>
         <div class="decision-stats">
-          <span class="stat-pill">Surplus FV: {{ Math.round(wallboxData.modulation.solar_surplus_w) }} W</span>
-          <span class="stat-pill">Carichi Casa: {{ Math.round(wallboxData.modulation.home_grid_power_w) }} W</span>
+          <span class="stat-pill">{{ t('energy.solarSurplus') }}: {{ Math.round(wallboxData.modulation.solar_surplus_w) }} W</span>
+          <span class="stat-pill">{{ t('energy.homeLoads') }}: {{ Math.round(wallboxData.modulation.home_grid_power_w) }} W</span>
         </div>
       </div>
     </section>
@@ -874,7 +874,7 @@ async function handleOptimizeBESS() {
         <div class="card-header">
           <Droplets :size="20" class="text-info" />
           <h3 class="card-title">{{ t('energy.utilitiesTitle') }}</h3>
-          <span v-if="multiUtility" class="cost-badge">Totale: {{ multiUtility.total_cost_eur.toFixed(2) }} €</span>
+          <span v-if="multiUtility" class="cost-badge">{{ t('energy.total') }}: {{ multiUtility.total_cost_eur.toFixed(2) }} €</span>
         </div>
 
         <div class="utility-items">
@@ -885,7 +885,7 @@ async function handleOptimizeBESS() {
             <div class="u-meta">
               <span class="u-title">{{ t('energy.electricity') }}</span>
               <span class="u-val">{{ (multiUtility?.electricity.total_consumption ?? (flow.house_consumption_watts / 1000)).toFixed(1) }} kWh</span>
-              <span class="u-cost">Costo: {{ (multiUtility?.electricity.cost_eur ?? 0).toFixed(2) }} €</span>
+              <span class="u-cost">{{ t('energy.cost') }}: {{ (multiUtility?.electricity.cost_eur ?? 0).toFixed(2) }} €</span>
             </div>
           </div>
 
@@ -896,7 +896,7 @@ async function handleOptimizeBESS() {
             <div class="u-meta">
               <span class="u-title">{{ t('energy.waterMeter') }}</span>
               <span class="u-val">{{ (multiUtility?.water.total_consumption ?? (waterVolumeM3 * 1000)).toFixed(0) }} L ({{ waterVolumeM3.toFixed(2) }} m³)</span>
-              <span class="u-cost">Costo: {{ (multiUtility?.water.cost_eur ?? (waterVolumeM3 * tariffData.tariffs.water_m3_price)).toFixed(2) }} €</span>
+              <span class="u-cost">{{ t('energy.cost') }}: {{ (multiUtility?.water.cost_eur ?? (waterVolumeM3 * tariffData.tariffs.water_m3_price)).toFixed(2) }} €</span>
             </div>
           </div>
 
@@ -907,7 +907,7 @@ async function handleOptimizeBESS() {
             <div class="u-meta">
               <span class="u-title">{{ t('energy.gasMeter') }}</span>
               <span class="u-val">{{ (multiUtility?.gas.total_consumption ?? gasVolumeSmc).toFixed(2) }} Smc</span>
-              <span class="u-cost">Costo: {{ (multiUtility?.gas.cost_eur ?? (gasVolumeSmc * tariffData.tariffs.gas_smc_price)).toFixed(2) }} €</span>
+              <span class="u-cost">{{ t('energy.cost') }}: {{ (multiUtility?.gas.cost_eur ?? (gasVolumeSmc * tariffData.tariffs.gas_smc_price)).toFixed(2) }} €</span>
             </div>
           </div>
         </div>
