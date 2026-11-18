@@ -1042,7 +1042,7 @@ onMounted(() => {
         <Radio :size="40" class="empty-icon" />
         <h3 class="empty-title">{{ t('integrations.view.pendingPairingEmpty') }}</h3>
         <p class="empty-desc">
-          Clicca su "Scansiona Rete" oppure inserisci l'indirizzo IP del tuo dispositivo Shelly, Sonoff o Tasmota per importarlo all'istante senza cloud.
+          {{ t('integrations.view.pendingPairingInstructions') }}
         </p>
       </div>
     </div>
@@ -1111,7 +1111,7 @@ onMounted(() => {
           <div>
             <h3 class="guardian-title">{{ t('integrations.view.networkGuardianTitle') }}</h3>
             <p class="guardian-subtitle">
-              Monitoraggio attivo della LAN, analisi passiva ARP/DHCP e rilevamento istantaneo di tentativi di leak verso server cloud esterni non autorizzati.
+              {{ t('integrations.view.networkGuardianDescription') }}
             </p>
           </div>
         </div>
@@ -1160,7 +1160,7 @@ onMounted(() => {
             <h4 class="subhead-title">{{ t('integrations.view.externalAttemptsTitle') }}</h4>
           </div>
           <span class="subhead-badge" v-if="networkLeaks.length > 0">
-            {{ networkLeaks.length }} anomalie registrate
+            {{ networkLeaks.length }} {{ t('integrations.view.anomaliesRegistered') }}
           </span>
         </div>
 
@@ -1563,7 +1563,7 @@ onMounted(() => {
           </div>
           <div v-if="tuyaFunctionPanels[device.id]" class="tuya-functions-panel">
             <div v-if="(tuyaDeviceFunctions[device.id] || []).length === 0 && tuyaFunctionsLoading !== device.id" class="tuya-no-functions">
-              Nessuna funzione scrivibile restituita dall'API per questo dispositivo.
+              {{ t('integrations.view.noWritableFunctions') }}
             </div>
             <div v-for="fn in tuyaDeviceFunctions[device.id] || []" :key="fn.code" class="tuya-function-row">
               <div class="tuya-function-meta">
