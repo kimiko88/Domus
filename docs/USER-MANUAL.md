@@ -164,6 +164,16 @@ Lo script esegue automaticamente:
 - Installazione unità systemd con hardening
 - Abilitazione e avvio del servizio
 
+Inoltre genera automaticamente, solo alla prima installazione, una coppia di chiavi **VAPID P-256** per le notifiche Web Push e scrive le variabili `DOMUS_VAPID_PUBLIC_KEY`, `DOMUS_VAPID_PRIVATE_KEY` e `DOMUS_VAPID_SUBJECT` in `/etc/domus/domus.env`. Il file è leggibile dal servizio Domus e protetto con permessi `0640`; le chiavi non vengono mostrate nel terminale e non sono rigenerate durante gli aggiornamenti.
+
+Per usare un recapito reale come identificativo del mittente Web Push, modifica `DOMUS_VAPID_SUBJECT` in `/etc/domus/domus.env`, ad esempio `mailto:admin@example.com`, quindi riavvia il servizio:
+
+```bash
+sudo systemctl restart domus
+```
+
+**Non cancellare o rigenerare la coppia VAPID dopo aver registrato i browser:** le sottoscrizioni esistenti sono associate alla chiave pubblica originale.
+
 ```bash
 # Disinstallazione
 sudo ./deployments/scripts/uninstall.sh
