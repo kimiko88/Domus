@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Calendar,
   ChevronLeft,
@@ -18,6 +19,8 @@ interface Props {
   mealPlans: MealPlan[]
   loading?: boolean
 }
+
+const { t, locale } = useI18n()
 
 const props = defineProps<Props>()
 
@@ -42,15 +45,13 @@ const currentWeekDays = computed(() => {
   const days: { dateStr: string; dayName: string; dayNum: number; isToday: boolean }[] = []
   const todayStr = getTodayString()
 
-  const dayNames = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
-
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday)
     d.setDate(monday.getDate() + i)
     const dateStr = formatDateToISO(d)
     days.push({
       dateStr,
-      dayName: dayNames[i],
+      dayName: d.toLocaleDateString(locale.value, { weekday: 'long' }),
       dayNum: d.getDate(),
       isToday: dateStr === todayStr
     })
@@ -70,13 +71,13 @@ function formatDateToISO(d: Date): string {
   return `${year}-${month}-${day}`
 }
 
-const mealTypes: { key: MealType; label: string; icon: string }[] = [
-  { key: 'breakfast', label: 'Colazione', icon: '☕' },
-  { key: 'lunch', label: 'Pranzo', icon: '☀️' },
-  { key: 'snack', label: 'Spuntino', icon: '🥪' },
-  { key: 'dinner', label: 'Cena', icon: '🌙' },
-  { key: 'dessert', label: 'Dessert', icon: '🍰' }
-]
+const mealTypes = computed<{ key: MealType; label: string; icon: string }[]>(() => [
+  { key: 'breakfast', label: t('pantry.view.mealCalendar.mealTypes.breakfast'), icon: '☕' },
+  { key: 'lunch', label: t('pantry.view.mealCalendar.mealTypes.lunch'), icon: '☀️' },
+  { key: 'snack', label: t('pantry.view.mealCalendar.mealTypes.snack'), icon: '🥪' },
+  { key: 'dinner', label: t('pantry.view.mealCalendar.mealTypes.dinner'), icon: '🌙' },
+  { key: 'dessert', label: t('pantry.view.mealCalendar.mealTypes.dessert'), icon: '🍰' }
+])
 
 function getMealsForDayAndType(dateStr: string, type: MealType): MealPlan[] {
   return props.mealPlans.filter(
@@ -103,7 +104,7 @@ const weekHeaderTitle = computed(() => {
 
 function getMonthName(dateStr: string): string {
   const d = new Date(dateStr)
-  return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+  return d.toLocaleDateString(locale.value, { month: 'long', year: 'numeric' })
 }
 </script>
 
@@ -115,7 +116,7 @@ function getMonthName(dateStr: string): string {
         <button
           type="button"
           class="btn-nav"
-          aria-label="Settimana precedente"
+          :aria-label="t('pantry.view.mealCalendar.previousWeek')"
           @click="prevWeek"
         >
           <ChevronLeft :size="18" />
@@ -126,7 +127,7 @@ function getMonthName(dateStr: string): string {
         <button
           type="button"
           class="btn-nav"
-          aria-label="Settimana successiva"
+          :aria-label="t('pantry.view.mealCalendar.nextWeek')"
           @click="nextWeek"
         >
           <ChevronRight :size="18" />
@@ -138,7 +139,7 @@ function getMonthName(dateStr: string): string {
           class="btn-today"
           @click="resetToToday"
         >
-          Oggi
+          {{ t('pantry.view.mealCalendar.today') }}
         </button>
       </div>
 
@@ -148,7 +149,7 @@ function getMonthName(dateStr: string): string {
         @click="emit('add-meal-plan')"
       >
         <Plus :size="18" />
-        <span>Pianifica Pasto</span>
+        <span>{{ t('pantry.view.mealCalendar.planMeal') }}</span>
       </button>
     </div>
 
@@ -163,7 +164,7 @@ function getMonthName(dateStr: string): string {
         <div class="day-header">
           <div class="day-name">{{ day.dayName }}</div>
           <div class="day-number">{{ day.dayNum }}</div>
-          <span v-if="day.isToday" class="today-indicator">Oggi</span>
+          <span v-if="day.isToday" class="today-indicator">{{ t('pantry.view.mealCalendar.today') }}</span>
         </div>
 
         <!-- Meal Slots in Day -->
@@ -181,8 +182,8 @@ function getMonthName(dateStr: string): string {
               <button
                 type="button"
                 class="slot-add-btn"
-                :title="`Aggiungi ${slot.label} per ${day.dayName}`"
-                :aria-label="`Aggiungi ${slot.label}`"
+                :title="t('pantry.view.mealCalendar.addMealForDay', { meal: slot.label, day: day.dayName })"
+                :aria-label="t('pantry.view.mealCalendar.addMeal', { meal: slot.label })"
                 @click="emit('add-meal-plan', day.dateStr, slot.key)"
               >
                 <Plus :size="14" />
@@ -203,8 +204,8 @@ function getMonthName(dateStr: string): string {
                 <button
                   type="button"
                   class="del-btn"
-                  title="Elimina pasto"
-                  aria-label="Elimina pasto"
+                  :title="t('pantry.view.mealCalendar.deleteMeal')"
+                  :aria-label="t('pantry.view.mealCalendar.deleteMeal')"
                   @click="emit('delete-meal', plan.id)"
                 >
                   <Trash2 :size="13" />
@@ -213,7 +214,7 @@ function getMonthName(dateStr: string): string {
 
               <!-- Persons count & Notes -->
               <div class="meal-card-meta">
-                <span class="commensali-tag" :title="`Ingredienti scalati per ${plan.persons_count} persone`">
+                <span class="commensali-tag" :title="t('pantry.view.mealCalendar.scaledIngredients', { count: plan.persons_count })">
                   <Users :size="12" />
                   {{ plan.persons_count }} pers.
                 </span>
@@ -227,18 +228,18 @@ function getMonthName(dateStr: string): string {
               <div class="meal-action-row">
                 <div v-if="plan.status === 'consumed'" class="consumed-badge">
                   <CheckCircle2 :size="14" class="text-success" />
-                  <span>Consumato</span>
+                  <span>{{ t('pantry.view.mealCalendar.consumed') }}</span>
                 </div>
 
                 <button
                   v-else
                   type="button"
                   class="btn-consume-action"
-                  title="Consuma pasto e scala automaticamente gli ingredienti dalla dispensa!"
+                  :title="t('pantry.view.mealCalendar.consumeTitle')"
                   @click="emit('consume-meal', plan.id)"
                 >
                   <Utensils :size="14" />
-                  <span>Consuma</span>
+                  <span>{{ t('pantry.view.mealCalendar.consume') }}</span>
                 </button>
               </div>
             </div>
