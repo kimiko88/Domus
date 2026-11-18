@@ -682,7 +682,7 @@ onUnmounted(() => {
               <div class="widget-draft-main"><strong>{{ widget.title }}</strong><small>{{ t('dashboard.view.widgetTypes.' + widget.type) }} <span v-if="widget.entity_key">· {{ widget.entity_key }}</span></small></div>
               <label class="widget-span-control">Colonne<select v-model.number="widget.col_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option><option :value="4">4</option></select></label>
               <label class="widget-span-control">Righe<select v-model.number="widget.row_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></label>
-              <button type="button" class="btn-cancel" @click="removeDashboardWidget(widget.id)" :aria-label="'Rimuovi ' + widget.title">{{ t('dashboard.view.removeWidget') }}</button>
+              <button type="button" class="btn-cancel" @click="removeDashboardWidget(widget.id)" :aria-label="t('dashboard.view.removeWidgetAria', { title: widget.title })">{{ t('dashboard.view.removeWidget') }}</button>
             </article>
           </div>
           <p v-if="dashboardError" class="dashboard-editor-error" role="alert">{{ dashboardError }}</p>
