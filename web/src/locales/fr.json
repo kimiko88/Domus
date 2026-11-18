@@ -2511,7 +2511,11 @@
       "startsAt": "Démarrage",
       "earlyShutdown": "Arrêt anticipé",
       "stopsAt": "Arrêt",
-      "cycleTrainingDescription": "Saisissez les observations d'une session pour calibrer les paramètres avec une moyenne mobile exponentielle (EMA)."
+      "cycleTrainingDescription": "Saisissez les observations d'une session pour calibrer les paramètres avec une moyenne mobile exponentielle (EMA).",
+      "preheatNoAdvanceReason": "La température actuelle ({current} °C) a déjà atteint la consigne de confort souhaitée ({target} °C) ; aucun préchauffage anticipé n'est nécessaire.",
+      "preheatScheduledReason": "Démarrer le chauffage {minutes} min plus tôt à {start} pour atteindre {target} °C à {targetTime} (vitesse estimée {rate} °C/h ; température extérieure {outdoor} °C).",
+      "coastDownNoShutdownReason": "L'arrêt anticipé n'est pas nécessaire : la température est déjà sous la limite de confort ({limit} °C).",
+      "coastDownScheduledReason": "Arrêter le chauffage {minutes} min plus tôt à {stop}, avant le départ à {departure} ; économie d'énergie estimée : {energy} kWh."
     }
   },
   "sharedDashboard": {
