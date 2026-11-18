@@ -6,7 +6,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useAreasStore } from '../stores/areas'
 import { useNotificationsStore } from '../stores/notifications'
 import { apiClient } from '../api/client'
-import type { Device, DiscoveredHost } from '../api/types'
+import type { Device, DiscoveredHost, Entity } from '../api/types'
 import { Cpu, Wifi, WifiOff, RefreshCw, QrCode, Plus, Sparkles, Check, CheckCircle, ShieldCheck, X, Search } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -223,7 +223,7 @@ const allDevices = computed<UnifiedDevice[]>(() => {
     addKnownKey(device.external_id)
   }
 
-  const entitiesByDevice = new Map<string, typeof entitiesStore.allEntities>()
+  const entitiesByDevice = new Map<string, Entity[]>()
   for (const entity of entitiesStore.allEntities) {
     const deviceId = String(entity.device_id || '').trim()
     if (!deviceId) continue
@@ -236,7 +236,7 @@ const allDevices = computed<UnifiedDevice[]>(() => {
     const normalizedId = deviceId.startsWith('tuya_') ? deviceId.slice(5) : deviceId
     if (knownDeviceKeys.has(deviceId) || knownDeviceKeys.has(normalizedId)) continue
 
-    const attributes = relatedEntities.reduce<Record<string, any>>((all, entity) => ({
+    const attributes = relatedEntities.reduce<Record<string, unknown>>((all, entity) => ({
       ...all,
       ...(entity.attributes || {})
     }), {})
