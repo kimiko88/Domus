@@ -208,7 +208,7 @@ async function saveDashboardEditor() {
 
 async function deleteCurrentDashboard() {
   const profile = currentProfile.value
-  if (!profile || profile.is_default) return
+  if (!profile || !profile.id.startsWith('custom_')) return
   if (!window.confirm('Eliminare la dashboard "' + profile.title + '"?')) return
   try {
     await apiClient.delete('/api/v1/dashboards/' + profile.id)
@@ -223,6 +223,7 @@ async function deleteCurrentDashboard() {
 function switchDashboardProfile() {
   const profile = dashboards.value.find(d => d.id === currentDashboardId.value)
   if (profile) {
+    customWidgets.value = readProfileWidgets(profile)
     try {
       const cfg = JSON.parse(profile.layout_json || '{}')
       if (cfg.target_temp) {
@@ -498,7 +499,7 @@ onUnmounted(() => {
     </button>
 
     <!-- Widget Grid -->
-    <main class="widget-grid">
+    <main v-if="customWidgets.length === 0" class="widget-grid">
       <!-- 1. Circular Climate / Thermostat Widget (ColSpan 2) -->
       <section class="widget-card thermostat-card glass-panel">
         <div class="card-header">
@@ -1434,7 +1435,7 @@ onUnmounted(() => {
 .widget-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); min-width: 0; }
 .widget-card { min-width: 0; overflow-wrap: anywhere; }
 .custom-widget-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
-.custom-widget-card { min-width: 0; grid-column: span min(var(--widget-col-span, 1), 4); grid-row: span min(var(--widget-row-span, 1), 3); }
+.custom-widget-card { min-width: 0;  }
 .custom-widget-content { min-width: 0; display: flex; flex-direction: column; gap: .5rem; align-items: flex-start; color: var(--text-muted); }
 .custom-widget-value { font-size: clamp(1.35rem, 4vw, 2rem); color: var(--text-main); overflow-wrap: anywhere; }
 .dashboard-editor-backdrop { overflow-y: auto; padding: max(.5rem, env(safe-area-inset-top)) max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); }
@@ -1451,7 +1452,7 @@ onUnmounted(() => {
 .widget-span-control .form-select { min-width: 4rem; }
 .dashboard-editor-error { color: var(--color-danger, #ef4444); margin: 0; }
 .dashboard-delete-btn { color: var(--color-danger, #ef4444); }
-@media (max-width: 900px) { .custom-widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .custom-widget-card { grid-column: span min(var(--widget-col-span, 1), 2); } }
+@media (max-width: 900px) { .custom-widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .custom-widget-card { grid-column: span 2 !important; } }
 @media (max-width: 640px) {
   .custom-dash-container { padding: .75rem; } .custom-dash-container.kiosk-active { padding: .75rem; }
   .dash-header { align-items: stretch; padding: 1rem; margin-bottom: 1rem; }
@@ -1459,7 +1460,7 @@ onUnmounted(() => {
   .dash-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: .5rem; }
   .dash-actions > * { width: 100%; min-width: 0; justify-content: center; } .profile-select { grid-column: 1 / -1; }
   .widget-grid, .custom-widget-grid { grid-template-columns: minmax(0, 1fr); gap: .85rem; }
-  .custom-widget-card { grid-column: 1; grid-row: auto; } .widget-card { padding: 1rem; }
+  .custom-widget-card { grid-column: 1 !important; grid-row: auto !important; } .widget-card { padding: 1rem; }
   .card-header { align-items: flex-start; flex-wrap: wrap; gap: .5rem; } .header-left { align-items: flex-start; }
   .card-title { overflow-wrap: anywhere; } .spark-footer { flex-wrap: wrap; gap: .35rem .75rem; }
   .vectors-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
