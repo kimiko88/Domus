@@ -653,7 +653,7 @@ onMounted(async () => {
               class="timeline-marker"
               :class="[e.label, { active: activeScrubbedEvent && activeScrubbedEvent.id === e.id }]"
               :style="{ left: e.percent + '%' }"
-              :title="`${getDetectionLabel(e.label)} @ ${e.detected_at} (${e.camera_id})`"
+              :title="t('cameras.view.detectionTooltip', { label: getDetectionLabel(e.label), time: e.detected_at, camera: e.camera_id })"
               @click="jumpToTimelineEvent(e)"
             >
               <span class="marker-dot" />
