@@ -127,7 +127,11 @@
       "archiveNotification": "Archiver la notification : {title}",
       "eventPreview": "Aperçu de l’événement"
     },
-    "notifications": "Notifications",
+    "notifications": {
+      "actionExecutedTitle": "Action effectuée",
+      "actionExecutedMessage": "Commande envoyée avec succès.",
+      "actionFailedMessage": "Impossible d’exécuter l’action demandée."
+    },
     "dismissNotification": "Ignorer la notification",
     "wsNotifications": {
       "alarmTitle": "Alarme",
@@ -869,7 +873,15 @@
       "allowedHttpMethod": "Méthode HTTP autorisée",
       "postStandard": "POST (charge utile JSON standard)",
       "getQuery": "GET (paramètres de chaîne de requête)",
-      "createWebhook": "Créer le webhook"
+      "createWebhook": "Créer le webhook",
+      "webhookCreatedTitle": "Webhook entrant créé",
+      "webhookCreatedMessage": "Le webhook « {name} » a été créé.",
+      "webhookCreateFailed": "Impossible de créer le webhook.",
+      "webhookDeletedTitle": "Webhook supprimé",
+      "webhookDeletedMessage": "Le webhook « {name} » a été supprimé.",
+      "webhookDeleteFailed": "Impossible de supprimer le webhook.",
+      "flowSavedTitle": "Flux enregistré",
+      "flowSavedMessage": "Automatisation créée depuis le diagramme de flux."
     },
     "editor": {
       "titleEdit": "Modifier l’automatisation",
@@ -2499,7 +2511,9 @@
     "sec13H3": "Diffusion vocale d'annonces prioritaires dans toute la maison avec Piper TTS et coupure temporaire de la musique.",
     "searchAria": "Rechercher dans le guide",
     "collapse": "Réduire la section",
-    "expand": "Développer la section"
+    "expand": "Développer la section",
+    "collapseSection": "Réduire la section",
+    "expandSection": "Développer la section"
   },
   "logbook": {
     "title": "Journal des événements",
@@ -2855,7 +2869,7 @@
     "aicCode": "Code AIC (9 chiffres)",
     "aicPlaceholder": "ex. 034234035",
     "packageExpiry": "Date d'expiration de l'emballage *",
-    "lotNumber": "Numéro de lot",
+    "lotNumber": "Lot",
     "lotPlaceholder": "ex. LOT982",
     "remainingQuantity": "Quantité restante",
     "unit": "Unité",
@@ -2892,7 +2906,8 @@
       "travel": "Sac / Voyage",
       "fridge": "Réfrigérateur (2–8°C)",
       "other": "Autre"
-    }
+    },
+    "aic": "Code AIC"
   },
   "pantry": {
     "title": "Garde-manger et livre de recettes intelligent",
@@ -3007,7 +3022,8 @@
         "expiringSub": "À utiliser rapidement",
         "cookable": "Que puis-je cuisiner ?",
         "cookableSub": "100 % des ingrédients disponibles"
-      }
+      },
+      "cookableRecipes": "recettes réalisables"
     }
   },
   "predictiveClimate": {
