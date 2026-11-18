@@ -2323,7 +2323,8 @@
       "solarSavingsActive": "Économies actives dans les pièces exposées",
       "standardSolarGain": "Apport solaire standard",
       "pressureTrend": "Tendance",
-      "saveConfiguration": "Enregistrer la configuration"
+      "saveConfiguration": "Enregistrer la configuration",
+      "estimated": "Estim."
     }
   },
   "sharedDashboard": {
