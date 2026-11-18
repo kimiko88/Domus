@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   X,
   Save,
@@ -17,6 +18,8 @@ interface Props {
   isOpen: boolean
   recipeToEdit?: Recipe | null
 }
+
+const { t } = useI18n()
 
 const props = defineProps<Props>()
 
@@ -41,24 +44,24 @@ const ingredients = ref<Array<{ name: string; quantity: number; unit: PantryUnit
 const steps = ref<RecipeStep[]>([])
 const errorMessage = ref<string | null>(null)
 
-const categories: { key: RecipeCategory; label: string }[] = [
-  { key: 'first_course', label: '🍝 Primo Piatto' },
-  { key: 'main_course', label: '🥩 Secondo Piatto' },
-  { key: 'side_dish', label: '🥗 Contorno' },
-  { key: 'single_dish', label: '🍲 Piatto Unico' },
-  { key: 'breakfast', label: '☕ Colazione' },
-  { key: 'dessert', label: '🍰 Dolce' },
-  { key: 'snack', label: '🥪 Spuntino / Merenda' }
-]
+const categories = computed<{ key: RecipeCategory; label: string }[]>(() => [
+  { key: 'first_course', label: t('pantry.view.recipeEditor.categories.firstCourse') },
+  { key: 'main_course', label: t('pantry.view.recipeEditor.categories.mainCourse') },
+  { key: 'side_dish', label: t('pantry.view.recipeEditor.categories.sideDish') },
+  { key: 'single_dish', label: t('pantry.view.recipeEditor.categories.singleDish') },
+  { key: 'breakfast', label: t('pantry.view.recipeEditor.categories.breakfast') },
+  { key: 'dessert', label: t('pantry.view.recipeEditor.categories.dessert') },
+  { key: 'snack', label: t('pantry.view.recipeEditor.categories.snack') }
+])
 
-const units: { key: PantryUnit; label: string }[] = [
-  { key: 'g', label: 'g (grammi)' },
-  { key: 'kg', label: 'kg (chili)' },
-  { key: 'pz', label: 'pz (pezzi)' },
-  { key: 'ml', label: 'ml (millilitri)' },
-  { key: 'l', label: 'L (litri)' },
-  { key: 'pack', label: 'pack (confezione)' }
-]
+const units = computed<{ key: PantryUnit; label: string }[]>(() => [
+  { key: 'g', label: t('pantry.view.recipeEditor.units.grams') },
+  { key: 'kg', label: t('pantry.view.recipeEditor.units.kilograms') },
+  { key: 'pz', label: t('pantry.view.recipeEditor.units.pieces') },
+  { key: 'ml', label: t('pantry.view.recipeEditor.units.milliliters') },
+  { key: 'l', label: t('pantry.view.recipeEditor.units.liters') },
+  { key: 'pack', label: t('pantry.view.recipeEditor.units.pack') }
+])
 
 function parseInstructionsToSteps(raw: string): RecipeStep[] {
   if (!raw || !raw.trim()) {
@@ -215,11 +218,11 @@ function applyStepsTotalToCookTime() {
 function handleSubmit() {
   const trimmedTitle = title.value.trim()
   if (!trimmedTitle) {
-    errorMessage.value = 'Il titolo della ricetta è obbligatorio'
+    errorMessage.value = t('pantry.view.recipeEditor.titleRequired')
     return
   }
   if (portionsBase.value < 1) {
-    errorMessage.value = 'Le porzioni base devono essere almeno 1'
+    errorMessage.value = t('pantry.view.recipeEditor.portionsRequired')
     return
   }
   const validIngredients = ingredients.value
@@ -232,7 +235,7 @@ function handleSubmit() {
     }))
 
   if (validIngredients.length === 0) {
-    errorMessage.value = 'Aggiungi almeno un ingrediente alla ricetta'
+    errorMessage.value = t('pantry.view.recipeEditor.ingredientRequired')
     return
   }
 
