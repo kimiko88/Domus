@@ -2443,7 +2443,27 @@
       "mealConsumed": "Comida consumida. Los ingredientes se descontaron según el número de comensales.",
       "mealConsumeFailed": "No se pudo consumir la comida planificada.",
       "confirmDeleteMeal": "¿Eliminar esta comida del calendario?",
-      "mealDeleted": "Comida eliminada del calendario."
+      "mealDeleted": "Comida eliminada del calendario.",
+      "mealCalendar": {
+        "previousWeek": "Semana anterior",
+        "nextWeek": "Semana siguiente",
+        "today": "Hoy",
+        "planMeal": "Planificar comida",
+        "addMealForDay": "Añadir {meal} para {day}",
+        "addMeal": "Añadir {meal}",
+        "deleteMeal": "Eliminar comida",
+        "scaledIngredients": "Ingredientes ajustados para {count} personas",
+        "consumed": "Consumido",
+        "consumeTitle": "Consume esta comida y descuenta automáticamente sus ingredientes de la despensa.",
+        "consume": "Consumir",
+        "mealTypes": {
+          "breakfast": "Desayuno",
+          "lunch": "Comida",
+          "snack": "Tentempié",
+          "dinner": "Cena",
+          "dessert": "Postre"
+        }
+      }
     }
   },
   "predictiveClimate": {
