@@ -981,7 +981,8 @@ async function handleSave() {
     }
     soundEffects.playSuccessChime()
   } catch (err: any) {
-    notificationsStore.error(t('flowchart.view.notifications.saveErrorTitle'), err?.message || t('flowchart.view.notifications.saveErrorMessage'))
+    console.error('Automation save failed:', err)
+    notificationsStore.error(t('flowchart.view.notifications.saveErrorTitle'), t('flowchart.view.notifications.saveErrorMessage'))
   }
 }
 
@@ -1014,8 +1015,7 @@ async function handleTestRun() {
       notificationsStore.success(
         t('flowchart.view.notifications.simulationSuccessTitle'),
         result.triggers_evaluated
-          ? t('flowchart.view.notifications.simulationSuccessMessage')
-          : 'Le condizioni risultano verificate. I trigger non sono stati simulati.'
+          ? t(result.triggers_evaluated ? 'flowchart.view.notifications.simulationSuccessMessage' : 'flowchart.view.notifications.simulationWithoutTriggersMessage')
       )
     } else {
       notificationsStore.warning(
@@ -1032,7 +1032,8 @@ async function handleTestRun() {
       notificationsStore.info(t('flowchart.view.notifications.simulationResultTitle'), [...warnings, ...details].join(' · '))
     }
   } catch (err: any) {
-    notificationsStore.error(t('flowchart.view.notifications.simulationErrorTitle'), err?.message || t('flowchart.view.notifications.simulationErrorMessage'))
+    console.error('Automation simulation failed:', err)
+    notificationsStore.error(t('flowchart.view.notifications.simulationErrorTitle'), t('flowchart.view.notifications.simulationErrorMessage'))
   } finally {
     isTestingRun.value = false
     activeRunStepNodeId.value = null
