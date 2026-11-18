@@ -495,4 +495,173 @@ Object.assign(ru.common.notifications, {
   actionFailedMessage: 'Не удалось выполнить запрошенное действие.'
 });
 
+
+Object.assign(ru.automations.editor, {
+  titleEdit: 'Изменить автоматизацию', titleNew: 'Новая автоматизация', close: 'Закрыть окно автоматизации',
+  name: 'Название автоматизации', namePlaceholder: 'Например, включить ночник', executionMode: 'Режим выполнения',
+  description: 'Описание (необязательно)', descriptionPlaceholder: 'Опишите назначение этого правила…',
+  cooldown: 'Интервал между запусками (секунды)', dslRule: 'Правило JSON DSL (триггеры, условия, действия)',
+  climateProgram: 'Программа термостата', motionPreset: 'Шаблон движения', schedulePreset: 'Шаблон расписания',
+  format: 'Форматировать', climateBuilderAria: 'Программа термостата на основе датчика',
+  climateProgramTitle: 'Ежедневная программа по температуре',
+  climateProgramDescription: 'В выбранное время считывается датчик и устанавливается одна из двух заданных температур.',
+  loadingDevices: 'Загрузка устройств…',
+  missingEntities: 'Нужны как минимум один датчик температуры и один термостат. Убедитесь, что они настроены в Domus.',
+  sensorToRead: 'Датчик для считывания', currentTemperatureHint: 'Считывание текущей температуры в помещении.',
+  thermostatToControl: 'Термостат для управления', profileDuration: 'Длительность профиля (минуты)',
+  profileDurationHint: '0 = действует до следующего изменения по расписанию; большее значение восстановит предыдущую заданную температуру по истечении срока.',
+  automaticProfiles: 'Автоматические профили',
+  automaticProfileSummary: '07:00 Комфорт · 09:00 Эко · 18:00 Комфорт · 22:30 Ночь, ежедневно.',
+  generateProfiles: 'Создать программу Комфорт/Эко/Ночь', weeklySchedule: 'Недельное расписание',
+  weeklyScheduleHint: 'Выберите дни и время. При каждом запуске Domus считывает актуальную температуру и регулирует термостат.',
+  addSlot: 'Добавить временной интервал', slot: 'Интервал {index}', removeSlot: 'Удалить интервал {index}',
+  activeDays: 'Активные дни интервала {index}', time: 'Время', sensorThreshold: 'Порог датчика (°C)',
+  belowThreshold: 'Если ниже порога (°C)', otherwiseSet: 'Иначе установить (°C)',
+  generateRule: 'Создать правило DSL', jsonPlaceholder: 'JSON DSL…', cancel: 'Отмена', save: 'Сохранить автоматизацию',
+  profileName: 'Профили термостата {name}',
+  profileDescription: 'Недельная программа Комфорт/Эко/Ночь. Длительность профиля: {duration}.',
+  untilNextChange: 'до следующего изменения по расписанию',
+  restoreAfterMinutes: '{minutes} мин., затем восстановить предыдущую заданную температуру',
+  climateName: 'Программа термостата {name}',
+  weeklyDescription: 'Считывать {sensor} и регулировать {thermostat} по недельному расписанию: {summary}.',
+  scheduleSummary: '{days} в {time}: ниже {threshold} °C → {cold} °C, иначе {warm} °C'
+});
+Object.assign(ru.automations.editor.executionModes, {
+  single: 'Одиночный запуск (пропустить, если уже выполняется)',
+  restart: 'Перезапуск (остановить и запустить заново)',
+  queued: 'Очередь (поставить запросы в очередь)',
+  parallel: 'Параллельно (одновременное выполнение)'
+});
+Object.assign(ru.automations.editor.errors, {
+  entitiesLoad: 'Не удалось загрузить устройства.',
+  thermostatRequired: 'Выберите термостат перед созданием профилей.',
+  durationRange: 'Временная длительность должна быть от 0 до 1440 минут.',
+  sensorAndThermostatRequired: 'Выберите датчик температуры и термостат.',
+  slotRequired: 'Добавьте хотя бы один временной интервал.',
+  invalidTime: 'Введите время в формате ЧЧ:ММ.',
+  dayRequired: 'Выберите хотя бы один допустимый день для каждого интервала.',
+  duplicateTime: 'Время {time} повторяется хотя бы для одного выбранного дня.',
+  thresholdRange: 'Пороги и заданные температуры должны быть от 5 до 35 °C.',
+  nameRequired: 'Укажите название автоматизации.',
+  invalidJson: 'Некорректный синтаксис JSON.',
+  triggerRequired: 'Правило должно содержать хотя бы один триггер.',
+  actionRequired: 'Правило должно содержать хотя бы одно действие.'
+});
+Object.assign(ru.automations.validation, {
+  objectExpected: '{path} должен быть объектом JSON.',
+  arrayExpected: '{path} должен быть массивом.',
+  minLength: '{path} должен содержать не менее {min} элементов.',
+  required: '{path} является обязательным.',
+  numberRange: '{path} должен быть числом JSON от {min} до {max}.',
+  integer: '{path} должен быть целым числом.',
+  maxDepth: '{path}: превышена максимальная глубина вложенности.',
+  conditionType: '{path}: неподдерживаемый тип условия «{type}».',
+  numericThreshold: '{path}: укажите верхний или нижний числовой порог.',
+  timeRange: '{path}: укажите время начала, окончания или оба значения.',
+  notSingleCondition: '{path}.conditions должен содержать ровно одно условие для NOT.',
+  maxActions: 'Конфигурация превышает лимит в {max} вложенных действий.',
+  actionType: '{path}: неподдерживаемый тип действия «{type}».',
+  paramsObject: '{path}.params должен быть объектом JSON.',
+  eventPayloadObject: '{path}.event_payload должен быть объектом JSON.',
+  profile: '{path}.profile должен быть comfort, eco, night или away.',
+  chooseBranch: '{path}: добавьте ветвь choose или действие по умолчанию.',
+  repeatMode: '{path}.repeat: выберите только один режим — count, while или until.',
+  repeatSequence: '{path}.repeat.sequence не может быть пустым.',
+  jsonRequired: 'Введите полную JSON-конфигурацию для этого действия.',
+  jsonInvalid: 'Некорректная конфигурация JSON.',
+  typeMismatch: 'Поле type для этого узла должно иметь значение «{type}».'
+});
+Object.assign(ru.automations.graphErrors, {
+  duplicatePort: 'Выход «{port}» имеет несколько соединений. У каждого порта может быть только одно назначение.',
+  conditionCycle: 'Последовательность условий содержит цикл или повторно используемый узел.',
+  conditionTarget: 'Порт условия может соединяться только с узлами условий.',
+  logicJson: 'Логическое условие содержит некорректный JSON.',
+  logicObject: 'Логическое условие должно быть объектом JSON.',
+  unsupportedCondition: 'Условие «{type}» не поддерживается визуальным редактором.',
+  conditionSingleOutput: 'Последовательность условий может иметь только один линейный выход.',
+  actionCycle: 'Ветвь содержит цикл или повторно используемый узел.',
+  missingNode: 'Ветвь содержит несуществующий узел.',
+  unsupportedAction: 'Ветвь содержит неподдерживаемое действие.',
+  notExecutable: 'Ветвь содержит узел, который нельзя выполнить как действие.',
+  actionSingleOutput: 'Действие внутри ветви может иметь только один линейный выход.',
+  parallelSingle: 'Каждая параллельная ветвь должна содержать одно действие: движок выполняет их параллельно.'
+});
+Object.assign(ru.automations.graphErrors.conditionTitles, {
+  state: 'Условие состояния', numeric: 'Числовой порог', time: 'Временной интервал',
+  trigger: 'Условие триггера', and: 'Группа AND', or: 'Группа OR', not: 'Группа NOT', nested: 'Вложенное условие'
+});
+Object.assign(ru.automations.graphErrors.actionTitles, {
+  delay: 'Задержка', scene: 'Применить сценарий', service: 'Команда', advanced: 'Расширенное действие ({type})'
+});
+Object.assign(ru.automations.graphErrors, { delaySubtitle: 'Ожидание {seconds} с', actionSubtitle: '{service} → {target}' });
+
+Object.assign(ru.flowchart.conditionEditor, {
+  entityLabel: 'Сущность', stateLabel: 'Требуемое состояние', sensorLabel: 'Датчик',
+  aboveLabel: 'Больше чем', belowLabel: 'Меньше чем', afterLabel: 'После',
+  beforeLabel: 'До', triggerIdLabel: 'ID триггера'
+});
+Object.assign(ru.guide, {
+  searchAria: 'Поиск по руководству', collapse: 'Свернуть раздел', expand: 'Развернуть раздел'
+});
+Object.assign(ru.pantry.view.kpis, {
+  filterLowStock: 'Фильтровать товары с низким запасом',
+  filterExpiring: 'Фильтровать товары с истекающим сроком',
+  showCookable: 'Показать рецепты, которые можно приготовить сегодня',
+  totalItems: 'Товары в кладовой', totalItemsSub: 'Отслеживаемые запасы',
+  lowStock: 'Низкий запас', lowStockSub: 'Ниже минимального порога',
+  expiring: 'Истекает через 3 дня', expiringSub: 'Скоро использовать',
+  cookable: 'Что можно приготовить?', cookableSub: 'Все ингредиенты в наличии'
+});
+Object.assign(ru.satellites, {
+  assistantTitle: 'Голосовой помощник Domus', engineBadge: 'Сначала локальная работа (Ollama LLM и эвристический NLP)',
+  resetConversation: 'Сбросить разговор', clearHistory: 'Очистить историю разговора',
+  closeAssistant: 'Закрыть голосового помощника', sectionNavigation: 'Разделы голосового помощника',
+  suggestedCommands: 'Быстрые команды', listeningTitle: 'Прослушивание… нажмите, чтобы остановить',
+  activateDictation: 'Включить голосовой ввод', stopDictation: 'Остановить голосовой ввод',
+  askPlaceholder: 'Спросите Domus… (например, «Выключи весь свет, кроме кухни»)',
+  sendCommand: 'Отправить команду голосовому помощнику', muteSatellite: 'Отключить микрофон спутника',
+  unmuteSatellite: 'Включить микрофон спутника', testCommandPlaceholder: 'Команда для проверки в комнате «{room}»…',
+  sending: 'Отправка…', wakeWord: 'Ключевое слово', nodesCount: 'Узлов: {count}',
+  defaultTestPrompt: 'Включи свет', processingForRoom: 'Обработка для комнаты «{room}»: «{prompt}»…',
+  voiceResponse: '{room} · Голосовой ответ: «{response}»',
+  commandSucceeded: '{room} · Команда «{prompt}» успешно выполнена в контексте комнаты.',
+  contextApplied: '{room} · Команда «{prompt}» применена к комнате.',
+  quickChips: {
+    lightsOff: 'Выключи весь свет', kitchenLight: 'Включи свет на кухне',
+    temperature: 'Установи температуру 21 градус', goodnight: 'Включи сценарий «Спокойной ночи»',
+    pastaTimer: 'Запусти таймер для пасты на 10 минут'
+  },
+  fallbackSatellites: {
+    livingRoom: 'Настенный планшет в гостиной', kitchen: 'Умный дисплей на кухне', bedroom: 'Планшет у кровати',
+    livingRoomArea: 'Гостиная', kitchenArea: 'Кухня', bedroomArea: 'Спальня'
+  }
+});
+Object.assign(ru.satellites.fallbackSatellites, {
+  livingRoomArea: 'Гостиная', kitchenArea: 'Кухня', bedroomArea: 'Спальня'
+});
+Object.assign(ru.satellites.quickChips, {
+  lightsOff: 'Выключи весь свет', kitchenLight: 'Включи свет на кухне',
+  temperature: 'Установи температуру 21 градус', goodnight: 'Включи сценарий «Спокойной ночи»',
+  pastaTimer: 'Запусти таймер для пасты на 10 минут'
+});
+Object.assign(ru.schedules.view, {
+  monday: 'Понедельник', tuesday: 'Вторник', wednesday: 'Среда', thursday: 'Четверг',
+  friday: 'Пятница', saturday: 'Суббота', sunday: 'Воскресенье'
+});
+
+Object.assign(ru.integrations.view, { tuyaProjectIntro: 'Откройте свой проект на', tuyaProjectPath: 'Cloud → Development → откройте проект Domus' });
+
+
+Object.assign(ru.automations, { cooldown: 'Время ожидания' });
+Object.assign(ru.integrations.view, { deviceOnline: 'В сети', deviceOffline: 'Не в сети' });
+Object.assign(ru.audit, { timestamp: 'Дата и время' });
+Object.assign(ru.flowchart.view.nodeTypes, { trigger: 'ТРИГГЕР' });
+Object.assign(ru.flowchart.conditionEditor.leafTypes, { trigger: 'Триггер' });
+Object.assign(ru.pantry.view.mealCalendar.mealTypes, { dessert: 'Десерт' });
+Object.assign(ru.pantry.view.recipeEditor.categories, { dessert: '🍰 Десерт', snack: '🥪 Перекус' });
+Object.assign(ru.guide, { sec7RouteLabel: 'Панель управления и сигнализация' });
+Object.assign(ru.store.view, { blueprints: 'Шаблоны' });
+Object.assign(ru.dashboard, { marketplaceTitle: 'Каталог и расширения' });
+Object.assign(ru.mesh, { router: 'Маршрутизатор / повторитель' });
+
 export default ru
