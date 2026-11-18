@@ -355,7 +355,10 @@
       "deleteConfirm": "Supprimer le tableau de bord « {title} » ?",
       "dashboardNameRequired": "Saisissez le nom du tableau de bord.",
       "saveFailed": "Impossible d’enregistrer le tableau de bord. Réessayez.",
-      "deleteFailed": "Impossible de supprimer le tableau de bord."
+      "deleteFailed": "Impossible de supprimer le tableau de bord.",
+      "extensionUninstalled": "Extension désinstallée avec succès",
+      "extensionInstalled": "Extension installée et active localement",
+      "extensionToggleFailed": "Impossible de modifier l’état du paquet"
     }
   },
   "areas": {
@@ -440,7 +443,21 @@
       "ipPrefix": "IP :",
       "deviceCount": "appareils",
       "addToHome": "Ajouter à votre maison connectée Domus.",
-      "addToDomus": "Ajouter à Domus"
+      "addToDomus": "Ajouter à Domus",
+      "scanCompletedTitle": "Scan réseau terminé",
+      "scanCompletedMessage": "{count} appareils détectés sur le réseau local",
+      "scanErrorTitle": "Erreur de scan",
+      "scanErrorMessage": "Impossible de terminer le scan",
+      "deviceAddedTitle": "Appareil ajouté",
+      "deviceAddedMessage": "{name} est maintenant configuré dans Domus.",
+      "addDeviceErrorTitle": "Erreur d’ajout",
+      "addDeviceErrorMessage": "Impossible d’ajouter l’appareil",
+      "matterConnectedTitle": "Matter connecté",
+      "matterConnectedMessage": "Appareil associé au réseau Thread local",
+      "devicesUpdatedTitle": "Appareils mis à jour",
+      "devicesUpdatedMessage": "La liste des appareils et l’état des intégrations ont été actualisés.",
+      "refreshErrorTitle": "Échec de l’actualisation",
+      "refreshErrorMessage": "Impossible d’actualiser les appareils."
     }
   },
   "integrations": {
@@ -1522,7 +1539,35 @@
       "editRoomHint": "Cliquez sur une pièce du plan pour modifier sa position, ses dimensions et sa couleur.",
       "allDevicesPlaced": "Tous les appareils sont déjà placés sur ce plan !",
       "finishEditing": "Terminer la modification",
-      "editPositions": "Modifier les positions"
+      "editPositions": "Modifier les positions",
+      "commandSentTitle": "Commande envoyée",
+      "entityTurnedOn": "{name} : activé",
+      "entityTurnedOff": "{name} : désactivé",
+      "commandFailed": "Impossible d’envoyer la commande",
+      "positionSavedTitle": "Position enregistrée",
+      "positionSavedMessage": "Appareil positionné sur le plan",
+      "markerSaveFailed": "Impossible d’enregistrer le repère",
+      "markerRemovedTitle": "Appareil supprimé",
+      "markerRemovedMessage": "Appareil retiré du plan",
+      "markerRemoveFailed": "Impossible de supprimer le repère",
+      "roomNames": {
+        "living": "Salon",
+        "room": "Pièce",
+        "livingOpen": "Salon ouvert",
+        "kitchen": "Cuisine",
+        "masterBedroom": "Chambre principale",
+        "bathroom": "Salle de bains",
+        "office": "Bureau"
+      },
+      "roomCreatedTitle": "Pièce créée",
+      "roomCreatedMessage": "La pièce « {name} » a été ajoutée au plan",
+      "floorplanGeneratedTitle": "Plan généré",
+      "floorplanGeneratedMessage": "Cinq pièces ont été préparées selon la disposition standard",
+      "roomRemovedTitle": "Pièce supprimée",
+      "roomRemovedMessage": "La pièce a été supprimée du plan",
+      "floorCreatedTitle": "Étage créé",
+      "floorCreatedMessage": "Un nouvel étage a été ajouté au plan",
+      "floorCreateFailed": "Impossible de créer l’étage"
     }
   },
   "media": {
