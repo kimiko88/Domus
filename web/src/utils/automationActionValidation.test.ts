@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseAdvancedAutomationAction } from './automationActionValidation'
+import { i18n } from '../locales'
 
 describe('parseAdvancedAutomationAction', () => {
   it('preserves choose branches, nested sequences and the default fallback', () => {
@@ -89,7 +90,9 @@ describe('parseAdvancedAutomationAction', () => {
       if: [{ condition: 'numeric_state', entity_key: 'sensor.room' }],
       then: [{ type: 'service', service: 'turn_on', target_entity_key: 'switch.fan' }]
     }
-    expect(() => parseAdvancedAutomationAction(JSON.stringify(source), 'if')).toThrow('above o below')
+    expect(() => parseAdvancedAutomationAction(JSON.stringify(source), 'if')).toThrow(
+      i18n.global.t('automations.validation.numericThreshold', { path: 'action.if[0]' })
+    )
   })
 
   it('rejects runtime action types not implemented by the engine', () => {
