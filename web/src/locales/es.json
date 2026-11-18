@@ -828,7 +828,15 @@
       "closeWindow": "Cerrar ventana de escena",
       "nameRequired": "El nombre de la escena es obligatorio.",
       "actionRequired": "Añade al menos una acción.",
-      "entityRequired": "Cada acción debe indicar una entidad válida."
+      "entityRequired": "Cada acción debe indicar una entidad válida.",
+      "entityKey": "ID de entidad",
+      "entityPlaceholder": "p. ej. light.salon",
+      "action": "Acción",
+      "actions": {
+        "turnOn": "Encender",
+        "turnOff": "Apagar",
+        "toggle": "Alternar"
+      }
     }
   },
   "audit": {
