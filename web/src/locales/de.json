@@ -2443,7 +2443,27 @@
       "mealConsumed": "Mahlzeit verzehrt. Zutaten wurden entsprechend der Personenzahl abgezogen.",
       "mealConsumeFailed": "Geplante Mahlzeit konnte nicht verbraucht werden.",
       "confirmDeleteMeal": "Diese Mahlzeit aus dem Kalender entfernen?",
-      "mealDeleted": "Mahlzeit aus dem Kalender entfernt."
+      "mealDeleted": "Mahlzeit aus dem Kalender entfernt.",
+      "mealCalendar": {
+        "previousWeek": "Vorherige Woche",
+        "nextWeek": "Nächste Woche",
+        "today": "Heute",
+        "planMeal": "Mahlzeit planen",
+        "addMealForDay": "{meal} für {day} hinzufügen",
+        "addMeal": "{meal} hinzufügen",
+        "deleteMeal": "Mahlzeit löschen",
+        "scaledIngredients": "Zutaten für {count} Personen angepasst",
+        "consumed": "Verzehrt",
+        "consumeTitle": "Diese Mahlzeit als verzehrt markieren und die Zutaten automatisch aus dem Vorrat abziehen.",
+        "consume": "Verzehren",
+        "mealTypes": {
+          "breakfast": "Frühstück",
+          "lunch": "Mittagessen",
+          "snack": "Snack",
+          "dinner": "Abendessen",
+          "dessert": "Dessert"
+        }
+      }
     }
   },
   "predictiveClimate": {
