@@ -9,6 +9,7 @@ import { useTheme } from '../composables/useTheme'
 import { getAvailableLanguages, setLanguage, getCurrentLanguage } from '../locales'
 import BaseButton from '../components/ui/BaseButton.vue'
 import TwoFactorModal from '../components/TwoFactorModal.vue'
+import WebPushSettings from '../components/settings/WebPushSettings.vue'
 import { apiClient } from '../api/client'
 import {
   User, HardDrive, Moon, Sun, Monitor, Smartphone, Palette, Check, LogOut, Globe, Activity, RefreshCw,
@@ -359,6 +360,7 @@ onMounted(() => {
     </div>
 
     <div class="settings-grid">
+      <WebPushSettings />
       <!-- Profile Card -->
       <div class="settings-card glass-card">
         <div class="card-header">
