@@ -455,4 +455,15 @@ Object.assign(ru.energy, {
   disableAutoSchedule: 'Отключить автоматическое расписание'
 });
 
+
+Object.assign(ru.flowchart.view.notifications, {
+  simulationWithoutTriggersMessage: 'Условия выполнены. Триггеры не моделировались.'
+});
+Object.assign(ru.dashboard.view, {
+  removeWidgetAria: 'Удалить виджет {title}'
+});
+Object.assign(ru.store.view, {
+  communityOpenSource: 'Сообщество открытого ПО', domusVerified: 'Проверено Domus'
+});
+
 export default ru
