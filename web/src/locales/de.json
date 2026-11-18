@@ -649,7 +649,8 @@
       "host": "Host",
       "deviceTotals": "gesamt · online · offline",
       "ipLabel": "IP",
-      "firmwareLabel": "Firmware"
+      "firmwareLabel": "Firmware",
+      "tuyaCloudSetupInstruction": "Erstellen Sie ein Konto bei iot.tuya.com, öffnen Sie Cloud → Development und wählen Sie das Domus-Projekt aus."
     }
   },
   "history": {
@@ -1595,7 +1596,10 @@
       "roomRemovedMessage": "Raum wurde aus dem Grundriss entfernt",
       "floorCreatedTitle": "Etage erstellt",
       "floorCreatedMessage": "Neue Etage zum Grundriss hinzugefügt",
-      "floorCreateFailed": "Etage konnte nicht erstellt werden"
+      "floorCreateFailed": "Etage konnte nicht erstellt werden",
+      "closeHeatmap": "Heatmap schließen",
+      "heatmap25d": "2,5D-Heatmap",
+      "modeLabel": "Modus"
     }
   },
   "media": {
