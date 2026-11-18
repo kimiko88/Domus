@@ -4,6 +4,7 @@
 
 BINARY        := bin/domus
 CLI_BINARY    := bin/domus-cli
+VAPID_BINARY  := bin/domus-vapid
 MODULE        := github.com/domus-hub/domus
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
@@ -14,7 +15,7 @@ GOFLAGS       := -trimpath
 IMAGE_NAME    := domus
 DOCKER_FILE   := deployments/docker/Dockerfile
 
-.PHONY: all build build-cli run test test-unit test-integration test-e2e test-race \
+.PHONY: all build build-cli build-vapid run test test-unit test-integration test-e2e test-race \
         coverage lint fmt tidy clean docker-build docker-compose-up docker-compose-down \
         migrate-up migrate-down help
 
@@ -29,6 +30,10 @@ build:  ## Build the main domus binary
 build-cli:  ## Build the domus-cli binary
 	@mkdir -p bin
 	go build $(GOFLAGS) $(LDFLAGS) -o $(CLI_BINARY) ./cmd/domus-cli/
+
+build-vapid:  ## Build the secure VAPID key generator
+	@mkdir -p bin
+	go build $(GOFLAGS) -o $(VAPID_BINARY) ./cmd/domus-vapid/
 
 build-supervisor:  ## Build the domus-supervisor binary
 	@mkdir -p bin
