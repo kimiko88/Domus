@@ -994,7 +994,10 @@
       },
       "saveProfile": "Salva profilo",
       "autoOpenGateLights": "Apri automaticamente il cancello carraio e accendi le luci del vialetto",
-      "registerPlate": "Registra targa"
+      "registerPlate": "Registra targa",
+      "filterPerson": "Persona",
+      "filterVehicle": "Veicolo",
+      "filterPackage": "Pacco"
     }
   },
   "shopping": {
