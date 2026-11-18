@@ -666,7 +666,7 @@ onMounted(async () => {
           <div class="scrubbed-event-thumb">
             <img :src="activeScrubbedEvent.thumbnail_url" class="scrub-img" />
             <div class="scrub-badge" :class="activeScrubbedEvent.label">
-              {{ activeScrubbedEvent.label.toUpperCase() }}
+              {{ getDetectionLabel(activeScrubbedEvent.label) }}
             </div>
           </div>
           <div class="scrubbed-event-info">
