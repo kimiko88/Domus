@@ -30,6 +30,7 @@ import {
   ExternalLink
 } from '@lucide/vue'
 import { soundEffects } from '../utils/audioSynthesizer'
+import { TUYA_THERMOSTAT_SETPOINTS, decodeTuyaThermostatSetpoint, encodeTuyaThermostatSetpoint } from '../utils/tuyaThermostatTemperature'
 import type { NetworkDiscoveredHost, NetworkLeakAlert, NetworkGuardianLeaksResponse } from '../api/types'
 import FirmwareFlasherModal from '../components/modals/FirmwareFlasherModal.vue'
 
@@ -377,12 +378,20 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
       selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
     }
     for (const device of tuyaCloudDevices.value) {
-      if (isTuyaClimateDevice(device) && tuyaTemperatureInputs[device.id] === undefined) {
-        const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
-        const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
-        tuyaTemperatureInputs[device.id] = Number.isFinite(raw) && target
-          ? String(raw > 60 ? raw / 10 : raw)
-          : '20'
+      if (!isTuyaClimateDevice(device)) continue
+      const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
+      const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
+      const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
+      const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
+      const normalizedRaw = Number.isFinite(raw) && target
+        ? raw > 60 ? raw / Math.pow(10, scale) : raw
+        : Number.NaN
+      const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
+
+      if (thermostatDegrees !== undefined) {
+        tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
+      } else if (tuyaTemperatureInputs[device.id] === undefined) {
+        tuyaTemperatureInputs[device.id] = ''
       }
     }
   } catch (err: any) {
@@ -537,16 +546,20 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
 
 async function setTuyaTemperature(device: TuyaCloudDevice) {
   const temperature = Number(tuyaTemperatureInputs[device.id])
-  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 50) {
-    notificationsStore.warning(t('integrations.view.messages.invalidTemperatureTitle'), t('integrations.view.messages.invalidTemperatureDesc'))
+  const encodedTemperature = encodeTuyaThermostatSetpoint(temperature)
+  if (encodedTemperature === undefined) {
+    notificationsStore.warning(
+      'Temperatura non supportata',
+      'Seleziona uno dei setpoint disponibili: 1, 1,5, 2, 7, 12, 17, 21 o 22 °C.'
+    )
     return
   }
+
   tuyaCloudCommanding.value = `${device.id}:temperature`
   try {
-    let localOutcome: { acknowledged?: boolean; confirmed?: boolean; message?: string } | undefined
     if (device.local_configured) {
       const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
-      localOutcome = await apiClient.post<{
+      await apiClient.post<{
         acknowledged?: boolean
         confirmed?: boolean
         message?: string
@@ -555,7 +568,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
         {
           command: 'set_temperature',
           params: {
-            temperature,
+            temperature: encodedTemperature,
             ...(temperatureFunction ? { scale: tuyaFunctionScale(temperatureFunction) } : {})
           }
         }
@@ -572,16 +585,29 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
       }
       await apiClient.post(
         `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
-        { commands: [{ code: fn.code, value: Math.round(temperature * Math.pow(10, tuyaFunctionScale(fn))) }] }
+        {
+          commands: [{
+            code: fn.code,
+            value: Math.round(encodedTemperature * Math.pow(10, tuyaFunctionScale(fn)))
+          }]
+        }
       )
     }
-    notificationsStore.success(t('integrations.view.messages.setpointUpdatedTitle'), `${device.name}: ${temperature.toFixed(1)} °C`)
+    notificationsStore.success(
+      t('integrations.view.messages.setpointUpdatedTitle'),
+      `${device.name}: ${temperature.toLocaleString('it-IT')} °C (valore inviato ${encodedTemperature.toLocaleString('it-IT')})`
+    )
     await fetchTuyaCloudDevices()
   } catch (err: any) {
     notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
+}
+
+function tuyaTemperatureEncodedPreview(deviceId: string): string {
+  const encoded = encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[deviceId]))
+  return encoded === undefined ? '—' : encoded.toLocaleString('it-IT')
 }
 
 async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
@@ -1502,9 +1528,24 @@ onMounted(() => {
 
           <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
-              <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }} (°C)</label>
-              <input :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]" type="number" min="0" max="50" step="0.5" />
-              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
+              <label :for="`tuya-temp-${device.id}`">Temperatura desiderata sul termostato</label>
+              <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">
+                <option value="" disabled>Seleziona la temperatura</option>
+                <option v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.degrees" :value="String(mapping.degrees)">
+                  {{ mapping.degrees.toLocaleString('it-IT') }} °C · invia {{ mapping.encoded.toLocaleString('it-IT') }}
+                </option>
+              </select>
+              <div class="tuya-temperature-preview">
+                Valore da inviare: <strong>{{ tuyaTemperatureEncodedPreview(device.id) }}</strong>
+              </div>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || !encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[device.id])) || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
+            </div>
+            <div class="tuya-temperature-map" aria-label="Tabella conversione setpoint termostato">
+              <div v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.encoded" class="tuya-temperature-map-row">
+                <code>{{ mapping.encoded.toLocaleString('it-IT') }}</code>
+                <span>→</span>
+                <strong>{{ mapping.degrees.toLocaleString('it-IT') }} °C</strong>
+              </div>
             </div>
             <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">
               <span>{{ t('integrations.view.localTuyaMode') }}</span>
@@ -3067,13 +3108,46 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 12px;
 }
-.tuya-temperature-control input, .tuya-function-input input {
+.tuya-temperature-control input, .tuya-temperature-control select, .tuya-function-input input {
   min-height: 40px;
-  width: 110px;
+  width: 100%;
+  max-width: 240px;
   padding: 7px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: rgba(0,0,0,.2);
+  color: var(--text-main);
+}
+.tuya-temperature-preview {
+  flex: 1 1 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tuya-temperature-preview strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+.tuya-temperature-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+}
+.tuya-temperature-map-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.025);
+  font-size: 12px;
+}
+.tuya-temperature-map-row code {
+  color: var(--primary);
+  font-family: var(--font-mono);
+}
+.tuya-temperature-map-row strong {
   color: var(--text-main);
 }
 .tuya-functions-toggle { margin-top: 12px; }
