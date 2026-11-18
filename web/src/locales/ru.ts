@@ -29,6 +29,7 @@ const ru = {
   },
   login: { ...en.login, passwordTab: 'Пароль', kioskTab: 'PIN-код киоска / гостя', unlockKiosk: 'Разблокировать киоск', missingCredentials: 'Введите имя пользователя и пароль', missingKioskPin: 'Введите PIN-код киоска', invalidKioskPin: 'PIN-код киоска недействителен или срок его действия истёк' },
   helpers: { ...en.helpers, view: { ...en.helpers.view, timerStates: { active: 'АКТИВЕН', paused: 'ПРИОСТАНОВЛЕН', idle: 'НЕАКТИВЕН' }, toggle: 'Включить или выключить {name}' } },
+  mesh: { ...en.mesh, view: { ...en.mesh.view, noDevicesDetected: 'Устройства {protocol} в mesh-сети не обнаружены', newDirectBinding: 'Новая прямая привязка', nodeTypes: { coordinator: 'Координатор', router: 'Маршрутизатор / ретранслятор', end_device: 'Конечное устройство' }, sourcePrefix: 'Источник', destinationPrefix: 'Назначение', clusterPrefix: 'Кластер' } },
   nav: {
     ...en.nav,
     sectionOverview: 'Обзор', sectionHome: 'Дом и семья',
