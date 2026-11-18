@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { Entity, EntityDomain, EntityStateEventPayload } from '../api/types'
@@ -41,7 +42,7 @@ export const useEntitiesStore = defineStore('entities', () => {
       entities.value = dict
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch entities'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
