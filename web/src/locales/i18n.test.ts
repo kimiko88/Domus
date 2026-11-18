@@ -42,7 +42,13 @@ describe('Localization (i18n)', () => {
   })
 
   it('translates the recently migrated device, shopping, chores and media copy', () => {
-    const locales = [itLocale, frLocale, esLocale, deLocale, ruLocale]
+    const locales = [
+      { code: 'it', catalog: itLocale },
+      { code: 'fr', catalog: frLocale },
+      { code: 'es', catalog: esLocale },
+      { code: 'de', catalog: deLocale },
+      { code: 'ru', catalog: ruLocale }
+    ]
     const samples = [
       ['devices', 'view', 'scanLanTitle'],
       ['shopping', 'view', 'receiptIntro'],
@@ -128,13 +134,19 @@ describe('Localization (i18n)', () => {
       ['pantry', 'view', 'kpis', 'filterExpiring']
     ]
 
-    for (const catalog of locales) {
+    for (const { code, catalog } of locales) {
       for (const path of samples) {
+        const keyPath = path.join('.')
         const translated = path.reduce((value: any, key) => value?.[key], catalog as any)
         const english = path.reduce((value: any, key) => value?.[key], enLocale as any)
-        expect(typeof translated, path.join('.')).toBe('string')
-        expect(translated.length, path.join('.')).toBeGreaterThan(0)
-        expect(translated, `Missing translation for ${path.join('.')}`).not.toBe(english)
+        expect(typeof translated, keyPath).toBe('string')
+        expect(translated.length, keyPath).toBeGreaterThan(0)
+        // “Dessert” is the correct French word too; matching English is not a fallback here.
+        if (code === 'fr' && keyPath === 'pantry.view.mealCalendar.mealTypes.dessert') {
+          expect(translated, keyPath).toBe('Dessert')
+        } else {
+          expect(translated, `Missing translation for ${keyPath}`).not.toBe(english)
+        }
       }
     }
   })
