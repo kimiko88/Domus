@@ -154,7 +154,7 @@ function openDashboardEditor(create = false) {
 }
 
 function addDashboardWidget() {
-  const labels: Record<string, string> = { thermostat: 'Termostato', temperature: 'Temperatura', energy: 'Energia', entity: 'Entità', text: 'Testo' }
+  const labels: Record<string, string> = { thermostat: t('dashboard.view.widgetTypes.thermostat'), temperature: t('dashboard.view.widgetTypes.temperature'), energy: t('dashboard.view.widgetTypes.energy'), entity: t('dashboard.view.widgetTypes.entity'), text: t('dashboard.view.widgetTypes.text') }
   widgetDrafts.value.push({
     id: 'widget_' + Date.now().toString(36) + '_' + widgetDrafts.value.length,
     type: newWidgetType.value,
@@ -173,7 +173,7 @@ function removeDashboardWidget(id: string) {
 
 async function saveDashboardEditor() {
   const title = dashboardTitleDraft.value.trim()
-  if (!title) { dashboardError.value = 'Inserisci il nome della dashboard.'; return }
+  if (!title) { dashboardError.value = t('dashboard.view.dashboardNameRequired'); return }
   dashboardSaving.value = true
   dashboardError.value = ''
   try {
@@ -202,21 +202,21 @@ async function saveDashboardEditor() {
     localStorage.setItem('domus_active_tablet_dashboard', currentDashboardId.value)
     isDashboardEditorOpen.value = false
   } catch (err: any) {
-    dashboardError.value = err?.message || 'Impossibile salvare la dashboard. Riprova.'
+    dashboardError.value = err?.message || t('dashboard.view.saveFailed')
   } finally { dashboardSaving.value = false }
 }
 
 async function deleteCurrentDashboard() {
   const profile = currentProfile.value
   if (!profile || !profile.id.startsWith('custom_')) return
-  if (!window.confirm('Eliminare la dashboard "' + profile.title + '"?')) return
+  if (!window.confirm(t('dashboard.view.deleteConfirm', { title: profile.title }))) return
   try {
     await apiClient.delete('/api/v1/dashboards/' + profile.id)
     dashboards.value = dashboards.value.filter(d => d.id !== profile.id)
     currentDashboardId.value = dashboards.value[0]?.id || ''
     switchDashboardProfile()
   } catch (err: any) {
-    dashboardError.value = err?.message || 'Impossibile eliminare la dashboard.'
+    dashboardError.value = err?.message || t('dashboard.view.deleteFailed')
   }
 }
 
@@ -475,11 +475,11 @@ onUnmounted(() => {
           </option>
         </select>
 
-        <button class="kiosk-config-btn" @click="openDashboardEditor(false)" title="Personalizza dashboard">
-          <Settings2 :size="18" /><span>Personalizza</span>
+        <button class="kiosk-config-btn" @click="openDashboardEditor(false)" :title="t('dashboard.view.customize')">
+          <Settings2 :size="18" /><span>{{ t('dashboard.view.customize') }}</span>
         </button>
-        <button class="kiosk-config-btn" @click="openDashboardEditor(true)" title="Crea una nuova dashboard">+ Nuova</button>
-        <button v-if="currentProfile && currentProfile.id.startsWith('custom_')" class="kiosk-config-btn dashboard-delete-btn" @click="deleteCurrentDashboard">Elimina</button>
+        <button class="kiosk-config-btn" @click="openDashboardEditor(true)" :title="t('dashboard.view.createCustomTitle')">{{ t('dashboard.view.newDashboard') }}</button>
+        <button v-if="currentProfile && currentProfile.id.startsWith('custom_')" class="kiosk-config-btn dashboard-delete-btn" @click="deleteCurrentDashboard">{{ t('dashboard.view.deleteDashboard') }}</button>
 
         <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" :title="t('dashboard.view.configureKiosk')">
           <Settings2 :size="18" />
@@ -647,11 +647,11 @@ onUnmounted(() => {
           <span class="badge">{{ widget.type }}</span>
         </header>
         <div class="custom-widget-content">
-          <template v-if="widget.type === 'thermostat'"><strong class="custom-widget-value">{{ targetTemp.toFixed(1) }}°C</strong><span>Setpoint ambiente</span></template>
-          <template v-else-if="widget.type === 'temperature'"><strong class="custom-widget-value">{{ currentTemp.toFixed(1) }}°C</strong><span>Temperatura rilevata</span></template>
-          <template v-else-if="widget.type === 'energy'"><strong class="custom-widget-value">{{ houseWatts }} W</strong><span>Potenza istantanea casa</span></template>
-          <template v-else-if="widget.type === 'entity'"><strong class="custom-widget-value">{{ getWidgetEntityState(widget.entity_key) }}</strong><span>Entità Domus configurata</span></template>
-          <template v-else><p>{{ widget.config?.text || widget.entity_key || 'Widget di testo personalizzato' }}</p></template>
+          <template v-if="widget.type === 'thermostat'"><strong class="custom-widget-value">{{ targetTemp.toFixed(1) }}°C</strong><span>{{ t('dashboard.view.ambientSetpoint') }}</span></template>
+          <template v-else-if="widget.type === 'temperature'"><strong class="custom-widget-value">{{ currentTemp.toFixed(1) }}°C</strong><span>{{ t('dashboard.view.measuredTemperature') }}</span></template>
+          <template v-else-if="widget.type === 'energy'"><strong class="custom-widget-value">{{ houseWatts }} W</strong><span>{{ t('dashboard.view.instantaneousPower') }}</span></template>
+          <template v-else-if="widget.type === 'entity'"><strong class="custom-widget-value">{{ getWidgetEntityState(widget.entity_key) }}</strong><span>{{ t('dashboard.view.configuredEntity') }}</span></template>
+          <template v-else><p>{{ widget.config?.text || widget.entity_key || t('dashboard.view.customTextWidget') }}</p></template>
         </div>
       </article>
     </section>
@@ -659,35 +659,35 @@ onUnmounted(() => {
     <div v-if="isDashboardEditorOpen" class="modal-backdrop dashboard-editor-backdrop" @click.self="isDashboardEditorOpen = false">
       <section class="dashboard-editor glass-panel" role="dialog" aria-modal="true" aria-labelledby="dashboard-editor-title">
         <header class="modal-header">
-          <div><h3 id="dashboard-editor-title" class="modal-title">{{ isCreatingDashboard ? 'Crea dashboard personalizzata' : 'Personalizza dashboard' }}</h3><p class="field-hint">Scegli nome, widget e dimensioni della griglia.</p></div>
-          <button class="btn-close-modal" @click="isDashboardEditorOpen = false" aria-label="Chiudi">✕</button>
+          <div><h3 id="dashboard-editor-title" class="modal-title">{{ isCreatingDashboard ? t('dashboard.view.createCustomTitle') : t('dashboard.view.customizeTitle') }}</h3><p class="field-hint">{{ t('dashboard.view.editorHint') }}</p></div>
+          <button class="btn-close-modal" @click="isDashboardEditorOpen = false" :aria-label="t('dashboard.view.closeEditor')">✕</button>
         </header>
         <div class="modal-body dashboard-editor-body">
-          <div class="config-field"><label for="dashboard-title">Nome dashboard</label><input id="dashboard-title" v-model="dashboardTitleDraft" class="form-input" maxlength="80" placeholder="Es. Dashboard piano terra" /></div>
+          <div class="config-field"><label for="dashboard-title">{{ t('dashboard.view.dashboardName') }}</label><input id="dashboard-title" v-model="dashboardTitleDraft" class="form-input" maxlength="80" :placeholder="t('dashboard.view.dashboardNamePlaceholder')" /></div>
           <div class="widget-builder">
-            <h4>Aggiungi widget</h4>
+            <h4>{{ t('dashboard.view.addWidget') }}</h4>
             <div class="widget-builder-fields">
-              <select v-model="newWidgetType" class="form-select" aria-label="Tipo widget">
-                <option value="thermostat">Termostato</option><option value="temperature">Temperatura</option><option value="energy">Energia</option><option value="entity">Entità</option><option value="text">Testo / Nota</option>
+              <select v-model="newWidgetType" class="form-select" :aria-label="t('dashboard.view.widgetType')">
+                <option value="thermostat">{{ t('dashboard.view.widgetTypes.thermostat') }}</option><option value="temperature">{{ t('dashboard.view.widgetTypes.temperature') }}</option><option value="energy">{{ t('dashboard.view.widgetTypes.energy') }}</option><option value="entity">{{ t('dashboard.view.widgetTypes.entity') }}</option><option value="text">{{ t('dashboard.view.widgetTypes.text') }}</option>
               </select>
-              <input v-model="newWidgetTitle" class="form-input" placeholder="Titolo widget (facoltativo)" aria-label="Titolo widget" />
-              <input v-model="newWidgetEntity" class="form-input" placeholder="Entity ID (facoltativo)" aria-label="Entity ID" />
-              <button class="btn-save" type="button" @click="addDashboardWidget">Aggiungi</button>
+              <input v-model="newWidgetTitle" class="form-input" :placeholder="t('dashboard.view.widgetTitlePlaceholder')" :aria-label="t('dashboard.view.widgetTitleAria')" />
+              <input v-model="newWidgetEntity" class="form-input" :placeholder="t('dashboard.view.entityIdPlaceholder')" :aria-label="t('dashboard.view.entityIdAria')" />
+              <button class="btn-save" type="button" @click="addDashboardWidget">{{ t('dashboard.view.add') }}</button>
             </div>
           </div>
           <div class="widget-draft-list">
-            <h4>Widget della dashboard ({{ widgetDrafts.length }})</h4>
-            <p v-if="widgetDrafts.length === 0" class="field-hint">Nessun widget aggiunto. Puoi creare una dashboard vuota e configurarla in seguito.</p>
+            <h4>{{ t('dashboard.view.widgetsCount', { count: widgetDrafts.length }) }}</h4>
+            <p v-if="widgetDrafts.length === 0" class="field-hint">{{ t('dashboard.view.noWidgets') }}</p>
             <article v-for="widget in widgetDrafts" :key="widget.id" class="widget-draft-row">
-              <div class="widget-draft-main"><strong>{{ widget.title }}</strong><small>{{ widget.type }} <span v-if="widget.entity_key">· {{ widget.entity_key }}</span></small></div>
+              <div class="widget-draft-main"><strong>{{ widget.title }}</strong><small>{{ t('dashboard.view.widgetTypes.' + widget.type) }} <span v-if="widget.entity_key">· {{ widget.entity_key }}</span></small></div>
               <label class="widget-span-control">Colonne<select v-model.number="widget.col_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option><option :value="4">4</option></select></label>
               <label class="widget-span-control">Righe<select v-model.number="widget.row_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></label>
-              <button type="button" class="btn-cancel" @click="removeDashboardWidget(widget.id)" :aria-label="'Rimuovi ' + widget.title">Rimuovi</button>
+              <button type="button" class="btn-cancel" @click="removeDashboardWidget(widget.id)" :aria-label="'Rimuovi ' + widget.title">{{ t('dashboard.view.removeWidget') }}</button>
             </article>
           </div>
           <p v-if="dashboardError" class="dashboard-editor-error" role="alert">{{ dashboardError }}</p>
         </div>
-        <footer class="modal-footer"><button class="btn-cancel" type="button" @click="isDashboardEditorOpen = false">Annulla</button><button class="btn-save" type="button" :disabled="dashboardSaving" @click="saveDashboardEditor">{{ dashboardSaving ? 'Salvataggio…' : 'Salva dashboard' }}</button></footer>
+        <footer class="modal-footer"><button class="btn-cancel" type="button" @click="isDashboardEditorOpen = false">{{ t('dashboard.view.cancel') }}</button><button class="btn-save" type="button" :disabled="dashboardSaving" @click="saveDashboardEditor">{{ dashboardSaving ? 'Salvataggio…' : t('dashboard.view.saveDashboard') }}</button></footer>
       </section>
     </div>
 
