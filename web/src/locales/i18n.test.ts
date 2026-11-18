@@ -111,7 +111,11 @@ describe('Localization (i18n)', () => {
       ['pantry', 'view', 'kpis', 'filterLowStock'],
       ['satellites', 'askPlaceholder'],
       ['satellites', 'quickChips', 'pastaTimer'],
-      ['satellites', 'fallbackSatellites', 'kitchenArea']
+      ['satellites', 'fallbackSatellites', 'kitchenArea'],
+      ['integrations', 'view', 'tuyaProjectIntro'],
+      ['integrations', 'view', 'tuyaProjectPath'],
+      ['automations', 'graphErrors', 'conditionTitles', 'state'],
+      ['pantry', 'view', 'kpis', 'filterExpiring']
     ]
 
     for (const catalog of locales) {
