@@ -168,7 +168,9 @@
       "deleteFailed": "Impossible de supprimer l’élément. Réessayez.",
       "actionFailed": "Impossible d’effectuer cette action. Réessayez.",
       "syncFailed": "La synchronisation a échoué. Réessayez.",
-      "exportFailed": "L’exportation a échoué. Réessayez."
+      "exportFailed": "L’exportation a échoué. Réessayez.",
+      "pdfTooLarge": "Le PDF dépasse la limite de 3 Mo.",
+      "imageTooLarge": "L’image dépasse la limite de 4 Mo."
     },
     "close": "Fermer"
   },
