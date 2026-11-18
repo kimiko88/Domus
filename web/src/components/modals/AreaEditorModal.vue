@@ -45,16 +45,16 @@ const sortOrder = ref(0)
 const error = ref<string | null>(null)
 
 const presetIcons = [
-  { id: 'sofa', label: 'Soggiorno', component: Sofa },
-  { id: 'utensils', label: 'Cucina', component: Utensils },
-  { id: 'bed', label: 'Camera', component: Bed },
-  { id: 'bath', label: 'Bagno', component: Bath },
-  { id: 'laptop', label: 'Studio', component: Laptop },
-  { id: 'trees', label: 'Giardino', component: Trees },
-  { id: 'sun', label: 'Terrazzo', component: Sun },
-  { id: 'car', label: 'Garage', component: Car },
-  { id: 'tv', label: 'Cinema / TV', component: Tv },
-  { id: 'grid', label: 'Altro', component: Grid },
+  { id: 'sofa', label: t('areas.icons.livingRoom'), component: Sofa },
+  { id: 'utensils', label: t('areas.icons.kitchen'), component: Utensils },
+  { id: 'bed', label: t('areas.icons.bedroom'), component: Bed },
+  { id: 'bath', label: t('areas.icons.bathroom'), component: Bath },
+  { id: 'laptop', label: t('areas.icons.office'), component: Laptop },
+  { id: 'trees', label: t('areas.icons.garden'), component: Trees },
+  { id: 'sun', label: t('areas.icons.terrace'), component: Sun },
+  { id: 'car', label: t('areas.icons.garage'), component: Car },
+  { id: 'tv', label: t('areas.icons.cinema'), component: Tv },
+  { id: 'grid', label: t('areas.icons.other'), component: Grid },
 ]
 
 watch(
