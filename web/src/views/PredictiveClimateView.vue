@@ -540,7 +540,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             <span class="context-icon">💧</span>
             <div>
               <div class="context-val">{{ item.latest_evaluation.humidity }}% UR</div>
-              <div class="context-sub">Est. {{ item.latest_evaluation.outdoor_temp_forecast }} °C</div>
+              <div class="context-sub">{{ t('predictiveClimate.view.estimated') }} {{ item.latest_evaluation.outdoor_temp_forecast }} °C</div>
             </div>
           </div>
         </div>
