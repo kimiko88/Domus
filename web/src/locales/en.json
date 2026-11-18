@@ -994,7 +994,10 @@
       },
       "saveProfile": "Save profile",
       "autoOpenGateLights": "Automatically open the driveway gate and turn on the driveway lights",
-      "registerPlate": "Register plate"
+      "registerPlate": "Register plate",
+      "filterPerson": "Person",
+      "filterVehicle": "Vehicle",
+      "filterPackage": "Package"
     }
   },
   "shopping": {
