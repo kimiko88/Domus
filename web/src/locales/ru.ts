@@ -379,4 +379,25 @@ Object.assign(ru.dashboard.view, {
 Object.assign(ru.store.view, { rejectedByAdministrator: 'Отклонено администратором' });
 Object.assign(ru.integrations.view, { deviceTotals: 'всего · онлайн · офлайн' });
 
+
+Object.assign(ru.energy, {
+  nodeSolar: 'СОЛНЕЧНАЯ ЭНЕРГИЯ', nodeGrid: 'СЕТЬ', nodeHomeLoads: 'ПОТРЕБЛЕНИЕ ДОМА',
+  nodeBattery: 'АККУМУЛЯТОР', nodeWallbox: 'ЗАРЯДНАЯ СТАНЦИЯ EV', standby: '0 Вт (Ожидание)',
+  recalculateArbitrage: 'Пересчитать оптимальный арбитраж',
+  wallboxSubtitle: 'Динамическое управление IEC 61851 на основе чистого избытка солнечной энергии с защитой от перегрузки счётчика',
+  recalculateSolarModulation: 'Пересчитать солнечную модуляцию', updating: 'Обновление…',
+  recalculateModulation: 'Пересчитать модуляцию', target: 'Целевое значение',
+  pwmAvailableCurrent: 'Доступный ток PWM', station: 'Станция', solarSurplus: 'Избыток солнечной энергии',
+  homeLoads: 'Потребление дома', total: 'Итого', cost: 'Стоимость'
+});
+Object.assign(ru.floorplan.view.roomNames, {
+  kitchenDining: 'Кухня и столовая', bedroom: 'Спальня', masterBathroom: 'Главная ванная'
+});
+Object.assign(ru.devices.view, { filteredCount: '{filtered} из {total} устройств' });
+Object.assign(ru.integrations.view, { ipLabel: 'IP', firmwareLabel: 'Прошивка' });
+Object.assign(ru.shopping.view, {
+  itemsAdded: 'Новых товаров: {count}', itemsUpdated: 'Обновлено товаров: {count}',
+  itemsTransferred: 'Товары перенесены', transferCompleted: 'Покупки сохранены в кладовой ({summary})!'
+});
+
 export default ru
