@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import IntegrationsView from './IntegrationsView.vue'
 import { apiClient } from '../api/client'
@@ -496,13 +496,15 @@ describe('IntegrationsView.vue', () => {
     )
 
     const temperature = wrapper.find('#tuya-temp-tuya-thermostat-1')
-    await temperature.setValue('22.5')
+    // The LocalTuya thermostat only supports the explicitly mapped setpoints.
+    await temperature.setValue('22')
     const setTemperature = wrapper.findAll('button').find(button => button.text().includes('Imposta temperatura'))
     await setTemperature!.trigger('click')
+    await flushPromises()
     expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices/tuya-thermostat-1/functions')
     expect(postSpy).toHaveBeenCalledWith(
       '/api/v1/integrations/tuya-local/devices/tuya-thermostat-1/command',
-      { command: 'set_temperature', params: { temperature: 22.5, scale: 1 } }
+      { command: 'set_temperature', params: { temperature: 30, scale: 1 } }
     )
   })
 
