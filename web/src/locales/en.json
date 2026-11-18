@@ -1856,6 +1856,37 @@
       "notificationMessage": "Notification message",
       "deleteNodeButton": "Delete node",
       "compiledAstTitle": "Compiled AST JSON"
+    },
+    "conditionEditor": {
+      "logicalGroup": "Logical group",
+      "condition": "Condition",
+      "type": "Type",
+      "logicalOperators": "Logical operators",
+      "conditions": "Conditions",
+      "logicalTypes": {
+        "and": "All conditions (AND)",
+        "or": "Any condition (OR)",
+        "not": "No condition (NOT)"
+      },
+      "leafTypes": {
+        "state": "Entity state",
+        "numericState": "Numeric threshold",
+        "time": "Time range",
+        "trigger": "Trigger"
+      },
+      "andHelp": "All child conditions must be true.",
+      "orHelp": "At least one child condition must be true.",
+      "notHelp": "The child condition must be false.",
+      "removeCondition": "Remove condition {index}",
+      "addCondition": "Add condition",
+      "depthLimit": "The maximum nesting depth supported by the validator has been reached.",
+      "notLimit": "NOT accepts only one child condition.",
+      "selectEntity": "Select an entity",
+      "statePlaceholder": "on, off, open...",
+      "selectSensor": "Select a sensor",
+      "thresholdHelp": "Set at least one of the two thresholds.",
+      "triggerPlaceholder": "trigger_id",
+      "unsupportedHelp": "This condition type cannot be edited with the visual controls. The original configuration is preserved unchanged."
     }
   },
   "failover": {
