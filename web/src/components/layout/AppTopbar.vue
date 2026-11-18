@@ -243,6 +243,11 @@ async function handleLogout() {
   min-width: 0;
   box-sizing: border-box;
   padding: env(safe-area-inset-top, 0px) 24px 0;
+  /* Keep the notch/status-bar region opaque on iOS; backdrop blur can look
+     like a translucent smear when Safari composites the safe-area inset. */
+  background: var(--bg-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -646,7 +651,7 @@ async function handleLogout() {
 }
 
 @media (max-width: 768px) {
-  .app-topbar { padding: 0 14px; gap: 10px; }
+  .app-topbar { padding: env(safe-area-inset-top, 0px) 14px 0; gap: 10px; }
   .topbar-left { min-width: 0; flex: 1 1 auto; gap: 10px; }
   .page-title {
     min-width: 0;
@@ -661,7 +666,7 @@ async function handleLogout() {
 }
 
 @media (max-width: 480px) {
-  .app-topbar { padding: 0 8px; gap: 6px; }
+  .app-topbar { padding: env(safe-area-inset-top, 0px) 8px 0; gap: 6px; }
   .topbar-left { gap: 6px; }
   .page-title { max-width: 16vw; font-size: 14px; }
   .topbar-right { gap: 5px; }
@@ -690,7 +695,7 @@ async function handleLogout() {
 
 @media (max-width: 360px) {
   .page-title { display: none; }
-  .app-topbar { padding: 0 6px; }
+  .app-topbar { padding: env(safe-area-inset-top, 0px) 6px 0; }
   .topbar-right { gap: 3px; }
 }
 </style>
