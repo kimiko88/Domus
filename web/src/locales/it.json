@@ -637,8 +637,8 @@
         "manualIsolationReason": "Dispositivo isolato manualmente da Network Guardian."
       },
       "devicesShown": "{count} visualizzati",
-      "deviceOnline": "Online",
-      "deviceOffline": "Offline",
+      "deviceOnline": "In linea",
+      "deviceOffline": "Non in linea",
       "turnOff": "Spegni",
       "turnOn": "Accendi",
       "chooseTemperature": "Seleziona la temperatura",
@@ -847,7 +847,7 @@
     "manualTrigger": "Esegui Test",
     "executionHistory": "Storico Esecuzioni",
     "mode": "Modalità",
-    "cooldown": "Cooldown",
+    "cooldown": "Tempo di attesa",
     "searchPlaceholder": "Cerca automazione per nome o descrizione...",
     "confirmDelete": "Sei sicuro di voler eliminare l'automazione \"{name}\"?",
     "saveSuccess": "Automazione salvata con successo",
@@ -1065,7 +1065,7 @@
     "actor": "Attore",
     "action": "Azione",
     "target": "Destinatario",
-    "timestamp": "Timestamp",
+    "timestamp": "Data e ora",
     "payload": "Dettagli",
     "noEntries": "Nessun evento registrato.",
     "actorTypes": {
@@ -2348,7 +2348,7 @@
       },
       "newAutomationName": "Nuova automazione a nodi",
       "nodeTypes": {
-        "trigger": "TRIGGER",
+        "trigger": "INNESCO",
         "condition": "CONDIZIONE",
         "action": "AZIONE",
         "delay": "PAUSA",
@@ -2370,7 +2370,7 @@
         "state": "Stato entità",
         "numericState": "Soglia numerica",
         "time": "Fascia oraria",
-        "trigger": "Trigger"
+        "trigger": "Innesco"
       },
       "andHelp": "Tutte le condizioni figlie devono essere vere.",
       "orHelp": "È sufficiente che una condizione figlia sia vera.",
@@ -2973,7 +2973,7 @@
           "lunch": "Pranzo",
           "snack": "Spuntino",
           "dinner": "Cena",
-          "dessert": "Dessert"
+          "dessert": "Dolce"
         }
       },
       "recipeEditor": {
