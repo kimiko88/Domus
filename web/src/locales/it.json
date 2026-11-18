@@ -2549,7 +2549,16 @@
       "preheatNoAdvanceReason": "La temperatura attuale ({current} °C) è già al livello di comfort desiderato ({target} °C): non serve anticipare l'accensione.",
       "preheatScheduledReason": "Accensione anticipata di {minutes} min alle {start} per raggiungere {target} °C alle {targetTime} (velocità stimata {rate} °C/h; temperatura esterna {outdoor} °C).",
       "coastDownNoShutdownReason": "Non serve spegnere in anticipo: la temperatura è già sotto il limite di comfort ({limit} °C).",
-      "coastDownScheduledReason": "Spegnimento anticipato di {minutes} min alle {stop}, prima della partenza alle {departure}; risparmio stimato {energy} kWh."
+      "coastDownScheduledReason": "Spegnimento anticipato di {minutes} min alle {stop}, prima della partenza alle {departure}; risparmio stimato {energy} kWh.",
+      "reasons": {
+        "frostProtection": "Finestra aperta: temperatura di protezione antigelo attiva per limitare gli sprechi.",
+        "eco": "Modalità Eco attiva: il setpoint è ridotto per contenere i consumi.",
+        "solarCutoff": "Riduzione preventiva del setpoint per l'irraggiamento solare previsto ({radiation} W/m²).",
+        "coldFront": "Rilevato un calo barometrico di {trend} hPa/h: applicata una compensazione per il fronte freddo in arrivo.",
+        "preheat": "Preriscaldamento preventivo attivo: temperatura esterna prevista di {outdoor} °C.",
+        "comfort": "Riscaldamento in modalità comfort standard.",
+        "default": "Regolazione predittiva attiva."
+      }
     }
   },
   "sharedDashboard": {
