@@ -17,6 +17,7 @@ import (
 
 	domain "github.com/domus-hub/domus/internal/domain/notification"
 	"github.com/google/uuid"
+	"github.com/domus-hub/domus/internal/domain/events"
 	webpush "github.com/SherClockHolmes/webpush-go"
 )
 
@@ -203,6 +204,50 @@ func (s *WebPushService) SendUser(ctx context.Context, userID, title, body, cate
 	return sent, nil
 }
 
+
+func (s *WebPushService) Recipients(ctx context.Context, category string) ([]domain.WebPushSubscription, error) {
+	if !s.Enabled() { return nil, nil }
+	return s.repo.ListWebPushRecipients(ctx, category)
+}
+
+func (s *WebPushService) SendOnce(ctx context.Context, userID, dedupeKey, title, body, category string, data map[string]any) error {
+	if !s.Enabled() { return nil }
+	claimed, err := s.repo.ClaimWebPushDelivery(ctx, userID, dedupeKey)
+	if err != nil || !claimed { return err }
+	if data == nil { data = make(map[string]any) }
+	data["dedupe_key"] = dedupeKey
+	sent, sendErr := s.SendUser(ctx, userID, title, body, category, data)
+	if sendErr != nil || sent == 0 {
+		if releaseErr := s.repo.ReleaseWebPushDelivery(ctx, userID, dedupeKey); sendErr == nil { sendErr = releaseErr }
+	}
+	return sendErr
+}
+
+// RegisterEventHandlers connects task due notifications to browser push delivery.
+func (s *WebPushService) RegisterEventHandlers(bus events.Bus) func() {
+	if bus == nil || !s.Enabled() { return func() {} }
+	return bus.Subscribe(events.NotificationCreated, func(ctx context.Context, event events.Event) error {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok || payload["notification_kind"] != "task_due" { return nil }
+		choreID, _ := payload["chore_id"].(string)
+		taskName, _ := payload["task_name"].(string)
+		if choreID == "" { return nil }
+		targetUser, _ := payload["user_id"].(string)
+		recipients, err := s.Recipients(ctx, "task_alerts")
+		if err != nil { return err }
+		seen := make(map[string]struct{})
+		for _, recipient := range recipients {
+			if targetUser != "" && recipient.UserID != targetUser { continue }
+			if _, exists := seen[recipient.UserID]; exists { continue }
+			seen[recipient.UserID] = struct{}{}
+			key := "task:due:" + choreID
+			if err := s.SendOnce(ctx, recipient.UserID, key, "Promemoria faccenda", "La faccenda è arrivata alla scadenza: "+taskName, "task_alerts", map[string]any{"kind":"task_due","name":taskName,"task_id":choreID,"url":"/chores"}); err != nil {
+				s.logger.WarnContext(ctx, "task Web Push reminder failed", "user_id", recipient.UserID, "chore_id", choreID, "error", err)
+			}
+		}
+		return nil
+	})
+}
 
 func validatePushEndpoint(raw string) error {
 	parsed, err := url.Parse(raw)
