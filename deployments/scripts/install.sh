@@ -452,7 +452,7 @@ chmod 0640 "${ENV_FILE}"
 env_file_value() {
     local key="$1" value
     value="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${ENV_FILE}")"
-    value="$(printf '%s' "${value}" | tr -d '\\r')"
+    value="$(printf '%s' "${value}" | tr -d '\r')"
     if [[ "${value}" == \"*\" ]]; then
         value="${value:1:${#value}-2}"
     fi
@@ -461,7 +461,7 @@ env_file_value() {
 
 hex_to_base64url() {
     local escaped
-    escaped="$(printf '%s' "$1" | sed 's/../\\\\x&/g')"
+    escaped="$(printf '%s' "$1" | sed 's/../\\x&/g')"
     printf '%b' "${escaped}" | openssl base64 -A | tr '+/' '-_' | tr -d '='
 }
 
@@ -481,14 +481,14 @@ generate_vapid_keypair() {
     }
     rm -f "${key_file}"
 
-    private_hex="$(printf '%s\\n' "${key_dump}" | awk '
+    private_hex="$(printf '%s\n' "${key_dump}" | awk '
         /^[[:space:]]*priv:/ { section = "private"; next }
         /^[[:space:]]*pub:/  { section = ""; next }
         section == "private" {
             gsub(/[^[:xdigit:]]/, "")
             printf "%s", $0
         }')"
-    public_hex="$(printf '%s\\n' "${key_dump}" | awk '
+    public_hex="$(printf '%s\n' "${key_dump}" | awk '
         /^[[:space:]]*pub:/ { section = "public"; next }
         /^[[:space:]]*(ASN1 OID|NIST CURVE|Field Type):/ { section = ""; next }
         section == "public" {
@@ -552,13 +552,13 @@ esac
 
 # Append only missing variables. Existing environment values are never overwritten.
 if [[ -z "${stored_vapid_public}" ]]; then
-    printf 'DOMUS_VAPID_PUBLIC_KEY=%s\\n' "${DOMUS_VAPID_PUBLIC_KEY}" >> "${ENV_FILE}"
+    printf 'DOMUS_VAPID_PUBLIC_KEY=%s\n' "${DOMUS_VAPID_PUBLIC_KEY}" >> "${ENV_FILE}"
 fi
 if [[ -z "${stored_vapid_private}" ]]; then
-    printf 'DOMUS_VAPID_PRIVATE_KEY=%s\\n' "${DOMUS_VAPID_PRIVATE_KEY}" >> "${ENV_FILE}"
+    printf 'DOMUS_VAPID_PRIVATE_KEY=%s\n' "${DOMUS_VAPID_PRIVATE_KEY}" >> "${ENV_FILE}"
 fi
 if [[ -z "${stored_vapid_subject}" ]]; then
-    printf 'DOMUS_VAPID_SUBJECT=%s\\n' "${DOMUS_VAPID_SUBJECT}" >> "${ENV_FILE}"
+    printf 'DOMUS_VAPID_SUBJECT=%s\n' "${DOMUS_VAPID_SUBJECT}" >> "${ENV_FILE}"
 fi
 chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
