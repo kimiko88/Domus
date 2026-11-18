@@ -127,7 +127,11 @@
       "archiveNotification": "Benachrichtigung archivieren: {title}",
       "eventPreview": "Ereignisvorschau"
     },
-    "notifications": "Benachrichtigungen",
+    "notifications": {
+      "actionExecutedTitle": "Aktion abgeschlossen",
+      "actionExecutedMessage": "Befehl erfolgreich gesendet.",
+      "actionFailedMessage": "Die angeforderte Aktion konnte nicht ausgeführt werden."
+    },
     "dismissNotification": "Benachrichtigung schließen",
     "wsNotifications": {
       "alarmTitle": "Alarm",
@@ -869,7 +873,15 @@
       "allowedHttpMethod": "Erlaubte HTTP-Methode",
       "postStandard": "POST (Standard-JSON-Nutzdaten)",
       "getQuery": "GET (Abfrageparameter)",
-      "createWebhook": "Webhook erstellen"
+      "createWebhook": "Webhook erstellen",
+      "webhookCreatedTitle": "Eingehender Webhook erstellt",
+      "webhookCreatedMessage": "Webhook „{name}“ wurde erfolgreich erstellt.",
+      "webhookCreateFailed": "Webhook konnte nicht erstellt werden.",
+      "webhookDeletedTitle": "Webhook gelöscht",
+      "webhookDeletedMessage": "Webhook „{name}“ wurde erfolgreich gelöscht.",
+      "webhookDeleteFailed": "Webhook konnte nicht gelöscht werden.",
+      "flowSavedTitle": "Ablauf gespeichert",
+      "flowSavedMessage": "Automatisierung wurde erfolgreich aus dem Ablaufdiagramm erstellt."
     },
     "editor": {
       "titleEdit": "Automatisierung bearbeiten",
@@ -2499,7 +2511,9 @@
     "sec13H3": "Prioritäre Sprachansagen im gesamten Haus via Piper-TTS mit automatischer Musikunterbrechung.",
     "searchAria": "In der Anleitung suchen",
     "collapse": "Abschnitt einklappen",
-    "expand": "Abschnitt ausklappen"
+    "expand": "Abschnitt ausklappen",
+    "collapseSection": "Abschnitt einklappen",
+    "expandSection": "Abschnitt ausklappen"
   },
   "logbook": {
     "title": "Ereignisprotokoll",
@@ -2892,7 +2906,8 @@
       "travel": "Tasche / Reise",
       "fridge": "Kühlschrank (2–8°C)",
       "other": "Sonstiges"
-    }
+    },
+    "aic": "AIC-Code"
   },
   "pantry": {
     "title": "Intelligenter Vorratsschrank und Rezeptbuch",
@@ -3007,7 +3022,8 @@
         "expiringSub": "Bald verbrauchen",
         "cookable": "Was kann ich kochen?",
         "cookableSub": "100 % der Zutaten verfügbar"
-      }
+      },
+      "cookableRecipes": "zubereitbare Rezepte"
     }
   },
   "predictiveClimate": {
