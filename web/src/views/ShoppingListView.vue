@@ -257,11 +257,11 @@ async function handleTransferConfirm(payload: {
   showTransferModal.value = false
 
   const parts: string[] = []
-  if (added > 0) parts.push(`${added} nuov${added > 1 ? 'i' : 'o'}`)
-  if (updated > 0) parts.push(`${updated} sommat${updated > 1 ? 'i' : 'o'}`)
-  const summary = parts.length > 0 ? parts.join(', ') : 'Prodotti trasferiti'
+  if (added > 0) parts.push(t('shopping.view.itemsAdded', { count: added }))
+  if (updated > 0) parts.push(t('shopping.view.itemsUpdated', { count: updated }))
+  const summary = parts.length > 0 ? parts.join(', ') : t('shopping.view.itemsTransferred')
 
-  const msg = `Spesa registrata in Dispensa (${summary})!`
+  const msg = t('shopping.view.transferCompleted', { summary })
   transferFeedback.value = {
     message: msg,
     type: 'success'
@@ -445,7 +445,7 @@ onMounted(async () => {
           v-if="items.length > 0"
           class="btn-transfer-pantry"
           @click="openTransferModal"
-          :title="completedCount > 0 ? t('shopping.view.moveBoughtToPantry') : t('shopping.view.moveShoppingToPantry')"
+          :title="t('shopping.view.moveBoughtToPantry', { count: completedCount })"
         >
           <PackageCheck :size="16" />
           <span>{{ t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}</span>
@@ -608,7 +608,7 @@ onMounted(async () => {
         :class="['item-card', 'glass-panel', { completed: it.completed }]"
       >
         <div class="item-left" @click="toggleItem(it)">
-          <button class="checkbox-btn" :aria-label="`Segna ${it.name} come ${it.completed ? 'da comprare' : 'comprato'}`">
+          <button class="checkbox-btn" ::aria-label="t('shopping.view.markItem', { name: it.name, status: it.completed ? t('shopping.view.toBuy') : t('shopping.view.bought') })">
             <CheckCircle v-if="it.completed" :size="22" class="text-success check-icon" />
             <Circle v-else :size="22" class="text-muted uncheck-icon" />
           </button>
@@ -623,7 +623,7 @@ onMounted(async () => {
                 v-if="it.supermarket"
                 class="supermarket-tag"
                 @click.stop="filterSupermarket = it.supermarket"
-                :title="`Filtra per ${it.supermarket}`"
+                ::title="t('shopping.view.filterSupermarket', { name: it.supermarket })"
               >
                 <Building2 :size="12" />
                 <span>{{ it.supermarket }}</span>
