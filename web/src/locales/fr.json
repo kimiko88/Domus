@@ -1197,7 +1197,8 @@
       "playerSuccess": "Enceinte enregistrée avec succès dans la base de données !",
       "playerError": "Erreur lors de l’enregistrement du lecteur",
       "confirmDelete": "Voulez-vous vraiment supprimer « {name} » de la base de données Domus ?",
-      "deleteFailed": "Échec de la suppression du lecteur multimédia"
+      "deleteFailed": "Échec de la suppression du lecteur multimédia",
+      "closeWindow": "Fermer la fenêtre"
     }
   },
   "mesh": {
@@ -1394,7 +1395,18 @@
         "friday": "Vendredi",
         "saturday": "Samedi",
         "sunday": "Dimanche"
-      }
+      },
+      "manualOverrideDuration": "Durée de la dérogation manuelle",
+      "untilNextChange": "Jusqu'au prochain changement",
+      "minutes30": "30 minutes",
+      "hour1": "1 heure",
+      "hours2": "2 heures",
+      "hours4": "4 heures",
+      "hours8": "8 heures",
+      "manualOverrideExpiryHint": "À l'expiration, Domus restaure la consigne précédente.",
+      "noProgrammableSetpoint": "Cet appareil ne propose pas de consigne programmable.",
+      "deleteTimeSlot": "Supprimer le créneau",
+      "deleteTimeSlotAria": "Supprimer le créneau horaire"
     }
   },
   "login": {
