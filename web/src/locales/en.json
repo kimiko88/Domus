@@ -828,7 +828,15 @@
       "closeWindow": "Close scene window",
       "nameRequired": "A scene name is required.",
       "actionRequired": "Add at least one action.",
-      "entityRequired": "Every action must specify a valid entity."
+      "entityRequired": "Every action must specify a valid entity.",
+      "entityKey": "Entity ID",
+      "entityPlaceholder": "e.g. light.living_room",
+      "action": "Action",
+      "actions": {
+        "turnOn": "Turn on",
+        "turnOff": "Turn off",
+        "toggle": "Toggle"
+      }
     }
   },
   "audit": {
