@@ -2511,7 +2511,11 @@
       "startsAt": "Inicio",
       "earlyShutdown": "Apagado anticipado",
       "stopsAt": "Parada",
-      "cycleTrainingDescription": "Introduce los datos observados durante una sesión para calibrar los parámetros mediante media móvil exponencial (EMA)."
+      "cycleTrainingDescription": "Introduce los datos observados durante una sesión para calibrar los parámetros mediante media móvil exponencial (EMA).",
+      "preheatNoAdvanceReason": "La temperatura actual ({current} °C) ya ha alcanzado el objetivo de confort ({target} °C); no hace falta anticipar el encendido.",
+      "preheatScheduledReason": "Inicia la calefacción {minutes} min antes, a las {start}, para alcanzar {target} °C a las {targetTime} (velocidad estimada {rate} °C/h; temperatura exterior {outdoor} °C).",
+      "coastDownNoShutdownReason": "No es necesario apagar antes: la temperatura ya está por debajo del límite de confort ({limit} °C).",
+      "coastDownScheduledReason": "Apaga la calefacción {minutes} min antes, a las {stop}, antes de salir a las {departure}; ahorro energético estimado: {energy} kWh."
     }
   },
   "sharedDashboard": {
