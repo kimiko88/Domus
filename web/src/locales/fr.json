@@ -358,7 +358,8 @@
       "deleteFailed": "Impossible de supprimer le tableau de bord.",
       "extensionUninstalled": "Extension désinstallée avec succès",
       "extensionInstalled": "Extension installée et active localement",
-      "extensionToggleFailed": "Impossible de modifier l’état du paquet"
+      "extensionToggleFailed": "Impossible de modifier l’état du paquet",
+      "removeWidgetAria": "Supprimer le widget {title}"
     }
   },
   "areas": {
@@ -2155,7 +2156,8 @@
         "simulationErrorTitle": "Erreur de simulation",
         "simulationErrorMessage": "Impossible de simuler le flux.",
         "invalidFlowTitle": "Flux invalide",
-        "invalidFlowMessage": "Corrigez les liens avant l’exportation."
+        "invalidFlowMessage": "Corrigez les liens avant l’exportation.",
+        "simulationWithoutTriggersMessage": "Les conditions sont remplies. Les déclencheurs n’ont pas été simulés."
       },
       "newAutomationName": "Nouvelle automatisation visuelle",
       "nodeTypes": {
