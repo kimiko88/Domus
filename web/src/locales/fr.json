@@ -1232,7 +1232,17 @@
       "onOffCluster": "Marche / arrêt (genOnOff)",
       "levelCluster": "Variation / luminosité (genLevelCtrl)",
       "colorCluster": "Couleur / température (lightingColorCtrl)",
-      "createBinding": "Créer l’association directe"
+      "createBinding": "Créer l’association directe",
+      "noDevicesDetected": "Aucun appareil {protocol} détecté dans le réseau maillé",
+      "newDirectBinding": "Nouvelle liaison directe",
+      "nodeTypes": {
+        "coordinator": "Coordinateur",
+        "router": "Routeur / répéteur",
+        "end_device": "Appareil final"
+      },
+      "sourcePrefix": "Source",
+      "destinationPrefix": "Destination",
+      "clusterPrefix": "Cluster"
     }
   },
   "store": {
