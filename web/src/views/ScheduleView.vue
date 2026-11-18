@@ -1283,7 +1283,7 @@ onMounted(async () => {
               <span v-if="evt.location" class="evt-loc">{{ t('schedules.view.room') }} {{ evt.location }}</span>
             </div>
 
-            <span class="source-tag" :class="evt.source">{{ evt.source.toUpperCase() }}</span>
+            <span class="source-tag" :class="evt.source">{{ t(`schedules.view.eventSources.${evt.source}`) }}</span>
           </div>
         </div>
       </div>
