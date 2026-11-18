@@ -3,6 +3,8 @@ Description=Domus Local-First Smart Home Hub
 Documentation=https://github.com/domus-hub/domus
 After=network.target mosquitto.service
 Wants=mosquitto.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -10,8 +12,12 @@ User=domus
 Group=domus
 WorkingDirectory=/var/lib/domus
 ExecStart=/usr/local/bin/domus -config /etc/domus/domus.toml
-Restart=always
-RestartSec=5s
+# Do not restart configuration failures such as an already occupied TCP port.
+Restart=on-failure
+RestartSec=10s
+RestartPreventExitStatus=78
+TimeoutStopSec=30s
+KillMode=control-group
 
 # Process Environment & Limits
 Environment=DOMUS_DATABASE_PATH=/var/lib/domus/domus.db
