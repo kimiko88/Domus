@@ -176,7 +176,7 @@ function handleSubmit() {
             {{ t('common.cancel') }}
           </BaseButton>
           <BaseButton type="submit" variant="primary">
-            {{ area ? t('common.save') : 'Crea Area' }}
+            {{ area ? t('common.save') : t('areas.createArea') }}
           </BaseButton>
         </div>
       </form>
