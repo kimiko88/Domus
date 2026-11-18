@@ -491,7 +491,7 @@ if (( TAILSCALE_SERVES_DOMUS )); then
 fi
 
 # Check only sockets that overlap Domus' configured bind address. A Tailscale
-# listener on 100.x/200:: addresses does not conflict with 127.0.0.1.
+# listener on a Tailscale IPv4/IPv6 address does not conflict with 127.0.0.1.
 port_conflict_info() {
     local host="$1" port="$2" listeners
     listeners="$(ss -H -ltnp "sport = :${port}" 2>/dev/null || true)"
@@ -539,7 +539,7 @@ if (( TAILSCALE_SERVES_DOMUS )); then
     if grep -Eq '^[[:space:]]*DOMUS_SERVER_HOST[[:space:]]*=' "${ENV_FILE}"; then
         sed -i -E "s|^[[:space:]]*DOMUS_SERVER_HOST[[:space:]]*=.*|DOMUS_SERVER_HOST=${cfg_host}|" "${ENV_FILE}"
     else
-        printf 'DOMUS_SERVER_HOST=%s\\n' "${cfg_host}" >> "${ENV_FILE}"
+        printf 'DOMUS_SERVER_HOST=%s\n' "${cfg_host}" >> "${ENV_FILE}"
     fi
     chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
     chmod 0640 "${ENV_FILE}"
