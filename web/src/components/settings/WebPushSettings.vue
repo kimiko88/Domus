@@ -80,6 +80,32 @@ async function loadSettings() {
       permission.value = Notification.permission
       const registration = await navigator.serviceWorker.ready
       currentSubscription = await registration.pushManager.getSubscription()
+
+      // A server-side VAPID key rotation invalidates existing browser
+      // subscriptions. Replace only when the browser exposes a different key;
+      // otherwise preserve the current subscription and its endpoint.
+      const existingApplicationKey = currentSubscription?.options.applicationServerKey
+      if (currentSubscription && existingApplicationKey) {
+        const expectedKey = new Uint8Array(decodeVapidKey(vapidPublicKey.value))
+        const existingKey = new Uint8Array(existingApplicationKey)
+        const keyMatches = expectedKey.length === existingKey.length &&
+          expectedKey.every((byte, index) => byte === existingKey[index])
+        if (!keyMatches) {
+          await apiClient.delete('/api/v1/notifications/push/subscriptions', {
+            params: { endpoint: currentSubscription.endpoint }
+          })
+          await currentSubscription.unsubscribe()
+          currentSubscription = null
+        }
+      }
+
+      if (!currentSubscription && Notification.permission === 'granted') {
+        currentSubscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: decodeVapidKey(vapidPublicKey.value)
+        })
+      }
+
       isSubscribed.value = Boolean(currentSubscription)
       if (currentSubscription) {
         await apiClient.post('/api/v1/notifications/push/subscriptions', {
