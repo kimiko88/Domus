@@ -65,9 +65,9 @@ async function handleCreateWebhook() {
     isWebhookModalOpen.value = false
     newWhName.value = ''
     newWhSecret.value = ''
-    notificationsStore.success('Webhook Inbound Creato', created.name)
+    notificationsStore.success(t('automations.view.webhookCreatedTitle'), t('automations.view.webhookCreatedMessage', { name: created.name }))
   } catch (err: any) {
-    notificationsStore.error('Errore creazione webhook', err?.message)
+    notificationsStore.error(t('common.error'), t('automations.view.webhookCreateFailed'))
   }
 }
 
@@ -76,9 +76,9 @@ async function handleDeleteWebhook(wh: InboundWebhook) {
   try {
     await apiClient.delete(`/api/v1/webhook-configs/${wh.id}`)
     webhooks.value = webhooks.value.filter(w => w.id !== wh.id)
-    notificationsStore.success('Webhook eliminato', wh.name)
+    notificationsStore.success(t('automations.view.webhookDeletedTitle'), t('automations.view.webhookDeletedMessage', { name: wh.name }))
   } catch (err: any) {
-    notificationsStore.error('Errore eliminazione', err?.message)
+    notificationsStore.error(t('common.error'), t('automations.view.webhookDeleteFailed'))
   }
 }
 
@@ -327,7 +327,7 @@ async function handleSaveAutomation(data: Partial<Automation>) {
     <AutomationFlowchartModal
       :is-open="isFlowchartOpen"
       @close="isFlowchartOpen = false"
-      @save="notificationsStore.success('Flusso Salvato', 'Automazione da Flowchart creata con successo!')"
+      @save="notificationsStore.success(t('automations.view.flowSavedTitle'), t('automations.view.flowSavedMessage'))"
     />
 
     <!-- New Webhook Modal -->

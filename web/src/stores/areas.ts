@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { Area } from '../api/types'
@@ -23,7 +24,7 @@ export const useAreasStore = defineStore('areas', () => {
       areas.value = data
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch areas'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -38,7 +39,7 @@ export const useAreasStore = defineStore('areas', () => {
       areas.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create area'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -56,7 +57,7 @@ export const useAreasStore = defineStore('areas', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update area'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -70,7 +71,7 @@ export const useAreasStore = defineStore('areas', () => {
       await apiClient.delete(`/api/v1/areas/${id}`)
       areas.value = areas.value.filter((a) => a.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete area'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false

@@ -110,7 +110,7 @@ onMounted(() => {
           <span v-else class="badge-guest">{{ t('sharedDashboard.view.guestAccess') }}</span>
         </div>
         <div class="expiry-indicator" v-if="shareInfo?.expires_at">
-          <span>Scade il: {{ new Date(shareInfo.expires_at).toLocaleDateString() }}</span>
+          <span>{{ t('sharedDashboard.expiresOn') }} {{ new Date(shareInfo.expires_at).toLocaleDateString() }}</span>
         </div>
       </header>
 

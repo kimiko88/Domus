@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { Scene, SceneListResponse } from '../api/types'
@@ -17,7 +18,7 @@ export const useScenesStore = defineStore('scenes', () => {
       scenes.value = data.scenes || []
       return scenes.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch scenes'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -37,7 +38,7 @@ export const useScenesStore = defineStore('scenes', () => {
       }
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch scene'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -52,7 +53,7 @@ export const useScenesStore = defineStore('scenes', () => {
       scenes.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create scene'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -70,7 +71,7 @@ export const useScenesStore = defineStore('scenes', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update scene'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -84,7 +85,7 @@ export const useScenesStore = defineStore('scenes', () => {
       await apiClient.delete(`/api/v1/scenes/${id}`)
       scenes.value = scenes.value.filter((s) => s.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete scene'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -97,7 +98,7 @@ export const useScenesStore = defineStore('scenes', () => {
     try {
       await apiClient.post(`/api/v1/scenes/${id}/apply`)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to apply scene'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       applyingId.value = null

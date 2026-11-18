@@ -30,10 +30,11 @@ import {
   ExternalLink
 } from '@lucide/vue'
 import { soundEffects } from '../utils/audioSynthesizer'
+import { TUYA_THERMOSTAT_SETPOINTS, decodeTuyaThermostatSetpoint, encodeTuyaThermostatSetpoint } from '../utils/tuyaThermostatTemperature'
 import type { NetworkDiscoveredHost, NetworkLeakAlert, NetworkGuardianLeaksResponse } from '../api/types'
 import FirmwareFlasherModal from '../components/modals/FirmwareFlasherModal.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Integration {
   id: string
@@ -309,12 +310,12 @@ async function saveTuyaConfig() {
       uid: tuyaConfigForm.uid,
       endpoint: tuyaConfigForm.endpoint
     })
-    notificationsStore.success(t('integrations.view.messages.tuyaConnectedTitle'), res.message || t('integrations.view.messages.tuyaConnectedDesc'))
+    notificationsStore.success(t('integrations.view.messages.tuyaConnectedTitle'), t('integrations.view.messages.tuyaConnectedDesc'))
     soundEffects.playSuccessChime()
     isEditingTuyaConfig.value = false
     await fetchTuyaConfig()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaConfigErrorTitle'), err?.message || t('integrations.view.messages.tuyaConfigErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.tuyaConfigErrorTitle'), t('integrations.view.messages.tuyaConfigErrorDesc'))
   } finally {
     tuyaConfigSaving.value = false
   }
@@ -339,7 +340,7 @@ async function disconnectTuyaConfig() {
     tuyaSearchQuery.value = ''
     isEditingTuyaConfig.value = false
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), err?.message || t('integrations.view.messages.disconnectErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), t('integrations.view.messages.disconnectErrorDesc'))
   }
 }
 
@@ -377,16 +378,24 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
       selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
     }
     for (const device of tuyaCloudDevices.value) {
-      if (isTuyaClimateDevice(device) && tuyaTemperatureInputs[device.id] === undefined) {
-        const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
-        const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
-        tuyaTemperatureInputs[device.id] = Number.isFinite(raw) && target
-          ? String(raw > 60 ? raw / 10 : raw)
-          : '20'
+      if (!isTuyaClimateDevice(device)) continue
+      const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
+      const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
+      const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
+      const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
+      const normalizedRaw = Number.isFinite(raw) && target
+        ? raw > 60 ? raw / Math.pow(10, scale) : raw
+        : Number.NaN
+      const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
+
+      if (thermostatDegrees !== undefined) {
+        tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
+      } else if (tuyaTemperatureInputs[device.id] === undefined) {
+        tuyaTemperatureInputs[device.id] = ''
       }
     }
   } catch (err: any) {
-    tuyaCloudError.value = err?.message || 'Cloud Tuya non configurato o non raggiungibile.'
+    tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
   } finally {
     tuyaCloudLoading.value = false
   }
@@ -399,10 +408,10 @@ async function syncTuyaCloudToLocal() {
       '/api/v1/integrations/tuya-cloud/sync-local',
       { device_ids: selectedTuyaDeviceIds.value }
     )
-    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), res.message || t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
+    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
     await fetchTuyaCloudDevices(true)
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), err?.message || t('integrations.view.messages.localSyncErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), t('integrations.view.messages.localSyncErrorDesc'))
   } finally {
     tuyaSyncing.value = false
   }
@@ -437,7 +446,7 @@ async function toggleTuyaDeviceFunctions(device: TuyaCloudDevice) {
       }
     }
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaCommandsUnavailableTitle'), err?.message || t('integrations.view.messages.tuyaCommandsUnavailableDesc'))
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandsUnavailableTitle'), t('integrations.view.messages.tuyaCommandsUnavailableDesc'))
     tuyaFunctionPanels.value[device.id] = false
   } finally {
     tuyaFunctionsLoading.value = null
@@ -455,8 +464,8 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       const currentBoolean = tuyaBooleanState(current)
       if (currentBoolean === undefined) {
         notificationsStore.warning(
-          'Stato non disponibile',
-          `Impossibile invertire ${fn.name || fn.code}: aggiorna lo stato del dispositivo e riprova.`
+          t('integrations.view.messages.stateUnavailableTitle'),
+          t('integrations.view.messages.stateUnavailableDesc', { name: fn.name || fn.code })
         )
         return
       }
@@ -506,10 +515,10 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
         { commands: [{ code: fn.code, value }] }
       )
     }
-    notificationsStore.success(t(sentLocally ? 'integrations.view.messages.commandSentLanTitle' : 'integrations.view.messages.commandSentTitle'), `${device.name}: ${fn.name || fn.code}`)
+    notificationsStore.success(t(sentLocally ? 'integrations.view.messages.commandSentLanTitle' : 'integrations.view.messages.commandSentTitle'), t('integrations.view.messages.commandSentDesc', { name: device.name, command: fn.name || fn.code }))
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaFunctionBusy.value = null
   }
@@ -529,7 +538,7 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
     )
     notificationsStore.success(t('integrations.view.messages.thermostatModeUpdatedTitle'), t(mode === 'auto' ? 'integrations.view.messages.thermostatAuto' : 'integrations.view.messages.thermostatManual'))
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.thermostatCommandErrorTitle'), err?.message || t('integrations.view.messages.lanCommunicationError'))
+    notificationsStore.error(t('integrations.view.messages.thermostatCommandErrorTitle'), t('integrations.view.messages.lanCommunicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -537,16 +546,20 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
 
 async function setTuyaTemperature(device: TuyaCloudDevice) {
   const temperature = Number(tuyaTemperatureInputs[device.id])
-  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 50) {
-    notificationsStore.warning(t('integrations.view.messages.invalidTemperatureTitle'), t('integrations.view.messages.invalidTemperatureDesc'))
+  const encodedTemperature = encodeTuyaThermostatSetpoint(temperature)
+  if (encodedTemperature === undefined) {
+    notificationsStore.warning(
+      t('integrations.view.messages.unsupportedTemperatureTitle'),
+      t('integrations.view.messages.unsupportedTemperatureDesc')
+    )
     return
   }
+
   tuyaCloudCommanding.value = `${device.id}:temperature`
   try {
-    let localOutcome: { acknowledged?: boolean; confirmed?: boolean; message?: string } | undefined
     if (device.local_configured) {
       const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
-      localOutcome = await apiClient.post<{
+      await apiClient.post<{
         acknowledged?: boolean
         confirmed?: boolean
         message?: string
@@ -555,7 +568,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
         {
           command: 'set_temperature',
           params: {
-            temperature,
+            temperature: encodedTemperature,
             ...(temperatureFunction ? { scale: tuyaFunctionScale(temperatureFunction) } : {})
           }
         }
@@ -572,16 +585,29 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
       }
       await apiClient.post(
         `/api/v1/integrations/tuya-cloud/devices/${encodeURIComponent(device.id)}/commands`,
-        { commands: [{ code: fn.code, value: Math.round(temperature * Math.pow(10, tuyaFunctionScale(fn))) }] }
+        {
+          commands: [{
+            code: fn.code,
+            value: Math.round(encodedTemperature * Math.pow(10, tuyaFunctionScale(fn)))
+          }]
+        }
       )
     }
-    notificationsStore.success(t('integrations.view.messages.setpointUpdatedTitle'), `${device.name}: ${temperature.toFixed(1)} °C`)
+    notificationsStore.success(
+      t('integrations.view.messages.setpointUpdatedTitle'),
+      t('integrations.view.messages.setpointUpdatedDesc', { name: device.name, temperature: temperature.toLocaleString(locale.value), encoded: encodedTemperature.toLocaleString(locale.value) })
+    )
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
+}
+
+function tuyaTemperatureEncodedPreview(deviceId: string): string {
+  const encoded = encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[deviceId]))
+  return encoded === undefined ? '—' : encoded.toLocaleString(locale.value)
 }
 
 async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
@@ -600,11 +626,11 @@ async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; 
         commands: [{ code: point.code, value: !point.value }]
       })
       point.value = !point.value
-      notificationsStore.success(t('integrations.view.messages.commandSentTitle'), `${device.name}: ${point.code}`)
+      notificationsStore.success(t('integrations.view.messages.commandSentTitle'), t('integrations.view.messages.commandSentDesc', { name: device.name, command: point.code }))
       await fetchTuyaCloudDevices()
     }
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.smartLifeCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.smartLifeCommandErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -664,7 +690,7 @@ async function scanNetwork(target?: string) {
     }
     await fetchDiscovered()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.scanErrorTitle'), err?.message || t('integrations.view.messages.scanErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.scanErrorTitle'), t('integrations.view.messages.scanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -685,7 +711,7 @@ async function pairDevice(dev: DiscoveredDevice) {
     )
     await Promise.all([fetchIntegrations(), fetchDiscovered()])
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.pairErrorTitle'), err?.message || t('integrations.view.messages.pairErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.pairErrorTitle'), t('integrations.view.messages.pairErrorDesc'))
   } finally {
     pairingId.value = null
   }
@@ -701,7 +727,7 @@ async function reconnect(integration: Integration) {
     )
     await fetchIntegrations()
   } catch (err: any) {
-    notificationsStore.error(t('common.error'), err?.message || t('integrations.reconnectError'))
+    notificationsStore.error(t('common.error'), t('integrations.reconnectError'))
   } finally {
     reconnectingId.value = null
   }
@@ -738,7 +764,7 @@ async function triggerArpScan() {
     notificationsStore.success(t('integrations.view.messages.arpScanCompleteTitle'), t('integrations.view.messages.arpScanCompleteDesc', { count: res.count }))
     soundEffects.playSuccessChime()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.networkScanErrorTitle'), err?.message || t('integrations.view.messages.networkScanErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.networkScanErrorTitle'), t('integrations.view.messages.networkScanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -752,7 +778,7 @@ async function probeHostPorts(ip: string) {
     notificationsStore.info(t('integrations.view.messages.portProbeCompleteTitle'), t('integrations.view.messages.portProbeCompleteDesc', { ip, ports: res.open_ports.join(', ') }))
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.portProbeErrorTitle'), err?.message || t('integrations.view.messages.portProbeErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.portProbeErrorTitle'), t('integrations.view.messages.portProbeErrorDesc'))
   } finally {
     probingIp.value = null
   }
@@ -765,13 +791,13 @@ async function quarantineDevice(mac: string, ip: string, reason?: string) {
     await apiClient.post('/api/v1/network/quarantine', {
       mac,
       ip,
-      reason: reason || 'Dispositivo isolato manualmente da Network Guardian'
+      reason: reason || t('integrations.view.messages.manualIsolationReason')
     })
     notificationsStore.warning(t('integrations.view.messages.deviceQuarantinedTitle'), t('integrations.view.messages.deviceQuarantinedDesc', { mac }))
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.quarantineErrorTitle'), err?.message || t('integrations.view.messages.quarantineErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.quarantineErrorTitle'), t('integrations.view.messages.quarantineErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
@@ -786,7 +812,7 @@ async function unblockDevice(mac: string, ip: string) {
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.unblockErrorTitle'), err?.message || t('integrations.view.messages.unblockErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.unblockErrorTitle'), t('integrations.view.messages.unblockErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
@@ -977,9 +1003,9 @@ onMounted(() => {
           <div class="disc-card-body">
             <h4 class="disc-name">{{ dev.name }}</h4>
             <div class="disc-meta">
-              <span class="disc-ip">IP: {{ dev.ip }}:{{ dev.port }}</span>
+              <span class="disc-ip">{{ t('integrations.view.ipLabel') }}: {{ dev.ip }}:{{ dev.port }}</span>
               <span v-if="dev.model" class="disc-model">{{ dev.model }}</span>
-              <span v-if="dev.firmware" class="disc-fw">FW: {{ dev.firmware }}</span>
+              <span v-if="dev.firmware" class="disc-fw">{{ t('integrations.view.firmwareLabel') }}: {{ dev.firmware }}</span>
             </div>
 
             <!-- Entities preview -->
@@ -1016,7 +1042,7 @@ onMounted(() => {
         <Radio :size="40" class="empty-icon" />
         <h3 class="empty-title">{{ t('integrations.view.pendingPairingEmpty') }}</h3>
         <p class="empty-desc">
-          Clicca su "Scansiona Rete" oppure inserisci l'indirizzo IP del tuo dispositivo Shelly, Sonoff o Tasmota per importarlo all'istante senza cloud.
+          {{ t('integrations.view.pendingPairingInstructions') }}
         </p>
       </div>
     </div>
@@ -1085,7 +1111,7 @@ onMounted(() => {
           <div>
             <h3 class="guardian-title">{{ t('integrations.view.networkGuardianTitle') }}</h3>
             <p class="guardian-subtitle">
-              Monitoraggio attivo della LAN, analisi passiva ARP/DHCP e rilevamento istantaneo di tentativi di leak verso server cloud esterni non autorizzati.
+              {{ t('integrations.view.networkGuardianDescription') }}
             </p>
           </div>
         </div>
@@ -1134,7 +1160,7 @@ onMounted(() => {
             <h4 class="subhead-title">{{ t('integrations.view.externalAttemptsTitle') }}</h4>
           </div>
           <span class="subhead-badge" v-if="networkLeaks.length > 0">
-            {{ networkLeaks.length }} anomalie registrate
+            {{ networkLeaks.length }} {{ t('integrations.view.anomaliesRegistered') }}
           </span>
         </div>
 
@@ -1197,7 +1223,7 @@ onMounted(() => {
             <Globe :size="18" class="text-primary" />
             <h4 class="subhead-title">{{ t('integrations.view.hostMapTitle') }}</h4>
           </div>
-          <span class="subhead-badge">{{ networkHosts.length }} Host</span>
+          <span class="subhead-badge">{{ networkHosts.length }} {{ t('integrations.view.host') }}</span>
         </div>
 
         <div v-if="networkHosts.length === 0" class="empty-guardian-state glass-card">
@@ -1456,7 +1482,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="tuya-device-bulk-actions">
-          <span>{{ filteredTuyaCloudDevices.length }} visualizzati</span>
+          <span>{{ t('integrations.view.devicesShown', { count: filteredTuyaCloudDevices.length }) }}</span>
           <div>
             <button type="button" @click="selectVisibleTuyaDevices" :disabled="filteredTuyaCloudDevices.length === 0">{{ t('integrations.view.selectVisible') }}</button>
             <button type="button" @click="deselectVisibleTuyaDevices" :disabled="!filteredTuyaCloudDevices.some(device => selectedTuyaDeviceIds.includes(device.id))">{{ t('integrations.view.deselectVisible') }}</button>
@@ -1482,7 +1508,7 @@ onMounted(() => {
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
               <span v-if="device.local_configured" class="badge-lan" :title="t('integrations.view.localLanControl')"><Wifi :size="12" /> {{ t('integrations.view.lanLocal') }}</span>
-              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? t('integrations.view.deviceOnline') : t('integrations.view.deviceOffline') }}</span>
             </div>
           </div>
           <div class="host-specs">
@@ -1495,16 +1521,31 @@ onMounted(() => {
                 :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || (!device.online && !device.local_active)"
                 @click="toggleTuyaStatus(device, point)"
               >
-                {{ point.value ? 'Spegni' : 'Accendi' }}
+                {{ point.value ? t('integrations.view.turnOff') : t('integrations.view.turnOn') }}
               </button>
             </div>
           </div>
 
           <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
-              <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }} (°C)</label>
-              <input :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]" type="number" min="0" max="50" step="0.5" />
-              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
+              <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }}</label>
+              <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">
+                <option value="" disabled>{{ t('integrations.view.chooseTemperature') }}</option>
+                <option v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.degrees" :value="String(mapping.degrees)">
+                  {{ mapping.degrees.toLocaleString(locale.value) }} °C · {{ t('integrations.view.encodedValue') }} {{ mapping.encoded.toLocaleString(locale.value) }}
+                </option>
+              </select>
+              <div class="tuya-temperature-preview">
+                {{ t('integrations.view.valueToSend') }}: <strong>{{ tuyaTemperatureEncodedPreview(device.id) }}</strong>
+              </div>
+              <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || !encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[device.id])) || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
+            </div>
+            <div class="tuya-temperature-map" :aria-label="t('integrations.view.setpointMapAria')">
+              <div v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.encoded" class="tuya-temperature-map-row">
+                <code>{{ mapping.encoded.toLocaleString(locale.value) }}</code>
+                <span>→</span>
+                <strong>{{ mapping.degrees.toLocaleString(locale.value) }} °C</strong>
+              </div>
             </div>
             <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">
               <span>{{ t('integrations.view.localTuyaMode') }}</span>
@@ -1517,12 +1558,12 @@ onMounted(() => {
             <button type="button" class="btn-action glass-panel" :disabled="tuyaFunctionsLoading === device.id" @click="toggleTuyaDeviceFunctions(device)">
               <RefreshCw v-if="tuyaFunctionsLoading === device.id" :size="14" class="animate-spin" />
               <Cpu v-else :size="14" />
-              <span>{{ tuyaFunctionPanels[device.id] ? 'Nascondi comandi' : 'Comandi disponibili via API' }}</span>
+              <span>{{ tuyaFunctionPanels[device.id] ? t('integrations.view.hideCommands') : t('integrations.view.availableApiCommands') }}</span>
             </button>
           </div>
           <div v-if="tuyaFunctionPanels[device.id]" class="tuya-functions-panel">
             <div v-if="(tuyaDeviceFunctions[device.id] || []).length === 0 && tuyaFunctionsLoading !== device.id" class="tuya-no-functions">
-              Nessuna funzione scrivibile restituita dall'API per questo dispositivo.
+              {{ t('integrations.view.noWritableFunctions') }}
             </div>
             <div v-for="fn in tuyaDeviceFunctions[device.id] || []" :key="fn.code" class="tuya-function-row">
               <div class="tuya-function-meta">
@@ -3067,13 +3108,46 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 12px;
 }
-.tuya-temperature-control input, .tuya-function-input input {
+.tuya-temperature-control input, .tuya-temperature-control select, .tuya-function-input input {
   min-height: 40px;
-  width: 110px;
+  width: 100%;
+  max-width: 240px;
   padding: 7px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: rgba(0,0,0,.2);
+  color: var(--text-main);
+}
+.tuya-temperature-preview {
+  flex: 1 1 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.tuya-temperature-preview strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+.tuya-temperature-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+}
+.tuya-temperature-map-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.025);
+  font-size: 12px;
+}
+.tuya-temperature-map-row code {
+  color: var(--primary);
+  font-family: var(--font-mono);
+}
+.tuya-temperature-map-row strong {
   color: var(--text-main);
 }
 .tuya-functions-toggle { margin-top: 12px; }

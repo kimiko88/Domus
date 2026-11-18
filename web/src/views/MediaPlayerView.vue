@@ -61,6 +61,17 @@ async function fetchPlayers() {
   }
 }
 
+function playerStateLabel(state: string): string {
+  switch (state.toLowerCase()) {
+    case 'playing': return t('media.playing')
+    case 'idle': return t('media.idle')
+    case 'paused': return t('media.view.statePaused')
+    case 'stopped': return t('media.view.stateStopped')
+    case 'buffering': return t('media.view.stateBuffering')
+    default: return t('media.view.stateUnknown')
+  }
+}
+
 async function togglePlay(player: MediaPlayer) {
   player.state = player.state === 'playing' ? 'paused' : 'playing'
   try {
@@ -114,7 +125,7 @@ async function createPlayer() {
       isAddModalOpen.value = false
     }, 1200)
   } catch (err: any) {
-    addError.value = err?.message || t('media.view.playerError')
+    addError.value = t('media.view.playerError')
   }
 }
 
@@ -187,7 +198,7 @@ onMounted(() => {
           </div>
 
           <div class="head-right">
-            <span class="state-pill" :class="p.state">{{ t('media.view.' + p.state) }}</span>
+            <span class="state-pill" :class="p.state">{{ playerStateLabel(p.state) }}</span>
             <button
               class="delete-player-btn"
               :title="t('media.view.deleteTitle')"
@@ -281,7 +292,7 @@ onMounted(() => {
             </div>
             <h3>{{ t('media.view.addTitle') }}</h3>
           </div>
-          <button class="close-btn" aria-label="Chiudi finestra" @click="isAddModalOpen = false">
+          <button class="close-btn" :aria-label="t('media.view.closeWindow')" @click="isAddModalOpen = false">
             <X :size="18" />
           </button>
         </div>

@@ -20,7 +20,7 @@ const isLoading = ref(false)
 
 async function handleSubmit() {
   if (!username.value || !password.value) {
-    errorMessage.value = 'Inserisci nome utente e password'
+    errorMessage.value = t('login.missingCredentials')
     return
   }
 
@@ -33,7 +33,7 @@ async function handleSubmit() {
       router.push('/')
     }
   } catch (err: any) {
-    errorMessage.value = err?.message || 'Credenziali non valide o errore di rete'
+    errorMessage.value = t('login.error')
   } finally {
     isLoading.value = false
   }
@@ -41,7 +41,7 @@ async function handleSubmit() {
 
 async function handleKioskLogin() {
   if (!kioskPin.value) {
-    errorMessage.value = 'Inserisci il PIN Kiosk'
+    errorMessage.value = t('login.missingKioskPin')
     return
   }
 
@@ -54,7 +54,7 @@ async function handleKioskLogin() {
       router.push('/')
     }
   } catch (err: any) {
-    errorMessage.value = err?.message || 'PIN Kiosk non valido o scaduto'
+    errorMessage.value = t('login.invalidKioskPin')
   } finally {
     isLoading.value = false
   }
@@ -96,7 +96,7 @@ async function handleKioskLogin() {
           @click="activeTab = 'kiosk'"
         >
           <KeyRound :size="14" />
-          PIN Kiosk / Ospite
+          {{ t('login.kioskTab') }}
         </button>
       </div>
 
@@ -170,7 +170,7 @@ async function handleKioskLogin() {
           :loading="isLoading"
           class="submit-btn"
         >
-          Sblocca Kiosk
+          {{ t('login.unlockKiosk') }}
         </BaseButton>
       </form>
     </div>

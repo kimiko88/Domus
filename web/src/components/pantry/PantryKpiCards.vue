@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Package, AlertTriangle, Clock, ChefHat } from '@lucide/vue'
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   cookableCount: number
 }
 
+const { t } = useI18n()
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
@@ -26,9 +27,9 @@ const emit = defineEmits<{
         <Package :size="24" class="kpi-icon text-primary" />
       </div>
       <div class="kpi-info">
-        <span class="kpi-label">Articoli in Dispensa</span>
+        <span class="kpi-label">{{ t('pantry.view.kpis.totalItems') }}</span>
         <div class="kpi-val">{{ props.totalItems }}</div>
-        <span class="kpi-sub">Scorte monitorate</span>
+        <span class="kpi-sub">{{ t('pantry.view.kpis.totalItemsSub') }}</span>
       </div>
     </div>
 
@@ -37,7 +38,7 @@ const emit = defineEmits<{
       :class="['kpi-card glass-panel clickable', { 'has-alert': props.lowStockCount > 0 }]"
       role="button"
       tabindex="0"
-      aria-label="Filtra articoli scorte basse"
+      :aria-label="t('pantry.view.kpis.filterLowStock')"
       @click="emit('filter-low-stock')"
       @keydown.enter="emit('filter-low-stock')"
       @keydown.space.prevent="emit('filter-low-stock')"
@@ -46,9 +47,9 @@ const emit = defineEmits<{
         <AlertTriangle :size="24" class="kpi-icon text-warning" />
       </div>
       <div class="kpi-info">
-        <span class="kpi-label">Scorte in Esaurimento</span>
+        <span class="kpi-label">{{ t('pantry.view.kpis.lowStock') }}</span>
         <div class="kpi-val text-warning">{{ props.lowStockCount }}</div>
-        <span class="kpi-sub">Sotto soglia minima</span>
+        <span class="kpi-sub">{{ t('pantry.view.kpis.lowStockSub') }}</span>
       </div>
     </div>
 
@@ -57,7 +58,7 @@ const emit = defineEmits<{
       :class="['kpi-card glass-panel clickable', { 'has-alert': props.expiringCount > 0 }]"
       role="button"
       tabindex="0"
-      aria-label="Filtra articoli in scadenza"
+      :aria-label="t('pantry.view.kpis.filterExpiring')"
       @click="emit('filter-expiring')"
       @keydown.enter="emit('filter-expiring')"
       @keydown.space.prevent="emit('filter-expiring')"
@@ -66,9 +67,9 @@ const emit = defineEmits<{
         <Clock :size="24" class="kpi-icon text-danger" />
       </div>
       <div class="kpi-info">
-        <span class="kpi-label">In Scadenza (3 gg)</span>
+        <span class="kpi-label">{{ t('pantry.view.kpis.expiring') }}</span>
         <div class="kpi-val text-danger">{{ props.expiringCount }}</div>
-        <span class="kpi-sub">Da consumare subito</span>
+        <span class="kpi-sub">{{ t('pantry.view.kpis.expiringSub') }}</span>
       </div>
     </div>
 
@@ -77,7 +78,7 @@ const emit = defineEmits<{
       class="kpi-card glass-panel clickable"
       role="button"
       tabindex="0"
-      aria-label="Mostra ricette cucinabili oggi"
+      :aria-label="t('pantry.view.kpis.showCookable')"
       @click="emit('go-recipes-cookable')"
       @keydown.enter="emit('go-recipes-cookable')"
       @keydown.space.prevent="emit('go-recipes-cookable')"
@@ -86,9 +87,9 @@ const emit = defineEmits<{
         <ChefHat :size="24" class="kpi-icon text-success" />
       </div>
       <div class="kpi-info">
-        <span class="kpi-label">Cosa Posso Cucinare?</span>
+        <span class="kpi-label">{{ t('pantry.view.kpis.cookable') }}</span>
         <div class="kpi-val text-success">{{ props.cookableCount }}</div>
-        <span class="kpi-sub">100% ingredienti presenti</span>
+        <span class="kpi-sub">{{ t('pantry.view.kpis.cookableSub') }}</span>
       </div>
     </div>
   </div>

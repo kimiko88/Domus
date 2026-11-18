@@ -2,14 +2,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDevicesStore } from '../stores/devices'
+import { useEntitiesStore } from '../stores/entities'
 import { useAreasStore } from '../stores/areas'
 import { useNotificationsStore } from '../stores/notifications'
 import { apiClient } from '../api/client'
-import type { Device, DiscoveredHost } from '../api/types'
+import type { Device, DiscoveredHost, Entity } from '../api/types'
 import { Cpu, Wifi, WifiOff, RefreshCw, QrCode, Plus, Sparkles, Check, CheckCircle, ShieldCheck, X, Search } from '@lucide/vue'
 
 const { t } = useI18n()
 const devicesStore = useDevicesStore()
+const entitiesStore = useEntitiesStore()
 const areasStore = useAreasStore()
 const notifStore = useNotificationsStore()
 
@@ -53,6 +55,7 @@ interface UnifiedDevice extends Device {
 onMounted(async () => {
   await Promise.allSettled([
     devicesStore.fetchDevices(),
+    entitiesStore.fetchEntities(),
     areasStore.fetchAreas(),
     loadDiscoveredHosts(),
     loadTuyaCloudDevices()
@@ -74,10 +77,10 @@ async function triggerNetworkScan() {
     const res = await apiClient.post<{ count: number; hosts: DiscoveredHost[] }>('/api/v1/network/scan', {})
     if (res && Array.isArray(res.hosts)) {
       discoveredHosts.value = res.hosts.filter(h => h.is_iot)
-      notifStore.success('Scansione Rete Completata', `Trovati ${res.hosts.length} dispositivi sulla rete locale`)
+      notifStore.success(t('devices.view.scanCompletedTitle'), t('devices.view.scanCompletedMessage', { count: res.hosts.length }))
     }
   } catch (err: any) {
-    notifStore.error('Errore Scansione', err?.message || 'Impossibile completare la scansione')
+    notifStore.error(t('devices.view.scanErrorTitle'), t('devices.view.scanErrorMessage'))
   } finally {
     isScanning.value = false
   }
@@ -103,12 +106,12 @@ async function confirmAddDiscoveredDevice() {
       model: host.hostname || host.ip,
       status: 'online'
     })
-    notifStore.success('Dispositivo Aggiunto', `${newDeviceName.value} è ora configurato in Domus!`)
+    notifStore.success(t('devices.view.deviceAddedTitle'), t('devices.view.deviceAddedMessage', { name: newDeviceName.value }))
     isSetupModalOpen.value = false
     await devicesStore.fetchDevices()
     discoveredHosts.value = discoveredHosts.value.filter(h => h.ip !== host.ip)
   } catch (err: any) {
-    notifStore.error('Errore Aggiunta', err?.message || 'Impossibile aggiungere il dispositivo')
+    notifStore.error(t('devices.view.addDeviceErrorTitle'), t('devices.view.addDeviceErrorMessage'))
   } finally {
     isAddingDevice.value = false
   }
@@ -123,7 +126,7 @@ async function startMatterCommissioning() {
   setTimeout(() => {
     matterCommissionStep.value = 3
     matterCommissioning.value = false
-    notifStore.success('Matter Connesso', 'Dispositivo commissionato su rete Thread locale')
+    notifStore.success(t('devices.view.matterConnectedTitle'), t('devices.view.matterConnectedMessage'))
     devicesStore.fetchDevices()
   }, 2200)
 }
@@ -154,15 +157,16 @@ async function refreshAllDevices() {
   try {
     const results = await Promise.allSettled([
       devicesStore.fetchDevices(),
+      entitiesStore.fetchEntities(),
       loadTuyaCloudDevices(),
       loadDiscoveredHosts()
     ])
     if (results[0].status === 'rejected') {
       throw results[0].reason
     }
-    notifStore.success('Dispositivi aggiornati', 'Elenco dispositivi e stato delle integrazioni aggiornati.')
+    notifStore.success(t('devices.view.devicesUpdatedTitle'), t('devices.view.devicesUpdatedMessage'))
   } catch (err: any) {
-    notifStore.error('Aggiornamento non riuscito', err?.message || 'Impossibile aggiornare i dispositivi.')
+    notifStore.error(t('devices.view.refreshErrorTitle'), t('devices.view.refreshErrorMessage'))
   } finally {
     isRefreshing.value = false
   }
@@ -205,6 +209,72 @@ const allDevices = computed<UnifiedDevice[]>(() => {
         ...cloudFields
       })
     }
+  }
+
+  const knownDeviceKeys = new Set<string>()
+  const addKnownKey = (value?: string) => {
+    const key = String(value || '').trim()
+    if (!key) return
+    knownDeviceKeys.add(key)
+    knownDeviceKeys.add(key.startsWith('tuya_') ? key.slice(5) : key)
+  }
+  for (const device of merged) {
+    addKnownKey(device.id)
+    addKnownKey(device.external_id)
+  }
+
+  const entitiesByDevice = new Map<string, Entity[]>()
+  for (const entity of entitiesStore.allEntities) {
+    const deviceId = String(entity.device_id || '').trim()
+    if (!deviceId) continue
+    const group = entitiesByDevice.get(deviceId) || []
+    group.push(entity)
+    entitiesByDevice.set(deviceId, group)
+  }
+
+  for (const [deviceId, relatedEntities] of entitiesByDevice) {
+    const normalizedId = deviceId.startsWith('tuya_') ? deviceId.slice(5) : deviceId
+    if (knownDeviceKeys.has(deviceId) || knownDeviceKeys.has(normalizedId)) continue
+
+    const attributes = relatedEntities.reduce<Record<string, unknown>>((all, entity) => ({
+      ...all,
+      ...(entity.attributes || {})
+    }), {})
+    const integrationId = String(
+      attributes.integration_id || attributes.integration || attributes.platform || 'integrated'
+    )
+    const explicitStatus = String(attributes.status || '').toLowerCase()
+    const unavailable = explicitStatus === 'offline' || attributes.available === false ||
+      attributes.is_available === false ||
+      relatedEntities.every(entity => entity.state === 'unavailable' || entity.state === 'unknown')
+    const explicitlyOnline = explicitStatus === 'online' || attributes.available === true ||
+      attributes.is_available === true ||
+      relatedEntities.some(entity => entity.state !== 'unavailable' && entity.state !== 'unknown')
+    const name = String(
+      attributes.device_name || attributes.device_friendly_name || attributes.friendly_name ||
+      relatedEntities[0]?.name || deviceId
+    )
+
+    merged.push({
+      id: deviceId,
+      external_id: String(attributes.external_id || deviceId),
+      name,
+      integration_id: integrationId,
+      manufacturer: attributes.manufacturer ? String(attributes.manufacturer) : undefined,
+      model: attributes.model ? String(attributes.model) : undefined,
+      area_id: attributes.area_id ? String(attributes.area_id) : undefined,
+      status: unavailable ? 'offline' : explicitlyOnline ? 'online' : 'unknown',
+      local_ip: attributes.local_ip || attributes.ip_address || attributes.ip
+        ? String(attributes.local_ip || attributes.ip_address || attributes.ip)
+        : undefined,
+      source_label: integrationId === 'integrated'
+        ? 'Dispositivo integrato'
+        : `Integrato · ${integrationId}`,
+      created_at: relatedEntities[0]?.last_changed || '',
+      updated_at: relatedEntities[0]?.last_updated || ''
+    })
+    addKnownKey(deviceId)
+    addKnownKey(attributes.external_id ? String(attributes.external_id) : undefined)
   }
 
   return merged
@@ -284,7 +354,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <div>
             <h3 class="discovered-title">{{ t('devices.view.discoveredTitle') }}</h3>
             <p class="discovered-subtitle">
-              {{ discoveredHosts.length }} dispositivo{{ discoveredHosts.length > 1 ? 'i' : '' }} rilevato{{ discoveredHosts.length > 1 ? 'i' : '' }} via mDNS / SSDP / UPnP pronto per l'onboarding immediato.
+              {{ discoveredHosts.length }} {{ t('devices.view.deviceCount') }} {{ t('devices.view.discoveryReady') }}
             </p>
           </div>
         </div>
@@ -298,7 +368,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             </div>
             <div class="disc-hostname">{{ host.hostname || host.ip }}</div>
             <div class="disc-net-details">
-              <span>IP: {{ host.ip }}</span>
+              <span>{{ t('devices.view.ipPrefix') }} {{ host.ip }}</span>
               <span v-if="host.mac">• {{ host.mac }}</span>
             </div>
           </div>
@@ -349,7 +419,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <option v-for="integration in integrationOptions" :key="integration" :value="integration">{{ integration }}</option>
         </select>
       </label>
-      <span class="device-result-count">{{ filteredDevices.length }} di {{ totalDevicesCount }} dispositivi</span>
+      <span class="device-result-count">{{ t('devices.view.filteredCount', { filtered: filteredDevices.length, total: totalDevicesCount }) }}</span>
     </div>
 
     <!-- Devices Grid -->
@@ -408,7 +478,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         </div>
         <div class="modal-body">
           <p class="modal-intro">
-            Aggiungi <strong>{{ selectedHostForSetup?.hostname || selectedHostForSetup?.ip }}</strong> alla tua smart home Domus.
+            {{ t('devices.view.addToHome') }} <strong>{{ selectedHostForSetup?.hostname || selectedHostForSetup?.ip }}</strong>
           </p>
           <div class="form-group">
             <label class="form-label">{{ t('devices.view.deviceName') }}</label>
@@ -446,7 +516,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <button class="btn-secondary" @click="isSetupModalOpen = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="isAddingDevice" @click="confirmAddDiscoveredDevice">
             <Check :size="16" />
-            <span>{{ isAddingDevice ? 'Aggiunta...' : 'Aggiungi a Domus' }}</span>
+            <span>{{ isAddingDevice ? t('common.loading') : t('devices.view.addToDomus') }}</span>
           </button>
         </div>
       </div>

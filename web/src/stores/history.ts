@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import type { StateHistory } from '@/api/types'
 import { apiClient } from '@/api/client'
@@ -29,7 +30,7 @@ export const useHistoryStore = defineStore('history', () => {
       historyByEntity.value[entityId] = list
       return list
     } catch (err: any) {
-      error.value = err.message || 'Failed to fetch history'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false

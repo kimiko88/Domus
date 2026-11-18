@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, toRef } from 'vue'
+import { computed, ref, watch, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Area } from '../../api/types'
 import BaseButton from '../ui/BaseButton.vue'
@@ -44,18 +44,18 @@ const selectedIcon = ref('grid')
 const sortOrder = ref(0)
 const error = ref<string | null>(null)
 
-const presetIcons = [
-  { id: 'sofa', label: 'Soggiorno', component: Sofa },
-  { id: 'utensils', label: 'Cucina', component: Utensils },
-  { id: 'bed', label: 'Camera', component: Bed },
-  { id: 'bath', label: 'Bagno', component: Bath },
-  { id: 'laptop', label: 'Studio', component: Laptop },
-  { id: 'trees', label: 'Giardino', component: Trees },
-  { id: 'sun', label: 'Terrazzo', component: Sun },
-  { id: 'car', label: 'Garage', component: Car },
-  { id: 'tv', label: 'Cinema / TV', component: Tv },
-  { id: 'grid', label: 'Altro', component: Grid },
-]
+const presetIcons = computed(() => [
+  { id: 'sofa', label: t('areas.icons.livingRoom'), component: Sofa },
+  { id: 'utensils', label: t('areas.icons.kitchen'), component: Utensils },
+  { id: 'bed', label: t('areas.icons.bedroom'), component: Bed },
+  { id: 'bath', label: t('areas.icons.bathroom'), component: Bath },
+  { id: 'laptop', label: t('areas.icons.office'), component: Laptop },
+  { id: 'trees', label: t('areas.icons.garden'), component: Trees },
+  { id: 'sun', label: t('areas.icons.terrace'), component: Sun },
+  { id: 'car', label: t('areas.icons.garage'), component: Car },
+  { id: 'tv', label: t('areas.icons.cinema'), component: Tv },
+  { id: 'grid', label: t('areas.icons.other'), component: Grid },
+])
 
 watch(
   () => props.area,
@@ -89,7 +89,7 @@ watch(
 function handleSubmit() {
   const trimmed = name.value.trim()
   if (!trimmed) {
-    error.value = "Il nome dell'area è obbligatorio"
+    error.value = t('areas.nameRequired')
     return
   }
   error.value = null
@@ -116,7 +116,7 @@ function handleSubmit() {
           <Sparkles :size="20" class="title-icon" />
           <h3 id="area-modal-title">{{ area ? t('areas.editArea') : t('areas.newArea') }}</h3>
         </div>
-        <button class="btn-close" aria-label="Chiudi finestra area" @click="emit('close')">
+        <button class="btn-close" :aria-label="t('common.close')" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
@@ -176,7 +176,7 @@ function handleSubmit() {
             {{ t('common.cancel') }}
           </BaseButton>
           <BaseButton type="submit" variant="primary">
-            {{ area ? t('common.save') : 'Crea Area' }}
+            {{ area ? t('common.save') : t('areas.createArea') }}
           </BaseButton>
         </div>
       </form>

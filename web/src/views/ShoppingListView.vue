@@ -55,14 +55,14 @@ const newItemQty = ref('')
 const newItemCategory = ref<'alimentari' | 'frutta_verdura' | 'bevande' | 'igiene' | 'casa' | 'altro'>('alimentari')
 const newItemSupermarket = ref('')
 
-const categories = [
-  { key: 'alimentari', label: 'Alimentari', icon: Package },
-  { key: 'frutta_verdura', label: 'Ortofrutta', icon: Apple },
-  { key: 'bevande', label: 'Bevande', icon: Coffee },
-  { key: 'igiene', label: 'Cura Persona', icon: Sparkles },
-  { key: 'casa', label: 'Casa & Pulizie', icon: Home },
-  { key: 'altro', label: 'Altro', icon: Layers }
-]
+const categories = computed(() => [
+  { key: 'alimentari', label: t('shopping.categories.alimentari'), icon: Package },
+  { key: 'frutta_verdura', label: t('shopping.categories.frutta_verdura'), icon: Apple },
+  { key: 'bevande', label: t('shopping.categories.bevande'), icon: Coffee },
+  { key: 'igiene', label: t('shopping.categories.igiene'), icon: Sparkles },
+  { key: 'casa', label: t('shopping.categories.casa'), icon: Home },
+  { key: 'altro', label: t('shopping.categories.altro'), icon: Layers }
+])
 
 const popularSupermarkets = [
   'Esselunga',
@@ -124,7 +124,7 @@ async function addItem() {
       id: 'shop_' + Date.now(),
       ...payload,
       completed: false,
-      created_at: 'Adesso'
+      created_at: t('shopping.view.justNow')
     })
   }
 
@@ -257,11 +257,11 @@ async function handleTransferConfirm(payload: {
   showTransferModal.value = false
 
   const parts: string[] = []
-  if (added > 0) parts.push(`${added} nuov${added > 1 ? 'i' : 'o'}`)
-  if (updated > 0) parts.push(`${updated} sommat${updated > 1 ? 'i' : 'o'}`)
-  const summary = parts.length > 0 ? parts.join(', ') : 'Prodotti trasferiti'
+  if (added > 0) parts.push(t('shopping.view.itemsAdded', { count: added }))
+  if (updated > 0) parts.push(t('shopping.view.itemsUpdated', { count: updated }))
+  const summary = parts.length > 0 ? parts.join(', ') : t('shopping.view.itemsTransferred')
 
-  const msg = `Spesa registrata in Dispensa (${summary})!`
+  const msg = t('shopping.view.transferCompleted', { summary })
   transferFeedback.value = {
     message: msg,
     type: 'success'
@@ -445,10 +445,10 @@ onMounted(async () => {
           v-if="items.length > 0"
           class="btn-transfer-pantry"
           @click="openTransferModal"
-          :title="completedCount > 0 ? t('shopping.view.moveBoughtToPantry') : t('shopping.view.moveShoppingToPantry')"
+          :title="t('shopping.view.moveBoughtToPantry', { count: completedCount })"
         >
           <PackageCheck :size="16" />
-          <span>{{ completedCount > 0 ? `Sposta Spesa in Dispensa (${completedCount})` : 'Sposta Spesa in Dispensa' }}</span>
+          <span>{{ t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}</span>
         </button>
 
         <button
@@ -479,7 +479,7 @@ onMounted(async () => {
             type="text"
             :placeholder="t('shopping.placeholderQty')"
             class="input-qty"
-            aria-label="Quantità"
+            :aria-label="t('shopping.view.quantityAria')"
           />
           <div class="supermarket-input-wrap">
             <Store :size="16" class="store-input-icon" />
@@ -541,7 +541,7 @@ onMounted(async () => {
           :class="['pill-btn', { active: filterStatus === 'all' }]"
           @click="filterStatus = 'all'"
         >
-          Tutti ({{ items.length }})
+          {{ t('shopping.view.allSupermarkets', { count: items.length }) }}
         </button>
         <button
           :class="['pill-btn', { active: filterStatus === 'active' }]"
@@ -608,7 +608,7 @@ onMounted(async () => {
         :class="['item-card', 'glass-panel', { completed: it.completed }]"
       >
         <div class="item-left" @click="toggleItem(it)">
-          <button class="checkbox-btn" :aria-label="`Segna ${it.name} come ${it.completed ? 'da comprare' : 'comprato'}`">
+          <button class="checkbox-btn" ::aria-label="t('shopping.view.markItem', { name: it.name, status: it.completed ? t('shopping.view.toBuy') : t('shopping.view.bought') })">
             <CheckCircle v-if="it.completed" :size="22" class="text-success check-icon" />
             <Circle v-else :size="22" class="text-muted uncheck-icon" />
           </button>
@@ -623,7 +623,7 @@ onMounted(async () => {
                 v-if="it.supermarket"
                 class="supermarket-tag"
                 @click.stop="filterSupermarket = it.supermarket"
-                :title="`Filtra per ${it.supermarket}`"
+                ::title="t('shopping.view.filterSupermarket', { name: it.supermarket })"
               >
                 <Building2 :size="12" />
                 <span>{{ it.supermarket }}</span>
@@ -729,8 +729,8 @@ onMounted(async () => {
             <label v-for="match in matchedShoppingItems" :key="match.shoppingItem.id" class="matched-label">
               <input v-model="selectedReceiptMatches[match.shoppingItem.id]" type="checkbox" />
               <span>
-                Segna come acquistato: <strong>{{ match.shoppingItem.name }}</strong>
-                <small>(riconosciuto come “{{ match.receiptName }}”)</small>
+                {{ t('shopping.view.markAsBought') }}: <strong>{{ match.shoppingItem.name }}</strong>
+                <small>({{ t('shopping.view.recognizedAs', { name: match.receiptName }) }})</small>
               </span>
             </label>
           </div>

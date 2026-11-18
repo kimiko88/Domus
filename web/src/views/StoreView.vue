@@ -127,7 +127,7 @@ async function approvePackage(pkg: StorePackage, event?: Event) {
 async function rejectPackage(pkg: StorePackage, event?: Event) {
   if (event) event.stopPropagation()
   try {
-    await apiClient.post(`/api/v1/store/community/${pkg.id}/reject`, { reason: 'Rifiutato dall\'amministratore' })
+    await apiClient.post(`/api/v1/store/community/${pkg.id}/reject`, { reason: t('store.view.rejectedByAdministrator') })
     pkg.review_status = 'rejected'
   } catch (err) {
     console.error('Failed to reject package:', err)
@@ -137,16 +137,16 @@ async function rejectPackage(pkg: StorePackage, event?: Event) {
 async function handleCommunitySubmit() {
   submitError.value = ''
   if (!submitForm.value.name.trim() || !submitForm.value.package_id.trim()) {
-    submitError.value = 'Nome e ID pacchetto sono obbligatori.'
+    submitError.value = t('store.view.requiredPackageFields')
     return
   }
   const repo = submitForm.value.repository_url.trim()
   if (!repo || (!repo.startsWith('http://') && !repo.startsWith('https://'))) {
-    submitError.value = 'È richiesto un URL valido di un repository open source pubblico (es. GitHub o GitLab).'
+    submitError.value = t('store.view.repositoryRequired')
     return
   }
   if (!submitForm.value.license.trim()) {
-    submitError.value = 'È richiesta una licenza open source valida (es. Apache-2.0, MIT, GPL-3.0).'
+    submitError.value = t('store.view.licenseRequired')
     return
   }
 
@@ -186,7 +186,7 @@ async function handleCommunitySubmit() {
       }
     }
   } catch (err: any) {
-    submitError.value = err?.message || 'Errore durante la pubblicazione del pacchetto.'
+    submitError.value = err?.message || t('store.view.submissionFailed')
   } finally {
     isSubmitting.value = false
   }
@@ -380,16 +380,16 @@ onMounted(async () => {
           <div class="pkg-badges">
             <!-- Review Status / Tier Badge -->
             <span v-if="pkg.review_status === 'pending_review'" class="badge-pending">
-              <Clock :size="12" /> In Revisione
+              <Clock :size="12" /> {{ t('store.view.pendingReview') }}
             </span>
             <span v-else-if="pkg.review_status === 'rejected'" class="badge-rejected">
-              Rifiutato
+              {{ t('store.view.rejected') }}
             </span>
             <span v-else-if="pkg.tier === 'community'" class="badge-community">
-              <Globe :size="12" /> Community
+              <Globe :size="12" /> {{ t('store.view.communityLabel') }}
             </span>
             <span v-else class="badge-verified">
-              <ShieldCheck :size="12" /> Verified
+              <ShieldCheck :size="12" /> {{ t('store.view.verifiedLabel') }}
             </span>
 
             <span class="type-tag">{{ pkg.type.replace('_', ' ').toUpperCase() }}</span>
@@ -609,7 +609,7 @@ onMounted(async () => {
               class="btn-secondary"
               @click="showSubmitModal = false"
             >
-              Annulla
+              {{ t('store.view.cancel') }}
             </button>
             <button
               type="submit"
@@ -740,7 +740,7 @@ onMounted(async () => {
             class="btn-secondary"
             @click="closeDetails"
           >
-            Chiudi
+            {{ t('store.view.close') }}
           </button>
           <button
             v-if="selectedPackage.review_status !== 'pending_review'"

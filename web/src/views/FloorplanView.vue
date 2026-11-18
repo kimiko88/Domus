@@ -70,31 +70,31 @@ const roomForm = ref<{
   width: number
   height: number
 }>({
-  name: 'Nuova Stanza',
+  name: t('floorplan.view.roomNames.newRoom'),
   type: 'living',
   color: '#3b82f6',
   width: 35,
   height: 35
 })
 
-const roomColorPresets = [
-  { name: 'Blu Oceano', value: '#3b82f6' },
-  { name: 'Smeraldo', value: '#10b981' },
-  { name: 'Ambra', value: '#f59e0b' },
-  { name: 'Viola Notte', value: '#8b5cf6' },
-  { name: 'Ciano Cielo', value: '#06b6d4' },
-  { name: 'Rosa Corallo', value: '#f43f5e' }
-]
+const roomColorPresets = computed(() => [
+  { name: t('floorplan.view.colors.oceanBlue'), value: '#3b82f6' },
+  { name: t('floorplan.view.colors.emerald'), value: '#10b981' },
+  { name: t('floorplan.view.colors.amber'), value: '#f59e0b' },
+  { name: t('floorplan.view.colors.nightPurple'), value: '#8b5cf6' },
+  { name: t('floorplan.view.colors.skyCyan'), value: '#06b6d4' },
+  { name: t('floorplan.view.colors.coralPink'), value: '#f43f5e' }
+])
 
-const roomTypeOptions = [
-  { key: 'living', label: 'Soggiorno / Salotto', icon: Tv },
-  { key: 'kitchen', label: 'Cucina / Pranzo', icon: Utensils },
-  { key: 'bedroom', label: 'Camera da Letto', icon: Bed },
-  { key: 'bathroom', label: 'Bagno', icon: Bath },
-  { key: 'office', label: 'Studio / Ufficio', icon: Briefcase },
-  { key: 'hallway', label: 'Corridoio / Ingresso', icon: Home },
-  { key: 'balcony', label: 'Terrazzo / Balcone', icon: LayoutGrid }
-]
+const roomTypeOptions = computed(() => [
+  { key: 'living', label: t('floorplan.view.roomTypes.living'), icon: Tv },
+  { key: 'kitchen', label: t('floorplan.view.roomTypes.kitchen'), icon: Utensils },
+  { key: 'bedroom', label: t('floorplan.view.roomTypes.bedroom'), icon: Bed },
+  { key: 'bathroom', label: t('floorplan.view.roomTypes.bathroom'), icon: Bath },
+  { key: 'office', label: t('floorplan.view.roomTypes.office'), icon: Briefcase },
+  { key: 'hallway', label: t('floorplan.view.roomTypes.hallway'), icon: Home },
+  { key: 'balcony', label: t('floorplan.view.roomTypes.balcony'), icon: LayoutGrid }
+])
 
 function getRoomIcon(type: string) {
   switch (type) {
@@ -186,9 +186,9 @@ async function handleMarkerClick(marker: FloorMarker) {
     const nextState = ent.state === 'on' ? 'turn_off' : 'turn_on'
     try {
       await entitiesStore.callService(ent.domain, nextState, ent.id)
-      notifStore.success('Comando Inviato', `${ent.name}: ${nextState === 'turn_on' ? 'Acceso' : 'Spento'}`)
+      notifStore.success(t('floorplan.view.commandSentTitle'), t(nextState === 'turn_on' ? 'floorplan.view.entityTurnedOn' : 'floorplan.view.entityTurnedOff', { name: ent.name }))
     } catch {
-      notifStore.error('Errore', 'Impossibile inviare il comando')
+      notifStore.error(t('common.error'), t('floorplan.view.commandFailed'))
     }
   }
 }
@@ -220,9 +220,9 @@ async function saveMarkerPosition(entityKey: string, x: number, y: number) {
       y_percent: Math.round(y * 10) / 10,
       show_badge: true
     })
-    notifStore.success('Posizione Salvata', 'Dispositivo posizionato sulla mappa')
+    notifStore.success(t('floorplan.view.positionSavedTitle'), t('floorplan.view.positionSavedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile salvare il marker')
+    notifStore.error(t('common.error'), t('floorplan.view.markerSaveFailed'))
   }
 }
 
@@ -230,16 +230,16 @@ async function removeMarker(markerId: string) {
   if (!floorStore.activeFloor) return
   try {
     await floorStore.deleteMarker(floorStore.activeFloor.id, markerId)
-    notifStore.success('Rimosso', 'Dispositivo rimosso dalla mappa')
+    notifStore.success(t('floorplan.view.markerRemovedTitle'), t('floorplan.view.markerRemovedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile rimuovere il marker')
+    notifStore.error(t('common.error'), t('floorplan.view.markerRemoveFailed'))
   }
 }
 
 // Room Management Methods
 function openAddRoomModal() {
   roomForm.value = {
-    name: 'Soggiorno',
+    name: t('floorplan.view.roomNames.living'),
     type: 'living',
     color: '#3b82f6',
     width: 38,
@@ -253,7 +253,7 @@ function handleAddRoom() {
 
   const newRoom: FloorRoom = {
     id: 'room_' + Date.now(),
-    name: roomForm.value.name.trim() || 'Stanza',
+    name: roomForm.value.name.trim() || t('floorplan.view.roomNames.room'),
     type: roomForm.value.type,
     color: roomForm.value.color,
     x: 10 + (rooms.value.length % 3) * 25,
@@ -266,7 +266,7 @@ function handleAddRoom() {
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = newRoom.id
   showRoomModal.value = false
-  notifStore.success('Stanza Creata', `Stanza "${newRoom.name}" aggiunta alla planimetria`)
+  notifStore.success(t('floorplan.view.roomCreatedTitle'), t('floorplan.view.roomCreatedMessage', { name: newRoom.name }))
 }
 
 function generateStandardFloorplan() {
@@ -275,7 +275,7 @@ function generateStandardFloorplan() {
   const defaultRooms: FloorRoom[] = [
     {
       id: 'room_living_' + Date.now(),
-      name: 'Soggiorno Open Space',
+      name: t('floorplan.view.roomNames.livingOpen'),
       type: 'living',
       color: '#3b82f6',
       x: 3,
@@ -285,7 +285,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_kitchen_' + (Date.now() + 1),
-      name: 'Cucina & Pranzo',
+      name: t('floorplan.view.roomNames.kitchenDining'),
       type: 'kitchen',
       color: '#f59e0b',
       x: 51,
@@ -295,7 +295,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_bed_' + (Date.now() + 2),
-      name: 'Camera da Letto',
+      name: t('floorplan.view.roomNames.bedroom'),
       type: 'bedroom',
       color: '#8b5cf6',
       x: 3,
@@ -305,7 +305,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_bath_' + (Date.now() + 3),
-      name: 'Bagno Padronale',
+      name: t('floorplan.view.roomNames.masterBathroom'),
       type: 'bathroom',
       color: '#06b6d4',
       x: 37,
@@ -315,7 +315,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_office_' + (Date.now() + 4),
-      name: 'Studio / Ufficio',
+      name: t('floorplan.view.roomNames.office'),
       type: 'office',
       color: '#10b981',
       x: 63,
@@ -328,7 +328,7 @@ function generateStandardFloorplan() {
   rooms.value = defaultRooms
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = defaultRooms[0].id
-  notifStore.success('Planimetria Generata', '5 stanze predisposte con layout architettonico standard')
+  notifStore.success(t('floorplan.view.floorplanGeneratedTitle'), t('floorplan.view.floorplanGeneratedMessage'))
 }
 
 function deleteSelectedRoom() {
@@ -336,7 +336,7 @@ function deleteSelectedRoom() {
   rooms.value = rooms.value.filter(r => r.id !== selectedRoomId.value)
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = null
-  notifStore.success('Stanza Rimossa', 'Stanza eliminata dalla planimetria')
+  notifStore.success(t('floorplan.view.roomRemovedTitle'), t('floorplan.view.roomRemovedMessage'))
 }
 
 const selectedRoom = computed(() => {
@@ -436,9 +436,9 @@ async function handleCreateFloor() {
     })
     showFloorModal.value = false
     floorForm.value = { name: '', level: 0, plan_svg: '' }
-    notifStore.success('Piano Creato', 'Nuovo piano aggiunto alla planimetria')
+    notifStore.success(t('floorplan.view.floorCreatedTitle'), t('floorplan.view.floorCreatedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile creare il piano')
+    notifStore.error(t('common.error'), t('floorplan.view.floorCreateFailed'))
   }
 }
 
@@ -455,8 +455,8 @@ const unplacedEntities = computed(() => {
       <div class="header-left">
         <div class="title-with-badge">
           <h1>{{ t('floorplan.title') }}</h1>
-          <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} Piani</span>
-          <span v-if="rooms.length > 0" class="room-count-badge">{{ rooms.length }} Stanze</span>
+          <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} {{ t('floorplan.view.floors') }}</span>
+          <span v-if="rooms.length > 0" class="room-count-badge">{{ rooms.length }} {{ t('floorplan.view.rooms') }}</span>
         </div>
         <p class="subtitle">{{ t('floorplan.view.subtitle') }}</p>
       </div>
@@ -469,7 +469,7 @@ const unplacedEntities = computed(() => {
             :class="{ active: activeMode === 'view' }"
             @click="activeMode = 'view'"
           >
-            Vista Mappa
+            {{ t('floorplan.view.mapView') }}
           </button>
           <button
             class="mode-btn"
@@ -485,7 +485,7 @@ const unplacedEntities = computed(() => {
             @click="activeMode = activeMode === 'edit_markers' ? 'view' : 'edit_markers'"
           >
             <Move :size="14" />
-            <span>{{ activeMode === 'edit_markers' ? 'Termina Modifica' : 'Modifica Posizioni' }}</span>
+            <span>{{ activeMode === 'edit_markers' ? t('floorplan.view.finishEditing') : t('floorplan.view.editPositions') }}</span>
           </button>
         </div>
 
@@ -496,7 +496,7 @@ const unplacedEntities = computed(() => {
           :title="t('floorplan.view.toggleHeatmap')"
         >
           <Thermometer class="btn-icon" />
-          <span>{{ showHeatmap ? 'Chiudi Heatmap' : 'Heatmap 2.5D' }}</span>
+          <span>{{ showHeatmap ? t('floorplan.view.closeHeatmap') : t('floorplan.view.heatmap25d') }}</span>
         </button>
 
         <button class="btn-primary" @click="showFloorModal = true">
@@ -518,7 +518,7 @@ const unplacedEntities = computed(() => {
         >
           <Layers class="tab-icon" />
           <span class="floor-name">{{ floor.name }}</span>
-          <span class="floor-level-tag">Lvl {{ floor.level }}</span>
+          <span class="floor-level-tag">{{ t('floorplan.view.levelShort') }} {{ floor.level }}</span>
         </button>
 
         <button
@@ -551,14 +551,14 @@ const unplacedEntities = computed(() => {
 
       <!-- Selected Room Customizer Controls -->
       <div v-if="selectedRoom" class="selected-room-controls">
-        <span class="selected-label">Stanza: <strong>{{ selectedRoom.name }}</strong></span>
+        <span class="selected-label">{{ t('floorplan.view.roomPrefix') }} <strong>{{ selectedRoom.name }}</strong></span>
 
         <!-- X, Y, Width, Height quick sliders -->
         <div class="control-inputs">
-          <label>X: <input v-model.number="selectedRoom.x" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>Y: <input v-model.number="selectedRoom.y" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>L: <input v-model.number="selectedRoom.width" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>A: <input v-model.number="selectedRoom.height" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.positionX') }} <input v-model.number="selectedRoom.x" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.positionY') }} <input v-model.number="selectedRoom.y" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.widthShort') }} <input v-model.number="selectedRoom.width" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.heightShort') }} <input v-model.number="selectedRoom.height" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
         </div>
 
         <!-- Color presets for room -->
@@ -579,7 +579,7 @@ const unplacedEntities = computed(() => {
         </button>
       </div>
       <div v-else class="toolbar-hint">
-        Fai clic su una stanza nella planimetria per modificarne posizione, dimensioni e colore.
+        {{ t('floorplan.view.editRoomHint') }}
       </div>
     </div>
 
@@ -722,7 +722,7 @@ const unplacedEntities = computed(() => {
           </div>
 
           <div v-if="unplacedEntities.length === 0" class="empty-unplaced">
-            Tutti i dispositivi sono già posizionati su questa mappa!
+            {{ t('floorplan.view.allDevicesPlaced') }}
           </div>
         </div>
       </aside>
@@ -837,7 +837,7 @@ const unplacedEntities = computed(() => {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-cancel" @click="showFloorModal = false">Annulla</button>
+            <button type="button" class="btn-cancel" @click="showFloorModal = false">{{ t('common.cancel') }}</button>
             <button type="submit" class="btn-primary">{{ t('floorplan.view.saveFloor') }}</button>
           </div>
         </form>

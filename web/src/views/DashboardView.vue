@@ -158,16 +158,16 @@ async function toggleInstall(pkg: StorePackage, event?: Event) {
       await apiClient.post(`/api/v1/store/packages/${pkg.id}/uninstall`, {})
       pkg.installed = false
       pkg.installed_at = undefined
-      notifStore.success(pkg.name, 'Estensione disinstallata con successo')
+      notifStore.success(pkg.name, t('dashboard.view.extensionUninstalled'))
     } else {
       await apiClient.post(`/api/v1/store/packages/${pkg.id}/install`, {})
       pkg.installed = true
       pkg.installed_at = new Date().toISOString()
-      notifStore.success(pkg.name, 'Estensione installata e attiva in locale')
+      notifStore.success(pkg.name, t('dashboard.view.extensionInstalled'))
     }
   } catch (err) {
     console.error('Failed to toggle install package:', err)
-    notifStore.error(pkg.name, 'Errore durante la modifica dello stato del pacchetto')
+    notifStore.error(pkg.name, t('dashboard.view.extensionToggleFailed'))
   } finally {
     installingPackageId.value = null
   }
@@ -364,10 +364,10 @@ function navigateToStore() {
 
             <div class="mp-badges">
               <span v-if="pkg.tier === 'community'" class="badge-community">
-                <Globe :size="12" /> Community
+                <Globe :size="12" /> {{ t('dashboardMarketplace.community') }}
               </span>
               <span v-else class="badge-verified">
-                <ShieldCheck :size="12" /> Verified
+                <ShieldCheck :size="12" /> {{ t('dashboardMarketplace.verified') }}
               </span>
               <span class="mp-type-tag">{{ pkg.type.replace('_', ' ').toUpperCase() }}</span>
               <span class="mp-ver-tag">v{{ pkg.version }}</span>
@@ -553,10 +553,10 @@ function navigateToStore() {
         <div class="modal-body">
           <div class="modal-badges-row">
             <span v-if="selectedPackage.tier === 'community'" class="badge-community">
-              <Globe :size="13" /> Community Open Source
+              <Globe :size="13" /> {{ t('store.view.communityOpenSource') }}
             </span>
             <span v-else class="badge-verified">
-              <ShieldCheck :size="13" /> Domus Verified
+              <ShieldCheck :size="13" /> {{ t('store.view.domusVerified') }}
             </span>
             <span class="mp-type-tag">{{ selectedPackage.type.replace('_', ' ').toUpperCase() }}</span>
             <span class="mp-ver-tag">v{{ selectedPackage.version }}</span>

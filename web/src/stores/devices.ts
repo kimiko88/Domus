@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { Device } from '../api/types'
@@ -35,7 +36,7 @@ export const useDevicesStore = defineStore('devices', () => {
       }))
       return devices.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch devices'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false

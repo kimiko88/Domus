@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { Automation, AutomationListResponse, AutomationRun, AutomationRunsResponse } from '../api/types'
@@ -21,7 +22,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       automations.value = data.automations || []
       return automations.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch automations'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -41,7 +42,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       }
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch automation'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -56,7 +57,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       automations.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create automation'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -74,7 +75,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update automation'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -97,7 +98,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       automations.value = automations.value.filter((a) => a.id !== id)
       delete runs.value[id]
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete automation'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -109,7 +110,7 @@ export const useAutomationsStore = defineStore('automations', () => {
     try {
       await apiClient.post(`/api/v1/automations/${id}/trigger`)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to trigger automation'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     }
   }
@@ -120,7 +121,7 @@ export const useAutomationsStore = defineStore('automations', () => {
       runs.value[id] = data.runs || []
       return runs.value[id]
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch automation runs'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     }
   }

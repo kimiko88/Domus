@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { AlarmControlPanel, AlarmState } from '../api/types'
@@ -39,7 +40,7 @@ export const useAlarmStore = defineStore('alarm', () => {
       }
       return panel.value
     } catch (err: any) {
-      error.value = err?.message || 'Errore recupero centrale allarme'
+      error.value = i18n.global.t('common.errors.loadFailed')
       return panel.value
     } finally {
       loading.value = false
@@ -54,7 +55,7 @@ export const useAlarmStore = defineStore('alarm', () => {
       panel.value = res
       return res
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile armare allarme'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -69,7 +70,7 @@ export const useAlarmStore = defineStore('alarm', () => {
       panel.value = res
       return res
     } catch (err: any) {
-      error.value = err?.message || 'PIN non valido'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -84,7 +85,7 @@ export const useAlarmStore = defineStore('alarm', () => {
       panel.value = res
       return res
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile innescare allarme'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -99,7 +100,7 @@ export const useAlarmStore = defineStore('alarm', () => {
       panel.value = res
       return res
     } catch (err: any) {
-      error.value = err?.message || 'Errore salvataggio configurazione allarme'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false

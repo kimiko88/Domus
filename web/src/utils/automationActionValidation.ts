@@ -1,3 +1,4 @@
+import { i18n } from '../locales'
 import type { AutomationAction } from '../api/types'
 
 type JsonObject = Record<string, unknown>
@@ -33,48 +34,48 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function requireObject(value: unknown, path: string): JsonObject {
-  if (!isObject(value)) throw new Error(`${path} deve essere un oggetto JSON.`)
+  if (!isObject(value)) throw new Error(i18n.global.t('automations.validation.objectExpected', { path }))
   return value
 }
 
 function requireArray(value: unknown, path: string, minLength = 0): unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${path} deve essere un array.`)
+  if (!Array.isArray(value)) throw new Error(i18n.global.t('automations.validation.arrayExpected', { path }))
   if (value.length < minLength) {
-    throw new Error(`${path} deve contenere almeno ${minLength} elemento/i.`)
+    throw new Error(i18n.global.t('automations.validation.minLength', { path, min: minLength }))
   }
   return value
 }
 
 function requireNonEmptyString(value: unknown, path: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${path} è obbligatorio.`)
+    throw new Error(i18n.global.t('automations.validation.required', { path }))
   }
   return value
 }
 
 function requireFiniteNumber(value: unknown, path: string, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
-    throw new Error(`${path} deve essere un numero JSON compreso tra ${min} e ${max}.`)
+    throw new Error(i18n.global.t('automations.validation.numberRange', { path, min, max }))
   }
   return value
 }
 
 function requireInteger(value: unknown, path: string, min: number, max: number): number {
   const parsed = requireFiniteNumber(value, path, min, max)
-  if (!Number.isInteger(parsed)) throw new Error(`${path} deve essere un numero intero.`)
+  if (!Number.isInteger(parsed)) throw new Error(i18n.global.t('automations.validation.integer', { path }))
   return parsed
 }
 
 function validateConditionList(value: unknown, path: string, depth: number): void {
   const conditions = requireArray(value, path, 1)
-  if (depth > MAX_NESTING_DEPTH) throw new Error(`${path}: profondità massima superata.`)
+  if (depth > MAX_NESTING_DEPTH) throw new Error(i18n.global.t('automations.validation.maxDepth', { path }))
 
   conditions.forEach((entry, index) => {
     const conditionPath = `${path}[${index}]`
     const condition = requireObject(entry, conditionPath)
     const type = requireNonEmptyString(condition.condition, `${conditionPath}.condition`)
     if (!supportedConditionTypes.has(type)) {
-      throw new Error(`${conditionPath}: tipo di condizione non supportato "${type}".`)
+      throw new Error(i18n.global.t('automations.validation.conditionType', { path: conditionPath, type }))
     }
 
     switch (type) {
@@ -87,7 +88,7 @@ function validateConditionList(value: unknown, path: string, depth: number): voi
         const hasAbove = condition.above !== undefined && condition.above !== null
         const hasBelow = condition.below !== undefined && condition.below !== null
         if (!hasAbove && !hasBelow) {
-          throw new Error(`${conditionPath}: specifica almeno una soglia above o below.`)
+          throw new Error(i18n.global.t('automations.validation.numericThreshold', { path: conditionPath }))
         }
         if (hasAbove) requireFiniteNumber(condition.above, `${conditionPath}.above`, -1e9, 1e9)
         if (hasBelow) requireFiniteNumber(condition.below, `${conditionPath}.below`, -1e9, 1e9)
@@ -98,7 +99,7 @@ function validateConditionList(value: unknown, path: string, depth: number): voi
           (typeof condition.after !== 'string' || condition.after.trim() === '') &&
           (typeof condition.before !== 'string' || condition.before.trim() === '')
         ) {
-          throw new Error(`${conditionPath}: specifica after, before o entrambi.`)
+          throw new Error(i18n.global.t('automations.validation.timeRange', { path: conditionPath }))
         }
         break
       case 'trigger':
@@ -111,7 +112,7 @@ function validateConditionList(value: unknown, path: string, depth: number): voi
       case 'not': {
         const children = requireArray(condition.conditions, `${conditionPath}.conditions`)
         if (children.length !== 1) {
-          throw new Error(`${conditionPath}.conditions deve contenere esattamente una condizione per NOT.`)
+          throw new Error(i18n.global.t('automations.validation.notSingleCondition', { path: conditionPath }))
         }
         validateConditionList(children, `${conditionPath}.conditions`, depth + 1)
         break
@@ -126,14 +127,14 @@ function validateActionList(value: unknown, path: string, depth: number, count: 
 }
 
 function validateAction(value: unknown, path: string, depth: number, count: { value: number }): void {
-  if (depth > MAX_NESTING_DEPTH) throw new Error(`${path}: profondità massima delle azioni superata.`)
+  if (depth > MAX_NESTING_DEPTH) throw new Error(i18n.global.t('automations.validation.maxDepth', { path }))
   count.value += 1
-  if (count.value > MAX_ACTIONS) throw new Error(`La configurazione supera il limite di ${MAX_ACTIONS} azioni annidate.`)
+  if (count.value > MAX_ACTIONS) throw new Error(i18n.global.t('automations.validation.maxActions', { max: MAX_ACTIONS }))
 
   const action = requireObject(value, path)
   const type = requireNonEmptyString(action.type, `${path}.type`)
   if (!supportedActionTypes.has(type)) {
-    throw new Error(`${path}: tipo di azione non supportato "${type}".`)
+    throw new Error(i18n.global.t('automations.validation.actionType', { path, type }))
   }
 
   switch (type) {
@@ -141,7 +142,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
       requireNonEmptyString(action.service, `${path}.service`)
       requireNonEmptyString(action.target_entity_key, `${path}.target_entity_key`)
       if (action.params !== undefined && !isObject(action.params)) {
-        throw new Error(`${path}.params deve essere un oggetto JSON.`)
+        throw new Error(i18n.global.t('automations.validation.paramsObject', { path }))
       }
       break
 
@@ -152,7 +153,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
     case 'event':
       requireNonEmptyString(action.event_type, `${path}.event_type`)
       if (action.event_payload !== undefined && !isObject(action.event_payload)) {
-        throw new Error(`${path}.event_payload deve essere un oggetto JSON.`)
+        throw new Error(i18n.global.t('automations.validation.eventPayloadObject', { path }))
       }
       break
 
@@ -164,7 +165,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
       } else {
         const profile = requireNonEmptyString(action.profile, `${path}.profile`)
         if (!['comfort', 'eco', 'night', 'away'].includes(profile)) {
-          throw new Error(`${path}.profile deve essere comfort, eco, night o away.`)
+          throw new Error(i18n.global.t('automations.validation.profile', { path }))
         }
       }
       if (action.duration_minutes !== undefined) {
@@ -179,7 +180,7 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
         ? []
         : requireArray(action.default, `${path}.default`)
       if (branches.length === 0 && fallback.length === 0) {
-        throw new Error(`${path}: aggiungi almeno un ramo choose o un'azione di fallback default.`)
+        throw new Error(i18n.global.t('automations.validation.chooseBranch', { path }))
       }
       branches.forEach((branchValue, index) => {
         const branchPath = `${path}.choose[${index}]`
@@ -207,14 +208,14 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
       const hasWhile = Array.isArray(repeat.while) && repeat.while.length > 0
       const hasUntil = Array.isArray(repeat.until) && repeat.until.length > 0
       if ([hasCount, hasWhile, hasUntil].filter(Boolean).length !== 1) {
-        throw new Error(`${path}.repeat: scegli una sola modalità tra count, while e until.`)
+        throw new Error(i18n.global.t('automations.validation.repeatMode', { path }))
       }
       if (hasCount) requireInteger(countValue, `${path}.repeat.count`, 1, MAX_REPEAT_COUNT)
       if (hasWhile) validateConditionList(repeat.while, `${path}.repeat.while`, depth + 1)
       if (hasUntil) validateConditionList(repeat.until, `${path}.repeat.until`, depth + 1)
       validateActionList(repeat.sequence, `${path}.repeat.sequence`, depth, count)
       if ((repeat.sequence as unknown[]).length === 0) {
-        throw new Error(`${path}.repeat.sequence non può essere vuota.`)
+        throw new Error(i18n.global.t('automations.validation.repeatSequence', { path }))
       }
       break
     }
@@ -234,20 +235,19 @@ function validateAction(value: unknown, path: string, depth: number, count: { va
  */
 export function parseAdvancedAutomationAction(raw: unknown, expectedType: string): AutomationAction {
   if (typeof raw !== 'string' || raw.trim() === '') {
-    throw new Error('Inserisci la configurazione JSON completa per questa azione.')
+    throw new Error(i18n.global.t('automations.validation.jsonRequired'))
   }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
-    const reason = error instanceof Error ? error.message : 'JSON non valido'
-    throw new Error(`Configurazione JSON non valida: ${reason}`)
+    throw new Error(i18n.global.t('automations.validation.jsonInvalid'))
   }
 
   const action = requireObject(parsed, 'Azione')
   if (action.type !== expectedType) {
-    throw new Error(`Il campo type deve essere "${expectedType}" per questo nodo.`)
+    throw new Error(i18n.global.t('automations.validation.typeMismatch', { type: expectedType }))
   }
 
   const count = { value: 0 }

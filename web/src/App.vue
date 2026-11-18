@@ -7,6 +7,7 @@ import { useWebSocket } from './composables/useWebSocket'
 import AppSidebar from './components/layout/AppSidebar.vue'
 import AppTopbar from './components/layout/AppTopbar.vue'
 import BaseToast from './components/ui/BaseToast.vue'
+import PwaUpdatePrompt from './components/ui/PwaUpdatePrompt.vue'
 import AppTourModal from './components/modals/AppTourModal.vue'
 import { useTourStore } from './stores/tour'
 import { WifiOff } from '@lucide/vue'
@@ -84,6 +85,7 @@ onMounted(() => {
 <template>
   <div class="app-layout">
     <BaseToast />
+    <PwaUpdatePrompt />
     <AppTourModal />
 
     <!-- Fullscreen Auth / Setup View -->
@@ -129,12 +131,14 @@ onMounted(() => {
 <style scoped>
 .app-layout {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .auth-wrapper {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -142,6 +146,7 @@ onMounted(() => {
 .main-layout {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
   min-width: 0;
   width: 100%;
 }
@@ -184,7 +189,7 @@ onMounted(() => {
 
 .page-content {
   flex: 1;
-  padding: 24px;
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px));
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
@@ -192,13 +197,13 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .page-content {
-    padding: 16px 12px;
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (max-width: 420px) {
   .page-content {
-    padding: 12px 10px;
+    padding: 12px 10px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
 </style>

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type {
@@ -84,7 +85,7 @@ export const useFinanceStore = defineStore('finance', () => {
       summary.value = data
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile caricare il riepilogo finanziario'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -108,7 +109,7 @@ export const useFinanceStore = defineStore('finance', () => {
       expenses.value = data
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile caricare le spese'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -125,7 +126,7 @@ export const useFinanceStore = defineStore('finance', () => {
       fetchSummary().catch(() => {})
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile registrare la spesa'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -144,7 +145,7 @@ export const useFinanceStore = defineStore('finance', () => {
       fetchSummary().catch(() => {})
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile aggiornare la spesa'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -159,7 +160,7 @@ export const useFinanceStore = defineStore('finance', () => {
       expenses.value = expenses.value.filter((e) => e.id !== id)
       fetchSummary().catch(() => {})
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile eliminare la spesa'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -176,7 +177,7 @@ export const useFinanceStore = defineStore('finance', () => {
       budgets.value = data
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile caricare i budget'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -205,7 +206,7 @@ export const useFinanceStore = defineStore('finance', () => {
       fetchSummary().catch(() => {})
       return res
     } catch (err: any) {
-      error.value = err?.message || 'Impossibile impostare il budget'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false

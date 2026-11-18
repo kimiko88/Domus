@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient, ApiError } from '../api/client'
 import type { User, SetupStatus, RegisterWithInviteRequest, InviteValidationResponse } from '../api/types'
@@ -44,7 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
       isSetupRequired.value = data.setup_required
       return data.setup_required
     } catch (err: any) {
-      error.value = err?.message || 'Failed to check setup status'
+      error.value = i18n.global.t('common.errors.actionFailed')
       return false
     } finally {
       loading.value = false
@@ -63,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (err instanceof ApiError && err.status === 401) {
         // Expected when unauthenticated
       } else {
-        error.value = err?.message || 'Failed to fetch user'
+        error.value = i18n.global.t('common.errors.loadFailed')
       }
       return null
     } finally {
@@ -78,11 +79,11 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/login', { username, password })
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
-      error.value = err?.message || 'Login failed'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -96,11 +97,11 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/kiosk-login', { pin: pinCode })
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
-      error.value = err?.message || 'Kiosk login failed'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -115,11 +116,11 @@ export const useAuthStore = defineStore('auth', () => {
       isSetupRequired.value = false
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
-      error.value = err?.message || 'First admin setup failed'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -137,11 +138,11 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/register', data)
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
-      error.value = err?.message || 'Registration failed'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false

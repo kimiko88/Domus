@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type {
@@ -79,7 +80,7 @@ export const usePantryStore = defineStore('pantry', () => {
       items.value = data ?? []
       return items.value
     } catch (err: any) {
-      error.value = err?.message || 'Errore nel caricamento della dispensa'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -119,7 +120,7 @@ export const usePantryStore = defineStore('pantry', () => {
       }
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Errore nella creazione articolo dispensa'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -145,7 +146,7 @@ export const usePantryStore = defineStore('pantry', () => {
 
       return updated
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'aggiornamento articolo dispensa"
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -161,7 +162,7 @@ export const usePantryStore = defineStore('pantry', () => {
       lowStockItems.value = lowStockItems.value.filter((i) => i.id !== id)
       expiringItems.value = expiringItems.value.filter((i) => i.id !== id)
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'eliminazione articolo dispensa"
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -184,7 +185,7 @@ export const usePantryStore = defineStore('pantry', () => {
 
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Errore nella modifica quantità'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     }
   }
@@ -202,7 +203,7 @@ export const usePantryStore = defineStore('pantry', () => {
       recipes.value = data ?? []
       return recipes.value
     } catch (err: any) {
-      error.value = err?.message || 'Errore nel caricamento del ricettario'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -229,7 +230,7 @@ export const usePantryStore = defineStore('pantry', () => {
       await fetchCookableRecipes()
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Errore nella creazione ricetta'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -246,7 +247,7 @@ export const usePantryStore = defineStore('pantry', () => {
       await fetchCookableRecipes()
       return updated
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'aggiornamento ricetta"
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -261,7 +262,7 @@ export const usePantryStore = defineStore('pantry', () => {
       recipes.value = recipes.value.filter((r) => r.id !== id)
       cookableRecipes.value = cookableRecipes.value.filter((c) => c.recipe.id !== id)
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'eliminazione ricetta"
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -282,7 +283,7 @@ export const usePantryStore = defineStore('pantry', () => {
       mealPlans.value = data ?? []
       return mealPlans.value
     } catch (err: any) {
-      error.value = err?.message || 'Errore nel caricamento del piano pasti'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -297,7 +298,7 @@ export const usePantryStore = defineStore('pantry', () => {
       mealPlans.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Errore nella pianificazione pasto'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -313,7 +314,7 @@ export const usePantryStore = defineStore('pantry', () => {
       if (idx !== -1) mealPlans.value[idx] = updated
       return updated
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'aggiornamento pasto"
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -327,7 +328,7 @@ export const usePantryStore = defineStore('pantry', () => {
       await apiClient.delete(`/api/v1/meals/${id}`)
       mealPlans.value = mealPlans.value.filter((m) => m.id !== id)
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'eliminazione pasto"
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -346,7 +347,7 @@ export const usePantryStore = defineStore('pantry', () => {
       await Promise.all([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
       return consumed
     } catch (err: any) {
-      error.value = err?.message || 'Errore nel consumo pasto'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -363,7 +364,7 @@ export const usePantryStore = defineStore('pantry', () => {
       parsedReceipt.value = result
       return result
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'analisi dello scontrino"
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -374,7 +375,7 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      if (file.size > 3 * 1024 * 1024) throw new Error('Il PDF supera il limite di 3 MB')
+      if (file.size > 3 * 1024 * 1024) throw new Error(i18n.global.t('common.errors.pdfTooLarge'))
       const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-pdf', {
         method: 'POST',
         body: file,
@@ -384,7 +385,7 @@ export const usePantryStore = defineStore('pantry', () => {
       parsedReceipt.value = result
       return result
     } catch (err: any) {
-      error.value = err?.message || 'Errore durante la lettura del PDF'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -395,7 +396,7 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      if (file.size > 4 * 1024 * 1024) throw new Error('L’immagine supera il limite di 4 MB')
+      if (file.size > 4 * 1024 * 1024) throw new Error(i18n.global.t('common.errors.imageTooLarge'))
       const result = await apiClient.request<Receipt>('/api/v1/receipts/parse-image', {
         method: 'POST',
         body: file,
@@ -405,7 +406,7 @@ export const usePantryStore = defineStore('pantry', () => {
       parsedReceipt.value = result
       return result
     } catch (err: any) {
-      error.value = err?.message || 'Errore durante la lettura della fotografia'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       loading.value = false
@@ -431,7 +432,7 @@ export const usePantryStore = defineStore('pantry', () => {
       await Promise.allSettled([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
       return res
     } catch (err: any) {
-      error.value = err?.message || "Errore nell'importazione dello scontrino"
+      error.value = i18n.global.t('common.errors.syncFailed')
       throw err
     } finally {
       loading.value = false

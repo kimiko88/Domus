@@ -28,7 +28,7 @@ import { useFamilyStore } from '../stores/family'
 import { useNotificationsStore } from '../stores/notifications'
 import type { Chore, ChorePriority, ChoreRecurrence } from '../api/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const choresStore = useChoresStore()
 const areasStore = useAreasStore()
 const familyStore = useFamilyStore()
@@ -86,16 +86,16 @@ function getAreaName(areaId?: string) {
 }
 
 function getAssigneeName(userId?: string): string {
-  if (!userId) return 'Tutta la famiglia'
+  if (!userId) return t('chores.view.wholeFamily')
   const member = familyStore.members.find((m) => m.id === userId)
-  return member ? member.username : 'Membro'
+  return member ? member.username : t('chores.view.memberFallback')
 }
 
 function formatDate(dateStr?: string) {
-  if (!dateStr) return 'Nessuna scadenza'
+  if (!dateStr) return t('chores.view.noDueDate')
   try {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleDateString(locale.value, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
   } catch {
     return dateStr
   }
@@ -104,18 +104,18 @@ function formatDate(dateStr?: string) {
 async function handleComplete(chore: Chore) {
   try {
     await choresStore.completeChore(chore.id)
-    notifStore.success('Faccenda Completata', `Bravo! "${chore.title}" segnata come completata.`)
+    notifStore.success(t('chores.view.completedTitle'), t('chores.view.completedMessage', { title: chore.title }))
   } catch {
-    notifStore.error('Errore', 'Impossibile completare la faccenda')
+    notifStore.error(t('common.error'), t('chores.view.completeFailed'))
   }
 }
 
 async function handleDelete(id: string) {
   try {
     await choresStore.deleteChore(id)
-    notifStore.success('Eliminata', 'Faccenda rimossa')
+    notifStore.success(t('chores.view.deletedTitle'), t('chores.view.deletedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile eliminare la faccenda')
+    notifStore.error(t('common.error'), t('chores.view.deleteFailed'))
   }
 }
 
@@ -149,9 +149,9 @@ async function handleCreateChore() {
     })
     showCreateModal.value = false
     const assignedText = form.value.assigned_user_id
-      ? `notifica inviata a ${getAssigneeName(form.value.assigned_user_id)}`
-      : 'notifica inviata a tutta la famiglia'
-    notifStore.success('Faccenda Programmata', `Promemoria salvato con successo (${assignedText})`)
+      ? t('chores.view.createdAssigned', { name: getAssigneeName(form.value.assigned_user_id) })
+      : t('chores.view.createdFamily')
+    notifStore.success(t('chores.view.createdTitle'), assignedText)
 
     form.value = {
       title: '',
@@ -163,7 +163,7 @@ async function handleCreateChore() {
       recurrence_type: 'none'
     }
   } catch {
-    notifStore.error('Errore', 'Impossibile creare la faccenda')
+    notifStore.error(t('common.error'), t('chores.view.createFailed'))
   }
 }
 
@@ -173,12 +173,12 @@ async function copySubscriptionLink() {
   try {
     await navigator.clipboard.writeText(url)
     copiedFeedUrl.value = true
-    notifStore.success('Link Copiato', 'URL iCal copiato negli appunti. Incollalo in Google Calendar.')
+    notifStore.success(t('chores.view.copiedTitle'), t('chores.view.copiedMessage'))
     setTimeout(() => {
       copiedFeedUrl.value = false
     }, 3000)
   } catch {
-    notifStore.error('Errore', 'Impossibile copiare negli appunti')
+    notifStore.error(t('common.error'), t('chores.view.copyFailed'))
   }
 }
 
@@ -188,11 +188,11 @@ async function handleSyncGoogleCalendar() {
   try {
     isSyncingGCal.value = true
     const res = await choresStore.syncGoogleCalendar(gcalSyncUrl.value.trim())
-    notifStore.success('Sincronizzazione Riuscita', res.message || `${res.synced_count} eventi sincronizzati`)
+    notifStore.success(t('chores.view.syncSuccessTitle'), t('chores.view.syncSuccessMessage', { count: res.synced_count }))
     gcalSyncUrl.value = ''
     showGCalModal.value = false
   } catch (err: any) {
-    notifStore.error('Errore Sincronizzazione', err?.message || 'Impossibile sincronizzare da Google Calendar')
+    notifStore.error(t('chores.view.syncErrorTitle'), t('chores.view.syncFailed'))
   } finally {
     isSyncingGCal.value = false
   }
@@ -290,7 +290,7 @@ function formatTime(dateStr?: string): string {
   if (!dateStr) return ''
   try {
     const d = new Date(dateStr)
-    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   } catch {
     return ''
   }
@@ -318,8 +318,8 @@ const weekDays = computed<WeekDay[]>(() => {
       date: d,
       dateString: dStr,
       dayNumber: d.getDate(),
-      dayName: d.toLocaleDateString('it-IT', { weekday: 'short' }),
-      fullDayName: d.toLocaleDateString('it-IT', { weekday: 'long' }),
+      dayName: d.toLocaleDateString(locale.value, { weekday: 'short' }),
+      fullDayName: d.toLocaleDateString(locale.value, { weekday: 'long' }),
       isToday: dStr === todayStr,
       chores: getChoresForDate(dStr)
     })
@@ -335,8 +335,8 @@ const selectedDayData = computed(() => {
     date: d,
     dateString: dStr,
     dayNumber: d.getDate(),
-    dayName: d.toLocaleDateString('it-IT', { weekday: 'long' }),
-    monthName: d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }),
+    dayName: d.toLocaleDateString(locale.value, { weekday: 'long' }),
+    monthName: d.toLocaleDateString(locale.value, { month: 'long', year: 'numeric' }),
     isToday: dStr === todayStr,
     chores: getChoresForDate(dStr)
   }
@@ -345,19 +345,19 @@ const selectedDayData = computed(() => {
 const currentPeriodLabel = computed(() => {
   const d = calendarDate.value
   if (calendarViewMode.value === 'month') {
-    return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+    return d.toLocaleDateString(locale.value, { month: 'long', year: 'numeric' })
   } else if (calendarViewMode.value === 'week') {
     const start = getStartOfWeek(d)
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
     if (start.getMonth() === end.getMonth()) {
-      return `${start.getDate()} - ${end.getDate()} ${start.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}`
+      return `${start.getDate()} - ${end.getDate()} ${start.toLocaleDateString(locale.value, { month: 'short', year: 'numeric' })}`
     } else {
-      return `${start.getDate()} ${start.toLocaleDateString('it-IT', { month: 'short' })} - ${end.getDate()} ${end.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}`
+      return `${start.getDate()} ${start.toLocaleDateString(locale.value, { month: 'short' })} - ${end.getDate()} ${end.toLocaleDateString(locale.value, { month: 'short', year: 'numeric' })}`
     }
   } else {
     // Day view
-    return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    return d.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 })
 
@@ -555,7 +555,7 @@ function selectDayView(dateStr: string) {
               <!-- Priority Tag -->
               <span class="priority-badge" :class="chore.priority">
                 <Flame v-if="chore.priority === 'urgent' || chore.priority === 'high'" class="priority-icon" />
-                {{ chore.priority }}
+                {{ t(`chores.priorities.${chore.priority}`) }}
               </span>
 
               <!-- Assignee Pill -->
@@ -585,7 +585,7 @@ function selectDayView(dateStr: string) {
               <!-- Recurrence -->
               <span v-if="chore.recurrence_type !== 'none'" class="meta-tag recurrence">
                 <Repeat class="meta-icon" />
-                {{ chore.recurrence_type }}
+                {{ t(`chores.recurrences.${chore.recurrence_type}`) }}
               </span>
             </div>
           </div>
@@ -720,12 +720,12 @@ function selectDayView(dateStr: string) {
                   { 'is-completed': chore.status === 'completed' }
                 ]"
                 @click.stop="handleComplete(chore)"
-                :title="`${chore.title} (${getAssigneeName(chore.assigned_user_id)}) - {{ t('chores.view.clickToComplete') }}`"
+                :title="t('chores.view.clickToCompleteTitle', { title: chore.title })"
               >
                 <span class="priority-dot" :class="chore.priority"></span>
                 <span class="badge-title" :class="{ strike: chore.status === 'completed' }">{{ chore.title }}</span>
                 <span class="badge-assignee" :class="{ 'family-all': !chore.assigned_user_id }">
-                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id).slice(0, 3) : 'Fam' }}
+                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id).slice(0, 3) : t('chores.view.familyShort') }}
                 </span>
               </div>
             </div>
@@ -741,16 +741,16 @@ function selectDayView(dateStr: string) {
           class="week-day-col"
           :class="{ 'is-today': day.isToday }"
         >
-          <div class="week-col-header" @click="selectDayView(day.dateString)" title="Clicca per aprire la vista giorno">
+          <div class="week-col-header" @click="selectDayView(day.dateString)"  :title="t('chores.view.openDayTitle')">
             <div class="col-header-text">
               <span class="week-day-name">{{ day.dayName }}</span>
               <span class="week-day-num" :class="{ 'today-num': day.isToday }">{{ day.dayNumber }}</span>
             </div>
             <button
               class="col-add-btn"
-              title="Aggiungi faccenda"
+               :title="t('chores.view.addChoreTitle')"
               @click.stop="openCreateForDate(day.dateString)"
-              aria-label="Aggiungi faccenda a questo giorno"
+              :aria-label="t('chores.view.addChoreForDay')"
             >
               <Plus :size="13" />
             </button>
@@ -763,7 +763,7 @@ function selectDayView(dateStr: string) {
               class="week-chore-card"
               :class="[chore.priority, { 'is-completed': chore.status === 'completed' }]"
               @click="handleComplete(chore)"
-              :title="`${chore.title} - Clicca per completare`"
+              :title="t('chores.view.clickToCompleteTitle', { title: chore.title })"
             >
               <div class="chore-card-top">
                 <span class="priority-dot" :class="chore.priority"></span>
@@ -780,7 +780,7 @@ function selectDayView(dateStr: string) {
                   {{ getAreaName(chore.area_id) }}
                 </span>
                 <span class="assignee-chip" :class="{ 'family-all': !chore.assigned_user_id }">
-                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : 'Famiglia' }}
+                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : t('chores.view.familyShort') }}
                 </span>
               </div>
             </div>
@@ -804,8 +804,8 @@ function selectDayView(dateStr: string) {
             <div class="day-hero-badge" v-if="selectedDayData.isToday">{{ t('chores.view.today') }}</div>
             <h3 class="day-hero-title">{{ selectedDayData.dayName }}, {{ selectedDayData.dayNumber }} {{ selectedDayData.monthName }}</h3>
             <p class="day-hero-sub">
-              {{ selectedDayData.chores.length }} {{ selectedDayData.chores.length === 1 ? 'faccenda programmata' : 'faccende programmate' }} •
-              <span class="text-success">{{ selectedDayData.chores.filter(c => c.status === 'completed').length }} completate</span>
+              {{ selectedDayData.chores.length }} {{ selectedDayData.chores.length === 1 ? t('chores.view.dayTasksSingular') : t('chores.view.dayTasksPlural') }} •
+              <span class="text-success">{{ selectedDayData.chores.filter(c => c.status === 'completed').length }} {{ t('chores.view.completedCount') }}</span>
             </p>
           </div>
 
@@ -836,7 +836,7 @@ function selectDayView(dateStr: string) {
               <button
                 type="button"
                 class="checkbox-btn"
-                :aria-label="chore.status === 'completed' ? 'Segna come da fare' : 'Segna come completata'"
+                :aria-label="chore.status === 'completed' ? t('chores.view.markPending') : t('chores.view.markDone')"
               >
                 <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
                 <div v-else class="check-circle-empty"></div>
@@ -869,7 +869,7 @@ function selectDayView(dateStr: string) {
                   </span>
                   <span class="meta-tag assignee" :class="{ 'family-all': !chore.assigned_user_id }">
                     <User :size="13" />
-                    <span>{{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : 'Tutta la famiglia' }}</span>
+                    <span>{{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : t('chores.view.wholeFamily') }}</span>
                   </span>
                 </div>
               </div>
@@ -880,8 +880,8 @@ function selectDayView(dateStr: string) {
                 type="button"
                 class="btn-delete-chore"
                 @click="handleDelete(chore.id)"
-                title="Elimina faccenda"
-                aria-label="Elimina faccenda"
+                 :title="t('chores.view.deleteChoreAria')"
+                 :aria-label="t('chores.view.deleteChoreAria')"
               >
                 <Trash2 :size="16" />
               </button>
@@ -896,7 +896,7 @@ function selectDayView(dateStr: string) {
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-header">
           <h2 id="modal-title">{{ t('chores.view.newHouseholdChore') }}</h2>
-          <button class="modal-close-btn" @click="showCreateModal = false" aria-label="Chiudi finestra">
+          <button class="modal-close-btn" @click="showCreateModal = false"  :aria-label="t('chores.view.closeWindow')">
             <X class="icon-close" />
           </button>
         </div>
@@ -908,7 +908,7 @@ function selectDayView(dateStr: string) {
               id="chore-title"
               v-model="form.title"
               type="text"
-              placeholder="es. Pulire filtro robot, annaffiare piante, lavare pavimenti"
+              :placeholder="t('chores.view.titlePlaceholder')"
               required
             />
           </div>
@@ -919,7 +919,7 @@ function selectDayView(dateStr: string) {
               id="chore-desc"
               v-model="form.description"
               rows="2"
-              placeholder="Istruzioni o dettagli per il compito"
+              :placeholder="t('chores.view.descriptionPlaceholder')"
             ></textarea>
           </div>
 
@@ -935,8 +935,8 @@ function selectDayView(dateStr: string) {
             <span class="field-hint">
               {{
                 form.assigned_user_id
-                  ? `La notifica push e il promemoria di scadenza saranno inviati a ${getAssigneeName(form.assigned_user_id)}.`
-                  : 'Nessun membro specifico: la notifica di scadenza e promemoria arriverà a tutta la famiglia.'
+                  ? t('chores.view.notifyAssigned', { name: getAssigneeName(form.assigned_user_id) })
+                  : t('chores.view.notifyFamily')
               }}
             </span>
           </div>
@@ -955,10 +955,10 @@ function selectDayView(dateStr: string) {
             <div class="form-group">
               <label for="chore-priority">{{ t('chores.view.priority') }}</label>
               <select id="chore-priority" v-model="form.priority">
-                <option value="low">Bassa</option>
-                <option value="medium">Media</option>
-                <option value="high">Alta</option>
-                <option value="urgent">Urgente</option>
+                <option value="low">{{ t('chores.view.optionLow') }}</option>
+                <option value="medium">{{ t('chores.view.optionMedium') }}</option>
+                <option value="high">{{ t('chores.view.optionHigh') }}</option>
+                <option value="urgent">{{ t('chores.view.optionUrgent') }}</option>
               </select>
             </div>
           </div>
@@ -981,7 +981,7 @@ function selectDayView(dateStr: string) {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-cancel" @click="showCreateModal = false">Annulla</button>
+            <button type="button" class="btn-cancel" @click="showCreateModal = false">{{ t('chores.view.cancel') }}</button>
             <button type="submit" class="btn-primary">{{ t('chores.view.saveAndSchedule') }}</button>
           </div>
         </form>
@@ -996,7 +996,7 @@ function selectDayView(dateStr: string) {
             <Calendar class="gcal-icon" />
             <h2 id="gcal-title">{{ t('chores.view.connectGoogleCalendar') }}</h2>
           </div>
-          <button class="modal-close-btn" @click="showGCalModal = false" aria-label="Chiudi finestra">
+          <button class="modal-close-btn" @click="showGCalModal = false" :aria-label="t('chores.view.closeWindow')">
             <X class="icon-close" />
           </button>
         </div>
@@ -1004,10 +1004,10 @@ function selectDayView(dateStr: string) {
         <div class="modal-body">
           <!-- Option A: Subscribe from Google Calendar (Export) -->
           <div class="gcal-section">
-            <div class="section-badge">OPZIONE 1: SOTTOSCRIVI DA GOOGLE CALENDAR</div>
+            <div class="section-badge">{{ t('chores.view.optionOne') }}</div>
             <h3>{{ t('chores.view.syncChoresToGoogleCalendar') }}</h3>
             <p class="gcal-desc">
-              Aggiungi questo feed iCal standard al tuo account Google, Apple Calendar o Outlook per visualizzare sempre tutte le faccende domestiche aggiornate:
+              {{ t('chores.view.calendarDesc') }}
             </p>
 
             <div class="feed-copy-box">
@@ -1019,7 +1019,7 @@ function selectDayView(dateStr: string) {
               />
               <button class="btn-copy" @click="copySubscriptionLink">
                 <component :is="copiedFeedUrl ? CheckCircle2 : Copy" class="btn-icon" />
-                <span>{{ copiedFeedUrl ? 'Copiato!' : 'Copia Link' }}</span>
+                <span>{{ copiedFeedUrl ? t('chores.view.copyDone') : t('chores.view.copyLink') }}</span>
               </button>
             </div>
 
@@ -1027,7 +1027,7 @@ function selectDayView(dateStr: string) {
               <div class="step-num">1</div>
               <div class="step-text">{{ t('chores.view.googleStep1') }}</div>
               <div class="step-num">2</div>
-              <div class="step-text">Nella barra laterale sinistra, accanto ad <strong>"Altri calendari"</strong>, fai clic su <strong>+ &gt; Da URL</strong>.</div>
+              <div class="step-text">{{ t('chores.view.step2') }}</div>
               <div class="step-num">3</div>
               <div class="step-text">{{ t('chores.view.googleStep3') }}</div>
             </div>
@@ -1037,10 +1037,10 @@ function selectDayView(dateStr: string) {
 
           <!-- Option B: Sync / Import from Google Calendar (Import) -->
           <div class="gcal-section">
-            <div class="section-badge">OPZIONE 2: IMPORTA DA GOOGLE CALENDAR</div>
+            <div class="section-badge">{{ t('chores.view.optionTwo') }}</div>
             <h3>{{ t('chores.view.importFromGoogleCalendar') }}</h3>
             <p class="gcal-desc">
-              Incolla l'indirizzo iCal segreto o pubblico del tuo Google Calendar per importare i tuoi impegni direttamente come faccende domestiche in Domus:
+              {{ t('chores.view.importDesc') }}
             </p>
 
             <form @submit.prevent="handleSyncGoogleCalendar" class="sync-form">

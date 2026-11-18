@@ -192,7 +192,7 @@ cd domus
 sudo ./deployments/scripts/install.sh
 ```
 
-The script automatically detects system architecture (`arm64`, `amd64`), provisions unprivileged system user `domus`, creates directories (`/var/lib/domus`, `/etc/domus`), compiles or copies binaries, installs the systemd unit, and enables the service.
+The script automatically detects system architecture (`arm64`, `amd64`), provisions unprivileged system user `domus`, creates directories (`/var/lib/domus`, `/etc/domus`), compiles or copies binaries, installs the systemd unit, and enables the service. It also generates a P-256 VAPID keypair for browser Web Push on first install and stores `DOMUS_VAPID_PUBLIC_KEY`, `DOMUS_VAPID_PRIVATE_KEY`, and `DOMUS_VAPID_SUBJECT` in `/etc/domus/domus.env`. The keys are preserved on upgrades; set a real contact URI (for example `mailto:admin@example.com`) in that file and restart `domus` to change the default `mailto:domus@localhost` subject.
 
 To uninstall:
 ```bash

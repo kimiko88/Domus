@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Automation, Entity } from '../../api/types'
 import { apiClient } from '../../api/client'
 import BaseButton from '../ui/BaseButton.vue'
@@ -32,6 +33,7 @@ useModalA11y({
   onClose: () => emit('close')
 })
 
+const { t } = useI18n()
 const name = ref('')
 const description = ref('')
 const executionMode = ref<'single' | 'restart' | 'queued' | 'parallel'>('single')
@@ -51,15 +53,15 @@ interface ClimateScheduleSlot {
   warmSetpoint: number
 }
 
-const climateWeekdays = [
-  { value: 1, label: 'Lun' },
-  { value: 2, label: 'Mar' },
-  { value: 3, label: 'Mer' },
-  { value: 4, label: 'Gio' },
-  { value: 5, label: 'Ven' },
-  { value: 6, label: 'Sab' },
-  { value: 7, label: 'Dom' }
-]
+const climateWeekdays = computed(() => [
+  { value: 1, label: t('schedules.view.monday') },
+  { value: 2, label: t('schedules.view.tuesday') },
+  { value: 3, label: t('schedules.view.wednesday') },
+  { value: 4, label: t('schedules.view.thursday') },
+  { value: 5, label: t('schedules.view.friday') },
+  { value: 6, label: t('schedules.view.saturday') },
+  { value: 7, label: t('schedules.view.sunday') }
+])
 
 const climateBuilderOpen = ref(false)
 const climateEntities = ref<Entity[]>([])
@@ -111,7 +113,7 @@ async function loadClimateEntities() {
       climateTargetKey.value = entityKey(initialTarget)
     }
   } catch (err: any) {
-    climateEntitiesError.value = err?.message || 'Impossibile caricare i dispositivi.'
+    climateEntitiesError.value = t('automations.editor.errors.entitiesLoad')
   } finally {
     climateEntitiesLoading.value = false
   }
@@ -162,12 +164,12 @@ function buildClimateProfileProgram() {
   validationError.value = ''
   const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
   if (!target || !entityKey(target)) {
-    validationError.value = 'Seleziona un termostato prima di generare i profili.'
+    validationError.value = t('automations.editor.errors.thermostatRequired')
     return
   }
   const duration = Number(profileOverrideDuration.value)
   if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
-    validationError.value = 'La durata temporanea deve essere compresa tra 0 e 1440 minuti.'
+    validationError.value = t('automations.editor.errors.durationRange')
     return
   }
   const profiles = [
@@ -198,10 +200,12 @@ function buildClimateProfileProgram() {
     }]
   }
   dslJson.value = JSON.stringify(dsl, null, 2)
-  if (!name.value.trim()) name.value = 'Profili termostato ' + target.name
+  if (!name.value.trim()) name.value = t('automations.editor.profileName', { name: target.name })
   if (!description.value.trim()) {
-    description.value = 'Programmazione settimanale Comfort/Eco/Notte. Durata profilo: ' +
-      (duration === 0 ? 'fino al successivo cambio programmato' : duration + ' minuti, poi ripristino del setpoint precedente') + '.'
+    const durationLabel = duration === 0
+      ? t('automations.editor.untilNextChange')
+      : t('automations.editor.restoreAfterMinutes', { minutes: duration })
+    description.value = t('automations.editor.profileDescription', { duration: durationLabel })
   }
   jsonValid.value = true
   climateBuilderOpen.value = false
@@ -212,35 +216,35 @@ function buildClimateProgram() {
   const source = temperatureSources.value.find(entity => entityKey(entity) === climateSensorKey.value)
   const target = climateTargets.value.find(entity => entityKey(entity) === climateTargetKey.value)
   if (!source || !target || !entityKey(source) || !entityKey(target)) {
-    validationError.value = 'Seleziona un sensore di temperatura e un termostato.'
+    validationError.value = t('automations.editor.errors.sensorAndThermostatRequired')
     return
   }
   if (climateTimeSlots.value.length === 0) {
-    validationError.value = 'Aggiungi almeno una fascia oraria.'
+    validationError.value = t('automations.editor.errors.slotRequired')
     return
   }
 
   const seenTimes = new Set<string>()
   for (const slot of climateTimeSlots.value) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(slot.time)) {
-      validationError.value = 'Inserisci orari validi nel formato HH:MM.'
+      validationError.value = t('automations.editor.errors.invalidTime')
       return
     }
     if (!slot.days.length || slot.days.some(day => !Number.isInteger(day) || day < 1 || day > 7)) {
-      validationError.value = 'Seleziona almeno un giorno valido per ogni fascia.'
+      validationError.value = t('automations.editor.errors.dayRequired')
       return
     }
     for (const day of slot.days) {
       const dayTime = `${day}:${slot.time}`
       if (seenTimes.has(dayTime)) {
-        validationError.value = `L'orario ${slot.time} è duplicato per almeno uno dei giorni selezionati.`
+        validationError.value = t('automations.editor.errors.duplicateTime', { time: slot.time })
         return
       }
       seenTimes.add(dayTime)
     }
     const values = [slot.threshold, slot.coldSetpoint, slot.warmSetpoint]
     if (values.some(value => !Number.isFinite(value) || value < 5 || value > 35)) {
-      validationError.value = 'Soglie e setpoint devono essere compresi tra 5 e 35 °C.'
+      validationError.value = t('automations.editor.errors.thresholdRange')
       return
     }
   }
@@ -288,16 +292,16 @@ function buildClimateProgram() {
   }
 
   dslJson.value = JSON.stringify(dsl, null, 2)
-  if (!name.value.trim()) name.value = 'Programma termostato ' + target.name
+  if (!name.value.trim()) name.value = t('automations.editor.climateName', { name: target.name })
   if (!description.value.trim()) {
     const scheduleSummary = slots.map(slot => {
       const days = slot.days
         .map(day => climateWeekdays.find(item => item.value === day)?.label)
         .filter(Boolean)
         .join(', ')
-      return `${days} ${slot.time}: sotto ${slot.threshold} °C → ${slot.coldSetpoint} °C, altrimenti ${slot.warmSetpoint} °C`
+      return t('automations.editor.scheduleSummary', { days, time: slot.time, threshold: slot.threshold, cold: slot.coldSetpoint, warm: slot.warmSetpoint })
     }).join('; ')
-    description.value = `Legge ${source.name} e regola ${target.name} secondo la programmazione settimanale: ${scheduleSummary}.`
+    description.value = t('automations.editor.weeklyDescription', { sensor: source.name, thermostat: target.name, summary: scheduleSummary })
   }
   jsonValid.value = true
   climateBuilderOpen.value = false
@@ -350,7 +354,7 @@ function formatJson() {
     jsonValid.value = true
     validationError.value = null
   } catch (err: any) {
-    validationError.value = `Sintassi JSON non valida: ${err.message}`
+    validationError.value = t('automations.editor.errors.invalidJson')
     jsonValid.value = false
   }
 }
@@ -377,7 +381,7 @@ function handleSubmit() {
   validationError.value = null
 
   if (!name.value.trim()) {
-    validationError.value = 'Il nome dell\'automazione è obbligatorio'
+    validationError.value = t('automations.editor.errors.nameRequired')
     return
   }
 
@@ -386,18 +390,18 @@ function handleSubmit() {
     parsed = JSON.parse(dslJson.value)
     jsonValid.value = true
   } catch (err: any) {
-    validationError.value = `Sintassi JSON non valida: ${err.message}`
+    validationError.value = t('automations.editor.errors.invalidJson')
     jsonValid.value = false
     return
   }
 
   if (!parsed.triggers || !Array.isArray(parsed.triggers) || parsed.triggers.length === 0) {
-    validationError.value = 'Almeno un trigger è richiesto nella regola'
+    validationError.value = t('automations.editor.errors.triggerRequired')
     return
   }
 
   if (!parsed.actions || !Array.isArray(parsed.actions) || parsed.actions.length === 0) {
-    validationError.value = 'Almeno un\'azione è richiesta nella regola'
+    validationError.value = t('automations.editor.errors.actionRequired')
     return
   }
 
@@ -427,9 +431,9 @@ function handleSubmit() {
       <div class="modal-header">
         <div class="header-title">
           <Zap :size="20" class="title-icon" />
-          <h3 id="automation-modal-title">{{ automation ? 'Modifica Automazione' : 'Nuova Automazione' }}</h3>
+          <h3 id="automation-modal-title">{{ automation ? t('automations.editor.titleEdit') : t('automations.editor.titleNew') }}</h3>
         </div>
-        <button class="btn-close" aria-label="Chiudi finestra automazione" @click="emit('close')">
+        <button class="btn-close" :aria-label="t('automations.editor.close')" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
@@ -442,41 +446,41 @@ function handleSubmit() {
       <form class="modal-form" @submit.prevent="handleSubmit">
         <div class="form-row">
           <div class="form-group flex-2">
-            <label for="auto-name">Nome Automazione</label>
+            <label for="auto-name">{{ t('automations.editor.name') }}</label>
             <input
               id="auto-name"
               v-model="name"
               name="auto-name"
               type="text"
-              placeholder="es. Accensione Luce Notte"
+              :placeholder="t('automations.editor.namePlaceholder')"
               required
             />
           </div>
 
           <div class="form-group flex-1">
-            <label for="exec-mode">Modalità Esecuzione</label>
+            <label for="exec-mode">{{ t('automations.editor.executionMode') }}</label>
             <select id="exec-mode" v-model="executionMode">
-              <option value="single">Single (ignora se in esecuzione)</option>
-              <option value="restart">Restart (riavvia esecuzione)</option>
-              <option value="queued">Queued (accoda richieste)</option>
-              <option value="parallel">Parallel (esegui in parallelo)</option>
+              <option value="single">{{ t('automations.editor.executionModes.single') }}</option>
+              <option value="restart">{{ t('automations.editor.executionModes.restart') }}</option>
+              <option value="queued">{{ t('automations.editor.executionModes.queued') }}</option>
+              <option value="parallel">{{ t('automations.editor.executionModes.parallel') }}</option>
             </select>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group flex-2">
-            <label for="auto-desc">Descrizione (opzionale)</label>
+            <label for="auto-desc">{{ t('automations.editor.description') }}</label>
             <input
               id="auto-desc"
               v-model="description"
               type="text"
-              placeholder="Dettagli sullo scopo della regola..."
+              :placeholder="t('automations.editor.descriptionPlaceholder')"
             />
           </div>
 
           <div class="form-group flex-1">
-            <label for="cooldown">Cooldown (secondi)</label>
+            <label for="cooldown">{{ t('automations.editor.cooldown') }}</label>
             <input
               id="cooldown"
               v-model.number="cooldownSeconds"
@@ -492,7 +496,7 @@ function handleSubmit() {
           <div class="dsl-header">
             <div class="dsl-label">
               <Code2 :size="16" />
-              <span>Regola DSL JSON (Triggers, Condizioni, Azioni)</span>
+              <span>{{ t('automations.editor.dslRule') }}</span>
             </div>
 
             <div class="dsl-actions">
@@ -504,49 +508,49 @@ function handleSubmit() {
                 @click="toggleClimateBuilder"
               >
                 <Sparkles :size="12" />
-                <span>Programma termostato</span>
+                <span>{{ t('automations.editor.climateProgram') }}</span>
               </button>
               <button type="button" class="btn-template" @click="applyTemplate('motion')">
                 <Sparkles :size="12" />
-                <span>Motion Preset</span>
+                <span>{{ t('automations.editor.motionPreset') }}</span>
               </button>
               <button type="button" class="btn-template" @click="applyTemplate('schedule')">
                 <Sparkles :size="12" />
-                <span>Schedule Preset</span>
+                <span>{{ t('automations.editor.schedulePreset') }}</span>
               </button>
               <button type="button" class="btn-format" @click="formatJson">
-                Formatta
+                {{ t('automations.editor.format') }}
               </button>
             </div>
           </div>
 
-          <section v-if="climateBuilderOpen" class="climate-builder" aria-label="Programma termostato basato sul sensore">
+          <section v-if="climateBuilderOpen" class="climate-builder" :aria-label="t('automations.editor.climateBuilderAria')">
             <div class="climate-builder-heading">
               <div>
-                <strong>Programma giornaliero basato sulla temperatura</strong>
-                <p>All'orario scelto legge il sensore e imposta il termostato in uno dei due modi.</p>
+                <strong>{{ t('automations.editor.climateProgramTitle') }}</strong>
+                <p>{{ t('automations.editor.climateProgramDescription') }}</p>
               </div>
             </div>
 
-            <p v-if="climateEntitiesLoading" class="builder-hint">Caricamento dispositivi...</p>
+            <p v-if="climateEntitiesLoading" class="builder-hint">{{ t('automations.editor.loadingDevices') }}</p>
             <p v-else-if="climateEntitiesError" class="builder-error">{{ climateEntitiesError }}</p>
             <p v-else-if="temperatureSources.length === 0 || climateTargets.length === 0" class="builder-hint">
-              Servono almeno un sensore di temperatura e un'entità Climate. Verifica che siano già configurati in Domus.
+              {{ t('automations.editor.missingEntities') }}
             </p>
 
             <template v-else>
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label for="climate-source">Sensore da leggere</label>
+                  <label for="climate-source">{{ t('automations.editor.sensorToRead') }}</label>
                   <select id="climate-source" name="climate-sensor" v-model="climateSensorKey">
                     <option v-for="entity in temperatureSources" :key="entity.id" :value="entityKey(entity)">
                       {{ entity.name }} · {{ entity.entity_key || entity.id }}
                     </option>
                   </select>
-                  <small v-if="climateSensorAttribute" class="builder-hint">Lettura della temperatura ambiente corrente.</small>
+                  <small v-if="climateSensorAttribute" class="builder-hint">{{ t('automations.editor.currentTemperatureHint') }}</small>
                 </div>
                 <div class="form-group flex-1">
-                  <label for="climate-target">Termostato da regolare</label>
+                  <label for="climate-target">{{ t('automations.editor.thermostatToControl') }}</label>
                   <select id="climate-target" name="climate-thermostat" v-model="climateTargetKey">
                     <option v-for="entity in climateTargets" :key="entity.id" :value="entityKey(entity)">
                       {{ entity.name }} · {{ entity.entity_key || entity.id }}
@@ -558,7 +562,7 @@ function handleSubmit() {
               <div class="climate-builder">
                 <div class="form-row">
                   <div class="form-group flex-1">
-                    <label for="profile-override-duration">Durata profilo (minuti)</label>
+                    <label for="profile-override-duration">{{ t('automations.editor.profileDuration') }}</label>
                     <input
                       id="profile-override-duration"
                       v-model.number="profileOverrideDuration"
@@ -567,14 +571,14 @@ function handleSubmit() {
                       max="1440"
                       step="5"
                     />
-                    <small>0 = resta attivo fino al prossimo cambio programmato; un valore maggiore ripristina il setpoint precedente alla scadenza.</small>
+                    <small>{{ t('automations.editor.profileDurationHint') }}</small>
                   </div>
                   <div class="form-group flex-1">
-                    <label>Profili automatici</label>
-                    <p class="builder-hint">07:00 Comfort · 09:00 Eco · 18:00 Comfort · 22:30 Notte, tutti i giorni.</p>
+                    <label>{{ t('automations.editor.automaticProfiles') }}</label>
+                    <p class="builder-hint">{{ t('automations.editor.automaticProfileSummary') }}</p>
                     <button type="button" class="btn-template climate-template" data-testid="generate-climate-profiles" @click="buildClimateProfileProgram">
                       <Sparkles :size="13" />
-                      <span>Genera programma Comfort/Eco/Notte</span>
+                      <span>{{ t('automations.editor.generateProfiles') }}</span>
                     </button>
                   </div>
                 </div>
@@ -582,34 +586,34 @@ function handleSubmit() {
 
               <div class="climate-slots-heading">
                 <div>
-                  <strong>Programmazione settimanale</strong>
-                  <p class="builder-hint">Scegli i giorni e l'orario. A ogni esecuzione Domus legge la temperatura aggiornata e regola il termostato.</p>
+                  <strong>{{ t('automations.editor.weeklySchedule') }}</strong>
+                  <p class="builder-hint">{{ t('automations.editor.weeklyScheduleHint') }}</p>
                 </div>
                 <button type="button" class="btn-template" data-testid="add-climate-slot" @click="addClimateTimeSlot">
                   <Plus :size="13" />
-                  <span>Aggiungi fascia</span>
+                  <span>{{ t('automations.editor.addSlot') }}</span>
                 </button>
               </div>
 
               <div v-for="(slot, index) in climateTimeSlots" :key="slot.id" class="climate-slot">
                 <div class="climate-slot-heading">
-                  <strong>Fascia {{ index + 1 }}</strong>
+                  <strong>{{ t('automations.editor.slot', { index: index + 1 }) }}</strong>
                   <button
                     v-if="climateTimeSlots.length > 1"
                     type="button"
                     class="climate-slot-remove"
-                    :aria-label="`Rimuovi fascia ${index + 1}`"
+                    :aria-label="t('automations.editor.removeSlot', { index: index + 1 })"
                     :data-testid="`remove-climate-slot-${slot.id}`"
                     @click="removeClimateTimeSlot(slot.id)"
                   >
                     <Trash2 :size="14" />
-                    <span>Rimuovi</span>
+                    <span>{{ t('common.delete') }}</span>
                   </button>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group flex-1">
-                    <label :for="index === 0 ? 'climate-time' : `climate-time-${slot.id}`">Orario</label>
+                    <label :for="index === 0 ? 'climate-time' : `climate-time-${slot.id}`">{{ t('automations.editor.time') }}</label>
                     <input
                       :id="index === 0 ? 'climate-time' : `climate-time-${slot.id}`"
                       name="climate-time"
@@ -618,7 +622,7 @@ function handleSubmit() {
                     />
                   </div>
                   <div class="form-group flex-1">
-                    <label :for="index === 0 ? 'climate-threshold' : `climate-threshold-${slot.id}`">Soglia del sensore (°C)</label>
+                    <label :for="index === 0 ? 'climate-threshold' : `climate-threshold-${slot.id}`">{{ t('automations.editor.sensorThreshold') }}</label>
                     <input
                       :id="index === 0 ? 'climate-threshold' : `climate-threshold-${slot.id}`"
                       v-model.number="slot.threshold"
@@ -630,7 +634,7 @@ function handleSubmit() {
                   </div>
                 </div>
 
-                <div class="climate-weekdays" role="group" :aria-label="`Giorni attivi fascia ${index + 1}`">
+                <div class="climate-weekdays" role="group" :aria-label="t('automations.editor.activeDays', { index: index + 1 })">
                   <label v-for="day in climateWeekdays" :key="day.value" class="climate-weekday">
                     <input v-model="slot.days" type="checkbox" :value="day.value" />
                     <span>{{ day.label }}</span>
@@ -639,7 +643,7 @@ function handleSubmit() {
 
                 <div class="form-row">
                   <div class="form-group flex-1">
-                    <label :for="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`">Se è sotto soglia (°C)</label>
+                    <label :for="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`">{{ t('automations.editor.belowThreshold') }}</label>
                     <input
                       :id="index === 0 ? 'climate-cold-setpoint' : `climate-cold-setpoint-${slot.id}`"
                       v-model.number="slot.coldSetpoint"
@@ -650,7 +654,7 @@ function handleSubmit() {
                     />
                   </div>
                   <div class="form-group flex-1">
-                    <label :for="index === 0 ? 'climate-warm-setpoint' : `climate-warm-setpoint-${slot.id}`">Altrimenti imposta (°C)</label>
+                    <label :for="index === 0 ? 'climate-warm-setpoint' : `climate-warm-setpoint-${slot.id}`">{{ t('automations.editor.otherwiseSet') }}</label>
                     <input
                       :id="index === 0 ? 'climate-warm-setpoint' : `climate-warm-setpoint-${slot.id}`"
                       v-model.number="slot.warmSetpoint"
@@ -665,13 +669,12 @@ function handleSubmit() {
 
               <div class="climate-rule-preview">
                 <p v-for="slot in orderedClimateTimeSlots" :key="slot.id">
-                  {{ slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', ') }} alle <strong>{{ slot.time }}</strong>, se la temperatura è sotto <strong>{{ slot.threshold }} °C</strong>
-                  imposta <strong>{{ slot.coldSetpoint }} °C</strong>, altrimenti <strong>{{ slot.warmSetpoint }} °C</strong>.
+                  {{ t('automations.editor.scheduleSummary', { days: slot.days.map(day => climateWeekdays.find(item => item.value === day)?.label).join(', '), time: slot.time, threshold: slot.threshold, cold: slot.coldSetpoint, warm: slot.warmSetpoint }) }}
                 </p>
               </div>
               <div class="builder-actions">
                 <button type="button" class="btn-template" data-testid="generate-climate-program" @click="buildClimateProgram">
-                  Genera regola DSL
+                  {{ t('automations.editor.generateRule') }}
                 </button>
               </div>
             </template>
@@ -682,17 +685,17 @@ function handleSubmit() {
             name="dsl-json"
             rows="11"
             class="dsl-textarea font-mono"
-            placeholder="JSON DSL..."
+            :placeholder="t('automations.editor.jsonPlaceholder')"
             required
           />
         </div>
 
         <div class="modal-footer">
           <BaseButton type="button" variant="ghost" @click="emit('close')">
-            Annulla
+            {{ t('automations.editor.cancel') }}
           </BaseButton>
           <BaseButton type="submit" variant="primary">
-            Salva Automazione
+            {{ t('automations.editor.save') }}
           </BaseButton>
         </div>
       </form>

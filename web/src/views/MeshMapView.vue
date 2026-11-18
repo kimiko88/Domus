@@ -201,7 +201,7 @@ onMounted(() => {
       <!-- Empty State when no nodes exist -->
       <div v-if="topology.nodes.length === 0" class="svg-graph-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 12px;">
         <Network :size="48" style="opacity: 0.4; color: var(--text-muted);" />
-        <p style="font-weight: 600; font-size: 1.05rem; margin: 0;">Nessun dispositivo {{ currentProtocol.toUpperCase() }} rilevato nella rete mesh</p>
+        <p style="font-weight: 600; font-size: 1.05rem; margin: 0;">{{ t('mesh.view.noDevicesDetected', { protocol: currentProtocol.toUpperCase() }) }}</p>
         <p style="font-size: 0.875rem; color: var(--text-muted); margin: 0;">{{ t('mesh.view.devicesProtocolHint') }}</p>
       </div>
 
@@ -269,7 +269,7 @@ onMounted(() => {
         <div class="inspector-props">
           <div class="prop-row">
             <span>{{ t('mesh.view.nodeType') }}:</span>
-            <strong>{{ selectedNode.type.toUpperCase() }}</strong>
+            <strong>{{ t(`mesh.view.nodeTypes.${selectedNode.type}`) }}</strong>
           </div>
           <div class="prop-row">
             <span>{{ t('mesh.view.linkQuality') }}:</span>
@@ -296,7 +296,7 @@ onMounted(() => {
           </div>
         </div>
         <button class="proto-btn active" @click="isBindingModalOpen = true">
-          + Nuovo Legame Diretto
+          + {{ t('mesh.view.newDirectBinding') }}
         </button>
       </div>
 
@@ -308,14 +308,14 @@ onMounted(() => {
       <div v-else class="bindings-grid">
         <div v-for="b in bindings" :key="b.id" class="binding-card">
           <div class="binding-card-header">
-            <span class="source-tag">Sorgente: {{ b.source_device_name }}</span>
+            <span class="source-tag">{{ t('mesh.view.sourcePrefix') }}: {{ b.source_device_name }}</span>
             <span class="arrow-tag">➜</span>
-            <span class="target-tag">Destinazione: {{ b.target_device_name }}</span>
+            <span class="target-tag">{{ t('mesh.view.destinationPrefix') }}: {{ b.target_device_name }}</span>
           </div>
           <div class="binding-card-body">
-            <span>Cluster: <code>{{ b.clusters?.join(', ') || 'genOnOff' }}</code></span>
+            <span>{{ t('mesh.view.clusterPrefix') }}: <code>{{ b.clusters?.join(', ') || 'genOnOff' }}</code></span>
             <button class="unbind-btn" :title="t('mesh.view.removeBinding')" @click="handleDeleteBinding(b.id)">
-              Elimina
+              {{ t('common.delete') }}
             </button>
           </div>
         </div>
@@ -339,7 +339,7 @@ onMounted(() => {
           <div class="form-group">
             <label>{{ t('mesh.view.destinationDevice') }}</label>
             <input v-model="targetDeviceName" type="text" :placeholder="t('mesh.view.destinationNamePlaceholder')" class="form-input" />
-            <input v-model="targetDeviceID" type="text" placeholder="IEEE / ID Dispositivo" class="form-input" style="margin-top: 6px;" />
+            <input v-model="targetDeviceID" type="text"  :placeholder="t('mesh.view.deviceIdPlaceholder')" class="form-input" style="margin-top: 6px;" />
           </div>
 
           <div class="form-group">

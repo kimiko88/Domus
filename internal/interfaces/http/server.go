@@ -104,6 +104,11 @@ func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.S
 	}
 }
 
+// WithWebPushService attaches the authenticated browser Web Push service.
+func WithWebPushService(service *appnotif.WebPushService) ServerOption {
+	return func(s *Server) { s.webPushService = service }
+}
+
 // WithWebSocket attaches the WebSocket real-time broadcast hub.
 func WithWebSocket(hub *wsinfra.Hub) ServerOption {
 	return func(s *Server) {
@@ -137,6 +142,7 @@ type Server struct {
 	repos          *sqlite.Repositories
 	bus            events.Bus
 	wsHub          *wsinfra.Hub
+	webPushService *appnotif.WebPushService
 	autoEngine     *appauto.Engine
 	sceneService   *appscene.Service
 	mqttConnected  bool
@@ -803,14 +809,31 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 				domainRouter.Get("/notifications", ecoH.ListActionableNotifications)
 
-				if srv.repos.PushTokens != nil {
-					pushSvc := appnotif.NewPushService(srv.repos.PushTokens, nil, srv.bus, nil)
-					pushH := handlers.NewPushHandler(pushSvc)
+				if srv.repos.PushTokens != nil || srv.webPushService != nil {
+					var pushH *handlers.PushHandler
+					if srv.repos.PushTokens != nil {
+						pushSvc := appnotif.NewPushService(srv.repos.PushTokens, nil, srv.bus, nil)
+						pushH = handlers.NewPushHandler(pushSvc)
+					}
+					var webPushH *handlers.WebPushHandler
+					if srv.webPushService != nil {
+						webPushH = handlers.NewWebPushHandler(srv.webPushService)
+					}
 					domainRouter.Route("/notifications/push", func(pRouter chi.Router) {
-						pRouter.Post("/tokens", pushH.RegisterToken)
-						pRouter.Delete("/tokens", pushH.RevokeToken)
-						pRouter.Get("/tokens", pushH.ListTokens)
-						pRouter.With(domusmw.RequireSettingsPermission()).Post("/send", pushH.Send)
+						if pushH != nil {
+							pRouter.Post("/tokens", pushH.RegisterToken)
+							pRouter.Delete("/tokens", pushH.RevokeToken)
+							pRouter.Get("/tokens", pushH.ListTokens)
+							pRouter.With(domusmw.RequireSettingsPermission()).Post("/send", pushH.Send)
+						}
+						if webPushH != nil {
+							pRouter.Get("/vapid-public-key", webPushH.PublicKey)
+							pRouter.Post("/subscriptions", webPushH.RegisterSubscription)
+							pRouter.Delete("/subscriptions", webPushH.DeleteSubscription)
+							pRouter.Get("/preferences", webPushH.GetPreferences)
+							pRouter.Put("/preferences", webPushH.SavePreferences)
+							pRouter.Post("/test", webPushH.SendTest)
+						}
 					})
 				}
 

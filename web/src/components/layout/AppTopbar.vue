@@ -236,12 +236,13 @@ async function handleLogout() {
 
 <style scoped>
 .app-topbar {
-  height: var(--topbar-height);
-  min-height: var(--topbar-height);
-  flex: 0 0 var(--topbar-height);
+  height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+  min-height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+  flex: 0 0 calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
   width: 100%;
   min-width: 0;
-  padding: 0 24px;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) 24px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;

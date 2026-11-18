@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import type { SystemMetrics, OSDiagnostics, MaintenanceStatus, EnableMaintenancePayload } from '@/api/types'
 import { apiClient } from '@/api/client'
@@ -69,7 +70,7 @@ export const useSystemStore = defineStore('system', () => {
       metrics.value = data
       return data
     } catch (err: any) {
-      error.value = err.message || 'Failed to fetch metrics'
+      error.value = i18n.global.t('common.errors.loadFailed')
       return metrics.value || {
         status: 'unknown',
         uptime_s: 0,
@@ -92,7 +93,7 @@ export const useSystemStore = defineStore('system', () => {
       osDiagnostics.value = data
       return data
     } catch (err: any) {
-      error.value = err.message || 'Failed to fetch OS diagnostics'
+      error.value = i18n.global.t('common.errors.loadFailed')
       return null
     } finally {
       diagLoading.value = false
@@ -118,7 +119,7 @@ export const useSystemStore = defineStore('system', () => {
       maintenanceStatus.value = data
       return data
     } catch (err: any) {
-      error.value = err.message || 'Failed to enable maintenance mode'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       maintLoading.value = false
@@ -133,7 +134,7 @@ export const useSystemStore = defineStore('system', () => {
       maintenanceStatus.value = data
       return data
     } catch (err: any) {
-      error.value = err.message || 'Failed to disable maintenance mode'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       maintLoading.value = false
@@ -154,7 +155,7 @@ export const useSystemStore = defineStore('system', () => {
       URL.revokeObjectURL(url)
       return data
     } catch (err: any) {
-      error.value = err.message || 'Failed to export diagnostics'
+      error.value = i18n.global.t('common.errors.exportFailed')
       throw err
     }
   }

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { FamilyMember, FamilyInvite, CreateInviteResponse, UserRole, UserPermissions } from '../api/types'
@@ -16,7 +17,7 @@ export const useFamilyStore = defineStore('family', () => {
       const data = await apiClient.get<{ members: FamilyMember[], total: number }>('/api/v1/family/members')
       members.value = data?.members || []
     } catch (err: any) {
-      error.value = err?.message || 'Failed to load family members'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -30,7 +31,7 @@ export const useFamilyStore = defineStore('family', () => {
       const data = await apiClient.get<{ invites: FamilyInvite[], total: number }>('/api/v1/family/invites')
       invites.value = data.invites || []
     } catch (err: any) {
-      error.value = err?.message || 'Failed to load invitations'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -48,7 +49,7 @@ export const useFamilyStore = defineStore('family', () => {
       await fetchInvites()
       return resp
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create invite'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -62,7 +63,7 @@ export const useFamilyStore = defineStore('family', () => {
       await apiClient.delete(`/api/v1/family/invites/${encodeURIComponent(id)}`)
       invites.value = invites.value.filter(i => i.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to revoke invite'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -76,7 +77,7 @@ export const useFamilyStore = defineStore('family', () => {
       await apiClient.put(`/api/v1/family/members/${encodeURIComponent(id)}/role`, { role })
       await fetchMembers()
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update member role'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -91,7 +92,7 @@ export const useFamilyStore = defineStore('family', () => {
       const member = members.value.find(item => item.id === id)
       if (member) member.permissions = { ...permissions, user_id: id }
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update member permissions'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -105,7 +106,7 @@ export const useFamilyStore = defineStore('family', () => {
       await apiClient.delete(`/api/v1/family/members/${encodeURIComponent(id)}`)
       members.value = members.value.filter(m => m.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to remove member'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -139,7 +140,7 @@ export const useFamilyStore = defineStore('family', () => {
       await fetchGuests()
       return resp
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create guest'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       guestLoading.value = false

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type {
@@ -46,7 +47,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
         zones.value = data.zones.map((zs) => zs.config)
       }
     } catch (err: any) {
-      error.value = err.message || 'Errore durante il caricamento dello stato predittivo'
+      error.value = i18n.global.t('common.errors.loadFailed')
     } finally {
       loading.value = false
     }
@@ -61,7 +62,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       )
       zones.value = res.zones || []
     } catch (err: any) {
-      error.value = err.message || 'Errore durante il caricamento delle zone predittive'
+      error.value = i18n.global.t('common.errors.loadFailed')
     } finally {
       loading.value = false
     }
@@ -91,7 +92,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       await fetchStatus()
       return saved
     } catch (err: any) {
-      error.value = err.message || 'Errore durante il salvataggio della zona predittiva'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -106,7 +107,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       zones.value = zones.value.filter((z) => z.id !== id)
       await fetchStatus()
     } catch (err: any) {
-      error.value = err.message || 'Errore durante l\'eliminazione della zona predittiva'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -124,7 +125,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       await fetchStatus()
       return evalResult
     } catch (err: any) {
-      error.value = err.message || 'Errore durante la valutazione predittiva della zona'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       evaluating.value = false
@@ -138,7 +139,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       await apiClient.post('/api/v1/climate/predictive/evaluate-all', {})
       await fetchStatus()
     } catch (err: any) {
-      error.value = err.message || 'Errore durante la valutazione di tutte le zone'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     } finally {
       evaluating.value = false
@@ -153,7 +154,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       profiles.value[zoneId] = data
       return data
     } catch (err: any) {
-      error.value = err.message || 'Errore nel caricamento del profilo termico'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     }
   }
@@ -170,7 +171,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
       profiles.value[zoneId] = data
       return data
     } catch (err: any) {
-      error.value = err.message || "Errore nell'allenamento del profilo termico"
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     }
   }
@@ -190,7 +191,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
         `/api/v1/climate/predictive/zones/${zoneId}/optimal-start${qs}`
       )
     } catch (err: any) {
-      error.value = err.message || "Errore nel calcolo dell'avvio ottimale"
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     }
   }
@@ -208,7 +209,7 @@ export const usePredictiveClimateStore = defineStore('predictiveClimate', () => 
         `/api/v1/climate/predictive/zones/${zoneId}/optimal-stop${qs}`
       )
     } catch (err: any) {
-      error.value = err.message || 'Errore nel calcolo dello spegnimento anticipato'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     }
   }

@@ -35,7 +35,7 @@ import { apiClient } from '../api/client'
 import { soundEffects } from '../utils/audioSynthesizer'
 import type { FamilyFace, AuthorizedVehicle } from '../api/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Camera {
   id: string
@@ -142,7 +142,7 @@ function addMockZone() {
   motionZones.value.push({
     id: newId,
     camera_id: selectedCameraForZones.value.id,
-    name: 'Nuova Zona ' + (motionZones.value.length + 1),
+    name: t('cameras.view.newZoneName', { count: motionZones.value.length + 1 }),
     sensitivity: 80,
     labels: ['person'],
     enabled: true
@@ -164,7 +164,7 @@ const authorizedPlates = ref<AuthorizedVehicle[]>([])
 const isFaceModalOpen = ref(false)
 const isPlateModalOpen = ref(false)
 const newFaceName = ref('')
-const newFaceRole = ref(t('cameras.view.resident'))
+const newFaceRole = ref<'resident' | 'administrator' | 'guest'>('resident')
 const newPlateNumber = ref('')
 const newPlateOwner = ref('')
 const newPlateModel = ref('')
@@ -208,7 +208,7 @@ async function handleCreateFace() {
       soundEffects.playSuccessChime()
       isFaceModalOpen.value = false
       newFaceName.value = ''
-      newFaceRole.value = 'Residente'
+      newFaceRole.value = 'resident'
     }
   } catch (err) {
     console.error('Failed to register face:', err)
@@ -216,7 +216,7 @@ async function handleCreateFace() {
 }
 
 async function handleDeleteFace(face: FamilyFace) {
-  if (!confirm(`Rimuovere il profilo biometrico di ${face.name}?`)) return
+  if (!confirm(t('cameras.view.confirmDeleteFace', { name: face.name }))) return
   try {
     await apiClient.delete(`/api/v1/cameras/faces/${face.id}`)
     familyFaces.value = familyFaces.value.filter(f => f.id !== face.id)
@@ -232,8 +232,8 @@ async function handleCreatePlate() {
     const cleanPlate = newPlateNumber.value.trim().toUpperCase()
     const created = await apiClient.post<AuthorizedVehicle>('/api/v1/cameras/plates', {
       plate_number: cleanPlate,
-      owner_name: newPlateOwner.value.trim() || 'Familiare',
-      vehicle_model: newPlateModel.value.trim() || 'Veicolo Elettrico',
+      owner_name: newPlateOwner.value.trim() || t('cameras.view.familyOwner'),
+      vehicle_model: newPlateModel.value.trim() || t('cameras.view.privateVehicle'),
       auto_open_gate: newPlateAutoOpen.value
     })
     if (created) {
@@ -251,7 +251,7 @@ async function handleCreatePlate() {
 }
 
 async function handleDeletePlate(veh: AuthorizedVehicle) {
-  if (!confirm(`Rimuovere la targa ${veh.plate_number}?`)) return
+  if (!confirm(t('cameras.view.confirmDeletePlate', { plate: veh.plate_number }))) return
   try {
     await apiClient.delete(`/api/v1/cameras/plates/${veh.plate_number}`)
     authorizedPlates.value = authorizedPlates.value.filter(v => v.plate_number !== veh.plate_number)
@@ -259,6 +259,29 @@ async function handleDeletePlate(veh: AuthorizedVehicle) {
   } catch (err) {
     console.error('Failed to delete plate:', err)
   }
+}
+
+function getFaceRoleLabel(role?: string): string {
+  if (!role) return t('cameras.view.resident')
+  if (['resident', 'residente'].includes(role.trim().toLowerCase())) return t('cameras.view.resident')
+  if (['administrator', 'amministratore'].includes(role.trim().toLowerCase())) return t('cameras.view.administrator')
+  if (['guest', 'ospite'].includes(role.trim().toLowerCase())) return t('cameras.view.frequentGuest')
+  return role
+}
+
+function formatDetectionDate(value?: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale.value)
+}
+
+function getDetectionLabel(label: string): string {
+  const normalized = label.toLowerCase()
+  if (normalized === 'person') return t('cameras.view.detectionLabels.person')
+  if (normalized === 'vehicle') return t('cameras.view.detectionLabels.vehicle')
+  if (normalized === 'package') return t('cameras.view.detectionLabels.package')
+  if (normalized === 'animal') return t('cameras.view.detectionLabels.animal')
+  return label
 }
 
 function testFaceMatch(face: FamilyFace) {
@@ -452,7 +475,7 @@ onMounted(async () => {
         <div class="wall-title-area">
           <div class="wall-live-indicator">
             <span class="pulsing-dot" />
-            <span class="wall-live-text">SINCRONIZZAZIONE MULTI-SCHERMO ({{ wallMatrix }})</span>
+            <span class="wall-live-text">{{ t('cameras.view.wallSync', { matrix: wallMatrix }) }}</span>
           </div>
           <span class="wall-clock font-mono">{{ timelineFormattedTime }}</span>
         </div>
@@ -465,7 +488,7 @@ onMounted(async () => {
               :class="{ active: selectedLabelFilter === 'all' }"
               @click="selectedLabelFilter = 'all'; soundEffects.playClick()"
             >
-              Tutti ({{ events.length }})
+              {{ t('cameras.view.filterAll', { count: events.length }) }}
             </button>
             <button
               type="button"
@@ -473,7 +496,7 @@ onMounted(async () => {
               :class="{ active: selectedLabelFilter === 'person' }"
               @click="selectedLabelFilter = 'person'; soundEffects.playClick()"
             >
-              <User :size="12" /> Persona
+              <User :size="12" /> {{ t('cameras.view.filterPerson') }}
             </button>
             <button
               type="button"
@@ -481,7 +504,7 @@ onMounted(async () => {
               :class="{ active: selectedLabelFilter === 'vehicle' }"
               @click="selectedLabelFilter = 'vehicle'; soundEffects.playClick()"
             >
-              <Car :size="12" /> Veicolo
+              <Car :size="12" /> {{ t('cameras.view.filterVehicle') }}
             </button>
             <button
               type="button"
@@ -489,7 +512,7 @@ onMounted(async () => {
               :class="{ active: selectedLabelFilter === 'package' }"
               @click="selectedLabelFilter = 'package'; soundEffects.playClick()"
             >
-              <Package :size="12" /> Pacco
+              <Package :size="12" /> {{ t('cameras.view.filterPackage') }}
             </button>
           </div>
         </div>
@@ -511,18 +534,18 @@ onMounted(async () => {
 
           <!-- Overlay UI -->
           <div class="feed-overlay feed-overlay-top">
-            <span class="cell-cam-name">CAM {{ index + 1 }}: {{ cam.name }}</span>
+            <span class="cell-cam-name">{{ t('cameras.view.cameraNumber', { number: index + 1, name: cam.name }) }}</span>
             <span class="cell-time font-mono">{{ timelineFormattedTime }}</span>
           </div>
 
           <div class="feed-overlay feed-overlay-bottom">
             <span class="feed-status-badge">
               <span class="status-indicator-dot" />
-              {{ cam.stream_type.toUpperCase() }} REC
+              {{ cam.stream_type.toUpperCase() }} {{ t('cameras.view.recording') }}
             </span>
 
             <div v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id" class="feed-event-alert">
-              <span class="alert-label">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+              <span class="alert-label">{{ getDetectionLabel(activeScrubbedEvent.label) }}</span>
               <span class="alert-score">{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</span>
             </div>
           </div>
@@ -532,7 +555,7 @@ onMounted(async () => {
             v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id"
             class="ai-tracking-box"
           >
-            <span class="box-tag">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+            <span class="box-tag">{{ getDetectionLabel(activeScrubbedEvent.label) }}</span>
           </div>
         </div>
 
@@ -544,7 +567,7 @@ onMounted(async () => {
         >
           <div class="empty-feed-placeholder">
             <Video :size="32" style="opacity: 0.3;" />
-            <span>Canale {{ wallCameras.length + emptyIdx }} in attesa</span>
+            <span>{{ t('cameras.view.channelWaiting', { channel: wallCameras.length + emptyIdx }) }}</span>
           </div>
         </div>
       </div>
@@ -630,7 +653,7 @@ onMounted(async () => {
               class="timeline-marker"
               :class="[e.label, { active: activeScrubbedEvent && activeScrubbedEvent.id === e.id }]"
               :style="{ left: e.percent + '%' }"
-              :title="`${e.label.toUpperCase()} @ ${e.detected_at} (${e.camera_id})`"
+              :title="t('cameras.view.detectionTooltip', { label: getDetectionLabel(e.label), time: e.detected_at, camera: e.camera_id })"
               @click="jumpToTimelineEvent(e)"
             >
               <span class="marker-dot" />
@@ -643,17 +666,17 @@ onMounted(async () => {
           <div class="scrubbed-event-thumb">
             <img :src="activeScrubbedEvent.thumbnail_url" class="scrub-img" />
             <div class="scrub-badge" :class="activeScrubbedEvent.label">
-              {{ activeScrubbedEvent.label.toUpperCase() }}
+              {{ getDetectionLabel(activeScrubbedEvent.label) }}
             </div>
           </div>
           <div class="scrubbed-event-info">
             <div class="scrub-title-row">
               <strong>{{ t('cameras.view.aiDetected') }}</strong>
-              <span class="scrub-time font-mono">{{ activeScrubbedEvent.detected_at }}</span>
+              <span class="scrub-time font-mono">{{ formatDetectionDate(activeScrubbedEvent.detected_at) }}</span>
             </div>
             <div class="scrub-details">
-              <span>Camera: <strong>{{ activeScrubbedEvent.camera_id }}</strong></span>
-              <span>Confidenza: <strong>{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</strong></span>
+              <span>{{ t('cameras.view.cameraLabel') }}: <strong>{{ activeScrubbedEvent.camera_id }}</strong></span>
+              <span>{{ t('cameras.view.confidenceLabel') }}: <strong>{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</strong></span>
             </div>
           </div>
           <button
@@ -662,7 +685,7 @@ onMounted(async () => {
             @click="openClipPlayer(activeScrubbedEvent)"
           >
             <Film :size="15" />
-            <span>Riproduci Filmato ({{ activeScrubbedEvent.clip_duration_sec || 5 }}s)</span>
+            <span>{{ t('cameras.view.playClip', { seconds: activeScrubbedEvent.clip_duration_sec || 5 }) }}</span>
           </button>
         </div>
       </div>
@@ -684,7 +707,7 @@ onMounted(async () => {
             </div>
           </div>
           <p class="ai-banner-desc">
-            Riconoscimento facciale dei residenti mediante embedding vettoriali locali (Cosine Similarity &ge; 0.65) e lettura automatica delle targhe (ALPR) per controllo accessi e varchi carrabili.
+            {{ t('cameras.view.aiOverviewDescription') }}
           </p>
         </div>
 
@@ -744,7 +767,7 @@ onMounted(async () => {
             <div class="face-info-box">
               <div class="face-name-row">
                 <span class="face-name">{{ face.name }}</span>
-                <span class="face-role-pill">{{ face.role || t('cameras.view.resident') }}</span>
+                <span class="face-role-pill">{{ getFaceRoleLabel(face.role) }}</span>
               </div>
               <span class="face-id-sub font-mono">{{ face.id }}</span>
               <div class="face-vector-status">
@@ -759,7 +782,7 @@ onMounted(async () => {
                 :title="t('cameras.view.testSimilarity')"
                 @click="testFaceMatch(face)"
               >
-                Test Match
+                {{ t('cameras.view.testMatchButton') }}
               </button>
               <button
                 type="button"
@@ -809,7 +832,7 @@ onMounted(async () => {
             </div>
             <div class="plate-info-box">
               <span class="plate-owner">{{ veh.owner_name }}</span>
-              <span class="plate-model text-xs text-dim">{{ veh.vehicle_model || 'Veicolo Privato' }}</span>
+              <span class="plate-model text-xs text-dim">{{ veh.vehicle_model || t('cameras.view.privateVehicle') }}</span>
               <div class="plate-gate-status">
                 <span class="status-dot green" />
                 <span class="text-xs text-emerald">{{ t('cameras.view.automaticGateOpen') }}</span>
@@ -846,7 +869,7 @@ onMounted(async () => {
 
         <div class="nvr-storage-pill">
           <HardDrive :size="14" />
-          <span>Storage NVR: {{ nvrStatus.storage_used_gb }} GB / {{ nvrStatus.storage_limit_gb }} GB (WAL Ring Buffer)</span>
+          <span>{{ t('cameras.view.storageNvr', { used: nvrStatus.storage_used_gb, total: nvrStatus.storage_limit_gb }) }}</span>
         </div>
       </div>
 
@@ -863,8 +886,8 @@ onMounted(async () => {
         </div>
         <div class="nvr-stat-card">
           <span class="stat-lbl">{{ t('cameras.activeChannels') }}</span>
-          <span class="stat-val">{{ nvrStatus.active_streams }} / {{ nvrStatus.total_cameras }} Online</span>
-          <span class="stat-desc">&lt;200ms latenza di streaming</span>
+          <span class="stat-val">{{ nvrStatus.active_streams }} / {{ nvrStatus.total_cameras }} {{ t('cameras.view.online') }}</span>
+          <span class="stat-desc">{{ t('cameras.view.streamingLatencyHint') }}</span>
         </div>
         <div class="nvr-stat-card">
           <span class="stat-lbl">{{ t('cameras.privacy') }}</span>
@@ -876,7 +899,7 @@ onMounted(async () => {
     <!-- Empty State for Cameras -->
     <div v-if="currentViewMode === 'grid' && cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
       <Video :size="48" style="opacity: 0.4; margin: 0 auto 12px; color: var(--text-muted);" />
-      <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;">{{ t('cameras.noCameras', 'Nessuna telecamera configurata') }}</p>
+      <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;" >{{ t('cameras.noCameras') }}</p>
       <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">{{ t('cameras.view.connectCameras') }}</p>
     </div>
 
@@ -897,7 +920,7 @@ onMounted(async () => {
         <div class="cam-info-bar">
           <div>
             <h3 class="cam-title">{{ cam.name }}</h3>
-            <span class="cam-protocol">{{ cam.stream_type.toUpperCase() }} • Sub-second delay</span>
+            <span class="cam-protocol">{{ cam.stream_type.toUpperCase() }} • {{ t('cameras.view.subSecondDelay') }}</span>
           </div>
 
           <div class="cam-actions-row">
@@ -965,7 +988,7 @@ onMounted(async () => {
               class="label-badge"
               :class="lbl"
             >
-              {{ lbl.toUpperCase() }}
+              {{ getDetectionLabel(lbl) }}
             </span>
           </div>
         </div>
@@ -994,8 +1017,8 @@ onMounted(async () => {
           </div>
 
           <div class="event-meta">
-            <span class="event-label">{{ t('cameras.detected') }}: <strong>{{ e.label.toUpperCase() }}</strong></span>
-            <span class="event-sub">Camera: {{ e.camera_id }} • {{ t('cameras.confidence') }}: {{ (e.score * 100).toFixed(0) }}%</span>
+            <span class="event-label">{{ t('cameras.detected') }}: <strong>{{ getDetectionLabel(e.label) }}</strong></span>
+            <span class="event-sub">{{ t('cameras.view.cameraLabel') }}: {{ e.camera_id }} • {{ t('cameras.confidence') }}: {{ (e.score * 100).toFixed(0) }}%</span>
           </div>
 
           <div class="event-actions">
@@ -1008,7 +1031,7 @@ onMounted(async () => {
               <Film :size="14" />
               <span>{{ t('cameras.clipButton') }} ({{ e.clip_duration_sec || 5 }}s)</span>
             </button>
-            <span class="event-time">{{ e.detected_at }}</span>
+            <span class="event-time">{{ formatDetectionDate(e.detected_at) }}</span>
           </div>
         </div>
       </div>
@@ -1018,8 +1041,8 @@ onMounted(async () => {
     <div v-if="isLiveModalOpen && activeCamera" class="modal-backdrop" @click="isLiveModalOpen = false">
       <div class="live-modal-dialog glass-panel" @click.stop>
         <div class="modal-top">
-          <h3>{{ activeCamera.name }} (WebRTC Stream Diretto)</h3>
-          <button class="close-btn" @click="isLiveModalOpen = false">✕</button>
+          <h3>{{ activeCamera.name }} ({{ t('cameras.view.directWebRtcStream') }})</h3>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isLiveModalOpen = false">✕</button>
         </div>
         <div class="video-container">
           <img :src="activeCamera.snapshot_url" class="fullscreen-video" />
@@ -1033,20 +1056,20 @@ onMounted(async () => {
         <div class="modal-top">
           <div class="clip-title-row">
             <Film :size="18" class="text-primary" />
-            <h3>{{ t('cameras.clipModalTitle') }} ({{ previewClipModal.event.label.toUpperCase() }})</h3>
+            <h3>{{ t('cameras.clipModalTitle') }} ({{ getDetectionLabel(previewClipModal.event.label) }})</h3>
           </div>
-          <button class="close-btn" @click="previewClipModal.isOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="previewClipModal.isOpen = false">✕</button>
         </div>
         <div class="clip-media-wrapper">
           <img :src="previewClipModal.event.thumbnail_url" class="clip-img" />
           <div class="clip-overlay-tag">
-            <span class="tag-label">{{ previewClipModal.event.label.toUpperCase() }} ({{ (previewClipModal.event.score * 100).toFixed(0) }}%)</span>
-            <span class="tag-time">{{ previewClipModal.event.detected_at }}</span>
+            <span class="tag-label">{{ getDetectionLabel(previewClipModal.event.label) }} ({{ (previewClipModal.event.score * 100).toFixed(0) }}%)</span>
+            <span class="tag-time">{{ formatDetectionDate(previewClipModal.event.detected_at) }}</span>
           </div>
         </div>
         <div class="clip-modal-footer">
           <div class="clip-meta-info">
-            <span>Camera ID: <strong>{{ previewClipModal.event.camera_id }}</strong></span>
+            <span>{{ t('cameras.view.cameraId') }}: <strong>{{ previewClipModal.event.camera_id }}</strong></span>
             <span>{{ t('cameras.clipDuration') }}: <strong>{{ previewClipModal.event.clip_duration_sec }}s MP4 H.264</strong></span>
           </div>
           <span class="notif-sync-badge">
@@ -1065,7 +1088,7 @@ onMounted(async () => {
             <Sliders :size="18" class="text-primary" />
             <h3>{{ t('cameras.zonesModalTitle') }} - {{ selectedCameraForZones.name }}</h3>
           </div>
-          <button class="close-btn" @click="isZonesModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isZonesModalOpen = false">✕</button>
         </div>
 
         <div class="zones-modal-body">
@@ -1101,12 +1124,12 @@ onMounted(async () => {
                   :class="{ active: zone.enabled }"
                   @click="toggleZone(zone)"
                 >
-                  {{ zone.enabled ? 'Attiva' : 'Disattivata' }}
+                  {{ zone.enabled ? t('cameras.active') : t('cameras.disabled') }}
                 </button>
               </div>
 
               <div class="editor-sensitivity">
-                <span class="text-xs text-dim">Sensibilità: {{ zone.sensitivity }}%</span>
+                <span class="text-xs text-dim">{{ t('cameras.view.sensitivityLabel') }}: {{ zone.sensitivity }}%</span>
                 <input
                   v-model.number="zone.sensitivity"
                   type="range"
@@ -1133,7 +1156,7 @@ onMounted(async () => {
             <UserCheck :size="18" class="text-primary" />
             <h3>{{ t('cameras.view.registerBiometricProfile') }}</h3>
           </div>
-          <button class="close-btn" @click="isFaceModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isFaceModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreateFace">
           <div class="form-group">
@@ -1149,9 +1172,9 @@ onMounted(async () => {
           <div class="form-group">
             <label class="form-label">{{ t('cameras.view.householdRole') }}</label>
             <select v-model="newFaceRole" class="form-select">
-              <option value="Residente">{{ t('cameras.view.resident') }}</option>
-              <option value="Amministratore">{{ t('cameras.view.administrator') }}</option>
-              <option value="Ospite">{{ t('cameras.view.frequentGuest') }}</option>
+              <option value="resident">{{ t('cameras.view.resident') }}</option>
+              <option value="administrator">{{ t('cameras.view.administrator') }}</option>
+              <option value="guest">{{ t('cameras.view.frequentGuest') }}</option>
             </select>
           </div>
           <div class="biometric-scan-simulation">
@@ -1166,10 +1189,10 @@ onMounted(async () => {
           </div>
           <div class="modal-actions-row">
             <button type="button" class="btn-cancel" @click="isFaceModalOpen = false">
-              Annulla
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn-save-primary">
-              Salva Profilo
+              {{ t('cameras.view.saveProfile') }}
             </button>
           </div>
         </form>
@@ -1184,7 +1207,7 @@ onMounted(async () => {
             <Car :size="18" class="text-primary" />
             <h3>{{ t('cameras.view.addAuthorizedPlate') }}</h3>
           </div>
-          <button class="close-btn" @click="isPlateModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isPlateModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreatePlate">
           <div class="form-group">
@@ -1223,15 +1246,15 @@ onMounted(async () => {
               class="custom-check"
             />
             <label for="auto-open-gate" class="text-sm">
-              Apri automaticamente cancello carraio e accendi luci viale
+              {{ t('cameras.view.autoOpenGateLights') }}
             </label>
           </div>
           <div class="modal-actions-row">
             <button type="button" class="btn-cancel" @click="isPlateModalOpen = false">
-              Annulla
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn-save-primary">
-              Registra Targa
+              {{ t('cameras.view.registerPlate') }}
             </button>
           </div>
         </form>
@@ -1246,7 +1269,7 @@ onMounted(async () => {
             <ShieldCheck :size="18" class="text-emerald" />
             <h3>{{ t('cameras.view.localBiometricMatch') }}</h3>
           </div>
-          <button class="close-btn" @click="faceTestModal.isOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="faceTestModal.isOpen = false">✕</button>
         </div>
         <div class="test-match-body">
           <div class="test-avatar-box">
@@ -1254,12 +1277,12 @@ onMounted(async () => {
             <div class="test-pulse-ring" />
           </div>
           <h4 class="test-name">{{ faceTestModal.face.name }}</h4>
-          <span class="test-role">{{ faceTestModal.face.role || 'Residente' }}</span>
+          <span class="test-role">{{ getFaceRoleLabel(faceTestModal.face.role) }}</span>
 
           <div class="match-score-pill">
             <span>{{ t('cameras.view.cosineSimilarity') }}</span>
             <strong class="text-emerald font-mono">{{ ((faceTestModal.score || 0.94) * 100).toFixed(1) }}%</strong>
-            <span class="score-pass-tag">&ge; 65% SOGLIA SUPERATA</span>
+            <span class="score-pass-tag">&ge; 65% {{ t('cameras.view.thresholdPassed') }}</span>
           </div>
 
           <div class="match-verdict-box">

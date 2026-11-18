@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { ActionableNotification } from '../api/types'
@@ -58,10 +59,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
       if (item) {
         item.resolved_at = new Date().toISOString()
       }
-      success('Azione eseguita', 'Comando inviato con successo')
+      success(i18n.global.t('common.notifications.actionExecutedTitle'), i18n.global.t('common.notifications.actionExecutedMessage'))
       return true
     } catch (err: any) {
-      error('Errore azione', err?.message || 'Impossibile eseguire l\'azione')
+      error(i18n.global.t('common.error'), i18n.global.t('common.notifications.actionFailedMessage'))
       return false
     }
   }

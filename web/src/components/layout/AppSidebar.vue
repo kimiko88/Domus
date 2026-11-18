@@ -331,7 +331,7 @@ onUnmounted(() => {
 
 .app-sidebar {
   position: fixed;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   bottom: 0;
   left: 0;
   width: var(--sidebar-width);

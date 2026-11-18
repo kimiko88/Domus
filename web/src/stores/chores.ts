@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { Chore, ChorePriority, ChoreRecurrence } from '../api/types'
@@ -29,7 +30,7 @@ export const useChoresStore = defineStore('chores', () => {
       chores.value = data
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch chores'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -53,7 +54,7 @@ export const useChoresStore = defineStore('chores', () => {
       chores.value.unshift(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create chore'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -71,7 +72,7 @@ export const useChoresStore = defineStore('chores', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update chore'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -89,7 +90,7 @@ export const useChoresStore = defineStore('chores', () => {
       // Re-fetch to pull newly spawned recurring instance if any
       await fetchChores()
     } catch (err: any) {
-      error.value = err?.message || 'Failed to complete chore'
+      error.value = i18n.global.t('common.errors.actionFailed')
       throw err
     }
   }
@@ -101,7 +102,7 @@ export const useChoresStore = defineStore('chores', () => {
       await apiClient.delete(`/api/v1/chores/${id}`)
       chores.value = chores.value.filter((c) => c.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete chore'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -118,7 +119,7 @@ export const useChoresStore = defineStore('chores', () => {
       await fetchChores()
       return res
     } catch (err: any) {
-      error.value = err?.message || 'Failed to sync Google Calendar'
+      error.value = i18n.global.t('common.errors.syncFailed')
       throw err
     } finally {
       loading.value = false

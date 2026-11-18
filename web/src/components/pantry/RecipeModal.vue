@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   X,
   Save,
@@ -17,6 +18,8 @@ interface Props {
   isOpen: boolean
   recipeToEdit?: Recipe | null
 }
+
+const { t } = useI18n()
 
 const props = defineProps<Props>()
 
@@ -41,24 +44,24 @@ const ingredients = ref<Array<{ name: string; quantity: number; unit: PantryUnit
 const steps = ref<RecipeStep[]>([])
 const errorMessage = ref<string | null>(null)
 
-const categories: { key: RecipeCategory; label: string }[] = [
-  { key: 'first_course', label: '🍝 Primo Piatto' },
-  { key: 'main_course', label: '🥩 Secondo Piatto' },
-  { key: 'side_dish', label: '🥗 Contorno' },
-  { key: 'single_dish', label: '🍲 Piatto Unico' },
-  { key: 'breakfast', label: '☕ Colazione' },
-  { key: 'dessert', label: '🍰 Dolce' },
-  { key: 'snack', label: '🥪 Spuntino / Merenda' }
-]
+const categories = computed<{ key: RecipeCategory; label: string }[]>(() => [
+  { key: 'first_course', label: t('pantry.view.recipeEditor.categories.firstCourse') },
+  { key: 'main_course', label: t('pantry.view.recipeEditor.categories.mainCourse') },
+  { key: 'side_dish', label: t('pantry.view.recipeEditor.categories.sideDish') },
+  { key: 'single_dish', label: t('pantry.view.recipeEditor.categories.singleDish') },
+  { key: 'breakfast', label: t('pantry.view.recipeEditor.categories.breakfast') },
+  { key: 'dessert', label: t('pantry.view.recipeEditor.categories.dessert') },
+  { key: 'snack', label: t('pantry.view.recipeEditor.categories.snack') }
+])
 
-const units: { key: PantryUnit; label: string }[] = [
-  { key: 'g', label: 'g (grammi)' },
-  { key: 'kg', label: 'kg (chili)' },
-  { key: 'pz', label: 'pz (pezzi)' },
-  { key: 'ml', label: 'ml (millilitri)' },
-  { key: 'l', label: 'L (litri)' },
-  { key: 'pack', label: 'pack (confezione)' }
-]
+const units = computed<{ key: PantryUnit; label: string }[]>(() => [
+  { key: 'g', label: t('pantry.view.recipeEditor.units.grams') },
+  { key: 'kg', label: t('pantry.view.recipeEditor.units.kilograms') },
+  { key: 'pz', label: t('pantry.view.recipeEditor.units.pieces') },
+  { key: 'ml', label: t('pantry.view.recipeEditor.units.milliliters') },
+  { key: 'l', label: t('pantry.view.recipeEditor.units.liters') },
+  { key: 'pack', label: t('pantry.view.recipeEditor.units.pack') }
+])
 
 function parseInstructionsToSteps(raw: string): RecipeStep[] {
   if (!raw || !raw.trim()) {
@@ -215,11 +218,11 @@ function applyStepsTotalToCookTime() {
 function handleSubmit() {
   const trimmedTitle = title.value.trim()
   if (!trimmedTitle) {
-    errorMessage.value = 'Il titolo della ricetta è obbligatorio'
+    errorMessage.value = t('pantry.view.recipeEditor.titleRequired')
     return
   }
   if (portionsBase.value < 1) {
-    errorMessage.value = 'Le porzioni base devono essere almeno 1'
+    errorMessage.value = t('pantry.view.recipeEditor.portionsRequired')
     return
   }
   const validIngredients = ingredients.value
@@ -232,7 +235,7 @@ function handleSubmit() {
     }))
 
   if (validIngredients.length === 0) {
-    errorMessage.value = 'Aggiungi almeno un ingrediente alla ricetta'
+    errorMessage.value = t('pantry.view.recipeEditor.ingredientRequired')
     return
   }
 
@@ -277,12 +280,12 @@ function handleSubmit() {
       >
         <div class="modal-header">
           <h2 :id="recipeToEdit ? 'edit-recipe-title' : 'create-recipe-title'" class="modal-title">
-            {{ recipeToEdit ? 'Modifica Ricetta' : 'Nuova Ricetta nel Ricettario' }}
+            {{ recipeToEdit ? t('pantry.view.recipeEditor.editTitle') : t('pantry.view.recipeEditor.newTitle') }}
           </h2>
           <button
             type="button"
             class="icon-btn"
-            aria-label="Chiudi"
+            :aria-label="t('pantry.view.recipeEditor.close')"
             @click="emit('close')"
           >
             <X :size="20" />
@@ -297,13 +300,13 @@ function handleSubmit() {
 
           <!-- Title -->
           <div class="form-group">
-            <label for="recipe-title" class="form-label">Titolo Ricetta *</label>
+            <label for="recipe-title" class="form-label">{{ t('pantry.view.recipeEditor.title') }} *</label>
             <input
               id="recipe-title"
               v-model="title"
               type="text"
               class="form-control"
-              placeholder="es. Risotto ai Funghi Porcini, Carbonara, Salmone al Forno..."
+              :placeholder="t('pantry.view.recipeEditor.titlePlaceholder')"
               required
               autofocus
             />
@@ -312,7 +315,7 @@ function handleSubmit() {
           <!-- Category & Portions Base -->
           <div class="form-row">
             <div class="form-group">
-              <label for="recipe-cat" class="form-label">Portata / Categoria</label>
+              <label for="recipe-cat" class="form-label">{{ t('pantry.view.recipeEditor.category') }}</label>
               <select id="recipe-cat" v-model="category" class="form-control select-dark">
                 <option v-for="c in categories" :key="c.key" :value="c.key">
                   {{ c.label }}
@@ -321,7 +324,7 @@ function handleSubmit() {
             </div>
 
             <div class="form-group">
-              <label for="recipe-portions" class="form-label">Porzioni Base (Persone) *</label>
+              <label for="recipe-portions" class="form-label">{{ t('pantry.view.recipeEditor.basePortions') }} *</label>
               <input
                 id="recipe-portions"
                 v-model.number="portionsBase"
@@ -329,7 +332,7 @@ function handleSubmit() {
                 min="1"
                 class="form-control"
                 required
-                title="Dosi calibrate per questo numero di commensali (verranno scalate in automatico nel calendario)"
+                :title="t('pantry.view.recipeEditor.portionsHint')"
               />
             </div>
           </div>
@@ -337,7 +340,7 @@ function handleSubmit() {
           <!-- Prep & Cook Time -->
           <div class="form-row">
             <div class="form-group">
-              <label for="recipe-prep" class="form-label">Preparazione (min)</label>
+              <label for="recipe-prep" class="form-label">{{ t('pantry.view.recipeEditor.preparationMinutes') }}</label>
               <input
                 id="recipe-prep"
                 v-model.number="prepTimeMinutes"
@@ -348,7 +351,7 @@ function handleSubmit() {
             </div>
 
             <div class="form-group">
-              <label for="recipe-cook" class="form-label">Cottura (min)</label>
+              <label for="recipe-cook" class="form-label">{{ t('pantry.view.recipeEditor.cookingMinutes') }}</label>
               <input
                 id="recipe-cook"
                 v-model.number="cookTimeMinutes"
@@ -362,14 +365,14 @@ function handleSubmit() {
           <!-- Ingredients List -->
           <div class="ingredients-section">
             <div class="section-header">
-              <span class="form-label section-title">Ingredienti (per {{ portionsBase }} persone)</span>
+              <span class="form-label section-title">{{ t('pantry.view.recipeEditor.ingredientsFor', { count: portionsBase }) }}</span>
               <button
                 type="button"
                 class="btn-sm btn-ghost"
                 @click="addIngredient"
               >
                 <Plus :size="16" />
-                <span>Aggiungi Ingrediente</span>
+                <span>{{ t('pantry.view.recipeEditor.addIngredient') }}</span>
               </button>
             </div>
 
@@ -383,7 +386,7 @@ function handleSubmit() {
                   v-model="ing.name"
                   type="text"
                   class="form-control ing-name"
-                  placeholder="Nome ingrediente (es. Spaghetti)"
+                  :placeholder="t('pantry.view.recipeEditor.ingredientPlaceholder')"
                   required
                 />
 
@@ -393,7 +396,7 @@ function handleSubmit() {
                   step="any"
                   min="0"
                   class="form-control ing-qty"
-                  placeholder="Dose"
+                  :placeholder="t('pantry.view.recipeEditor.quantityPlaceholder')"
                   required
                 />
 
@@ -403,15 +406,15 @@ function handleSubmit() {
                   </option>
                 </select>
 
-                <label class="optional-label" title="Opzionale">
+                <label class="optional-label" :title="t('pantry.view.recipeEditor.optional')">
                   <input v-model="ing.is_optional" type="checkbox" />
-                  <span>Opz.</span>
+                  <span>{{ t('pantry.view.recipeEditor.optionalShort') }}</span>
                 </label>
 
                 <button
                   type="button"
                   class="icon-btn-danger"
-                  aria-label="Rimuovi ingrediente"
+                  :aria-label="t('pantry.view.recipeEditor.removeIngredient')"
                   @click="removeIngredient(idx)"
                 >
                   <Trash2 :size="16" />
@@ -425,9 +428,9 @@ function handleSubmit() {
             <div class="section-header">
               <div class="steps-title-group">
                 <ListOrdered :size="18" class="text-primary" />
-                <span class="form-label section-title">Passaggi & Tempi di Preparazione</span>
+                <span class="form-label section-title">{{ t('pantry.view.recipeEditor.stepsTitle') }}</span>
                 <span v-if="totalStepsTime > 0" class="steps-total-badge">
-                  ⏱️ Somma passaggi: {{ totalStepsTime }} min
+                  {{ t('pantry.view.recipeEditor.stepsTotal', { minutes: totalStepsTime }) }}
                 </span>
               </div>
               <div class="steps-header-actions">
@@ -435,11 +438,11 @@ function handleSubmit() {
                   v-if="totalStepsTime > 0 && totalStepsTime !== cookTimeMinutes"
                   type="button"
                   class="btn-sm btn-outline-timer"
-                  title="Imposta il tempo cottura totale pari alla somma dei passaggi"
+                  :title="t('pantry.view.recipeEditor.applyStepsTimeTitle')"
                   @click="applyStepsTotalToCookTime"
                 >
                   <Clock :size="14" />
-                  <span>Usa come tempo cottura</span>
+                  <span>{{ t('pantry.view.recipeEditor.useAsCookTime') }}</span>
                 </button>
                 <button
                   type="button"
@@ -447,13 +450,13 @@ function handleSubmit() {
                   @click="addStep"
                 >
                   <Plus :size="16" />
-                  <span>Aggiungi Step</span>
+                  <span>{{ t('pantry.view.recipeEditor.addStep') }}</span>
                 </button>
               </div>
             </div>
 
             <div v-if="steps.length === 0" class="steps-empty">
-              Nessun passaggio definito. Clicca su "+ Aggiungi Step" per descrivere la preparazione passo dopo passo.
+              {{ t('pantry.view.recipeEditor.noSteps') }}
             </div>
 
             <div v-else class="steps-list">
@@ -464,22 +467,22 @@ function handleSubmit() {
               >
                 <div class="step-card-header">
                   <div class="step-badge">
-                    <span>Step {{ idx + 1 }}</span>
+                    <span>{{ t('pantry.view.recipeEditor.stepNumber', { number: idx + 1 }) }}</span>
                   </div>
 
                   <div class="step-timer-field">
                     <Clock :size="14" class="text-muted" />
-                    <label :for="'step-time-' + idx" class="sr-only">Tempo Step {{ idx + 1 }} in minuti</label>
+                    <label :for="'step-time-' + idx" class="sr-only">{{ t('pantry.view.recipeEditor.stepMinutesLabel', { number: idx + 1 }) }}</label>
                     <input
                       :id="'step-time-' + idx"
                       v-model.number="st.time_minutes"
                       type="number"
                       min="0"
                       class="step-time-input"
-                      placeholder="0"
-                      title="Durata timer passaggio in minuti (0 se istantaneo)"
+                       :placeholder="t('pantry.view.recipeEditor.zeroPlaceholder')"
+                      :title="t('pantry.view.recipeEditor.stepTimerHint')"
                     />
-                    <span class="step-time-unit">min</span>
+                    <span class="step-time-unit">{{ t('pantry.view.recipeEditor.minutesShort') }}</span>
                   </div>
 
                   <div class="step-actions">
@@ -487,8 +490,8 @@ function handleSubmit() {
                       type="button"
                       class="step-reorder-btn"
                       :disabled="idx === 0"
-                      title="Sposta su"
-                      aria-label="Sposta su"
+                      :title="t('pantry.view.recipeEditor.moveUp')"
+                      :aria-label="t('pantry.view.recipeEditor.moveUp')"
                       @click="moveStep(idx, -1)"
                     >
                       <ArrowUp :size="14" />
@@ -497,8 +500,8 @@ function handleSubmit() {
                       type="button"
                       class="step-reorder-btn"
                       :disabled="idx === steps.length - 1"
-                      title="Sposta giù"
-                      aria-label="Sposta giù"
+                      :title="t('pantry.view.recipeEditor.moveDown')"
+                      :aria-label="t('pantry.view.recipeEditor.moveDown')"
                       @click="moveStep(idx, 1)"
                     >
                       <ArrowDown :size="14" />
@@ -506,8 +509,8 @@ function handleSubmit() {
                     <button
                       type="button"
                       class="step-delete-btn"
-                      title="Elimina passaggio"
-                      aria-label="Elimina passaggio"
+                      :title="t('pantry.view.recipeEditor.removeStep')"
+                      :aria-label="t('pantry.view.recipeEditor.removeStep')"
                       @click="removeStep(idx)"
                     >
                       <Trash2 :size="14" />
@@ -520,7 +523,7 @@ function handleSubmit() {
                     v-model="st.text"
                     rows="2"
                     class="form-control step-textarea"
-                    :placeholder="'Descrivi cosa fare nel passaggio ' + (idx + 1) + ' (es. Soffriggere cipolla, sfumare col vino, infornare...)'"
+                    :placeholder="t('pantry.view.recipeEditor.stepPlaceholder', { number: idx + 1 })"
                   ></textarea>
                 </div>
               </div>
@@ -533,14 +536,14 @@ function handleSubmit() {
               class="btn btn-secondary"
               @click="emit('close')"
             >
-              Annulla
+              {{ t('common.cancel') }}
             </button>
             <button
               type="submit"
               class="btn btn-primary"
             >
               <Save :size="18" />
-              <span>{{ recipeToEdit ? 'Salva Ricetta' : 'Crea Ricetta' }}</span>
+              <span>{{ recipeToEdit ? t('pantry.view.recipeEditor.save') : t('pantry.view.recipeEditor.create') }}</span>
             </button>
           </div>
         </form>

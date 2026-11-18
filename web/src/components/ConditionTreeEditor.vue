@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { AutomationCondition, Entity } from '../api/types'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   modelValue: AutomationCondition
@@ -14,19 +17,19 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: AutomationCondition): void
 }>()
 
-const logicalTypes = [
-  { value: 'and', label: 'Tutte le condizioni (AND)' },
-  { value: 'or', label: 'Almeno una condizione (OR)' },
-  { value: 'not', label: 'Nessuna condizione (NOT)' }
-]
-const leafTypes = [
-  { value: 'state', label: 'Stato entità' },
-  { value: 'numeric_state', label: 'Soglia numerica' },
-  { value: 'time', label: 'Fascia oraria' },
-  { value: 'trigger', label: 'Trigger' }
-]
-const supportedTypes = new Set([...logicalTypes.map((item) => item.value), ...leafTypes.map((item) => item.value)])
-const isLogical = computed(() => logicalTypes.some((item) => item.value === props.modelValue.condition))
+const logicalTypes = computed(() => [
+  { value: 'and', label: t('flowchart.conditionEditor.logicalTypes.and') },
+  { value: 'or', label: t('flowchart.conditionEditor.logicalTypes.or') },
+  { value: 'not', label: t('flowchart.conditionEditor.logicalTypes.not') }
+])
+const leafTypes = computed(() => [
+  { value: 'state', label: t('flowchart.conditionEditor.leafTypes.state') },
+  { value: 'numeric_state', label: t('flowchart.conditionEditor.leafTypes.numericState') },
+  { value: 'time', label: t('flowchart.conditionEditor.leafTypes.time') },
+  { value: 'trigger', label: t('flowchart.conditionEditor.leafTypes.trigger') }
+])
+const supportedTypes = new Set([...logicalTypes.value.map((item) => item.value), ...leafTypes.value.map((item) => item.value)])
+const isLogical = computed(() => logicalTypes.value.some((item) => item.value === props.modelValue.condition))
 const isSupported = computed(() => supportedTypes.has(props.modelValue.condition))
 const children = computed(() => Array.isArray(props.modelValue.conditions) ? props.modelValue.conditions : [])
 const canAddChild = computed(() => props.depth < 8 && (props.modelValue.condition !== 'not' || children.value.length === 0))
@@ -62,7 +65,7 @@ function removeDiscriminatorFields(condition: AutomationCondition): Partial<Auto
 }
 
 function changeType(type: string) {
-  if (logicalTypes.some((item) => item.value === type)) {
+  if (logicalTypes.value.some((item) => item.value === type)) {
     if (isLogical.value) {
       let nextChildren = [...children.value]
       if (type === 'not' && nextChildren.length > 1) {
@@ -81,7 +84,7 @@ function changeType(type: string) {
     return
   }
 
-  if (!leafTypes.some((item) => item.value === type)) return
+  if (!leafTypes.value.some((item) => item.value === type)) return
   const next: AutomationCondition = {
     ...removeDiscriminatorFields(props.modelValue),
     condition: type
@@ -138,21 +141,21 @@ function updateTime(event: Event, field: 'after' | 'before') {
   <section class="condition-tree-editor" :class="{ 'is-nested': depth > 0, 'is-unsupported': !isSupported }" data-test="condition-editor">
     <header class="condition-editor-header">
       <div class="condition-editor-heading">
-        <span class="condition-depth-label">{{ isLogical ? 'Gruppo logico' : 'Condizione' }}</span>
+        <span class="condition-depth-label">{{ isLogical ? t('flowchart.conditionEditor.logicalGroup') : t('flowchart.conditionEditor.condition') }}</span>
         <strong>{{ modelValue.condition.toUpperCase() }}</strong>
       </div>
       <label class="condition-type-control">
-        <span>Tipo</span>
+        <span>{{ t('flowchart.conditionEditor.type') }}</span>
         <select
           data-test="condition-type"
           :value="modelValue.condition"
           :disabled="!isSupported"
           @change="changeType(($event.target as HTMLSelectElement).value)"
         >
-          <optgroup v-if="isLogical" label="Operatori logici">
+          <optgroup v-if="isLogical"  :label="t('flowchart.conditionEditor.logicalOperators')">
             <option v-for="option in logicalTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
           </optgroup>
-          <optgroup v-else label="Condizioni">
+          <optgroup v-else  :label="t('flowchart.conditionEditor.conditions')">
             <option v-for="option in leafTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             <option v-for="option in logicalTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
           </optgroup>
@@ -162,9 +165,9 @@ function updateTime(event: Event, field: 'after' | 'before') {
 
     <div v-if="isLogical" class="condition-children">
       <p class="condition-help">
-        <template v-if="modelValue.condition === 'and'">Tutte le condizioni figlie devono essere vere.</template>
-        <template v-else-if="modelValue.condition === 'or'">È sufficiente che una condizione figlia sia vera.</template>
-        <template v-else>La condizione figlia deve essere falsa.</template>
+        <template v-if="modelValue.condition === 'and'">{{ t('flowchart.conditionEditor.andHelp') }}</template>
+        <template v-else-if="modelValue.condition === 'or'">{{ t('flowchart.conditionEditor.orHelp') }}</template>
+        <template v-else>{{ t('flowchart.conditionEditor.notHelp') }}</template>
       </p>
 
       <div v-for="(child, index) in children" :key="child.id || index" class="condition-child-row">
@@ -178,8 +181,8 @@ function updateTime(event: Event, field: 'after' | 'before') {
           v-if="children.length > 1"
           class="condition-remove-button"
           type="button"
-          :aria-label="`Rimuovi condizione ${index + 1}`"
-          :title="`Rimuovi condizione ${index + 1}`"
+          :aria-label="t('flowchart.conditionEditor.removeCondition', { index: index + 1 })"
+          :title="t('flowchart.conditionEditor.removeCondition', { index: index + 1 })"
           :data-test="`remove-condition-${index}`"
           @click="removeChild(index)"
         >×</button>
@@ -191,40 +194,40 @@ function updateTime(event: Event, field: 'after' | 'before') {
         :disabled="!canAddChild"
         data-test="add-condition"
         @click="addChild"
-      >＋ Aggiungi condizione</button>
-      <p v-if="depth >= 8" class="condition-limit-note">Raggiunto il limite di annidamento supportato dal validatore.</p>
-      <p v-else-if="modelValue.condition === 'not'" class="condition-limit-note">NOT accetta una sola condizione figlia.</p>
+      >{{ t('flowchart.conditionEditor.addCondition') }}</button>
+      <p v-if="depth >= 8" class="condition-limit-note">{{ t('flowchart.conditionEditor.depthLimit') }}</p>
+      <p v-else-if="modelValue.condition === 'not'" class="condition-limit-note">{{ t('flowchart.conditionEditor.notLimit') }}</p>
     </div>
 
     <div v-else-if="modelValue.condition === 'state'" class="condition-fields">
       <label>
-        Entità
+        {{ t('flowchart.conditionEditor.entityLabel') }}
         <select
           data-test="condition-entity"
           :value="modelValue.entity_key || ''"
           @change="updateField('entity_key', ($event.target as HTMLSelectElement).value)"
         >
-          <option value="">Seleziona un'entità</option>
+          <option value="">{{ t('flowchart.conditionEditor.selectEntity') }}</option>
           <option v-for="entity in entities" :key="entity.id" :value="entity.id">
             {{ entity.name }} ({{ entity.id }})
           </option>
         </select>
       </label>
       <label>
-        Stato richiesto
-        <input data-test="condition-state" type="text" :value="modelValue.state || ''" placeholder="on, off, open..." @input="updateText($event, 'state')" />
+        {{ t('flowchart.conditionEditor.stateLabel') }}
+        <input data-test="condition-state" type="text" :value="modelValue.state || ''"  :placeholder="t('flowchart.conditionEditor.statePlaceholder')" @input="updateText($event, 'state')" />
       </label>
     </div>
 
     <div v-else-if="modelValue.condition === 'numeric_state'" class="condition-fields">
       <label>
-        Sensore
+        {{ t('flowchart.conditionEditor.sensorLabel') }}
         <select
           data-test="condition-entity"
           :value="modelValue.entity_key || ''"
           @change="updateField('entity_key', ($event.target as HTMLSelectElement).value)"
         >
-          <option value="">Seleziona un sensore</option>
+          <option value="">{{ t('flowchart.conditionEditor.selectSensor') }}</option>
           <option v-for="entity in entities.filter((item) => item.domain === 'sensor')" :key="entity.id" :value="entity.id">
             {{ entity.name }} ({{ entity.id }})
           </option>
@@ -232,37 +235,37 @@ function updateTime(event: Event, field: 'after' | 'before') {
       </label>
       <div class="condition-number-row">
         <label>
-          Maggiore di
+          {{ t('flowchart.conditionEditor.aboveLabel') }}
           <input data-test="condition-above" type="number" step="any" :value="modelValue.above ?? ''" @input="updateNumber($event, 'above')" />
         </label>
         <label>
-          Minore di
+          {{ t('flowchart.conditionEditor.belowLabel') }}
           <input data-test="condition-below" type="number" step="any" :value="modelValue.below ?? ''" @input="updateNumber($event, 'below')" />
         </label>
       </div>
-      <p class="condition-help">Imposta almeno una delle due soglie.</p>
+      <p class="condition-help">{{ t('flowchart.conditionEditor.thresholdHelp') }}</p>
     </div>
 
     <div v-else-if="modelValue.condition === 'time'" class="condition-fields">
       <label>
-        Dopo le
+        {{ t('flowchart.conditionEditor.afterLabel') }}
         <input data-test="condition-after" type="time" step="1" :value="modelValue.after || ''" @input="updateTime($event, 'after')" />
       </label>
       <label>
-        Prima delle
+        {{ t('flowchart.conditionEditor.beforeLabel') }}
         <input data-test="condition-before" type="time" step="1" :value="modelValue.before || ''" @input="updateTime($event, 'before')" />
       </label>
     </div>
 
     <div v-else-if="modelValue.condition === 'trigger'" class="condition-fields">
       <label>
-        ID trigger
-        <input data-test="condition-trigger-id" type="text" :value="modelValue.trigger_id || ''" placeholder="trigger_id" @input="updateText($event, 'trigger_id')" />
+        {{ t('flowchart.conditionEditor.triggerIdLabel') }}
+        <input data-test="condition-trigger-id" type="text" :value="modelValue.trigger_id || ''"  :placeholder="t('flowchart.conditionEditor.triggerPlaceholder')" @input="updateText($event, 'trigger_id')" />
       </label>
     </div>
 
     <div v-else class="condition-unsupported-content">
-      <p>Questo tipo di condizione non è modificabile con i controlli visuali. La configurazione originale viene mantenuta senza alterazioni.</p>
+      <p>{{ t('flowchart.conditionEditor.unsupportedHelp') }}</p>
       <pre>{{ JSON.stringify(modelValue, null, 2) }}</pre>
     </div>
   </section>
