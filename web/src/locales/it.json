@@ -2084,7 +2084,14 @@
         "dry": "Deumidificazione",
         "fanOnly": "Solo ventilazione",
         "other": "Altra modalità"
-      }
+      },
+      "monday": "Lunedì",
+      "tuesday": "Martedì",
+      "wednesday": "Mercoledì",
+      "thursday": "Giovedì",
+      "friday": "Venerdì",
+      "saturday": "Sabato",
+      "sunday": "Domenica"
     }
   },
   "login": {
@@ -2189,7 +2196,10 @@
     "fallbackSatellites": {
       "livingRoom": "Tablet a parete soggiorno",
       "kitchen": "Smart display cucina",
-      "bedroom": "Tablet comodino"
+      "bedroom": "Tablet comodino",
+      "livingRoomArea": "Soggiorno",
+      "kitchenArea": "Cucina",
+      "bedroomArea": "Camera da letto"
     }
   },
   "flasher": {
@@ -2373,7 +2383,14 @@
       "thresholdHelp": "Imposta almeno una delle due soglie.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Questo tipo di condizione non è modificabile con i controlli visuali. La configurazione originale viene mantenuta senza alterazioni.",
-      "entityLabel": "Entità"
+      "entityLabel": "Entità",
+      "stateLabel": "Stato richiesto",
+      "sensorLabel": "Sensore",
+      "aboveLabel": "Maggiore di",
+      "belowLabel": "Minore di",
+      "afterLabel": "Dopo le",
+      "beforeLabel": "Prima delle",
+      "triggerIdLabel": "ID trigger"
     }
   },
   "failover": {
@@ -3021,7 +3038,10 @@
         "expiring": "In scadenza (3 giorni)",
         "expiringSub": "Da consumare a breve",
         "cookable": "Cosa posso cucinare?",
-        "cookableSub": "100% degli ingredienti disponibili"
+        "cookableSub": "100% degli ingredienti disponibili",
+        "filterLowStock": "Filtra gli articoli con scorte basse",
+        "filterExpiring": "Filtra gli articoli in scadenza",
+        "showCookable": "Mostra le ricette preparabili oggi"
       },
       "cookableRecipes": "ricette preparabili"
     }
