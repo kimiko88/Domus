@@ -457,7 +457,8 @@
       "devicesUpdatedTitle": "Geräte aktualisiert",
       "devicesUpdatedMessage": "Geräteliste und Integrationsstatus wurden aktualisiert.",
       "refreshErrorTitle": "Aktualisierung fehlgeschlagen",
-      "refreshErrorMessage": "Geräte konnten nicht aktualisiert werden."
+      "refreshErrorMessage": "Geräte konnten nicht aktualisiert werden.",
+      "filteredCount": "{filtered} von {total} Geräten"
     }
   },
   "integrations": {
@@ -646,7 +647,9 @@
       "anomaliesRegistered": "Anomalien registriert",
       "noWritableFunctions": "Die API hat für dieses Gerät keine beschreibbaren Funktionen zurückgegeben.",
       "host": "Host",
-      "deviceTotals": "gesamt · online · offline"
+      "deviceTotals": "gesamt · online · offline",
+      "ipLabel": "IP",
+      "firmwareLabel": "Firmware"
     }
   },
   "history": {
@@ -1113,7 +1116,25 @@
     "tariffF1": "F1 (Spitze: Mo–Fr 08–19)",
     "tariffF2": "F2 (Mittel: Mo–Fr 07–08 und 19–23, Sa 07–23)",
     "tariffF3": "F3 (Nebenzeit: Nächte, Sonntage und Feiertage)",
-    "electricity": "Strom"
+    "electricity": "Strom",
+    "nodeSolar": "SOLAR",
+    "nodeGrid": "NETZ",
+    "nodeHomeLoads": "HAUSHALTSVERBRAUCH",
+    "nodeBattery": "BATTERIE",
+    "nodeWallbox": "WALLBOX EV",
+    "standby": "0 W (Bereitschaft)",
+    "recalculateArbitrage": "Optimale Arbitrage neu berechnen",
+    "wallboxSubtitle": "Dynamische IEC-61851-Modulation mit Netto-PV-Überschuss und Schutz vor Zählerüberlastung",
+    "recalculateSolarModulation": "Solarmodulation neu berechnen",
+    "updating": "Wird aktualisiert…",
+    "recalculateModulation": "Modulation neu berechnen",
+    "target": "Sollwert",
+    "pwmAvailableCurrent": "Verfügbarer PWM-Strom",
+    "station": "Ladestation",
+    "solarSurplus": "Solarüberschuss",
+    "homeLoads": "Haushaltsverbrauch",
+    "total": "Gesamt",
+    "cost": "Kosten"
   },
   "cameras": {
     "title": "Videoüberwachung & Lokaler KI-Vision NVR",
@@ -1307,7 +1328,11 @@
       "filterSupermarket": "Nach {name} filtern",
       "justNow": "Gerade eben",
       "toBuy": "zu kaufen",
-      "bought": "gekauft"
+      "bought": "gekauft",
+      "itemsAdded": "{count} neue Artikel",
+      "itemsUpdated": "{count} Artikel aktualisiert",
+      "itemsTransferred": "Artikel übertragen",
+      "transferCompleted": "Einkäufe in den Vorrat übernommen ({summary})!"
     }
   },
   "chores": {
@@ -1557,7 +1582,10 @@
         "kitchen": "Küche",
         "masterBedroom": "Hauptschlafzimmer",
         "bathroom": "Badezimmer",
-        "office": "Arbeitszimmer / Büro"
+        "office": "Arbeitszimmer / Büro",
+        "kitchenDining": "Küche und Esszimmer",
+        "bedroom": "Schlafzimmer",
+        "masterBathroom": "Hauptbadezimmer"
       },
       "roomCreatedTitle": "Raum erstellt",
       "roomCreatedMessage": "Raum „{name}“ wurde zum Grundriss hinzugefügt",
