@@ -1197,7 +1197,8 @@
       "playerSuccess": "Lautsprecher erfolgreich in der Datenbank registriert!",
       "playerError": "Fehler beim Registrieren des Players",
       "confirmDelete": "Möchtest du „{name}“ wirklich aus der Domus-Datenbank entfernen?",
-      "deleteFailed": "Media-Player konnte nicht gelöscht werden"
+      "deleteFailed": "Media-Player konnte nicht gelöscht werden",
+      "closeWindow": "Fenster schließen"
     }
   },
   "mesh": {
@@ -1394,7 +1395,18 @@
         "friday": "Freitag",
         "saturday": "Samstag",
         "sunday": "Sonntag"
-      }
+      },
+      "manualOverrideDuration": "Dauer der manuellen Übersteuerung",
+      "untilNextChange": "Bis zur nächsten Änderung",
+      "minutes30": "30 Minuten",
+      "hour1": "1 Stunde",
+      "hours2": "2 Stunden",
+      "hours4": "4 Stunden",
+      "hours8": "8 Stunden",
+      "manualOverrideExpiryHint": "Nach Ablauf stellt Domus den vorherigen Sollwert wieder her.",
+      "noProgrammableSetpoint": "Dieses Gerät stellt keinen programmierbaren Sollwert bereit.",
+      "deleteTimeSlot": "Zeitfenster löschen",
+      "deleteTimeSlotAria": "Zeitfenster löschen"
     }
   },
   "login": {
