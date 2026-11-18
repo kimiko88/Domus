@@ -958,7 +958,35 @@
       "thresholdPassed": "65-%-Schwelle überschritten",
       "accessConfirmed": "Zugang bestätigt",
       "profileValidated": "Profil von der lokalen NVR-Engine validiert. Willkommensautomationen sind freigeschaltet.",
-      "testMatchButton": "Übereinstimmung testen"
+      "testMatchButton": "Übereinstimmung testen",
+      "wallSync": "MEHRBILDSCHIRM-SYNCHRONISIERUNG ({matrix})",
+      "cameraNumber": "KAMERA {number}: {name}",
+      "channelWaiting": "Kanal {channel} wartet",
+      "filterAll": "Alle ({count})",
+      "recording": "REC",
+      "cameraLabel": "Kamera",
+      "confidenceLabel": "Konfidenz",
+      "playClip": "Clip abspielen ({seconds}s)",
+      "storageNvr": "NVR-Speicher: {used} GB / {total} GB (WAL-Ringpuffer)",
+      "online": "Online",
+      "streamingLatencyHint": "Streaming-Latenz unter 200 ms",
+      "cameraId": "Kamera-ID",
+      "directWebRtcStream": "Direkter WebRTC-Stream",
+      "sensitivityLabel": "Empfindlichkeit",
+      "familyOwner": "Familienmitglied",
+      "privateVehicle": "Privatfahrzeug",
+      "newZoneName": "Neue Zone {count}",
+      "confirmDeleteFace": "Biometrisches Profil von {name} entfernen?",
+      "confirmDeletePlate": "Kennzeichen {plate} entfernen?",
+      "detectionLabels": {
+        "person": "Person",
+        "vehicle": "Fahrzeug",
+        "package": "Paket",
+        "animal": "Tier"
+      },
+      "saveProfile": "Profil speichern",
+      "autoOpenGateLights": "Einfahrtstor automatisch öffnen und Einfahrtsbeleuchtung einschalten",
+      "registerPlate": "Kennzeichen registrieren"
     }
   },
   "shopping": {
