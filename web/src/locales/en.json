@@ -127,7 +127,11 @@
       "archiveNotification": "Archive notification: {title}",
       "eventPreview": "Event preview"
     },
-    "notifications": "Notifications",
+    "notifications": {
+      "actionExecutedTitle": "Action completed",
+      "actionExecutedMessage": "Command sent successfully.",
+      "actionFailedMessage": "Unable to execute the requested action."
+    },
     "dismissNotification": "Dismiss notification",
     "wsNotifications": {
       "alarmTitle": "Alarm",
@@ -869,7 +873,15 @@
       "allowedHttpMethod": "Allowed HTTP method",
       "postStandard": "POST (standard JSON payload)",
       "getQuery": "GET (query string parameters)",
-      "createWebhook": "Create Webhook"
+      "createWebhook": "Create Webhook",
+      "webhookCreatedTitle": "Inbound webhook created",
+      "webhookCreatedMessage": "Webhook “{name}” was created successfully.",
+      "webhookCreateFailed": "Unable to create the webhook.",
+      "webhookDeletedTitle": "Webhook deleted",
+      "webhookDeletedMessage": "Webhook “{name}” was deleted successfully.",
+      "webhookDeleteFailed": "Unable to delete the webhook.",
+      "flowSavedTitle": "Flow saved",
+      "flowSavedMessage": "Automation successfully created from the flowchart."
     },
     "editor": {
       "titleEdit": "Edit automation",
@@ -2497,9 +2509,11 @@
     "sec13H1": "Register audio devices via Web GUI (+ Add Player), REST API (POST /api/v1/media/players), or direct SQLite query in the media_players table.",
     "sec13H2": "Full local multi-protocol support for Apple HomePod, Google Nest, DLNA/UPnP Hi-Fi AVRs, and Raspberry Pi local DAC outputs.",
     "sec13H3": "Whole-house priority voice announcements with Piper neural TTS, temporarily pausing ongoing music.",
-    "searchAria": "Search the guide",
+    "searchAria": "Search guide topics",
     "collapse": "Collapse section",
-    "expand": "Expand section"
+    "expand": "Expand section",
+    "collapseSection": "Collapse section",
+    "expandSection": "Expand section"
   },
   "logbook": {
     "title": "Event Logbook",
@@ -2855,7 +2869,7 @@
     "aicCode": "AIC Code (9 digits)",
     "aicPlaceholder": "e.g. 034234035",
     "packageExpiry": "Package Expiration Date *",
-    "lotNumber": "Lot Number",
+    "lotNumber": "Batch",
     "lotPlaceholder": "e.g. LOT982",
     "remainingQuantity": "Remaining Quantity",
     "unit": "Unit",
@@ -2892,7 +2906,8 @@
       "travel": "Bag / Travel",
       "fridge": "Refrigerator (2–8°C)",
       "other": "Other"
-    }
+    },
+    "aic": "AIC code"
   },
   "pantry": {
     "title": "Smart Pantry & Recipe Book",
@@ -3007,7 +3022,8 @@
         "expiringSub": "Use soon",
         "cookable": "What can I cook?",
         "cookableSub": "100% of ingredients available"
-      }
+      },
+      "cookableRecipes": "cookable recipes"
     }
   },
   "predictiveClimate": {
