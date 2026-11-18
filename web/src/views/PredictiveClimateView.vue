@@ -378,7 +378,7 @@ function getEmitterLabel(emitter: EmitterType): string {
       <div class="title-section">
         <h1 class="view-title">{{ t('predictiveClimate.view.title') }}</h1>
         <p class="view-subtitle">
-          Controllo intelligente con inerzia termica, nowcasting barometrico locale e previsioni solari
+          {{ t('predictiveClimate.view.subtitle') }}
         </p>
       </div>
 
@@ -398,7 +398,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           @click="openCreateModal"
           :aria-label="t('predictiveClimate.view.addZone')"
         >
-          + Nuova Zona
+          + {{ t('predictiveClimate.view.addZoneCta') }}
         </button>
       </div>
     </header>
@@ -451,13 +451,13 @@ function getEmitterLabel(emitter: EmitterType): string {
     <!-- Zone Cards Grid -->
     <section class="zones-grid" :aria-label="t('predictiveClimate.view.thermalZones')">
       <div v-if="store.loading && store.zoneStatuses.length === 0" class="empty-state">
-        Caricamento zone in corso...
+        {{ t('predictiveClimate.view.loadingZones') }}
       </div>
 
       <div v-else-if="store.zoneStatuses.length === 0" class="empty-state">
         <p>{{ t('predictiveClimate.view.noZones') }}</p>
         <button type="button" class="btn btn-primary" @click="openCreateModal">
-          Configura la prima zona
+          {{ t('predictiveClimate.view.configureFirstZone') }}
         </button>
       </div>
 
@@ -476,7 +476,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             <div class="zone-tags">
               <span class="tag tag-orientation">{{ getOrientationLabel(item.config.orientation) }}</span>
               <span class="tag tag-emitter">{{ getEmitterLabel(item.config.emitter_type) }}</span>
-              <span class="tag tag-window">{{ item.config.window_area_sqm }} m² vetrate</span>
+              <span class="tag tag-window">{{ item.config.window_area_sqm }} m² {{ t('predictiveClimate.view.glazedAreaLabel') }}</span>
             </div>
           </div>
 
@@ -497,7 +497,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               {{ item.latest_evaluation ? item.latest_evaluation.current_temp : '--' }} °C
             </span>
             <span v-if="item.latest_evaluation" class="metric-sub">
-              (percepita {{ item.latest_evaluation.apparent_temp }} °C)
+              ({{ t('predictiveClimate.view.perceived') }} {{ item.latest_evaluation.apparent_temp }} °C)
             </span>
           </div>
 
@@ -531,7 +531,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             <div>
               <div class="context-val">{{ item.latest_evaluation.direct_radiation_forecast }} W/m²</div>
               <div class="context-sub">
-                Guadagno: +{{ item.latest_evaluation.estimated_solar_gain_kw }} kW
+                {{ t('predictiveClimate.view.gain') }}: +{{ item.latest_evaluation.estimated_solar_gain_kw }} kW
               </div>
             </div>
           </div>
@@ -565,7 +565,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               @click="item.config.id && handleEvaluateZone(item.config.id)"
               :aria-label="t('predictiveClimate.view.calculateSetpoint')"
             >
-              ⚡ Valuta Ora
+              ⚡ {{ t('predictiveClimate.view.evaluateNow') }}
             </button>
             <button
               type="button"
@@ -573,7 +573,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               @click="openThermalProfileModal(item.config)"
               :aria-label="t('predictiveClimate.view.viewThermalModel')"
             >
-              🧠 Modello & Start
+              🧠 {{ t('predictiveClimate.view.thermalModelStart') }}
             </button>
           </div>
           <div class="footer-end-actions">
@@ -583,7 +583,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               @click="openEditModal(item.config)"
               :aria-label="t('predictiveClimate.view.editZone')"
             >
-              Modifica
+              {{ t('predictiveClimate.view.editAction') }}
             </button>
             <button
               type="button"
@@ -591,7 +591,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               @click="item.config.id && handleDeleteZone(item.config.id)"
               :aria-label="t('predictiveClimate.view.deleteZone')"
             >
-              Elimina
+              {{ t('predictiveClimate.view.deleteAction') }}
             </button>
           </div>
         </footer>
@@ -820,7 +820,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           <p v-if="formError" class="climate-feedback climate-feedback-error" role="alert">{{ formError }}</p>
           <footer class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="showModal = false" :disabled="formSaving">
-              Annulla
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn btn-primary" :disabled="formSaving">
               {{ formSaving ? t('common.loading') : t('predictiveClimate.view.saveConfiguration') }}
@@ -934,8 +934,8 @@ function getEmitterLabel(emitter: EmitterType): string {
 
                 <div v-if="preheatResult" class="opt-result">
                   <div class="result-badge badge-preheat">
-                    Anticipo Richiesto: <strong>{{ preheatResult.preheat_minutes }} min</strong>
-                    (Avvio: {{ new Date(preheatResult.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }})
+                    {{ t('predictiveClimate.view.requiredPreheat') }}: <strong>{{ preheatResult.preheat_minutes }} min</strong>
+                    ({{ t('predictiveClimate.view.startsAt') }}: {{ new Date(preheatResult.start_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }})
                   </div>
                   <p class="result-reason">{{ preheatResult.reason }}</p>
                 </div>
@@ -966,8 +966,8 @@ function getEmitterLabel(emitter: EmitterType): string {
 
                 <div v-if="coastResult" class="opt-result">
                   <div class="result-badge badge-eco">
-                    Spegnimento Anticipato: <strong>{{ coastResult.coast_down_minutes }} min</strong>
-                    (Stop: {{ new Date(coastResult.stop_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }})
+                    {{ t('predictiveClimate.view.earlyShutdown') }}: <strong>{{ coastResult.coast_down_minutes }} min</strong>
+                    ({{ t('predictiveClimate.view.stopsAt') }}: {{ new Date(coastResult.stop_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }})
                   </div>
                   <p class="result-reason">
                     {{ coastResult.reason }}
@@ -981,7 +981,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           <section class="profile-section training-box" :aria-label="t('predictiveClimate.view.thermalCycleSimulator')">
             <h3 class="section-heading">🧪 {{ t('predictiveClimate.view.modelTrainingTitle') }}</h3>
             <p class="section-subtext">
-              Inserisci i dati osservati da una sessione per calibrare i parametri con livellamento esponenziale (EMA).
+              {{ t('predictiveClimate.view.cycleTrainingDescription') }}
             </p>
 
             <div class="training-form-row">
