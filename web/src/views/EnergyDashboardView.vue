@@ -801,7 +801,7 @@ async function handleOptimizeBESS() {
                 class="toggle-switch"
                 :class="{ active: load.auto_schedule }"
                 @click="toggleAutoSchedule(load)"
-                :title="load.auto_schedule ? 'Disattiva schedulazione automatica' : 'Attiva schedulazione automatica'"
+                :title="load.auto_schedule ? t('energy.disableAutoSchedule') : t('energy.enableAutoSchedule')"
               >
                 <span class="toggle-thumb" />
               </button>
