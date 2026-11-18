@@ -114,6 +114,12 @@ describe('Localization (i18n)', () => {
       ['satellites', 'fallbackSatellites', 'kitchenArea'],
       ['integrations', 'view', 'tuyaProjectIntro'],
       ['integrations', 'view', 'tuyaProjectPath'],
+      ['common', 'done'],
+      ['automations', 'cooldown'],
+      ['integrations', 'view', 'deviceOnline'],
+      ['flowchart', 'view', 'nodeTypes', 'trigger'],
+      ['pantry', 'view', 'mealCalendar', 'mealTypes', 'dessert'],
+      ['guide', 'sec7RouteLabel'],
       ['automations', 'graphErrors', 'conditionTitles', 'state'],
       ['pantry', 'view', 'kpis', 'filterExpiring']
     ]
