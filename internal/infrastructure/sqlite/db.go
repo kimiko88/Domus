@@ -213,6 +213,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 19, file: "migrations/000019_marketplace_tiers_and_community.up.sql"},
 		{version: 20, file: "migrations/000020_granular_user_permissions.up.sql"},
 		{version: 21, file: "migrations/000021_predictive_climate_presence.up.sql"},
+		{version: 22, file: "migrations/000022_web_push.up.sql"},
 	}
 
 	for _, m := range migrations {
