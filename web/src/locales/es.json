@@ -1711,7 +1711,18 @@
       "newThermostatTitle": "Nueva programación de termostato",
       "newThermostatMessage": "Se ha creado {name}.",
       "calendarImportSuccess": "Calendario importado correctamente.",
-      "calendarImportError": "No se ha podido importar el calendario iCal."
+      "calendarImportError": "No se ha podido importar el calendario iCal.",
+      "hvacModes": {
+        "automatic": "Automático",
+        "heating": "Calefacción",
+        "off": "Apagado",
+        "manual": "Manual",
+        "cooling": "Refrigeración",
+        "heatCool": "Calefacción y refrigeración",
+        "dry": "Deshumidificación",
+        "fanOnly": "Solo ventilación",
+        "other": "Otro modo"
+      }
     }
   },
   "login": {
