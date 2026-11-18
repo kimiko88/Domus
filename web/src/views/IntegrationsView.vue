@@ -395,7 +395,7 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
       }
     }
   } catch (err: any) {
-    tuyaCloudError.value = err?.message || 'Cloud Tuya non configurato o non raggiungibile.'
+    tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
   } finally {
     tuyaCloudLoading.value = false
   }
@@ -599,7 +599,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
     )
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.temperatureSetErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -630,7 +630,7 @@ async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; 
       await fetchTuyaCloudDevices()
     }
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.smartLifeCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.smartLifeCommandErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
