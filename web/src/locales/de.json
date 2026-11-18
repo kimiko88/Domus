@@ -2511,7 +2511,11 @@
       "startsAt": "Start",
       "earlyShutdown": "Vorzeitiges Abschalten",
       "stopsAt": "Stopp",
-      "cycleTrainingDescription": "Gib Messwerte aus einer Sitzung ein, um die Parameter mit exponentieller Glättung (EMA) zu kalibrieren."
+      "cycleTrainingDescription": "Gib Messwerte aus einer Sitzung ein, um die Parameter mit exponentieller Glättung (EMA) zu kalibrieren.",
+      "preheatNoAdvanceReason": "Die aktuelle Temperatur ({current} °C) hat den gewünschten Komfortwert ({target} °C) bereits erreicht; ein früheres Einschalten ist nicht nötig.",
+      "preheatScheduledReason": "Heizung {minutes} Min. früher um {start} einschalten, um {target} °C bis {targetTime} zu erreichen (geschätzte Heizrate {rate} °C/h; Außentemperatur {outdoor} °C).",
+      "coastDownNoShutdownReason": "Eine frühzeitige Abschaltung ist nicht nötig: Die Temperatur liegt bereits unter der Komfortgrenze ({limit} °C).",
+      "coastDownScheduledReason": "Heizung {minutes} Min. früher um {stop} abschalten, vor der Abfahrt um {departure}; geschätzte Energieeinsparung {energy} kWh."
     }
   },
   "sharedDashboard": {
