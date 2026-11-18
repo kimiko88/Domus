@@ -2443,7 +2443,27 @@
       "mealConsumed": "Pasto consumato. Gli ingredienti sono stati scalati in proporzione ai commensali.",
       "mealConsumeFailed": "Errore durante il consumo del pasto.",
       "confirmDeleteMeal": "Vuoi rimuovere questo pasto dal calendario?",
-      "mealDeleted": "Pasto rimosso dal calendario."
+      "mealDeleted": "Pasto rimosso dal calendario.",
+      "mealCalendar": {
+        "previousWeek": "Settimana precedente",
+        "nextWeek": "Settimana successiva",
+        "today": "Oggi",
+        "planMeal": "Pianifica pasto",
+        "addMealForDay": "Aggiungi {meal} per {day}",
+        "addMeal": "Aggiungi {meal}",
+        "deleteMeal": "Elimina pasto",
+        "scaledIngredients": "Ingredienti ridimensionati per {count} persone",
+        "consumed": "Consumato",
+        "consumeTitle": "Consuma il pasto e scala automaticamente gli ingredienti dalla dispensa.",
+        "consume": "Consuma",
+        "mealTypes": {
+          "breakfast": "Colazione",
+          "lunch": "Pranzo",
+          "snack": "Spuntino",
+          "dinner": "Cena",
+          "dessert": "Dessert"
+        }
+      }
     }
   },
   "predictiveClimate": {
