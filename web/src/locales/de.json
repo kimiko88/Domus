@@ -1856,6 +1856,37 @@
       "notificationMessage": "Benachrichtigungstext",
       "deleteNodeButton": "Knoten löschen",
       "compiledAstTitle": "Kompilierte AST-JSON"
+    },
+    "conditionEditor": {
+      "logicalGroup": "Logische Gruppe",
+      "condition": "Bedingung",
+      "type": "Typ",
+      "logicalOperators": "Logische Operatoren",
+      "conditions": "Bedingungen",
+      "logicalTypes": {
+        "and": "Alle Bedingungen (AND)",
+        "or": "Mindestens eine Bedingung (OR)",
+        "not": "Keine Bedingung (NOT)"
+      },
+      "leafTypes": {
+        "state": "Entitätsstatus",
+        "numericState": "Numerischer Schwellenwert",
+        "time": "Zeitbereich",
+        "trigger": "Auslöser"
+      },
+      "andHelp": "Alle untergeordneten Bedingungen müssen wahr sein.",
+      "orHelp": "Mindestens eine untergeordnete Bedingung muss wahr sein.",
+      "notHelp": "Die untergeordnete Bedingung muss falsch sein.",
+      "removeCondition": "Bedingung {index} entfernen",
+      "addCondition": "Bedingung hinzufügen",
+      "depthLimit": "Die vom Validator unterstützte maximale Verschachtelungstiefe wurde erreicht.",
+      "notLimit": "NOT akzeptiert nur eine untergeordnete Bedingung.",
+      "selectEntity": "Entität auswählen",
+      "statePlaceholder": "on, off, open...",
+      "selectSensor": "Sensor auswählen",
+      "thresholdHelp": "Lege mindestens einen der beiden Schwellenwerte fest.",
+      "triggerPlaceholder": "trigger_id",
+      "unsupportedHelp": "Dieser Bedingungstyp kann nicht mit den visuellen Steuerelementen bearbeitet werden. Die ursprüngliche Konfiguration bleibt unverändert."
     }
   },
   "failover": {
