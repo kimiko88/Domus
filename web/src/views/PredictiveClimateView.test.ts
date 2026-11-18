@@ -17,7 +17,7 @@ vi.mock('../api/client', () => ({
 describe('PredictiveClimateView.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   const mockStatus = {
@@ -133,7 +133,11 @@ describe('PredictiveClimateView.vue', () => {
         last_changed: '', last_updated: ''
       }
     ]
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus).mockResolvedValueOnce(entities as any)
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/api/v1/climate/predictive/status') return mockStatus as any
+      if (url === '/api/v1/entities') return entities as any
+      return [] as any
+    })
 
     const wrapper = mount(PredictiveClimateView)
     await new Promise((resolve) => setTimeout(resolve, 10))
