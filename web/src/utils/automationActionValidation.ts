@@ -112,7 +112,7 @@ function validateConditionList(value: unknown, path: string, depth: number): voi
       case 'not': {
         const children = requireArray(condition.conditions, `${conditionPath}.conditions`)
         if (children.length !== 1) {
-          throw new Error(`${conditionPath}.conditions deve contenere esattamente una condizione per NOT.`)
+          throw new Error(i18n.global.t('automations.validation.notSingleCondition', { path: conditionPath }))
         }
         validateConditionList(children, `${conditionPath}.conditions`, depth + 1)
         break
