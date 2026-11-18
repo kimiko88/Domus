@@ -649,7 +649,8 @@
       "host": "Host",
       "deviceTotals": "total · en línea · sin conexión",
       "ipLabel": "IP",
-      "firmwareLabel": "Firmware"
+      "firmwareLabel": "Firmware",
+      "tuyaCloudSetupInstruction": "Crea una cuenta en iot.tuya.com, abre Cloud → Development y selecciona el proyecto Domus."
     }
   },
   "history": {
@@ -1595,7 +1596,10 @@
       "roomRemovedMessage": "La habitación se ha eliminado del plano",
       "floorCreatedTitle": "Planta creada",
       "floorCreatedMessage": "Se ha añadido una nueva planta al plano",
-      "floorCreateFailed": "No se pudo crear la planta"
+      "floorCreateFailed": "No se pudo crear la planta",
+      "closeHeatmap": "Cerrar mapa térmico",
+      "heatmap25d": "Mapa térmico 2.5D",
+      "modeLabel": "Modo"
     }
   },
   "media": {
