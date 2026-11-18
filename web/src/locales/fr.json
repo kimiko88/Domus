@@ -1390,7 +1390,11 @@
       "playerError": "Erreur lors de l’enregistrement du lecteur",
       "confirmDelete": "Voulez-vous vraiment supprimer « {name} » de la base de données Domus ?",
       "deleteFailed": "Échec de la suppression du lecteur multimédia",
-      "closeWindow": "Fermer la fenêtre"
+      "closeWindow": "Fermer la fenêtre",
+      "statePaused": "En pause",
+      "stateStopped": "Arrêté",
+      "stateBuffering": "Mise en mémoire tampon",
+      "stateUnknown": "État inconnu"
     }
   },
   "mesh": {
