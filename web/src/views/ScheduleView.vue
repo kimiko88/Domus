@@ -593,7 +593,7 @@ async function applyLiveThermostatSettings() {
       throw new Error('La durata della modifica deve essere compresa tra 0 e 1440 minuti')
     }
     if (!supportsSetpoint.value) {
-      throw new Error('Il dispositivo non espone un setpoint programmabile')
+      throw new Error(t('schedules.view.noProgrammableSetpoint'))
     }
     if (!Number.isFinite(liveTargetTemp.value) ||
       liveTargetTemp.value < setpointMin.value ||
@@ -1107,11 +1107,11 @@ onMounted(async () => {
               <label for="manual-climate-override-duration">{{ t('schedules.view.manualOverrideDuration') }}</label>
               <select id="manual-climate-override-duration" data-testid="manual-climate-override-duration" v-model.number="manualOverrideDuration">
                 <option :value="0">{{ t('schedules.view.untilNextChange') }}</option>
-                <option :value="30">30 minuti</option>
-                <option :value="60">1 ora</option>
-                <option :value="120">2 ore</option>
-                <option :value="240">4 ore</option>
-                <option :value="480">8 ore</option>
+                <option :value="30">{{ t('schedules.view.minutes30') }}</option>
+                <option :value="60">{{ t('schedules.view.hour1') }}</option>
+                <option :value="120">{{ t('schedules.view.hours2') }}</option>
+                <option :value="240">{{ t('schedules.view.hours4') }}</option>
+                <option :value="480">{{ t('schedules.view.hours8') }}</option>
               </select>
               <small>{{ t('schedules.view.manualOverrideExpiryHint') }}</small>
             </div>
