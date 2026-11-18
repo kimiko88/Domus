@@ -4,14 +4,19 @@ import { setActivePinia, createPinia } from 'pinia'
 import DevicesView from './DevicesView.vue'
 import { apiClient } from '../api/client'
 import { useDevicesStore } from '../stores/devices'
+import { useEntitiesStore } from '../stores/entities'
+import type { Entity } from '../api/types'
 import { i18n } from '../locales'
 
 describe('DevicesView.vue', () => {
   let devicesStore: ReturnType<typeof useDevicesStore>
+  let entitiesStore: ReturnType<typeof useEntitiesStore>
 
   beforeEach(() => {
     setActivePinia(createPinia())
     devicesStore = useDevicesStore()
+    entitiesStore = useEntitiesStore()
+    vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue(entitiesStore.allEntities)
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
       if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
       if (url === '/api/v1/network/discovered') return []
@@ -160,6 +165,34 @@ describe('DevicesView.vue', () => {
     expect(wrapper.findAll('.device-card')).toHaveLength(1)
     expect(wrapper.text()).toContain('Presa studio')
     expect(wrapper.text()).not.toContain('Lampada soggiorno')
+  })
+
+  it('shows integration-backed entities as devices when the registry has no device row', async () => {
+    const integratedEntity: Entity = {
+      id: 'sensor.shelly_temperature',
+      entity_key: 'sensor.shelly_temperature',
+      device_id: 'shelly-plus-1',
+      domain: 'sensor',
+      name: 'Temperatura salotto',
+      state: '21.4',
+      attributes: {
+        integration_id: 'shelly',
+        manufacturer: 'Shelly',
+        model: 'Plus 1'
+      },
+      last_changed: '',
+      last_updated: ''
+    }
+    entitiesStore.entities[integratedEntity.id] = integratedEntity
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Temperatura salotto')
+    expect(wrapper.text()).toContain('Shelly')
+    expect(wrapper.text()).toContain('Integrato · shelly')
+    expect(wrapper.findAll('.device-card')).toHaveLength(1)
   })
 
   it('renders empty state without crashing when devices list is empty or null', async () => {
