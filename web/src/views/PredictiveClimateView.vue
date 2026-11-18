@@ -99,7 +99,8 @@ function formatClimateNumber(value: number): string {
   return new Intl.NumberFormat(locale.value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
 }
 
-function localizedEvaluationReason(evaluation: PredictiveEvaluation): string {
+function localizedEvaluationReason(evaluation?: PredictiveEvaluation): string {
+  if (!evaluation) return t('predictiveClimate.view.reasons.default')
   switch (evaluation.mode) {
     case 'frost_protection':
       return t('predictiveClimate.view.reasons.frostProtection')
