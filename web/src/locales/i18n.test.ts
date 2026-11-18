@@ -141,9 +141,11 @@ describe('Localization (i18n)', () => {
         const english = path.reduce((value: any, key) => value?.[key], enLocale as any)
         expect(typeof translated, keyPath).toBe('string')
         expect(translated.length, keyPath).toBeGreaterThan(0)
-        // “Dessert” is the correct French word too; matching English is not a fallback here.
+        // Some words are legitimately shared across languages and are not English fallbacks.
         if (code === 'fr' && keyPath === 'pantry.view.mealCalendar.mealTypes.dessert') {
           expect(translated, keyPath).toBe('Dessert')
+        } else if (code === 'de' && keyPath === 'integrations.view.deviceOnline') {
+          expect(translated, keyPath).toBe('Online')
         } else {
           expect(translated, `Missing translation for ${keyPath}`).not.toBe(english)
         }
