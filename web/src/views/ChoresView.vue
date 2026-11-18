@@ -555,7 +555,7 @@ function selectDayView(dateStr: string) {
               <!-- Priority Tag -->
               <span class="priority-badge" :class="chore.priority">
                 <Flame v-if="chore.priority === 'urgent' || chore.priority === 'high'" class="priority-icon" />
-                {{ chore.priority }}
+                {{ t(`chores.priorities.${chore.priority}`) }}
               </span>
 
               <!-- Assignee Pill -->
@@ -585,7 +585,7 @@ function selectDayView(dateStr: string) {
               <!-- Recurrence -->
               <span v-if="chore.recurrence_type !== 'none'" class="meta-tag recurrence">
                 <Repeat class="meta-icon" />
-                {{ chore.recurrence_type }}
+                {{ t(`chores.recurrences.${chore.recurrence_type}`) }}
               </span>
             </div>
           </div>
