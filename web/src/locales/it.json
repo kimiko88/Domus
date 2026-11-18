@@ -1390,7 +1390,11 @@
       "playerError": "Errore nella registrazione del player",
       "confirmDelete": "Sei sicuro di voler eliminare \"{name}\" dal database di Domus?",
       "deleteFailed": "Impossibile eliminare il media player",
-      "closeWindow": "Chiudi finestra"
+      "closeWindow": "Chiudi finestra",
+      "statePaused": "In pausa",
+      "stateStopped": "Fermo",
+      "stateBuffering": "Caricamento",
+      "stateUnknown": "Stato sconosciuto"
     }
   },
   "mesh": {
