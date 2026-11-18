@@ -158,21 +158,21 @@ function handleSubmit() {
                 v-model="action.entity_key"
                 name="action-entity"
                 type="text"
-                placeholder="light.living_room"
+                :placeholder="t('scenes.editor.entityPlaceholder')" :aria-label="t('scenes.editor.entityKey')"
                 required
                 class="entity-input font-mono"
               />
 
-              <select v-model="action.service" class="service-select">
-                <option value="turn_on">turn_on</option>
-                <option value="turn_off">turn_off</option>
-                <option value="toggle">toggle</option>
+              <select v-model="action.service" class="service-select" :aria-label="t('scenes.editor.action')">
+                <option value="turn_on">{{ t('scenes.editor.actions.turnOn') }}</option>
+                <option value="turn_off">{{ t('scenes.editor.actions.turnOff') }}</option>
+                <option value="toggle">{{ t('scenes.editor.actions.toggle') }}</option>
               </select>
 
               <button
                 type="button"
                 class="btn-remove-action"
-                :title="t('scenes.editor.removeAction')"
+                :title="t('scenes.editor.removeAction')" :aria-label="t('scenes.editor.removeAction')"
                 @click="removeAction(idx)"
               >
                 <Trash2 :size="16" />
