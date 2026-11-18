@@ -1197,7 +1197,8 @@
       "playerSuccess": "¡Altavoz registrado correctamente en la base de datos!",
       "playerError": "Error al registrar el reproductor",
       "confirmDelete": "¿Seguro que quieres eliminar «{name}» de la base de datos de Domus?",
-      "deleteFailed": "No se pudo eliminar el reproductor multimedia"
+      "deleteFailed": "No se pudo eliminar el reproductor multimedia",
+      "closeWindow": "Cerrar ventana"
     }
   },
   "mesh": {
@@ -1394,7 +1395,18 @@
         "friday": "Viernes",
         "saturday": "Sábado",
         "sunday": "Domingo"
-      }
+      },
+      "manualOverrideDuration": "Duración del ajuste manual",
+      "untilNextChange": "Hasta el siguiente cambio",
+      "minutes30": "30 minutos",
+      "hour1": "1 hora",
+      "hours2": "2 horas",
+      "hours4": "4 horas",
+      "hours8": "8 horas",
+      "manualOverrideExpiryHint": "Al caducar, Domus restaura la consigna anterior.",
+      "noProgrammableSetpoint": "Este dispositivo no ofrece una consigna programable.",
+      "deleteTimeSlot": "Eliminar franja",
+      "deleteTimeSlotAria": "Eliminar franja horaria"
     }
   },
   "login": {
