@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AreaEditorModal from './AreaEditorModal.vue'
+import { i18n } from '../../locales'
 
 describe('AreaEditorModal.vue', () => {
   it('does not render when isOpen is false', () => {
@@ -15,8 +16,8 @@ describe('AreaEditorModal.vue', () => {
       props: { isOpen: true }
     })
     expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Nuova Area')
-    expect(wrapper.text()).toContain('Crea Area')
+    expect(wrapper.text()).toContain(i18n.global.t('areas.newArea'))
+    expect(wrapper.text()).toContain(i18n.global.t('areas.createArea'))
   })
 
   it('renders prefilled fields in edit mode', () => {
@@ -33,7 +34,7 @@ describe('AreaEditorModal.vue', () => {
         }
       }
     })
-    expect(wrapper.text()).toContain('Modifica Area')
+    expect(wrapper.text()).toContain(i18n.global.t('areas.editArea'))
     const input = wrapper.find<HTMLInputElement>('#area-name')
     expect(input.element.value).toBe('Cucina Rustica')
   })
@@ -68,6 +69,6 @@ describe('AreaEditorModal.vue', () => {
     await wrapper.find('form').trigger('submit.prevent')
 
     expect(wrapper.emitted('save')).toBeFalsy()
-    expect(wrapper.text()).toContain("Il nome dell'area è obbligatorio")
+    expect(wrapper.text()).toContain(i18n.global.t('areas.nameRequired'))
   })
 })

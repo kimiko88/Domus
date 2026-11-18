@@ -296,7 +296,7 @@ function buildClimateProgram() {
   if (!description.value.trim()) {
     const scheduleSummary = slots.map(slot => {
       const days = slot.days
-        .map(day => climateWeekdays.find(item => item.value === day)?.label)
+        .map(day => climateWeekdays.value.find(item => item.value === day)?.label)
         .filter(Boolean)
         .join(', ')
       return t('automations.editor.scheduleSummary', { days, time: slot.time, threshold: slot.threshold, cold: slot.coldSetpoint, warm: slot.warmSetpoint })

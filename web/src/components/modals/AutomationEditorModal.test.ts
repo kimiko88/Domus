@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AutomationEditorModal from './AutomationEditorModal.vue'
 import { apiClient } from '../../api/client'
+import { i18n } from '../../locales'
 
 describe('AutomationEditorModal.vue', () => {
   it('renders modal with initial values for editing', () => {
@@ -41,7 +42,7 @@ describe('AutomationEditorModal.vue', () => {
     await wrapper.find('textarea[name="dsl-json"]').setValue('{ invalid json here')
     await wrapper.find('form').trigger('submit.prevent')
 
-    expect(wrapper.text()).toContain('Sintassi JSON non valida')
+    expect(wrapper.text()).toContain(i18n.global.t('automations.editor.errors.invalidJson'))
     expect(wrapper.emitted('save')).toBeUndefined()
   })
 
@@ -61,7 +62,7 @@ describe('AutomationEditorModal.vue', () => {
     }))
     await wrapper.find('form').trigger('submit.prevent')
 
-    expect(wrapper.text()).toContain('Almeno un trigger è richiesto')
+    expect(wrapper.text()).toContain(i18n.global.t('automations.editor.errors.triggerRequired'))
     expect(wrapper.emitted('save')).toBeUndefined()
   })
 
@@ -267,7 +268,7 @@ it('rejects duplicate times in a thermostat schedule', async () => {
   await wrapper.findAll('input[name="climate-time"]')[1].setValue('07:00')
   await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
 
-  expect(wrapper.text()).toContain('è duplicato')
+  expect(wrapper.text()).toContain(i18n.global.t('automations.editor.errors.duplicateTime', { time: '07:00' }))
   getSpy.mockRestore()
   wrapper.unmount()
 })
@@ -305,7 +306,7 @@ it('requires at least one weekday for every thermostat schedule slot', async () 
   }
   await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
 
-  expect(wrapper.text()).toContain('Seleziona almeno un giorno valido')
+  expect(wrapper.text()).toContain(i18n.global.t('automations.editor.errors.dayRequired'))
   getSpy.mockRestore()
   wrapper.unmount()
 })
@@ -347,7 +348,7 @@ it('allows the same time on disjoint weekdays in a thermostat schedule', async (
   }
   await wrapper.find('[data-testid="generate-climate-program"]').trigger('click')
 
-  expect(wrapper.text()).not.toContain('è duplicato')
+  expect(wrapper.text()).not.toContain(i18n.global.t('automations.editor.errors.duplicateTime', { time: '07:00' }))
   const dsl = JSON.parse((wrapper.find('textarea[name="dsl-json"]').element as HTMLTextAreaElement).value)
   expect(dsl.triggers[0].at).toBe('07:00:00')
   expect(dsl.triggers[0].days).toEqual([1, 2, 3, 4, 5])

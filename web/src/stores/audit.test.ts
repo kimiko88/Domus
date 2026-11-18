@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuditStore } from './audit'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 
 describe('useAuditStore', () => {
   beforeEach(() => {
@@ -54,6 +55,6 @@ describe('useAuditStore', () => {
 
     expect(store.entries).toEqual([])
     expect(store.loading).toBe(false)
-    expect(store.error).toBe('Network error')
+    expect(store.error).toBe(i18n.global.t('common.errors.loadFailed'))
   })
 })

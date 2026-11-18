@@ -1356,11 +1356,11 @@ onMounted(() => {
           <h4 class="guide-title"><QrCode :size="18" /> {{ t('integrations.view.tuyaConnectTitle') }}</h4>
           <ol class="guide-steps">
             <li>
-              Entra nel tuo progetto su 
+              {{ t('integrations.view.tuyaProjectIntro') }} 
               <a href="https://iot.tuya.com" target="_blank" rel="noopener noreferrer" class="link-external">
                 iot.tuya.com <ExternalLink :size="12" />
               </a>
-              (Cloud → Development → apri il progetto Domus).
+              ({{ t('integrations.view.tuyaProjectPath') }}).
             </li>
             <li>{{ t('integrations.view.dataCenterInstruction') }}</li>
             <li>{{ t('integrations.view.devicesAccountInstruction') }}</li>
@@ -1436,7 +1436,7 @@ onMounted(() => {
               class="btn-action glass-panel"
               @click="isEditingTuyaConfig = false"
             >
-              Annulla
+              {{ t('common.cancel') }}
             </button>
           </div>
         </form>
@@ -1532,7 +1532,7 @@ onMounted(() => {
               <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">
                 <option value="" disabled>{{ t('integrations.view.chooseTemperature') }}</option>
                 <option v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.degrees" :value="String(mapping.degrees)">
-                  {{ mapping.degrees.toLocaleString(locale.value) }} °C · {{ t('integrations.view.encodedValue') }} {{ mapping.encoded.toLocaleString(locale.value) }}
+                  {{ mapping.degrees.toLocaleString(locale) }} °C · {{ t('integrations.view.encodedValue') }} {{ mapping.encoded.toLocaleString(locale) }}
                 </option>
               </select>
               <div class="tuya-temperature-preview">
@@ -1542,9 +1542,9 @@ onMounted(() => {
             </div>
             <div class="tuya-temperature-map" :aria-label="t('integrations.view.setpointMapAria')">
               <div v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.encoded" class="tuya-temperature-map-row">
-                <code>{{ mapping.encoded.toLocaleString(locale.value) }}</code>
+                <code>{{ mapping.encoded.toLocaleString(locale) }}</code>
                 <span>→</span>
-                <strong>{{ mapping.degrees.toLocaleString(locale.value) }} °C</strong>
+                <strong>{{ mapping.degrees.toLocaleString(locale) }} °C</strong>
               </div>
             </div>
             <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">

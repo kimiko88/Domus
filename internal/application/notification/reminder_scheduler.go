@@ -180,7 +180,7 @@ func (s *ReminderScheduler) Check(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
-func uniqueRecipientIDs(groups ...[]domain.WebPushSubscription) []string {
+func uniqueRecipientIDs(groups ...[]domainnotification.WebPushSubscription) []string {
 	seen := make(map[string]struct{})
 	users := make([]string, 0)
 	for _, group := range groups {

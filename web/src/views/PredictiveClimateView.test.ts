@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import PredictiveClimateView from './PredictiveClimateView.vue'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -16,7 +17,7 @@ vi.mock('../api/client', () => ({
 describe('PredictiveClimateView.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   const mockStatus = {
@@ -68,26 +69,30 @@ describe('PredictiveClimateView.vue', () => {
   }
 
   it('renders header, KPI metrics, and zone card with calculated setpoint', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockStatus)
+      .mockResolvedValueOnce([])
 
     const wrapper = mount(PredictiveClimateView)
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
     expect(wrapper.text()).toContain('Termostato predittivo multizona')
-    expect(wrapper.text()).toContain('Fronte Freddo Rilevato')
+    expect(wrapper.text()).toContain(i18n.global.t('predictiveClimate.view.coldFrontDetected'))
     expect(wrapper.text()).toContain('Salone Sud')
     expect(wrapper.text()).toContain('22.5 °C')
-    expect(wrapper.text()).toContain('Fronte Freddo (+Boost)')
+    expect(wrapper.text()).toContain(i18n.global.t('predictiveClimate.view.modeLabels.coldFront'))
   })
 
   it('opens create zone modal on button click', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockStatus)
+      .mockResolvedValueOnce([])
 
     const wrapper = mount(PredictiveClimateView)
     await wrapper.vm.$nextTick()
 
-    const createBtn = wrapper.findAll('button').find((b) => b.text().includes('Nuova Zona'))
+    const createBtn = wrapper.findAll('button').find((button) => button.attributes('aria-label') === i18n.global.t('predictiveClimate.view.addZone'))
     expect(createBtn).toBeDefined()
     await createBtn!.trigger('click')
 
@@ -107,7 +112,8 @@ describe('PredictiveClimateView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    const evalBtn = wrapper.findAll('button').find((b) => b.text().includes('Valuta Ora'))
+    const evaluateLabel = i18n.global.t('predictiveClimate.view.evaluateNow')
+    const evalBtn = wrapper.findAll('button').find((b) => b.text().includes(evaluateLabel))
     expect(evalBtn).toBeDefined()
     await evalBtn!.trigger('click')
 
@@ -132,11 +138,15 @@ describe('PredictiveClimateView.vue', () => {
         last_changed: '', last_updated: ''
       }
     ]
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus).mockResolvedValueOnce(entities as any)
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/api/v1/climate/predictive/status') return mockStatus as any
+      if (url === '/api/v1/entities') return entities as any
+      return [] as any
+    })
 
     const wrapper = mount(PredictiveClimateView)
     await new Promise((resolve) => setTimeout(resolve, 10))
-    const createBtn = wrapper.findAll('button').find((b) => b.text().includes('Nuova Zona'))
+    const createBtn = wrapper.findAll('button').find((button) => button.attributes('aria-label') === i18n.global.t('predictiveClimate.view.addZone'))
     await createBtn!.trigger('click')
 
     expect(wrapper.find('datalist#climate-entity-options option[value="climate.living_room"]').exists()).toBe(true)

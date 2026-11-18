@@ -145,7 +145,10 @@ function nextLocalTime(timeValue: string, fallbackHour: number, fallbackMinute: 
 onMounted(async () => {
   await Promise.all([
     store.fetchStatus(),
-    Promise.resolve().then(() => apiClient.get<Entity[]>('/api/v1/entities')).then(items => { availableEntities.value = items || [] }).catch(() => {
+    Promise.resolve().then(() => apiClient.get<Entity[]>('/api/v1/entities')).then(items => {
+      if (!Array.isArray(items)) throw new TypeError('Unexpected entity list response')
+      availableEntities.value = items
+    }).catch(() => {
       entityLoadError.value = t('predictiveClimate.view.entityListUnavailable')
     })
   ])

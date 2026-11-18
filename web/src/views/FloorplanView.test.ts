@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import FloorplanView from './FloorplanView.vue'
 import { useFloorplanStore } from '../stores/floorplan'
 import { useEntitiesStore } from '../stores/entities'
+import { i18n } from '../locales'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -46,10 +47,10 @@ describe('FloorplanView.vue', () => {
     const wrapper = mount(FloorplanView)
 
     const toggleBtn = wrapper.find('.btn-mode')
-    expect(toggleBtn.text()).toContain('Modifica Posizioni')
+    expect(toggleBtn.text()).toContain(i18n.global.t('floorplan.view.editPositions'))
 
     await toggleBtn.trigger('click')
-    expect(toggleBtn.text()).toContain('Termina Modifica')
+    expect(toggleBtn.text()).toContain(i18n.global.t('floorplan.view.finishEditing'))
     expect(wrapper.find('.edit-sidebar').exists()).toBe(true)
   })
 })

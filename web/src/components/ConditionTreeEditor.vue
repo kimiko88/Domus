@@ -30,6 +30,11 @@ const leafTypes = computed(() => [
 ])
 const supportedTypes = new Set([...logicalTypes.value.map((item) => item.value), ...leafTypes.value.map((item) => item.value)])
 const isLogical = computed(() => logicalTypes.value.some((item) => item.value === props.modelValue.condition))
+const conditionTitle = computed(() => {
+  const key = props.modelValue.condition === 'numeric_state' ? 'numeric' : props.modelValue.condition
+  const supported = ['state', 'numeric', 'time', 'trigger', 'and', 'or', 'not']
+  return t(`automations.graphErrors.conditionTitles.${supported.includes(key) ? key : 'nested'}`)
+})
 const isSupported = computed(() => supportedTypes.has(props.modelValue.condition))
 const children = computed(() => Array.isArray(props.modelValue.conditions) ? props.modelValue.conditions : [])
 const canAddChild = computed(() => props.depth < 8 && (props.modelValue.condition !== 'not' || children.value.length === 0))
@@ -142,7 +147,7 @@ function updateTime(event: Event, field: 'after' | 'before') {
     <header class="condition-editor-header">
       <div class="condition-editor-heading">
         <span class="condition-depth-label">{{ isLogical ? t('flowchart.conditionEditor.logicalGroup') : t('flowchart.conditionEditor.condition') }}</span>
-        <strong>{{ modelValue.condition.toUpperCase() }}</strong>
+        <strong>{{ conditionTitle }}</strong>
       </div>
       <label class="condition-type-control">
         <span>{{ t('flowchart.conditionEditor.type') }}</span>

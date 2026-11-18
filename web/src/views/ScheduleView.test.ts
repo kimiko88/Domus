@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import ScheduleView from './ScheduleView.vue'
 import { apiClient } from '../api/client'
 import { useEntitiesStore } from '../stores/entities'
+import { i18n } from '../locales'
 
 describe('ScheduleView.vue', () => {
   beforeEach(() => {
@@ -269,7 +270,7 @@ describe('manual thermostat overrides', () => {
     expect(wrapper.find('.temp-display-block.target').exists()).toBe(true)
     const modeButtons = wrapper.findAll('.hvac-mode-buttons .mode-btn')
     expect(modeButtons).toHaveLength(2)
-    expect(modeButtons[1].text()).toBe('manual')
+    expect(modeButtons[1].text()).toBe(i18n.global.t('schedules.view.hvacModes.manual'))
     expect(wrapper.find('.hvac-mode-buttons').text()).not.toContain('heat')
     expect(wrapper.find('.hvac-mode-buttons').text()).not.toContain('off')
 

@@ -42,7 +42,13 @@ describe('Localization (i18n)', () => {
   })
 
   it('translates the recently migrated device, shopping, chores and media copy', () => {
-    const locales = [itLocale, frLocale, esLocale, deLocale, ruLocale]
+    const locales = [
+      { code: 'it', catalog: itLocale },
+      { code: 'fr', catalog: frLocale },
+      { code: 'es', catalog: esLocale },
+      { code: 'de', catalog: deLocale },
+      { code: 'ru', catalog: ruLocale }
+    ]
     const samples = [
       ['devices', 'view', 'scanLanTitle'],
       ['shopping', 'view', 'receiptIntro'],
@@ -75,6 +81,10 @@ describe('Localization (i18n)', () => {
       ['common', 'pwa', 'updateAvailableDescription'],
       ['common', 'pwa', 'updateNow'],
       ['common', 'pwa', 'later'],
+      ['common', 'notificationRegion'],
+      ['common', 'notifications', 'actionExecutedTitle'],
+      ['common', 'notifications', 'actionExecutedMessage'],
+      ['common', 'notifications', 'actionFailedMessage'],
       ['common', 'errors', 'fileReadFailed'],
       ['integrations', 'view', 'deviceOnline'],
       ['integrations', 'view', 'valueToSend'],
@@ -99,16 +109,46 @@ describe('Localization (i18n)', () => {
       ['shopping', 'view', 'transferCompleted'],
       ['store', 'view', 'rejectedByAdministrator'],
       ['dashboard', 'view', 'customize'],
-      ['dashboard', 'view', 'deleteConfirm']
+      ['dashboard', 'view', 'deleteConfirm'],
+      ['automations', 'editor', 'titleEdit'],
+      ['automations', 'editor', 'errors', 'invalidJson'],
+      ['automations', 'validation', 'objectExpected'],
+      ['automations', 'graphErrors', 'conditionCycle'],
+      ['flowchart', 'conditionEditor', 'entityLabel'],
+      ['flowchart', 'conditionEditor', 'stateLabel'],
+      ['guide', 'searchAria'],
+      ['pantry', 'view', 'kpis', 'lowStock'],
+      ['pantry', 'view', 'kpis', 'filterLowStock'],
+      ['satellites', 'askPlaceholder'],
+      ['satellites', 'quickChips', 'pastaTimer'],
+      ['satellites', 'fallbackSatellites', 'kitchenArea'],
+      ['integrations', 'view', 'tuyaProjectIntro'],
+      ['integrations', 'view', 'tuyaProjectPath'],
+      ['common', 'done'],
+      ['automations', 'cooldown'],
+      ['integrations', 'view', 'deviceOnline'],
+      ['flowchart', 'view', 'nodeTypes', 'trigger'],
+      ['pantry', 'view', 'mealCalendar', 'mealTypes', 'dessert'],
+      ['guide', 'sec7RouteLabel'],
+      ['automations', 'graphErrors', 'conditionTitles', 'state'],
+      ['pantry', 'view', 'kpis', 'filterExpiring']
     ]
 
-    for (const catalog of locales) {
+    for (const { code, catalog } of locales) {
       for (const path of samples) {
+        const keyPath = path.join('.')
         const translated = path.reduce((value: any, key) => value?.[key], catalog as any)
         const english = path.reduce((value: any, key) => value?.[key], enLocale as any)
-        expect(typeof translated, path.join('.')).toBe('string')
-        expect(translated.length, path.join('.')).toBeGreaterThan(0)
-        expect(translated, `Missing translation for ${path.join('.')}`).not.toBe(english)
+        expect(typeof translated, keyPath).toBe('string')
+        expect(translated.length, keyPath).toBeGreaterThan(0)
+        // Some words are legitimately shared across languages and are not English fallbacks.
+        if (code === 'fr' && keyPath === 'pantry.view.mealCalendar.mealTypes.dessert') {
+          expect(translated, keyPath).toBe('Dessert')
+        } else if (code === 'de' && keyPath === 'integrations.view.deviceOnline') {
+          expect(translated, keyPath).toBe('Online')
+        } else {
+          expect(translated, `Missing translation for ${keyPath}`).not.toBe(english)
+        }
       }
     }
   })

@@ -20,37 +20,50 @@ type WebPushSubscription struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
-// WebPushPreferences are per-user event opt-ins. Subscription permission alone
-// does not silently enable every category; defaults enable safety-critical alerts.
+// WebPushPreferences are per-user event opt-ins. Expiry windows are expressed in
+// calendar days; zero disables the corresponding expiry reminder.
 type WebPushPreferences struct {
-	AlarmAlerts              bool `json:"alarm_alerts"`
-	EmergencyAlerts          bool `json:"emergency_alerts"`
-	DeviceOfflineAlerts      bool `json:"device_offline_alerts"`
-	AutomationFailureAlerts  bool `json:"automation_failure_alerts"`
-	CommandFailureAlerts     bool `json:"command_failure_alerts"`
-	NetworkAlerts            bool `json:"network_alerts"`
-	CameraAlerts             bool `json:"camera_alerts"`
-	DoorbellAlerts           bool `json:"doorbell_alerts"`
-	PantryAlerts             bool `json:"pantry_alerts"`
-	FinanceAlerts            bool `json:"finance_alerts"`
+	AlarmAlerts             bool `json:"alarm_alerts"`
+	EmergencyAlerts         bool `json:"emergency_alerts"`
+	DeviceOfflineAlerts     bool `json:"device_offline_alerts"`
+	AutomationFailureAlerts bool `json:"automation_failure_alerts"`
+	CommandFailureAlerts    bool `json:"command_failure_alerts"`
+	NetworkAlerts           bool `json:"network_alerts"`
+	CameraAlerts            bool `json:"camera_alerts"`
+	DoorbellAlerts          bool `json:"doorbell_alerts"`
+	PantryAlerts            bool `json:"pantry_alerts"`
+	FinanceAlerts           bool `json:"finance_alerts"`
+	TaskAlerts              bool `json:"task_alerts"`
+	MedicineExpiryAlerts    bool `json:"medicine_expiry_alerts"`
+	MedicineLowStockAlerts  bool `json:"medicine_low_stock_alerts"`
+	MedicineExpiryDays      int  `json:"medicine_expiry_days"`
+	FoodExpiryAlerts        bool `json:"food_expiry_alerts"`
+	FoodLowStockAlerts      bool `json:"food_low_stock_alerts"`
+	FoodExpiryDays          int  `json:"food_expiry_days"`
 }
 
+// DefaultWebPushPreferences enables safety-critical alerts and household reminders
+// after explicit browser subscription consent. Other high-volume categories remain opt-in.
 func DefaultWebPushPreferences() WebPushPreferences {
 	return WebPushPreferences{
 		AlarmAlerts:             true,
 		EmergencyAlerts:         true,
 		DeviceOfflineAlerts:     true,
 		AutomationFailureAlerts: true,
-		CommandFailureAlerts:    false,
 		NetworkAlerts:           true,
-		CameraAlerts:            false,
 		DoorbellAlerts:          true,
-		PantryAlerts:            false,
-		FinanceAlerts:           false,
+		TaskAlerts:              true,
+		MedicineExpiryAlerts:    true,
+		MedicineLowStockAlerts:  true,
+		MedicineExpiryDays:      7,
+		FoodExpiryAlerts:        true,
+		FoodLowStockAlerts:      true,
+		FoodExpiryDays:          3,
 	}
 }
 
-// WebPushRepository persists browser subscriptions and per-user preferences.
+// WebPushRepository persists browser subscriptions, alert preferences, and
+// idempotency records used by the scheduled reminder dispatcher.
 type WebPushRepository interface {
 	RegisterWebPushSubscription(ctx context.Context, subscription *WebPushSubscription) error
 	DeleteWebPushSubscription(ctx context.Context, userID, endpoint string) error
@@ -58,4 +71,6 @@ type WebPushRepository interface {
 	GetWebPushPreferences(ctx context.Context, userID string) (WebPushPreferences, error)
 	SaveWebPushPreferences(ctx context.Context, userID string, preferences WebPushPreferences) error
 	ListWebPushRecipients(ctx context.Context, category string) ([]WebPushSubscription, error)
+	ClaimWebPushDelivery(ctx context.Context, userID, dedupeKey string) (bool, error)
+	ReleaseWebPushDelivery(ctx context.Context, userID, dedupeKey string) error
 }

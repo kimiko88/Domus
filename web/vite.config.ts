@@ -9,7 +9,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       workbox: {
-        importScripts: ['/push-worker.js']
+        importScripts: ['/push-worker.js'],
+        // The current application bundle is slightly larger than Workbox's
+        // 2 MiB default. Keep it precached for reliable offline/PWA updates.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
       },
       includeAssets: [
         'favicon.ico',

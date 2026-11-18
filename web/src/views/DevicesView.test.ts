@@ -86,7 +86,8 @@ describe('DevicesView.vue', () => {
     })
     await wrapper.vm.$nextTick()
 
-    const onlineFilter = wrapper.findAll('.filter-pill').find((p) => p.text().includes('Online'))
+    const onlineLabel = i18n.global.t('devices.filterOnline', { count: 1 })
+    const onlineFilter = wrapper.findAll('.filter-pill').find((p) => p.text().includes(onlineLabel))
     expect(onlineFilter).toBeDefined()
     await onlineFilter!.trigger('click')
 

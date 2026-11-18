@@ -19,7 +19,7 @@
     "no_data": "No hay datos disponibles",
     "skipToContent": "Saltar al contenido principal",
     "offlineReconnecting": "Se ha perdido la conexión con el hub local. Reconectando automáticamente...",
-    "done": "Done",
+    "done": "Hecho",
     "longTermStats": {
       "region": "Estadísticas a largo plazo",
       "title": "Estadísticas a largo plazo",
@@ -179,7 +179,8 @@
       "fileTooLarge": "El archivo seleccionado supera el límite de {limit} MB.",
       "fileReadFailed": "No se ha podido leer el archivo seleccionado."
     },
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "notificationRegion": "Notificaciones"
   },
   "nav": {
     "sectionOverview": "Resumen",
@@ -237,7 +238,7 @@
     "filterSensors": "Sensores",
     "filterClimate": "Clima",
     "filterMarketplace": "Filtrar catálogo",
-    "marketplaceTitle": "Marketplace y Extensiones",
+    "marketplaceTitle": "Catálogo y extensiones",
     "marketplaceSubtitle": "Módulos WASI en sandbox, blueprints verificados y widgets",
     "exploreStore": "Explorar Domus Store",
     "installedExtensions": "Extensiones Instaladas",
@@ -655,7 +656,9 @@
       "deviceTotals": "total · en línea · sin conexión",
       "ipLabel": "IP",
       "firmwareLabel": "Firmware",
-      "tuyaCloudSetupInstruction": "Crea una cuenta en iot.tuya.com, abre Cloud → Development y selecciona el proyecto Domus."
+      "tuyaCloudSetupInstruction": "Crea una cuenta en iot.tuya.com, abre Cloud → Development y selecciona el proyecto Domus.",
+      "tuyaProjectIntro": "Accede a tu proyecto en",
+      "tuyaProjectPath": "Cloud → Development → abre el proyecto Domus"
     }
   },
   "history": {
@@ -1888,7 +1891,7 @@
       "extensionTypeFilter": "Filtro de tipo de extensión",
       "allTypes": "Todos los tipos",
       "wasmPlugins": "Plugins WASM",
-      "blueprints": "Blueprints",
+      "blueprints": "Plantillas",
       "dashboardWidgets": "Widgets del panel",
       "noSearchResults": "No hay resultados de búsqueda",
       "noPackages": "No hay paquetes disponibles",
@@ -2084,7 +2087,14 @@
         "dry": "Deshumidificación",
         "fanOnly": "Solo ventilación",
         "other": "Otro modo"
-      }
+      },
+      "monday": "Lunes",
+      "tuesday": "Martes",
+      "wednesday": "Miércoles",
+      "thursday": "Jueves",
+      "friday": "Viernes",
+      "saturday": "Sábado",
+      "sunday": "Domingo"
     }
   },
   "login": {
@@ -2189,7 +2199,10 @@
     "fallbackSatellites": {
       "livingRoom": "Tableta de pared del salón",
       "kitchen": "Pantalla inteligente de la cocina",
-      "bedroom": "Tableta de mesita de noche"
+      "bedroom": "Tableta de mesita de noche",
+      "livingRoomArea": "Salón",
+      "kitchenArea": "Cocina",
+      "bedroomArea": "Dormitorio"
     }
   },
   "flasher": {
@@ -2373,7 +2386,14 @@
       "thresholdHelp": "Configura al menos uno de los dos umbrales.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Este tipo de condición no se puede editar con los controles visuales. La configuración original se conserva sin cambios.",
-      "entityLabel": "Entidad"
+      "entityLabel": "Entidad",
+      "stateLabel": "Estado requerido",
+      "sensorLabel": "Sensor",
+      "aboveLabel": "Mayor que",
+      "belowLabel": "Menor que",
+      "afterLabel": "Después de",
+      "beforeLabel": "Antes de",
+      "triggerIdLabel": "ID del disparador"
     }
   },
   "failover": {
@@ -2443,7 +2463,7 @@
     "featuresCount": "13 Secciones Documentadas",
     "quickTipsTitle": "Consejos Rápidos y Arquitectura",
     "quickTipsDesc": "Domus está diseñado para ser totalmente autónomo y tolerante a cortes de Internet.",
-    "sec7RouteLabel": "Panel y Alarma",
+    "sec7RouteLabel": "Panel y alarma",
     "sec1Title": "Arquitectura Local y Privacidad Total",
     "sec1Desc": "Operación 100% offline en Raspberry Pi 4 con SQLite WAL, event bus en memoria y sin fuga de datos.",
     "sec1H1": "Base de datos SQLite en modo WAL para lecturas concurrentes de máxima velocidad.",
@@ -3021,7 +3041,10 @@
         "expiring": "Caducan en 3 días",
         "expiringSub": "Consumir pronto",
         "cookable": "¿Qué puedo cocinar?",
-        "cookableSub": "100 % de los ingredientes disponibles"
+        "cookableSub": "100 % de los ingredientes disponibles",
+        "filterLowStock": "Filtrar artículos con pocas existencias",
+        "filterExpiring": "Filtrar artículos próximos a caducar",
+        "showCookable": "Mostrar recetas que puedes preparar hoy"
       },
       "cookableRecipes": "recetas que se pueden preparar"
     }

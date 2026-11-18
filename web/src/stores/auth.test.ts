@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from './auth'
+import { i18n } from '../locales'
 import { apiClient } from '../api/client'
 
 vi.mock('../api/client', async (importOriginal) => {
@@ -68,10 +69,10 @@ describe('Auth Store', () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({ message: 'Login successful' })
     vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('session lookup failed'))
 
-    await expect(store.login('admin', 'secret123')).rejects.toThrow('session lookup failed')
+    await expect(store.login('admin', 'secret123')).rejects.toThrow(i18n.global.t('common.errors.loadFailed'))
     expect(store.isAuthenticated).toBe(false)
     expect(store.user).toBeNull()
-    expect(store.error).toBe('session lookup failed')
+    expect(store.error).toBe(i18n.global.t('common.errors.actionFailed'))
   })
 
   it('logs out and clears user state', async () => {

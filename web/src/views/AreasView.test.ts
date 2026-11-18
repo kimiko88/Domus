@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import AreasView from './AreasView.vue'
 import { useAreasStore } from '../stores/areas'
 import { useEntitiesStore } from '../stores/entities'
+import { i18n } from '../locales'
 
 describe('AreasView.vue', () => {
   let areasStore: ReturnType<typeof useAreasStore>
@@ -57,7 +58,7 @@ describe('AreasView.vue', () => {
 
     await newBtn.trigger('click')
     expect(wrapper.find('.modal-backdrop').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Crea Area')
+    expect(wrapper.text()).toContain(i18n.global.t('areas.createArea'))
   })
 
   it('opens editor modal when "Crea la prima area" in empty state is clicked', async () => {

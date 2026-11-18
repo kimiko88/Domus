@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import LoginView from './LoginView.vue'
 import { useAuthStore } from '../stores/auth'
+import { i18n } from '../locales'
 
 describe('LoginView.vue', () => {
   let authStore: ReturnType<typeof useAuthStore>
@@ -63,6 +64,6 @@ describe('LoginView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    expect(wrapper.text()).toContain('Invalid username or password')
+    expect(wrapper.text()).toContain(i18n.global.t('login.error'))
   })
 })

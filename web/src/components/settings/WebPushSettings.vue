@@ -97,13 +97,14 @@ async function loadSettings() {
   }
 }
 
-function decodeVapidKey(value: string): Uint8Array {
+function decodeVapidKey(value: string): ArrayBuffer {
   const padding = '='.repeat((4 - value.length % 4) % 4)
   const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(base64)
-  const output = new Uint8Array(raw.length)
+  const buffer = new ArrayBuffer(raw.length)
+  const output = new Uint8Array(buffer)
   for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i)
-  return output
+  return buffer
 }
 
 async function enablePush() {

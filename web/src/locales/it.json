@@ -179,7 +179,8 @@
       "fileTooLarge": "Il file selezionato supera il limite di {limit} MB.",
       "fileReadFailed": "Impossibile leggere il file selezionato."
     },
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "notificationRegion": "Notifiche"
   },
   "nav": {
     "sectionOverview": "Panoramica",
@@ -637,8 +638,8 @@
         "manualIsolationReason": "Dispositivo isolato manualmente da Network Guardian."
       },
       "devicesShown": "{count} visualizzati",
-      "deviceOnline": "Online",
-      "deviceOffline": "Offline",
+      "deviceOnline": "In linea",
+      "deviceOffline": "Non in linea",
       "turnOff": "Spegni",
       "turnOn": "Accendi",
       "chooseTemperature": "Seleziona la temperatura",
@@ -655,7 +656,9 @@
       "deviceTotals": "totali · online · offline",
       "ipLabel": "IP",
       "firmwareLabel": "Firmware",
-      "tuyaCloudSetupInstruction": "Crea un account su iot.tuya.com, apri Cloud → Development e seleziona il progetto Domus."
+      "tuyaCloudSetupInstruction": "Crea un account su iot.tuya.com, apri Cloud → Development e seleziona il progetto Domus.",
+      "tuyaProjectIntro": "Accedi al tuo progetto su",
+      "tuyaProjectPath": "Cloud → Development → apri il progetto Domus"
     }
   },
   "history": {
@@ -845,7 +848,7 @@
     "manualTrigger": "Esegui Test",
     "executionHistory": "Storico Esecuzioni",
     "mode": "Modalità",
-    "cooldown": "Cooldown",
+    "cooldown": "Tempo di attesa",
     "searchPlaceholder": "Cerca automazione per nome o descrizione...",
     "confirmDelete": "Sei sicuro di voler eliminare l'automazione \"{name}\"?",
     "saveSuccess": "Automazione salvata con successo",
@@ -1063,7 +1066,7 @@
     "actor": "Attore",
     "action": "Azione",
     "target": "Destinatario",
-    "timestamp": "Timestamp",
+    "timestamp": "Data e ora",
     "payload": "Dettagli",
     "noEntries": "Nessun evento registrato.",
     "actorTypes": {
@@ -2084,7 +2087,14 @@
         "dry": "Deumidificazione",
         "fanOnly": "Solo ventilazione",
         "other": "Altra modalità"
-      }
+      },
+      "monday": "Lunedì",
+      "tuesday": "Martedì",
+      "wednesday": "Mercoledì",
+      "thursday": "Giovedì",
+      "friday": "Venerdì",
+      "saturday": "Sabato",
+      "sunday": "Domenica"
     }
   },
   "login": {
@@ -2189,7 +2199,10 @@
     "fallbackSatellites": {
       "livingRoom": "Tablet a parete soggiorno",
       "kitchen": "Smart display cucina",
-      "bedroom": "Tablet comodino"
+      "bedroom": "Tablet comodino",
+      "livingRoomArea": "Soggiorno",
+      "kitchenArea": "Cucina",
+      "bedroomArea": "Camera da letto"
     }
   },
   "flasher": {
@@ -2336,7 +2349,7 @@
       },
       "newAutomationName": "Nuova automazione a nodi",
       "nodeTypes": {
-        "trigger": "TRIGGER",
+        "trigger": "INNESCO",
         "condition": "CONDIZIONE",
         "action": "AZIONE",
         "delay": "PAUSA",
@@ -2358,7 +2371,7 @@
         "state": "Stato entità",
         "numericState": "Soglia numerica",
         "time": "Fascia oraria",
-        "trigger": "Trigger"
+        "trigger": "Innesco"
       },
       "andHelp": "Tutte le condizioni figlie devono essere vere.",
       "orHelp": "È sufficiente che una condizione figlia sia vera.",
@@ -2373,7 +2386,14 @@
       "thresholdHelp": "Imposta almeno una delle due soglie.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Questo tipo di condizione non è modificabile con i controlli visuali. La configurazione originale viene mantenuta senza alterazioni.",
-      "entityLabel": "Entità"
+      "entityLabel": "Entità",
+      "stateLabel": "Stato richiesto",
+      "sensorLabel": "Sensore",
+      "aboveLabel": "Maggiore di",
+      "belowLabel": "Minore di",
+      "afterLabel": "Dopo le",
+      "beforeLabel": "Prima delle",
+      "triggerIdLabel": "ID trigger"
     }
   },
   "failover": {
@@ -2954,7 +2974,7 @@
           "lunch": "Pranzo",
           "snack": "Spuntino",
           "dinner": "Cena",
-          "dessert": "Dessert"
+          "dessert": "Dolce"
         }
       },
       "recipeEditor": {
@@ -3021,7 +3041,10 @@
         "expiring": "In scadenza (3 giorni)",
         "expiringSub": "Da consumare a breve",
         "cookable": "Cosa posso cucinare?",
-        "cookableSub": "100% degli ingredienti disponibili"
+        "cookableSub": "100% degli ingredienti disponibili",
+        "filterLowStock": "Filtra gli articoli con scorte basse",
+        "filterExpiring": "Filtra gli articoli in scadenza",
+        "showCookable": "Mostra le ricette preparabili oggi"
       },
       "cookableRecipes": "ricette preparabili"
     }

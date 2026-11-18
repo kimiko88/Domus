@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import App from './App.vue'
@@ -25,7 +25,9 @@ describe('App.vue', () => {
           RouterView: { template: '<div class="routed-view">Home Content</div>' },
           AppSidebar: true,
           AppTopbar: true,
-          BaseToast: true
+          BaseToast: true,
+          PwaUpdatePrompt: true,
+          AppTourModal: true
         }
       }
     })
