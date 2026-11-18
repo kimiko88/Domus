@@ -496,7 +496,18 @@
         "deviceOfflineDesc": "The device is offline. Check its power and local network connection.",
         "arpScanCompleteDesc": "ARP scan completed. Found {count} devices.",
         "deviceUnblockedTitle": "Device unblocked"
-      }
+      },
+      "devicesShown": "{count} shown",
+      "deviceOnline": "Online",
+      "deviceOffline": "Offline",
+      "turnOff": "Turn off",
+      "turnOn": "Turn on",
+      "chooseTemperature": "Select a temperature",
+      "encodedValue": "sends",
+      "valueToSend": "Value to send",
+      "setpointMapAria": "Thermostat setpoint conversion table",
+      "hideCommands": "Hide commands",
+      "availableApiCommands": "Commands available through the API"
     }
   },
   "history": {
