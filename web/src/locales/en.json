@@ -1140,7 +1140,8 @@
       "filterVehicle": "Vehicle",
       "filterPackage": "Package",
       "aiOverviewDescription": "Local resident facial recognition using cosine similarity and automatic license-plate reading for access control.",
-      "subSecondDelay": "Sub-second latency"
+      "subSecondDelay": "Sub-second latency",
+      "detectionTooltip": "{label} detected at {time} — camera {camera}"
     }
   },
   "shopping": {
