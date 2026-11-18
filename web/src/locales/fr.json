@@ -19,7 +19,7 @@
     "no_data": "Aucune donnée disponible",
     "skipToContent": "Aller au contenu principal",
     "offlineReconnecting": "Connexion au hub local interrompue. Reconnexion automatique en cours...",
-    "done": "Done",
+    "done": "Terminé",
     "longTermStats": {
       "region": "Statistiques à long terme",
       "title": "Statistiques à long terme",
@@ -237,7 +237,7 @@
     "filterSensors": "Capteurs",
     "filterClimate": "Climatisation",
     "filterMarketplace": "Filtrer le catalogue",
-    "marketplaceTitle": "Marketplace & Extensions",
+    "marketplaceTitle": "Catalogue et extensions",
     "marketplaceSubtitle": "Modules WASI en sandbox, blueprints vérifiés et widgets",
     "exploreStore": "Explorer Domus Store",
     "installedExtensions": "Extensions Installées",
@@ -655,7 +655,9 @@
       "deviceTotals": "au total · en ligne · hors ligne",
       "ipLabel": "IP",
       "firmwareLabel": "Micrologiciel",
-      "tuyaCloudSetupInstruction": "Créez un compte sur iot.tuya.com, ouvrez Cloud → Development et sélectionnez le projet Domus."
+      "tuyaCloudSetupInstruction": "Créez un compte sur iot.tuya.com, ouvrez Cloud → Development et sélectionnez le projet Domus.",
+      "tuyaProjectIntro": "Ouvrez votre projet sur",
+      "tuyaProjectPath": "Cloud → Development → ouvrez le projet Domus"
     }
   },
   "history": {
@@ -1888,7 +1890,7 @@
       "extensionTypeFilter": "Filtre de type d’extension",
       "allTypes": "Tous les types",
       "wasmPlugins": "Plugins WASM",
-      "blueprints": "Blueprints",
+      "blueprints": "Modèles",
       "dashboardWidgets": "Widgets du tableau de bord",
       "noSearchResults": "Aucun résultat de recherche",
       "noPackages": "Aucun package disponible",
@@ -2084,7 +2086,14 @@
         "dry": "Déshumidification",
         "fanOnly": "Ventilation seule",
         "other": "Autre mode"
-      }
+      },
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi",
+      "sunday": "Dimanche"
     }
   },
   "login": {
@@ -2189,7 +2198,10 @@
     "fallbackSatellites": {
       "livingRoom": "Tablette murale du séjour",
       "kitchen": "Écran connecté de la cuisine",
-      "bedroom": "Tablette de chevet"
+      "bedroom": "Tablette de chevet",
+      "livingRoomArea": "Séjour",
+      "kitchenArea": "Cuisine",
+      "bedroomArea": "Chambre"
     }
   },
   "flasher": {
@@ -2373,7 +2385,14 @@
       "thresholdHelp": "Définissez au moins l'un des deux seuils.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Ce type de condition ne peut pas être modifié avec les commandes visuelles. La configuration d'origine est conservée sans modification.",
-      "entityLabel": "Entité"
+      "entityLabel": "Entité",
+      "stateLabel": "État attendu",
+      "sensorLabel": "Capteur",
+      "aboveLabel": "Supérieur à",
+      "belowLabel": "Inférieur à",
+      "afterLabel": "Après",
+      "beforeLabel": "Avant",
+      "triggerIdLabel": "ID du déclencheur"
     }
   },
   "failover": {
@@ -2443,7 +2462,7 @@
     "featuresCount": "13 Sections Documentées",
     "quickTipsTitle": "Conseils Rapides & Architecture",
     "quickTipsDesc": "Domus est conçu pour être entièrement autonome et résister aux coupures d'Internet.",
-    "sec7RouteLabel": "Tableau de Bord & Alarme",
+    "sec7RouteLabel": "Tableau de bord et alarme",
     "sec1Title": "Architecture Locale & Confidentialité",
     "sec1Desc": "Fonctionnement 100% hors-ligne sur Raspberry Pi 4 avec SQLite WAL et bus d'événements mémoire.",
     "sec1H1": "Base SQLite embarquée en mode WAL pour des lectures parallèles ultra-rapides.",
@@ -3021,7 +3040,10 @@
         "expiring": "À consommer sous 3 jours",
         "expiringSub": "À utiliser rapidement",
         "cookable": "Que puis-je cuisiner ?",
-        "cookableSub": "100 % des ingrédients disponibles"
+        "cookableSub": "100 % des ingrédients disponibles",
+        "filterLowStock": "Filtrer les articles à faible stock",
+        "filterExpiring": "Filtrer les articles proches de la date limite",
+        "showCookable": "Afficher les recettes réalisables aujourd’hui"
       },
       "cookableRecipes": "recettes réalisables"
     }
