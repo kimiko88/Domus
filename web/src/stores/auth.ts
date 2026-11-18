@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/login', { username, password })
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/kiosk-login', { pin: pinCode })
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
@@ -116,7 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
       isSetupRequired.value = false
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
@@ -138,7 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
       await apiClient.post('/api/v1/auth/register', data)
       const authenticatedUser = await fetchMe()
       if (!authenticatedUser) {
-        throw new Error(error.value || 'Login completed but the authenticated user could not be loaded')
+        throw new Error(error.value || i18n.global.t('common.errors.loadFailed'))
       }
       return true
     } catch (err: any) {
