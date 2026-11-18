@@ -2443,7 +2443,27 @@
       "mealConsumed": "Meal consumed. Ingredients were deducted in proportion to the number of servings.",
       "mealConsumeFailed": "Could not consume the planned meal.",
       "confirmDeleteMeal": "Remove this meal from the calendar?",
-      "mealDeleted": "Meal removed from the calendar."
+      "mealDeleted": "Meal removed from the calendar.",
+      "mealCalendar": {
+        "previousWeek": "Previous week",
+        "nextWeek": "Next week",
+        "today": "Today",
+        "planMeal": "Plan a meal",
+        "addMealForDay": "Add {meal} for {day}",
+        "addMeal": "Add {meal}",
+        "deleteMeal": "Delete meal",
+        "scaledIngredients": "Ingredients scaled for {count} people",
+        "consumed": "Consumed",
+        "consumeTitle": "Consume this meal and automatically deduct its ingredients from the pantry.",
+        "consume": "Consume",
+        "mealTypes": {
+          "breakfast": "Breakfast",
+          "lunch": "Lunch",
+          "snack": "Snack",
+          "dinner": "Dinner",
+          "dessert": "Dessert"
+        }
+      }
     }
   },
   "predictiveClimate": {
