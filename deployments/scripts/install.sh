@@ -452,61 +452,7 @@ chmod 0640 "${ENV_FILE}"
 env_file_value() {
     local key="$1" value
     value="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${ENV_FILE}")"
-    value="${value% (generated from the repo template) ─────────────────────────
-if (( HAVE_SYSTEMD )); then
-    TEMPLATE="${PROJECT_ROOT}/deployments/systemd/domus.service"
-    [[ -f "${TEMPLATE}" ]] || { log_error "Missing ${TEMPLATE}"; exit 1; }
-    sed -e "s|@DOMUS_USER@|${DOMUS_USER}|g" \
-        -e "s|@DOMUS_GROUP@|${DOMUS_GROUP}|g" \
-        -e "s|@DOMUS_DATA_DIR@|${DOMUS_DATA_DIR}|g" \
-        -e "s|@DOMUS_CONFIG_DIR@|${DOMUS_CONFIG_DIR}|g" \
-        -e "s|@DOMUS_INSTALL_DIR@|${DOMUS_INSTALL_DIR}|g" \
-        -e "s|@DOMUS_WEB_DIR@|${DOMUS_WEB_DIR}|g" \
-        "${TEMPLATE}" > /etc/systemd/system/domus.service
-    chmod 0644 /etc/systemd/system/domus.service
-    systemctl daemon-reload
-    systemctl enable domus.service >/dev/null
-    log_info "Starting domus.service"
-    systemctl restart domus.service
-
-    log_info "Waiting for health endpoint (up to 30 s)..."
-    healthy=0
-    for _ in $(seq 1 30); do
-        if curl -fsS "http://127.0.0.1:${DOMUS_PORT}/health" >/dev/null 2>&1; then healthy=1; break; fi
-        sleep 1
-    done
-    if (( healthy )); then
-        log_success "Domus is up"
-        ui_code="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
-        if [[ "${ui_code}" != "200" ]]; then
-            log_error "Frontend health check failed: GET / returned ${ui_code} (expected 200)."
-            log_error "Recent service logs:"
-            journalctl -u domus -n 100 --no-pager >&2 || true
-            log_warn "Stopping Domus because the web interface is not available."
-            systemctl stop domus.service || true
-            exit 1
-        fi
-        log_success "Web interface responds with HTTP 200"
-    else
-        log_error "Domus did not become healthy within 30 seconds."
-        log_error "Recent service logs:"
-        journalctl -u domus -n 100 --no-pager >&2 || true
-        log_warn "Stopping the unhealthy service. Fix the reported error, then run: systemctl start domus"
-        systemctl stop domus.service || true
-        exit 1
-    fi
-else
-    log_warn "systemd not found: run manually  DOMUS_SERVER_WEB_DIR=${DOMUS_WEB_DIR} ${DOMUS_INSTALL_DIR}/domus -config ${CONFIG_TARGET}"
-fi
-
-LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-echo
-echo -e "${GREEN}${BOLD}=== Domus installed ===${NC}"
-echo -e "Web UI    : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/${NC}   (or http://$(hostname).local:${DOMUS_PORT}/)"
-echo -e "API docs  : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/docs${NC}"
-echo -e "Logs      : ${BOLD}journalctl -u domus -f${NC}"
-echo -e "Status    : ${BOLD}systemctl status domus${NC}"
-echo -e "CLI       : ${BOLD}domus-cli help${NC}"\\r'}"
+    value="$(printf '%s' "${value}" | tr -d '\\r')"
     if [[ "${value}" == \"*\" ]]; then
         value="${value:1:${#value}-2}"
     fi
