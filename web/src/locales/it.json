@@ -958,7 +958,35 @@
       "thresholdPassed": "Soglia del 65% superata",
       "accessConfirmed": "Accesso confermato",
       "profileValidated": "Profilo convalidato dal motore NVR locale. Le automazioni di benvenuto sono state attivate.",
-      "testMatchButton": "Verifica corrispondenza"
+      "testMatchButton": "Verifica corrispondenza",
+      "wallSync": "SINCRONIZZAZIONE MULTI-SCHERMO ({matrix})",
+      "cameraNumber": "TELECAMERA {number}: {name}",
+      "channelWaiting": "Canale {channel} in attesa",
+      "filterAll": "Tutti ({count})",
+      "recording": "REG",
+      "cameraLabel": "Telecamera",
+      "confidenceLabel": "Confidenza",
+      "playClip": "Riproduci filmato ({seconds}s)",
+      "storageNvr": "Archiviazione NVR: {used} GB / {total} GB (buffer circolare WAL)",
+      "online": "Online",
+      "streamingLatencyHint": "Latenza streaming inferiore a 200 ms",
+      "cameraId": "ID telecamera",
+      "directWebRtcStream": "Streaming WebRTC diretto",
+      "sensitivityLabel": "Sensibilità",
+      "familyOwner": "Familiare",
+      "privateVehicle": "Veicolo privato",
+      "newZoneName": "Nuova zona {count}",
+      "confirmDeleteFace": "Rimuovere il profilo biometrico di {name}?",
+      "confirmDeletePlate": "Rimuovere la targa {plate}?",
+      "detectionLabels": {
+        "person": "Persona",
+        "vehicle": "Veicolo",
+        "package": "Pacco",
+        "animal": "Animale"
+      },
+      "saveProfile": "Salva profilo",
+      "autoOpenGateLights": "Apri automaticamente il cancello carraio e accendi le luci del vialetto",
+      "registerPlate": "Registra targa"
     }
   },
   "shopping": {
