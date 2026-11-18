@@ -181,7 +181,7 @@ onMounted(() => {
         <!-- 1. Input Boolean -->
         <div v-if="h.domain === 'input_boolean'" class="card-action boolean-action">
           <span class="status-text">{{ h.state === 'on' ? t('helpers.view.active') : t('helpers.view.off') }}</span>
-          <button :class="['toggle-pill', { active: h.state === 'on' }]" @click="toggleBoolean(h)">
+          <button :class="['toggle-pill', { active: h.state === 'on' }]" @click="toggleBoolean(h)" :aria-label="t('helpers.view.toggle', { name: h.name })">
             <span class="pill-thumb" />
           </button>
         </div>
@@ -206,7 +206,7 @@ onMounted(() => {
         <!-- 3. Timer -->
         <div v-else-if="h.domain === 'timer'" class="card-action timer-action">
           <div class="timer-status-row">
-            <span class="timer-state-badge" :class="h.state">{{ h.state.toUpperCase() }}</span>
+            <span class="timer-state-badge" :class="h.state">{{ t(`helpers.view.timerStates.${h.state}`) }}</span>
             <span class="timer-time">{{ parseConfig(h).remaining_seconds ?? parseConfig(h).duration_seconds ?? 60 }}s</span>
           </div>
           <div class="timer-controls">
