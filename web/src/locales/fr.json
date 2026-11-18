@@ -169,7 +169,8 @@
       "actionFailed": "Impossible d’effectuer cette action. Réessayez.",
       "syncFailed": "La synchronisation a échoué. Réessayez.",
       "exportFailed": "L’exportation a échoué. Réessayez."
-    }
+    },
+    "close": "Fermer"
   },
   "nav": {
     "sectionOverview": "Vue d'ensemble",
