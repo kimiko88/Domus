@@ -355,7 +355,10 @@
       "deleteConfirm": "Eliminare la dashboard “{title}”?",
       "dashboardNameRequired": "Inserisci il nome della dashboard.",
       "saveFailed": "Impossibile salvare la dashboard. Riprova.",
-      "deleteFailed": "Impossibile eliminare la dashboard."
+      "deleteFailed": "Impossibile eliminare la dashboard.",
+      "extensionUninstalled": "Estensione disinstallata correttamente",
+      "extensionInstalled": "Estensione installata e attiva localmente",
+      "extensionToggleFailed": "Errore durante la modifica dello stato del pacchetto"
     }
   },
   "areas": {
@@ -440,7 +443,21 @@
       "ipPrefix": "IP:",
       "deviceCount": "dispositivi",
       "addToHome": "Aggiungi alla tua smart home Domus.",
-      "addToDomus": "Aggiungi a Domus"
+      "addToDomus": "Aggiungi a Domus",
+      "scanCompletedTitle": "Scansione rete completata",
+      "scanCompletedMessage": "Trovati {count} dispositivi sulla rete locale",
+      "scanErrorTitle": "Errore di scansione",
+      "scanErrorMessage": "Impossibile completare la scansione",
+      "deviceAddedTitle": "Dispositivo aggiunto",
+      "deviceAddedMessage": "{name} è ora configurato in Domus.",
+      "addDeviceErrorTitle": "Errore durante l'aggiunta",
+      "addDeviceErrorMessage": "Impossibile aggiungere il dispositivo",
+      "matterConnectedTitle": "Matter connesso",
+      "matterConnectedMessage": "Dispositivo associato alla rete Thread locale",
+      "devicesUpdatedTitle": "Dispositivi aggiornati",
+      "devicesUpdatedMessage": "Elenco dispositivi e stato delle integrazioni aggiornati.",
+      "refreshErrorTitle": "Aggiornamento non riuscito",
+      "refreshErrorMessage": "Impossibile aggiornare i dispositivi."
     }
   },
   "integrations": {
@@ -1522,7 +1539,35 @@
       "editRoomHint": "Fai clic su una stanza nella planimetria per modificarne posizione, dimensioni e colore.",
       "allDevicesPlaced": "Tutti i dispositivi sono già posizionati su questa mappa!",
       "finishEditing": "Termina modifica",
-      "editPositions": "Modifica posizioni"
+      "editPositions": "Modifica posizioni",
+      "commandSentTitle": "Comando inviato",
+      "entityTurnedOn": "{name}: acceso",
+      "entityTurnedOff": "{name}: spento",
+      "commandFailed": "Impossibile inviare il comando",
+      "positionSavedTitle": "Posizione salvata",
+      "positionSavedMessage": "Dispositivo posizionato sulla mappa",
+      "markerSaveFailed": "Impossibile salvare il contrassegno",
+      "markerRemovedTitle": "Dispositivo rimosso",
+      "markerRemovedMessage": "Dispositivo rimosso dalla mappa",
+      "markerRemoveFailed": "Impossibile rimuovere il contrassegno",
+      "roomNames": {
+        "living": "Soggiorno",
+        "room": "Stanza",
+        "livingOpen": "Soggiorno open space",
+        "kitchen": "Cucina",
+        "masterBedroom": "Camera matrimoniale",
+        "bathroom": "Bagno",
+        "office": "Studio / Ufficio"
+      },
+      "roomCreatedTitle": "Stanza creata",
+      "roomCreatedMessage": "Stanza “{name}” aggiunta alla planimetria",
+      "floorplanGeneratedTitle": "Planimetria generata",
+      "floorplanGeneratedMessage": "Cinque stanze predisposte con layout standard",
+      "roomRemovedTitle": "Stanza rimossa",
+      "roomRemovedMessage": "Stanza eliminata dalla planimetria",
+      "floorCreatedTitle": "Piano creato",
+      "floorCreatedMessage": "Nuovo piano aggiunto alla planimetria",
+      "floorCreateFailed": "Impossibile creare il piano"
     }
   },
   "media": {
