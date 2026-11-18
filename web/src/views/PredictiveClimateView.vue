@@ -1083,7 +1083,7 @@ function getEmitterLabel(emitter: EmitterType): string {
 
         <footer class="modal-footer">
           <button type="button" class="btn btn-secondary" @click="showProfileModal = false">
-            Chiudi
+            {{ t('predictiveClimate.view.close') }}
           </button>
         </footer>
       </div>
