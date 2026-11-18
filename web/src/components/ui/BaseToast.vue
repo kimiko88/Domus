@@ -27,7 +27,7 @@ function getIcon(type: string) {
 </script>
 
 <template>
-  <div class="toast-container" role="region" :aria-label="t('common.notifications')" aria-live="polite">
+  <div class="toast-container" role="region" :aria-label="t('common.notificationRegion')" aria-live="polite">
     <TransitionGroup name="toast">
       <div
         v-for="item in notificationsStore.notifications"
