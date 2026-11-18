@@ -84,17 +84,17 @@ function openEditItem(item: PantryItem) {
 async function handleSaveItem(payload: Partial<PantryItem>) {
   if (itemToEdit.value) {
     await pantryStore.updatePantryItem(itemToEdit.value.id, payload)
-    showToast('Alimento aggiornato con successo!')
+    showToast(t('pantry.view.itemUpdated'))
   } else {
     await pantryStore.createPantryItem(payload)
-    showToast('Alimento aggiunto alla dispensa!')
+    showToast(t('pantry.view.itemCreated'))
   }
 }
 
 async function handleDeleteItem(id: string) {
-  if (window.confirm('Vuoi rimuovere questo articolo dalla dispensa?')) {
+  if (window.confirm(t('pantry.view.confirmDeleteItem'))) {
     await pantryStore.deletePantryItem(id)
-    showToast('Alimento rimosso.')
+    showToast(t('pantry.view.itemDeleted'))
   }
 }
 
@@ -102,10 +102,10 @@ async function handleAdjustQty(id: string, delta: number) {
   try {
     const updated = await pantryStore.adjustQuantity(id, delta)
     if (updated.quantity <= updated.min_threshold) {
-      showToast(`Scorta bassa per "${updated.name}" (${updated.quantity} ${updated.unit})!`)
+      showToast(t('pantry.view.lowStockToast', { name: updated.name, quantity: updated.quantity, unit: updated.unit }))
     }
   } catch (err: any) {
-    showToast(err.message || 'Errore nella modifica scorte')
+    showToast(t('pantry.view.stockAdjustFailed'))
   }
 }
 
@@ -123,17 +123,17 @@ function openEditRecipe(recipe: Recipe) {
 async function handleSaveRecipe(payload: Partial<Recipe>) {
   if (recipeToEdit.value) {
     await pantryStore.updateRecipe(recipeToEdit.value.id, payload)
-    showToast('Ricetta aggiornata!')
+    showToast(t('pantry.view.recipeUpdated'))
   } else {
     await pantryStore.createRecipe(payload)
-    showToast('Nuova ricetta salvata nel ricettario!')
+    showToast(t('pantry.view.recipeCreated'))
   }
 }
 
 async function handleDeleteRecipe(id: string) {
-  if (window.confirm('Vuoi eliminare questa ricetta?')) {
+  if (window.confirm(t('pantry.view.confirmDeleteRecipe'))) {
     await pantryStore.deleteRecipe(id)
-    showToast('Ricetta eliminata.')
+    showToast(t('pantry.view.recipeDeleted'))
   }
 }
 
@@ -154,22 +154,22 @@ function openAddMealPlan(date?: string, mealType?: MealType) {
 
 async function handleSaveMealPlan(payload: Partial<MealPlan>) {
   await pantryStore.createMealPlan(payload)
-  showToast('Pasto pianificato nel calendario!')
+  showToast(t('pantry.view.mealCreated'))
 }
 
 async function handleConsumeMeal(id: string) {
   try {
     await pantryStore.consumeMealPlan(id)
-    showToast('🍽️ Pasto consumato! Gli ingredienti sono stati scalati in proporzione ai commensali.')
+    showToast(t('pantry.view.mealConsumed'))
   } catch (err: any) {
-    showToast(err.message || 'Errore durante il consumo pasto')
+    showToast(t('pantry.view.mealConsumeFailed'))
   }
 }
 
 async function handleDeleteMeal(id: string) {
-  if (window.confirm('Vuoi rimuovere questo pasto dal calendario?')) {
+  if (window.confirm(t('pantry.view.confirmDeleteMeal'))) {
     await pantryStore.deleteMealPlan(id)
-    showToast('Pasto rimosso dal calendario.')
+    showToast(t('pantry.view.mealDeleted'))
   }
 }
 
@@ -183,7 +183,7 @@ async function handleDeleteMeal(id: string) {
       <div>
         <h1 class="page-title">{{ t('pantry.view.title') }}</h1>
         <p class="page-subtitle">
-          Monitora scorte alimentari, crea ricette, pianifica i pasti con scalatura automatica per commensali e leggi scontrini OCR.
+          {{ t('pantry.view.subtitle') }}
         </p>
       </div>
     </header>
