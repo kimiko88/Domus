@@ -1102,7 +1102,13 @@
       "cancel": "Annulla",
       "create": "Crea Helper",
       "deleteAria": "Elimina helper",
-      "statusAria": "Stato helper"
+      "statusAria": "Stato helper",
+      "timerStates": {
+        "active": "ATTIVO",
+        "paused": "IN PAUSA",
+        "idle": "INATTIVO"
+      },
+      "toggle": "Attiva o disattiva {name}"
     }
   },
   "floorplan": {
@@ -1388,7 +1394,13 @@
     "password": "Password",
     "submit": "Accedi",
     "error": "Credenziali non valide o sessione scaduta",
-    "kioskPin": "Codice PIN kiosk"
+    "kioskPin": "Codice PIN kiosk",
+    "passwordTab": "Password",
+    "kioskTab": "PIN Kiosk / Ospite",
+    "unlockKiosk": "Sblocca Kiosk",
+    "missingCredentials": "Inserisci nome utente e password",
+    "missingKioskPin": "Inserisci il PIN Kiosk",
+    "invalidKioskPin": "PIN Kiosk non valido o scaduto"
   },
   "setup": {
     "title": "Configurazione Iniziale Domus",
