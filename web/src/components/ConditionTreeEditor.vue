@@ -181,8 +181,8 @@ function updateTime(event: Event, field: 'after' | 'before') {
           v-if="children.length > 1"
           class="condition-remove-button"
           type="button"
-          :aria-label="`Rimuovi condizione ${index + 1}`"
-          :title="`Rimuovi condizione ${index + 1}`"
+          :aria-label="t('flowchart.conditionEditor.removeCondition', { index: index + 1 })"
+          :title="t('flowchart.conditionEditor.removeCondition', { index: index + 1 })"
           :data-test="`remove-condition-${index}`"
           @click="removeChild(index)"
         >×</button>
@@ -201,7 +201,7 @@ function updateTime(event: Event, field: 'after' | 'before') {
 
     <div v-else-if="modelValue.condition === 'state'" class="condition-fields">
       <label>
-        Entità
+        {{ t('flowchart.conditionEditor.entityLabel') }}
         <select
           data-test="condition-entity"
           :value="modelValue.entity_key || ''"
@@ -214,14 +214,14 @@ function updateTime(event: Event, field: 'after' | 'before') {
         </select>
       </label>
       <label>
-        Stato richiesto
+        {{ t('flowchart.conditionEditor.stateLabel') }}
         <input data-test="condition-state" type="text" :value="modelValue.state || ''"  :placeholder="t('flowchart.conditionEditor.statePlaceholder')" @input="updateText($event, 'state')" />
       </label>
     </div>
 
     <div v-else-if="modelValue.condition === 'numeric_state'" class="condition-fields">
       <label>
-        Sensore
+        {{ t('flowchart.conditionEditor.sensorLabel') }}
         <select
           data-test="condition-entity"
           :value="modelValue.entity_key || ''"
@@ -235,11 +235,11 @@ function updateTime(event: Event, field: 'after' | 'before') {
       </label>
       <div class="condition-number-row">
         <label>
-          Maggiore di
+          {{ t('flowchart.conditionEditor.aboveLabel') }}
           <input data-test="condition-above" type="number" step="any" :value="modelValue.above ?? ''" @input="updateNumber($event, 'above')" />
         </label>
         <label>
-          Minore di
+          {{ t('flowchart.conditionEditor.belowLabel') }}
           <input data-test="condition-below" type="number" step="any" :value="modelValue.below ?? ''" @input="updateNumber($event, 'below')" />
         </label>
       </div>
@@ -248,18 +248,18 @@ function updateTime(event: Event, field: 'after' | 'before') {
 
     <div v-else-if="modelValue.condition === 'time'" class="condition-fields">
       <label>
-        Dopo le
+        {{ t('flowchart.conditionEditor.afterLabel') }}
         <input data-test="condition-after" type="time" step="1" :value="modelValue.after || ''" @input="updateTime($event, 'after')" />
       </label>
       <label>
-        Prima delle
+        {{ t('flowchart.conditionEditor.beforeLabel') }}
         <input data-test="condition-before" type="time" step="1" :value="modelValue.before || ''" @input="updateTime($event, 'before')" />
       </label>
     </div>
 
     <div v-else-if="modelValue.condition === 'trigger'" class="condition-fields">
       <label>
-        ID trigger
+        {{ t('flowchart.conditionEditor.triggerIdLabel') }}
         <input data-test="condition-trigger-id" type="text" :value="modelValue.trigger_id || ''"  :placeholder="t('flowchart.conditionEditor.triggerPlaceholder')" @input="updateText($event, 'trigger_id')" />
       </label>
     </div>
