@@ -318,7 +318,41 @@
       "defaultProfileNight": "Tablet del dormitorio y noche",
       "roomLivingRoom": "Salón",
       "roomKitchen": "Cocina",
-      "roomBedroom": "Dormitorio"
+      "roomBedroom": "Dormitorio",
+      "customize": "Personalizar",
+      "newDashboard": "+ Nueva",
+      "deleteDashboard": "Eliminar",
+      "ambientSetpoint": "Consigna ambiente",
+      "measuredTemperature": "Temperatura medida",
+      "instantaneousPower": "Potencia instantánea del hogar",
+      "configuredEntity": "Entidad Domus configurada",
+      "customTextWidget": "Widget de texto personalizado",
+      "createCustomTitle": "Crear dashboard personalizado",
+      "customizeTitle": "Personalizar dashboard",
+      "editorHint": "Elige un nombre, widgets y dimensiones de la cuadrícula.",
+      "dashboardName": "Nombre del dashboard",
+      "dashboardNamePlaceholder": "Por ejemplo: Dashboard planta baja",
+      "addWidget": "Añadir widget",
+      "widgetType": "Tipo de widget",
+      "widgetTypes": {
+        "thermostat": "Termostato",
+        "temperature": "Temperatura",
+        "energy": "Energía",
+        "entity": "Entidad",
+        "text": "Texto / Nota"
+      },
+      "widgetTitlePlaceholder": "Título del widget (opcional)",
+      "widgetTitleAria": "Título del widget",
+      "entityIdPlaceholder": "ID de entidad (opcional)",
+      "entityIdAria": "ID de entidad",
+      "add": "Añadir",
+      "widgetsCount": "Widgets del dashboard ({count})",
+      "noWidgets": "No hay widgets. Puedes crear un dashboard vacío y configurarlo más tarde.",
+      "removeWidget": "Eliminar",
+      "cancel": "Cancelar",
+      "saveDashboard": "Guardar dashboard",
+      "closeEditor": "Cerrar editor",
+      "deleteConfirm": "¿Eliminar el dashboard “{title}”?"
     }
   },
   "areas": {
@@ -398,7 +432,11 @@
       "matterNegotiatingDesc": "Intercambio de claves PASE, verificación del certificado DAC e incorporación a la red Thread de Domus.",
       "matterPaired": "¡Dispositivo Matter vinculado!",
       "matterPairedDesc": "El nodo está autenticado y operativo en la red Thread local.",
-      "startPairing": "Iniciar emparejamiento"
+      "startPairing": "Iniciar emparejamiento",
+      "discoveryReady": "dispositivos listos para la configuración inmediata.",
+      "ipPrefix": "IP:",
+      "deviceCount": "dispositivos",
+      "addToHome": "Añadir a tu hogar inteligente Domus."
     }
   },
   "integrations": {
@@ -581,7 +619,13 @@
       "valueToSend": "Valor que se enviará",
       "setpointMapAria": "Tabla de conversión de consigna del termostato",
       "hideCommands": "Ocultar comandos",
-      "availableApiCommands": "Comandos disponibles a través de la API"
+      "availableApiCommands": "Comandos disponibles a través de la API",
+      "pendingPairingInstructions": "Pulsa «Escanear red» o introduce la dirección IP de tu dispositivo Shelly, Sonoff o Tasmota para importarlo directamente, sin usar la nube.",
+      "networkGuardianDescription": "Supervisión activa de la LAN, análisis pasivo ARP/DHCP y detección inmediata de filtraciones de datos no autorizadas a servidores externos en la nube.",
+      "anomaliesRegistered": "anomalías registradas",
+      "noWritableFunctions": "La API no ha devuelto funciones de escritura para este dispositivo.",
+      "host": "Host",
+      "deviceTotals": "total · en línea · sin conexión"
     }
   },
   "history": {
@@ -754,7 +798,15 @@
       "doorbellAlerts": "Videoportero y timbre",
       "financeAlerts": "Alertas financieras",
       "zeroDaysHint": "Establece 0 días para desactivar el aviso anticipado de caducidad."
-    }
+    },
+    "updated": "Actualizado",
+    "otaEmpty": "No hay dispositivos registrados para actualizaciones OTA.",
+    "nfcEmpty": "No hay etiquetas NFC registradas en la base de datos.",
+    "testNfcScan": "Probar escaneo",
+    "backupDescription": "Copia de seguridad automática local o remota en NAS/WebDAV, cifrada con AES-256-GCM. En caso de fallo del hardware, restaura los datos con un solo clic.",
+    "vacationLightingDescription": "En lugar de encender las luces a horas fijas, Domus imita los hábitos registrados en los últimos 14 días con una variación aleatoria de ±{minutes} minutos.",
+    "batteryDiagnosticsDescription": "Supervisión proactiva de baterías con aviso por debajo del 15 % y diagnóstico de interferencias de radio Zigbee/Thread, con sugerencias para ampliar la red mesh.",
+    "waterLeakDescription": "Si el contador detecta un flujo continuo durante más de 40 minutos por la noche, Domus avisa del posible riesgo de fuga y puede cerrar la electroválvula principal."
   },
   "automations": {
     "title": "Reglas de Automatización",
@@ -957,7 +1009,9 @@
       "updateRole": "No se pudo cambiar el rol del miembro.",
       "removeMember": "No se pudo eliminar al miembro.",
       "revokeInvite": "No se pudo revocar la invitación."
-    }
+    },
+    "roleUpdated": "Rol actualizado",
+    "createGuestProfile": "Crear perfil de invitado"
   },
   "register": {
     "title": "Únete a la Familia Domus",
@@ -1011,7 +1065,34 @@
     "currentSlot": "Tramo Actual",
     "utilitiesTitle": "Monitorización de Agua y Gas",
     "waterMeter": "Contador de Agua",
-    "gasMeter": "Contador de Gas Natural"
+    "gasMeter": "Contador de Gas Natural",
+    "powerWheelTitle": "Flujos de energía en tiempo real",
+    "powerWheelSubtitle": "Visualización dinámica de los vectores energéticos con partículas animadas.",
+    "inverter": "Inversor",
+    "inverterStatus": "Estado del inversor",
+    "arbitrageSavingsToday": "Ahorro por arbitraje hoy",
+    "economicalGridCharge": "Carga económica desde la red",
+    "batteryPeakShaving": "Reducción de picos con batería",
+    "wallboxTitle": "Carga solar inteligente y Wallbox OCPP",
+    "activePower": "Potencia activa",
+    "deliveredCurrent": "Corriente suministrada",
+    "vehicleBatterySoc": "Batería del vehículo (SoC)",
+    "sessionEnergy": "Energía de la sesión",
+    "chargingMode": "Modo de gestión de carga",
+    "solarOnly": "Solo solar (100 % fotovoltaica)",
+    "active": "Activo",
+    "solarOnlyDesc": "Carga exclusivamente con excedente fotovoltaico neto (al menos 6 A / 1,4 kW), sin consumir de la red.",
+    "solarOptimized": "Solar optimizada (híbrida)",
+    "solarOptimizedDesc": "Garantiza 6 A continuos (1,4 kW) y aumenta dinámicamente la corriente cuando hay excedente solar.",
+    "fastCharge": "Carga rápida (potencia máxima)",
+    "fastChargeDesc": "Carga con la máxima potencia contratada disponible y protección contra sobrecarga del contador.",
+    "scheduledNight": "Carga nocturna económica",
+    "scheduledNightDesc": "Programa la carga en las franjas F3 o en las horas nocturnas con el PUN más bajo para maximizar el ahorro.",
+    "balancingDecision": "Decisión del algoritmo de balanceo dinámico:",
+    "tariffF1": "F1 (punta: lun–vie 08–19)",
+    "tariffF2": "F2 (intermedia: lun–vie 07–08 y 19–23, sáb 07–23)",
+    "tariffF3": "F3 (valle: noches, domingos y festivos)",
+    "electricity": "Electricidad"
   },
   "cameras": {
     "title": "Videovigilancia y NVR con IA Local",
@@ -1162,11 +1243,17 @@
       "drinks": "Bebidas",
       "hygiene": "Cuidado Personal",
       "home": "Hogar y Limpieza",
-      "other": "Otros"
+      "other": "Otros",
+      "alimentari": "Alimentación",
+      "frutta_verdura": "Frutas y verduras",
+      "bevande": "Bebidas",
+      "igiene": "Cuidado personal",
+      "casa": "Hogar y limpieza",
+      "altro": "Otros"
     },
     "view": {
       "scanReceipt": "Escanear recibo",
-      "moveBoughtToPantry": "Mover los artículos comprados a la despensa",
+      "moveBoughtToPantry": "Mover la compra a la despensa ({count})",
       "moveShoppingToPantry": "Mover los artículos de la compra a la despensa",
       "productName": "Nombre del producto",
       "supermarketPlaceholder": "Supermercado / Tienda",
@@ -1189,7 +1276,14 @@
       "compareWithList": "Comparar con la lista de la compra",
       "noAutoMatches": "No hay coincidencias automáticas: todavía puedes revisar el recibo y confirmar la importación.",
       "closeNotification": "Cerrar notificación",
-      "goToPantry": "Ir a la despensa →"
+      "goToPantry": "Ir a la despensa →",
+      "allSupermarkets": "Todos ({count})",
+      "allItemsBought": "¡Se han comprado todos los artículos!",
+      "markAsBought": "Marcar como comprado",
+      "recognizedAs": "reconocido como «{name}»",
+      "quantityAria": "Cantidad",
+      "markItem": "Marcar {name} como {status}",
+      "filterSupermarket": "Filtrar por {name}"
     }
   },
   "chores": {
@@ -1408,7 +1502,18 @@
       "floorLevelPlaceholder": "0 para planta baja, 1 para primera planta",
       "svgMarkupOptional": "Marcado SVG del plano (opcional)",
       "svgPlaceholder": "Pega aquí el marcado vectorial SVG del plano",
-      "saveFloor": "Guardar planta"
+      "saveFloor": "Guardar planta",
+      "floors": "Plantas",
+      "rooms": "Habitaciones",
+      "mapView": "Vista de mapa",
+      "levelShort": "Nivel",
+      "roomPrefix": "Habitación:",
+      "positionX": "X:",
+      "positionY": "Y:",
+      "widthShort": "An:",
+      "heightShort": "Al:",
+      "editRoomHint": "Haz clic en una habitación del plano para cambiar su posición, tamaño y color.",
+      "allDevicesPlaced": "¡Todos los dispositivos ya están colocados en este mapa!"
     }
   },
   "media": {
@@ -1531,7 +1636,7 @@
       "all": "Todos",
       "domusVerified": "Verificado por Domus",
       "communityOpenSource": "Comunidad de código abierto",
-      "pendingReview": "Pendiente de revisión",
+      "pendingReview": "En revisión",
       "moduleType": "Tipo de módulo:",
       "extensionTypeFilter": "Filtro de tipo de extensión",
       "allTypes": "Todos los tipos",
@@ -1593,7 +1698,15 @@
       "verifiedSecurityTitle": "Seguridad Domus Verified:",
       "verifiedSecurityDesc": "Ejecución en sandbox WebAssembly (WASI) con memoria lineal aislada, permisos estrictamente controlados y sin llamadas no autorizadas a la nube.",
       "uninstall": "Desinstalar",
-      "installOneClick": "Instalar ahora con un clic"
+      "installOneClick": "Instalar ahora con un clic",
+      "communityLabel": "Comunidad",
+      "verifiedLabel": "Verificado",
+      "cancel": "Cancelar",
+      "close": "Cerrar",
+      "requiredPackageFields": "El nombre y el ID del paquete son obligatorios.",
+      "repositoryRequired": "Se requiere una URL válida de un repositorio público de código abierto (por ejemplo, GitHub o GitLab).",
+      "licenseRequired": "Se requiere una licencia válida de código abierto (por ejemplo, Apache-2.0, MIT o GPL-3.0).",
+      "submissionFailed": "Error al publicar el paquete."
     }
   },
   "schedules": {
@@ -1855,7 +1968,87 @@
       "waitSeconds": "Tiempo de espera (segundos)",
       "notificationMessage": "Mensaje de notificación",
       "deleteNodeButton": "Eliminar nodo",
-      "compiledAstTitle": "JSON AST compilado"
+      "compiledAstTitle": "JSON AST compilado",
+      "paletteCategories": {
+        "triggers": "Disparadores",
+        "conditions": "Condiciones",
+        "actionsFlow": "Acciones y flujo"
+      },
+      "palette": {
+        "stateChangeTitle": "Cambio de estado",
+        "stateChangeDesc": "Cambio de estado de una entidad, como un interruptor o un sensor",
+        "timeTriggerTitle": "Horario programado",
+        "timeTriggerDesc": "Hora exacta (HH:MM:SS), amanecer o atardecer",
+        "stateConditionTitle": "Estado actual",
+        "stateConditionDesc": "Comprueba si un dispositivo está activo",
+        "timeConditionTitle": "Franja horaria",
+        "timeConditionDesc": "Solo durante un intervalo específico, por ejemplo por la noche",
+        "entityCommandTitle": "Comando de entidad",
+        "entityCommandDesc": "Encender, apagar, abrir o ajustar el clima",
+        "activateSceneTitle": "Activar escena",
+        "activateSceneDesc": "Aplicar un ambiente de iluminación o perfil",
+        "delayTitle": "Pausa",
+        "delayDesc": "Espera programada antes del siguiente paso",
+        "sendNotificationTitle": "Enviar notificación",
+        "sendNotificationDesc": "Enviar una notificación push prioritaria al móvil",
+        "chooseTitle": "Selección condicional",
+        "chooseDesc": "Ejecuta la primera rama cuyas condiciones se cumplan, con alternativa",
+        "ifElseTitle": "Si / Si no",
+        "ifElseDesc": "Ejecuta secuencias distintas según las condiciones",
+        "repeatTitle": "Repetir",
+        "repeatDesc": "Repetir un número de veces, mientras o hasta que se cumpla una condición",
+        "parallelTitle": "Ejecución paralela",
+        "parallelDesc": "Inicia varias acciones al mismo tiempo",
+        "climateProfileTitle": "Perfil climático",
+        "climateProfileDesc": "Confort, Eco, Noche, Ausente o consigna personalizada",
+        "emitEventTitle": "Emitir evento",
+        "emitEventDesc": "Publica un evento de la aplicación con sus datos"
+      },
+      "branchContinue": "Continuar",
+      "timeFrom": "Desde (HH:MM:SS)",
+      "timeTo": "Hasta (HH:MM:SS)",
+      "nestedConditions": "Condiciones anidadas",
+      "nestedConditionsDescription": "Configura grupos AND, OR y NOT añadiendo condiciones y otros grupos. Los tipos no compatibles se conservan sin cambios.",
+      "triggerId": "ID del disparador",
+      "nestedConfiguration": "Configuración anidada (JSON)",
+      "nestedConfigurationDescription": "Edita aquí ramas, condiciones y secuencias. Domus conserva la estructura anidada; el JSON no válido o una acción no compatible impide guardar.",
+      "validation": {
+        "missingNode": "El flujo contiene un enlace a un nodo inexistente.",
+        "invalidOrder": "Orden no válido: los disparadores, condiciones y acciones deben seguir el orden del flujo.",
+        "singleOutput": "Un nodo de la secuencia principal solo puede tener una salida. Usa los puertos IF/ELSE o CHOOSE para crear ramas.",
+        "disconnectedNode": "El nodo “{title}” no está conectado al flujo. Conecta todas las condiciones y acciones antes de guardar.",
+        "cycle": "El flujo contiene un ciclo. Elimina los enlaces circulares antes de guardar.",
+        "missingBranchNode": "Una rama apunta a un nodo inexistente.",
+        "missingBranchPort": "La salida “{port}” ya no existe en el nodo “{node}”.",
+        "conditionPortTarget": "Los puertos de condición solo pueden conectarse a nodos de condición.",
+        "actionBranchTarget": "Las ramas de acciones compuestas solo pueden contener acciones o pausas.",
+        "branchRejoin": "Una secuencia de rama no puede volver al flujo principal. Duplica las acciones siguientes en cada rama.",
+        "branchMerge": "Cada nodo dentro de una rama debe tener un único enlace entrante. No se admite la convergencia de ramas.",
+        "unsupportedTrigger": "El disparador “{type}” todavía no se puede editar en el editor visual. Se bloquea el guardado para conservar la configuración original.",
+        "invalidLogicJson": "La condición lógica contiene JSON no válido.",
+        "logicObjectRequired": "La condición lógica debe ser un objeto JSON.",
+        "unsupportedCondition": "La condición “{type}” todavía no se puede editar en el editor visual. Se bloquea el guardado para conservar la configuración original.",
+        "unsupportedAction": "Esta acción avanzada no se puede editar en el editor visual. Se bloquea el guardado para conservar la configuración original."
+      },
+      "notifications": {
+        "updatedTitle": "Automatización actualizada",
+        "updatedMessage": "“{name}” se ha guardado correctamente.",
+        "createdTitle": "Automatización creada",
+        "createdMessage": "“{name}” ya está activa en el Hub.",
+        "saveErrorTitle": "Error al guardar",
+        "saveErrorMessage": "No se ha podido guardar el flujo.",
+        "saveBeforeTestTitle": "Guarda primero el flujo",
+        "saveBeforeTestMessage": "Guarda la automatización antes de ejecutar una simulación. La prueba no ejecuta comandos en los dispositivos.",
+        "simulationSuccessTitle": "Simulación completada",
+        "simulationSuccessMessage": "Se han cumplido las condiciones.",
+        "simulationFailedTitle": "Simulación no superada",
+        "simulationFailedMessage": "Una o más condiciones no se cumplen. Consulta los detalles para encontrar el bloqueo.",
+        "simulationResultTitle": "Resultado de la simulación",
+        "simulationErrorTitle": "Error en la simulación",
+        "simulationErrorMessage": "No se ha podido simular el flujo.",
+        "invalidFlowTitle": "Flujo no válido",
+        "invalidFlowMessage": "Corrige los enlaces antes de exportar."
+      }
     },
     "conditionEditor": {
       "logicalGroup": "Grupo lógico",
@@ -2677,7 +2870,8 @@
         "preheat": "El precalentamiento preventivo está activo: temperatura exterior prevista de {outdoor} °C.",
         "comfort": "La calefacción funciona en modo de confort estándar.",
         "default": "El control climático predictivo está activo."
-      }
+      },
+      "close": "Cerrar"
     }
   },
   "sharedDashboard": {
@@ -2691,6 +2885,11 @@
       "widgetsAria": "Widgets del panel",
       "active": "Activo",
       "emptyWidgets": "No hay widgets configurados en este panel."
-    }
+    },
+    "expiresOn": "Caduca el:"
+  },
+  "dashboardMarketplace": {
+    "community": "Comunidad",
+    "verified": "Verificado"
   }
 }
