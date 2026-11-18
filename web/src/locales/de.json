@@ -179,7 +179,8 @@
       "fileTooLarge": "Die ausgewählte Datei überschreitet das Limit von {limit} MB.",
       "fileReadFailed": "Die ausgewählte Datei konnte nicht gelesen werden."
     },
-    "close": "Schließen"
+    "close": "Schließen",
+    "notificationRegion": "Benachrichtigungen"
   },
   "nav": {
     "sectionOverview": "Übersicht",
