@@ -335,7 +335,8 @@
     "saveSuccess": "Zone enregistrée avec succès",
     "saveError": "Impossible d'enregistrer la zone",
     "deleteSuccess": "Zone supprimée avec succès",
-    "deleteError": "Impossible de supprimer la zone"
+    "deleteError": "Impossible de supprimer la zone",
+    "nameRequired": "Le nom de la pièce est obligatoire."
   },
   "devices": {
     "title": "Appareils",
@@ -1514,7 +1515,12 @@
       "manualOverrideExpiryHint": "À l'expiration, Domus restaure la consigne précédente.",
       "noProgrammableSetpoint": "Cet appareil ne propose pas de consigne programmable.",
       "deleteTimeSlot": "Supprimer le créneau",
-      "deleteTimeSlotAria": "Supprimer le créneau horaire"
+      "deleteTimeSlotAria": "Supprimer le créneau horaire",
+      "eventSources": {
+        "entity": "Entité Domus",
+        "tuya_local": "Tuya local",
+        "tuya_cloud": "Tuya Cloud"
+      }
     }
   },
   "login": {
