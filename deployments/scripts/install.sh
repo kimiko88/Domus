@@ -437,7 +437,7 @@ TAILSCALE_SERVES_DOMUS=0
 TAILSCALE_SERVE_URL=""
 if command -v tailscale >/dev/null 2>&1; then
     TAILSCALE_SERVE_STATUS="$(tailscale serve status 2>/dev/null || true)"
-    if [[ -n "${TAILSCALE_SERVE_STATUS}" ]] && printf '%s\\n' "${TAILSCALE_SERVE_STATUS}" | awk -v port="${DOMUS_PORT}" '
+    if [[ -n "${TAILSCALE_SERVE_STATUS}" ]] && printf '%s\n' "${TAILSCALE_SERVE_STATUS}" | awk -v port="${DOMUS_PORT}" '
         $0 ~ "^[[:space:]]*https?://[^[:space:]]+:" port "[[:space:]]+\\(tailnet only\\)[[:space:]]*$" {
             matching_service = 1
             next
@@ -452,7 +452,7 @@ if command -v tailscale >/dev/null 2>&1; then
         END { exit(found ? 0 : 1) }
     '; then
         TAILSCALE_SERVES_DOMUS=1
-        TAILSCALE_SERVE_URL="$(printf '%s\\n' "${TAILSCALE_SERVE_STATUS}" | grep -E "https?://[^[:space:]]+:${DOMUS_PORT} \\(tailnet only\\)" | head -n 1 | awk '{print $1}' || true)"
+        TAILSCALE_SERVE_URL="$(printf '%s\n' "${TAILSCALE_SERVE_STATUS}" | grep -E "https?://[^[:space:]]+:${DOMUS_PORT} \\(tailnet only\\)" | head -n 1 | awk '{print $1}' || true)"
     fi
 fi
 
@@ -474,8 +474,8 @@ if (( TAILSCALE_SERVES_DOMUS )); then
     if [[ "${cfg_host}" != "${desired_host}" ]]; then
         if grep -Eq '^[[:space:]]*host[[:space:]]*=' "${CONFIG_TARGET}"; then
             sed -i -E "s|^[[:space:]]*host[[:space:]]*=.*|host = \"${desired_host}\"|" "${CONFIG_TARGET}"
-        elif grep -q '^\\[server\\]' "${CONFIG_TARGET}"; then
-            sed -i "/^\\[server\\]/a host = \"${desired_host}\"" "${CONFIG_TARGET}"
+        elif grep -q '^\[server\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\]/a host = \"${desired_host}\"" "${CONFIG_TARGET}"
         else
             log_error "Cannot set server.host: [server] section is missing in ${CONFIG_TARGET}"
             exit 1
@@ -503,7 +503,7 @@ port_conflict_info() {
             awk -v suffix=":${port}" '$4 == "127.0.0.1" suffix || $4 == "[::1]" suffix || $4 == "0.0.0.0" suffix || $4 == "[::]" suffix || $4 == "*" suffix { print }' <<< "${listeners}"
             ;;
         *)
-            printf '%s\\n' "${listeners}"
+            printf '%s\n' "${listeners}"
             ;;
     esac
 }
