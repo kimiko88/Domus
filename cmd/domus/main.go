@@ -42,6 +42,12 @@ var (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+// run owns the full service lifecycle so deferred cleanup completes before the
+// process returns a non-zero status to systemd.
+func run() int {
 	configPath := flag.String("config", "domus.toml", "Path to TOML configuration file")
 	flag.Parse()
 
@@ -49,7 +55,7 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "domus: failed to load configuration: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// 2. Setup structured logging
@@ -69,7 +75,7 @@ func main() {
 	pool, err := sqlite.OpenDualPool(cfg.Database)
 	if err != nil {
 		slog.Error("failed to open sqlite database pool", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	defer pool.Close()
 	db := pool.Write
@@ -79,7 +85,7 @@ func main() {
 
 	if err := sqlite.Migrate(ctxMigrate, db); err != nil {
 		slog.Error("failed to apply database migrations", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	slog.Info("database initialized and migrations up-to-date")
 
@@ -105,12 +111,12 @@ func main() {
 		// Never continue with an ephemeral key: encrypted values would become
 		// unreadable after restart and new writes would be encrypted irreversibly.
 		slog.Error("failed to load or persist master key; refusing to start", "path", masterKeyPath, "error", err)
-		os.Exit(1)
+		return 1
 	}
 	envelopeCipher, err := crypto.NewEnvelopeCipher(masterKey)
 	if err != nil {
 		slog.Error("failed to initialize envelope encryption; refusing to start", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	repos.WithCipher(envelopeCipher)
 	slog.Info("envelope encryption at rest initialized", "key_path", masterKeyPath)
@@ -315,11 +321,18 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
+	exitCode := 0
 	select {
 	case sig := <-sigCh:
 		slog.Info("received shutdown signal", "signal", sig.String())
 	case err := <-serverErrCh:
 		slog.Error("fatal http server error", "error", err)
+		exitCode = 1
+		// A port collision is a configuration/ownership problem, not a
+		// transient crash. systemd is configured not to restart this exit code.
+		if errors.Is(err, syscall.EADDRINUSE) {
+			exitCode = 78 // EX_CONFIG
+		}
 	}
 
 	// 9. Graceful shutdown
@@ -336,6 +349,7 @@ func main() {
 	}
 
 	slog.Info("domus hub stopped cleanly")
+	return exitCode
 }
 
 func initLogger(cfg config.LoggingConfig) {
