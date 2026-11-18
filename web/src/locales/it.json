@@ -179,7 +179,8 @@
       "fileTooLarge": "Il file selezionato supera il limite di {limit} MB.",
       "fileReadFailed": "Impossibile leggere il file selezionato."
     },
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "notificationRegion": "Notifiche"
   },
   "nav": {
     "sectionOverview": "Panoramica",
