@@ -127,7 +127,11 @@
       "archiveNotification": "Archivar notificación: {title}",
       "eventPreview": "Vista previa del evento"
     },
-    "notifications": "Notificaciones",
+    "notifications": {
+      "actionExecutedTitle": "Acción completada",
+      "actionExecutedMessage": "Comando enviado correctamente.",
+      "actionFailedMessage": "No se pudo ejecutar la acción solicitada."
+    },
     "dismissNotification": "Descartar notificación",
     "wsNotifications": {
       "alarmTitle": "Alarma",
@@ -869,7 +873,15 @@
       "allowedHttpMethod": "Método HTTP permitido",
       "postStandard": "POST (carga JSON estándar)",
       "getQuery": "GET (parámetros en la cadena de consulta)",
-      "createWebhook": "Crear webhook"
+      "createWebhook": "Crear webhook",
+      "webhookCreatedTitle": "Webhook entrante creado",
+      "webhookCreatedMessage": "El webhook «{name}» se ha creado correctamente.",
+      "webhookCreateFailed": "No se pudo crear el webhook.",
+      "webhookDeletedTitle": "Webhook eliminado",
+      "webhookDeletedMessage": "El webhook «{name}» se ha eliminado correctamente.",
+      "webhookDeleteFailed": "No se pudo eliminar el webhook.",
+      "flowSavedTitle": "Flujo guardado",
+      "flowSavedMessage": "Automatización creada correctamente desde el diagrama de flujo."
     },
     "editor": {
       "titleEdit": "Editar automatización",
@@ -2497,9 +2509,11 @@
     "sec13H1": "Registro rápido desde la Web GUI (+ Añadir Reproductor), mediante API REST (POST /api/v1/media/players) o consulta directa SQL.",
     "sec13H2": "Soporte multi-protocolo nativo para Apple HomePod, Google Nest, receptores AVR DLNA y salidas de audio local de la Raspberry Pi.",
     "sec13H3": "Difusión de mensajes de voz prioritarios en toda la casa con Piper TTS pausando temporalmente la música en curso.",
-    "searchAria": "Buscar en la guía",
+    "searchAria": "Buscar temas de la guía",
     "collapse": "Contraer sección",
-    "expand": "Expandir sección"
+    "expand": "Expandir sección",
+    "collapseSection": "Contraer sección",
+    "expandSection": "Expandir sección"
   },
   "logbook": {
     "title": "Registro de eventos",
@@ -2855,7 +2869,7 @@
     "aicCode": "Código AIC (9 dígitos)",
     "aicPlaceholder": "p. ej. 034234035",
     "packageExpiry": "Fecha de caducidad del envase *",
-    "lotNumber": "Número de lote",
+    "lotNumber": "Lote",
     "lotPlaceholder": "p. ej. LOT982",
     "remainingQuantity": "Cantidad restante",
     "unit": "Unidad",
@@ -2892,7 +2906,8 @@
       "travel": "Bolsa / Viaje",
       "fridge": "Frigorífico (2–8°C)",
       "other": "Otro"
-    }
+    },
+    "aic": "Código AIC"
   },
   "pantry": {
     "title": "Despensa y recetario inteligente",
@@ -3007,7 +3022,8 @@
         "expiringSub": "Consumir pronto",
         "cookable": "¿Qué puedo cocinar?",
         "cookableSub": "100 % de los ingredientes disponibles"
-      }
+      },
+      "cookableRecipes": "recetas que se pueden preparar"
     }
   },
   "predictiveClimate": {
