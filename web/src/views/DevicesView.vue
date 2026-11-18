@@ -354,7 +354,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <div>
             <h3 class="discovered-title">{{ t('devices.view.discoveredTitle') }}</h3>
             <p class="discovered-subtitle">
-              {{ discoveredHosts.length }} dispositivo{{ discoveredHosts.length > 1 ? 'i' : '' }} rilevato{{ discoveredHosts.length > 1 ? 'i' : '' }} via mDNS / SSDP / UPnP pronto per l'onboarding immediato.
+              {{ discoveredHosts.length }} {{ t('devices.view.deviceCount') }} {{ t('devices.view.discoveryReady') }}
             </p>
           </div>
         </div>
@@ -368,7 +368,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
             </div>
             <div class="disc-hostname">{{ host.hostname || host.ip }}</div>
             <div class="disc-net-details">
-              <span>IP: {{ host.ip }}</span>
+              <span>{{ t('devices.view.ipPrefix') }} {{ host.ip }}</span>
               <span v-if="host.mac">• {{ host.mac }}</span>
             </div>
           </div>
@@ -478,7 +478,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         </div>
         <div class="modal-body">
           <p class="modal-intro">
-            Aggiungi <strong>{{ selectedHostForSetup?.hostname || selectedHostForSetup?.ip }}</strong> alla tua smart home Domus.
+            {{ t('devices.view.addToHome') }} <strong>{{ selectedHostForSetup?.hostname || selectedHostForSetup?.ip }}</strong>
           </p>
           <div class="form-group">
             <label class="form-label">{{ t('devices.view.deviceName') }}</label>
@@ -516,7 +516,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <button class="btn-secondary" @click="isSetupModalOpen = false">{{ t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="isAddingDevice" @click="confirmAddDiscoveredDevice">
             <Check :size="16" />
-            <span>{{ isAddingDevice ? 'Aggiunta...' : 'Aggiungi a Domus' }}</span>
+            <span>{{ isAddingDevice ? t('common.loading') : t('devices.view.addToDomus') }}</span>
           </button>
         </div>
       </div>
