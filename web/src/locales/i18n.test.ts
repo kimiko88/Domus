@@ -75,6 +75,7 @@ describe('Localization (i18n)', () => {
       ['common', 'pwa', 'updateAvailableDescription'],
       ['common', 'pwa', 'updateNow'],
       ['common', 'pwa', 'later'],
+      ['common', 'notificationRegion'],
       ['common', 'errors', 'fileReadFailed'],
       ['integrations', 'view', 'deviceOnline'],
       ['integrations', 'view', 'valueToSend'],
