@@ -479,7 +479,7 @@ onUnmounted(() => {
           <Settings2 :size="18" /><span>Personalizza</span>
         </button>
         <button class="kiosk-config-btn" @click="openDashboardEditor(true)" title="Crea una nuova dashboard">+ Nuova</button>
-        <button v-if="currentProfile && !currentProfile.is_default" class="kiosk-config-btn dashboard-delete-btn" @click="deleteCurrentDashboard">Elimina</button>
+        <button v-if="currentProfile && currentProfile.id.startsWith('custom_')" class="kiosk-config-btn dashboard-delete-btn" @click="deleteCurrentDashboard">Elimina</button>
 
         <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" :title="t('dashboard.view.configureKiosk')">
           <Settings2 :size="18" />
