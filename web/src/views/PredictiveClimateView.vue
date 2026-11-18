@@ -13,7 +13,7 @@ import type {
   CoastDownRecommendation
 } from '../api/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const store = usePredictiveClimateStore()
 
@@ -95,10 +95,10 @@ function entityOptionLabel(entity: Entity): string {
 }
 
 function formatEvaluationTime(value?: string): string {
-  if (!value) return 'Mai valutata'
+  if (!value) return t('predictiveClimate.view.neverEvaluated')
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Data non disponibile'
-  return 'Ultima valutazione: ' + date.toLocaleString()
+  if (Number.isNaN(date.getTime())) return t('predictiveClimate.view.dateUnavailable')
+  return t('predictiveClimate.view.lastEvaluated', { date: date.toLocaleString(locale.value) })
 }
 
 function nextLocalTime(timeValue: string, fallbackHour: number, fallbackMinute: number): Date {
@@ -115,7 +115,7 @@ onMounted(async () => {
   await Promise.all([
     store.fetchStatus(),
     Promise.resolve().then(() => apiClient.get<Entity[]>('/api/v1/entities')).then(items => { availableEntities.value = items || [] }).catch(() => {
-      entityLoadError.value = 'Elenco dispositivi non disponibile: puoi comunque inserire manualmente gli ID delle entità.'
+      entityLoadError.value = t('predictiveClimate.view.entityListUnavailable')
     })
   ])
 })
@@ -136,7 +136,7 @@ async function openThermalProfileModal(zone: PredictiveZoneConfig) {
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
   } catch (e: any) {
-    profileError.value = e?.message || 'Impossibile caricare il modello termico.'
+    profileError.value = t('predictiveClimate.view.profileLoadFailed')
     console.error('Failed to load thermal profile', e)
   } finally {
     profileLoading.value = false
@@ -153,7 +153,7 @@ async function handleCalculateOptimalStart() {
       Number(calcTargetTemp.value)
     )
   } catch (err: any) {
-    profileError.value = err?.message || 'Impossibile calcolare il pre-riscaldamento.'
+    profileError.value = t('predictiveClimate.view.preheatFailed')
     console.error('Error calculating preheat', err)
   }
 }
@@ -167,7 +167,7 @@ async function handleCalculateCoastDown() {
       depDate.toISOString()
     )
   } catch (err: any) {
-    profileError.value = err?.message || 'Impossibile calcolare lo spegnimento anticipato.'
+    profileError.value = t('predictiveClimate.view.coastDownFailed')
     console.error('Error calculating coast down', err)
   }
 }
@@ -176,7 +176,7 @@ async function handleTrainCycle() {
   if (!selectedProfileZone.value?.id) return
   profileError.value = ''
   if (!trainingSampleValid.value) {
-    profileError.value = 'Campione non plausibile: verifica direzione della variazione, temperature e durata (15–720 minuti).'
+    profileError.value = t('predictiveClimate.view.invalidSample')
     return
   }
   trainLoading.value = true
@@ -190,11 +190,11 @@ async function handleTrainCycle() {
       observed_at: new Date().toISOString()
     })
     currentProfile.value = updated
-    trainSuccessMsg.value = `Modello aggiornato! Nuova velocità: ${updated.heat_rate_per_hr} °C/h (Campioni: ${updated.samples_count})`
+    trainSuccessMsg.value = t('predictiveClimate.view.modelUpdated', { rate: updated.heat_rate_per_hr, samples: updated.samples_count })
     await handleCalculateOptimalStart()
     await handleCalculateCoastDown()
   } catch (err: any) {
-    profileError.value = err?.message || 'Non è stato possibile aggiornare il modello termico.'
+    profileError.value = t('predictiveClimate.view.trainingFailed')
     console.error('Error training cycle', err)
   } finally {
     trainLoading.value = false
@@ -248,19 +248,19 @@ function openEditModal(cfg: PredictiveZoneConfig) {
 async function handleSaveZone() {
   formError.value = ''
   if (!formName.value.trim() || !formTRVKey.value.trim() || !formTempKey.value.trim()) {
-    formError.value = 'Inserisci nome, termostato e sensore di temperatura.'
+    formError.value = t('predictiveClimate.view.requiredFields')
     return
   }
   if (!Number.isFinite(formTargetTemp.value) || formTargetTemp.value < 10 || formTargetTemp.value > 30) {
-    formError.value = 'La temperatura obiettivo deve essere compresa tra 10 e 30 °C.'
+    formError.value = t('predictiveClimate.view.targetTemperatureRange')
     return
   }
   if (!Number.isFinite(formAwayTemp.value) || formAwayTemp.value < 15 || formAwayTemp.value > 28) {
-    formError.value = 'La temperatura in assenza deve essere compresa tra 15 e 28 °C.'
+    formError.value = t('predictiveClimate.view.awayTemperatureRange')
     return
   }
   if (!Number.isFinite(formWindowArea.value) || formWindowArea.value < 0 || formWindowArea.value > 50) {
-    formError.value = 'La superficie vetrata deve essere compresa tra 0 e 50 m².'
+    formError.value = t('predictiveClimate.view.windowAreaRange')
     return
   }
 
@@ -290,14 +290,14 @@ async function handleSaveZone() {
     await store.saveZone(payload)
     showModal.value = false
   } catch (err: any) {
-    formError.value = err?.message || 'Salvataggio non riuscito. Controlla i dispositivi e riprova.'
+    formError.value = t('predictiveClimate.view.saveFailed')
   } finally {
     formSaving.value = false
   }
 }
 
 async function handleDeleteZone(id: string) {
-  if (confirm('Sei sicuro di voler eliminare questa zona predittiva?')) {
+  if (confirm(t('predictiveClimate.view.confirmDeleteZone'))) {
     try { await store.deleteZone(id) } catch { /* store.error is rendered in the page */ }
   }
 }
@@ -330,41 +330,41 @@ function getModeBadgeClass(mode?: string): string {
 function getModeLabel(mode?: string): string {
   switch (mode) {
     case 'cold_front_boost':
-      return 'Fronte Freddo (+Boost)'
+      return t('predictiveClimate.view.modeLabels.coldFront')
     case 'solar_cutoff':
-      return 'Taglio Solare (-Eco)'
+      return t('predictiveClimate.view.modeLabels.solarCutoff')
     case 'frost_protection':
-      return 'Finestra Aperta (Spento)'
+      return t('predictiveClimate.view.modeLabels.frostProtection')
     case 'preheat':
-      return 'Pre-riscaldamento'
+      return t('predictiveClimate.view.modeLabels.preheat')
     case 'eco':
-      return 'A Regime (Eco)'
+      return t('predictiveClimate.view.modeLabels.eco')
     default:
-      return 'Comfort Standard'
+      return t('predictiveClimate.view.modeLabels.comfort')
   }
 }
 
 function getOrientationLabel(orient: RoomOrientation): string {
   switch (orient) {
     case 'south':
-      return 'Sud'
+      return t('predictiveClimate.view.orientations.south')
     case 'north':
-      return 'Nord'
+      return t('predictiveClimate.view.orientations.north')
     case 'east':
-      return 'Est'
+      return t('predictiveClimate.view.orientations.east')
     case 'west':
-      return 'Ovest'
+      return t('predictiveClimate.view.orientations.west')
   }
 }
 
 function getEmitterLabel(emitter: EmitterType): string {
   switch (emitter) {
     case 'floor_radiant':
-      return 'Pavimento Radiante'
+      return t('predictiveClimate.view.emitters.floorRadiant')
     case 'fancoil':
-      return 'Fan-coil'
+      return t('predictiveClimate.view.emitters.fancoil')
     default:
-      return 'Radiatori'
+      return t('predictiveClimate.view.emitters.radiator')
   }
 }
 </script>
@@ -609,7 +609,7 @@ function getEmitterLabel(emitter: EmitterType): string {
     >
       <div class="modal-card">
         <header class="modal-header">
-          <h2 id="modal-title">{{ editingZone ? 'Modifica Zona Predittiva' : 'Nuova Zona Predittiva' }}</h2>
+          <h2 id="modal-title">{{ editingZone ? t('predictiveClimate.view.editZoneTitle') : t('predictiveClimate.view.newZoneTitle') }}</h2>
           <button
             type="button"
             class="btn-close"
@@ -641,7 +641,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                 v-model="formTRVKey"
                 type="text"
                 class="form-control"
-                placeholder="climate.valvola_salone"
+                :placeholder="t('predictiveClimate.view.trvPlaceholder')"
                 list="climate-entity-options"
                 autocomplete="off"
                 required
@@ -658,7 +658,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                 v-model="formTempKey"
                 type="text"
                 class="form-control"
-                placeholder="sensor.salone_temperatura"
+                :placeholder="t('predictiveClimate.view.temperaturePlaceholder')"
                 list="temperature-entity-options"
                 autocomplete="off"
                 required
@@ -677,7 +677,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                 v-model="formPressureKey"
                 type="text"
                 class="form-control"
-                placeholder="sensor.salone_pressione"
+                :placeholder="t('predictiveClimate.view.pressurePlaceholder')"
                 list="sensor-entity-options"
                 autocomplete="off"
               />
@@ -693,7 +693,7 @@ function getEmitterLabel(emitter: EmitterType): string {
                 v-model="formHumidityKey"
                 type="text"
                 class="form-control"
-                placeholder="sensor.salone_umidita"
+                :placeholder="t('predictiveClimate.view.humidityPlaceholder')"
                 list="sensor-entity-options"
                 autocomplete="off"
               />
@@ -707,7 +707,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               v-model="formWindowKey"
               type="text"
               class="form-control"
-              placeholder="binary_sensor.finestra_salone"
+              :placeholder="t('predictiveClimate.view.windowPlaceholder')"
               list="contact-entity-options"
               autocomplete="off"
             />
@@ -718,20 +718,20 @@ function getEmitterLabel(emitter: EmitterType): string {
 
           <div class="form-row">
             <div class="form-group col">
-              <label for="zone-presence">Sensore di presenza (opzionale)</label>
+              <label for="zone-presence">{{ t('predictiveClimate.view.presenceSensorOptional') }}</label>
               <input
                 id="zone-presence"
                 v-model="formPresenceKey"
                 type="text"
                 class="form-control"
-                placeholder="binary_sensor.presenza_salone"
+                :placeholder="t('predictiveClimate.view.presencePlaceholder')"
                 list="contact-entity-options"
                 autocomplete="off"
               />
-              <small>Se la stanza è vuota viene applicato il setpoint risparmio.</small>
+              <small>{{ t('predictiveClimate.view.emptyRoomHint') }}</small>
             </div>
             <div class="form-group col">
-              <label for="zone-away-temp">Temperatura in assenza (°C)</label>
+              <label for="zone-away-temp">{{ t('predictiveClimate.view.awayTemperature') }} (°C)</label>
               <input
                 id="zone-away-temp"
                 v-model.number="formAwayTemp"
@@ -843,25 +843,25 @@ function getEmitterLabel(emitter: EmitterType): string {
         <header class="modal-header">
           <div>
             <h2 :id="`profile-modal-title-${selectedProfileZone.id}`">
-              🧠 Modello Termico & Start: {{ selectedProfileZone.name }}
+              🧠 {{ t('predictiveClimate.view.profileTitle') }}: {{ selectedProfileZone.name }}
             </h2>
             <p class="modal-subtitle">
-              Stima fisica 1R-1C, pre-heating intelligente e coast-down a inerzia
+              {{ t('predictiveClimate.view.profileSubtitle') }}
             </p>
           </div>
           <button
             type="button"
             class="btn-close"
             @click="showProfileModal = false"
-            aria-label="Chiudi finestra"
+            :aria-label="t('common.close')"
           >
-            ✕
+            {{ t('common.close') }}
           </button>
         </header>
 
         <p v-if="profileError" class="climate-feedback climate-feedback-error" role="alert">{{ profileError }}</p>
         <div v-if="profileLoading" class="modal-body modal-loading">
-          Caricamento parametri termici in corso...
+          {{ t('predictiveClimate.view.loadingProfile') }}
         </div>
 
         <div v-else class="modal-body profile-modal-content">
@@ -1015,12 +1015,12 @@ function getEmitterLabel(emitter: EmitterType): string {
                   :disabled="trainLoading || !trainingSampleValid"
                   @click="handleTrainCycle"
                 >
-                  {{ trainLoading ? 'Calcolo...' : '🚀 Registra Ciclo' }}
+                  {{ trainLoading ? t('common.loading') : t('predictiveClimate.view.recordCycle') }}
                 </button>
               </div>
             </div>
 
-            <p class="section-subtext">Per il riscaldamento la temperatura finale deve essere maggiore; per il raffreddamento deve essere minore. Sono accettati cicli da 15 a 720 minuti.</p>
+            <p class="section-subtext">{{ t('predictiveClimate.view.trainingHelp') }}</p>
             <div v-if="trainSuccessMsg" class="train-alert-success" role="status">
               {{ trainSuccessMsg }}
             </div>
