@@ -41,6 +41,34 @@ describe('CustomDashboardView.vue', () => {
     expect(wrapper.find('.kiosk-toggle-btn').exists()).toBe(true)
   })
 
+  it('creates and persists an additional dashboard with configurable widgets', async () => {
+    const postSpy = vi.spyOn(apiClient, 'post').mockImplementation(async (_url: string, body: any) => body as any)
+    const wrapper = mount(CustomDashboardView)
+    await wrapper.vm.$nextTick()
+
+    const createButton = wrapper.findAll('button').find(button => button.text().includes('Nuova'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('#dashboard-title').setValue('Dashboard Piano Terra')
+    await wrapper.find('.widget-builder-fields select').setValue('energy')
+    await wrapper.find('.widget-builder-fields input').setValue('Consumi')
+    await wrapper.find('.widget-builder-fields button').trigger('click')
+    expect(wrapper.find('.widget-draft-list').text()).toContain('Consumi')
+
+    const saveButton = wrapper.find('.dashboard-editor .modal-footer .btn-save')
+    await saveButton.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/dashboards', expect.objectContaining({
+      title: 'Dashboard Piano Terra',
+      layout_json: expect.stringContaining('"type":"energy"')
+    }))
+    expect(wrapper.find('.custom-widget-grid').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Consumi')
+  })
+
   it('renders circular dial thermostat and adjusts temperature', async () => {
     const wrapper = mount(CustomDashboardView)
     await wrapper.vm.$nextTick()
