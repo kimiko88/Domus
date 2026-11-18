@@ -358,7 +358,8 @@
       "deleteFailed": "No se pudo eliminar el dashboard.",
       "extensionUninstalled": "Extensión desinstalada correctamente",
       "extensionInstalled": "Extensión instalada y activa localmente",
-      "extensionToggleFailed": "No se pudo cambiar el estado del paquete"
+      "extensionToggleFailed": "No se pudo cambiar el estado del paquete",
+      "removeWidgetAria": "Eliminar el widget {title}"
     }
   },
   "areas": {
@@ -2155,7 +2156,8 @@
         "simulationErrorTitle": "Error en la simulación",
         "simulationErrorMessage": "No se ha podido simular el flujo.",
         "invalidFlowTitle": "Flujo no válido",
-        "invalidFlowMessage": "Corrige los enlaces antes de exportar."
+        "invalidFlowMessage": "Corrige los enlaces antes de exportar.",
+        "simulationWithoutTriggersMessage": "Se han cumplido las condiciones. Los disparadores no se han simulado."
       },
       "newAutomationName": "Nueva automatización por nodos",
       "nodeTypes": {
