@@ -343,7 +343,19 @@
     "deleteSuccess": "Zone supprimée avec succès",
     "deleteError": "Impossible de supprimer la zone",
     "nameRequired": "Le nom de la pièce est obligatoire.",
-    "createArea": "Créer la pièce"
+    "createArea": "Créer la pièce",
+    "icons": {
+      "livingRoom": "Séjour",
+      "kitchen": "Cuisine",
+      "bedroom": "Chambre",
+      "bathroom": "Salle de bains",
+      "office": "Bureau",
+      "garden": "Jardin",
+      "terrace": "Terrasse",
+      "garage": "Garage",
+      "cinema": "Cinéma / TV",
+      "other": "Autre"
+    }
   },
   "devices": {
     "title": "Appareils",
