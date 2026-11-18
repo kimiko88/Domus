@@ -30,6 +30,8 @@ const ru = {
   login: { ...en.login, passwordTab: 'Пароль', kioskTab: 'PIN-код киоска / гостя', unlockKiosk: 'Разблокировать киоск', missingCredentials: 'Введите имя пользователя и пароль', missingKioskPin: 'Введите PIN-код киоска', invalidKioskPin: 'PIN-код киоска недействителен или срок его действия истёк' },
   helpers: { ...en.helpers, view: { ...en.helpers.view, timerStates: { active: 'АКТИВЕН', paused: 'ПРИОСТАНОВЛЕН', idle: 'НЕАКТИВЕН' }, toggle: 'Включить или выключить {name}' } },
   mesh: { ...en.mesh, view: { ...en.mesh.view, noDevicesDetected: 'Устройства {protocol} в mesh-сети не обнаружены', newDirectBinding: 'Новая прямая привязка', nodeTypes: { coordinator: 'Координатор', router: 'Маршрутизатор / ретранслятор', end_device: 'Конечное устройство' }, sourcePrefix: 'Источник', destinationPrefix: 'Назначение', clusterPrefix: 'Кластер' } },
+  schedules: { ...en.schedules, view: { ...en.schedules.view, manualOverrideDuration: 'Длительность ручного переопределения', untilNextChange: 'До следующего изменения', minutes30: '30 минут', hour1: '1 час', hours2: '2 часа', hours4: '4 часа', hours8: '8 часов', manualOverrideExpiryHint: 'По истечении срока Domus восстановит предыдущую заданную температуру.', noProgrammableSetpoint: 'Это устройство не поддерживает программируемую заданную температуру.', deleteTimeSlot: 'Удалить временной интервал', deleteTimeSlotAria: 'Удалить временной интервал' } },
+  media: { ...en.media, view: { ...en.media.view, closeWindow: 'Закрыть окно' } },
   nav: {
     ...en.nav,
     sectionOverview: 'Обзор', sectionHome: 'Дом и семья',
