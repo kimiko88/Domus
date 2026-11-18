@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import CamerasView from './CamerasView.vue'
+import { i18n } from '../locales'
 import { apiClient } from '../api/client'
 
 describe('CamerasView.vue', () => {
@@ -60,7 +61,7 @@ describe('CamerasView.vue', () => {
 
     expect(wrapper.text()).toContain('Videosorveglianza & Visione AI')
     expect(wrapper.text()).toContain('Ingresso Principale')
-    expect(wrapper.text()).toContain('LIVE (WebRTC)')
+    expect(wrapper.text()).toContain('WEBRTC')
   })
 
   it('renders Frigate AI detection events timeline', async () => {
@@ -68,7 +69,7 @@ describe('CamerasView.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Timeline Eventi Riconoscimento Locale')
-    expect(wrapper.text()).toContain('PERSON')
+    expect(wrapper.text()).toContain(i18n.global.t('cameras.view.detectionLabels.person'))
     expect(wrapper.text()).toContain('95%')
   })
 
