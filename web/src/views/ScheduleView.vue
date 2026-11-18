@@ -656,7 +656,7 @@ async function applyLiveThermostatSettings() {
       )
     } else if (option?.tuya_device_id && option.source === 'tuya_local') {
       if (duration > 0) {
-        throw new Error('Il ripristino temporizzato richiede un dispositivo associato a un’entità Domus')
+        throw new Error(t('schedules.view.timedRestoreRequiresEntity'))
       }
       await apiClient.post(
         '/api/v1/integrations/tuya-local/devices/' +
@@ -681,7 +681,7 @@ async function applyLiveThermostatSettings() {
         ? t('schedules.view.commandUntilNextChange', { temperature: liveTargetTemp.value.toFixed(1) })
         : t('schedules.view.commandForDuration', { temperature: liveTargetTemp.value.toFixed(1), duration })
     )
-  } catch (err: any) {
+  } catch {
     notifStore.error(t('schedules.view.adjustmentErrorTitle'), t('schedules.view.adjustmentErrorMessage'))
   } finally {
     isAdjustingLive.value = false
@@ -824,7 +824,7 @@ async function saveCurrentSchedule() {
       t('schedules.view.scheduleSavedTitle'),
       t('schedules.view.scheduleSavedMessage', { name: schedule.name })
     )
-  } catch (err: any) {
+  } catch {
     notifStore.error(t('schedules.view.scheduleSaveErrorTitle'), t('schedules.view.scheduleSaveErrorMessage'))
   } finally {
     isSavingSchedule.value = false
