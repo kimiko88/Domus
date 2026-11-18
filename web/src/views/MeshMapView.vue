@@ -315,7 +315,7 @@ onMounted(() => {
           <div class="binding-card-body">
             <span>{{ t('mesh.view.clusterPrefix') }}: <code>{{ b.clusters?.join(', ') || 'genOnOff' }}</code></span>
             <button class="unbind-btn" :title="t('mesh.view.removeBinding')" @click="handleDeleteBinding(b.id)">
-              Elimina
+              {{ t('common.delete') }}
             </button>
           </div>
         </div>
