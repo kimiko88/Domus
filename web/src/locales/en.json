@@ -2323,7 +2323,8 @@
       "solarSavingsActive": "Savings active in exposed rooms",
       "standardSolarGain": "Standard solar gain",
       "pressureTrend": "Trend",
-      "saveConfiguration": "Save configuration"
+      "saveConfiguration": "Save configuration",
+      "estimated": "Est."
     }
   },
   "sharedDashboard": {
