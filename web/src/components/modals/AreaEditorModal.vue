@@ -89,7 +89,7 @@ watch(
 function handleSubmit() {
   const trimmed = name.value.trim()
   if (!trimmed) {
-    error.value = "Il nome dell'area è obbligatorio"
+    error.value = t('areas.nameRequired')
     return
   }
   error.value = null
@@ -116,7 +116,7 @@ function handleSubmit() {
           <Sparkles :size="20" class="title-icon" />
           <h3 id="area-modal-title">{{ area ? t('areas.editArea') : t('areas.newArea') }}</h3>
         </div>
-        <button class="btn-close" aria-label="Chiudi finestra area" @click="emit('close')">
+        <button class="btn-close" :aria-label="t('common.close')" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
