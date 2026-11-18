@@ -479,8 +479,8 @@ onMounted(async () => {
 
           <!-- AIC & Lot Info -->
           <div v-if="med.aic || med.lot_number" class="code-details">
-            <span v-if="med.aic">AIC: {{ med.aic }}</span>
-            <span v-if="med.lot_number">Lotto: {{ med.lot_number }}</span>
+            <span v-if="med.aic">{{ t('medicines.aic') }}: {{ med.aic }}</span>
+            <span v-if="med.lot_number">{{ t('medicines.lotNumber') }}: {{ med.lot_number }}</span>
           </div>
         </div>
 
@@ -586,7 +586,7 @@ onMounted(async () => {
                   <div class="sugg-name">{{ res.name }}</div>
                   <div class="sugg-sub">
                     <span>{{ res.active_ingredient }}</span> &bull;
-                    <span>AIC: {{ res.aic }}</span>
+                    <span>{{ t('medicines.aic') }}: {{ res.aic }}</span>
                     <span v-if="res.requires_cold_chain" class="text-cold"> &bull; {{ t('medicines.fridgeShort') }}</span>
                   </div>
                 </div>
