@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { AuditEntry, AuditListResponse } from '../api/types'
@@ -17,7 +18,7 @@ export const useAuditStore = defineStore('audit', () => {
       entries.value = response.entries || []
       total.value = response.total ?? entries.value.length
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch audit log'
+      error.value = i18n.global.t('common.errors.loadFailed')
       entries.value = []
     } finally {
       loading.value = false
