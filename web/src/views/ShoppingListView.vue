@@ -448,7 +448,7 @@ onMounted(async () => {
           :title="completedCount > 0 ? t('shopping.view.moveBoughtToPantry') : t('shopping.view.moveShoppingToPantry')"
         >
           <PackageCheck :size="16" />
-          <span>{{ completedCount > 0 ? `{{ t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}` : t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}</span>
+          <span>{{ t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}</span>
         </button>
 
         <button
