@@ -419,7 +419,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           <option v-for="integration in integrationOptions" :key="integration" :value="integration">{{ integration }}</option>
         </select>
       </label>
-      <span class="device-result-count">{{ filteredDevices.length }} di {{ totalDevicesCount }} dispositivi</span>
+      <span class="device-result-count">{{ t('devices.view.filteredCount', { filtered: filteredDevices.length, total: totalDevicesCount }) }}</span>
     </div>
 
     <!-- Devices Grid -->
