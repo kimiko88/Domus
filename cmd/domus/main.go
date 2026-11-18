@@ -19,6 +19,7 @@ import (
 	appchore "github.com/domus-hub/domus/internal/application/chore"
 	appenergy "github.com/domus-hub/domus/internal/application/energy"
 	apphistory "github.com/domus-hub/domus/internal/application/history"
+	appnotification "github.com/domus-hub/domus/internal/application/notification"
 	apppresence "github.com/domus-hub/domus/internal/application/presence"
 	"github.com/domus-hub/domus/internal/application/safety"
 	appscene "github.com/domus-hub/domus/internal/application/scene"
@@ -188,7 +189,28 @@ func main() {
 	retentionService.Start(context.Background(), 24*time.Hour)
 	defer retentionService.Stop()
 
-	// 8. Initialize Domestic Chores Reminder Scheduler
+	// 8. Initialize VAPID Web Push delivery and household expiry reminders.
+	webPushService := appnotification.NewWebPushService(repos.WebPush, appnotification.WebPushConfigFromEnv(), slog.Default())
+	unsubscribeWebPushEvents := webPushService.RegisterEventHandlers(bus)
+	defer unsubscribeWebPushEvents()
+	if webPushService.Enabled() {
+		slog.Info("browser Web Push is enabled", "vapid_public_key_configured", true)
+	} else {
+		slog.Info("browser Web Push is disabled; configure DOMUS_VAPID_PUBLIC_KEY, DOMUS_VAPID_PRIVATE_KEY and DOMUS_VAPID_SUBJECT to enable it")
+	}
+	pushReminderCtx, cancelPushReminders := context.WithCancel(context.Background())
+	defer cancelPushReminders()
+	pushReminderScheduler := appnotification.NewReminderScheduler(webPushService, repos.Medicines, repos.Pantry, time.Hour, slog.Default())
+	if err := pushReminderScheduler.Start(pushReminderCtx); err != nil {
+		slog.Warn("failed to start household Web Push reminder scheduler", "error", err)
+	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		pushReminderScheduler.Stop(stopCtx)
+	}()
+
+	// 9. Initialize Domestic Chores Reminder Scheduler
 	choreScheduler := appchore.NewScheduler(repos.Chores, bus, 1*time.Minute)
 	if err := choreScheduler.Start(context.Background()); err != nil {
 		slog.Warn("failed to start chore scheduler", "error", err)
@@ -268,6 +290,7 @@ func main() {
 		serverpkg.WithAutomation(autoEngine, sceneService),
 		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine, commuteTracker),
 		serverpkg.WithWebSocket(wsHub),
+		serverpkg.WithWebPushService(webPushService),
 	)
 
 	serverErrCh := make(chan error, 1)
