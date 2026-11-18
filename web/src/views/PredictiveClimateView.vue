@@ -390,7 +390,7 @@ function getEmitterLabel(emitter: EmitterType): string {
           @click="handleEvaluateAll"
           :aria-label="t('predictiveClimate.view.reassessAllZones')"
         >
-          {{ store.evaluating ? 'Calcolo in corso...' : '⚡ Valuta Tutte le Zone' }}
+          {{ store.evaluating ? t('predictiveClimate.view.calculating') : '⚡ ' + t('predictiveClimate.view.evaluateAllZones') }}
         </button>
         <button
           type="button"
@@ -422,10 +422,10 @@ function getEmitterLabel(emitter: EmitterType): string {
         <div class="kpi-icon">📉</div>
         <div class="kpi-content">
           <div class="kpi-value">
-            {{ store.coldFrontActive ? 'Fronte Freddo Rilevato' : 'Pressione Stabile' }}
+            {{ store.coldFrontActive ? t('predictiveClimate.view.coldFrontDetected') : t('predictiveClimate.view.pressureStable') }}
           </div>
           <div class="kpi-label">
-            {{ store.coldFrontActive ? 'Anticipo termico barometrico attivo' : 'Nessun crollo barometrico' }}
+            {{ store.coldFrontActive ? t('predictiveClimate.view.barometricPreheatActive') : t('predictiveClimate.view.noBarometricDrop') }}
           </div>
         </div>
       </div>
@@ -439,10 +439,10 @@ function getEmitterLabel(emitter: EmitterType): string {
         <div class="kpi-icon">☀️</div>
         <div class="kpi-content">
           <div class="kpi-value">
-            {{ store.solarCutoffActive ? 'Taglio Solare Attivo' : 'Sole Moderato' }}
+            {{ store.solarCutoffActive ? t('predictiveClimate.view.solarCutoffActive') : t('predictiveClimate.view.moderateSun') }}
           </div>
           <div class="kpi-label">
-            {{ store.solarCutoffActive ? 'Risparmio attivo su stanze esposte' : 'Apporto solare standard' }}
+            {{ store.solarCutoffActive ? t('predictiveClimate.view.solarSavingsActive') : t('predictiveClimate.view.standardSolarGain') }}
           </div>
         </div>
       </div>
@@ -521,7 +521,7 @@ function getEmitterLabel(emitter: EmitterType): string {
             <div>
               <div class="context-val">{{ item.latest_evaluation.current_pressure }} hPa</div>
               <div class="context-sub">
-                Trend: {{ item.latest_evaluation.pressure_trend_hpa_hr > 0 ? '+' : '' }}{{ item.latest_evaluation.pressure_trend_hpa_hr }} hPa/h
+                {{ t('predictiveClimate.view.pressureTrend') }}: {{ item.latest_evaluation.pressure_trend_hpa_hr > 0 ? '+' : '' }}{{ item.latest_evaluation.pressure_trend_hpa_hr }} hPa/h
               </div>
             </div>
           </div>
@@ -823,7 +823,7 @@ function getEmitterLabel(emitter: EmitterType): string {
               Annulla
             </button>
             <button type="submit" class="btn btn-primary" :disabled="formSaving">
-              {{ formSaving ? 'Salvataggio...' : 'Salva Configurazione' }}
+              {{ formSaving ? t('common.loading') : t('predictiveClimate.view.saveConfiguration') }}
             </button>
           </footer>
         </form>
