@@ -107,7 +107,7 @@ fi
 
 # ── 2. System packages ─────────────────────────────────────────────────────────
 need_pkgs=()
-for bin in curl tar xz git; do
+for bin in curl tar xz git openssl; do
     command -v "${bin}" >/dev/null 2>&1 || need_pkgs+=("$([[ ${bin} == xz ]] && echo xz-utils || echo "${bin}")")
 done
 [[ -f /etc/ssl/certs/ca-certificates.crt ]] || need_pkgs+=(ca-certificates)
@@ -446,6 +446,177 @@ EOF
 fi
 chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
+
+# Generate and persist one stable VAPID P-256 keypair. Never rotate these keys
+# on upgrades: browser subscriptions are bound to the public key.
+env_file_value() {
+    local key="$1" value
+    value="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${ENV_FILE}")"
+    value="${value% (generated from the repo template) ─────────────────────────
+if (( HAVE_SYSTEMD )); then
+    TEMPLATE="${PROJECT_ROOT}/deployments/systemd/domus.service"
+    [[ -f "${TEMPLATE}" ]] || { log_error "Missing ${TEMPLATE}"; exit 1; }
+    sed -e "s|@DOMUS_USER@|${DOMUS_USER}|g" \
+        -e "s|@DOMUS_GROUP@|${DOMUS_GROUP}|g" \
+        -e "s|@DOMUS_DATA_DIR@|${DOMUS_DATA_DIR}|g" \
+        -e "s|@DOMUS_CONFIG_DIR@|${DOMUS_CONFIG_DIR}|g" \
+        -e "s|@DOMUS_INSTALL_DIR@|${DOMUS_INSTALL_DIR}|g" \
+        -e "s|@DOMUS_WEB_DIR@|${DOMUS_WEB_DIR}|g" \
+        "${TEMPLATE}" > /etc/systemd/system/domus.service
+    chmod 0644 /etc/systemd/system/domus.service
+    systemctl daemon-reload
+    systemctl enable domus.service >/dev/null
+    log_info "Starting domus.service"
+    systemctl restart domus.service
+
+    log_info "Waiting for health endpoint (up to 30 s)..."
+    healthy=0
+    for _ in $(seq 1 30); do
+        if curl -fsS "http://127.0.0.1:${DOMUS_PORT}/health" >/dev/null 2>&1; then healthy=1; break; fi
+        sleep 1
+    done
+    if (( healthy )); then
+        log_success "Domus is up"
+        ui_code="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${DOMUS_PORT}/" || true)"
+        if [[ "${ui_code}" != "200" ]]; then
+            log_error "Frontend health check failed: GET / returned ${ui_code} (expected 200)."
+            log_error "Recent service logs:"
+            journalctl -u domus -n 100 --no-pager >&2 || true
+            log_warn "Stopping Domus because the web interface is not available."
+            systemctl stop domus.service || true
+            exit 1
+        fi
+        log_success "Web interface responds with HTTP 200"
+    else
+        log_error "Domus did not become healthy within 30 seconds."
+        log_error "Recent service logs:"
+        journalctl -u domus -n 100 --no-pager >&2 || true
+        log_warn "Stopping the unhealthy service. Fix the reported error, then run: systemctl start domus"
+        systemctl stop domus.service || true
+        exit 1
+    fi
+else
+    log_warn "systemd not found: run manually  DOMUS_SERVER_WEB_DIR=${DOMUS_WEB_DIR} ${DOMUS_INSTALL_DIR}/domus -config ${CONFIG_TARGET}"
+fi
+
+LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+echo
+echo -e "${GREEN}${BOLD}=== Domus installed ===${NC}"
+echo -e "Web UI    : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/${NC}   (or http://$(hostname).local:${DOMUS_PORT}/)"
+echo -e "API docs  : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/docs${NC}"
+echo -e "Logs      : ${BOLD}journalctl -u domus -f${NC}"
+echo -e "Status    : ${BOLD}systemctl status domus${NC}"
+echo -e "CLI       : ${BOLD}domus-cli help${NC}"\\r'}"
+    if [[ "${value}" == \"*\" ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf '%s' "${value}"
+}
+
+hex_to_base64url() {
+    local escaped
+    escaped="$(printf '%s' "$1" | sed 's/../\\\\x&/g')"
+    printf '%b' "${escaped}" | openssl base64 -A | tr '+/' '-_' | tr -d '='
+}
+
+generate_vapid_keypair() {
+    local key_file key_dump private_hex public_hex
+    key_file="$(mktemp "${DOMUS_CONFIG_DIR}/.vapid-key.XXXXXX")"
+    chmod 0600 "${key_file}"
+    if ! openssl ecparam -name prime256v1 -genkey -noout -out "${key_file}" >/dev/null 2>&1; then
+        rm -f "${key_file}"
+        log_error "Could not generate a VAPID P-256 keypair with OpenSSL"
+        exit 1
+    fi
+    key_dump="$(openssl ec -in "${key_file}" -text -noout 2>/dev/null)" || {
+        rm -f "${key_file}"
+        log_error "Could not read the generated VAPID keypair"
+        exit 1
+    }
+    rm -f "${key_file}"
+
+    private_hex="$(printf '%s\\n' "${key_dump}" | awk '
+        /^[[:space:]]*priv:/ { section = "private"; next }
+        /^[[:space:]]*pub:/  { section = ""; next }
+        section == "private" {
+            gsub(/[^[:xdigit:]]/, "")
+            printf "%s", $0
+        }')"
+    public_hex="$(printf '%s\\n' "${key_dump}" | awk '
+        /^[[:space:]]*pub:/ { section = "public"; next }
+        /^[[:space:]]*(ASN1 OID|NIST CURVE|Field Type):/ { section = ""; next }
+        section == "public" {
+            gsub(/[^[:xdigit:]]/, "")
+            printf "%s", $0
+        }')"
+
+    # OpenSSL prints a P-256 private scalar as at most 32 bytes; left-pad if needed.
+    if (( ${#private_hex} < 64 )); then
+        private_hex="$(printf '%064s' "${private_hex}" | tr ' ' '0')"
+    fi
+    if [[ ${#private_hex} -ne 64 || ${#public_hex} -ne 130 || "${public_hex}" != 04* ]]; then
+        log_error "OpenSSL returned an unexpected P-256 key format; VAPID keys were not written"
+        exit 1
+    fi
+
+    DOMUS_VAPID_PRIVATE_KEY="$(hex_to_base64url "${private_hex}")"
+    DOMUS_VAPID_PUBLIC_KEY="$(hex_to_base64url "${public_hex}")"
+    [[ ${#DOMUS_VAPID_PRIVATE_KEY} -eq 43 && ${#DOMUS_VAPID_PUBLIC_KEY} -eq 87 ]] || {
+        log_error "Generated VAPID keys have unexpected lengths"
+        exit 1
+    }
+}
+
+stored_vapid_public="$(env_file_value DOMUS_VAPID_PUBLIC_KEY)"
+stored_vapid_private="$(env_file_value DOMUS_VAPID_PRIVATE_KEY)"
+stored_vapid_subject="$(env_file_value DOMUS_VAPID_SUBJECT)"
+
+# A partial keypair is unsafe: do not silently mix keys or replace an existing key.
+if [[ -n "${stored_vapid_public}" && -z "${stored_vapid_private}" ]] ||
+   [[ -z "${stored_vapid_public}" && -n "${stored_vapid_private}" ]]; then
+    log_error "Only one VAPID key is present in ${ENV_FILE}; restore both DOMUS_VAPID_PUBLIC_KEY and DOMUS_VAPID_PRIVATE_KEY together."
+    exit 1
+fi
+
+if [[ -n "${stored_vapid_public}" ]]; then
+    DOMUS_VAPID_PUBLIC_KEY="${stored_vapid_public}"
+    DOMUS_VAPID_PRIVATE_KEY="${stored_vapid_private}"
+elif [[ -n "${DOMUS_VAPID_PUBLIC_KEY:-}" || -n "${DOMUS_VAPID_PRIVATE_KEY:-}" ]]; then
+    # Explicit key overrides are supported, but the public/private pair is atomic.
+    if [[ -z "${DOMUS_VAPID_PUBLIC_KEY:-}" || -z "${DOMUS_VAPID_PRIVATE_KEY:-}" ]]; then
+        log_error "Set both DOMUS_VAPID_PUBLIC_KEY and DOMUS_VAPID_PRIVATE_KEY when supplying VAPID keys manually."
+        exit 1
+    fi
+else
+    log_info "Generating VAPID P-256 keypair (this happens only on first install)"
+    generate_vapid_keypair
+fi
+
+if [[ ! "${DOMUS_VAPID_PUBLIC_KEY}" =~ ^[A-Za-z0-9_-]{87}$ ||
+      ! "${DOMUS_VAPID_PRIVATE_KEY}" =~ ^[A-Za-z0-9_-]{43}$ ]]; then
+    log_error "VAPID keys have an invalid Base64URL format or length"
+    exit 1
+fi
+
+DOMUS_VAPID_SUBJECT="${stored_vapid_subject:-${DOMUS_VAPID_SUBJECT:-mailto:domus@localhost}}"
+case "${DOMUS_VAPID_SUBJECT}" in
+    mailto:*|https://*) ;;
+    *) log_error "DOMUS_VAPID_SUBJECT must be a mailto: or https:// contact URI"; exit 1 ;;
+esac
+
+# Append only missing variables. Existing environment values are never overwritten.
+if [[ -z "${stored_vapid_public}" ]]; then
+    printf 'DOMUS_VAPID_PUBLIC_KEY=%s\\n' "${DOMUS_VAPID_PUBLIC_KEY}" >> "${ENV_FILE}"
+fi
+if [[ -z "${stored_vapid_private}" ]]; then
+    printf 'DOMUS_VAPID_PRIVATE_KEY=%s\\n' "${DOMUS_VAPID_PRIVATE_KEY}" >> "${ENV_FILE}"
+fi
+if [[ -z "${stored_vapid_subject}" ]]; then
+    printf 'DOMUS_VAPID_SUBJECT=%s\\n' "${DOMUS_VAPID_SUBJECT}" >> "${ENV_FILE}"
+fi
+chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
+chmod 0640 "${ENV_FILE}"
+log_success "VAPID Web Push keys are configured in ${ENV_FILE} (private key is not displayed)"
 
 # ── 8. systemd unit (generated from the repo template) ─────────────────────────
 if (( HAVE_SYSTEMD )); then
