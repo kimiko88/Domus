@@ -243,10 +243,13 @@ const allDevices = computed<UnifiedDevice[]>(() => {
     const integrationId = String(
       attributes.integration_id || attributes.integration || attributes.platform || 'integrated'
     )
-    const unavailable = relatedEntities.every(entity =>
-      entity.state === 'unavailable' || attributes.available === false || attributes.is_available === false
-    )
-    const explicitlyOnline = attributes.available === true || attributes.is_available === true
+    const explicitStatus = String(attributes.status || '').toLowerCase()
+    const unavailable = explicitStatus === 'offline' || attributes.available === false ||
+      attributes.is_available === false ||
+      relatedEntities.every(entity => entity.state === 'unavailable' || entity.state === 'unknown')
+    const explicitlyOnline = explicitStatus === 'online' || attributes.available === true ||
+      attributes.is_available === true ||
+      relatedEntities.some(entity => entity.state !== 'unavailable' && entity.state !== 'unknown')
     const name = String(
       attributes.device_name || attributes.device_friendly_name || attributes.friendly_name ||
       relatedEntities[0]?.name || deviceId
