@@ -795,7 +795,7 @@ onMounted(() => {
 
           <div class="ota-list">
             <p v-if="otaDevices.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
-              Nessun dispositivo registrato per aggiornamenti OTA.
+              {{ t('settings.otaEmpty') }}
             </p>
             <div v-else v-for="dev in otaDevices" :key="dev.id" class="ota-row">
               <div class="ota-info">
@@ -813,7 +813,7 @@ onMounted(() => {
                 </button>
                 <span v-else class="status-up-to-date">
                   <CheckCircle :size="14" />
-                  <span>Aggiornato</span>
+                  <span>{{ t('settings.updated') }}</span>
                 </span>
               </div>
             </div>
@@ -835,7 +835,7 @@ onMounted(() => {
 
           <div class="tags-list">
             <p v-if="nfcTags.length === 0" class="text-dim text-xs py-3" style="text-align: center; color: var(--text-muted);">
-              Nessun tag NFC registrato nel database.
+              {{ t('settings.nfcEmpty') }}
             </p>
             <div v-else v-for="tag in nfcTags" :key="tag.id" class="tag-row">
               <div class="tag-info">
@@ -844,7 +844,7 @@ onMounted(() => {
               </div>
 
               <button class="btn-test-scan" @click="testScanTag(tag)">
-                Test Scansione
+                {{ t('settings.testNfcScan') }}
               </button>
             </div>
           </div>
@@ -925,7 +925,7 @@ onMounted(() => {
 
         <div class="profile-details">
           <p class="theme-desc">
-            Backup automatico locale o remoto su NAS/WebDAV cifrato con AES-256-GCM. In caso di guasto hardware, ripristino istantaneo in 1 click.
+            {{ t('settings.backupDescription') }}
           </p>
 
           <div class="form-group mt-2">
@@ -985,7 +985,7 @@ onMounted(() => {
 
         <div class="profile-details">
           <p class="theme-desc">
-            Invece di accendere le luci a orari fissi, Domus replica le reali abitudini registrate negli ultimi 14 giorni con una variazione casuale di &plusmn;{{ vacationJitter }} minuti.
+            {{ t('settings.vacationLightingDescription', { minutes: vacationJitter }) }}
           </p>
 
           <div class="detail-row mt-2">
@@ -1027,7 +1027,7 @@ onMounted(() => {
 
         <div class="profile-details">
           <p class="theme-desc">
-            Monitoraggio proattivo delle batterie con avviso &lt;15% e diagnostica interferenze radio Zigbee / Thread con suggerimento per estendere la rete mesh.
+            {{ t('settings.batteryDiagnosticsDescription') }}
           </p>
 
           <div class="rf-nodes-list">
@@ -1070,7 +1070,7 @@ onMounted(() => {
 
         <div class="profile-details">
           <p class="theme-desc">
-            Se il contatore rileva flusso continuo non-stop per più di 40 minuti durante le ore notturne, Domus notifica immediatamente il rischio perdita e può chiudere l'elettrovalvola principale.
+            {{ t('settings.waterLeakDescription') }}
           </p>
 
           <div class="detail-row mt-2">
