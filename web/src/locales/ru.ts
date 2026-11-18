@@ -6,7 +6,7 @@ const ru = {
   ...en,
   common: {
     ...en.common, done: 'Готово',
-    ok: 'ОК', cancel: 'Отмена', save: 'Сохранить', edit: 'Изменить',
+    ok: 'ОК', cancel: 'Отмена', close: 'Закрыть', save: 'Сохранить', edit: 'Изменить',
     delete: 'Удалить', search: 'Поиск...', loading: 'Загрузка...',
     error: 'Ошибка', success: 'Операция успешно выполнена',
     refresh: 'Обновить', back: 'Назад', all: 'Все', active: 'Активно',
