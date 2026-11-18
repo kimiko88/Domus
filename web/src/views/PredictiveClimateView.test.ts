@@ -69,21 +69,25 @@ describe('PredictiveClimateView.vue', () => {
   }
 
   it('renders header, KPI metrics, and zone card with calculated setpoint', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockStatus)
+      .mockResolvedValueOnce([])
 
     const wrapper = mount(PredictiveClimateView)
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
     expect(wrapper.text()).toContain('Termostato predittivo multizona')
-    expect(wrapper.text()).toContain('Fronte Freddo Rilevato')
+    expect(wrapper.text()).toContain(i18n.global.t('predictiveClimate.view.coldFrontDetected'))
     expect(wrapper.text()).toContain('Salone Sud')
     expect(wrapper.text()).toContain('22.5 °C')
-    expect(wrapper.text()).toContain('Fronte Freddo (+Boost)')
+    expect(wrapper.text()).toContain(i18n.global.t('predictiveClimate.view.modeLabels.coldFront'))
   })
 
   it('opens create zone modal on button click', async () => {
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus)
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockStatus)
+      .mockResolvedValueOnce([])
 
     const wrapper = mount(PredictiveClimateView)
     await wrapper.vm.$nextTick()
@@ -108,7 +112,8 @@ describe('PredictiveClimateView.vue', () => {
     await wrapper.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 10))
 
-    const evalBtn = wrapper.findAll('button').find((b) => b.text().includes('Valuta Ora'))
+    const evaluateLabel = i18n.global.t('predictiveClimate.view.evaluateNow')
+    const evalBtn = wrapper.findAll('button').find((b) => b.text().includes(evaluateLabel))
     expect(evalBtn).toBeDefined()
     await evalBtn!.trigger('click')
 
