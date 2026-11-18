@@ -958,7 +958,35 @@
       "thresholdPassed": "Seuil de 65 % dépassé",
       "accessConfirmed": "Accès confirmé",
       "profileValidated": "Profil validé par le moteur NVR local. Les automatisations de bienvenue sont déverrouillées.",
-      "testMatchButton": "Tester la correspondance"
+      "testMatchButton": "Tester la correspondance",
+      "wallSync": "SYNCHRONISATION MULTI-ÉCRAN ({matrix})",
+      "cameraNumber": "CAMÉRA {number} : {name}",
+      "channelWaiting": "Canal {channel} en attente",
+      "filterAll": "Tout ({count})",
+      "recording": "REC",
+      "cameraLabel": "Caméra",
+      "confidenceLabel": "Confiance",
+      "playClip": "Lire le clip ({seconds}s)",
+      "storageNvr": "Stockage NVR : {used} Go / {total} Go (tampon circulaire WAL)",
+      "online": "En ligne",
+      "streamingLatencyHint": "Latence de diffusion inférieure à 200 ms",
+      "cameraId": "ID de caméra",
+      "directWebRtcStream": "Flux WebRTC direct",
+      "sensitivityLabel": "Sensibilité",
+      "familyOwner": "Membre de la famille",
+      "privateVehicle": "Véhicule privé",
+      "newZoneName": "Nouvelle zone {count}",
+      "confirmDeleteFace": "Supprimer le profil biométrique de {name} ?",
+      "confirmDeletePlate": "Supprimer la plaque {plate} ?",
+      "detectionLabels": {
+        "person": "Personne",
+        "vehicle": "Véhicule",
+        "package": "Colis",
+        "animal": "Animal"
+      },
+      "saveProfile": "Enregistrer le profil",
+      "autoOpenGateLights": "Ouvrir automatiquement le portail et allumer les lumières de l’allée",
+      "registerPlate": "Enregistrer la plaque"
     }
   },
   "shopping": {
