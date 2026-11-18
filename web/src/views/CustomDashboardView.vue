@@ -1452,7 +1452,7 @@ onUnmounted(() => {
 .widget-span-control .form-select { min-width: 4rem; }
 .dashboard-editor-error { color: var(--color-danger, #ef4444); margin: 0; }
 .dashboard-delete-btn { color: var(--color-danger, #ef4444); }
-@media (max-width: 900px) { .custom-widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .custom-widget-card { grid-column: span 2 !important; } }
+@media (max-width: 900px) { .custom-widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .custom-widget-card { grid-column: span min(var(--widget-col-span, 1), 2) !important; } }
 @media (max-width: 640px) {
   .custom-dash-container { padding: .75rem; } .custom-dash-container.kiosk-active { padding: .75rem; }
   .dash-header { align-items: stretch; padding: 1rem; margin-bottom: 1rem; }
