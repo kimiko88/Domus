@@ -1102,7 +1102,13 @@
       "cancel": "Cancel",
       "create": "Create Helper",
       "deleteAria": "Delete helper",
-      "statusAria": "Helper status"
+      "statusAria": "Helper status",
+      "timerStates": {
+        "active": "ACTIVE",
+        "paused": "PAUSED",
+        "idle": "IDLE"
+      },
+      "toggle": "Toggle {name}"
     }
   },
   "floorplan": {
@@ -1388,7 +1394,13 @@
     "password": "Password",
     "submit": "Log In",
     "error": "Invalid credentials or session expired",
-    "kioskPin": "Kiosk PIN code"
+    "kioskPin": "Kiosk PIN code",
+    "passwordTab": "Password",
+    "kioskTab": "Kiosk / Guest PIN",
+    "unlockKiosk": "Unlock Kiosk",
+    "missingCredentials": "Enter your username and password",
+    "missingKioskPin": "Enter the Kiosk PIN",
+    "invalidKioskPin": "The Kiosk PIN is invalid or expired"
   },
   "setup": {
     "title": "Initial Domus Setup",
