@@ -152,7 +152,7 @@ async function disablePush() {
   isSubscribing.value = true
   try {
     await apiClient.delete('/api/v1/notifications/push/subscriptions', {
-      endpoint: currentSubscription.endpoint
+      params: { endpoint: currentSubscription.endpoint }
     })
     await currentSubscription.unsubscribe()
     currentSubscription = null
@@ -211,11 +211,11 @@ onMounted(loadSettings)
 
     <div v-if="isLoading" class="push-loading">{{ t('common.loading') }}</div>
     <template v-else>
-      <p v-if="!isSupported" class="push-notice error">{{ t('settings.webPush.unsupported') }}</p>
-      <p v-else-if="!isConfigured" class="push-notice error">{{ t('settings.webPush.serverNotConfigured') }}</p>
-      <p v-else-if="needsHomeScreenInstall" class="push-notice">
+      <p v-if="needsHomeScreenInstall" class="push-notice">
         <Smartphone :size="17" /> {{ t('settings.webPush.iosInstallHint') }}
       </p>
+      <p v-else-if="!isSupported" class="push-notice error">{{ t('settings.webPush.unsupported') }}</p>
+      <p v-else-if="!isConfigured" class="push-notice error">{{ t('settings.webPush.serverNotConfigured') }}</p>
       <p v-else class="push-notice">
         <ShieldCheck :size="17" /> {{ t('settings.webPush.privacyHint') }}
       </p>
