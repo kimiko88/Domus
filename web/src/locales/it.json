@@ -828,7 +828,15 @@
       "closeWindow": "Chiudi finestra scena",
       "nameRequired": "Il nome della scena è obbligatorio.",
       "actionRequired": "Aggiungi almeno un'azione.",
-      "entityRequired": "Ogni azione deve indicare un'entità valida."
+      "entityRequired": "Ogni azione deve indicare un'entità valida.",
+      "entityKey": "ID entità",
+      "entityPlaceholder": "es. light.soggiorno",
+      "action": "Azione",
+      "actions": {
+        "turnOn": "Accendi",
+        "turnOff": "Spegni",
+        "toggle": "Inverti stato"
+      }
     }
   },
   "audit": {
