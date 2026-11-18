@@ -358,7 +358,8 @@
       "deleteFailed": "Dashboard konnte nicht gelöscht werden.",
       "extensionUninstalled": "Erweiterung erfolgreich deinstalliert",
       "extensionInstalled": "Erweiterung installiert und lokal aktiv",
-      "extensionToggleFailed": "Paketstatus konnte nicht geändert werden"
+      "extensionToggleFailed": "Paketstatus konnte nicht geändert werden",
+      "removeWidgetAria": "Widget {title} entfernen"
     }
   },
   "areas": {
@@ -2155,7 +2156,8 @@
         "simulationErrorTitle": "Simulationsfehler",
         "simulationErrorMessage": "Der Ablauf konnte nicht simuliert werden.",
         "invalidFlowTitle": "Ungültiger Ablauf",
-        "invalidFlowMessage": "Korrigieren Sie die Verbindungen vor dem Export."
+        "invalidFlowMessage": "Korrigieren Sie die Verbindungen vor dem Export.",
+        "simulationWithoutTriggersMessage": "Die Bedingungen wurden erfüllt. Auslöser wurden nicht simuliert."
       },
       "newAutomationName": "Neue visuelle Automatisierung",
       "nodeTypes": {
