@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { LogbookEntry, LogbookFilter } from '../api/types'
@@ -23,7 +24,7 @@ export const useLogbookStore = defineStore('logbook', () => {
       entries.value = data.entries || []
       return entries.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch logbook entries'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
