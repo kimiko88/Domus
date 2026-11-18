@@ -2323,7 +2323,8 @@
       "solarSavingsActive": "Einsparung in sonnenexponierten Räumen aktiv",
       "standardSolarGain": "Standard-Solarertrag",
       "pressureTrend": "Trend",
-      "saveConfiguration": "Konfiguration speichern"
+      "saveConfiguration": "Konfiguration speichern",
+      "estimated": "Geschätzt"
     }
   },
   "sharedDashboard": {
