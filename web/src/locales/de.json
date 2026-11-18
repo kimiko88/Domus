@@ -1711,7 +1711,18 @@
       "newThermostatTitle": "Neuer Thermostat-Zeitplan",
       "newThermostatMessage": "{name} wurde erstellt.",
       "calendarImportSuccess": "Kalender erfolgreich importiert.",
-      "calendarImportError": "Der iCal-Kalender konnte nicht importiert werden."
+      "calendarImportError": "Der iCal-Kalender konnte nicht importiert werden.",
+      "hvacModes": {
+        "automatic": "Automatisch",
+        "heating": "Heizen",
+        "off": "Aus",
+        "manual": "Manuell",
+        "cooling": "Kühlen",
+        "heatCool": "Heizen und Kühlen",
+        "dry": "Entfeuchten",
+        "fanOnly": "Nur Lüfter",
+        "other": "Anderer Modus"
+      }
     }
   },
   "login": {
