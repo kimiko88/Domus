@@ -937,7 +937,21 @@ function getEmitterLabel(emitter: EmitterType): string {
                     {{ t('predictiveClimate.view.requiredPreheat') }}: <strong>{{ preheatResult.preheat_minutes }} min</strong>
                     ({{ t('predictiveClimate.view.startsAt') }}: {{ new Date(preheatResult.start_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }})
                   </div>
-                  <p class="result-reason">{{ preheatResult.reason }}</p>
+                  <p class="result-reason">
+                    {{ preheatResult.preheat_minutes === 0
+                      ? t('predictiveClimate.view.preheatNoAdvanceReason', {
+                          current: preheatResult.current_temp.toFixed(1),
+                          target: preheatResult.target_temp.toFixed(1)
+                        })
+                      : t('predictiveClimate.view.preheatScheduledReason', {
+                          minutes: preheatResult.preheat_minutes,
+                          start: new Date(preheatResult.start_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+                          target: preheatResult.target_temp.toFixed(1),
+                          targetTime: new Date(preheatResult.target_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+                          rate: preheatResult.effective_heat_rate.toFixed(2),
+                          outdoor: preheatResult.outdoor_temp.toFixed(1)
+                        }) }}
+                  </p>
                 </div>
               </div>
 
@@ -970,7 +984,16 @@ function getEmitterLabel(emitter: EmitterType): string {
                     ({{ t('predictiveClimate.view.stopsAt') }}: {{ new Date(coastResult.stop_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) }})
                   </div>
                   <p class="result-reason">
-                    {{ coastResult.reason }}
+                    {{ coastResult.coast_down_minutes === 0
+                      ? t('predictiveClimate.view.coastDownNoShutdownReason', {
+                          limit: coastResult.comfort_limit_temp.toFixed(1)
+                        })
+                      : t('predictiveClimate.view.coastDownScheduledReason', {
+                          minutes: coastResult.coast_down_minutes,
+                          stop: new Date(coastResult.stop_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+                          departure: new Date(coastResult.departure_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+                          energy: coastResult.energy_saved_kwh.toFixed(2)
+                        }) }}
                   </p>
                 </div>
               </div>
