@@ -649,4 +649,6 @@ Object.assign(ru.schedules.view, {
   friday: 'Пятница', saturday: 'Суббота', sunday: 'Воскресенье'
 });
 
+Object.assign(ru.integrations.view, { tuyaProjectIntro: 'Откройте свой проект на', tuyaProjectPath: 'Cloud → Development → откройте проект Domus' });
+
 export default ru
