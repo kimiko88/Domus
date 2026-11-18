@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,7 +41,7 @@ func envOr(primary, fallback string) string {
 }
 
 // getenv is isolated to keep configuration loading easy to reason about.
-var getenv = func(key string) string { return lookupEnv(key) }
+var getenv = func(key string) string { return os.Getenv(key) }
 
 type WebPushService struct {
 	repo   domain.WebPushRepository
@@ -202,12 +203,6 @@ func (s *WebPushService) SendUser(ctx context.Context, userID, title, body, cate
 	return sent, nil
 }
 
-func (s *WebPushService) RegisterChoreEventBridge(bus interface {
-	Subscribe(stringEventType, func(context.Context, interfaceEvent) error) func()
-}) {
-	// Kept as a typed bridge in reminder_scheduler.go; this method intentionally
-	// does not accept an untyped adapter.
-}
 
 func validatePushEndpoint(raw string) error {
 	parsed, err := url.Parse(raw)
