@@ -457,7 +457,8 @@
       "devicesUpdatedTitle": "Devices updated",
       "devicesUpdatedMessage": "Device list and integration status refreshed.",
       "refreshErrorTitle": "Refresh failed",
-      "refreshErrorMessage": "Unable to refresh devices."
+      "refreshErrorMessage": "Unable to refresh devices.",
+      "filteredCount": "{filtered} of {total} devices"
     }
   },
   "integrations": {
@@ -646,7 +647,9 @@
       "anomaliesRegistered": "anomalies detected",
       "noWritableFunctions": "The API did not return any writable functions for this device.",
       "host": "Host",
-      "deviceTotals": "total · online · offline"
+      "deviceTotals": "total · online · offline",
+      "ipLabel": "IP",
+      "firmwareLabel": "Firmware"
     }
   },
   "history": {
@@ -1113,7 +1116,25 @@
     "tariffF1": "F1 (peak: Mon–Fri 08–19)",
     "tariffF2": "F2 (mid-peak: Mon–Fri 07–08 and 19–23, Sat 07–23)",
     "tariffF3": "F3 (off-peak: nights, Sundays and holidays)",
-    "electricity": "Electricity"
+    "electricity": "Electricity",
+    "nodeSolar": "SOLAR",
+    "nodeGrid": "GRID",
+    "nodeHomeLoads": "HOME LOADS",
+    "nodeBattery": "BATTERY",
+    "nodeWallbox": "WALLBOX EV",
+    "standby": "0 W (Standby)",
+    "recalculateArbitrage": "Recalculate optimal arbitrage",
+    "wallboxSubtitle": "IEC 61851 dynamic modulation using net photovoltaic surplus with meter overload protection",
+    "recalculateSolarModulation": "Recalculate solar modulation",
+    "updating": "Updating...",
+    "recalculateModulation": "Recalculate modulation",
+    "target": "Target",
+    "pwmAvailableCurrent": "Available PWM current",
+    "station": "Station",
+    "solarSurplus": "Solar surplus",
+    "homeLoads": "Home loads",
+    "total": "Total",
+    "cost": "Cost"
   },
   "cameras": {
     "title": "Video Surveillance & Local AI Vision NVR",
@@ -1307,7 +1328,11 @@
       "filterSupermarket": "Filter by {name}",
       "justNow": "Just now",
       "toBuy": "to buy",
-      "bought": "purchased"
+      "bought": "purchased",
+      "itemsAdded": "{count} new items",
+      "itemsUpdated": "{count} items updated",
+      "itemsTransferred": "Items transferred",
+      "transferCompleted": "Shopping saved to pantry ({summary})!"
     }
   },
   "chores": {
@@ -1557,7 +1582,10 @@
         "kitchen": "Kitchen",
         "masterBedroom": "Master bedroom",
         "bathroom": "Bathroom",
-        "office": "Study / Office"
+        "office": "Study / Office",
+        "kitchenDining": "Kitchen and dining room",
+        "bedroom": "Bedroom",
+        "masterBathroom": "Main bathroom"
       },
       "roomCreatedTitle": "Room created",
       "roomCreatedMessage": "Room “{name}” added to the floor plan",
