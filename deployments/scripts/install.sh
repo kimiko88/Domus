@@ -213,10 +213,10 @@ install_node() {
     local candidates=( "${tdir}"/node-v"${NODE_MAJOR}".*-linux-"${NODE_ARCH}"/bin/node )
     for candidate in "${candidates[@]}"; do
         if [[ -x "${candidate}" ]]; then
-            cached_major="$("${candidate}" -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
+            cached_major=$("${candidate}" -p 'process.versions.node.split(".")[0]' 2>/dev/null) || cached_major=""
             if [[ "${cached_major}" == "${NODE_MAJOR}" ]]; then
                 local cached_version
-                cached_version="$("${candidate}" -v)"
+                cached_version=$("${candidate}" -v)
                 log_info "Using cached Node.js ${cached_version} from $(dirname "${candidate}")"
                 export PATH="$(dirname "${candidate}"):${PATH}"
                 return
