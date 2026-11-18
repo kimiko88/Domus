@@ -1135,7 +1135,9 @@
     "solarSurplus": "Excedente solar",
     "homeLoads": "Consumo del hogar",
     "total": "Total",
-    "cost": "Coste"
+    "cost": "Coste",
+    "enableAutoSchedule": "Activar programación automática",
+    "disableAutoSchedule": "Desactivar programación automática"
   },
   "cameras": {
     "title": "Videovigilancia y NVR con IA Local",
@@ -1586,7 +1588,8 @@
         "office": "Estudio / Oficina",
         "kitchenDining": "Cocina y comedor",
         "bedroom": "Dormitorio",
-        "masterBathroom": "Baño principal"
+        "masterBathroom": "Baño principal",
+        "newRoom": "Nueva habitación"
       },
       "roomCreatedTitle": "Habitación creada",
       "roomCreatedMessage": "La habitación “{name}” se ha añadido al plano",
@@ -1599,7 +1602,24 @@
       "floorCreateFailed": "No se pudo crear la planta",
       "closeHeatmap": "Cerrar mapa térmico",
       "heatmap25d": "Mapa térmico 2.5D",
-      "modeLabel": "Modo"
+      "modeLabel": "Modo",
+      "roomTypes": {
+        "living": "Salón",
+        "kitchen": "Cocina / Comedor",
+        "bedroom": "Dormitorio",
+        "bathroom": "Baño",
+        "office": "Estudio / Oficina",
+        "hallway": "Pasillo / Entrada",
+        "balcony": "Terraza / Balcón"
+      },
+      "colors": {
+        "oceanBlue": "Azul océano",
+        "emerald": "Esmeralda",
+        "amber": "Ámbar",
+        "nightPurple": "Violeta noche",
+        "skyCyan": "Cian cielo",
+        "coralPink": "Rosa coral"
+      }
     }
   },
   "media": {
