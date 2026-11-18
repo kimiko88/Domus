@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
 import type { Floor, FloorMarker } from '../api/types'
@@ -35,7 +36,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
       }
       return data
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch floors'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -49,7 +50,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
       markers.value[floorId] = list
       return list
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch markers'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     }
   }
@@ -63,7 +64,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
       activeFloorId.value = created.id
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create floor'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -81,7 +82,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
       }
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Failed to update floor'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     } finally {
       loading.value = false
@@ -99,7 +100,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         activeFloorId.value = floors.value[0]?.id ?? null
       }
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete floor'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -119,7 +120,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
       markers.value[floorId] = [...list]
       return saved
     } catch (err: any) {
-      error.value = err?.message || 'Failed to save marker'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     }
   }
@@ -131,7 +132,7 @@ export const useFloorplanStore = defineStore('floorplan', () => {
         markers.value[floorId] = markers.value[floorId].filter((m) => m.id !== markerId)
       }
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete marker'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     }
   }
