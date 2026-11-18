@@ -69,6 +69,7 @@ type Repositories struct {
 	Scripts              domscript.Repository
 	Logbook              logbook.Repository
 	PushTokens           notification.PushTokenRepository
+	WebPush              notification.WebPushRepository
 	WeeklySchedules      schedule.Repository
 	ClimateCompensations climate.Repository
 	OutboundWebhooks     webhook.OutboundRepository
@@ -126,6 +127,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Scripts:              NewScriptRepository(db),
 		Logbook:              NewLogbookRepository(db),
 		PushTokens:           NewPushTokenRepository(db),
+		WebPush:              NewWebPushRepository(db),
 		WeeklySchedules:      NewWeeklyScheduleRepository(db),
 		ClimateCompensations: NewClimateCompensatorRepository(db),
 		OutboundWebhooks:     NewOutboundWebhookRepository(db),
