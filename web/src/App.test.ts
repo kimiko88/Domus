@@ -25,7 +25,9 @@ describe('App.vue', () => {
           RouterView: { template: '<div class="routed-view">Home Content</div>' },
           AppSidebar: true,
           AppTopbar: true,
-          BaseToast: true
+          BaseToast: true,
+          PwaUpdatePrompt: true,
+          AppTourModal: true
         }
       }
     })
