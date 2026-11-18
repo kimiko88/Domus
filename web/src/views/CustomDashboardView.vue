@@ -30,6 +30,16 @@ interface KioskConfig {
   pinCode?: string
 }
 
+interface DashboardWidget {
+  id: string
+  type: 'thermostat' | 'temperature' | 'energy' | 'entity' | 'text'
+  title: string
+  entity_key?: string
+  col_span: number
+  row_span: number
+  config?: Record<string, any>
+}
+
 interface DashboardProfile {
   id: string
   title: string
@@ -68,6 +78,17 @@ const defaultDashboards: DashboardProfile[] = [
 
 const dashboards = ref<DashboardProfile[]>([])
 const currentDashboardId = ref('')
+const isDashboardEditorOpen = ref(false)
+const isCreatingDashboard = ref(false)
+const dashboardError = ref('')
+const dashboardSaving = ref(false)
+const dashboardTitleDraft = ref('')
+const widgetDrafts = ref<DashboardWidget[]>([])
+const newWidgetType = ref<DashboardWidget['type']>('temperature')
+const newWidgetTitle = ref('')
+const newWidgetEntity = ref('')
+const customWidgets = ref<DashboardWidget[]>([])
+const currentProfile = computed(() => dashboards.value.find(d => d.id === currentDashboardId.value))
 const activeRoomName = ref(t('dashboard.view.roomLivingRoom'))
 const isKioskMode = ref(false)
 const showScreensaver = ref(false)
@@ -98,6 +119,101 @@ function adjustTargetTemp(delta: number) {
   targetTemp.value = Math.round((targetTemp.value + delta) * 10) / 10
 }
 
+function readProfileWidgets(profile?: DashboardProfile): DashboardWidget[] {
+  if (!profile?.layout_json) return []
+  try {
+    const parsed = JSON.parse(profile.layout_json)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((w: any) => w && typeof w.id === 'string' && typeof w.title === 'string').map((w: any) => ({
+      id: w.id,
+      type: ['thermostat', 'temperature', 'energy', 'entity', 'text'].includes(w.type) ? w.type : 'entity',
+      title: w.title,
+      entity_key: w.entity_key || '',
+      col_span: Math.min(4, Math.max(1, Number(w.col_span) || 1)),
+      row_span: Math.min(3, Math.max(1, Number(w.row_span) || 1)),
+      config: w.config || {}
+    }))
+  } catch { return [] }
+}
+
+function openDashboardEditor(create = false) {
+  const profile = currentProfile.value
+  isCreatingDashboard.value = create
+  dashboardError.value = ''
+  dashboardTitleDraft.value = create ? '' : (profile?.title || '')
+  widgetDrafts.value = create ? [] : readProfileWidgets(profile).map(w => ({ ...w }))
+  newWidgetTitle.value = ''
+  newWidgetEntity.value = ''
+  isDashboardEditorOpen.value = true
+}
+
+function addDashboardWidget() {
+  const labels: Record<string, string> = { thermostat: 'Termostato', temperature: 'Temperatura', energy: 'Energia', entity: 'Entità', text: 'Testo' }
+  widgetDrafts.value.push({
+    id: 'widget_' + Date.now().toString(36) + '_' + widgetDrafts.value.length,
+    type: newWidgetType.value,
+    title: newWidgetTitle.value.trim() || labels[newWidgetType.value],
+    entity_key: newWidgetEntity.value.trim(),
+    col_span: 1,
+    row_span: 1
+  })
+  newWidgetTitle.value = ''
+  newWidgetEntity.value = ''
+}
+
+function removeDashboardWidget(id: string) {
+  widgetDrafts.value = widgetDrafts.value.filter(w => w.id !== id)
+}
+
+async function saveDashboardEditor() {
+  const title = dashboardTitleDraft.value.trim()
+  if (!title) { dashboardError.value = 'Inserisci il nome della dashboard.'; return }
+  dashboardSaving.value = true
+  dashboardError.value = ''
+  try {
+    const existing = currentProfile.value
+    const profile: DashboardProfile = {
+      id: isCreatingDashboard.value ? 'custom_' + Date.now().toString(36) : (existing?.id || ''),
+      title,
+      icon: existing?.icon || 'layout-dashboard',
+      is_default: existing?.is_default || false,
+      kiosk_config_json: existing?.kiosk_config_json || JSON.stringify(kioskConfig.value),
+      layout_json: JSON.stringify(widgetDrafts.value)
+    }
+    if (isCreatingDashboard.value) {
+      const created = await apiClient.post<DashboardProfile>('/api/v1/dashboards', profile)
+      const saved = created || profile
+      dashboards.value.push(saved)
+      currentDashboardId.value = saved.id
+      customWidgets.value = readProfileWidgets(saved)
+    } else {
+      await apiClient.put('/api/v1/dashboards/' + profile.id, profile)
+      const index = dashboards.value.findIndex(d => d.id === profile.id)
+      if (index >= 0) dashboards.value[index] = profile
+      customWidgets.value = readProfileWidgets(profile)
+    }
+    activeRoomName.value = title
+    localStorage.setItem('domus_active_tablet_dashboard', currentDashboardId.value)
+    isDashboardEditorOpen.value = false
+  } catch (err: any) {
+    dashboardError.value = err?.message || 'Impossibile salvare la dashboard. Riprova.'
+  } finally { dashboardSaving.value = false }
+}
+
+async function deleteCurrentDashboard() {
+  const profile = currentProfile.value
+  if (!profile || profile.is_default) return
+  if (!window.confirm('Eliminare la dashboard "' + profile.title + '"?')) return
+  try {
+    await apiClient.delete('/api/v1/dashboards/' + profile.id)
+    dashboards.value = dashboards.value.filter(d => d.id !== profile.id)
+    currentDashboardId.value = dashboards.value[0]?.id || ''
+    switchDashboardProfile()
+  } catch (err: any) {
+    dashboardError.value = err?.message || 'Impossibile eliminare la dashboard.'
+  }
+}
+
 function switchDashboardProfile() {
   const profile = dashboards.value.find(d => d.id === currentDashboardId.value)
   if (profile) {
@@ -106,7 +222,8 @@ function switchDashboardProfile() {
       if (cfg.target_temp) {
         targetTemp.value = cfg.target_temp
       }
-      activeRoomName.value = cfg.room || t('dashboard.view.roomLivingRoom')
+      activeRoomName.value = cfg.room || profile.title || t('dashboard.view.roomLivingRoom')
+      customWidgets.value = readProfileWidgets(profile)
     } catch {}
 
     if (profile.kiosk_config_json) {
@@ -350,6 +467,12 @@ onUnmounted(() => {
           </option>
         </select>
 
+        <button class="kiosk-config-btn" @click="openDashboardEditor(false)" title="Personalizza dashboard">
+          <Settings2 :size="18" /><span>Personalizza</span>
+        </button>
+        <button class="kiosk-config-btn" @click="openDashboardEditor(true)" title="Crea una nuova dashboard">+ Nuova</button>
+        <button v-if="currentProfile && !currentProfile.is_default" class="kiosk-config-btn dashboard-delete-btn" @click="deleteCurrentDashboard">Elimina</button>
+
         <button class="kiosk-config-btn" @click="isKioskConfigModalOpen = true" :title="t('dashboard.view.configureKiosk')">
           <Settings2 :size="18" />
           <span>{{ t('dashboard.view.configureKioskButton') }}</span>
@@ -506,6 +629,59 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
+
+
+    <section v-if="customWidgets.length" class="custom-widget-grid" aria-label="Widget personalizzati">
+      <article v-for="widget in customWidgets" :key="widget.id" class="widget-card custom-widget-card glass-panel"
+        :style="{ '--widget-col-span': widget.col_span, '--widget-row-span': widget.row_span }">
+        <header class="card-header">
+          <div class="header-left"><LayoutDashboard :size="20" class="text-primary" /><span class="card-title">{{ widget.title }}</span></div>
+          <span class="badge">{{ widget.type }}</span>
+        </header>
+        <div class="custom-widget-content">
+          <template v-if="widget.type === 'thermostat'"><strong class="custom-widget-value">{{ targetTemp.toFixed(1) }}°C</strong><span>Setpoint ambiente</span></template>
+          <template v-else-if="widget.type === 'temperature'"><strong class="custom-widget-value">{{ currentTemp.toFixed(1) }}°C</strong><span>Temperatura rilevata</span></template>
+          <template v-else-if="widget.type === 'energy'"><strong class="custom-widget-value">{{ houseWatts }} W</strong><span>Potenza istantanea casa</span></template>
+          <template v-else-if="widget.type === 'entity'"><strong class="custom-widget-value">{{ widget.entity_key || 'Entità non selezionata' }}</strong><span>Entità Domus configurata</span></template>
+          <template v-else><p>{{ widget.config?.text || widget.entity_key || 'Widget di testo personalizzato' }}</p></template>
+        </div>
+      </article>
+    </section>
+
+    <div v-if="isDashboardEditorOpen" class="modal-backdrop dashboard-editor-backdrop" @click.self="isDashboardEditorOpen = false">
+      <section class="dashboard-editor glass-panel" role="dialog" aria-modal="true" aria-labelledby="dashboard-editor-title">
+        <header class="modal-header">
+          <div><h3 id="dashboard-editor-title" class="modal-title">{{ isCreatingDashboard ? 'Crea dashboard personalizzata' : 'Personalizza dashboard' }}</h3><p class="field-hint">Scegli nome, widget e dimensioni della griglia.</p></div>
+          <button class="btn-close-modal" @click="isDashboardEditorOpen = false" aria-label="Chiudi">✕</button>
+        </header>
+        <div class="modal-body dashboard-editor-body">
+          <div class="config-field"><label for="dashboard-title">Nome dashboard</label><input id="dashboard-title" v-model="dashboardTitleDraft" class="form-input" maxlength="80" placeholder="Es. Dashboard piano terra" /></div>
+          <div class="widget-builder">
+            <h4>Aggiungi widget</h4>
+            <div class="widget-builder-fields">
+              <select v-model="newWidgetType" class="form-select" aria-label="Tipo widget">
+                <option value="thermostat">Termostato</option><option value="temperature">Temperatura</option><option value="energy">Energia</option><option value="entity">Entità</option><option value="text">Testo / Nota</option>
+              </select>
+              <input v-model="newWidgetTitle" class="form-input" placeholder="Titolo widget (facoltativo)" aria-label="Titolo widget" />
+              <input v-model="newWidgetEntity" class="form-input" placeholder="Entity ID (facoltativo)" aria-label="Entity ID" />
+              <button class="btn-save" type="button" @click="addDashboardWidget">Aggiungi</button>
+            </div>
+          </div>
+          <div class="widget-draft-list">
+            <h4>Widget della dashboard ({{ widgetDrafts.length }})</h4>
+            <p v-if="widgetDrafts.length === 0" class="field-hint">Nessun widget aggiunto. Puoi creare una dashboard vuota e configurarla in seguito.</p>
+            <article v-for="widget in widgetDrafts" :key="widget.id" class="widget-draft-row">
+              <div class="widget-draft-main"><strong>{{ widget.title }}</strong><small>{{ widget.type }} <span v-if="widget.entity_key">· {{ widget.entity_key }}</span></small></div>
+              <label class="widget-span-control">Colonne<select v-model.number="widget.col_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option><option :value="4">4</option></select></label>
+              <label class="widget-span-control">Righe<select v-model.number="widget.row_span" class="form-select"><option :value="1">1</option><option :value="2">2</option><option :value="3">3</option></select></label>
+              <button type="button" class="btn-cancel" @click="removeDashboardWidget(widget.id)" :aria-label="'Rimuovi ' + widget.title">Rimuovi</button>
+            </article>
+          </div>
+          <p v-if="dashboardError" class="dashboard-editor-error" role="alert">{{ dashboardError }}</p>
+        </div>
+        <footer class="modal-footer"><button class="btn-cancel" type="button" @click="isDashboardEditorOpen = false">Annulla</button><button class="btn-save" type="button" :disabled="dashboardSaving" @click="saveDashboardEditor">{{ dashboardSaving ? 'Salvataggio…' : 'Salva dashboard' }}</button></footer>
+      </section>
+    </div>
 
     <!-- 4. Screensaver Overlay for Wall Tablet Kiosk Mode -->
     <transition name="fade">
@@ -1240,4 +1416,59 @@ onUnmounted(() => {
   border-color: #cbd5e1;
   color: #0f172a;
 }
+
+/* Responsive dashboard composition and editor */
+.custom-dash-container, .custom-dash-container * { box-sizing: border-box; }
+.custom-dash-container { width: 100%; min-width: 0; overflow-x: clip; padding-inline: clamp(.75rem, 2.5vw, 1.5rem); }
+.dash-header, .dash-title-group, .dash-actions, .card-header, .header-left { min-width: 0; }
+.dash-header { flex-wrap: wrap; gap: 1rem; }
+.dash-actions { flex-wrap: wrap; justify-content: flex-end; }
+.profile-select { min-width: 0; max-width: 100%; }
+.widget-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); min-width: 0; }
+.widget-card { min-width: 0; overflow-wrap: anywhere; }
+.custom-widget-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.custom-widget-card { min-width: 0; grid-column: span min(var(--widget-col-span, 1), 4); grid-row: span min(var(--widget-row-span, 1), 3); }
+.custom-widget-content { min-width: 0; display: flex; flex-direction: column; gap: .5rem; align-items: flex-start; color: var(--text-muted); }
+.custom-widget-value { font-size: clamp(1.35rem, 4vw, 2rem); color: var(--text-main); overflow-wrap: anywhere; }
+.dashboard-editor-backdrop { overflow-y: auto; padding: max(.5rem, env(safe-area-inset-top)) max(.5rem, env(safe-area-inset-right)) max(.5rem, env(safe-area-inset-bottom)) max(.5rem, env(safe-area-inset-left)); }
+.dashboard-editor { width: min(100%, 760px); max-width: 100%; max-height: calc(100vh - 1rem); max-height: calc(100dvh - 1rem); min-width: 0; margin: auto; display: flex; flex-direction: column; overflow: hidden; border-radius: 1rem; }
+.dashboard-editor-body { min-height: 0; max-height: none; overflow-y: auto; }
+.widget-builder, .widget-draft-list { display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+.widget-builder h4, .widget-draft-list h4 { margin: 0; color: var(--text-main); }
+.widget-builder-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.widget-builder-fields > * { min-width: 0; }
+.widget-draft-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: .65rem; align-items: center; padding: .75rem; border: 1px solid var(--border-color); border-radius: .75rem; }
+.widget-draft-main { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; color: var(--text-main); }
+.widget-draft-main small { color: var(--text-muted); }
+.widget-span-control { display: flex; flex-direction: column; gap: .25rem; font-size: .75rem; color: var(--text-muted); }
+.widget-span-control .form-select { min-width: 4rem; }
+.dashboard-editor-error { color: var(--color-danger, #ef4444); margin: 0; }
+.dashboard-delete-btn { color: var(--color-danger, #ef4444); }
+@media (max-width: 900px) { .custom-widget-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .custom-widget-card { grid-column: span min(var(--widget-col-span, 1), 2); } }
+@media (max-width: 640px) {
+  .custom-dash-container { padding: .75rem; } .custom-dash-container.kiosk-active { padding: .75rem; }
+  .dash-header { align-items: stretch; padding: 1rem; margin-bottom: 1rem; }
+  .dash-title-group { align-items: flex-start; } .dash-title { font-size: 1.2rem; overflow-wrap: anywhere; }
+  .dash-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: .5rem; }
+  .dash-actions > * { width: 100%; min-width: 0; justify-content: center; } .profile-select { grid-column: 1 / -1; }
+  .widget-grid, .custom-widget-grid { grid-template-columns: minmax(0, 1fr); gap: .85rem; }
+  .custom-widget-card { grid-column: 1; grid-row: auto; } .widget-card { padding: 1rem; }
+  .card-header { align-items: flex-start; flex-wrap: wrap; gap: .5rem; } .header-left { align-items: flex-start; }
+  .card-title { overflow-wrap: anywhere; } .spark-footer { flex-wrap: wrap; gap: .35rem .75rem; }
+  .vectors-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modal-backdrop { align-items: flex-start; }
+  .kiosk-modal, .pin-modal, .dashboard-editor { width: 100%; max-width: 100%; max-height: calc(100dvh - 1rem); }
+  .modal-body { max-height: none; min-height: 0; } .widget-builder-fields { grid-template-columns: minmax(0, 1fr); }
+  .widget-draft-row { grid-template-columns: minmax(0, 1fr) minmax(4.5rem, auto) minmax(4.5rem, auto); }
+  .widget-draft-row .btn-cancel { grid-column: 1 / -1; }
+  .modal-footer, .pin-actions { flex-wrap: wrap; } .modal-footer > *, .pin-actions > * { flex: 1 1 100%; }
+  .clock-display { font-size: clamp(3rem, 18vw, 6.5rem); } .date-display { font-size: clamp(1rem, 5vw, 1.75rem); }
+}
+@media (max-width: 360px) {
+  .dash-actions { grid-template-columns: minmax(0, 1fr); }
+  .widget-draft-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .widget-draft-main, .widget-draft-row .btn-cancel { grid-column: 1 / -1; }
+  .temp-control-buttons { gap: .5rem; } .temp-btn { font-size: .95rem; }
+}
+
 </style>
