@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import PredictiveClimateView from './PredictiveClimateView.vue'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 
 vi.mock('../api/client', () => ({
   apiClient: {
@@ -87,7 +88,7 @@ describe('PredictiveClimateView.vue', () => {
     const wrapper = mount(PredictiveClimateView)
     await wrapper.vm.$nextTick()
 
-    const createBtn = wrapper.findAll('button').find((b) => b.text().includes('Nuova Zona'))
+    const createBtn = wrapper.findAll('button').find((button) => button.attributes('aria-label') === i18n.global.t('predictiveClimate.view.addZone'))
     expect(createBtn).toBeDefined()
     await createBtn!.trigger('click')
 
@@ -136,7 +137,7 @@ describe('PredictiveClimateView.vue', () => {
 
     const wrapper = mount(PredictiveClimateView)
     await new Promise((resolve) => setTimeout(resolve, 10))
-    const createBtn = wrapper.findAll('button').find((b) => b.text().includes('Nuova Zona'))
+    const createBtn = wrapper.findAll('button').find((button) => button.attributes('aria-label') === i18n.global.t('predictiveClimate.view.addZone'))
     await createBtn!.trigger('click')
 
     expect(wrapper.find('datalist#climate-entity-options option[value="climate.living_room"]').exists()).toBe(true)
