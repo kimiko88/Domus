@@ -137,16 +137,16 @@ async function rejectPackage(pkg: StorePackage, event?: Event) {
 async function handleCommunitySubmit() {
   submitError.value = ''
   if (!submitForm.value.name.trim() || !submitForm.value.package_id.trim()) {
-    submitError.value = 'Nome e ID pacchetto sono obbligatori.'
+    submitError.value = t('store.view.requiredPackageFields')
     return
   }
   const repo = submitForm.value.repository_url.trim()
   if (!repo || (!repo.startsWith('http://') && !repo.startsWith('https://'))) {
-    submitError.value = 'È richiesto un URL valido di un repository open source pubblico (es. GitHub o GitLab).'
+    submitError.value = t('store.view.repositoryRequired')
     return
   }
   if (!submitForm.value.license.trim()) {
-    submitError.value = 'È richiesta una licenza open source valida (es. Apache-2.0, MIT, GPL-3.0).'
+    submitError.value = t('store.view.licenseRequired')
     return
   }
 
@@ -186,7 +186,7 @@ async function handleCommunitySubmit() {
       }
     }
   } catch (err: any) {
-    submitError.value = err?.message || 'Errore durante la pubblicazione del pacchetto.'
+    submitError.value = err?.message || t('store.view.submissionFailed')
   } finally {
     isSubmitting.value = false
   }
@@ -380,16 +380,16 @@ onMounted(async () => {
           <div class="pkg-badges">
             <!-- Review Status / Tier Badge -->
             <span v-if="pkg.review_status === 'pending_review'" class="badge-pending">
-              <Clock :size="12" /> In Revisione
+              <Clock :size="12" /> {{ t('store.view.pendingReview') }}
             </span>
             <span v-else-if="pkg.review_status === 'rejected'" class="badge-rejected">
               Rifiutato
             </span>
             <span v-else-if="pkg.tier === 'community'" class="badge-community">
-              <Globe :size="12" /> Community
+              <Globe :size="12" /> {{ t('store.view.communityLabel') }}
             </span>
             <span v-else class="badge-verified">
-              <ShieldCheck :size="12" /> Verified
+              <ShieldCheck :size="12" /> {{ t('store.view.verifiedLabel') }}
             </span>
 
             <span class="type-tag">{{ pkg.type.replace('_', ' ').toUpperCase() }}</span>
