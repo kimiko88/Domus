@@ -3,6 +3,8 @@ module github.com/domus-hub/domus
 go 1.26.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/BurntSushi/toml v1.4.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-chi/chi/v5 v5.4.0
