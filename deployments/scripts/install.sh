@@ -35,6 +35,8 @@ DOMUS_DATA_DIR="${DOMUS_DATA_DIR:-/var/lib/domus}"
 DOMUS_WEB_DIR="${DOMUS_WEB_DIR:-/usr/local/share/domus/web}"
 DOMUS_USER="${DOMUS_USER:-domus}"
 DOMUS_GROUP="${DOMUS_GROUP:-domus}"
+DOMUS_HOST_EXPLICIT=0
+[[ -n "${DOMUS_HOST:-}" ]] && DOMUS_HOST_EXPLICIT=1
 DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
 DOMUS_COOKIE_SECURE_EXPLICIT="${DOMUS_COOKIE_SECURE+x}"
@@ -428,6 +430,84 @@ else
     fi
 fi
 
+# Tailscale Serve can bind the Tailscale interface on the same TCP port that
+# it proxies to localhost. In that case Domus must bind loopback, not 0.0.0.0.
+TAILSCALE_SERVE_STATUS=""
+TAILSCALE_SERVES_DOMUS=0
+TAILSCALE_SERVE_URL=""
+if command -v tailscale >/dev/null 2>&1; then
+    TAILSCALE_SERVE_STATUS="$(tailscale serve status 2>/dev/null || true)"
+    if [[ -n "${TAILSCALE_SERVE_STATUS}" ]] && printf '%s\\n' "${TAILSCALE_SERVE_STATUS}" | awk -v port="${DOMUS_PORT}" '
+        $0 ~ "^[[:space:]]*https?://[^[:space:]]+:" port "[[:space:]]+\\(tailnet only\\)[[:space:]]*$" {
+            matching_service = 1
+            next
+        }
+        matching_service && $0 ~ "proxy http://127\\.0\\.0\\.1:" port "(/)?[[:space:]]*$" {
+            found = 1
+            matching_service = 0
+        }
+        matching_service && $0 ~ "^[[:space:]]*https?://" {
+            matching_service = 0
+        }
+        END { exit(found ? 0 : 1) }
+    '; then
+        TAILSCALE_SERVES_DOMUS=1
+        TAILSCALE_SERVE_URL="$(printf '%s\\n' "${TAILSCALE_SERVE_STATUS}" | grep -E "https?://[^[:space:]]+:${DOMUS_PORT} \\(tailnet only\\)" | head -n 1 | awk '{print $1}' || true)"
+    fi
+fi
+
+# Re-read the effective host for both fresh and existing configurations.
+cfg_host="$(awk -F= '/^[[:space:]]*host[[:space:]]*=/ {gsub(/[[:space:]"]/, "", $2); print $2; exit}' "${CONFIG_TARGET}")"
+
+if (( TAILSCALE_SERVES_DOMUS )); then
+    if (( DOMUS_HOST_EXPLICIT )) && [[ "${DOMUS_HOST}" != "127.0.0.1" && "${DOMUS_HOST}" != "localhost" ]]; then
+        log_error "Tailscale Serve listens on TCP ${DOMUS_PORT} and proxies to 127.0.0.1:${DOMUS_PORT}."
+        log_error "DOMUS_HOST=${DOMUS_HOST} conflicts with that setup. Re-run with DOMUS_HOST=127.0.0.1 or change the Tailscale Serve backend."
+        exit 1
+    fi
+
+    desired_host="${DOMUS_HOST}"
+    if (( ! DOMUS_HOST_EXPLICIT )); then
+        desired_host="127.0.0.1"
+    fi
+
+    if [[ "${cfg_host}" != "${desired_host}" ]]; then
+        if grep -Eq '^[[:space:]]*host[[:space:]]*=' "${CONFIG_TARGET}"; then
+            sed -i -E "s|^[[:space:]]*host[[:space:]]*=.*|host = \"${desired_host}\"|" "${CONFIG_TARGET}"
+        elif grep -q '^\\[server\\]' "${CONFIG_TARGET}"; then
+            sed -i "/^\\[server\\]/a host = \"${desired_host}\"" "${CONFIG_TARGET}"
+        else
+            log_error "Cannot set server.host: [server] section is missing in ${CONFIG_TARGET}"
+            exit 1
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+        chmod 0640 "${CONFIG_TARGET}"
+    fi
+
+    cfg_host="${desired_host}"
+    DOMUS_HOST="${desired_host}"
+    log_warn "Detected Tailscale Serve on port ${DOMUS_PORT} forwarding to localhost. Domus will bind to ${cfg_host} so it does not collide with tailscaled."
+    log_info "Tailscale Serve remains the remote entry point; direct LAN access is not available with this loopback binding."
+fi
+
+# Check only sockets that overlap Domus' configured bind address. A Tailscale
+# listener on 100.x/200:: addresses does not conflict with 127.0.0.1.
+port_conflict_info() {
+    local host="$1" port="$2" listeners
+    listeners="$(ss -H -ltnp "sport = :${port}" 2>/dev/null || true)"
+    case "${host}" in
+        127.0.0.1)
+            awk -v suffix=":${port}" '$4 == "127.0.0.1" suffix || $4 == "0.0.0.0" suffix || $4 == "[::]" suffix || $4 == "*" suffix { print }' <<< "${listeners}"
+            ;;
+        localhost)
+            awk -v suffix=":${port}" '$4 == "127.0.0.1" suffix || $4 == "[::1]" suffix || $4 == "0.0.0.0" suffix || $4 == "[::]" suffix || $4 == "*" suffix { print }' <<< "${listeners}"
+            ;;
+        *)
+            printf '%s\\n' "${listeners}"
+            ;;
+    esac
+}
+
 # Optional secrets and environment overrides. Preserve an existing file.
 ENV_FILE="${DOMUS_CONFIG_DIR}/domus.env"
 if [[ ! -f "${ENV_FILE}" ]]; then
@@ -589,7 +669,7 @@ if (( HAVE_SYSTEMD )); then
     # a second instance when another process still owns the configured port.
     # This avoids reporting a false-positive health check against that process.
     if command -v ss >/dev/null 2>&1; then
-        port_listener="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
+        port_listener="$(port_conflict_info "${cfg_host}" "${DOMUS_PORT}")"
         if [[ -n "${port_listener}" ]]; then
             log_error "TCP port ${DOMUS_PORT} is already in use; Domus was not started."
             printf '%s\n' "${port_listener}" >&2
@@ -653,8 +733,18 @@ fi
 LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
 echo -e "${GREEN}${BOLD}=== Domus installed ===${NC}"
-echo -e "Web UI    : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/${NC}   (or http://$(hostname).local:${DOMUS_PORT}/)"
-echo -e "API docs  : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/docs${NC}"
+if [[ "${cfg_host}" == "127.0.0.1" || "${cfg_host}" == "localhost" ]]; then
+    echo -e "Web UI    : ${CYAN}http://127.0.0.1:${DOMUS_PORT}/${NC} (solo locale)"
+    if (( TAILSCALE_SERVES_DOMUS )) && [[ -n "${TAILSCALE_SERVE_URL}" ]]; then
+        echo -e "Tailscale : ${CYAN}${TAILSCALE_SERVE_URL}/${NC} (tailnet only)"
+    else
+        echo -e "Remote UI : configure a reverse proxy to 127.0.0.1:${DOMUS_PORT} for remote access"
+    fi
+    echo -e "API docs  : ${CYAN}http://127.0.0.1:${DOMUS_PORT}/docs${NC}"
+else
+    echo -e "Web UI    : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/${NC}   (or http://$(hostname).local:${DOMUS_PORT}/)"
+    echo -e "API docs  : ${CYAN}http://${LAN_IP:-localhost}:${DOMUS_PORT}/docs${NC}"
+fi
 echo -e "Logs      : ${BOLD}journalctl -u domus -f${NC}"
 echo -e "Status    : ${BOLD}systemctl status domus${NC}"
 echo -e "CLI       : ${BOLD}domus-cli help${NC}"
