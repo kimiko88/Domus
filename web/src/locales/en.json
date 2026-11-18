@@ -1118,7 +1118,9 @@
       "registerPlate": "Register plate",
       "filterPerson": "Person",
       "filterVehicle": "Vehicle",
-      "filterPackage": "Package"
+      "filterPackage": "Package",
+      "aiOverviewDescription": "Local resident facial recognition using cosine similarity and automatic license-plate reading for access control.",
+      "subSecondDelay": "Sub-second latency"
     }
   },
   "shopping": {
@@ -2328,7 +2330,23 @@
       "sections": "Pantry sections",
       "inventoryTab": "Pantry & inventory",
       "recipesTab": "Recipe book",
-      "mealCalendarTab": "Meal calendar"
+      "mealCalendarTab": "Meal calendar",
+      "subtitle": "Track food stock, create recipes, plan meals and import receipts.",
+      "itemUpdated": "Food item updated successfully.",
+      "itemCreated": "Food item added to the pantry.",
+      "confirmDeleteItem": "Remove this item from the pantry?",
+      "itemDeleted": "Food item removed.",
+      "lowStockToast": "Low stock for {name} ({quantity} {unit}).",
+      "stockAdjustFailed": "Could not update stock.",
+      "recipeUpdated": "Recipe updated.",
+      "recipeCreated": "New recipe saved to your cookbook.",
+      "confirmDeleteRecipe": "Delete this recipe?",
+      "recipeDeleted": "Recipe deleted.",
+      "mealCreated": "Meal added to the calendar.",
+      "mealConsumed": "Meal consumed. Ingredients were deducted in proportion to the number of servings.",
+      "mealConsumeFailed": "Could not consume the planned meal.",
+      "confirmDeleteMeal": "Remove this meal from the calendar?",
+      "mealDeleted": "Meal removed from the calendar."
     }
   },
   "predictiveClimate": {
@@ -2457,7 +2475,23 @@
       "standardSolarGain": "Standard solar gain",
       "pressureTrend": "Trend",
       "saveConfiguration": "Save configuration",
-      "estimated": "Est."
+      "estimated": "Est.",
+      "subtitle": "Intelligent control with thermal inertia, local barometric nowcasting and solar forecasts",
+      "addZoneCta": "New zone",
+      "loadingZones": "Loading zones...",
+      "configureFirstZone": "Configure the first zone",
+      "glazedAreaLabel": "glazed area",
+      "perceived": "perceived",
+      "gain": "Gain",
+      "evaluateNow": "Evaluate now",
+      "thermalModelStart": "Thermal model & optimal start",
+      "editAction": "Edit",
+      "deleteAction": "Delete",
+      "requiredPreheat": "Required preheat",
+      "startsAt": "Starts",
+      "earlyShutdown": "Early shutdown",
+      "stopsAt": "Stops",
+      "cycleTrainingDescription": "Enter observations from a session to calibrate parameters using exponential moving average (EMA)."
     }
   },
   "sharedDashboard": {
