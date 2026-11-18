@@ -19,7 +19,7 @@
     "no_data": "Keine Daten verfügbar",
     "skipToContent": "Zum Hauptinhalt springen",
     "offlineReconnecting": "Verbindung zum lokalen Hub unterbrochen. Automatische Wiederverbindung läuft...",
-    "done": "Done",
+    "done": "Fertig",
     "longTermStats": {
       "region": "Langzeitstatistiken",
       "title": "Langzeitstatistiken",
@@ -655,7 +655,9 @@
       "deviceTotals": "gesamt · online · offline",
       "ipLabel": "IP",
       "firmwareLabel": "Firmware",
-      "tuyaCloudSetupInstruction": "Erstellen Sie ein Konto bei iot.tuya.com, öffnen Sie Cloud → Development und wählen Sie das Domus-Projekt aus."
+      "tuyaCloudSetupInstruction": "Erstellen Sie ein Konto bei iot.tuya.com, öffnen Sie Cloud → Development und wählen Sie das Domus-Projekt aus.",
+      "tuyaProjectIntro": "Öffne dein Projekt unter",
+      "tuyaProjectPath": "Cloud → Development → Domus-Projekt öffnen"
     }
   },
   "history": {
@@ -1316,7 +1318,7 @@
       "playbackSpeed": "Wiedergabegeschwindigkeit",
       "today24h": "Heute · 24 Stunden aufgezeichnet",
       "aiDetected": "KI-Ereignis erkannt",
-      "localVisionEngine": "Domus Local Edge Vision Engine",
+      "localVisionEngine": "Lokale Domus-Edge-Bildverarbeitung",
       "privacyGuarantee": "Datenschutzgarantie ohne Cloud",
       "registeredFamily": "Registrierte Familienmitglieder",
       "biometricProfilesActive": "Aktive biometrische 128-D-Profile",
@@ -1824,7 +1826,7 @@
     "title": "Funkdiagnose & Mesh-Karte",
     "subtitle": "Knotenübersicht, Verbindungsqualität (LQI) und aktive Mesh-Router",
     "coordinator": "Koordinator",
-    "router": "Router / Repeater",
+    "router": "Router / Verstärker",
     "endDevice": "Batteriebetriebenes Endgerät",
     "linkQuality": "Signalqualität",
     "view": {
@@ -1888,7 +1890,7 @@
       "extensionTypeFilter": "Erweiterungstyp filtern",
       "allTypes": "Alle Typen",
       "wasmPlugins": "WASM-Plugins",
-      "blueprints": "Blueprints",
+      "blueprints": "Vorlagen",
       "dashboardWidgets": "Dashboard-Widgets",
       "noSearchResults": "Keine Suchergebnisse",
       "noPackages": "Keine Pakete verfügbar",
@@ -2084,7 +2086,14 @@
         "dry": "Entfeuchten",
         "fanOnly": "Nur Lüfter",
         "other": "Anderer Modus"
-      }
+      },
+      "monday": "Montag",
+      "tuesday": "Dienstag",
+      "wednesday": "Mittwoch",
+      "thursday": "Donnerstag",
+      "friday": "Freitag",
+      "saturday": "Samstag",
+      "sunday": "Sonntag"
     }
   },
   "login": {
@@ -2189,7 +2198,10 @@
     "fallbackSatellites": {
       "livingRoom": "Wandtablet im Wohnzimmer",
       "kitchen": "Smart Display in der Küche",
-      "bedroom": "Nachttisch-Tablet"
+      "bedroom": "Nachttisch-Tablet",
+      "livingRoomArea": "Wohnzimmer",
+      "kitchenArea": "Küche",
+      "bedroomArea": "Schlafzimmer"
     }
   },
   "flasher": {
@@ -2373,7 +2385,14 @@
       "thresholdHelp": "Lege mindestens einen der beiden Schwellenwerte fest.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Dieser Bedingungstyp kann nicht mit den visuellen Steuerelementen bearbeitet werden. Die ursprüngliche Konfiguration bleibt unverändert.",
-      "entityLabel": "Entität"
+      "entityLabel": "Entität",
+      "stateLabel": "Erforderlicher Zustand",
+      "sensorLabel": "Sensor",
+      "aboveLabel": "Größer als",
+      "belowLabel": "Kleiner als",
+      "afterLabel": "Nach",
+      "beforeLabel": "Vor",
+      "triggerIdLabel": "Auslöser-ID"
     }
   },
   "failover": {
@@ -2443,7 +2462,7 @@
     "featuresCount": "13 Dokumentierte Bereiche",
     "quickTipsTitle": "Schnelle Tipps & Architektur",
     "quickTipsDesc": "Domus ist so konzipiert, dass es auch bei Internetausfällen völlig autonom weiterläuft.",
-    "sec7RouteLabel": "Dashboard & Alarm",
+    "sec7RouteLabel": "Dashboard und Alarmanlage",
     "sec1Title": "Lokale & Datenschutzorientierte Architektur",
     "sec1Desc": "100% Offline-Betrieb auf Raspberry Pi 4 mit SQLite WAL, In-Memory Event Bus und ohne Cloud-Übertragung.",
     "sec1H1": "Eingebettete SQLite im WAL-Modus für extrem schnelle gleichzeitige Lesezugriffe.",
@@ -2952,9 +2971,9 @@
         "mealTypes": {
           "breakfast": "Frühstück",
           "lunch": "Mittagessen",
-          "snack": "Snack",
+          "snack": "Zwischenmahlzeit",
           "dinner": "Abendessen",
-          "dessert": "Dessert"
+          "dessert": "Nachspeise"
         }
       },
       "recipeEditor": {
@@ -2964,8 +2983,8 @@
           "sideDish": "🥗 Beilage",
           "singleDish": "🍲 Einzelgericht",
           "breakfast": "☕ Frühstück",
-          "dessert": "🍰 Dessert",
-          "snack": "🥪 Snack"
+          "dessert": "🍰 Nachspeise",
+          "snack": "🥪 Zwischenmahlzeit"
         },
         "units": {
           "grams": "g (Gramm)",
@@ -3021,7 +3040,10 @@
         "expiring": "Läuft in 3 Tagen ab",
         "expiringSub": "Bald verbrauchen",
         "cookable": "Was kann ich kochen?",
-        "cookableSub": "100 % der Zutaten verfügbar"
+        "cookableSub": "100 % der Zutaten verfügbar",
+        "filterLowStock": "Artikel mit niedrigem Bestand filtern",
+        "filterExpiring": "Bald ablaufende Artikel filtern",
+        "showCookable": "Heute kochbare Rezepte anzeigen"
       },
       "cookableRecipes": "zubereitbare Rezepte"
     }
