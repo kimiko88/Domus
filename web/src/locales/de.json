@@ -335,7 +335,8 @@
     "saveSuccess": "Bereich erfolgreich gespeichert",
     "saveError": "Bereich konnte nicht gespeichert werden",
     "deleteSuccess": "Bereich erfolgreich gelöscht",
-    "deleteError": "Bereich konnte nicht gelöscht werden"
+    "deleteError": "Bereich konnte nicht gelöscht werden",
+    "nameRequired": "Ein Bereichsname ist erforderlich."
   },
   "devices": {
     "title": "Geräte",
@@ -1514,7 +1515,12 @@
       "manualOverrideExpiryHint": "Nach Ablauf stellt Domus den vorherigen Sollwert wieder her.",
       "noProgrammableSetpoint": "Dieses Gerät stellt keinen programmierbaren Sollwert bereit.",
       "deleteTimeSlot": "Zeitfenster löschen",
-      "deleteTimeSlotAria": "Zeitfenster löschen"
+      "deleteTimeSlotAria": "Zeitfenster löschen",
+      "eventSources": {
+        "entity": "Domus-Entität",
+        "tuya_local": "Tuya lokal",
+        "tuya_cloud": "Tuya Cloud"
+      }
     }
   },
   "login": {
