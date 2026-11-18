@@ -306,7 +306,7 @@ function navigateTo(path: string) {
           type="search"
           :placeholder="t('guide.searchPlaceholder')"
           class="search-input"
-          aria-label="Cerca nella guida"
+          :aria-label="t('guide.searchAria')"
           autocomplete="off"
         />
       </div>
@@ -384,7 +384,7 @@ function navigateTo(path: string) {
           <button
             class="btn-expand"
             :aria-expanded="expandedSections[topic.id]"
-            :aria-label="expandedSections[topic.id] ? 'Comprimi' : 'Espandi'"
+            :aria-label="expandedSections[topic.id] ? t('guide.collapseSection') : t('guide.expandSection')"
           >
             <ChevronUp v-if="expandedSections[topic.id]" :size="18" />
             <ChevronDown v-else :size="18" />
