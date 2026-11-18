@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	domainchore "github.com/domus-hub/domus/internal/domain/chore"
 	domainmedicine "github.com/domus-hub/domus/internal/domain/medicine"
 	domainnotification "github.com/domus-hub/domus/internal/domain/notification"
 	domainpantry "github.com/domus-hub/domus/internal/domain/pantry"
@@ -17,6 +18,7 @@ import (
 
 type ReminderScheduler struct {
 	push       *WebPushService
+	chores     domainchore.Repository
 	medicines  domainmedicine.Repository
 	pantry     domainpantry.PantryRepository
 	interval   time.Duration
@@ -26,10 +28,10 @@ type ReminderScheduler struct {
 	done       chan struct{}
 }
 
-func NewReminderScheduler(push *WebPushService, medicines domainmedicine.Repository, pantry domainpantry.PantryRepository, interval time.Duration, logger *slog.Logger) *ReminderScheduler {
+func NewReminderScheduler(push *WebPushService, chores domainchore.Repository, medicines domainmedicine.Repository, pantry domainpantry.PantryRepository, interval time.Duration, logger *slog.Logger) *ReminderScheduler {
 	if interval <= 0 { interval = time.Hour }
 	if logger == nil { logger = slog.Default() }
-	return &ReminderScheduler{push: push, medicines: medicines, pantry: pantry, interval: interval, logger: logger}
+	return &ReminderScheduler{push: push, chores: chores, medicines: medicines, pantry: pantry, interval: interval, logger: logger}
 }
 
 func (s *ReminderScheduler) Start(parent context.Context) error {
@@ -85,6 +87,26 @@ func (s *ReminderScheduler) loop(ctx context.Context, done chan struct{}) {
 func (s *ReminderScheduler) Check(ctx context.Context) error {
 	if s.push == nil || !s.push.Enabled() { return nil }
 	var failures []error
+
+	if s.chores != nil {
+		overdue, listErr := s.chores.List(ctx, domainchore.Filter{Status: domainchore.StatusOverdue})
+		if listErr != nil {
+			failures = append(failures, fmt.Errorf("list overdue chores: %w", listErr))
+		} else {
+			recipients, recipientErr := s.push.Recipients(ctx, "task_alerts")
+			if recipientErr != nil { failures = append(failures, recipientErr) }
+			for _, task := range overdue {
+				for _, recipient := range recipients {
+					if task.AssignedUserID != "" && task.AssignedUserID != recipient.UserID { continue }
+					key := "task:due:" + task.ID
+					data := map[string]any{"kind":"task_due","name":task.Title,"task_id":task.ID,"url":"/chores"}
+					if err := s.push.SendOnce(ctx, recipient.UserID, key, "Promemoria faccenda", task.Title, "task_alerts", data); err != nil {
+						failures = append(failures, fmt.Errorf("task %s for user %s: %w", task.ID, recipient.UserID, err))
+					}
+				}
+			}
+		}
+	}
 
 	medicineExpiryRecipients, err := s.push.Recipients(ctx, "medicine_expiry_alerts")
 	if err != nil { failures = append(failures, err) }
