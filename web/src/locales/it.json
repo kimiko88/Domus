@@ -2511,7 +2511,11 @@
       "startsAt": "Avvio",
       "earlyShutdown": "Spegnimento anticipato",
       "stopsAt": "Stop",
-      "cycleTrainingDescription": "Inserisci i dati osservati durante una sessione per calibrare i parametri con livellamento esponenziale (EMA)."
+      "cycleTrainingDescription": "Inserisci i dati osservati durante una sessione per calibrare i parametri con livellamento esponenziale (EMA).",
+      "preheatNoAdvanceReason": "La temperatura attuale ({current} °C) è già al livello di comfort desiderato ({target} °C): non serve anticipare l'accensione.",
+      "preheatScheduledReason": "Accensione anticipata di {minutes} min alle {start} per raggiungere {target} °C alle {targetTime} (velocità stimata {rate} °C/h; temperatura esterna {outdoor} °C).",
+      "coastDownNoShutdownReason": "Non serve spegnere in anticipo: la temperatura è già sotto il limite di comfort ({limit} °C).",
+      "coastDownScheduledReason": "Spegnimento anticipato di {minutes} min alle {stop}, prima della partenza alle {departure}; risparmio stimato {energy} kWh."
     }
   },
   "sharedDashboard": {
