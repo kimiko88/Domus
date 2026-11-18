@@ -168,7 +168,9 @@
       "deleteFailed": "Unable to delete the item. Please try again.",
       "actionFailed": "Unable to complete the action. Please try again.",
       "syncFailed": "Synchronization failed. Please try again.",
-      "exportFailed": "Export failed. Please try again."
+      "exportFailed": "Export failed. Please try again.",
+      "pdfTooLarge": "The PDF exceeds the 3 MB limit.",
+      "imageTooLarge": "The image exceeds the 4 MB limit."
     },
     "close": "Close"
   },
