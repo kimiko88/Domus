@@ -168,7 +168,9 @@
       "deleteFailed": "Das Element konnte nicht gelöscht werden. Bitte erneut versuchen.",
       "actionFailed": "Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
       "syncFailed": "Die Synchronisierung ist fehlgeschlagen. Bitte erneut versuchen.",
-      "exportFailed": "Der Export ist fehlgeschlagen. Bitte erneut versuchen."
+      "exportFailed": "Der Export ist fehlgeschlagen. Bitte erneut versuchen.",
+      "pdfTooLarge": "Die PDF-Datei überschreitet das Limit von 3 MB.",
+      "imageTooLarge": "Das Bild überschreitet das Limit von 4 MB."
     },
     "close": "Schließen"
   },
