@@ -1118,7 +1118,9 @@
       "registerPlate": "Registra targa",
       "filterPerson": "Persona",
       "filterVehicle": "Veicolo",
-      "filterPackage": "Pacco"
+      "filterPackage": "Pacco",
+      "aiOverviewDescription": "Riconoscimento facciale locale dei residenti tramite similarità coseno e lettura automatica delle targhe per il controllo degli accessi.",
+      "subSecondDelay": "Latenza inferiore a un secondo"
     }
   },
   "shopping": {
@@ -2328,7 +2330,23 @@
       "sections": "Sezioni dispensa",
       "inventoryTab": "Dispensa e scorte",
       "recipesTab": "Ricettario",
-      "mealCalendarTab": "Calendario pasti"
+      "mealCalendarTab": "Calendario pasti",
+      "subtitle": "Monitora le scorte alimentari, crea ricette, pianifica i pasti e importa gli scontrini.",
+      "itemUpdated": "Alimento aggiornato con successo.",
+      "itemCreated": "Alimento aggiunto alla dispensa.",
+      "confirmDeleteItem": "Vuoi rimuovere questo articolo dalla dispensa?",
+      "itemDeleted": "Alimento rimosso.",
+      "lowStockToast": "Scorta bassa per {name} ({quantity} {unit}).",
+      "stockAdjustFailed": "Errore durante la modifica delle scorte.",
+      "recipeUpdated": "Ricetta aggiornata.",
+      "recipeCreated": "Nuova ricetta salvata nel ricettario.",
+      "confirmDeleteRecipe": "Vuoi eliminare questa ricetta?",
+      "recipeDeleted": "Ricetta eliminata.",
+      "mealCreated": "Pasto pianificato nel calendario.",
+      "mealConsumed": "Pasto consumato. Gli ingredienti sono stati scalati in proporzione ai commensali.",
+      "mealConsumeFailed": "Errore durante il consumo del pasto.",
+      "confirmDeleteMeal": "Vuoi rimuovere questo pasto dal calendario?",
+      "mealDeleted": "Pasto rimosso dal calendario."
     }
   },
   "predictiveClimate": {
@@ -2457,7 +2475,23 @@
       "standardSolarGain": "Apporto solare standard",
       "pressureTrend": "Tendenza",
       "saveConfiguration": "Salva configurazione",
-      "estimated": "Stima"
+      "estimated": "Stima",
+      "subtitle": "Controllo intelligente con inerzia termica, nowcasting barometrico locale e previsioni solari",
+      "addZoneCta": "Nuova zona",
+      "loadingZones": "Caricamento delle zone in corso...",
+      "configureFirstZone": "Configura la prima zona",
+      "glazedAreaLabel": "superficie vetrata",
+      "perceived": "percepita",
+      "gain": "Guadagno",
+      "evaluateNow": "Valuta ora",
+      "thermalModelStart": "Modello termico e avvio",
+      "editAction": "Modifica",
+      "deleteAction": "Elimina",
+      "requiredPreheat": "Anticipo richiesto",
+      "startsAt": "Avvio",
+      "earlyShutdown": "Spegnimento anticipato",
+      "stopsAt": "Stop",
+      "cycleTrainingDescription": "Inserisci i dati osservati durante una sessione per calibrare i parametri con livellamento esponenziale (EMA)."
     }
   },
   "sharedDashboard": {
