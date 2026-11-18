@@ -349,4 +349,34 @@ Object.assign(ru.dashboardMarketplace || (ru.dashboardMarketplace = {}), { commu
 Object.assign(ru.sharedDashboard, { expiresOn: 'Срок действия до:' });
 Object.assign(ru.predictiveClimate.view, { close: 'Закрыть' });
 
+
+Object.assign(ru.floorplan.view, {
+  commandSentTitle: 'Команда отправлена', entityTurnedOn: '{name}: включено', entityTurnedOff: '{name}: выключено',
+  commandFailed: 'Не удалось отправить команду', positionSavedTitle: 'Позиция сохранена',
+  positionSavedMessage: 'Устройство размещено на плане', markerSaveFailed: 'Не удалось сохранить маркер',
+  markerRemovedTitle: 'Устройство удалено', markerRemovedMessage: 'Устройство удалено с плана',
+  markerRemoveFailed: 'Не удалось удалить маркер',
+  roomNames: { living: 'Гостиная', room: 'Комната', livingOpen: 'Гостиная открытой планировки', kitchen: 'Кухня', masterBedroom: 'Спальня', bathroom: 'Ванная', office: 'Кабинет / офис' },
+  roomCreatedTitle: 'Комната создана', roomCreatedMessage: 'Комната «{name}» добавлена на план',
+  floorplanGeneratedTitle: 'План создан', floorplanGeneratedMessage: 'Подготовлено пять комнат со стандартной планировкой',
+  roomRemovedTitle: 'Комната удалена', roomRemovedMessage: 'Комната удалена с плана',
+  floorCreatedTitle: 'Этаж создан', floorCreatedMessage: 'Новый этаж добавлен на план', floorCreateFailed: 'Не удалось создать этаж'
+});
+Object.assign(ru.devices.view, {
+  addToDomus: 'Добавить в Domus', scanCompletedTitle: 'Сканирование сети завершено',
+  scanCompletedMessage: 'В локальной сети найдено устройств: {count}', scanErrorTitle: 'Ошибка сканирования',
+  scanErrorMessage: 'Не удалось завершить сканирование', deviceAddedTitle: 'Устройство добавлено',
+  deviceAddedMessage: '{name} теперь настроено в Domus.', addDeviceErrorTitle: 'Ошибка добавления устройства',
+  addDeviceErrorMessage: 'Не удалось добавить устройство', matterConnectedTitle: 'Matter подключён',
+  matterConnectedMessage: 'Устройство подключено к локальной сети Thread', devicesUpdatedTitle: 'Устройства обновлены',
+  devicesUpdatedMessage: 'Список устройств и состояние интеграций обновлены.',
+  refreshErrorTitle: 'Ошибка обновления', refreshErrorMessage: 'Не удалось обновить устройства.'
+});
+Object.assign(ru.dashboard.view, {
+  extensionUninstalled: 'Расширение успешно удалено', extensionInstalled: 'Расширение установлено и активно локально',
+  extensionToggleFailed: 'Не удалось изменить состояние пакета'
+});
+Object.assign(ru.store.view, { rejectedByAdministrator: 'Отклонено администратором' });
+Object.assign(ru.integrations.view, { deviceTotals: 'всего · онлайн · офлайн' });
+
 export default ru
