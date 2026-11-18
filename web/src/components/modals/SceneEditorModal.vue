@@ -71,7 +71,7 @@ function handleSubmit() {
     return
   }
   if (actions.value.length === 0) {
-    error.value = 'Aggiungi almeno un\'azione'
+    error.value = t('scenes.editor.actionRequired')
     return
   }
   for (const a of actions.value) {
