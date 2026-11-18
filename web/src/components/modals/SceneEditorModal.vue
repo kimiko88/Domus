@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Scene, SceneAction } from '../../api/types'
 import BaseButton from '../ui/BaseButton.vue'
 import { useModalA11y } from '../../composables/useModalA11y'
@@ -26,6 +27,8 @@ useModalA11y({
   modalRef: modalContainerRef,
   onClose: () => emit('close')
 })
+
+const { t } = useI18n()
 
 const name = ref('')
 const icon = ref('clapperboard')
@@ -64,7 +67,7 @@ function removeAction(index: number) {
 function handleSubmit() {
   error.value = null
   if (!name.value.trim()) {
-    error.value = 'Il nome della scena è obbligatorio'
+    error.value = t('scenes.editor.nameRequired')
     return
   }
   if (actions.value.length === 0) {
@@ -73,7 +76,7 @@ function handleSubmit() {
   }
   for (const a of actions.value) {
     if (!a.entity_key.trim()) {
-      error.value = 'Tutte le azioni devono avere una entity_key valida'
+      error.value = t('scenes.editor.entityRequired')
       return
     }
   }
@@ -99,9 +102,9 @@ function handleSubmit() {
       <div class="modal-header">
         <div class="header-title">
           <Clapperboard :size="20" class="title-icon" />
-          <h3 id="scene-modal-title">{{ scene ? 'Modifica Scena' : 'Nuova Scena' }}</h3>
+          <h3 id="scene-modal-title">{{ scene ? t('scenes.editor.editTitle') : t('scenes.editor.newTitle') }}</h3>
         </div>
-        <button class="btn-close" aria-label="Chiudi finestra scena" @click="emit('close')">
+        <button class="btn-close" :aria-label="t('scenes.editor.closeWindow')" @click="emit('close')">
           <X :size="18" />
         </button>
       </div>
@@ -113,35 +116,35 @@ function handleSubmit() {
 
       <form class="modal-form" @submit.prevent="handleSubmit">
         <div class="form-group">
-          <label for="scene-name">Nome Scena</label>
+          <label for="scene-name">{{ t('scenes.editor.name') }}</label>
           <input
             id="scene-name"
             v-model="name"
             name="scene-name"
             type="text"
-            placeholder="es. Modalità Cinema, Buonanotte..."
+            :placeholder="t('scenes.editor.namePlaceholder')"
             required
           />
         </div>
 
         <div class="form-group">
-          <label for="scene-icon">Icona</label>
+          <label for="scene-icon">{{ t('scenes.editor.icon') }}</label>
           <select id="scene-icon" v-model="icon" name="scene-icon">
-            <option value="clapperboard">Clapperboard</option>
-            <option value="moon">Notte / Moon</option>
-            <option value="sun">Giorno / Sun</option>
-            <option value="tv">Cinema / TV</option>
-            <option value="coffee">Mattina / Coffee</option>
+            <option value="clapperboard" >{{ t('scenes.editor.icons.clapperboard') }}</option>
+            <option value="moon" >{{ t('scenes.editor.icons.night') }}</option>
+            <option value="sun" >{{ t('scenes.editor.icons.day') }}</option>
+            <option value="tv" >{{ t('scenes.editor.icons.cinema') }}</option>
+            <option value="coffee" >{{ t('scenes.editor.icons.morning') }}</option>
           </select>
         </div>
 
         <!-- Actions List -->
         <div class="actions-section">
           <div class="actions-header">
-            <label>Azioni Configurate ({{ actions.length }})</label>
+            <label>{{ t('scenes.editor.configuredActions', { count: actions.length }) }}</label>
             <button type="button" class="btn-add-action" @click="addAction">
               <Plus :size="14" />
-              <span>Aggiungi Azione</span>
+              <span>{{ t('scenes.editor.addAction') }}</span>
             </button>
           </div>
 
@@ -169,7 +172,7 @@ function handleSubmit() {
               <button
                 type="button"
                 class="btn-remove-action"
-                title="Rimuovi azione"
+                :title="t('scenes.editor.removeAction')"
                 @click="removeAction(idx)"
               >
                 <Trash2 :size="16" />
@@ -177,16 +180,16 @@ function handleSubmit() {
             </div>
           </div>
           <div v-else class="empty-actions">
-            Nessuna azione aggiunta. Clicca su "Aggiungi Azione".
+            {{ t('scenes.editor.emptyActions') }}
           </div>
         </div>
 
         <div class="modal-footer">
           <BaseButton type="button" variant="ghost" class="btn-cancel" @click="emit('close')">
-            Annulla
+            {{ t('common.cancel') }}
           </BaseButton>
           <BaseButton type="submit" variant="primary">
-            Salva Scena
+            {{ t('scenes.editor.save') }}
           </BaseButton>
         </div>
       </form>
