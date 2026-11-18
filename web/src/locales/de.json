@@ -1135,7 +1135,9 @@
     "solarSurplus": "Solarüberschuss",
     "homeLoads": "Haushaltsverbrauch",
     "total": "Gesamt",
-    "cost": "Kosten"
+    "cost": "Kosten",
+    "enableAutoSchedule": "Automatische Planung aktivieren",
+    "disableAutoSchedule": "Automatische Planung deaktivieren"
   },
   "cameras": {
     "title": "Videoüberwachung & Lokaler KI-Vision NVR",
@@ -1586,7 +1588,8 @@
         "office": "Arbeitszimmer / Büro",
         "kitchenDining": "Küche und Esszimmer",
         "bedroom": "Schlafzimmer",
-        "masterBathroom": "Hauptbadezimmer"
+        "masterBathroom": "Hauptbadezimmer",
+        "newRoom": "Neuer Raum"
       },
       "roomCreatedTitle": "Raum erstellt",
       "roomCreatedMessage": "Raum „{name}“ wurde zum Grundriss hinzugefügt",
@@ -1599,7 +1602,24 @@
       "floorCreateFailed": "Etage konnte nicht erstellt werden",
       "closeHeatmap": "Heatmap schließen",
       "heatmap25d": "2,5D-Heatmap",
-      "modeLabel": "Modus"
+      "modeLabel": "Modus",
+      "roomTypes": {
+        "living": "Wohnzimmer",
+        "kitchen": "Küche / Esszimmer",
+        "bedroom": "Schlafzimmer",
+        "bathroom": "Badezimmer",
+        "office": "Arbeitszimmer / Büro",
+        "hallway": "Flur / Eingang",
+        "balcony": "Terrasse / Balkon"
+      },
+      "colors": {
+        "oceanBlue": "Ozeanblau",
+        "emerald": "Smaragd",
+        "amber": "Bernstein",
+        "nightPurple": "Nachtviolett",
+        "skyCyan": "Himmelcyan",
+        "coralPink": "Korallrosa"
+      }
     }
   },
   "media": {
