@@ -655,7 +655,9 @@
       "deviceTotals": "total · en línea · sin conexión",
       "ipLabel": "IP",
       "firmwareLabel": "Firmware",
-      "tuyaCloudSetupInstruction": "Crea una cuenta en iot.tuya.com, abre Cloud → Development y selecciona el proyecto Domus."
+      "tuyaCloudSetupInstruction": "Crea una cuenta en iot.tuya.com, abre Cloud → Development y selecciona el proyecto Domus.",
+      "tuyaProjectIntro": "Accede a tu proyecto en",
+      "tuyaProjectPath": "Cloud → Development → abre el proyecto Domus"
     }
   },
   "history": {
