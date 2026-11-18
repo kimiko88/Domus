@@ -352,7 +352,10 @@
       "cancel": "Cancel",
       "saveDashboard": "Save dashboard",
       "closeEditor": "Close editor",
-      "deleteConfirm": "Delete dashboard “{title}”?"
+      "deleteConfirm": "Delete dashboard “{title}”?",
+      "dashboardNameRequired": "Enter a dashboard name.",
+      "saveFailed": "Unable to save the dashboard. Try again.",
+      "deleteFailed": "Unable to delete the dashboard."
     }
   },
   "areas": {
@@ -436,7 +439,8 @@
       "discoveryReady": "devices ready for immediate setup.",
       "ipPrefix": "IP:",
       "deviceCount": "devices",
-      "addToHome": "Add to your Domus smart home."
+      "addToHome": "Add to your Domus smart home.",
+      "addToDomus": "Add to Domus"
     }
   },
   "integrations": {
@@ -1283,7 +1287,10 @@
       "recognizedAs": "recognized as “{name}”",
       "quantityAria": "Quantity",
       "markItem": "Mark {name} as {status}",
-      "filterSupermarket": "Filter by {name}"
+      "filterSupermarket": "Filter by {name}",
+      "justNow": "Just now",
+      "toBuy": "to buy",
+      "bought": "purchased"
     }
   },
   "chores": {
@@ -1513,7 +1520,9 @@
       "widthShort": "W:",
       "heightShort": "H:",
       "editRoomHint": "Select a room on the floor plan to edit its position, size and color.",
-      "allDevicesPlaced": "All devices are already placed on this map!"
+      "allDevicesPlaced": "All devices are already placed on this map!",
+      "finishEditing": "Finish editing",
+      "editPositions": "Edit positions"
     }
   },
   "media": {
@@ -1706,7 +1715,8 @@
       "requiredPackageFields": "Package name and ID are required.",
       "repositoryRequired": "A valid URL for a public open-source repository is required (for example GitHub or GitLab).",
       "licenseRequired": "A valid open-source license is required (for example Apache-2.0, MIT or GPL-3.0).",
-      "submissionFailed": "Error while publishing the package."
+      "submissionFailed": "Error while publishing the package.",
+      "rejectedByAdministrator": "Rejected by the administrator"
     }
   },
   "schedules": {
@@ -2002,7 +2012,8 @@
         "climateProfileTitle": "Climate profile",
         "climateProfileDesc": "Comfort, Eco, Night, Away or a custom setpoint",
         "emitEventTitle": "Emit event",
-        "emitEventDesc": "Publish an application event with its payload"
+        "emitEventDesc": "Publish an application event with its payload",
+        "numericThresholdTitle": "Numeric threshold"
       },
       "branchContinue": "Continue",
       "timeFrom": "From (HH:MM:SS)",
@@ -2048,6 +2059,14 @@
         "simulationErrorMessage": "Unable to simulate the flow.",
         "invalidFlowTitle": "Invalid flow",
         "invalidFlowMessage": "Fix the links before exporting."
+      },
+      "newAutomationName": "New node automation",
+      "nodeTypes": {
+        "trigger": "TRIGGER",
+        "condition": "CONDITION",
+        "action": "ACTION",
+        "delay": "DELAY",
+        "logic": "LOGIC"
       }
     },
     "conditionEditor": {
