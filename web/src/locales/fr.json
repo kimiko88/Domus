@@ -1140,7 +1140,8 @@
       "filterVehicle": "Véhicule",
       "filterPackage": "Colis",
       "aiOverviewDescription": "Reconnaissance faciale locale des résidents par similarité cosinus et lecture automatique des plaques pour le contrôle d'accès.",
-      "subSecondDelay": "Latence inférieure à une seconde"
+      "subSecondDelay": "Latence inférieure à une seconde",
+      "detectionTooltip": "{label} détecté à {time} — caméra {camera}"
     }
   },
   "shopping": {
