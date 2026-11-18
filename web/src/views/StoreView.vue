@@ -383,7 +383,7 @@ onMounted(async () => {
               <Clock :size="12" /> {{ t('store.view.pendingReview') }}
             </span>
             <span v-else-if="pkg.review_status === 'rejected'" class="badge-rejected">
-              Rifiutato
+              {{ t('store.view.rejected') }}
             </span>
             <span v-else-if="pkg.tier === 'community'" class="badge-community">
               <Globe :size="12" /> {{ t('store.view.communityLabel') }}
@@ -609,7 +609,7 @@ onMounted(async () => {
               class="btn-secondary"
               @click="showSubmitModal = false"
             >
-              Annulla
+              {{ t('store.view.cancel') }}
             </button>
             <button
               type="submit"
@@ -740,7 +740,7 @@ onMounted(async () => {
             class="btn-secondary"
             @click="closeDetails"
           >
-            Chiudi
+            {{ t('store.view.close') }}
           </button>
           <button
             v-if="selectedPackage.review_status !== 'pending_review'"
