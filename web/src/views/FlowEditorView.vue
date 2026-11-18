@@ -1329,7 +1329,7 @@ onBeforeUnmount(() => {
                 <Sliders v-else :size="14" />
               </div>
               <div class="node-titles">
-                <span class="node-category">{{ node.type.toUpperCase() }}</span>
+                <span class="node-category">{{ t('flowchart.view.nodeTypes.' + node.type) }}</span>
                 <h4 class="node-title">{{ node.title }}</h4>
               </div>
               <button
