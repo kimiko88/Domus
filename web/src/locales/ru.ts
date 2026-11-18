@@ -209,4 +209,144 @@ const ru = {
   tour: { ...en.tour, stepsAria: "Шаги тура", goToStep: "Перейти к шагу {step}" },
 }
 
+
+Object.assign(ru.flowchart.view, {
+  newAutomationName: 'Новая визуальная автоматизация',
+  paletteCategories: { triggers: 'Триггеры', conditions: 'Условия', actionsFlow: 'Действия и сценарий' },
+  palette: {
+    stateChangeTitle: 'Изменение состояния', stateChangeDesc: 'Изменение состояния сущности, например выключателя или датчика',
+    numericThresholdTitle: 'Числовой порог', timeTriggerTitle: 'Запланированное время',
+    timeTriggerDesc: 'Точное время (HH:MM:SS), рассвет или закат', stateConditionTitle: 'Текущее состояние',
+    stateConditionDesc: 'Проверить, активно ли устройство', timeConditionTitle: 'Временной интервал',
+    timeConditionDesc: 'Только в заданный промежуток времени, например ночью', entityCommandTitle: 'Команда сущности',
+    entityCommandDesc: 'Включить, выключить, открыть или настроить климат', activateSceneTitle: 'Активировать сценарий',
+    activateSceneDesc: 'Применить световую атмосферу или профиль', delayTitle: 'Пауза',
+    delayDesc: 'Запланированное ожидание перед следующим шагом', sendNotificationTitle: 'Отправить уведомление',
+    sendNotificationDesc: 'Отправить приоритетное push-уведомление на смартфон', chooseTitle: 'Условный выбор',
+    chooseDesc: 'Выполнить первую ветвь с выполненными условиями, предусмотрев запасной вариант',
+    ifElseTitle: 'Если / Иначе', ifElseDesc: 'Выполнить разные последовательности в зависимости от условий',
+    repeatTitle: 'Повторить', repeatDesc: 'Повторять заданное число раз, пока или до выполнения условия',
+    parallelTitle: 'Параллельное выполнение', parallelDesc: 'Запустить несколько действий одновременно',
+    climateProfileTitle: 'Климатический профиль', climateProfileDesc: 'Комфорт, Эко, Ночь, Отсутствие или заданная температура',
+    emitEventTitle: 'Создать событие', emitEventDesc: 'Опубликовать событие приложения с данными'
+  },
+  branchContinue: 'Продолжить', timeFrom: 'С (HH:MM:SS)', timeTo: 'До (HH:MM:SS)',
+  nestedConditions: 'Вложенные условия',
+  nestedConditionsDescription: 'Настройте группы AND, OR и NOT, добавляя условия и другие группы. Неподдерживаемые типы сохраняются без изменений.',
+  triggerId: 'ID триггера', nestedConfiguration: 'Вложенная конфигурация (JSON)',
+  nestedConfigurationDescription: 'Редактируйте здесь ветви, условия и последовательности. Domus сохраняет вложенную структуру; некорректный JSON или неподдерживаемое действие блокирует сохранение.',
+  nodeTypes: { trigger: 'ТРИГГЕР', condition: 'УСЛОВИЕ', action: 'ДЕЙСТВИЕ', delay: 'ПАУЗА', logic: 'ЛОГИКА' },
+  validation: {
+    missingNode: 'В сценарии есть ссылка на несуществующий узел.',
+    invalidOrder: 'Неверный порядок: триггеры, условия и действия должны следовать порядку сценария.',
+    singleOutput: 'У узла основной последовательности может быть только один выход. Используйте именованные порты IF/ELSE или CHOOSE для создания ветвей.',
+    disconnectedNode: 'Узел «{title}» не подключён к сценарию. Подключите все условия и действия перед сохранением.',
+    cycle: 'В сценарии обнаружен цикл. Удалите циклические связи перед сохранением.',
+    missingBranchNode: 'Ветвь указывает на несуществующий узел.',
+    missingBranchPort: 'Выход «{port}» больше не существует у узла «{node}».',
+    conditionPortTarget: 'Порты условий можно подключать только к узлам условий.',
+    actionBranchTarget: 'Ветви составных действий могут содержать только действия или паузы.',
+    branchRejoin: 'Ветвь не может возвращаться в основную последовательность. Продублируйте последующие действия в каждой ветви.',
+    branchMerge: 'У каждого узла внутри ветви должна быть ровно одна входящая связь. Объединение ветвей не поддерживается.',
+    unsupportedTrigger: 'Триггер «{type}» пока нельзя изменить в визуальном редакторе. Сохранение заблокировано, чтобы не потерять исходную конфигурацию.',
+    invalidLogicJson: 'Логическое условие содержит некорректный JSON.',
+    logicObjectRequired: 'Логическое условие должно быть объектом JSON.',
+    unsupportedCondition: 'Условие «{type}» пока нельзя изменить в визуальном редакторе. Сохранение заблокировано, чтобы не потерять исходную конфигурацию.',
+    unsupportedAction: 'Это расширенное действие нельзя изменить в визуальном редакторе. Сохранение заблокировано, чтобы сохранить исходную конфигурацию.'
+  },
+  notifications: {
+    updatedTitle: 'Автоматизация обновлена', updatedMessage: '«{name}» успешно сохранена.',
+    createdTitle: 'Автоматизация создана', createdMessage: '«{name}» теперь активна на хабе.',
+    saveErrorTitle: 'Ошибка сохранения', saveErrorMessage: 'Не удалось сохранить сценарий.',
+    saveBeforeTestTitle: 'Сначала сохраните сценарий',
+    saveBeforeTestMessage: 'Перед запуском симуляции сохраните автоматизацию. Тест не отправляет команды устройствам.',
+    simulationSuccessTitle: 'Симуляция завершена', simulationSuccessMessage: 'Условия выполнены.',
+    simulationFailedTitle: 'Симуляция не пройдена',
+    simulationFailedMessage: 'Одно или несколько условий не выполнены. Проверьте подробности, чтобы найти причину.',
+    simulationResultTitle: 'Результат симуляции', simulationErrorTitle: 'Ошибка симуляции',
+    simulationErrorMessage: 'Не удалось смоделировать сценарий.', invalidFlowTitle: 'Некорректный сценарий',
+    invalidFlowMessage: 'Исправьте связи перед экспортом.'
+  }
+});
+Object.assign(ru.integrations.view, {
+  pendingPairingInstructions: 'Нажмите «Сканировать сеть» или введите IP-адрес устройства Shelly, Sonoff или Tasmota, чтобы импортировать его напрямую без облака.',
+  networkGuardianDescription: 'Активный мониторинг LAN, пассивный анализ ARP/DHCP и немедленное обнаружение несанкционированной передачи данных на внешние облачные серверы.',
+  anomaliesRegistered: 'обнаруженных аномалий', noWritableFunctions: 'API не вернул доступных для записи функций этого устройства.',
+  host: 'Узел', deviceTotals: 'всего · онлайн · офлайн'
+});
+Object.assign(ru.energy, {
+  powerWheelTitle: 'Энергетические потоки в реальном времени', powerWheelSubtitle: 'Динамическое отображение энергетических потоков с анимированными частицами.',
+  inverter: 'Инвертор', inverterStatus: 'Состояние инвертора', arbitrageSavingsToday: 'Экономия на арбитраже сегодня',
+  economicalGridCharge: 'Экономичная зарядка от сети', batteryPeakShaving: 'Снижение пиков нагрузки аккумулятором',
+  wallboxTitle: 'Интеллектуальная солнечная зарядка и Wallbox OCPP', activePower: 'Активная мощность',
+  deliveredCurrent: 'Передаваемый ток', vehicleBatterySoc: 'Аккумулятор автомобиля (SoC)',
+  sessionEnergy: 'Энергия сессии', chargingMode: 'Режим управления зарядкой', solarOnly: 'Только солнечная энергия (100% ФЭ)',
+  active: 'Активно', solarOnlyDesc: 'Зарядка только за счёт чистого избытка солнечной энергии (не менее 6 А / 1,4 кВт), без потребления из сети.',
+  solarOptimized: 'Оптимизированная солнечная зарядка (гибридная)',
+  solarOptimizedDesc: 'Поддерживает непрерывные 6 А (1,4 кВт) и динамически увеличивает ток при избытке солнечной энергии.',
+  fastCharge: 'Быстрая зарядка (максимальная мощность)',
+  fastChargeDesc: 'Зарядка с максимально доступной договорной мощностью и защитой от перегрузки счётчика.',
+  scheduledNight: 'Экономичная ночная зарядка',
+  scheduledNightDesc: 'Планируйте зарядку в периодах F3 или в ночные часы с минимальным PUN для максимальной экономии.',
+  balancingDecision: 'Решение алгоритма динамической балансировки:',
+  tariffF1: 'F1 (пиковый период: пн–пт 08–19)', tariffF2: 'F2 (средний период: пн–пт 07–08 и 19–23, сб 07–23)',
+  tariffF3: 'F3 (непиковый период: ночи, воскресенья и праздники)', electricity: 'Электричество'
+});
+Object.assign(ru.settings, {
+  updated: 'Обновлено', otaEmpty: 'Нет устройств, зарегистрированных для OTA-обновлений.',
+  nfcEmpty: 'В базе данных нет зарегистрированных NFC-меток.', testNfcScan: 'Проверить сканирование',
+  backupDescription: 'Автоматическое локальное или удалённое резервное копирование на NAS/WebDAV с шифрованием AES-256-GCM. При аппаратном сбое восстановите данные одним нажатием.',
+  vacationLightingDescription: 'Вместо включения света по фиксированному расписанию Domus воспроизводит привычки за последние 14 дней со случайным отклонением ±{minutes} мин.',
+  batteryDiagnosticsDescription: 'Мониторинг батарей с предупреждением ниже 15% и диагностикой радиопомех Zigbee/Thread, включая рекомендации по расширению mesh-сети.',
+  waterLeakDescription: 'Если счётчик обнаруживает непрерывный поток более 40 минут ночью, Domus предупреждает о возможной утечке и может закрыть главный электромагнитный клапан.'
+});
+Object.assign(ru.family, { roleUpdated: 'Роль обновлена', createGuestProfile: 'Создать гостевой профиль' });
+Object.assign(ru.floorplan.view, {
+  floors: 'Этажи', rooms: 'Комнаты', mapView: 'Вид карты', levelShort: 'Эт.',
+  roomPrefix: 'Комната:', positionX: 'X:', positionY: 'Y:', widthShort: 'Ш:', heightShort: 'В:',
+  editRoomHint: 'Нажмите на комнату на плане, чтобы изменить её положение, размер и цвет.',
+  allDevicesPlaced: 'Все устройства уже размещены на этой карте!', finishEditing: 'Завершить редактирование',
+  editPositions: 'Изменить позиции'
+});
+Object.assign(ru.shopping.categories, {
+  alimentari: 'Продукты', frutta_verdura: 'Фрукты и овощи', bevande: 'Напитки',
+  igiene: 'Личная гигиена', casa: 'Дом и уборка', altro: 'Другое'
+});
+Object.assign(ru.shopping.view, {
+  moveBoughtToPantry: 'Переместить покупки в кладовую ({count})', allSupermarkets: 'Все ({count})',
+  allItemsBought: 'Все товары из списка покупок приобретены!', markAsBought: 'Отметить как купленное',
+  recognizedAs: 'распознано как «{name}»', quantityAria: 'Количество', markItem: 'Отметить {name} как {status}',
+  filterSupermarket: 'Фильтр по {name}', justNow: 'Только что', toBuy: 'купить', bought: 'куплено'
+});
+Object.assign(ru.store.view, {
+  pendingReview: 'На проверке', rejected: 'Отклонено', communityLabel: 'Сообщество', verifiedLabel: 'Проверено',
+  cancel: 'Отмена', close: 'Закрыть', requiredPackageFields: 'Укажите название и ID пакета.',
+  repositoryRequired: 'Требуется действительный URL публичного репозитория с открытым исходным кодом (например, GitHub или GitLab).',
+  licenseRequired: 'Требуется действующая лицензия с открытым исходным кодом (например, Apache-2.0, MIT или GPL-3.0).',
+  submissionFailed: 'Ошибка при публикации пакета.', rejectedByAdministrator: 'Отклонено администратором'
+});
+Object.assign(ru.dashboard.view, {
+  customize: 'Настроить', newDashboard: '+ Создать', deleteDashboard: 'Удалить',
+  ambientSetpoint: 'Заданная температура помещения', measuredTemperature: 'Измеренная температура',
+  instantaneousPower: 'Текущая мощность дома', configuredEntity: 'Настроенная сущность Domus',
+  customTextWidget: 'Пользовательский текстовый виджет', createCustomTitle: 'Создать пользовательскую панель',
+  customizeTitle: 'Настроить панель', editorHint: 'Выберите название, виджеты и размеры сетки.',
+  dashboardName: 'Название панели', dashboardNamePlaceholder: 'Например: Панель первого этажа',
+  addWidget: 'Добавить виджет', widgetType: 'Тип виджета',
+  widgetTypes: { thermostat: 'Термостат', temperature: 'Температура', energy: 'Энергия', entity: 'Сущность', text: 'Текст / Заметка' },
+  widgetTitlePlaceholder: 'Название виджета (необязательно)', widgetTitleAria: 'Название виджета',
+  entityIdPlaceholder: 'ID сущности (необязательно)', entityIdAria: 'ID сущности', add: 'Добавить',
+  widgetsCount: 'Виджеты панели ({count})', noWidgets: 'Виджеты не добавлены. Можно создать пустую панель и настроить её позже.',
+  removeWidget: 'Удалить', cancel: 'Отмена', saveDashboard: 'Сохранить панель', closeEditor: 'Закрыть редактор',
+  deleteConfirm: 'Удалить панель «{title}»?', dashboardNameRequired: 'Введите название панели.',
+  saveFailed: 'Не удалось сохранить панель. Повторите попытку.', deleteFailed: 'Не удалось удалить панель.'
+});
+Object.assign(ru.devices.view, {
+  discoveryReady: 'устройств готовы к немедленной настройке.', ipPrefix: 'IP:', deviceCount: 'устройств',
+  addToHome: 'Добавить в умный дом Domus.', addToDomus: 'Добавить в Domus'
+});
+Object.assign(ru.dashboardMarketplace || (ru.dashboardMarketplace = {}), { community: 'Сообщество', verified: 'Проверено' });
+Object.assign(ru.sharedDashboard, { expiresOn: 'Срок действия до:' });
+Object.assign(ru.predictiveClimate.view, { close: 'Закрыть' });
+
 export default ru
