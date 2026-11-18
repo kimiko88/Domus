@@ -55,14 +55,14 @@ const newItemQty = ref('')
 const newItemCategory = ref<'alimentari' | 'frutta_verdura' | 'bevande' | 'igiene' | 'casa' | 'altro'>('alimentari')
 const newItemSupermarket = ref('')
 
-const categories = [
-  { key: 'alimentari', label: 'Alimentari', icon: Package },
-  { key: 'frutta_verdura', label: 'Ortofrutta', icon: Apple },
-  { key: 'bevande', label: 'Bevande', icon: Coffee },
-  { key: 'igiene', label: 'Cura Persona', icon: Sparkles },
-  { key: 'casa', label: 'Casa & Pulizie', icon: Home },
-  { key: 'altro', label: 'Altro', icon: Layers }
-]
+const categories = computed(() => [
+  { key: 'alimentari', label: t('shopping.categories.alimentari'), icon: Package },
+  { key: 'frutta_verdura', label: t('shopping.categories.frutta_verdura'), icon: Apple },
+  { key: 'bevande', label: t('shopping.categories.bevande'), icon: Coffee },
+  { key: 'igiene', label: t('shopping.categories.igiene'), icon: Sparkles },
+  { key: 'casa', label: t('shopping.categories.casa'), icon: Home },
+  { key: 'altro', label: t('shopping.categories.altro'), icon: Layers }
+])
 
 const popularSupermarkets = [
   'Esselunga',
@@ -124,7 +124,7 @@ async function addItem() {
       id: 'shop_' + Date.now(),
       ...payload,
       completed: false,
-      created_at: 'Adesso'
+      created_at: t('shopping.view.justNow')
     })
   }
 
@@ -448,7 +448,7 @@ onMounted(async () => {
           :title="completedCount > 0 ? t('shopping.view.moveBoughtToPantry') : t('shopping.view.moveShoppingToPantry')"
         >
           <PackageCheck :size="16" />
-          <span>{{ completedCount > 0 ? `Sposta Spesa in Dispensa (${completedCount})` : 'Sposta Spesa in Dispensa' }}</span>
+          <span>{{ completedCount > 0 ? `{{ t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}` : t('shopping.view.moveBoughtToPantry', { count: completedCount }) }}</span>
         </button>
 
         <button
@@ -479,7 +479,7 @@ onMounted(async () => {
             type="text"
             :placeholder="t('shopping.placeholderQty')"
             class="input-qty"
-            aria-label="Quantità"
+            :aria-label="t('shopping.view.quantityAria')"
           />
           <div class="supermarket-input-wrap">
             <Store :size="16" class="store-input-icon" />
@@ -541,7 +541,7 @@ onMounted(async () => {
           :class="['pill-btn', { active: filterStatus === 'all' }]"
           @click="filterStatus = 'all'"
         >
-          Tutti ({{ items.length }})
+          {{ t('shopping.view.allSupermarkets', { count: items.length }) }}
         </button>
         <button
           :class="['pill-btn', { active: filterStatus === 'active' }]"
@@ -729,8 +729,8 @@ onMounted(async () => {
             <label v-for="match in matchedShoppingItems" :key="match.shoppingItem.id" class="matched-label">
               <input v-model="selectedReceiptMatches[match.shoppingItem.id]" type="checkbox" />
               <span>
-                Segna come acquistato: <strong>{{ match.shoppingItem.name }}</strong>
-                <small>(riconosciuto come “{{ match.receiptName }}”)</small>
+                {{ t('shopping.view.markAsBought') }}: <strong>{{ match.shoppingItem.name }}</strong>
+                <small>({{ t('shopping.view.recognizedAs', { name: match.receiptName }) }})</small>
               </span>
             </label>
           </div>
