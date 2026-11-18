@@ -400,4 +400,12 @@ Object.assign(ru.shopping.view, {
   itemsTransferred: 'Товары перенесены', transferCompleted: 'Покупки сохранены в кладовой ({summary})!'
 });
 
+
+Object.assign(ru.floorplan.view, {
+  closeHeatmap: 'Закрыть тепловую карту', heatmap25d: 'Тепловая карта 2.5D', modeLabel: 'Режим'
+});
+Object.assign(ru.integrations.view, {
+  tuyaCloudSetupInstruction: 'Создайте учётную запись на iot.tuya.com, откройте Cloud → Development и выберите проект Domus.'
+});
+
 export default ru
