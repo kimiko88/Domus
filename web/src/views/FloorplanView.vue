@@ -186,9 +186,9 @@ async function handleMarkerClick(marker: FloorMarker) {
     const nextState = ent.state === 'on' ? 'turn_off' : 'turn_on'
     try {
       await entitiesStore.callService(ent.domain, nextState, ent.id)
-      notifStore.success('Comando Inviato', `${ent.name}: ${nextState === 'turn_on' ? 'Acceso' : 'Spento'}`)
+      notifStore.success(t('floorplan.view.commandSentTitle'), t(nextState === 'turn_on' ? 'floorplan.view.entityTurnedOn' : 'floorplan.view.entityTurnedOff', { name: ent.name }))
     } catch {
-      notifStore.error('Errore', 'Impossibile inviare il comando')
+      notifStore.error(t('common.error'), t('floorplan.view.commandFailed'))
     }
   }
 }
@@ -220,9 +220,9 @@ async function saveMarkerPosition(entityKey: string, x: number, y: number) {
       y_percent: Math.round(y * 10) / 10,
       show_badge: true
     })
-    notifStore.success('Posizione Salvata', 'Dispositivo posizionato sulla mappa')
+    notifStore.success(t('floorplan.view.positionSavedTitle'), t('floorplan.view.positionSavedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile salvare il marker')
+    notifStore.error(t('common.error'), t('floorplan.view.markerSaveFailed'))
   }
 }
 
@@ -230,16 +230,16 @@ async function removeMarker(markerId: string) {
   if (!floorStore.activeFloor) return
   try {
     await floorStore.deleteMarker(floorStore.activeFloor.id, markerId)
-    notifStore.success('Rimosso', 'Dispositivo rimosso dalla mappa')
+    notifStore.success(t('floorplan.view.markerRemovedTitle'), t('floorplan.view.markerRemovedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile rimuovere il marker')
+    notifStore.error(t('common.error'), t('floorplan.view.markerRemoveFailed'))
   }
 }
 
 // Room Management Methods
 function openAddRoomModal() {
   roomForm.value = {
-    name: 'Soggiorno',
+    name: t('floorplan.view.roomNames.living'),
     type: 'living',
     color: '#3b82f6',
     width: 38,
@@ -253,7 +253,7 @@ function handleAddRoom() {
 
   const newRoom: FloorRoom = {
     id: 'room_' + Date.now(),
-    name: roomForm.value.name.trim() || 'Stanza',
+    name: roomForm.value.name.trim() || t('floorplan.view.roomNames.room'),
     type: roomForm.value.type,
     color: roomForm.value.color,
     x: 10 + (rooms.value.length % 3) * 25,
@@ -266,7 +266,7 @@ function handleAddRoom() {
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = newRoom.id
   showRoomModal.value = false
-  notifStore.success('Stanza Creata', `Stanza "${newRoom.name}" aggiunta alla planimetria`)
+  notifStore.success(t('floorplan.view.roomCreatedTitle'), t('floorplan.view.roomCreatedMessage', { name: newRoom.name }))
 }
 
 function generateStandardFloorplan() {
@@ -275,7 +275,7 @@ function generateStandardFloorplan() {
   const defaultRooms: FloorRoom[] = [
     {
       id: 'room_living_' + Date.now(),
-      name: 'Soggiorno Open Space',
+      name: t('floorplan.view.roomNames.livingOpen'),
       type: 'living',
       color: '#3b82f6',
       x: 3,
@@ -315,7 +315,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_office_' + (Date.now() + 4),
-      name: 'Studio / Ufficio',
+      name: t('floorplan.view.roomNames.office'),
       type: 'office',
       color: '#10b981',
       x: 63,
@@ -328,7 +328,7 @@ function generateStandardFloorplan() {
   rooms.value = defaultRooms
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = defaultRooms[0].id
-  notifStore.success('Planimetria Generata', '5 stanze predisposte con layout architettonico standard')
+  notifStore.success(t('floorplan.view.floorplanGeneratedTitle'), t('floorplan.view.floorplanGeneratedMessage'))
 }
 
 function deleteSelectedRoom() {
@@ -336,7 +336,7 @@ function deleteSelectedRoom() {
   rooms.value = rooms.value.filter(r => r.id !== selectedRoomId.value)
   saveRoomsForFloor(floorStore.activeFloor.id)
   selectedRoomId.value = null
-  notifStore.success('Stanza Rimossa', 'Stanza eliminata dalla planimetria')
+  notifStore.success(t('floorplan.view.roomRemovedTitle'), t('floorplan.view.roomRemovedMessage'))
 }
 
 const selectedRoom = computed(() => {
@@ -436,9 +436,9 @@ async function handleCreateFloor() {
     })
     showFloorModal.value = false
     floorForm.value = { name: '', level: 0, plan_svg: '' }
-    notifStore.success('Piano Creato', 'Nuovo piano aggiunto alla planimetria')
+    notifStore.success(t('floorplan.view.floorCreatedTitle'), t('floorplan.view.floorCreatedMessage'))
   } catch {
-    notifStore.error('Errore', 'Impossibile creare il piano')
+    notifStore.error(t('common.error'), t('floorplan.view.floorCreateFailed'))
   }
 }
 
