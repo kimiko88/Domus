@@ -70,31 +70,31 @@ const roomForm = ref<{
   width: number
   height: number
 }>({
-  name: 'Nuova Stanza',
+  name: t('floorplan.view.roomNames.newRoom'),
   type: 'living',
   color: '#3b82f6',
   width: 35,
   height: 35
 })
 
-const roomColorPresets = [
-  { name: 'Blu Oceano', value: '#3b82f6' },
-  { name: 'Smeraldo', value: '#10b981' },
-  { name: 'Ambra', value: '#f59e0b' },
-  { name: 'Viola Notte', value: '#8b5cf6' },
-  { name: 'Ciano Cielo', value: '#06b6d4' },
-  { name: 'Rosa Corallo', value: '#f43f5e' }
-]
+const roomColorPresets = computed(() => [
+  { name: t('floorplan.view.colors.oceanBlue'), value: '#3b82f6' },
+  { name: t('floorplan.view.colors.emerald'), value: '#10b981' },
+  { name: t('floorplan.view.colors.amber'), value: '#f59e0b' },
+  { name: t('floorplan.view.colors.nightPurple'), value: '#8b5cf6' },
+  { name: t('floorplan.view.colors.skyCyan'), value: '#06b6d4' },
+  { name: t('floorplan.view.colors.coralPink'), value: '#f43f5e' }
+])
 
-const roomTypeOptions = [
-  { key: 'living', label: 'Soggiorno / Salotto', icon: Tv },
-  { key: 'kitchen', label: 'Cucina / Pranzo', icon: Utensils },
-  { key: 'bedroom', label: 'Camera da Letto', icon: Bed },
-  { key: 'bathroom', label: 'Bagno', icon: Bath },
-  { key: 'office', label: 'Studio / Ufficio', icon: Briefcase },
-  { key: 'hallway', label: 'Corridoio / Ingresso', icon: Home },
-  { key: 'balcony', label: 'Terrazzo / Balcone', icon: LayoutGrid }
-]
+const roomTypeOptions = computed(() => [
+  { key: 'living', label: t('floorplan.view.roomTypes.living'), icon: Tv },
+  { key: 'kitchen', label: t('floorplan.view.roomTypes.kitchen'), icon: Utensils },
+  { key: 'bedroom', label: t('floorplan.view.roomTypes.bedroom'), icon: Bed },
+  { key: 'bathroom', label: t('floorplan.view.roomTypes.bathroom'), icon: Bath },
+  { key: 'office', label: t('floorplan.view.roomTypes.office'), icon: Briefcase },
+  { key: 'hallway', label: t('floorplan.view.roomTypes.hallway'), icon: Home },
+  { key: 'balcony', label: t('floorplan.view.roomTypes.balcony'), icon: LayoutGrid }
+])
 
 function getRoomIcon(type: string) {
   switch (type) {
