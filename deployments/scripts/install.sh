@@ -592,7 +592,7 @@ if (( HAVE_SYSTEMD )); then
         port_listener="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
         if [[ -n "${port_listener}" ]]; then
             log_error "TCP port ${DOMUS_PORT} is already in use; Domus was not started."
-            printf '%s\\n' "${port_listener}" >&2
+            printf '%s\n' "${port_listener}" >&2
             log_error "Identify the owner with: sudo ss -ltnp 'sport = :${DOMUS_PORT}'"
             log_error "Stop the old service/process that owns the port, then rerun the installer."
             exit 1
@@ -612,7 +612,7 @@ if (( HAVE_SYSTEMD )); then
         if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]] || ! grep -Fq "pid=${main_pid}," <<< "${listener_info}"; then
             log_error "domus.service (MainPID=${main_pid:-0}) does not own TCP port ${DOMUS_PORT}."
             if [[ -n "${listener_info}" ]]; then
-                printf '%s\\n' "${listener_info}" >&2
+                printf '%s\n' "${listener_info}" >&2
             else
                 log_error "No process is listening on TCP port ${DOMUS_PORT}."
             fi
