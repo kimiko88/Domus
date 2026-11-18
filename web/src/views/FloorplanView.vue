@@ -469,7 +469,7 @@ const unplacedEntities = computed(() => {
             :class="{ active: activeMode === 'view' }"
             @click="activeMode = 'view'"
           >
-            Vista Mappa
+            {{ t('floorplan.view.mapView') }}
           </button>
           <button
             class="mode-btn"
@@ -496,7 +496,7 @@ const unplacedEntities = computed(() => {
           :title="t('floorplan.view.toggleHeatmap')"
         >
           <Thermometer class="btn-icon" />
-          <span>{{ showHeatmap ? 'Chiudi Heatmap' : 'Heatmap 2.5D' }}</span>
+          <span>{{ showHeatmap ? t('floorplan.view.closeHeatmap') : t('floorplan.view.heatmap25d') }}</span>
         </button>
 
         <button class="btn-primary" @click="showFloorModal = true">
