@@ -343,7 +343,19 @@
     "deleteSuccess": "Área eliminada con éxito",
     "deleteError": "No se pudo eliminar el área",
     "nameRequired": "El nombre del área es obligatorio.",
-    "createArea": "Crear área"
+    "createArea": "Crear área",
+    "icons": {
+      "livingRoom": "Salón",
+      "kitchen": "Cocina",
+      "bedroom": "Dormitorio",
+      "bathroom": "Baño",
+      "office": "Despacho",
+      "garden": "Jardín",
+      "terrace": "Terraza",
+      "garage": "Garaje",
+      "cinema": "Cine / TV",
+      "other": "Otro"
+    }
   },
   "devices": {
     "title": "Dispositivos",
