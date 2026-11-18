@@ -428,6 +428,21 @@ const supportsSetpoint = computed(() => {
     Number.isFinite(Number(option.target_temperature))
   return entityHasSetpoint || optionHasSetpoint
 })
+function getHvacModeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    auto: 'automatic',
+    heat: 'heating',
+    off: 'off',
+    manual: 'manual',
+    cool: 'cooling',
+    heat_cool: 'heatCool',
+    dry: 'dry',
+    fan_only: 'fanOnly'
+  }
+  const label = labels[mode.toLowerCase()]
+  return label ? t(`schedules.view.hvacModes.${label}`) : t('schedules.view.hvacModes.other')
+}
+
 const setpointMin = computed(() => {
   const value = Number(activeThermostat.value?.attributes?.min_temp ?? 5)
   return Number.isFinite(value) ? value : 5
@@ -1097,7 +1112,7 @@ onMounted(async () => {
                 <Clock v-if="mode === 'auto'" :size="14" />
                 <Flame v-else-if="mode === 'heat' || mode === 'manual'" :size="14" />
                 <Power v-else-if="mode === 'off'" :size="14" />
-                <span>{{ mode === 'auto' ? t('schedules.view.automatic') : mode === 'heat' ? t('schedules.view.heating') : mode === 'off' ? t('schedules.view.off') : mode }}</span>
+                <span>{{ getHvacModeLabel(mode) }}</span>
               </button>
             </div>
 
