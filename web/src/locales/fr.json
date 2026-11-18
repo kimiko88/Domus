@@ -994,7 +994,10 @@
       },
       "saveProfile": "Enregistrer le profil",
       "autoOpenGateLights": "Ouvrir automatiquement le portail et allumer les lumières de l’allée",
-      "registerPlate": "Enregistrer la plaque"
+      "registerPlate": "Enregistrer la plaque",
+      "filterPerson": "Personne",
+      "filterVehicle": "Véhicule",
+      "filterPackage": "Colis"
     }
   },
   "shopping": {
