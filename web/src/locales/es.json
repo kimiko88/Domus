@@ -170,7 +170,10 @@
       "syncFailed": "La sincronización ha fallado. Inténtalo de nuevo.",
       "exportFailed": "La exportación ha fallado. Inténtalo de nuevo.",
       "pdfTooLarge": "El PDF supera el límite de 3 MB.",
-      "imageTooLarge": "La imagen supera el límite de 4 MB."
+      "imageTooLarge": "La imagen supera el límite de 4 MB.",
+      "invalidPin": "El PIN no es válido.",
+      "fileTooLarge": "El archivo seleccionado supera el límite de {limit} MB.",
+      "fileReadFailed": "No se ha podido leer el archivo seleccionado."
     },
     "close": "Cerrar"
   },
