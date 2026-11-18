@@ -1711,7 +1711,18 @@
       "newThermostatTitle": "Nuovo cronotermostato",
       "newThermostatMessage": "Creato {name}.",
       "calendarImportSuccess": "Calendario importato correttamente.",
-      "calendarImportError": "Errore durante l’importazione del calendario iCal."
+      "calendarImportError": "Errore durante l’importazione del calendario iCal.",
+      "hvacModes": {
+        "automatic": "Automatico",
+        "heating": "Riscaldamento",
+        "off": "Spento",
+        "manual": "Manuale",
+        "cooling": "Raffrescamento",
+        "heatCool": "Riscaldamento e raffrescamento",
+        "dry": "Deumidificazione",
+        "fanOnly": "Solo ventilazione",
+        "other": "Altra modalità"
+      }
     }
   },
   "login": {
