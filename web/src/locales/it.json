@@ -1856,6 +1856,37 @@
       "notificationMessage": "Messaggio di notifica",
       "deleteNodeButton": "Elimina nodo",
       "compiledAstTitle": "JSON AST compilato"
+    },
+    "conditionEditor": {
+      "logicalGroup": "Gruppo logico",
+      "condition": "Condizione",
+      "type": "Tipo",
+      "logicalOperators": "Operatori logici",
+      "conditions": "Condizioni",
+      "logicalTypes": {
+        "and": "Tutte le condizioni (AND)",
+        "or": "Almeno una condizione (OR)",
+        "not": "Nessuna condizione (NOT)"
+      },
+      "leafTypes": {
+        "state": "Stato entità",
+        "numericState": "Soglia numerica",
+        "time": "Fascia oraria",
+        "trigger": "Trigger"
+      },
+      "andHelp": "Tutte le condizioni figlie devono essere vere.",
+      "orHelp": "È sufficiente che una condizione figlia sia vera.",
+      "notHelp": "La condizione figlia deve essere falsa.",
+      "removeCondition": "Rimuovi condizione {index}",
+      "addCondition": "Aggiungi condizione",
+      "depthLimit": "Raggiunto il limite di annidamento supportato dal validatore.",
+      "notLimit": "NOT accetta una sola condizione figlia.",
+      "selectEntity": "Seleziona un'entità",
+      "statePlaceholder": "on, off, open...",
+      "selectSensor": "Seleziona un sensore",
+      "thresholdHelp": "Imposta almeno una delle due soglie.",
+      "triggerPlaceholder": "trigger_id",
+      "unsupportedHelp": "Questo tipo di condizione non è modificabile con i controlli visuali. La configurazione originale viene mantenuta senza alterazioni."
     }
   },
   "failover": {
