@@ -34,7 +34,7 @@ import { TUYA_THERMOSTAT_SETPOINTS, decodeTuyaThermostatSetpoint, encodeTuyaTher
 import type { NetworkDiscoveredHost, NetworkLeakAlert, NetworkGuardianLeaksResponse } from '../api/types'
 import FirmwareFlasherModal from '../components/modals/FirmwareFlasherModal.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Integration {
   id: string
@@ -595,7 +595,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
     }
     notificationsStore.success(
       t('integrations.view.messages.setpointUpdatedTitle'),
-      `${device.name}: ${temperature.toLocaleString('it-IT')} °C (valore inviato ${encodedTemperature.toLocaleString('it-IT')})`
+      `${device.name}: ${temperature.toLocaleString(locale.value)} °C (valore inviato ${encodedTemperature.toLocaleString(locale.value)})`
     )
     await fetchTuyaCloudDevices()
   } catch (err: any) {
@@ -607,7 +607,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
 
 function tuyaTemperatureEncodedPreview(deviceId: string): string {
   const encoded = encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[deviceId]))
-  return encoded === undefined ? '—' : encoded.toLocaleString('it-IT')
+  return encoded === undefined ? '—' : encoded.toLocaleString(locale.value)
 }
 
 async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; value: unknown }) {
@@ -1482,7 +1482,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="tuya-device-bulk-actions">
-          <span>{{ filteredTuyaCloudDevices.length }} visualizzati</span>
+          <span>{{ t('integrations.view.devicesShown', { count: filteredTuyaCloudDevices.length }) }}</span>
           <div>
             <button type="button" @click="selectVisibleTuyaDevices" :disabled="filteredTuyaCloudDevices.length === 0">{{ t('integrations.view.selectVisible') }}</button>
             <button type="button" @click="deselectVisibleTuyaDevices" :disabled="!filteredTuyaCloudDevices.some(device => selectedTuyaDeviceIds.includes(device.id))">{{ t('integrations.view.deselectVisible') }}</button>
@@ -1508,7 +1508,7 @@ onMounted(() => {
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
               <span v-if="device.local_configured" class="badge-lan" :title="t('integrations.view.localLanControl')"><Wifi :size="12" /> {{ t('integrations.view.lanLocal') }}</span>
-              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? 'Online' : 'Offline' }}</span>
+              <span :class="['badge-iot', { 'badge-quarantined': !device.online }]">{{ device.online ? t('integrations.view.deviceOnline') : t('integrations.view.deviceOffline') }}</span>
             </div>
           </div>
           <div class="host-specs">
@@ -1521,30 +1521,30 @@ onMounted(() => {
                 :disabled="tuyaCloudCommanding === `${device.id}:${point.code}` || (!device.online && !device.local_active)"
                 @click="toggleTuyaStatus(device, point)"
               >
-                {{ point.value ? 'Spegni' : 'Accendi' }}
+                {{ point.value ? t('integrations.view.turnOff') : t('integrations.view.turnOn') }}
               </button>
             </div>
           </div>
 
           <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
-              <label :for="`tuya-temp-${device.id}`">Temperatura desiderata sul termostato</label>
+              <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }}</label>
               <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">
-                <option value="" disabled>Seleziona la temperatura</option>
+                <option value="" disabled>{{ t('integrations.view.chooseTemperature') }}</option>
                 <option v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.degrees" :value="String(mapping.degrees)">
-                  {{ mapping.degrees.toLocaleString('it-IT') }} °C · invia {{ mapping.encoded.toLocaleString('it-IT') }}
+                  {{ mapping.degrees.toLocaleString(locale.value) }} °C · {{ t('integrations.view.encodedValue') }} {{ mapping.encoded.toLocaleString(locale.value) }}
                 </option>
               </select>
               <div class="tuya-temperature-preview">
-                Valore da inviare: <strong>{{ tuyaTemperatureEncodedPreview(device.id) }}</strong>
+                {{ t('integrations.view.valueToSend') }}: <strong>{{ tuyaTemperatureEncodedPreview(device.id) }}</strong>
               </div>
               <button class="btn-host-probe" :disabled="tuyaCloudCommanding === `${device.id}:temperature` || !encodeTuyaThermostatSetpoint(Number(tuyaTemperatureInputs[device.id])) || (!device.local_configured && (!device.online || !tuyaTemperatureFunction(device.id)))" @click="setTuyaTemperature(device)">{{ t('integrations.view.setTemperature') }}</button>
             </div>
-            <div class="tuya-temperature-map" aria-label="Tabella conversione setpoint termostato">
+            <div class="tuya-temperature-map" :aria-label="t('integrations.view.setpointMapAria')">
               <div v-for="mapping in TUYA_THERMOSTAT_SETPOINTS" :key="mapping.encoded" class="tuya-temperature-map-row">
-                <code>{{ mapping.encoded.toLocaleString('it-IT') }}</code>
+                <code>{{ mapping.encoded.toLocaleString(locale.value) }}</code>
                 <span>→</span>
-                <strong>{{ mapping.degrees.toLocaleString('it-IT') }} °C</strong>
+                <strong>{{ mapping.degrees.toLocaleString(locale.value) }} °C</strong>
               </div>
             </div>
             <div v-if="canControlLocalTuya(device)" class="tuya-mode-control">
@@ -1558,7 +1558,7 @@ onMounted(() => {
             <button type="button" class="btn-action glass-panel" :disabled="tuyaFunctionsLoading === device.id" @click="toggleTuyaDeviceFunctions(device)">
               <RefreshCw v-if="tuyaFunctionsLoading === device.id" :size="14" class="animate-spin" />
               <Cpu v-else :size="14" />
-              <span>{{ tuyaFunctionPanels[device.id] ? 'Nascondi comandi' : 'Comandi disponibili via API' }}</span>
+              <span>{{ tuyaFunctionPanels[device.id] ? t('integrations.view.hideCommands') : t('integrations.view.availableApiCommands') }}</span>
             </button>
           </div>
           <div v-if="tuyaFunctionPanels[device.id]" class="tuya-functions-panel">
