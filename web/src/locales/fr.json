@@ -649,7 +649,8 @@
       "host": "Hôte",
       "deviceTotals": "au total · en ligne · hors ligne",
       "ipLabel": "IP",
-      "firmwareLabel": "Micrologiciel"
+      "firmwareLabel": "Micrologiciel",
+      "tuyaCloudSetupInstruction": "Créez un compte sur iot.tuya.com, ouvrez Cloud → Development et sélectionnez le projet Domus."
     }
   },
   "history": {
@@ -1595,7 +1596,10 @@
       "roomRemovedMessage": "La pièce a été supprimée du plan",
       "floorCreatedTitle": "Étage créé",
       "floorCreatedMessage": "Un nouvel étage a été ajouté au plan",
-      "floorCreateFailed": "Impossible de créer l’étage"
+      "floorCreateFailed": "Impossible de créer l’étage",
+      "closeHeatmap": "Fermer la carte thermique",
+      "heatmap25d": "Carte thermique 2.5D",
+      "modeLabel": "Mode"
     }
   },
   "media": {
