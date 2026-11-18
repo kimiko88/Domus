@@ -196,6 +196,7 @@ func NewRepositoriesWithPool(pool *DBPool) *Repositories {
 		Scripts:              NewScriptRepository(writeDB),
 		Logbook:              NewLogbookRepository(writeDB, readDB),
 		PushTokens:           NewPushTokenRepository(writeDB),
+		WebPush:              NewWebPushRepository(writeDB),
 		WeeklySchedules:      NewWeeklyScheduleRepository(writeDB),
 		ClimateCompensations: NewClimateCompensatorRepository(writeDB),
 		OutboundWebhooks:     NewOutboundWebhookRepository(writeDB),
