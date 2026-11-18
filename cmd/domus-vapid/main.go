@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	appnotification "github.com/domus-hub/domus/internal/application/notification"
 	webpush "github.com/SherClockHolmes/webpush-go"
 )
 
@@ -27,8 +28,8 @@ func main() {
 		}
 		vapidSubject = strings.TrimSpace(value)
 	}
-	if !strings.HasPrefix(vapidSubject, "mailto:") && !strings.HasPrefix(vapidSubject, "https://") {
-		fatal("il contatto VAPID deve iniziare con mailto: oppure https://")
+	if err := appnotification.ValidateVAPIDSubject(vapidSubject); err != nil {
+		fatal("contatto VAPID non valido: %v", err)
 	}
 
 	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
