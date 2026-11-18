@@ -168,7 +168,9 @@
       "deleteFailed": "No se ha podido eliminar el elemento. Inténtalo de nuevo.",
       "actionFailed": "No se ha podido completar la acción. Inténtalo de nuevo.",
       "syncFailed": "La sincronización ha fallado. Inténtalo de nuevo.",
-      "exportFailed": "La exportación ha fallado. Inténtalo de nuevo."
+      "exportFailed": "La exportación ha fallado. Inténtalo de nuevo.",
+      "pdfTooLarge": "El PDF supera el límite de 3 MB.",
+      "imageTooLarge": "La imagen supera el límite de 4 MB."
     },
     "close": "Cerrar"
   },
