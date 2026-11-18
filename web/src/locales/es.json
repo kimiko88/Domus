@@ -1856,6 +1856,37 @@
       "notificationMessage": "Mensaje de notificación",
       "deleteNodeButton": "Eliminar nodo",
       "compiledAstTitle": "JSON AST compilado"
+    },
+    "conditionEditor": {
+      "logicalGroup": "Grupo lógico",
+      "condition": "Condición",
+      "type": "Tipo",
+      "logicalOperators": "Operadores lógicos",
+      "conditions": "Condiciones",
+      "logicalTypes": {
+        "and": "Todas las condiciones (AND)",
+        "or": "Al menos una condición (OR)",
+        "not": "Ninguna condición (NOT)"
+      },
+      "leafTypes": {
+        "state": "Estado de entidad",
+        "numericState": "Umbral numérico",
+        "time": "Franja horaria",
+        "trigger": "Disparador"
+      },
+      "andHelp": "Todas las condiciones secundarias deben ser verdaderas.",
+      "orHelp": "Al menos una condición secundaria debe ser verdadera.",
+      "notHelp": "La condición secundaria debe ser falsa.",
+      "removeCondition": "Eliminar condición {index}",
+      "addCondition": "Añadir condición",
+      "depthLimit": "Se ha alcanzado el límite de anidamiento admitido por el validador.",
+      "notLimit": "NOT solo admite una condición secundaria.",
+      "selectEntity": "Selecciona una entidad",
+      "statePlaceholder": "on, off, open...",
+      "selectSensor": "Selecciona un sensor",
+      "thresholdHelp": "Configura al menos uno de los dos umbrales.",
+      "triggerPlaceholder": "trigger_id",
+      "unsupportedHelp": "Este tipo de condición no se puede editar con los controles visuales. La configuración original se conserva sin cambios."
     }
   },
   "failover": {
