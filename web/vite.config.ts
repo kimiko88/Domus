@@ -8,6 +8,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'prompt',
+      workbox: {
+        importScripts: ['/push-worker.js']
+      },
       includeAssets: [
         'favicon.ico',
         'favicon.svg',
