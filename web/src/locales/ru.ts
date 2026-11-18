@@ -466,4 +466,33 @@ Object.assign(ru.store.view, {
   communityOpenSource: 'Сообщество открытого ПО', domusVerified: 'Проверено Domus'
 });
 
+
+Object.assign(ru.guide, {
+  searchAria: 'Поиск по разделам руководства',
+  collapseSection: 'Свернуть раздел',
+  expandSection: 'Развернуть раздел'
+});
+Object.assign(ru.pantry.view, {
+  cookableRecipes: 'рецептов можно приготовить'
+});
+Object.assign(ru.medicines, {
+  aic: 'Код AIC',
+  lotNumber: 'Номер партии'
+});
+Object.assign(ru.automations.view, {
+  webhookCreatedTitle: 'Входящий webhook создан',
+  webhookCreatedMessage: 'Webhook «{name}» успешно создан.',
+  webhookCreateFailed: 'Не удалось создать webhook.',
+  webhookDeletedTitle: 'Webhook удалён',
+  webhookDeletedMessage: 'Webhook «{name}» успешно удалён.',
+  webhookDeleteFailed: 'Не удалось удалить webhook.',
+  flowSavedTitle: 'Сценарий сохранён',
+  flowSavedMessage: 'Автоматизация успешно создана из блок-схемы.'
+});
+Object.assign(ru.common.notifications, {
+  actionExecutedTitle: 'Действие выполнено',
+  actionExecutedMessage: 'Команда успешно отправлена.',
+  actionFailedMessage: 'Не удалось выполнить запрошенное действие.'
+});
+
 export default ru
