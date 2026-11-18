@@ -335,7 +335,8 @@
     "saveSuccess": "Área guardada con éxito",
     "saveError": "No se pudo guardar el área",
     "deleteSuccess": "Área eliminada con éxito",
-    "deleteError": "No se pudo eliminar el área"
+    "deleteError": "No se pudo eliminar el área",
+    "nameRequired": "El nombre del área es obligatorio."
   },
   "devices": {
     "title": "Dispositivos",
@@ -1514,7 +1515,12 @@
       "manualOverrideExpiryHint": "Al caducar, Domus restaura la consigna anterior.",
       "noProgrammableSetpoint": "Este dispositivo no ofrece una consigna programable.",
       "deleteTimeSlot": "Eliminar franja",
-      "deleteTimeSlotAria": "Eliminar franja horaria"
+      "deleteTimeSlotAria": "Eliminar franja horaria",
+      "eventSources": {
+        "entity": "Entidad Domus",
+        "tuya_local": "Tuya local",
+        "tuya_cloud": "Tuya Cloud"
+      }
     }
   },
   "login": {
