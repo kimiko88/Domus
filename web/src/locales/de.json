@@ -994,7 +994,10 @@
       },
       "saveProfile": "Profil speichern",
       "autoOpenGateLights": "Einfahrtstor automatisch öffnen und Einfahrtsbeleuchtung einschalten",
-      "registerPlate": "Kennzeichen registrieren"
+      "registerPlate": "Kennzeichen registrieren",
+      "filterPerson": "Person",
+      "filterVehicle": "Fahrzeug",
+      "filterPackage": "Paket"
     }
   },
   "shopping": {
