@@ -1102,7 +1102,13 @@
       "cancel": "Annuler",
       "create": "Créer l'assistant",
       "deleteAria": "Supprimer l'assistant",
-      "statusAria": "État de l'assistant"
+      "statusAria": "État de l'assistant",
+      "timerStates": {
+        "active": "ACTIF",
+        "paused": "EN PAUSE",
+        "idle": "INACTIF"
+      },
+      "toggle": "Activer ou désactiver {name}"
     }
   },
   "floorplan": {
@@ -1388,7 +1394,13 @@
     "password": "Mot de passe",
     "submit": "Se Connecter",
     "error": "Identifiants invalides ou session expirée",
-    "kioskPin": "Code PIN du mode borne"
+    "kioskPin": "Code PIN du mode borne",
+    "passwordTab": "Mot de passe",
+    "kioskTab": "PIN borne / invité",
+    "unlockKiosk": "Déverrouiller la borne",
+    "missingCredentials": "Saisissez votre nom d'utilisateur et votre mot de passe",
+    "missingKioskPin": "Saisissez le code PIN de la borne",
+    "invalidKioskPin": "Le code PIN de la borne est invalide ou a expiré"
   },
   "setup": {
     "title": "Configuration Initiale de Domus",
