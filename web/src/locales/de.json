@@ -352,7 +352,10 @@
       "cancel": "Abbrechen",
       "saveDashboard": "Dashboard speichern",
       "closeEditor": "Editor schließen",
-      "deleteConfirm": "Dashboard „{title}“ löschen?"
+      "deleteConfirm": "Dashboard „{title}“ löschen?",
+      "dashboardNameRequired": "Geben Sie einen Dashboard-Namen ein.",
+      "saveFailed": "Dashboard konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "deleteFailed": "Dashboard konnte nicht gelöscht werden."
     }
   },
   "areas": {
@@ -436,7 +439,8 @@
       "discoveryReady": "Geräte sind bereit für die sofortige Einrichtung.",
       "ipPrefix": "IP:",
       "deviceCount": "Geräte",
-      "addToHome": "Zu Ihrem Domus-Smart-Home hinzufügen."
+      "addToHome": "Zu Ihrem Domus-Smart-Home hinzufügen.",
+      "addToDomus": "Zu Domus hinzufügen"
     }
   },
   "integrations": {
@@ -1283,7 +1287,10 @@
       "recognizedAs": "erkannt als „{name}“",
       "quantityAria": "Menge",
       "markItem": "{name} als {status} markieren",
-      "filterSupermarket": "Nach {name} filtern"
+      "filterSupermarket": "Nach {name} filtern",
+      "justNow": "Gerade eben",
+      "toBuy": "zu kaufen",
+      "bought": "gekauft"
     }
   },
   "chores": {
@@ -1513,7 +1520,9 @@
       "widthShort": "B:",
       "heightShort": "H:",
       "editRoomHint": "Wählen Sie einen Raum im Grundriss aus, um Position, Größe und Farbe zu ändern.",
-      "allDevicesPlaced": "Alle Geräte sind bereits auf dieser Karte platziert!"
+      "allDevicesPlaced": "Alle Geräte sind bereits auf dieser Karte platziert!",
+      "finishEditing": "Bearbeitung beenden",
+      "editPositions": "Positionen bearbeiten"
     }
   },
   "media": {
@@ -1706,7 +1715,8 @@
       "requiredPackageFields": "Paketname und Paket-ID sind erforderlich.",
       "repositoryRequired": "Eine gültige URL zu einem öffentlichen Open-Source-Repository ist erforderlich (z. B. GitHub oder GitLab).",
       "licenseRequired": "Eine gültige Open-Source-Lizenz ist erforderlich (z. B. Apache-2.0, MIT oder GPL-3.0).",
-      "submissionFailed": "Fehler beim Veröffentlichen des Pakets."
+      "submissionFailed": "Fehler beim Veröffentlichen des Pakets.",
+      "rejectedByAdministrator": "Vom Administrator abgelehnt"
     }
   },
   "schedules": {
@@ -2002,7 +2012,8 @@
         "climateProfileTitle": "Klimaprofil",
         "climateProfileDesc": "Komfort, Eco, Nacht, Abwesend oder benutzerdefinierter Sollwert",
         "emitEventTitle": "Ereignis auslösen",
-        "emitEventDesc": "Ein Anwendungsereignis mit Nutzdaten veröffentlichen"
+        "emitEventDesc": "Ein Anwendungsereignis mit Nutzdaten veröffentlichen",
+        "numericThresholdTitle": "Numerischer Schwellenwert"
       },
       "branchContinue": "Fortsetzen",
       "timeFrom": "Von (HH:MM:SS)",
@@ -2048,6 +2059,14 @@
         "simulationErrorMessage": "Der Ablauf konnte nicht simuliert werden.",
         "invalidFlowTitle": "Ungültiger Ablauf",
         "invalidFlowMessage": "Korrigieren Sie die Verbindungen vor dem Export."
+      },
+      "newAutomationName": "Neue visuelle Automatisierung",
+      "nodeTypes": {
+        "trigger": "AUSLÖSER",
+        "condition": "BEDINGUNG",
+        "action": "AKTION",
+        "delay": "PAUSE",
+        "logic": "LOGIK"
       }
     },
     "conditionEditor": {
