@@ -234,7 +234,7 @@ async function handleDeleteMeal(id: string) {
         <ChefHat :size="18" />
         <span>{{ t('pantry.view.recipesTab') }}</span>
         <span v-if="pantryStore.cookableCount > 0" class="badge-cookable">
-          {{ pantryStore.cookableCount }} cucinabili
+          {{ pantryStore.cookableCount }} {{ t('pantry.view.cookableRecipes') }}
         </span>
       </button>
 
