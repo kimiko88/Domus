@@ -89,7 +89,7 @@ export const useAssistantStore = defineStore('assistant', () => {
       messages.value.push({
         id: 'msg_err_' + Date.now(),
         sender: 'assistant',
-        text: i18n.global.t('assistant.errors.actionFailed', { error: fallbackMsg }),
+        text: fallbackMsg,
         timestamp: new Date().toISOString()
       })
       return null
