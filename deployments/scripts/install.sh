@@ -584,8 +584,44 @@ if (( HAVE_SYSTEMD )); then
     chmod 0644 /etc/systemd/system/domus.service
     systemctl daemon-reload
     systemctl enable domus.service >/dev/null
+
+    # The previous domus.service instance was stopped above. Refuse to start
+    # a second instance when another process still owns the configured port.
+    # This avoids reporting a false-positive health check against that process.
+    if command -v ss >/dev/null 2>&1; then
+        port_listener="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
+        if [[ -n "${port_listener}" ]]; then
+            log_error "TCP port ${DOMUS_PORT} is already in use; Domus was not started."
+            printf '%s\\n' "${port_listener}" >&2
+            log_error "Identify the owner with: sudo ss -ltnp 'sport = :${DOMUS_PORT}'"
+            log_error "Stop the old service/process that owns the port, then rerun the installer."
+            exit 1
+        fi
+    else
+        log_warn "'ss' is unavailable; cannot preflight TCP port ownership."
+    fi
+
     log_info "Starting domus.service"
     systemctl restart domus.service
+
+    # Verify that the process managed by this unit owns the listener before
+    # accepting /health. A different Domus instance could otherwise answer it.
+    if command -v ss >/dev/null 2>&1; then
+        main_pid="$(systemctl show domus.service --property=MainPID --value)"
+        listener_info="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
+        if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]] || ! grep -Fq "pid=${main_pid}," <<< "${listener_info}"; then
+            log_error "domus.service (MainPID=${main_pid:-0}) does not own TCP port ${DOMUS_PORT}."
+            if [[ -n "${listener_info}" ]]; then
+                printf '%s\\n' "${listener_info}" >&2
+            else
+                log_error "No process is listening on TCP port ${DOMUS_PORT}."
+            fi
+            log_error "Recent service logs:"
+            journalctl -u domus -n 100 --no-pager >&2 || true
+            systemctl stop domus.service || true
+            exit 1
+        fi
+    fi
 
     log_info "Waiting for health endpoint (up to 30 s)..."
     healthy=0
