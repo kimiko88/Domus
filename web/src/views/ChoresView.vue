@@ -318,8 +318,8 @@ const weekDays = computed<WeekDay[]>(() => {
       date: d,
       dateString: dStr,
       dayNumber: d.getDate(),
-      dayName: d.toLocaleDateString('it-IT', { weekday: 'short' }),
-      fullDayName: d.toLocaleDateString('it-IT', { weekday: 'long' }),
+      dayName: d.toLocaleDateString(locale.value), { weekday: 'short' }),
+      fullDayName: d.toLocaleDateString(locale.value), { weekday: 'long' }),
       isToday: dStr === todayStr,
       chores: getChoresForDate(dStr)
     })
@@ -335,8 +335,8 @@ const selectedDayData = computed(() => {
     date: d,
     dateString: dStr,
     dayNumber: d.getDate(),
-    dayName: d.toLocaleDateString('it-IT', { weekday: 'long' }),
-    monthName: d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }),
+    dayName: d.toLocaleDateString(locale.value), { weekday: 'long' }),
+    monthName: d.toLocaleDateString(locale.value), { month: 'long', year: 'numeric' }),
     isToday: dStr === todayStr,
     chores: getChoresForDate(dStr)
   }
@@ -345,19 +345,19 @@ const selectedDayData = computed(() => {
 const currentPeriodLabel = computed(() => {
   const d = calendarDate.value
   if (calendarViewMode.value === 'month') {
-    return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+    return d.toLocaleDateString(locale.value), { month: 'long', year: 'numeric' })
   } else if (calendarViewMode.value === 'week') {
     const start = getStartOfWeek(d)
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
     if (start.getMonth() === end.getMonth()) {
-      return `${start.getDate()} - ${end.getDate()} ${start.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}`
+      return `${start.getDate()} - ${end.getDate()} ${start.toLocaleDateString(locale.value), { month: 'short', year: 'numeric' })}`
     } else {
-      return `${start.getDate()} ${start.toLocaleDateString('it-IT', { month: 'short' })} - ${end.getDate()} ${end.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}`
+      return `${start.getDate()} ${start.toLocaleDateString(locale.value), { month: 'short' })} - ${end.getDate()} ${end.toLocaleDateString(locale.value), { month: 'short', year: 'numeric' })}`
     }
   } else {
     // Day view
-    return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    return d.toLocaleDateString(locale.value), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 })
 
