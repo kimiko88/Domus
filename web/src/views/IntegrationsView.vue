@@ -310,12 +310,12 @@ async function saveTuyaConfig() {
       uid: tuyaConfigForm.uid,
       endpoint: tuyaConfigForm.endpoint
     })
-    notificationsStore.success(t('integrations.view.messages.tuyaConnectedTitle'), res.message || t('integrations.view.messages.tuyaConnectedDesc'))
+    notificationsStore.success(t('integrations.view.messages.tuyaConnectedTitle'), t('integrations.view.messages.tuyaConnectedDesc'))
     soundEffects.playSuccessChime()
     isEditingTuyaConfig.value = false
     await fetchTuyaConfig()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaConfigErrorTitle'), err?.message || t('integrations.view.messages.tuyaConfigErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.tuyaConfigErrorTitle'), t('integrations.view.messages.tuyaConfigErrorDesc'))
   } finally {
     tuyaConfigSaving.value = false
   }
@@ -340,7 +340,7 @@ async function disconnectTuyaConfig() {
     tuyaSearchQuery.value = ''
     isEditingTuyaConfig.value = false
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), err?.message || t('integrations.view.messages.disconnectErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), t('integrations.view.messages.disconnectErrorDesc'))
   }
 }
 
@@ -408,10 +408,10 @@ async function syncTuyaCloudToLocal() {
       '/api/v1/integrations/tuya-cloud/sync-local',
       { device_ids: selectedTuyaDeviceIds.value }
     )
-    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), res.message || t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
+    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
     await fetchTuyaCloudDevices(true)
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), err?.message || t('integrations.view.messages.localSyncErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), t('integrations.view.messages.localSyncErrorDesc'))
   } finally {
     tuyaSyncing.value = false
   }
@@ -446,7 +446,7 @@ async function toggleTuyaDeviceFunctions(device: TuyaCloudDevice) {
       }
     }
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaCommandsUnavailableTitle'), err?.message || t('integrations.view.messages.tuyaCommandsUnavailableDesc'))
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandsUnavailableTitle'), t('integrations.view.messages.tuyaCommandsUnavailableDesc'))
     tuyaFunctionPanels.value[device.id] = false
   } finally {
     tuyaFunctionsLoading.value = null
@@ -464,8 +464,8 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
       const currentBoolean = tuyaBooleanState(current)
       if (currentBoolean === undefined) {
         notificationsStore.warning(
-          'Stato non disponibile',
-          `Impossibile invertire ${fn.name || fn.code}: aggiorna lo stato del dispositivo e riprova.`
+          t('integrations.view.messages.stateUnavailableTitle'),
+          t('integrations.view.messages.stateUnavailableDesc', { name: fn.name || fn.code })
         )
         return
       }
@@ -515,10 +515,10 @@ async function executeTuyaFunction(device: TuyaCloudDevice, fn: TuyaDeviceFuncti
         { commands: [{ code: fn.code, value }] }
       )
     }
-    notificationsStore.success(t(sentLocally ? 'integrations.view.messages.commandSentLanTitle' : 'integrations.view.messages.commandSentTitle'), `${device.name}: ${fn.name || fn.code}`)
+    notificationsStore.success(t(sentLocally ? 'integrations.view.messages.commandSentLanTitle' : 'integrations.view.messages.commandSentTitle'), t('integrations.view.messages.commandSentDesc', { name: device.name, command: fn.name || fn.code }))
     await fetchTuyaCloudDevices()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.tuyaCommandErrorTitle'), err?.message || t('integrations.view.messages.communicationError'))
+    notificationsStore.error(t('integrations.view.messages.tuyaCommandErrorTitle'), t('integrations.view.messages.communicationError'))
   } finally {
     tuyaFunctionBusy.value = null
   }
@@ -538,7 +538,7 @@ async function setTuyaClimateMode(device: TuyaCloudDevice, mode: 'auto' | 'manua
     )
     notificationsStore.success(t('integrations.view.messages.thermostatModeUpdatedTitle'), t(mode === 'auto' ? 'integrations.view.messages.thermostatAuto' : 'integrations.view.messages.thermostatManual'))
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.thermostatCommandErrorTitle'), err?.message || t('integrations.view.messages.lanCommunicationError'))
+    notificationsStore.error(t('integrations.view.messages.thermostatCommandErrorTitle'), t('integrations.view.messages.lanCommunicationError'))
   } finally {
     tuyaCloudCommanding.value = null
   }
@@ -549,8 +549,8 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
   const encodedTemperature = encodeTuyaThermostatSetpoint(temperature)
   if (encodedTemperature === undefined) {
     notificationsStore.warning(
-      'Temperatura non supportata',
-      'Seleziona uno dei setpoint disponibili: 1, 1,5, 2, 7, 12, 17, 21 o 22 °C.'
+      t('integrations.view.messages.unsupportedTemperatureTitle'),
+      t('integrations.view.messages.unsupportedTemperatureDesc')
     )
     return
   }
@@ -595,7 +595,7 @@ async function setTuyaTemperature(device: TuyaCloudDevice) {
     }
     notificationsStore.success(
       t('integrations.view.messages.setpointUpdatedTitle'),
-      `${device.name}: ${temperature.toLocaleString(locale.value)} °C (valore inviato ${encodedTemperature.toLocaleString(locale.value)})`
+      t('integrations.view.messages.setpointUpdatedDesc', { name: device.name, temperature: temperature.toLocaleString(locale.value), encoded: encodedTemperature.toLocaleString(locale.value) })
     )
     await fetchTuyaCloudDevices()
   } catch (err: any) {
@@ -626,7 +626,7 @@ async function toggleTuyaStatus(device: TuyaCloudDevice, point: { code: string; 
         commands: [{ code: point.code, value: !point.value }]
       })
       point.value = !point.value
-      notificationsStore.success(t('integrations.view.messages.commandSentTitle'), `${device.name}: ${point.code}`)
+      notificationsStore.success(t('integrations.view.messages.commandSentTitle'), t('integrations.view.messages.commandSentDesc', { name: device.name, command: point.code }))
       await fetchTuyaCloudDevices()
     }
   } catch (err: any) {
@@ -690,7 +690,7 @@ async function scanNetwork(target?: string) {
     }
     await fetchDiscovered()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.scanErrorTitle'), err?.message || t('integrations.view.messages.scanErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.scanErrorTitle'), t('integrations.view.messages.scanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -711,7 +711,7 @@ async function pairDevice(dev: DiscoveredDevice) {
     )
     await Promise.all([fetchIntegrations(), fetchDiscovered()])
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.pairErrorTitle'), err?.message || t('integrations.view.messages.pairErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.pairErrorTitle'), t('integrations.view.messages.pairErrorDesc'))
   } finally {
     pairingId.value = null
   }
@@ -727,7 +727,7 @@ async function reconnect(integration: Integration) {
     )
     await fetchIntegrations()
   } catch (err: any) {
-    notificationsStore.error(t('common.error'), err?.message || t('integrations.reconnectError'))
+    notificationsStore.error(t('common.error'), t('integrations.reconnectError'))
   } finally {
     reconnectingId.value = null
   }
@@ -764,7 +764,7 @@ async function triggerArpScan() {
     notificationsStore.success(t('integrations.view.messages.arpScanCompleteTitle'), t('integrations.view.messages.arpScanCompleteDesc', { count: res.count }))
     soundEffects.playSuccessChime()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.networkScanErrorTitle'), err?.message || t('integrations.view.messages.networkScanErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.networkScanErrorTitle'), t('integrations.view.messages.networkScanErrorDesc'))
   } finally {
     scanning.value = false
   }
@@ -778,7 +778,7 @@ async function probeHostPorts(ip: string) {
     notificationsStore.info(t('integrations.view.messages.portProbeCompleteTitle'), t('integrations.view.messages.portProbeCompleteDesc', { ip, ports: res.open_ports.join(', ') }))
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.portProbeErrorTitle'), err?.message || t('integrations.view.messages.portProbeErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.portProbeErrorTitle'), t('integrations.view.messages.portProbeErrorDesc'))
   } finally {
     probingIp.value = null
   }
@@ -791,13 +791,13 @@ async function quarantineDevice(mac: string, ip: string, reason?: string) {
     await apiClient.post('/api/v1/network/quarantine', {
       mac,
       ip,
-      reason: reason || 'Dispositivo isolato manualmente da Network Guardian'
+      reason: reason || t('integrations.view.messages.manualIsolationReason')
     })
     notificationsStore.warning(t('integrations.view.messages.deviceQuarantinedTitle'), t('integrations.view.messages.deviceQuarantinedDesc', { mac }))
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.quarantineErrorTitle'), err?.message || t('integrations.view.messages.quarantineErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.quarantineErrorTitle'), t('integrations.view.messages.quarantineErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
@@ -812,7 +812,7 @@ async function unblockDevice(mac: string, ip: string) {
     soundEffects.playSuccessChime()
     await fetchGuardianData()
   } catch (err: any) {
-    notificationsStore.error(t('integrations.view.messages.unblockErrorTitle'), err?.message || t('integrations.view.messages.unblockErrorDesc'))
+    notificationsStore.error(t('integrations.view.messages.unblockErrorTitle'), t('integrations.view.messages.unblockErrorDesc'))
   } finally {
     quarantiningMac.value = null
   }
