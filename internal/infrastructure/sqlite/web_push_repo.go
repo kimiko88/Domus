@@ -109,12 +109,20 @@ func (r *WebPushRepository) ListWebPushSubscriptions(ctx context.Context, userID
 func (r *WebPushRepository) GetWebPushPreferences(ctx context.Context, userID string) (notification.WebPushPreferences, error) {
 	p := notification.DefaultWebPushPreferences()
 	var alarm, emergency, offline, automation, command, network, camera, doorbell, pantry, finance int
+	var tasks, medicineExpiry, medicineLowStock, foodExpiry, foodLowStock int
+	var medicineDays, foodDays int
 	err := r.db.QueryRowContext(ctx, `
 		SELECT alarm_alerts, emergency_alerts, device_offline_alerts,
 			automation_failure_alerts, command_failure_alerts, network_alerts,
-			camera_alerts, doorbell_alerts, pantry_alerts, finance_alerts
+			camera_alerts, doorbell_alerts, pantry_alerts, finance_alerts,
+			task_alerts, medicine_expiry_alerts, medicine_low_stock_alerts,
+			medicine_expiry_days, food_expiry_alerts, food_low_stock_alerts,
+			food_expiry_days
 		FROM web_push_preferences WHERE user_id = ?
-	`, userID).Scan(&alarm, &emergency, &offline, &automation, &command, &network, &camera, &doorbell, &pantry, &finance)
+	`, userID).Scan(
+		&alarm, &emergency, &offline, &automation, &command, &network, &camera, &doorbell, &pantry, &finance,
+		&tasks, &medicineExpiry, &medicineLowStock, &medicineDays, &foodExpiry, &foodLowStock, &foodDays,
+	)
 	if err == sql.ErrNoRows {
 		return p, nil
 	}
@@ -131,16 +139,35 @@ func (r *WebPushRepository) GetWebPushPreferences(ctx context.Context, userID st
 	p.DoorbellAlerts = doorbell == 1
 	p.PantryAlerts = pantry == 1
 	p.FinanceAlerts = finance == 1
+	p.TaskAlerts = tasks == 1
+	p.MedicineExpiryAlerts = medicineExpiry == 1
+	p.MedicineLowStockAlerts = medicineLowStock == 1
+	p.MedicineExpiryDays = medicineDays
+	p.FoodExpiryAlerts = foodExpiry == 1
+	p.FoodLowStockAlerts = foodLowStock == 1
+	p.FoodExpiryDays = foodDays
 	return p, nil
 }
 
 func (r *WebPushRepository) SaveWebPushPreferences(ctx context.Context, userID string, p notification.WebPushPreferences) error {
+	if userID == "" {
+		return fmt.Errorf("web push: user id is required")
+	}
+	if p.MedicineExpiryDays < 0 || p.MedicineExpiryDays > 365 {
+		return fmt.Errorf("web push: medicine expiry window must be between 0 and 365 days")
+	}
+	if p.FoodExpiryDays < 0 || p.FoodExpiryDays > 365 {
+		return fmt.Errorf("web push: food expiry window must be between 0 and 365 days")
+	}
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO web_push_preferences (
 			user_id, alarm_alerts, emergency_alerts, device_offline_alerts,
 			automation_failure_alerts, command_failure_alerts, network_alerts,
-			camera_alerts, doorbell_alerts, pantry_alerts, finance_alerts, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			camera_alerts, doorbell_alerts, pantry_alerts, finance_alerts,
+			task_alerts, medicine_expiry_alerts, medicine_low_stock_alerts,
+			medicine_expiry_days, food_expiry_alerts, food_low_stock_alerts,
+			food_expiry_days, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
 			alarm_alerts = excluded.alarm_alerts,
 			emergency_alerts = excluded.emergency_alerts,
@@ -152,12 +179,21 @@ func (r *WebPushRepository) SaveWebPushPreferences(ctx context.Context, userID s
 			doorbell_alerts = excluded.doorbell_alerts,
 			pantry_alerts = excluded.pantry_alerts,
 			finance_alerts = excluded.finance_alerts,
+			task_alerts = excluded.task_alerts,
+			medicine_expiry_alerts = excluded.medicine_expiry_alerts,
+			medicine_low_stock_alerts = excluded.medicine_low_stock_alerts,
+			medicine_expiry_days = excluded.medicine_expiry_days,
+			food_expiry_alerts = excluded.food_expiry_alerts,
+			food_low_stock_alerts = excluded.food_low_stock_alerts,
+			food_expiry_days = excluded.food_expiry_days,
 			updated_at = excluded.updated_at
 	`,
 		userID, boolInt(p.AlarmAlerts), boolInt(p.EmergencyAlerts), boolInt(p.DeviceOfflineAlerts),
 		boolInt(p.AutomationFailureAlerts), boolInt(p.CommandFailureAlerts), boolInt(p.NetworkAlerts),
 		boolInt(p.CameraAlerts), boolInt(p.DoorbellAlerts), boolInt(p.PantryAlerts), boolInt(p.FinanceAlerts),
-		time.Now().UTC().Format(time.RFC3339),
+		boolInt(p.TaskAlerts), boolInt(p.MedicineExpiryAlerts), boolInt(p.MedicineLowStockAlerts),
+		p.MedicineExpiryDays, boolInt(p.FoodExpiryAlerts), boolInt(p.FoodLowStockAlerts),
+		p.FoodExpiryDays, time.Now().UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return fmt.Errorf("web push: save preferences: %w", err)
@@ -166,8 +202,7 @@ func (r *WebPushRepository) SaveWebPushPreferences(ctx context.Context, userID s
 }
 
 func (r *WebPushRepository) ListWebPushRecipients(ctx context.Context, category string) ([]notification.WebPushSubscription, error) {
-	// The column is selected only from this fixed allow-list; caller input is
-	// never interpolated into SQL unless it matches a known preference key.
+	// The column comes only from this fixed allow-list; never interpolate caller input.
 	columnByCategory := map[string]string{
 		"alarm_alerts": "alarm_alerts",
 		"emergency_alerts": "emergency_alerts",
@@ -179,6 +214,11 @@ func (r *WebPushRepository) ListWebPushRecipients(ctx context.Context, category 
 		"doorbell_alerts": "doorbell_alerts",
 		"pantry_alerts": "pantry_alerts",
 		"finance_alerts": "finance_alerts",
+		"task_alerts": "task_alerts",
+		"medicine_expiry_alerts": "medicine_expiry_alerts",
+		"medicine_low_stock_alerts": "medicine_low_stock_alerts",
+		"food_expiry_alerts": "food_expiry_alerts",
+		"food_low_stock_alerts": "food_low_stock_alerts",
 	}
 	column, ok := columnByCategory[category]
 	if !ok {
@@ -189,6 +229,7 @@ func (r *WebPushRepository) ListWebPushRecipients(ctx context.Context, category 
 			s.expiration_time, s.created_at, s.updated_at
 		FROM web_push_subscriptions s
 		INNER JOIN web_push_preferences p ON p.user_id = s.user_id
+		INNER JOIN users u ON u.id = s.user_id AND u.enabled = 1
 		WHERE p.` + column + ` = 1
 		ORDER BY s.updated_at DESC
 	`
@@ -198,6 +239,31 @@ func (r *WebPushRepository) ListWebPushRecipients(ctx context.Context, category 
 	}
 	defer rows.Close()
 	return scanWebPushSubscriptions(rows)
+}
+
+// ClaimWebPushDelivery atomically reserves one logical notification for a user.
+func (r *WebPushRepository) ClaimWebPushDelivery(ctx context.Context, userID, dedupeKey string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO web_push_delivery_log (user_id, dedupe_key, sent_at)
+		VALUES (?, ?, ?)
+	`, userID, dedupeKey, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return false, fmt.Errorf("web push: reserve delivery: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("web push: inspect delivery reservation: %w", err)
+	}
+	return rows == 1, nil
+}
+
+// ReleaseWebPushDelivery permits retry when no subscription accepted the message.
+func (r *WebPushRepository) ReleaseWebPushDelivery(ctx context.Context, userID, dedupeKey string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM web_push_delivery_log WHERE user_id = ? AND dedupe_key = ?`, userID, dedupeKey)
+	if err != nil {
+		return fmt.Errorf("web push: release delivery reservation: %w", err)
+	}
+	return nil
 }
 
 func scanWebPushSubscriptions(rows *sql.Rows) ([]notification.WebPushSubscription, error) {
