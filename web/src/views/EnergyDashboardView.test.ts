@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import EnergyDashboardView from './EnergyDashboardView.vue'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 
 describe('EnergyDashboardView.vue', () => {
   beforeEach(() => {
@@ -79,9 +80,9 @@ describe('EnergyDashboardView.vue', () => {
     const wrapper = mount(EnergyDashboardView)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('F1 (Picco: Lun-Ven 08-19)')
-    expect(wrapper.text()).toContain('F2 (Intermedia')
-    expect(wrapper.text()).toContain('F3 (Fuori Picco')
+    expect(wrapper.text()).toContain(i18n.global.t('energy.tariffF1'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.tariffF2'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.tariffF3'))
     expect(wrapper.text()).toContain('0.28 €/kWh')
   })
 
@@ -99,14 +100,14 @@ describe('EnergyDashboardView.vue', () => {
     const wrapper = mount(EnergyDashboardView)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Ricarica Solare Intelligente & Wallbox OCPP')
+    expect(wrapper.text()).toContain(i18n.global.t('energy.wallboxTitle'))
     expect(wrapper.text()).toContain('Charging')
     expect(wrapper.text()).toContain('3680')
     expect(wrapper.text()).toContain('72')
-    expect(wrapper.text()).toContain('Solo Solare (100% FV)')
-    expect(wrapper.text()).toContain('Solare Ottimizzato (Ibrido)')
-    expect(wrapper.text()).toContain('Fast Charge (Massima Potenza)')
-    expect(wrapper.text()).toContain('Notturna Economica')
+    expect(wrapper.text()).toContain(i18n.global.t('energy.solarOnly'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.solarOptimized'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.fastCharge'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.scheduledNight'))
     expect(wrapper.text()).toContain('Solar optimized charging with 6A base + 10A solar surplus')
   })
 
