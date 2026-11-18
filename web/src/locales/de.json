@@ -1232,7 +1232,17 @@
       "onOffCluster": "Ein / Aus (genOnOff)",
       "levelCluster": "Dimmen / Helligkeit (genLevelCtrl)",
       "colorCluster": "Farbe / Temperatur (lightingColorCtrl)",
-      "createBinding": "Direkte Bindung erstellen"
+      "createBinding": "Direkte Bindung erstellen",
+      "noDevicesDetected": "Keine {protocol}-Geräte im Mesh-Netzwerk erkannt",
+      "newDirectBinding": "Neue Direktverbindung",
+      "nodeTypes": {
+        "coordinator": "Koordinator",
+        "router": "Router / Repeater",
+        "end_device": "Endgerät"
+      },
+      "sourcePrefix": "Quelle",
+      "destinationPrefix": "Ziel",
+      "clusterPrefix": "Cluster"
     }
   },
   "store": {
