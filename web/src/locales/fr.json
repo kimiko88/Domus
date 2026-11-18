@@ -496,7 +496,18 @@
         "deviceOfflineDesc": "L'appareil est hors ligne. Vérifiez son alimentation et sa connexion au réseau local.",
         "arpScanCompleteDesc": "Analyse ARP terminée. Appareils trouvés : {count}.",
         "deviceUnblockedTitle": "Appareil débloqué"
-      }
+      },
+      "devicesShown": "{count} affichés",
+      "deviceOnline": "En ligne",
+      "deviceOffline": "Hors ligne",
+      "turnOff": "Éteindre",
+      "turnOn": "Allumer",
+      "chooseTemperature": "Sélectionner une température",
+      "encodedValue": "envoie",
+      "valueToSend": "Valeur à envoyer",
+      "setpointMapAria": "Table de conversion de la consigne du thermostat",
+      "hideCommands": "Masquer les commandes",
+      "availableApiCommands": "Commandes disponibles via l’API"
     }
   },
   "history": {
