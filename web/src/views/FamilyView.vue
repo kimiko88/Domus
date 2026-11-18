@@ -403,7 +403,7 @@ onMounted(() => {
           </div>
 
           <div v-if="roleChangeSuccess === member.id" class="toast-inline">
-            <Check :size="14" /> Ruolo aggiornato
+            <Check :size="14" /> {{ t('family.roleUpdated') }}
           </div>
         </div>
       </div>
@@ -578,10 +578,10 @@ onMounted(() => {
 
         <div class="modal-footer">
           <BaseButton variant="ghost" size="md" @click="closeGuestModal">
-            Annulla
+            {{ t('common.cancel') }}
           </BaseButton>
           <BaseButton variant="primary" size="md" @click="handleCreateGuest">
-            Crea Profilo Ospite
+            {{ t('family.createGuestProfile') }}
           </BaseButton>
         </div>
       </div>
