@@ -1140,7 +1140,8 @@
       "filterVehicle": "Veicolo",
       "filterPackage": "Pacco",
       "aiOverviewDescription": "Riconoscimento facciale locale dei residenti tramite similarità coseno e lettura automatica delle targhe per il controllo degli accessi.",
-      "subSecondDelay": "Latenza inferiore a un secondo"
+      "subSecondDelay": "Latenza inferiore a un secondo",
+      "detectionTooltip": "Rilevamento {label} alle {time} — telecamera {camera}"
     }
   },
   "shopping": {
