@@ -387,7 +387,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         :aria-pressed="filterStatus === 'all'"
         @click="filterStatus = 'all'"
       >
-        {{ t('devices.filterAll') }} ({{ totalDevicesCount }})
+        {{ t('devices.filterAll', { count: totalDevicesCount }) }}
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'online' }]"
@@ -395,7 +395,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         @click="filterStatus = 'online'"
       >
         <Wifi :size="15" />
-        {{ t('devices.filterOnline') }} ({{ onlineDevicesCount }})
+        {{ t('devices.filterOnline', { count: onlineDevicesCount }) }}
       </button>
       <button
         :class="['filter-pill', { active: filterStatus === 'offline' }]"
@@ -403,7 +403,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
         @click="filterStatus = 'offline'"
       >
         <WifiOff :size="15" />
-        {{ t('devices.filterOffline') }} ({{ offlineDevicesCount }})
+        {{ t('devices.filterOffline', { count: offlineDevicesCount }) }}
       </button>
     </div>
 
