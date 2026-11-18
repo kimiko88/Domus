@@ -579,7 +579,7 @@ function setLivePreset(temp: number) {
 
 async function applyLiveThermostatSettings() {
   if (!activeThermostatId.value) {
-    notifStore.error('Nessun Termostato', 'Seleziona un termostato smart collegato')
+    notifStore.error(t('schedules.view.noThermostatTitle'), t('schedules.view.noThermostatMessage'))
     return
   }
 
@@ -590,7 +590,7 @@ async function applyLiveThermostatSettings() {
     const duration = Number(manualOverrideDuration.value)
 
     if (!Number.isInteger(duration) || duration < 0 || duration > 1440) {
-      throw new Error('La durata della modifica deve essere compresa tra 0 e 1440 minuti')
+      throw new Error(t('schedules.view.invalidOverrideDuration'))
     }
     if (!supportsSetpoint.value) {
       throw new Error(t('schedules.view.noProgrammableSetpoint'))
@@ -598,7 +598,7 @@ async function applyLiveThermostatSettings() {
     if (!Number.isFinite(liveTargetTemp.value) ||
       liveTargetTemp.value < setpointMin.value ||
       liveTargetTemp.value > setpointMax.value) {
-      throw new Error('La temperatura richiesta è fuori dai limiti supportati dal termostato')
+      throw new Error(t('schedules.view.targetTemperatureUnsupported'))
     }
 
     if (entity) {
@@ -622,13 +622,13 @@ async function applyLiveThermostatSettings() {
       // A cloud-only device has no persisted Domus entity for the backend
       // restore scheduler. Permit immediate control, but never promise a timer.
       if (duration > 0) {
-        throw new Error('Il ripristino temporizzato richiede un dispositivo associato a un’entità Domus')
+        throw new Error(t('schedules.view.timedRestoreRequiresEntity'))
       }
 
       const commands: Array<{ code: string; value: unknown }> = []
       if (liveHvacMode.value === 'off') {
         if (!option.switch_dp_code) {
-          throw new Error('Il dispositivo Smart Life non espone un comando di spegnimento riconosciuto')
+          throw new Error(t('schedules.view.tuyaOffCommandUnavailable'))
         }
         commands.push({ code: option.switch_dp_code, value: false })
       } else {
@@ -667,7 +667,7 @@ async function applyLiveThermostatSettings() {
         }
       )
     } else {
-      throw new Error('Il dispositivo selezionato non è associato a un’entità Domus controllabile')
+      throw new Error(t('schedules.view.deviceNotControllable'))
     }
 
     if (option) {
@@ -676,15 +676,13 @@ async function applyLiveThermostatSettings() {
     }
 
     notifStore.success(
-      'Comando termostato inviato',
+      t('schedules.view.commandSentTitle'),
       duration === 0
-        ? 'Richiesto setpoint di ' + liveTargetTemp.value.toFixed(1) +
-          '°C fino alla prossima modifica.'
-        : 'Richiesto setpoint di ' + liveTargetTemp.value.toFixed(1) +
-          '°C per ' + duration + ' minuti; poi verrà richiesto il ripristino del valore precedente.'
+        ? t('schedules.view.commandUntilNextChange', { temperature: liveTargetTemp.value.toFixed(1) })
+        : t('schedules.view.commandForDuration', { temperature: liveTargetTemp.value.toFixed(1), duration })
     )
   } catch (err: any) {
-    notifStore.error('Errore Regolazione', err?.message || 'Impossibile comunicare con il termostato smart')
+    notifStore.error(t('schedules.view.adjustmentErrorTitle'), t('schedules.view.adjustmentErrorMessage'))
   } finally {
     isAdjustingLive.value = false
   }
@@ -711,11 +709,11 @@ function saveSlot() {
   const start = toMinutes(newSlotForm.value.start)
   const end = toMinutes(newSlotForm.value.end)
   if (start === null || end === null || start >= end) {
-    notifStore.error('Orario non valido', 'L’orario di fine deve essere successivo all’inizio nella stessa giornata.')
+    notifStore.error(t('schedules.view.invalidTimeTitle'), t('schedules.view.invalidTimeMessage'))
     return
   }
   if (!Number.isFinite(newSlotForm.value.value) || newSlotForm.value.value < setpointMin.value || newSlotForm.value.value > setpointMax.value) {
-    notifStore.error('Setpoint non valido', `Inserisci una temperatura tra ${setpointMin.value} e ${setpointMax.value} °C.`)
+    notifStore.error(t('schedules.view.invalidSetpointTitle'), t('schedules.view.invalidSetpointMessage', { min: setpointMin.value, max: setpointMax.value }))
     return
   }
   const existingSlots = sched.grid[targetSlotDay.value] || []
@@ -725,7 +723,7 @@ function saveSlot() {
     return slotStart !== null && slotEnd !== null && start < slotEnd && slotStart < end
   })
   if (overlaps) {
-    notifStore.error('Fasce sovrapposte', 'Modifica l’orario: questa fascia si sovrappone a una già presente nel giorno selezionato.')
+    notifStore.error(t('schedules.view.overlappingSlotsTitle'), t('schedules.view.overlappingSlotsMessage'))
     return
   }
   if (!sched.grid[targetSlotDay.value]) {
@@ -742,7 +740,7 @@ function saveSlot() {
   sched.grid[targetSlotDay.value].sort((a, b) => a.start.localeCompare(b.start))
 
   showAddSlotModal.value = false
-  notifStore.success('Fascia Aggiunta', `Fascia ${newSlotForm.value.start}-${newSlotForm.value.end} (${newSlotForm.value.value}°C) aggiunta a ${targetSlotDay.value}`)
+  notifStore.success(t('schedules.view.timeSlotAddedTitle'), t('schedules.view.timeSlotAddedMessage', { start: newSlotForm.value.start, end: newSlotForm.value.end, temperature: newSlotForm.value.value, day: t(`schedules.view.days.${targetSlotDay.value}`) }))
 }
 
 function removeSlot(dayKey: string, index: number) {
@@ -780,7 +778,7 @@ function applyWinterWorkingProfile() {
     sunday: JSON.parse(JSON.stringify(weekendSlots))
   }
 
-  notifStore.success('Profilo Applicato', 'Impostato profilo Inverno Lavorativo (Comfort mattina/sera, Eco giorno)')
+  notifStore.success(t('schedules.view.profileAppliedTitle'), t('schedules.view.profileAppliedMessage'))
 }
 
 function copyMondayToWorkdays() {
@@ -793,7 +791,7 @@ function copyMondayToWorkdays() {
   sched.grid['thursday'] = JSON.parse(JSON.stringify(mondaySlots))
   sched.grid['friday'] = JSON.parse(JSON.stringify(mondaySlots))
 
-  notifStore.success('Copiato', 'Fasce del Lunedì copiate su tutti i giorni lavorativi (Mar-Ven)')
+  notifStore.success(t('schedules.view.copiedTitle'), t('schedules.view.copyMondayToWorkdaysMessage'))
 }
 
 function copySaturdayToSunday() {
@@ -802,7 +800,7 @@ function copySaturdayToSunday() {
   const satSlots = sched.grid['saturday'] || []
 
   sched.grid['sunday'] = JSON.parse(JSON.stringify(satSlots))
-  notifStore.success('Copiato', 'Fasce del Sabato duplicate sulla Domenica')
+  notifStore.success(t('schedules.view.copiedTitle'), t('schedules.view.copySaturdayToSundayMessage'))
 }
 
 async function saveCurrentSchedule() {
@@ -823,18 +821,18 @@ async function saveCurrentSchedule() {
       grid: schedule.grid
     })
     notifStore.success(
-      'Cronotermostato Salvato',
-      'Programmazione oraria per "' + schedule.name + '" aggiornata con successo'
+      t('schedules.view.scheduleSavedTitle'),
+      t('schedules.view.scheduleSavedMessage', { name: schedule.name })
     )
   } catch (err: any) {
-    notifStore.error('Errore Salvataggio', err?.message || 'Impossibile salvare la programmazione')
+    notifStore.error(t('schedules.view.scheduleSaveErrorTitle'), t('schedules.view.scheduleSaveErrorMessage'))
   } finally {
     isSavingSchedule.value = false
   }
 }
 
 async function createNewSchedule() {
-  const newSchedName = `Cronotermostato ${schedules.value.length + 1}`
+  const newSchedName = t('schedules.view.newScheduleName', { number: schedules.value.length + 1 })
   const targetEntity = activeThermostatEntityKey.value || 'climate.termostato_principale'
 
   try {
@@ -856,7 +854,7 @@ async function createNewSchedule() {
     if (created) {
       schedules.value.push(created)
       selectedScheduleId.value = created.id
-      notifStore.success('Nuovo Cronotermostato', `Creato ${created.name}`)
+      notifStore.success(t('schedules.view.newThermostatTitle'), t('schedules.view.newThermostatMessage', { name: created.name }))
     }
   } catch {
     // Fallback if offline
@@ -896,12 +894,12 @@ async function handleICalUpload(event: Event) {
   const text = await file.text()
   try {
     await apiClient.post('/api/v1/calendar/import', text)
-    icsUploadStatus.value = 'Calendario importato con successo!'
+    icsUploadStatus.value = t('schedules.view.calendarImportSuccess')
     setTimeout(() => (icsUploadStatus.value = ''), 4000)
     const e = await apiClient.get<CalendarEvent[]>('/api/v1/calendar/events')
     calendarEvents.value = e || []
   } catch {
-    icsUploadStatus.value = "Errore durante l'importazione iCal"
+    icsUploadStatus.value = t('schedules.view.calendarImportError')
   }
 }
 
