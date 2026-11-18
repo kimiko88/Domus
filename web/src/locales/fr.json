@@ -655,7 +655,9 @@
       "deviceTotals": "au total · en ligne · hors ligne",
       "ipLabel": "IP",
       "firmwareLabel": "Micrologiciel",
-      "tuyaCloudSetupInstruction": "Créez un compte sur iot.tuya.com, ouvrez Cloud → Development et sélectionnez le projet Domus."
+      "tuyaCloudSetupInstruction": "Créez un compte sur iot.tuya.com, ouvrez Cloud → Development et sélectionnez le projet Domus.",
+      "tuyaProjectIntro": "Ouvrez votre projet sur",
+      "tuyaProjectPath": "Cloud → Development → ouvrez le projet Domus"
     }
   },
   "history": {
