@@ -66,7 +66,7 @@ const satellites = ref<VoiceSatellite[]>([
   {
     id: 'sat_living',
     name: t('satellites.fallbackSatellites.livingRoom'),
-    area_name: t('areas.icons.livingRoom'),
+    area_name: t('satellites.fallbackSatellites.livingRoomArea'),
     status: 'listening',
     wake_word: 'Ehi Domus',
     mic_muted: false
@@ -74,7 +74,7 @@ const satellites = ref<VoiceSatellite[]>([
   {
     id: 'sat_kitchen',
     name: t('satellites.fallbackSatellites.kitchen'),
-    area_name: t('areas.icons.kitchen'),
+    area_name: t('satellites.fallbackSatellites.kitchenArea'),
     status: 'listening',
     wake_word: 'Ehi Domus',
     mic_muted: false
@@ -82,7 +82,7 @@ const satellites = ref<VoiceSatellite[]>([
   {
     id: 'sat_bedroom',
     name: t('satellites.fallbackSatellites.bedroom'),
-    area_name: t('areas.icons.bedroom'),
+    area_name: t('satellites.fallbackSatellites.bedroomArea'),
     status: 'muted',
     wake_word: 'Ehi Domus',
     mic_muted: true
@@ -131,7 +131,13 @@ async function sendSatelliteTest(sat: VoiceSatellite) {
 const messages = computed(() => assistantStore.messages)
 const isProcessing = computed(() => assistantStore.isProcessing)
 
-const quickChips = computed(() => [\n  t('satellites.quickChips.lightsOff'),\n  t('satellites.quickChips.kitchenLight'),\n  t('satellites.quickChips.temperature'),\n  t('satellites.quickChips.goodnight'),\n  t('satellites.quickChips.pastaTimer')\n])
+const quickChips = computed(() => [
+  t('satellites.quickChips.lightsOff'),
+  t('satellites.quickChips.kitchenLight'),
+  t('satellites.quickChips.temperature'),
+  t('satellites.quickChips.goodnight'),
+  t('satellites.quickChips.pastaTimer')
+])
 
 async function handleSend() {
   if (!inputPrompt.value.trim() || isProcessing.value) return
@@ -423,7 +429,7 @@ onMounted(() => {
               @click="isAlwaysOnListening = !isAlwaysOnListening"
             >
               <Mic :size="14" />
-              <span>Wake Word {{ isAlwaysOnListening ? t('satellites.wakeActive') : t('satellites.wakeDisabled') }}</span>
+              <span>{{ t('satellites.wakeWord') }} {{ isAlwaysOnListening ? t('satellites.wakeActive') : t('satellites.wakeDisabled') }}</span>
             </button>
           </div>
 
