@@ -2084,7 +2084,14 @@
         "dry": "Entfeuchten",
         "fanOnly": "Nur Lüfter",
         "other": "Anderer Modus"
-      }
+      },
+      "monday": "Montag",
+      "tuesday": "Dienstag",
+      "wednesday": "Mittwoch",
+      "thursday": "Donnerstag",
+      "friday": "Freitag",
+      "saturday": "Samstag",
+      "sunday": "Sonntag"
     }
   },
   "login": {
@@ -2189,7 +2196,10 @@
     "fallbackSatellites": {
       "livingRoom": "Wandtablet im Wohnzimmer",
       "kitchen": "Smart Display in der Küche",
-      "bedroom": "Nachttisch-Tablet"
+      "bedroom": "Nachttisch-Tablet",
+      "livingRoomArea": "Wohnzimmer",
+      "kitchenArea": "Küche",
+      "bedroomArea": "Schlafzimmer"
     }
   },
   "flasher": {
@@ -2373,7 +2383,14 @@
       "thresholdHelp": "Lege mindestens einen der beiden Schwellenwerte fest.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Dieser Bedingungstyp kann nicht mit den visuellen Steuerelementen bearbeitet werden. Die ursprüngliche Konfiguration bleibt unverändert.",
-      "entityLabel": "Entität"
+      "entityLabel": "Entität",
+      "stateLabel": "Erforderlicher Zustand",
+      "sensorLabel": "Sensor",
+      "aboveLabel": "Größer als",
+      "belowLabel": "Kleiner als",
+      "afterLabel": "Nach",
+      "beforeLabel": "Vor",
+      "triggerIdLabel": "Auslöser-ID"
     }
   },
   "failover": {
@@ -3021,7 +3038,10 @@
         "expiring": "Läuft in 3 Tagen ab",
         "expiringSub": "Bald verbrauchen",
         "cookable": "Was kann ich kochen?",
-        "cookableSub": "100 % der Zutaten verfügbar"
+        "cookableSub": "100 % der Zutaten verfügbar",
+        "filterLowStock": "Artikel mit niedrigem Bestand filtern",
+        "filterExpiring": "Bald ablaufende Artikel filtern",
+        "showCookable": "Heute kochbare Rezepte anzeigen"
       },
       "cookableRecipes": "zubereitbare Rezepte"
     }
