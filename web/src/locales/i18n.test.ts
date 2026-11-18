@@ -74,7 +74,19 @@ describe('Localization (i18n)', () => {
       ['common', 'pwa', 'updateAvailableTitle'],
       ['common', 'pwa', 'updateAvailableDescription'],
       ['common', 'pwa', 'updateNow'],
-      ['common', 'pwa', 'later']
+      ['common', 'pwa', 'later'],
+      ['common', 'errors', 'fileReadFailed'],
+      ['integrations', 'view', 'deviceOnline'],
+      ['integrations', 'view', 'valueToSend'],
+      ['integrations', 'view', 'messages', 'unsupportedTemperatureTitle'],
+      ['integrations', 'view', 'messages', 'setpointUpdatedDesc'],
+      ['integrations', 'view', 'messages', 'commandSentDesc'],
+      ['scenes', 'editor', 'actionRequired'],
+      ['chores', 'view', 'completedMessage'],
+      ['predictiveClimate', 'view', 'invalidSample'],
+      ['cameras', 'view', 'filterPerson'],
+      ['media', 'view', 'stateBuffering'],
+      ['areas', 'nameRequired']
     ]
 
     for (const catalog of locales) {
