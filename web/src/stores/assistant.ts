@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { AssistantActionExecuted, AssistantChatResponse, AssistantConfig } from '../api/types'
@@ -48,7 +49,7 @@ export const useAssistantStore = defineStore('assistant', () => {
       config.value = updated
       return updated
     } catch (err: any) {
-      error.value = err?.message || 'Errore salvataggio config assistente'
+      error.value = i18n.global.t('common.errors.updateFailed')
       throw err
     }
   }
@@ -83,12 +84,12 @@ export const useAssistantStore = defineStore('assistant', () => {
 
       return resp
     } catch (err: any) {
-      const fallbackMsg = err?.message || 'Errore elaborazione comando assistente'
+      const fallbackMsg = i18n.global.t('common.errors.actionFailed')
       error.value = fallbackMsg
       messages.value.push({
         id: 'msg_err_' + Date.now(),
         sender: 'assistant',
-        text: `⚠️ Si è verificato un errore: ${fallbackMsg}`,
+        text: i18n.global.t('assistant.errors.actionFailed', { error: fallbackMsg }),
         timestamp: new Date().toISOString()
       })
       return null
