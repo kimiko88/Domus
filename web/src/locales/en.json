@@ -2549,7 +2549,16 @@
       "preheatNoAdvanceReason": "The current temperature ({current} °C) has already reached the desired comfort target ({target} °C); no advance heating is needed.",
       "preheatScheduledReason": "Start heating {minutes} min early at {start} to reach {target} °C by {targetTime} (estimated rate {rate} °C/h; outdoor temperature {outdoor} °C).",
       "coastDownNoShutdownReason": "Early shutdown is not needed: the temperature is already below the comfort limit ({limit} °C).",
-      "coastDownScheduledReason": "Switch heating off {minutes} min early at {stop}, before the {departure} departure; estimated energy saving {energy} kWh."
+      "coastDownScheduledReason": "Switch heating off {minutes} min early at {stop}, before the {departure} departure; estimated energy saving {energy} kWh.",
+      "reasons": {
+        "frostProtection": "Window open: frost-protection temperature is active to reduce waste.",
+        "eco": "Eco mode is active: the setpoint is reduced to limit energy use.",
+        "solarCutoff": "The setpoint is being reduced in anticipation of forecast solar radiation ({radiation} W/m²).",
+        "coldFront": "A barometric pressure drop of {trend} hPa/h was detected; compensation for the approaching cold front is active.",
+        "preheat": "Preventive preheating is active: forecast outdoor temperature is {outdoor} °C.",
+        "comfort": "Heating is operating in standard comfort mode.",
+        "default": "Predictive climate control is active."
+      }
     }
   },
   "sharedDashboard": {
