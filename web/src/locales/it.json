@@ -169,7 +169,8 @@
       "actionFailed": "Impossibile completare l'operazione. Riprova.",
       "syncFailed": "Sincronizzazione non riuscita. Riprova.",
       "exportFailed": "Esportazione non riuscita. Riprova."
-    }
+    },
+    "close": "Chiudi"
   },
   "nav": {
     "sectionOverview": "Panoramica",
