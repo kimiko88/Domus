@@ -63,7 +63,7 @@ export const useFamilyStore = defineStore('family', () => {
       await apiClient.delete(`/api/v1/family/invites/${encodeURIComponent(id)}`)
       invites.value = invites.value.filter(i => i.id !== id)
     } catch (err: any) {
-      error.value = i18n.global.t('common.errors.createFailed')
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
