@@ -75,12 +75,16 @@ func (h *WebPushHandler) DeleteSubscription(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "authentication required")
 		return
 	}
-	var req struct { Endpoint string `json:"endpoint"` }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
-		return
+	endpoint := r.URL.Query().Get("endpoint")
+	if endpoint == "" {
+		var req struct { Endpoint string `json:"endpoint"` }
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body")
+			return
+		}
+		endpoint = req.Endpoint
 	}
-	if err := h.service.Unsubscribe(r.Context(), currentUser.ID, req.Endpoint); err != nil {
+	if err := h.service.Unsubscribe(r.Context(), currentUser.ID, endpoint); err != nil {
 		writeError(w, http.StatusBadRequest, "UNSUBSCRIBE_FAILED", err.Error())
 		return
 	}
