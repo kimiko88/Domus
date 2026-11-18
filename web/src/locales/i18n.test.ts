@@ -99,7 +99,29 @@ describe('Localization (i18n)', () => {
       ['shopping', 'view', 'transferCompleted'],
       ['store', 'view', 'rejectedByAdministrator'],
       ['dashboard', 'view', 'customize'],
-      ['dashboard', 'view', 'deleteConfirm']
+      ['dashboard', 'view', 'deleteConfirm'],
+      ['automations', 'editor', 'titleEdit'],
+      ['automations', 'editor', 'errors', 'invalidJson'],
+      ['automations', 'validation', 'objectExpected'],
+      ['automations', 'graphErrors', 'conditionCycle'],
+      ['flowchart', 'conditionEditor', 'entityLabel'],
+      ['flowchart', 'conditionEditor', 'stateLabel'],
+      ['guide', 'searchAria'],
+      ['pantry', 'view', 'kpis', 'lowStock'],
+      ['pantry', 'view', 'kpis', 'filterLowStock'],
+      ['satellites', 'askPlaceholder'],
+      ['satellites', 'quickChips', 'pastaTimer'],
+      ['satellites', 'fallbackSatellites', 'kitchenArea'],
+      ['integrations', 'view', 'tuyaProjectIntro'],
+      ['integrations', 'view', 'tuyaProjectPath'],
+      ['common', 'done'],
+      ['automations', 'cooldown'],
+      ['integrations', 'view', 'deviceOnline'],
+      ['flowchart', 'view', 'nodeTypes', 'trigger'],
+      ['pantry', 'view', 'mealCalendar', 'mealTypes', 'dessert'],
+      ['guide', 'sec7RouteLabel'],
+      ['automations', 'graphErrors', 'conditionTitles', 'state'],
+      ['pantry', 'view', 'kpis', 'filterExpiring']
     ]
 
     for (const catalog of locales) {
