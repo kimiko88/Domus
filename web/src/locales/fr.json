@@ -170,7 +170,10 @@
       "syncFailed": "La synchronisation a échoué. Réessayez.",
       "exportFailed": "L’exportation a échoué. Réessayez.",
       "pdfTooLarge": "Le PDF dépasse la limite de 3 Mo.",
-      "imageTooLarge": "L’image dépasse la limite de 4 Mo."
+      "imageTooLarge": "L’image dépasse la limite de 4 Mo.",
+      "invalidPin": "Le code PIN n’est pas valide.",
+      "fileTooLarge": "Le fichier sélectionné dépasse la limite de {limit} Mo.",
+      "fileReadFailed": "Impossible de lire le fichier sélectionné."
     },
     "close": "Fermer"
   },
