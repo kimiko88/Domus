@@ -958,7 +958,35 @@
       "thresholdPassed": "65% threshold exceeded",
       "accessConfirmed": "Access confirmed",
       "profileValidated": "Profile validated by the local NVR engine. Welcome automations are unlocked.",
-      "testMatchButton": "Test match"
+      "testMatchButton": "Test match",
+      "wallSync": "MULTI-SCREEN SYNCHRONIZATION ({matrix})",
+      "cameraNumber": "CAMERA {number}: {name}",
+      "channelWaiting": "Channel {channel} waiting",
+      "filterAll": "All ({count})",
+      "recording": "REC",
+      "cameraLabel": "Camera",
+      "confidenceLabel": "Confidence",
+      "playClip": "Play clip ({seconds}s)",
+      "storageNvr": "NVR storage: {used} GB / {total} GB (WAL ring buffer)",
+      "online": "Online",
+      "streamingLatencyHint": "Streaming latency under 200 ms",
+      "cameraId": "Camera ID",
+      "directWebRtcStream": "Direct WebRTC stream",
+      "sensitivityLabel": "Sensitivity",
+      "familyOwner": "Family member",
+      "privateVehicle": "Private vehicle",
+      "newZoneName": "New zone {count}",
+      "confirmDeleteFace": "Remove the biometric profile for {name}?",
+      "confirmDeletePlate": "Remove license plate {plate}?",
+      "detectionLabels": {
+        "person": "Person",
+        "vehicle": "Vehicle",
+        "package": "Package",
+        "animal": "Animal"
+      },
+      "saveProfile": "Save profile",
+      "autoOpenGateLights": "Automatically open the driveway gate and turn on the driveway lights",
+      "registerPlate": "Register plate"
     }
   },
   "shopping": {
