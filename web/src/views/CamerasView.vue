@@ -482,7 +482,7 @@ onMounted(async () => {
               :class="{ active: selectedLabelFilter === 'all' }"
               @click="selectedLabelFilter = 'all'; soundEffects.playClick()"
             >
-              Tutti ({{ events.length }})
+              {{ t('cameras.view.filterAll', { count: events.length }) }}
             </button>
             <button
               type="button"
@@ -535,11 +535,11 @@ onMounted(async () => {
           <div class="feed-overlay feed-overlay-bottom">
             <span class="feed-status-badge">
               <span class="status-indicator-dot" />
-              {{ cam.stream_type.toUpperCase() }} REC
+              {{ cam.stream_type.toUpperCase() }} {{ t('cameras.view.recording') }}
             </span>
 
             <div v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id" class="feed-event-alert">
-              <span class="alert-label">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+              <span class="alert-label">{{ getDetectionLabel(activeScrubbedEvent.label) }}</span>
               <span class="alert-score">{{ (activeScrubbedEvent.score * 100).toFixed(0) }}%</span>
             </div>
           </div>
@@ -647,7 +647,7 @@ onMounted(async () => {
               class="timeline-marker"
               :class="[e.label, { active: activeScrubbedEvent && activeScrubbedEvent.id === e.id }]"
               :style="{ left: e.percent + '%' }"
-              :title="`${e.label.toUpperCase()} @ ${e.detected_at} (${e.camera_id})`"
+              :title="`${getDetectionLabel(e.label)} @ ${e.detected_at} (${e.camera_id})`"
               @click="jumpToTimelineEvent(e)"
             >
               <span class="marker-dot" />
@@ -893,7 +893,7 @@ onMounted(async () => {
     <!-- Empty State for Cameras -->
     <div v-if="currentViewMode === 'grid' && cameras.length === 0" class="empty-state glass-panel" style="padding: 40px; text-align: center; margin-bottom: 24px;">
       <Video :size="48" style="opacity: 0.4; margin: 0 auto 12px; color: var(--text-muted);" />
-      <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;">{{ t('cameras.noCameras', 'Nessuna telecamera configurata') }}</p>
+      <p style="font-weight: 600; font-size: 1.1rem; margin: 0 0 6px;" >{{ t('cameras.noCameras') }}</p>
       <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">{{ t('cameras.view.connectCameras') }}</p>
     </div>
 
@@ -1011,8 +1011,8 @@ onMounted(async () => {
           </div>
 
           <div class="event-meta">
-            <span class="event-label">{{ t('cameras.detected') }}: <strong>{{ e.label.toUpperCase() }}</strong></span>
-            <span class="event-sub">Camera: {{ e.camera_id }} • {{ t('cameras.confidence') }}: {{ (e.score * 100).toFixed(0) }}%</span>
+            <span class="event-label">{{ t('cameras.detected') }}: <strong>{{ getDetectionLabel(e.label) }}</strong></span>
+            <span class="event-sub">{{ t('cameras.view.cameraLabel') }}: {{ e.camera_id }} • {{ t('cameras.confidence') }}: {{ (e.score * 100).toFixed(0) }}%</span>
           </div>
 
           <div class="event-actions">
@@ -1036,7 +1036,7 @@ onMounted(async () => {
       <div class="live-modal-dialog glass-panel" @click.stop>
         <div class="modal-top">
           <h3>{{ activeCamera.name }} ({{ t('cameras.view.directWebRtcStream') }})</h3>
-          <button class="close-btn" @click="isLiveModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isLiveModalOpen = false">✕</button>
         </div>
         <div class="video-container">
           <img :src="activeCamera.snapshot_url" class="fullscreen-video" />
@@ -1050,7 +1050,7 @@ onMounted(async () => {
         <div class="modal-top">
           <div class="clip-title-row">
             <Film :size="18" class="text-primary" />
-            <h3>{{ t('cameras.clipModalTitle') }} ({{ previewClipModal.event.label.toUpperCase() }})</h3>
+            <h3>{{ t('cameras.clipModalTitle') }} ({{ getDetectionLabel(previewClipModal.event.label) }})</h3>
           </div>
           <button class="close-btn" @click="previewClipModal.isOpen = false">✕</button>
         </div>
