@@ -358,7 +358,8 @@
       "deleteFailed": "Unable to delete the dashboard.",
       "extensionUninstalled": "Extension uninstalled successfully",
       "extensionInstalled": "Extension installed and active locally",
-      "extensionToggleFailed": "Unable to change the package state"
+      "extensionToggleFailed": "Unable to change the package state",
+      "removeWidgetAria": "Remove widget {title}"
     }
   },
   "areas": {
@@ -2155,7 +2156,8 @@
         "simulationErrorTitle": "Simulation error",
         "simulationErrorMessage": "Unable to simulate the flow.",
         "invalidFlowTitle": "Invalid flow",
-        "invalidFlowMessage": "Fix the links before exporting."
+        "invalidFlowMessage": "Fix the links before exporting.",
+        "simulationWithoutTriggersMessage": "The conditions were met. Triggers were not simulated."
       },
       "newAutomationName": "New node automation",
       "nodeTypes": {
