@@ -336,7 +336,8 @@
     "saveError": "Bereich konnte nicht gespeichert werden",
     "deleteSuccess": "Bereich erfolgreich gelöscht",
     "deleteError": "Bereich konnte nicht gelöscht werden",
-    "nameRequired": "Ein Bereichsname ist erforderlich."
+    "nameRequired": "Ein Bereichsname ist erforderlich.",
+    "createArea": "Bereich erstellen"
   },
   "devices": {
     "title": "Geräte",
@@ -2309,7 +2310,19 @@
       "trainingHelp": "Beim Heizen muss die Endtemperatur höher als die Starttemperatur sein; beim Kühlen niedriger. Zyklen von 15 bis 720 Minuten werden akzeptiert.",
       "neverEvaluated": "Noch nie ausgewertet",
       "dateUnavailable": "Datum nicht verfügbar",
-      "lastEvaluated": "Zuletzt ausgewertet: {date}"
+      "lastEvaluated": "Zuletzt ausgewertet: {date}",
+      "calculating": "Berechnung läuft...",
+      "evaluateAllZones": "Alle Zonen auswerten",
+      "coldFrontDetected": "Kaltfront erkannt",
+      "pressureStable": "Stabiler Luftdruck",
+      "barometricPreheatActive": "Barometrisches Vorheizen aktiv",
+      "noBarometricDrop": "Kein barometrischer Druckabfall",
+      "solarCutoffActive": "Solarbegrenzung aktiv",
+      "moderateSun": "Mäßige Sonneneinstrahlung",
+      "solarSavingsActive": "Einsparung in sonnenexponierten Räumen aktiv",
+      "standardSolarGain": "Standard-Solarertrag",
+      "pressureTrend": "Trend",
+      "saveConfiguration": "Konfiguration speichern"
     }
   },
   "sharedDashboard": {
