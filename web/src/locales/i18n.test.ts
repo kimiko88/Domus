@@ -86,7 +86,20 @@ describe('Localization (i18n)', () => {
       ['predictiveClimate', 'view', 'invalidSample'],
       ['cameras', 'view', 'filterPerson'],
       ['media', 'view', 'stateBuffering'],
-      ['areas', 'nameRequired']
+      ['areas', 'nameRequired'],
+      ['flowchart', 'view', 'palette', 'stateChangeTitle'],
+      ['flowchart', 'view', 'validation', 'unsupportedAction'],
+      ['energy', 'powerWheelTitle'],
+      ['energy', 'recalculateModulation'],
+      ['floorplan', 'view', 'commandSentTitle'],
+      ['floorplan', 'view', 'roomTypes', 'kitchen'],
+      ['devices', 'view', 'scanCompletedTitle'],
+      ['devices', 'view', 'filteredCount'],
+      ['integrations', 'view', 'tuyaCloudSetupInstruction'],
+      ['shopping', 'view', 'transferCompleted'],
+      ['store', 'view', 'rejectedByAdministrator'],
+      ['dashboard', 'view', 'customize'],
+      ['dashboard', 'view', 'deleteConfirm']
     ]
 
     for (const catalog of locales) {
