@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import BaseToast from './BaseToast.vue'
 import { useNotificationsStore } from '../../stores/notifications'
+import { i18n } from '../../locales'
 
 describe('BaseToast.vue', () => {
   beforeEach(() => {
@@ -12,6 +13,7 @@ describe('BaseToast.vue', () => {
   it('renders nothing when no notifications', () => {
     const wrapper = mount(BaseToast)
     expect(wrapper.findAll('.toast-item')).toHaveLength(0)
+    expect(wrapper.find('.toast-container').attributes('aria-label')).toBe(i18n.global.t('common.notificationRegion'))
   })
 
   it('renders toast notifications from store', () => {
