@@ -1856,6 +1856,37 @@
       "notificationMessage": "Message de notification",
       "deleteNodeButton": "Supprimer le nœud",
       "compiledAstTitle": "JSON AST compilé"
+    },
+    "conditionEditor": {
+      "logicalGroup": "Groupe logique",
+      "condition": "Condition",
+      "type": "Type",
+      "logicalOperators": "Opérateurs logiques",
+      "conditions": "Conditions",
+      "logicalTypes": {
+        "and": "Toutes les conditions (AND)",
+        "or": "Au moins une condition (OR)",
+        "not": "Aucune condition (NOT)"
+      },
+      "leafTypes": {
+        "state": "État de l'entité",
+        "numericState": "Seuil numérique",
+        "time": "Plage horaire",
+        "trigger": "Déclencheur"
+      },
+      "andHelp": "Toutes les conditions enfants doivent être vraies.",
+      "orHelp": "Au moins une condition enfant doit être vraie.",
+      "notHelp": "La condition enfant doit être fausse.",
+      "removeCondition": "Supprimer la condition {index}",
+      "addCondition": "Ajouter une condition",
+      "depthLimit": "La profondeur maximale autorisée par le validateur est atteinte.",
+      "notLimit": "NOT accepte une seule condition enfant.",
+      "selectEntity": "Sélectionner une entité",
+      "statePlaceholder": "on, off, open...",
+      "selectSensor": "Sélectionner un capteur",
+      "thresholdHelp": "Définissez au moins l'un des deux seuils.",
+      "triggerPlaceholder": "trigger_id",
+      "unsupportedHelp": "Ce type de condition ne peut pas être modifié avec les commandes visuelles. La configuration d'origine est conservée sans modification."
     }
   },
   "failover": {
