@@ -358,7 +358,8 @@
       "deleteFailed": "Impossibile eliminare la dashboard.",
       "extensionUninstalled": "Estensione disinstallata correttamente",
       "extensionInstalled": "Estensione installata e attiva localmente",
-      "extensionToggleFailed": "Errore durante la modifica dello stato del pacchetto"
+      "extensionToggleFailed": "Errore durante la modifica dello stato del pacchetto",
+      "removeWidgetAria": "Rimuovi il widget {title}"
     }
   },
   "areas": {
@@ -2155,7 +2156,8 @@
         "simulationErrorTitle": "Errore durante la simulazione",
         "simulationErrorMessage": "Impossibile simulare il flusso.",
         "invalidFlowTitle": "Flusso non valido",
-        "invalidFlowMessage": "Correggi i collegamenti prima di esportare."
+        "invalidFlowMessage": "Correggi i collegamenti prima di esportare.",
+        "simulationWithoutTriggersMessage": "Le condizioni sono state verificate. I trigger non sono stati simulati."
       },
       "newAutomationName": "Nuova automazione a nodi",
       "nodeTypes": {
