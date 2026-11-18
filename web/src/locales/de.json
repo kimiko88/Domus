@@ -343,7 +343,19 @@
     "deleteSuccess": "Bereich erfolgreich gelöscht",
     "deleteError": "Bereich konnte nicht gelöscht werden",
     "nameRequired": "Ein Bereichsname ist erforderlich.",
-    "createArea": "Bereich erstellen"
+    "createArea": "Bereich erstellen",
+    "icons": {
+      "livingRoom": "Wohnzimmer",
+      "kitchen": "Küche",
+      "bedroom": "Schlafzimmer",
+      "bathroom": "Badezimmer",
+      "office": "Arbeitszimmer",
+      "garden": "Garten",
+      "terrace": "Terrasse",
+      "garage": "Garage",
+      "cinema": "Heimkino / TV",
+      "other": "Sonstiges"
+    }
   },
   "devices": {
     "title": "Geräte",
