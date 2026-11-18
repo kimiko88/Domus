@@ -285,7 +285,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_kitchen_' + (Date.now() + 1),
-      name: 'Cucina & Pranzo',
+      name: t('floorplan.view.roomNames.kitchenDining'),
       type: 'kitchen',
       color: '#f59e0b',
       x: 51,
@@ -295,7 +295,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_bed_' + (Date.now() + 2),
-      name: 'Camera da Letto',
+      name: t('floorplan.view.roomNames.bedroom'),
       type: 'bedroom',
       color: '#8b5cf6',
       x: 3,
@@ -305,7 +305,7 @@ function generateStandardFloorplan() {
     },
     {
       id: 'room_bath_' + (Date.now() + 3),
-      name: 'Bagno Padronale',
+      name: t('floorplan.view.roomNames.masterBathroom'),
       type: 'bathroom',
       color: '#06b6d4',
       x: 37,
@@ -579,7 +579,7 @@ const unplacedEntities = computed(() => {
         </button>
       </div>
       <div v-else class="toolbar-hint">
-        Fai clic su una stanza nella planimetria per modificarne posizione, dimensioni e colore.
+        {{ t('floorplan.view.editRoomHint') }}
       </div>
     </div>
 
