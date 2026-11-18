@@ -1197,7 +1197,8 @@
       "playerSuccess": "Speaker successfully registered in the database!",
       "playerError": "Error registering the player",
       "confirmDelete": "Are you sure you want to remove \"{name}\" from the Domus database?",
-      "deleteFailed": "Failed to delete media player"
+      "deleteFailed": "Failed to delete media player",
+      "closeWindow": "Close window"
     }
   },
   "mesh": {
@@ -1394,7 +1395,18 @@
         "friday": "Friday",
         "saturday": "Saturday",
         "sunday": "Sunday"
-      }
+      },
+      "manualOverrideDuration": "Manual override duration",
+      "untilNextChange": "Until the next change",
+      "minutes30": "30 minutes",
+      "hour1": "1 hour",
+      "hours2": "2 hours",
+      "hours4": "4 hours",
+      "hours8": "8 hours",
+      "manualOverrideExpiryHint": "When it expires, Domus restores the previous setpoint.",
+      "noProgrammableSetpoint": "This device does not expose a programmable setpoint.",
+      "deleteTimeSlot": "Delete time slot",
+      "deleteTimeSlotAria": "Delete time slot"
     }
   },
   "login": {
