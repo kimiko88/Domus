@@ -1052,7 +1052,7 @@ onMounted(async () => {
             <Film :size="18" class="text-primary" />
             <h3>{{ t('cameras.clipModalTitle') }} ({{ getDetectionLabel(previewClipModal.event.label) }})</h3>
           </div>
-          <button class="close-btn" @click="previewClipModal.isOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="previewClipModal.isOpen = false">✕</button>
         </div>
         <div class="clip-media-wrapper">
           <img :src="previewClipModal.event.thumbnail_url" class="clip-img" />
@@ -1082,7 +1082,7 @@ onMounted(async () => {
             <Sliders :size="18" class="text-primary" />
             <h3>{{ t('cameras.zonesModalTitle') }} - {{ selectedCameraForZones.name }}</h3>
           </div>
-          <button class="close-btn" @click="isZonesModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isZonesModalOpen = false">✕</button>
         </div>
 
         <div class="zones-modal-body">
@@ -1150,7 +1150,7 @@ onMounted(async () => {
             <UserCheck :size="18" class="text-primary" />
             <h3>{{ t('cameras.view.registerBiometricProfile') }}</h3>
           </div>
-          <button class="close-btn" @click="isFaceModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isFaceModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreateFace">
           <div class="form-group">
@@ -1201,7 +1201,7 @@ onMounted(async () => {
             <Car :size="18" class="text-primary" />
             <h3>{{ t('cameras.view.addAuthorizedPlate') }}</h3>
           </div>
-          <button class="close-btn" @click="isPlateModalOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="isPlateModalOpen = false">✕</button>
         </div>
         <form class="ai-modal-form" @submit.prevent="handleCreatePlate">
           <div class="form-group">
@@ -1263,7 +1263,7 @@ onMounted(async () => {
             <ShieldCheck :size="18" class="text-emerald" />
             <h3>{{ t('cameras.view.localBiometricMatch') }}</h3>
           </div>
-          <button class="close-btn" @click="faceTestModal.isOpen = false">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="faceTestModal.isOpen = false">✕</button>
         </div>
         <div class="test-match-body">
           <div class="test-avatar-box">
