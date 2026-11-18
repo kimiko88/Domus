@@ -343,7 +343,19 @@
     "deleteSuccess": "Area eliminata con successo",
     "deleteError": "Impossibile eliminare l'area",
     "nameRequired": "Il nome dell'area è obbligatorio.",
-    "createArea": "Crea area"
+    "createArea": "Crea area",
+    "icons": {
+      "livingRoom": "Soggiorno",
+      "kitchen": "Cucina",
+      "bedroom": "Camera",
+      "bathroom": "Bagno",
+      "office": "Studio",
+      "garden": "Giardino",
+      "terrace": "Terrazzo",
+      "garage": "Garage",
+      "cinema": "Cinema / TV",
+      "other": "Altro"
+    }
   },
   "devices": {
     "title": "Dispositivi",
