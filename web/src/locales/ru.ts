@@ -440,4 +440,19 @@ Object.assign(ru.integrations.view, {
   tuyaCloudSetupInstruction: 'Создайте учётную запись на iot.tuya.com, откройте Cloud → Development и выберите проект Domus.'
 });
 
+
+Object.assign(ru.floorplan.view.roomNames, { newRoom: 'Новая комната' });
+Object.assign(ru.floorplan.view.roomTypes, {
+  living: 'Гостиная', kitchen: 'Кухня / Столовая', bedroom: 'Спальня', bathroom: 'Ванная',
+  office: 'Кабинет / офис', hallway: 'Коридор / Прихожая', balcony: 'Терраса / Балкон'
+});
+Object.assign(ru.floorplan.view.colors, {
+  oceanBlue: 'Океанский синий', emerald: 'Изумрудный', amber: 'Янтарный',
+  nightPurple: 'Ночной фиолетовый', skyCyan: 'Небесно-голубой', coralPink: 'Кораллово-розовый'
+});
+Object.assign(ru.energy, {
+  enableAutoSchedule: 'Включить автоматическое расписание',
+  disableAutoSchedule: 'Отключить автоматическое расписание'
+});
+
 export default ru
