@@ -651,4 +651,17 @@ Object.assign(ru.schedules.view, {
 
 Object.assign(ru.integrations.view, { tuyaProjectIntro: 'Откройте свой проект на', tuyaProjectPath: 'Cloud → Development → откройте проект Domus' });
 
+
+Object.assign(ru.automations, { cooldown: 'Время ожидания' });
+Object.assign(ru.integrations.view, { deviceOnline: 'В сети', deviceOffline: 'Не в сети' });
+Object.assign(ru.audit, { timestamp: 'Дата и время' });
+Object.assign(ru.flowchart.view.nodeTypes, { trigger: 'ТРИГГЕР' });
+Object.assign(ru.flowchart.conditionEditor.leafTypes, { trigger: 'Триггер' });
+Object.assign(ru.pantry.view.mealCalendar.mealTypes, { dessert: 'Десерт' });
+Object.assign(ru.pantry.view.recipeEditor.categories, { dessert: '🍰 Десерт', snack: '🥪 Перекус' });
+Object.assign(ru.guide, { sec7RouteLabel: 'Панель управления и сигнализация' });
+Object.assign(ru.store.view, { blueprints: 'Шаблоны' });
+Object.assign(ru.dashboard, { marketplaceTitle: 'Каталог и расширения' });
+Object.assign(ru.mesh, { router: 'Маршрутизатор / повторитель' });
+
 export default ru
