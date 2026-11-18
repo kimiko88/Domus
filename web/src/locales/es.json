@@ -1102,7 +1102,13 @@
       "cancel": "Cancelar",
       "create": "Crear asistente",
       "deleteAria": "Eliminar asistente",
-      "statusAria": "Estado del asistente"
+      "statusAria": "Estado del asistente",
+      "timerStates": {
+        "active": "ACTIVO",
+        "paused": "EN PAUSA",
+        "idle": "INACTIVO"
+      },
+      "toggle": "Activar o desactivar {name}"
     }
   },
   "floorplan": {
@@ -1388,7 +1394,13 @@
     "password": "Contraseña",
     "submit": "Entrar",
     "error": "Credenciales no válidas o sesión caducada",
-    "kioskPin": "PIN del modo quiosco"
+    "kioskPin": "PIN del modo quiosco",
+    "passwordTab": "Contraseña",
+    "kioskTab": "PIN quiosco / invitado",
+    "unlockKiosk": "Desbloquear quiosco",
+    "missingCredentials": "Introduce tu nombre de usuario y contraseña",
+    "missingKioskPin": "Introduce el PIN del quiosco",
+    "invalidKioskPin": "El PIN del quiosco no es válido o ha caducado"
   },
   "setup": {
     "title": "Configuración Inicial de Domus",
