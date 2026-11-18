@@ -485,7 +485,7 @@ const unplacedEntities = computed(() => {
             @click="activeMode = activeMode === 'edit_markers' ? 'view' : 'edit_markers'"
           >
             <Move :size="14" />
-            <span>{{ activeMode === 'edit_markers' ? 'Termina Modifica' : 'Modifica Posizioni' }}</span>
+            <span>{{ activeMode === 'edit_markers' ? t('floorplan.view.finishEditing') : t('floorplan.view.editPositions') }}</span>
           </button>
         </div>
 
@@ -518,7 +518,7 @@ const unplacedEntities = computed(() => {
         >
           <Layers class="tab-icon" />
           <span class="floor-name">{{ floor.name }}</span>
-          <span class="floor-level-tag">Lvl {{ floor.level }}</span>
+          <span class="floor-level-tag">{{ t('floorplan.view.levelShort') }} {{ floor.level }}</span>
         </button>
 
         <button
@@ -551,14 +551,14 @@ const unplacedEntities = computed(() => {
 
       <!-- Selected Room Customizer Controls -->
       <div v-if="selectedRoom" class="selected-room-controls">
-        <span class="selected-label">Stanza: <strong>{{ selectedRoom.name }}</strong></span>
+        <span class="selected-label">{{ t('floorplan.view.roomPrefix') }} <strong>{{ selectedRoom.name }}</strong></span>
 
         <!-- X, Y, Width, Height quick sliders -->
         <div class="control-inputs">
-          <label>X: <input v-model.number="selectedRoom.x" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>Y: <input v-model.number="selectedRoom.y" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>L: <input v-model.number="selectedRoom.width" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
-          <label>A: <input v-model.number="selectedRoom.height" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.positionX') }} <input v-model.number="selectedRoom.x" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.positionY') }} <input v-model.number="selectedRoom.y" type="range" min="0" max="90" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.widthShort') }} <input v-model.number="selectedRoom.width" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
+          <label>{{ t('floorplan.view.heightShort') }} <input v-model.number="selectedRoom.height" type="range" min="15" max="80" @input="saveRoomsForFloor(floorStore.activeFloor!.id)" /></label>
         </div>
 
         <!-- Color presets for room -->
@@ -722,7 +722,7 @@ const unplacedEntities = computed(() => {
           </div>
 
           <div v-if="unplacedEntities.length === 0" class="empty-unplaced">
-            Tutti i dispositivi sono già posizionati su questa mappa!
+            {{ t('floorplan.view.allDevicesPlaced') }}
           </div>
         </div>
       </aside>
