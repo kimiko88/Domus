@@ -355,7 +355,10 @@
       "deleteConfirm": "Dashboard „{title}“ löschen?",
       "dashboardNameRequired": "Geben Sie einen Dashboard-Namen ein.",
       "saveFailed": "Dashboard konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      "deleteFailed": "Dashboard konnte nicht gelöscht werden."
+      "deleteFailed": "Dashboard konnte nicht gelöscht werden.",
+      "extensionUninstalled": "Erweiterung erfolgreich deinstalliert",
+      "extensionInstalled": "Erweiterung installiert und lokal aktiv",
+      "extensionToggleFailed": "Paketstatus konnte nicht geändert werden"
     }
   },
   "areas": {
@@ -440,7 +443,21 @@
       "ipPrefix": "IP:",
       "deviceCount": "Geräte",
       "addToHome": "Zu Ihrem Domus-Smart-Home hinzufügen.",
-      "addToDomus": "Zu Domus hinzufügen"
+      "addToDomus": "Zu Domus hinzufügen",
+      "scanCompletedTitle": "Netzwerksuche abgeschlossen",
+      "scanCompletedMessage": "{count} Geräte im lokalen Netzwerk gefunden",
+      "scanErrorTitle": "Suchfehler",
+      "scanErrorMessage": "Netzwerksuche konnte nicht abgeschlossen werden",
+      "deviceAddedTitle": "Gerät hinzugefügt",
+      "deviceAddedMessage": "{name} ist jetzt in Domus eingerichtet.",
+      "addDeviceErrorTitle": "Fehler beim Hinzufügen",
+      "addDeviceErrorMessage": "Gerät konnte nicht hinzugefügt werden",
+      "matterConnectedTitle": "Matter verbunden",
+      "matterConnectedMessage": "Gerät im lokalen Thread-Netzwerk gekoppelt",
+      "devicesUpdatedTitle": "Geräte aktualisiert",
+      "devicesUpdatedMessage": "Geräteliste und Integrationsstatus wurden aktualisiert.",
+      "refreshErrorTitle": "Aktualisierung fehlgeschlagen",
+      "refreshErrorMessage": "Geräte konnten nicht aktualisiert werden."
     }
   },
   "integrations": {
@@ -1522,7 +1539,35 @@
       "editRoomHint": "Wählen Sie einen Raum im Grundriss aus, um Position, Größe und Farbe zu ändern.",
       "allDevicesPlaced": "Alle Geräte sind bereits auf dieser Karte platziert!",
       "finishEditing": "Bearbeitung beenden",
-      "editPositions": "Positionen bearbeiten"
+      "editPositions": "Positionen bearbeiten",
+      "commandSentTitle": "Befehl gesendet",
+      "entityTurnedOn": "{name}: eingeschaltet",
+      "entityTurnedOff": "{name}: ausgeschaltet",
+      "commandFailed": "Befehl konnte nicht gesendet werden",
+      "positionSavedTitle": "Position gespeichert",
+      "positionSavedMessage": "Gerät auf dem Grundriss platziert",
+      "markerSaveFailed": "Marker konnte nicht gespeichert werden",
+      "markerRemovedTitle": "Gerät entfernt",
+      "markerRemovedMessage": "Gerät vom Grundriss entfernt",
+      "markerRemoveFailed": "Marker konnte nicht entfernt werden",
+      "roomNames": {
+        "living": "Wohnzimmer",
+        "room": "Raum",
+        "livingOpen": "Offener Wohnbereich",
+        "kitchen": "Küche",
+        "masterBedroom": "Hauptschlafzimmer",
+        "bathroom": "Badezimmer",
+        "office": "Arbeitszimmer / Büro"
+      },
+      "roomCreatedTitle": "Raum erstellt",
+      "roomCreatedMessage": "Raum „{name}“ wurde zum Grundriss hinzugefügt",
+      "floorplanGeneratedTitle": "Grundriss erstellt",
+      "floorplanGeneratedMessage": "Fünf Räume mit dem Standardlayout wurden vorbereitet",
+      "roomRemovedTitle": "Raum entfernt",
+      "roomRemovedMessage": "Raum wurde aus dem Grundriss entfernt",
+      "floorCreatedTitle": "Etage erstellt",
+      "floorCreatedMessage": "Neue Etage zum Grundriss hinzugefügt",
+      "floorCreateFailed": "Etage konnte nicht erstellt werden"
     }
   },
   "media": {
