@@ -200,7 +200,7 @@ func main() {
 	}
 	pushReminderCtx, cancelPushReminders := context.WithCancel(context.Background())
 	defer cancelPushReminders()
-	pushReminderScheduler := appnotification.NewReminderScheduler(webPushService, repos.Medicines, repos.Pantry, time.Hour, slog.Default())
+	pushReminderScheduler := appnotification.NewReminderScheduler(webPushService, repos.Chores, repos.Medicines, repos.Pantry, time.Hour, slog.Default())
 	if err := pushReminderScheduler.Start(pushReminderCtx); err != nil {
 		slog.Warn("failed to start household Web Push reminder scheduler", "error", err)
 	}
