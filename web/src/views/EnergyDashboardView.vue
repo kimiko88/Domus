@@ -344,8 +344,8 @@ async function handleOptimizeBESS() {
     <section class="sankey-section glass-panel">
       <div class="sankey-header">
         <div>
-          <h2 class="section-title">⚡ Power Wheel & Flussi Energetici Real-Time</h2>
-          <p class="section-subtitle">Visualizzazione dinamica vettori energetici con particelle animate in tempo reale</p>
+          <h2 class="section-title">{{ t('energy.powerWheelTitle') }}</h2>
+          <p class="section-subtitle">{{ t('energy.powerWheelSubtitle') }}</p>
         </div>
         <div v-if="bessSchedule" class="bess-mode-pill" :class="bessSchedule.current_mode.toLowerCase()">
           <Battery :size="16" />
@@ -432,7 +432,7 @@ async function handleOptimizeBESS() {
           <g transform="translate(400, 200)" class="sankey-center-hub">
             <circle r="46" class="sankey-hub-outer" />
             <circle r="38" class="sankey-hub-inner" />
-            <text y="-8" class="sankey-hub-label">INVERTER</text>
+            <text y="-8" class="sankey-hub-label">{{ t('energy.inverter') }}</text>
             <text y="14" class="sankey-hub-value">
               {{ flow.solar_watts + Math.abs(flow.battery_watts) }} W
             </text>
@@ -481,19 +481,19 @@ async function handleOptimizeBESS() {
       <div v-if="bessSchedule" class="bess-arbitrage-card">
         <div class="bess-summary">
           <div class="bess-stat">
-            <span class="label">Stato Inverter</span>
+            <span class="label">{{ t('energy.inverterStatus') }}</span>
             <span class="value text-primary">{{ bessSchedule.current_mode }}</span>
           </div>
           <div class="bess-stat">
-            <span class="label">Risparmio Arbitraggio Oggi</span>
+            <span class="label">{{ t('energy.arbitrageSavingsToday') }}</span>
             <span class="value text-success">+{{ bessSchedule.total_arbitrage_eur }} €</span>
           </div>
           <div class="bess-stat">
-            <span class="label">Carica da Rete Economica</span>
+            <span class="label">{{ t('energy.economicalGridCharge') }}</span>
             <span class="value">{{ bessSchedule.grid_charged_kwh }} kWh</span>
           </div>
           <div class="bess-stat">
-            <span class="label">Picco Rasato da Batteria</span>
+            <span class="label">{{ t('energy.batteryPeakShaving') }}</span>
             <span class="value">{{ bessSchedule.peak_discharged_kwh }} kWh</span>
           </div>
         </div>
@@ -513,7 +513,7 @@ async function handleOptimizeBESS() {
           </div>
           <div>
             <div class="wallbox-title-row">
-              <h2 class="section-title">Ricarica Solare Intelligente & Wallbox OCPP</h2>
+              <h2 class="section-title">{{ t('energy.wallboxTitle') }}</h2>
               <span
                 v-if="wallboxData?.telemetry"
                 class="wb-status-badge"
@@ -545,7 +545,7 @@ async function handleOptimizeBESS() {
       <div class="wb-telemetry-grid">
         <div class="wb-stat-card">
           <div class="wb-stat-top">
-            <span class="wb-stat-label">Potenza Attiva</span>
+            <span class="wb-stat-label">{{ t('energy.activePower') }}</span>
             <PlugZap :size="18" class="text-purple" />
           </div>
           <div class="wb-stat-val">
@@ -558,7 +558,7 @@ async function handleOptimizeBESS() {
 
         <div class="wb-stat-card">
           <div class="wb-stat-top">
-            <span class="wb-stat-label">Corrente Erogata</span>
+            <span class="wb-stat-label">{{ t('energy.deliveredCurrent') }}</span>
             <Gauge :size="18" class="text-info" />
           </div>
           <div class="wb-stat-val">
@@ -571,7 +571,7 @@ async function handleOptimizeBESS() {
 
         <div class="wb-stat-card">
           <div class="wb-stat-top">
-            <span class="wb-stat-label">Batteria Veicolo (SoC)</span>
+            <span class="wb-stat-label">{{ t('energy.vehicleBatterySoc') }}</span>
             <Battery :size="18" class="text-success" />
           </div>
           <div class="wb-stat-val">
@@ -587,7 +587,7 @@ async function handleOptimizeBESS() {
 
         <div class="wb-stat-card">
           <div class="wb-stat-top">
-            <span class="wb-stat-label">Energia Sessione</span>
+            <span class="wb-stat-label">{{ t('energy.sessionEnergy') }}</span>
             <Zap :size="18" class="text-warning" />
           </div>
           <div class="wb-stat-val">
@@ -601,7 +601,7 @@ async function handleOptimizeBESS() {
 
       <!-- Charging Mode Selectors -->
       <div class="wb-modes-section">
-        <h3 class="wb-modes-title">Modalità di Gestione Carica</h3>
+        <h3 class="wb-modes-title">{{ t('energy.chargingMode') }}</h3>
         <div class="wb-modes-grid">
           <button
             type="button"
@@ -614,10 +614,10 @@ async function handleOptimizeBESS() {
             </div>
             <div class="mode-info">
               <div class="mode-title-row">
-                <span class="mode-name">Solo Solare (100% FV)</span>
-                <span v-if="selectedWallboxMode === 'solar_only'" class="active-badge">Attivo</span>
+                <span class="mode-name">{{ t('energy.solarOnly') }}</span>
+                <span v-if="selectedWallboxMode === 'solar_only'" class="active-badge">{{ t('energy.active') }}</span>
               </div>
-              <p class="mode-desc">Ricarica esclusivamente con eccedenza fotovoltaica netta (&ge; 6A / 1.4kW). Zero prelievi da rete.</p>
+              <p class="mode-desc">{{ t('energy.solarOnlyDesc') }}</p>
             </div>
           </button>
 
@@ -632,10 +632,10 @@ async function handleOptimizeBESS() {
             </div>
             <div class="mode-info">
               <div class="mode-title-row">
-                <span class="mode-name">Solare Ottimizzato (Ibrido)</span>
-                <span v-if="selectedWallboxMode === 'solar_optimized'" class="active-badge">Attivo</span>
+                <span class="mode-name">{{ t('energy.solarOptimized') }}</span>
+                <span v-if="selectedWallboxMode === 'solar_optimized'" class="active-badge">{{ t('energy.active') }}</span>
               </div>
-              <p class="mode-desc">Garantisce 6A continui (1.4kW) e aumenta la corrente dinamicamente se c'è surplus solare.</p>
+              <p class="mode-desc">{{ t('energy.solarOptimizedDesc') }}</p>
             </div>
           </button>
 
@@ -650,10 +650,10 @@ async function handleOptimizeBESS() {
             </div>
             <div class="mode-info">
               <div class="mode-title-row">
-                <span class="mode-name">Fast Charge (Massima Potenza)</span>
-                <span v-if="selectedWallboxMode === 'fast_charging'" class="active-badge">Attivo</span>
+                <span class="mode-name">{{ t('energy.fastCharge') }}</span>
+                <span v-if="selectedWallboxMode === 'fast_charging'" class="active-badge">{{ t('energy.active') }}</span>
               </div>
-              <p class="mode-desc">Carica alla massima potenza contrattuale disponibile con protezione anti-blackout contatore.</p>
+              <p class="mode-desc">{{ t('energy.fastChargeDesc') }}</p>
             </div>
           </button>
 
@@ -668,10 +668,10 @@ async function handleOptimizeBESS() {
             </div>
             <div class="mode-info">
               <div class="mode-title-row">
-                <span class="mode-name">Notturna Economica</span>
-                <span v-if="selectedWallboxMode === 'scheduled_night'" class="active-badge">Attivo</span>
+                <span class="mode-name">{{ t('energy.scheduledNight') }}</span>
+                <span v-if="selectedWallboxMode === 'scheduled_night'" class="active-badge">{{ t('energy.active') }}</span>
               </div>
-              <p class="mode-desc">Pianifica la carica nelle fasce orarie F3 / PUN minimo notturno per massimizzare il risparmio.</p>
+              <p class="mode-desc">{{ t('energy.scheduledNightDesc') }}</p>
             </div>
           </button>
         </div>
@@ -681,7 +681,7 @@ async function handleOptimizeBESS() {
       <div v-if="wallboxData?.modulation" class="wb-decision-banner">
         <ShieldCheck :size="20" class="text-success" />
         <div class="decision-content">
-          <span class="decision-title">Decisione Algoritmo di Bilanciamento Dinamico:</span>
+          <span class="decision-title">{{ t('energy.balancingDecision') }}</span>
           <span class="decision-text">{{ wallboxData.modulation.reason }}</span>
         </div>
         <div class="decision-stats">
@@ -855,15 +855,15 @@ async function handleOptimizeBESS() {
 
         <div class="tariff-table">
           <div :class="['tariff-row', { current: tariffData.current_slot === 'F1' }]">
-            <span>F1 (Picco: Lun-Ven 08-19)</span>
+            <span>{{ t('energy.tariffF1') }}</span>
             <span class="price-col">{{ tariffData.tariffs.f1_price }} €/kWh</span>
           </div>
           <div :class="['tariff-row', { current: tariffData.current_slot === 'F2' }]">
-            <span>F2 (Intermedia: Lun-Ven 07-08, 19-23, Sab 07-23)</span>
+            <span>{{ t('energy.tariffF2') }}</span>
             <span class="price-col">{{ tariffData.tariffs.f2_price }} €/kWh</span>
           </div>
           <div :class="['tariff-row', { current: tariffData.current_slot === 'F3' }]">
-            <span>F3 (Fuori Picco: Notti, Domenica & Festivi)</span>
+            <span>{{ t('energy.tariffF3') }}</span>
             <span class="price-col">{{ tariffData.tariffs.f3_price }} €/kWh</span>
           </div>
         </div>
@@ -883,7 +883,7 @@ async function handleOptimizeBESS() {
               <Zap :size="22" class="text-warning" />
             </div>
             <div class="u-meta">
-              <span class="u-title">Elettricità</span>
+              <span class="u-title">{{ t('energy.electricity') }}</span>
               <span class="u-val">{{ (multiUtility?.electricity.total_consumption ?? (flow.house_consumption_watts / 1000)).toFixed(1) }} kWh</span>
               <span class="u-cost">Costo: {{ (multiUtility?.electricity.cost_eur ?? 0).toFixed(2) }} €</span>
             </div>
