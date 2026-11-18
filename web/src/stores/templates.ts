@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import i18n from '../locales'
 import { ref } from 'vue'
 import { apiClient } from '../api/client'
 import type { TemplateEntity } from '../api/types'
@@ -16,7 +17,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       templates.value = data.templates || []
       return templates.value
     } catch (err: any) {
-      error.value = err?.message || 'Failed to fetch template entities'
+      error.value = i18n.global.t('common.errors.loadFailed')
       throw err
     } finally {
       loading.value = false
@@ -31,7 +32,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       templates.value.push(created)
       return created
     } catch (err: any) {
-      error.value = err?.message || 'Failed to create template entity'
+      error.value = i18n.global.t('common.errors.createFailed')
       throw err
     } finally {
       loading.value = false
@@ -45,7 +46,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       await apiClient.delete(`/api/v1/template-entities/${id}`)
       templates.value = templates.value.filter((t) => t.id !== id)
     } catch (err: any) {
-      error.value = err?.message || 'Failed to delete template entity'
+      error.value = i18n.global.t('common.errors.deleteFailed')
       throw err
     } finally {
       loading.value = false
@@ -57,7 +58,7 @@ export const useTemplatesStore = defineStore('templates', () => {
       const data = await apiClient.post<{ result: string }>('/api/v1/template-entities/preview', { template })
       return data.result
     } catch (err: any) {
-      throw new Error(err?.message || 'Preview evaluation failed')
+      throw new Error(i18n.global.t('common.errors.actionFailed'))
     }
   }
 
