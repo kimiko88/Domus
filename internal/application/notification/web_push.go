@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strings"
 	"time"
@@ -26,6 +27,43 @@ type WebPushConfig struct {
 	PublicKey  string
 	PrivateKey string
 	Subject    string
+}
+
+// ValidateVAPIDSubject rejects local placeholder contacts that some push
+// providers (notably Apple Push) reject as an invalid VAPID JWT subject.
+func ValidateVAPIDSubject(subject string) error {
+	subject = strings.TrimSpace(subject)
+	parsed, err := url.ParseRequestURI(subject)
+	if err != nil {
+		return errors.New("VAPID subject must be a valid mailto: address or HTTPS URL")
+	}
+
+	switch parsed.Scheme {
+	case "mailto":
+		recipient := parsed.Opaque
+		address, parseErr := mail.ParseAddress(recipient)
+		if parseErr != nil || address.Address != recipient {
+			return errors.New("VAPID mailto subject must contain a real email address")
+		}
+		domain := strings.ToLower(strings.TrimSuffix(recipient[strings.LastIndex(recipient, "@")+1:], "."))
+		if !strings.Contains(domain, ".") || domain == "localhost" ||
+			strings.HasSuffix(domain, ".localhost") || strings.HasSuffix(domain, ".local") {
+			return errors.New("VAPID mailto subject must use an externally valid email domain, not localhost or .local")
+		}
+		return nil
+	case "https":
+		if parsed.Host == "" || parsed.User != nil {
+			return errors.New("VAPID HTTPS subject must use a valid hostname")
+		}
+		host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+		if host == "" || !strings.Contains(host, ".") || net.ParseIP(host) != nil ||
+			host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") {
+			return errors.New("VAPID HTTPS subject must use an externally valid hostname, not localhost or .local")
+		}
+		return nil
+	default:
+		return errors.New("VAPID subject must use mailto: or https:")
+	}
 }
 
 func WebPushConfigFromEnv() WebPushConfig {
@@ -67,10 +105,7 @@ func (s *WebPushService) Enabled() bool {
 	if s == nil || s.repo == nil || s.config.PublicKey == "" || s.config.PrivateKey == "" {
 		return false
 	}
-	if _, err := url.ParseRequestURI(s.config.Subject); err != nil {
-		return false
-	}
-	return strings.HasPrefix(s.config.Subject, "mailto:") || strings.HasPrefix(s.config.Subject, "https://")
+	return ValidateVAPIDSubject(s.config.Subject) == nil
 }
 
 func (s *WebPushService) PublicKey() (string, bool) {
