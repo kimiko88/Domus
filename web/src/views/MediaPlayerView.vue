@@ -281,7 +281,7 @@ onMounted(() => {
             </div>
             <h3>{{ t('media.view.addTitle') }}</h3>
           </div>
-          <button class="close-btn" aria-label="Chiudi finestra" @click="isAddModalOpen = false">
+          <button class="close-btn" :aria-label="t('media.view.closeWindow')" @click="isAddModalOpen = false">
             <X :size="18" />
           </button>
         </div>
