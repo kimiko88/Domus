@@ -164,7 +164,7 @@ const authorizedPlates = ref<AuthorizedVehicle[]>([])
 const isFaceModalOpen = ref(false)
 const isPlateModalOpen = ref(false)
 const newFaceName = ref('')
-const newFaceRole = ref('Residente')
+const newFaceRole = ref<'resident' | 'administrator' | 'guest'>('resident')
 const newPlateNumber = ref('')
 const newPlateOwner = ref('')
 const newPlateModel = ref('')
@@ -208,7 +208,7 @@ async function handleCreateFace() {
       soundEffects.playSuccessChime()
       isFaceModalOpen.value = false
       newFaceName.value = ''
-      newFaceRole.value = 'Residente'
+      newFaceRole.value = 'resident'
     }
   } catch (err) {
     console.error('Failed to register face:', err)
@@ -263,9 +263,9 @@ async function handleDeletePlate(veh: AuthorizedVehicle) {
 
 function getFaceRoleLabel(role?: string): string {
   if (!role) return t('cameras.view.resident')
-  if (role === 'Residente') return t('cameras.view.resident')
-  if (role === 'Amministratore') return t('cameras.view.administrator')
-  if (role === 'Ospite') return t('cameras.view.frequentGuest')
+  if (['resident', 'residente'].includes(role.trim().toLowerCase())) return t('cameras.view.resident')
+  if (['administrator', 'amministratore'].includes(role.trim().toLowerCase())) return t('cameras.view.administrator')
+  if (['guest', 'ospite'].includes(role.trim().toLowerCase())) return t('cameras.view.frequentGuest')
   return role
 }
 
@@ -1172,9 +1172,9 @@ onMounted(async () => {
           <div class="form-group">
             <label class="form-label">{{ t('cameras.view.householdRole') }}</label>
             <select v-model="newFaceRole" class="form-select">
-              <option value="Residente">{{ t('cameras.view.resident') }}</option>
-              <option value="Amministratore">{{ t('cameras.view.administrator') }}</option>
-              <option value="Ospite">{{ t('cameras.view.frequentGuest') }}</option>
+              <option value="resident">{{ t('cameras.view.resident') }}</option>
+              <option value="administrator">{{ t('cameras.view.administrator') }}</option>
+              <option value="guest">{{ t('cameras.view.frequentGuest') }}</option>
             </select>
           </div>
           <div class="biometric-scan-simulation">
