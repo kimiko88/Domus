@@ -664,4 +664,6 @@ Object.assign(ru.store.view, { blueprints: 'Шаблоны' });
 Object.assign(ru.dashboard, { marketplaceTitle: 'Каталог и расширения' });
 Object.assign(ru.mesh, { router: 'Маршрутизатор / повторитель' });
 
+Object.assign(ru.common, { notificationRegion: 'Уведомления' });
+
 export default ru
