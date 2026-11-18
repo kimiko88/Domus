@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useHistoryStore } from './history'
+import { i18n } from '../locales'
 import { apiClient } from '@/api/client'
 
 describe('useHistoryStore', () => {
@@ -50,7 +51,7 @@ describe('useHistoryStore', () => {
 
     const store = useHistoryStore()
     await expect(store.fetchHistory('sensor.temp')).rejects.toThrow('Network error')
-    expect(store.error).toBe('Network error')
+    expect(store.error).toBe(i18n.global.t('common.errors.loadFailed'))
     expect(store.loading).toBe(false)
   })
 })
