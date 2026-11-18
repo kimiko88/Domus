@@ -384,7 +384,7 @@ function navigateTo(path: string) {
           <button
             class="btn-expand"
             :aria-expanded="expandedSections[topic.id]"
-            :aria-label="expandedSections[topic.id] ? t('guide.collapseSection') : t('guide.expandSection')"
+            :aria-label="expandedSections[topic.id] ? t('guide.collapse') : t('guide.expand')"
           >
             <ChevronUp v-if="expandedSections[topic.id]" :size="18" />
             <ChevronDown v-else :size="18" />
