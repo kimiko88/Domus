@@ -1135,7 +1135,9 @@
     "solarSurplus": "Solar surplus",
     "homeLoads": "Home loads",
     "total": "Total",
-    "cost": "Cost"
+    "cost": "Cost",
+    "enableAutoSchedule": "Enable automatic scheduling",
+    "disableAutoSchedule": "Disable automatic scheduling"
   },
   "cameras": {
     "title": "Video Surveillance & Local AI Vision NVR",
@@ -1586,7 +1588,8 @@
         "office": "Study / Office",
         "kitchenDining": "Kitchen and dining room",
         "bedroom": "Bedroom",
-        "masterBathroom": "Main bathroom"
+        "masterBathroom": "Main bathroom",
+        "newRoom": "New room"
       },
       "roomCreatedTitle": "Room created",
       "roomCreatedMessage": "Room “{name}” added to the floor plan",
@@ -1599,7 +1602,24 @@
       "floorCreateFailed": "Unable to create the floor",
       "closeHeatmap": "Close heatmap",
       "heatmap25d": "2.5D heatmap",
-      "modeLabel": "Mode"
+      "modeLabel": "Mode",
+      "roomTypes": {
+        "living": "Living room",
+        "kitchen": "Kitchen / Dining",
+        "bedroom": "Bedroom",
+        "bathroom": "Bathroom",
+        "office": "Study / Office",
+        "hallway": "Hallway / Entrance",
+        "balcony": "Terrace / Balcony"
+      },
+      "colors": {
+        "oceanBlue": "Ocean blue",
+        "emerald": "Emerald",
+        "amber": "Amber",
+        "nightPurple": "Night purple",
+        "skyCyan": "Sky cyan",
+        "coralPink": "Coral pink"
+      }
     }
   },
   "media": {
