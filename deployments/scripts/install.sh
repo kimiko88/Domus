@@ -604,29 +604,22 @@ if (( HAVE_SYSTEMD )); then
     log_info "Starting domus.service"
     systemctl restart domus.service
 
-    # Verify that the process managed by this unit owns the listener before
-    # accepting /health. A different Domus instance could otherwise answer it.
-    if command -v ss >/dev/null 2>&1; then
-        main_pid="$(systemctl show domus.service --property=MainPID --value)"
-        listener_info="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
-        if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]] || ! grep -Fq "pid=${main_pid}," <<< "${listener_info}"; then
-            log_error "domus.service (MainPID=${main_pid:-0}) does not own TCP port ${DOMUS_PORT}."
-            if [[ -n "${listener_info}" ]]; then
-                printf '%s\n' "${listener_info}" >&2
-            else
-                log_error "No process is listening on TCP port ${DOMUS_PORT}."
-            fi
-            log_error "Recent service logs:"
-            journalctl -u domus -n 100 --no-pager >&2 || true
-            systemctl stop domus.service || true
-            exit 1
-        fi
-    fi
-
     log_info "Waiting for health endpoint (up to 30 s)..."
     healthy=0
+    listener_info=""
     for _ in $(seq 1 30); do
-        if curl -fsS "http://127.0.0.1:${DOMUS_PORT}/health" >/dev/null 2>&1; then healthy=1; break; fi
+        service_owns_port=1
+        if command -v ss >/dev/null 2>&1; then
+            main_pid="$(systemctl show domus.service --property=MainPID --value)"
+            listener_info="$(ss -H -ltnp "sport = :${DOMUS_PORT}" 2>/dev/null || true)"
+            if [[ ! "${main_pid}" =~ ^[1-9][0-9]*$ ]] || ! grep -Fq "pid=${main_pid}," <<< "${listener_info}"; then
+                service_owns_port=0
+            fi
+        fi
+        if (( service_owns_port )) && curl -fsS "http://127.0.0.1:${DOMUS_PORT}/health" >/dev/null 2>&1; then
+            healthy=1
+            break
+        fi
         sleep 1
     done
     if (( healthy )); then
@@ -643,6 +636,10 @@ if (( HAVE_SYSTEMD )); then
         log_success "Web interface responds with HTTP 200"
     else
         log_error "Domus did not become healthy within 30 seconds."
+        if [[ -n "${listener_info}" ]]; then
+            log_error "Current TCP listener on port ${DOMUS_PORT}:"
+            printf '%s\n' "${listener_info}" >&2
+        fi
         log_error "Recent service logs:"
         journalctl -u domus -n 100 --no-pager >&2 || true
         log_warn "Stopping the unhealthy service. Fix the reported error, then run: systemctl start domus"
