@@ -455,8 +455,8 @@ const unplacedEntities = computed(() => {
       <div class="header-left">
         <div class="title-with-badge">
           <h1>{{ t('floorplan.title') }}</h1>
-          <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} Piani</span>
-          <span v-if="rooms.length > 0" class="room-count-badge">{{ rooms.length }} Stanze</span>
+          <span class="floor-count-badge">{{ floorStore.sortedFloors.length }} {{ t('floorplan.view.floors') }}</span>
+          <span v-if="rooms.length > 0" class="room-count-badge">{{ rooms.length }} {{ t('floorplan.view.rooms') }}</span>
         </div>
         <p class="subtitle">{{ t('floorplan.view.subtitle') }}</p>
       </div>
@@ -837,7 +837,7 @@ const unplacedEntities = computed(() => {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-cancel" @click="showFloorModal = false">Annulla</button>
+            <button type="button" class="btn-cancel" @click="showFloorModal = false">{{ t('common.cancel') }}</button>
             <button type="submit" class="btn-primary">{{ t('floorplan.view.saveFloor') }}</button>
           </div>
         </form>
