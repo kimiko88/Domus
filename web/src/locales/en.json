@@ -169,7 +169,8 @@
       "actionFailed": "Unable to complete the action. Please try again.",
       "syncFailed": "Synchronization failed. Please try again.",
       "exportFailed": "Export failed. Please try again."
-    }
+    },
+    "close": "Close"
   },
   "nav": {
     "sectionOverview": "Overview",
