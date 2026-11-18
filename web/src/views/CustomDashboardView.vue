@@ -88,6 +88,12 @@ const newWidgetType = ref<DashboardWidget['type']>('temperature')
 const newWidgetTitle = ref('')
 const newWidgetEntity = ref('')
 const customWidgets = ref<DashboardWidget[]>([])
+const availableEntities = ref<any[]>([])
+function getWidgetEntityState(entityKey?: string) {
+  if (!entityKey) return 'Seleziona un’entità'
+  const entity = availableEntities.value.find(item => item.id === entityKey || item.entity_key === entityKey)
+  return entity ? String(entity.state ?? '—') : 'Entità non disponibile'
+}
 const currentProfile = computed(() => dashboards.value.find(d => d.id === currentDashboardId.value))
 const activeRoomName = ref(t('dashboard.view.roomLivingRoom'))
 const isKioskMode = ref(false)
@@ -419,6 +425,7 @@ onMounted(async () => {
   try {
     const entities = await apiClient.get<any[]>('/api/v1/entities')
     if (entities && Array.isArray(entities)) {
+      availableEntities.value = entities
       const climate = entities.find(e => e.id.startsWith('climate.') || e.id.includes('temp'))
       if (climate) {
         const tVal = parseFloat(climate.state)
@@ -642,7 +649,7 @@ onUnmounted(() => {
           <template v-if="widget.type === 'thermostat'"><strong class="custom-widget-value">{{ targetTemp.toFixed(1) }}°C</strong><span>Setpoint ambiente</span></template>
           <template v-else-if="widget.type === 'temperature'"><strong class="custom-widget-value">{{ currentTemp.toFixed(1) }}°C</strong><span>Temperatura rilevata</span></template>
           <template v-else-if="widget.type === 'energy'"><strong class="custom-widget-value">{{ houseWatts }} W</strong><span>Potenza istantanea casa</span></template>
-          <template v-else-if="widget.type === 'entity'"><strong class="custom-widget-value">{{ widget.entity_key || 'Entità non selezionata' }}</strong><span>Entità Domus configurata</span></template>
+          <template v-else-if="widget.type === 'entity'"><strong class="custom-widget-value">{{ getWidgetEntityState(widget.entity_key) }}</strong><span>Entità Domus configurata</span></template>
           <template v-else><p>{{ widget.config?.text || widget.entity_key || 'Widget di testo personalizzato' }}</p></template>
         </div>
       </article>
