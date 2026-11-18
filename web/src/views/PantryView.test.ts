@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import PantryView from './PantryView.vue'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 import type { PantryItem, Recipe, MealPlan } from '../api/types'
 
 vi.mock('../api/client', () => ({
@@ -78,7 +79,7 @@ describe('PantryView.vue', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('h1.page-title').text()).toBe('Dispensa e ricettario intelligente')
-    expect(wrapper.text()).toContain('Articoli in Dispensa')
+    expect(wrapper.text()).toContain(i18n.global.t('pantry.view.kpis.totalItems'))
     expect(wrapper.text()).toContain('Dispensa e scorte')
     expect(wrapper.text()).toContain('Ricettario')
     expect(wrapper.text()).toContain('Calendario pasti')
@@ -99,7 +100,7 @@ describe('PantryView.vue', () => {
 
     // Switch to Calendar tab
     await tabs[2].trigger('click')
-    expect(wrapper.text()).toContain('Pianifica Pasto')
+    expect(wrapper.text()).toContain(i18n.global.t('pantry.view.mealCalendar.planMeal'))
 
   })
 
