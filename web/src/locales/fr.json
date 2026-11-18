@@ -457,7 +457,8 @@
       "devicesUpdatedTitle": "Appareils mis à jour",
       "devicesUpdatedMessage": "La liste des appareils et l’état des intégrations ont été actualisés.",
       "refreshErrorTitle": "Échec de l’actualisation",
-      "refreshErrorMessage": "Impossible d’actualiser les appareils."
+      "refreshErrorMessage": "Impossible d’actualiser les appareils.",
+      "filteredCount": "{filtered} sur {total} appareils"
     }
   },
   "integrations": {
@@ -646,7 +647,9 @@
       "anomaliesRegistered": "anomalies enregistrées",
       "noWritableFunctions": "L’API n’a renvoyé aucune fonction modifiable pour cet appareil.",
       "host": "Hôte",
-      "deviceTotals": "au total · en ligne · hors ligne"
+      "deviceTotals": "au total · en ligne · hors ligne",
+      "ipLabel": "IP",
+      "firmwareLabel": "Micrologiciel"
     }
   },
   "history": {
@@ -1113,7 +1116,25 @@
     "tariffF1": "F1 (pointe : lun–ven 08–19)",
     "tariffF2": "F2 (intermédiaire : lun–ven 07–08 et 19–23, sam 07–23)",
     "tariffF3": "F3 (heures creuses : nuits, dimanches et jours fériés)",
-    "electricity": "Électricité"
+    "electricity": "Électricité",
+    "nodeSolar": "SOLAIRE",
+    "nodeGrid": "RÉSEAU",
+    "nodeHomeLoads": "CONSOMMATION DU FOYER",
+    "nodeBattery": "BATTERIE",
+    "nodeWallbox": "WALLBOX VE",
+    "standby": "0 W (En veille)",
+    "recalculateArbitrage": "Recalculer l’arbitrage optimal",
+    "wallboxSubtitle": "Modulation dynamique IEC 61851 selon le surplus photovoltaïque net avec protection contre la surcharge du compteur",
+    "recalculateSolarModulation": "Recalculer la modulation solaire",
+    "updating": "Mise à jour…",
+    "recalculateModulation": "Recalculer la modulation",
+    "target": "Cible",
+    "pwmAvailableCurrent": "Courant PWM disponible",
+    "station": "Station",
+    "solarSurplus": "Surplus solaire",
+    "homeLoads": "Consommation du foyer",
+    "total": "Total",
+    "cost": "Coût"
   },
   "cameras": {
     "title": "Vidéosurveillance & NVR avec IA Locale",
@@ -1307,7 +1328,11 @@
       "filterSupermarket": "Filtrer par {name}",
       "justNow": "À l’instant",
       "toBuy": "à acheter",
-      "bought": "acheté"
+      "bought": "acheté",
+      "itemsAdded": "{count} nouveaux articles",
+      "itemsUpdated": "{count} articles mis à jour",
+      "itemsTransferred": "Articles transférés",
+      "transferCompleted": "Achats enregistrés dans le garde-manger ({summary}) !"
     }
   },
   "chores": {
@@ -1557,7 +1582,10 @@
         "kitchen": "Cuisine",
         "masterBedroom": "Chambre principale",
         "bathroom": "Salle de bains",
-        "office": "Bureau"
+        "office": "Bureau",
+        "kitchenDining": "Cuisine et salle à manger",
+        "bedroom": "Chambre",
+        "masterBathroom": "Salle de bains principale"
       },
       "roomCreatedTitle": "Pièce créée",
       "roomCreatedMessage": "La pièce « {name} » a été ajoutée au plan",
