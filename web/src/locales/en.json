@@ -655,7 +655,9 @@
       "deviceTotals": "total · online · offline",
       "ipLabel": "IP",
       "firmwareLabel": "Firmware",
-      "tuyaCloudSetupInstruction": "Create an account at iot.tuya.com, open Cloud → Development and select the Domus project."
+      "tuyaCloudSetupInstruction": "Create an account at iot.tuya.com, open Cloud → Development and select the Domus project.",
+      "tuyaProjectIntro": "Open your project at",
+      "tuyaProjectPath": "Cloud → Development → open the Domus project"
     }
   },
   "history": {
@@ -2084,7 +2086,14 @@
         "dry": "Dry",
         "fanOnly": "Fan only",
         "other": "Other mode"
-      }
+      },
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
     }
   },
   "login": {
@@ -2189,7 +2198,10 @@
     "fallbackSatellites": {
       "livingRoom": "Living room wall tablet",
       "kitchen": "Kitchen smart display",
-      "bedroom": "Bedside tablet"
+      "bedroom": "Bedside tablet",
+      "livingRoomArea": "Living room",
+      "kitchenArea": "Kitchen",
+      "bedroomArea": "Bedroom"
     }
   },
   "flasher": {
@@ -2373,7 +2385,14 @@
       "thresholdHelp": "Set at least one of the two thresholds.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "This condition type cannot be edited with the visual controls. The original configuration is preserved unchanged.",
-      "entityLabel": "Entity"
+      "entityLabel": "Entity",
+      "stateLabel": "Required state",
+      "sensorLabel": "Sensor",
+      "aboveLabel": "Greater than",
+      "belowLabel": "Less than",
+      "afterLabel": "After",
+      "beforeLabel": "Before",
+      "triggerIdLabel": "Trigger ID"
     }
   },
   "failover": {
@@ -3021,7 +3040,10 @@
         "expiring": "Expiring (3 days)",
         "expiringSub": "Use soon",
         "cookable": "What can I cook?",
-        "cookableSub": "100% of ingredients available"
+        "cookableSub": "100% of ingredients available",
+        "filterLowStock": "Filter low-stock items",
+        "filterExpiring": "Filter items expiring soon",
+        "showCookable": "Show recipes you can cook today"
       },
       "cookableRecipes": "cookable recipes"
     }
