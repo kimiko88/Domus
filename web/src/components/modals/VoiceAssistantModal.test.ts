@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import VoiceAssistantModal from './VoiceAssistantModal.vue'
 import { useAssistantStore } from '../../stores/assistant'
+import { i18n } from '../../locales'
 
 describe('VoiceAssistantModal.vue', () => {
   let assistantStore: ReturnType<typeof useAssistantStore>
@@ -19,8 +20,8 @@ describe('VoiceAssistantModal.vue', () => {
     })
 
     expect(wrapper.find('.assistant-modal').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Domus AI Assistant')
-    expect(wrapper.text()).toContain('Offline-First')
+    expect(wrapper.text()).toContain(i18n.global.t('satellites.assistantTitle'))
+    expect(wrapper.text()).toContain(i18n.global.t('satellites.engineBadge'))
   })
 
   it('does not render modal when isOpen is false', () => {
