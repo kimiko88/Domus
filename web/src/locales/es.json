@@ -336,7 +336,8 @@
     "saveError": "No se pudo guardar el área",
     "deleteSuccess": "Área eliminada con éxito",
     "deleteError": "No se pudo eliminar el área",
-    "nameRequired": "El nombre del área es obligatorio."
+    "nameRequired": "El nombre del área es obligatorio.",
+    "createArea": "Crear área"
   },
   "devices": {
     "title": "Dispositivos",
@@ -2309,7 +2310,19 @@
       "trainingHelp": "Durante la calefacción, la temperatura final debe ser superior a la inicial; durante la refrigeración, debe ser inferior. Se aceptan ciclos de 15 a 720 minutos.",
       "neverEvaluated": "Nunca evaluada",
       "dateUnavailable": "Fecha no disponible",
-      "lastEvaluated": "Última evaluación: {date}"
+      "lastEvaluated": "Última evaluación: {date}",
+      "calculating": "Calculando...",
+      "evaluateAllZones": "Evaluar todas las zonas",
+      "coldFrontDetected": "Frente frío detectado",
+      "pressureStable": "Presión estable",
+      "barometricPreheatActive": "Precalentamiento barométrico activo",
+      "noBarometricDrop": "Sin caída barométrica",
+      "solarCutoffActive": "Límite solar activo",
+      "moderateSun": "Sol moderado",
+      "solarSavingsActive": "Ahorro activo en habitaciones expuestas",
+      "standardSolarGain": "Aporte solar estándar",
+      "pressureTrend": "Tendencia",
+      "saveConfiguration": "Guardar configuración"
     }
   },
   "sharedDashboard": {
