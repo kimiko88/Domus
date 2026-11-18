@@ -35,7 +35,7 @@ import { apiClient } from '../api/client'
 import { soundEffects } from '../utils/audioSynthesizer'
 import type { FamilyFace, AuthorizedVehicle } from '../api/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Camera {
   id: string
@@ -267,6 +267,12 @@ function getFaceRoleLabel(role?: string): string {
   if (role === 'Amministratore') return t('cameras.view.administrator')
   if (role === 'Ospite') return t('cameras.view.frequentGuest')
   return role
+}
+
+function formatDetectionDate(value?: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale.value)
 }
 
 function getDetectionLabel(label: string): string {
@@ -549,7 +555,7 @@ onMounted(async () => {
             v-if="activeScrubbedEvent && activeScrubbedEvent.camera_id === cam.id"
             class="ai-tracking-box"
           >
-            <span class="box-tag">{{ activeScrubbedEvent.label.toUpperCase() }}</span>
+            <span class="box-tag">{{ getDetectionLabel(activeScrubbedEvent.label) }}</span>
           </div>
         </div>
 
@@ -666,7 +672,7 @@ onMounted(async () => {
           <div class="scrubbed-event-info">
             <div class="scrub-title-row">
               <strong>{{ t('cameras.view.aiDetected') }}</strong>
-              <span class="scrub-time font-mono">{{ activeScrubbedEvent.detected_at }}</span>
+              <span class="scrub-time font-mono">{{ formatDetectionDate(activeScrubbedEvent.detected_at) }}</span>
             </div>
             <div class="scrub-details">
               <span>{{ t('cameras.view.cameraLabel') }}: <strong>{{ activeScrubbedEvent.camera_id }}</strong></span>
@@ -701,7 +707,7 @@ onMounted(async () => {
             </div>
           </div>
           <p class="ai-banner-desc">
-            Riconoscimento facciale dei residenti mediante embedding vettoriali locali (Cosine Similarity &ge; 0.65) e lettura automatica delle targhe (ALPR) per controllo accessi e varchi carrabili.
+            {{ t('cameras.view.aiOverviewDescription') }}
           </p>
         </div>
 
@@ -914,7 +920,7 @@ onMounted(async () => {
         <div class="cam-info-bar">
           <div>
             <h3 class="cam-title">{{ cam.name }}</h3>
-            <span class="cam-protocol">{{ cam.stream_type.toUpperCase() }} • Sub-second delay</span>
+            <span class="cam-protocol">{{ cam.stream_type.toUpperCase() }} • {{ t('cameras.view.subSecondDelay') }}</span>
           </div>
 
           <div class="cam-actions-row">
@@ -982,7 +988,7 @@ onMounted(async () => {
               class="label-badge"
               :class="lbl"
             >
-              {{ lbl.toUpperCase() }}
+              {{ getDetectionLabel(lbl) }}
             </span>
           </div>
         </div>
@@ -1025,7 +1031,7 @@ onMounted(async () => {
               <Film :size="14" />
               <span>{{ t('cameras.clipButton') }} ({{ e.clip_duration_sec || 5 }}s)</span>
             </button>
-            <span class="event-time">{{ e.detected_at }}</span>
+            <span class="event-time">{{ formatDetectionDate(e.detected_at) }}</span>
           </div>
         </div>
       </div>
@@ -1057,8 +1063,8 @@ onMounted(async () => {
         <div class="clip-media-wrapper">
           <img :src="previewClipModal.event.thumbnail_url" class="clip-img" />
           <div class="clip-overlay-tag">
-            <span class="tag-label">{{ previewClipModal.event.label.toUpperCase() }} ({{ (previewClipModal.event.score * 100).toFixed(0) }}%)</span>
-            <span class="tag-time">{{ previewClipModal.event.detected_at }}</span>
+            <span class="tag-label">{{ getDetectionLabel(previewClipModal.event.label) }} ({{ (previewClipModal.event.score * 100).toFixed(0) }}%)</span>
+            <span class="tag-time">{{ formatDetectionDate(previewClipModal.event.detected_at) }}</span>
           </div>
         </div>
         <div class="clip-modal-footer">
@@ -1245,7 +1251,7 @@ onMounted(async () => {
           </div>
           <div class="modal-actions-row">
             <button type="button" class="btn-cancel" @click="isPlateModalOpen = false">
-              Annulla
+              {{ t('common.cancel') }}
             </button>
             <button type="submit" class="btn-save-primary">
               {{ t('cameras.view.registerPlate') }}
