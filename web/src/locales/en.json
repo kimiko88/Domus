@@ -343,7 +343,19 @@
     "deleteSuccess": "Area deleted successfully",
     "deleteError": "Unable to delete area",
     "nameRequired": "An area name is required.",
-    "createArea": "Create area"
+    "createArea": "Create area",
+    "icons": {
+      "livingRoom": "Living room",
+      "kitchen": "Kitchen",
+      "bedroom": "Bedroom",
+      "bathroom": "Bathroom",
+      "office": "Office",
+      "garden": "Garden",
+      "terrace": "Terrace",
+      "garage": "Garage",
+      "cinema": "Home cinema / TV",
+      "other": "Other"
+    }
   },
   "devices": {
     "title": "Devices",
