@@ -232,6 +232,8 @@ func (s *Scheduler) CheckDueChores(ctx context.Context) error {
 					"message":          msg,
 					"type":             "warning",
 					"chore_id":         c.ID,
+					"notification_kind": "task_due",
+					"task_name":        c.Title,
 					"user_id":          targetUser,
 					"broadcast_family": broadcast,
 				},
