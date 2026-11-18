@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // VitePWA is intentionally excluded from the unit-test plugin graph.
+      // This local shim resolves its virtual module without generating a service worker.
+      'virtual:pwa-register': fileURLToPath(new URL('./src/test/mocks/pwa-register.ts', import.meta.url))
     }
   },
   test: {
