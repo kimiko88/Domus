@@ -720,12 +720,12 @@ function selectDayView(dateStr: string) {
                   { 'is-completed': chore.status === 'completed' }
                 ]"
                 @click.stop="handleComplete(chore)"
-                :title="`${chore.title} (${getAssigneeName(chore.assigned_user_id)}) - {{ t('chores.view.clickToComplete') }}`"
+                :title="t('chores.view.clickToCompleteTitle', { title: chore.title })"
               >
                 <span class="priority-dot" :class="chore.priority"></span>
                 <span class="badge-title" :class="{ strike: chore.status === 'completed' }">{{ chore.title }}</span>
                 <span class="badge-assignee" :class="{ 'family-all': !chore.assigned_user_id }">
-                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id).slice(0, 3) : 'Fam' }}
+                  {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id).slice(0, 3) : t('chores.view.familyShort') }}
                 </span>
               </div>
             </div>
@@ -869,7 +869,7 @@ function selectDayView(dateStr: string) {
                   </span>
                   <span class="meta-tag assignee" :class="{ 'family-all': !chore.assigned_user_id }">
                     <User :size="13" />
-                    <span>{{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : 'Tutta la famiglia' }}</span>
+                    <span>{{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id) : t('chores.view.wholeFamily') }}</span>
                   </span>
                 </div>
               </div>
