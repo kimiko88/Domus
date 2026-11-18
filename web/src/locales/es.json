@@ -2084,7 +2084,14 @@
         "dry": "Deshumidificación",
         "fanOnly": "Solo ventilación",
         "other": "Otro modo"
-      }
+      },
+      "monday": "Lunes",
+      "tuesday": "Martes",
+      "wednesday": "Miércoles",
+      "thursday": "Jueves",
+      "friday": "Viernes",
+      "saturday": "Sábado",
+      "sunday": "Domingo"
     }
   },
   "login": {
@@ -2189,7 +2196,10 @@
     "fallbackSatellites": {
       "livingRoom": "Tableta de pared del salón",
       "kitchen": "Pantalla inteligente de la cocina",
-      "bedroom": "Tableta de mesita de noche"
+      "bedroom": "Tableta de mesita de noche",
+      "livingRoomArea": "Salón",
+      "kitchenArea": "Cocina",
+      "bedroomArea": "Dormitorio"
     }
   },
   "flasher": {
@@ -2373,7 +2383,14 @@
       "thresholdHelp": "Configura al menos uno de los dos umbrales.",
       "triggerPlaceholder": "trigger_id",
       "unsupportedHelp": "Este tipo de condición no se puede editar con los controles visuales. La configuración original se conserva sin cambios.",
-      "entityLabel": "Entidad"
+      "entityLabel": "Entidad",
+      "stateLabel": "Estado requerido",
+      "sensorLabel": "Sensor",
+      "aboveLabel": "Mayor que",
+      "belowLabel": "Menor que",
+      "afterLabel": "Después de",
+      "beforeLabel": "Antes de",
+      "triggerIdLabel": "ID del disparador"
     }
   },
   "failover": {
@@ -3021,7 +3038,10 @@
         "expiring": "Caducan en 3 días",
         "expiringSub": "Consumir pronto",
         "cookable": "¿Qué puedo cocinar?",
-        "cookableSub": "100 % de los ingredientes disponibles"
+        "cookableSub": "100 % de los ingredientes disponibles",
+        "filterLowStock": "Filtrar artículos con pocas existencias",
+        "filterExpiring": "Filtrar artículos próximos a caducar",
+        "showCookable": "Mostrar recetas que puedes preparar hoy"
       },
       "cookableRecipes": "recetas que se pueden preparar"
     }
