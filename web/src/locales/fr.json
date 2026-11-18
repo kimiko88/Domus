@@ -318,7 +318,41 @@
       "defaultProfileNight": "Tablette chambre et nuit",
       "roomLivingRoom": "Salon",
       "roomKitchen": "Cuisine",
-      "roomBedroom": "Chambre"
+      "roomBedroom": "Chambre",
+      "customize": "Personnaliser",
+      "newDashboard": "+ Nouveau",
+      "deleteDashboard": "Supprimer",
+      "ambientSetpoint": "Consigne ambiante",
+      "measuredTemperature": "Température mesurée",
+      "instantaneousPower": "Puissance instantanée du logement",
+      "configuredEntity": "Entité Domus configurée",
+      "customTextWidget": "Widget de texte personnalisé",
+      "createCustomTitle": "Créer un tableau de bord personnalisé",
+      "customizeTitle": "Personnaliser le tableau de bord",
+      "editorHint": "Choisissez un nom, des widgets et les dimensions de la grille.",
+      "dashboardName": "Nom du tableau de bord",
+      "dashboardNamePlaceholder": "Par exemple : Tableau de bord du rez-de-chaussée",
+      "addWidget": "Ajouter un widget",
+      "widgetType": "Type de widget",
+      "widgetTypes": {
+        "thermostat": "Thermostat",
+        "temperature": "Température",
+        "energy": "Énergie",
+        "entity": "Entité",
+        "text": "Texte / Note"
+      },
+      "widgetTitlePlaceholder": "Titre du widget (facultatif)",
+      "widgetTitleAria": "Titre du widget",
+      "entityIdPlaceholder": "ID de l’entité (facultatif)",
+      "entityIdAria": "ID de l’entité",
+      "add": "Ajouter",
+      "widgetsCount": "Widgets du tableau de bord ({count})",
+      "noWidgets": "Aucun widget ajouté. Vous pouvez créer un tableau de bord vide et le configurer plus tard.",
+      "removeWidget": "Supprimer",
+      "cancel": "Annuler",
+      "saveDashboard": "Enregistrer le tableau de bord",
+      "closeEditor": "Fermer l’éditeur",
+      "deleteConfirm": "Supprimer le tableau de bord « {title} » ?"
     }
   },
   "areas": {
@@ -398,7 +432,11 @@
       "matterNegotiatingDesc": "Échange de clés PASE, vérification du certificat DAC et connexion au réseau Thread Domus.",
       "matterPaired": "Appareil Matter associé !",
       "matterPairedDesc": "Le nœud est authentifié et opérationnel sur le réseau maillé Thread local.",
-      "startPairing": "Commencer l’association"
+      "startPairing": "Commencer l’association",
+      "discoveryReady": "appareils prêts à être configurés immédiatement.",
+      "ipPrefix": "IP :",
+      "deviceCount": "appareils",
+      "addToHome": "Ajouter à votre maison connectée Domus."
     }
   },
   "integrations": {
@@ -581,7 +619,13 @@
       "valueToSend": "Valeur à envoyer",
       "setpointMapAria": "Table de conversion de la consigne du thermostat",
       "hideCommands": "Masquer les commandes",
-      "availableApiCommands": "Commandes disponibles via l’API"
+      "availableApiCommands": "Commandes disponibles via l’API",
+      "pendingPairingInstructions": "Cliquez sur « Scanner le réseau » ou saisissez l’adresse IP de votre appareil Shelly, Sonoff ou Tasmota pour l’importer directement, sans cloud.",
+      "networkGuardianDescription": "Surveillance active du réseau LAN, analyse passive ARP/DHCP et détection immédiate des fuites de données non autorisées vers des serveurs cloud externes.",
+      "anomaliesRegistered": "anomalies enregistrées",
+      "noWritableFunctions": "L’API n’a renvoyé aucune fonction modifiable pour cet appareil.",
+      "host": "Hôte",
+      "deviceTotals": "au total · en ligne · hors ligne"
     }
   },
   "history": {
@@ -754,7 +798,15 @@
       "doorbellAlerts": "Interphone et sonnette",
       "financeAlerts": "Alertes financières",
       "zeroDaysHint": "Définissez 0 jour pour désactiver le délai de rappel avant péremption."
-    }
+    },
+    "updated": "Mis à jour",
+    "otaEmpty": "Aucun appareil n’est enregistré pour les mises à jour OTA.",
+    "nfcEmpty": "Aucun tag NFC n’est enregistré dans la base de données.",
+    "testNfcScan": "Tester le scan",
+    "backupDescription": "Sauvegarde automatique locale ou distante sur NAS/WebDAV, chiffrée avec AES-256-GCM. En cas de panne matérielle, restaurez vos données en un clic.",
+    "vacationLightingDescription": "Au lieu d’allumer les lumières à heures fixes, Domus reproduit les habitudes enregistrées au cours des 14 derniers jours avec une variation aléatoire de ±{minutes} minutes.",
+    "batteryDiagnosticsDescription": "Surveillance proactive des batteries avec alerte sous 15 % et diagnostic des interférences radio Zigbee/Thread, avec des conseils pour étendre le réseau mesh.",
+    "waterLeakDescription": "Si le compteur détecte un débit continu pendant plus de 40 minutes durant la nuit, Domus signale un risque de fuite et peut fermer l’électrovanne principale."
   },
   "automations": {
     "title": "Règles d'Automatisation",
@@ -957,7 +1009,9 @@
       "updateRole": "Impossible de modifier le rôle du membre.",
       "removeMember": "Impossible de supprimer le membre.",
       "revokeInvite": "Impossible de révoquer l’invitation."
-    }
+    },
+    "roleUpdated": "Rôle mis à jour",
+    "createGuestProfile": "Créer un profil invité"
   },
   "register": {
     "title": "Rejoindre la Famille Domus",
@@ -1011,7 +1065,34 @@
     "currentSlot": "Tranche Actuelle",
     "utilitiesTitle": "Comptage Eau et Gaz",
     "waterMeter": "Compteur d'Eau",
-    "gasMeter": "Compteur de Gaz Naturel"
+    "gasMeter": "Compteur de Gaz Naturel",
+    "powerWheelTitle": "Flux énergétiques en temps réel",
+    "powerWheelSubtitle": "Visualisation dynamique des flux énergétiques avec des particules animées.",
+    "inverter": "Onduleur",
+    "inverterStatus": "État de l’onduleur",
+    "arbitrageSavingsToday": "Économies d’arbitrage aujourd’hui",
+    "economicalGridCharge": "Recharge économique depuis le réseau",
+    "batteryPeakShaving": "Réduction des pointes par batterie",
+    "wallboxTitle": "Recharge solaire intelligente et Wallbox OCPP",
+    "activePower": "Puissance active",
+    "deliveredCurrent": "Courant délivré",
+    "vehicleBatterySoc": "Batterie du véhicule (SoC)",
+    "sessionEnergy": "Énergie de la session",
+    "chargingMode": "Mode de gestion de la recharge",
+    "solarOnly": "Solaire uniquement (100 % photovoltaïque)",
+    "active": "Actif",
+    "solarOnlyDesc": "Recharge exclusivement avec le surplus photovoltaïque net (au moins 6 A / 1,4 kW), sans prélèvement sur le réseau.",
+    "solarOptimized": "Solaire optimisé (hybride)",
+    "solarOptimizedDesc": "Garantit 6 A en continu (1,4 kW) et augmente dynamiquement le courant en cas de surplus solaire.",
+    "fastCharge": "Recharge rapide (puissance maximale)",
+    "fastChargeDesc": "Recharge à la puissance contractuelle maximale disponible, avec protection contre la surcharge du compteur.",
+    "scheduledNight": "Recharge nocturne économique",
+    "scheduledNightDesc": "Planifie la recharge sur les plages F3 ou pendant les heures nocturnes au PUN le plus bas pour maximiser les économies.",
+    "balancingDecision": "Décision de l’algorithme d’équilibrage dynamique :",
+    "tariffF1": "F1 (pointe : lun–ven 08–19)",
+    "tariffF2": "F2 (intermédiaire : lun–ven 07–08 et 19–23, sam 07–23)",
+    "tariffF3": "F3 (heures creuses : nuits, dimanches et jours fériés)",
+    "electricity": "Électricité"
   },
   "cameras": {
     "title": "Vidéosurveillance & NVR avec IA Locale",
@@ -1162,11 +1243,17 @@
       "drinks": "Boissons",
       "hygiene": "Hygiène",
       "home": "Entretien Maison",
-      "other": "Autre"
+      "other": "Autre",
+      "alimentari": "Épicerie",
+      "frutta_verdura": "Fruits et légumes",
+      "bevande": "Boissons",
+      "igiene": "Hygiène personnelle",
+      "casa": "Maison et nettoyage",
+      "altro": "Autre"
     },
     "view": {
       "scanReceipt": "Scanner un ticket de caisse",
-      "moveBoughtToPantry": "Transférer les articles achetés dans le garde-manger",
+      "moveBoughtToPantry": "Transférer les achats au garde-manger ({count})",
       "moveShoppingToPantry": "Transférer les articles de la liste de courses dans le garde-manger",
       "productName": "Nom du produit",
       "supermarketPlaceholder": "Supermarché / Magasin",
@@ -1189,7 +1276,14 @@
       "compareWithList": "Comparer avec la liste de courses",
       "noAutoMatches": "Aucune correspondance automatique : vous pouvez tout de même vérifier le ticket et confirmer l’importation.",
       "closeNotification": "Fermer la notification",
-      "goToPantry": "Aller au garde-manger →"
+      "goToPantry": "Aller au garde-manger →",
+      "allSupermarkets": "Tous ({count})",
+      "allItemsBought": "Tous les articles de la liste ont été achetés !",
+      "markAsBought": "Marquer comme acheté",
+      "recognizedAs": "reconnu comme « {name} »",
+      "quantityAria": "Quantité",
+      "markItem": "Marquer {name} comme {status}",
+      "filterSupermarket": "Filtrer par {name}"
     }
   },
   "chores": {
@@ -1408,7 +1502,18 @@
       "floorLevelPlaceholder": "0 pour le rez-de-chaussée, 1 pour le premier étage",
       "svgMarkupOptional": "Code SVG du plan (facultatif)",
       "svgPlaceholder": "Collez ici le code vectoriel SVG du plan",
-      "saveFloor": "Enregistrer l’étage"
+      "saveFloor": "Enregistrer l’étage",
+      "floors": "Étages",
+      "rooms": "Pièces",
+      "mapView": "Vue plan",
+      "levelShort": "Niv.",
+      "roomPrefix": "Pièce :",
+      "positionX": "X :",
+      "positionY": "Y :",
+      "widthShort": "L :",
+      "heightShort": "H :",
+      "editRoomHint": "Cliquez sur une pièce du plan pour modifier sa position, ses dimensions et sa couleur.",
+      "allDevicesPlaced": "Tous les appareils sont déjà placés sur ce plan !"
     }
   },
   "media": {
@@ -1531,7 +1636,7 @@
       "all": "Tous",
       "domusVerified": "Vérifié par Domus",
       "communityOpenSource": "Communauté open source",
-      "pendingReview": "En attente de révision",
+      "pendingReview": "En attente de validation",
       "moduleType": "Type de module :",
       "extensionTypeFilter": "Filtre de type d’extension",
       "allTypes": "Tous les types",
@@ -1543,7 +1648,7 @@
       "searchHint": "Essayez d’autres mots-clés comme « sunspec », « wmbus », « radar » ou « modem ».",
       "packagesHint": "Les packages du catalogue et ceux proposés par la communauté apparaîtront ici.",
       "packageDetails": "Détails de {name}",
-      "rejected": "Rejeté",
+      "rejected": "Refusé",
       "community": "Communauté",
       "verified": "Vérifié",
       "author": "Auteur",
@@ -1593,7 +1698,15 @@
       "verifiedSecurityTitle": "Sécurité Domus Verified :",
       "verifiedSecurityDesc": "Exécution dans une sandbox WebAssembly (WASI) avec mémoire linéaire isolée, autorisations strictement contrôlées et aucun appel cloud non autorisé.",
       "uninstall": "Désinstaller",
-      "installOneClick": "Installer immédiatement en un clic"
+      "installOneClick": "Installer immédiatement en un clic",
+      "communityLabel": "Communauté",
+      "verifiedLabel": "Vérifié",
+      "cancel": "Annuler",
+      "close": "Fermer",
+      "requiredPackageFields": "Le nom et l’identifiant du paquet sont obligatoires.",
+      "repositoryRequired": "Une URL valide vers un dépôt open source public est requise (par exemple GitHub ou GitLab).",
+      "licenseRequired": "Une licence open source valide est requise (par exemple Apache-2.0, MIT ou GPL-3.0).",
+      "submissionFailed": "Erreur lors de la publication du paquet."
     }
   },
   "schedules": {
@@ -1855,7 +1968,87 @@
       "waitSeconds": "Délai d’attente (secondes)",
       "notificationMessage": "Message de notification",
       "deleteNodeButton": "Supprimer le nœud",
-      "compiledAstTitle": "JSON AST compilé"
+      "compiledAstTitle": "JSON AST compilé",
+      "paletteCategories": {
+        "triggers": "Déclencheurs",
+        "conditions": "Conditions",
+        "actionsFlow": "Actions et flux"
+      },
+      "palette": {
+        "stateChangeTitle": "Changement d’état",
+        "stateChangeDesc": "Changement d’état d’une entité, par exemple un interrupteur ou un capteur",
+        "timeTriggerTitle": "Horaire programmé",
+        "timeTriggerDesc": "Heure précise (HH:MM:SS), lever ou coucher du soleil",
+        "stateConditionTitle": "État actuel",
+        "stateConditionDesc": "Vérifier si un appareil est actif",
+        "timeConditionTitle": "Plage horaire",
+        "timeConditionDesc": "Uniquement pendant une plage précise, par exemple la nuit",
+        "entityCommandTitle": "Commande d’entité",
+        "entityCommandDesc": "Allumer, éteindre, ouvrir ou régler le climat",
+        "activateSceneTitle": "Activer une scène",
+        "activateSceneDesc": "Appliquer une ambiance lumineuse ou un profil",
+        "delayTitle": "Pause",
+        "delayDesc": "Attente programmée avant l’étape suivante",
+        "sendNotificationTitle": "Envoyer une notification",
+        "sendNotificationDesc": "Envoyer une notification push prioritaire sur le smartphone",
+        "chooseTitle": "Choix conditionnel",
+        "chooseDesc": "Exécuter la première branche dont les conditions sont remplies, avec une alternative",
+        "ifElseTitle": "Si / Sinon",
+        "ifElseDesc": "Exécuter des séquences différentes selon les conditions",
+        "repeatTitle": "Répéter",
+        "repeatDesc": "Répéter un certain nombre de fois, tant qu’une condition est vraie ou jusqu’à ce qu’elle le soit",
+        "parallelTitle": "Exécution parallèle",
+        "parallelDesc": "Démarrer plusieurs actions simultanément",
+        "climateProfileTitle": "Profil climatique",
+        "climateProfileDesc": "Confort, Éco, Nuit, Absence ou consigne personnalisée",
+        "emitEventTitle": "Émettre un événement",
+        "emitEventDesc": "Publier un événement applicatif avec ses données"
+      },
+      "branchContinue": "Continuer",
+      "timeFrom": "De (HH:MM:SS)",
+      "timeTo": "À (HH:MM:SS)",
+      "nestedConditions": "Conditions imbriquées",
+      "nestedConditionsDescription": "Configurez les groupes AND, OR et NOT en ajoutant des conditions et d’autres groupes. Les types non pris en charge sont conservés sans modification.",
+      "triggerId": "ID du déclencheur",
+      "nestedConfiguration": "Configuration imbriquée (JSON)",
+      "nestedConfigurationDescription": "Modifiez ici les branches, conditions et séquences. Domus préserve la structure imbriquée ; un JSON invalide ou une action non prise en charge bloque l’enregistrement.",
+      "validation": {
+        "missingNode": "Le flux contient un lien vers un nœud inexistant.",
+        "invalidOrder": "Ordre invalide : les déclencheurs, conditions et actions doivent respecter l’ordre du flux.",
+        "singleOutput": "Un nœud de la séquence principale ne peut avoir qu’une sortie. Utilisez les ports nommés IF/ELSE ou CHOOSE pour créer des branches.",
+        "disconnectedNode": "Le nœud « {title} » n’est pas relié au flux. Reliez chaque condition et action avant l’enregistrement.",
+        "cycle": "Le flux contient une boucle. Supprimez les liens circulaires avant l’enregistrement.",
+        "missingBranchNode": "Une branche pointe vers un nœud inexistant.",
+        "missingBranchPort": "La sortie « {port} » n’existe plus sur le nœud « {node} ».",
+        "conditionPortTarget": "Les ports de condition ne peuvent être reliés qu’à des nœuds de condition.",
+        "actionBranchTarget": "Les branches d’actions composites ne peuvent contenir que des actions ou des pauses.",
+        "branchRejoin": "Une séquence de branche ne peut pas rejoindre le flux principal. Dupliquez les actions suivantes dans chaque branche.",
+        "branchMerge": "Chaque nœud d’une branche doit avoir un seul lien entrant. La convergence de branches n’est pas prise en charge.",
+        "unsupportedTrigger": "Le déclencheur « {type} » ne peut pas encore être modifié dans l’éditeur visuel. L’enregistrement est bloqué pour préserver la configuration d’origine.",
+        "invalidLogicJson": "La condition logique contient un JSON invalide.",
+        "logicObjectRequired": "La condition logique doit être un objet JSON.",
+        "unsupportedCondition": "La condition « {type} » ne peut pas encore être modifiée dans l’éditeur visuel. L’enregistrement est bloqué pour préserver la configuration d’origine.",
+        "unsupportedAction": "Cette action avancée ne peut pas être modifiée dans l’éditeur visuel. L’enregistrement est bloqué pour préserver la configuration d’origine."
+      },
+      "notifications": {
+        "updatedTitle": "Automatisation mise à jour",
+        "updatedMessage": "« {name} » a été enregistrée.",
+        "createdTitle": "Automatisation créée",
+        "createdMessage": "« {name} » est maintenant active sur le Hub.",
+        "saveErrorTitle": "Erreur d’enregistrement",
+        "saveErrorMessage": "Impossible d’enregistrer le flux.",
+        "saveBeforeTestTitle": "Enregistrez d’abord le flux",
+        "saveBeforeTestMessage": "Enregistrez l’automatisation avant de lancer une simulation. Le test n’exécute aucune commande sur les appareils.",
+        "simulationSuccessTitle": "Simulation terminée",
+        "simulationSuccessMessage": "Les conditions sont remplies.",
+        "simulationFailedTitle": "Simulation non validée",
+        "simulationFailedMessage": "Une ou plusieurs conditions ne sont pas remplies. Consultez les détails pour identifier le blocage.",
+        "simulationResultTitle": "Résultat de la simulation",
+        "simulationErrorTitle": "Erreur de simulation",
+        "simulationErrorMessage": "Impossible de simuler le flux.",
+        "invalidFlowTitle": "Flux invalide",
+        "invalidFlowMessage": "Corrigez les liens avant l’exportation."
+      }
     },
     "conditionEditor": {
       "logicalGroup": "Groupe logique",
@@ -2677,7 +2870,8 @@
         "preheat": "Le préchauffage préventif est actif : température extérieure prévue de {outdoor} °C.",
         "comfort": "Le chauffage fonctionne en mode confort standard.",
         "default": "La régulation climatique prédictive est active."
-      }
+      },
+      "close": "Fermer"
     }
   },
   "sharedDashboard": {
@@ -2691,6 +2885,11 @@
       "widgetsAria": "Widgets du tableau de bord",
       "active": "Actif",
       "emptyWidgets": "Aucun widget n’est configuré dans ce tableau de bord."
-    }
+    },
+    "expiresOn": "Expire le :"
+  },
+  "dashboardMarketplace": {
+    "community": "Communauté",
+    "verified": "Vérifié"
   }
 }
