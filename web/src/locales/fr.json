@@ -352,7 +352,10 @@
       "cancel": "Annuler",
       "saveDashboard": "Enregistrer le tableau de bord",
       "closeEditor": "Fermer l’éditeur",
-      "deleteConfirm": "Supprimer le tableau de bord « {title} » ?"
+      "deleteConfirm": "Supprimer le tableau de bord « {title} » ?",
+      "dashboardNameRequired": "Saisissez le nom du tableau de bord.",
+      "saveFailed": "Impossible d’enregistrer le tableau de bord. Réessayez.",
+      "deleteFailed": "Impossible de supprimer le tableau de bord."
     }
   },
   "areas": {
@@ -436,7 +439,8 @@
       "discoveryReady": "appareils prêts à être configurés immédiatement.",
       "ipPrefix": "IP :",
       "deviceCount": "appareils",
-      "addToHome": "Ajouter à votre maison connectée Domus."
+      "addToHome": "Ajouter à votre maison connectée Domus.",
+      "addToDomus": "Ajouter à Domus"
     }
   },
   "integrations": {
@@ -1283,7 +1287,10 @@
       "recognizedAs": "reconnu comme « {name} »",
       "quantityAria": "Quantité",
       "markItem": "Marquer {name} comme {status}",
-      "filterSupermarket": "Filtrer par {name}"
+      "filterSupermarket": "Filtrer par {name}",
+      "justNow": "À l’instant",
+      "toBuy": "à acheter",
+      "bought": "acheté"
     }
   },
   "chores": {
@@ -1513,7 +1520,9 @@
       "widthShort": "L :",
       "heightShort": "H :",
       "editRoomHint": "Cliquez sur une pièce du plan pour modifier sa position, ses dimensions et sa couleur.",
-      "allDevicesPlaced": "Tous les appareils sont déjà placés sur ce plan !"
+      "allDevicesPlaced": "Tous les appareils sont déjà placés sur ce plan !",
+      "finishEditing": "Terminer la modification",
+      "editPositions": "Modifier les positions"
     }
   },
   "media": {
@@ -1706,7 +1715,8 @@
       "requiredPackageFields": "Le nom et l’identifiant du paquet sont obligatoires.",
       "repositoryRequired": "Une URL valide vers un dépôt open source public est requise (par exemple GitHub ou GitLab).",
       "licenseRequired": "Une licence open source valide est requise (par exemple Apache-2.0, MIT ou GPL-3.0).",
-      "submissionFailed": "Erreur lors de la publication du paquet."
+      "submissionFailed": "Erreur lors de la publication du paquet.",
+      "rejectedByAdministrator": "Refusé par l’administrateur"
     }
   },
   "schedules": {
@@ -2002,7 +2012,8 @@
         "climateProfileTitle": "Profil climatique",
         "climateProfileDesc": "Confort, Éco, Nuit, Absence ou consigne personnalisée",
         "emitEventTitle": "Émettre un événement",
-        "emitEventDesc": "Publier un événement applicatif avec ses données"
+        "emitEventDesc": "Publier un événement applicatif avec ses données",
+        "numericThresholdTitle": "Seuil numérique"
       },
       "branchContinue": "Continuer",
       "timeFrom": "De (HH:MM:SS)",
@@ -2048,6 +2059,14 @@
         "simulationErrorMessage": "Impossible de simuler le flux.",
         "invalidFlowTitle": "Flux invalide",
         "invalidFlowMessage": "Corrigez les liens avant l’exportation."
+      },
+      "newAutomationName": "Nouvelle automatisation visuelle",
+      "nodeTypes": {
+        "trigger": "DÉCLENCHEUR",
+        "condition": "CONDITION",
+        "action": "ACTION",
+        "delay": "PAUSE",
+        "logic": "LOGIQUE"
       }
     },
     "conditionEditor": {
