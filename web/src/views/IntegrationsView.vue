@@ -1003,9 +1003,9 @@ onMounted(() => {
           <div class="disc-card-body">
             <h4 class="disc-name">{{ dev.name }}</h4>
             <div class="disc-meta">
-              <span class="disc-ip">IP: {{ dev.ip }}:{{ dev.port }}</span>
+              <span class="disc-ip">{{ t('integrations.view.ipLabel') }}: {{ dev.ip }}:{{ dev.port }}</span>
               <span v-if="dev.model" class="disc-model">{{ dev.model }}</span>
-              <span v-if="dev.firmware" class="disc-fw">FW: {{ dev.firmware }}</span>
+              <span v-if="dev.firmware" class="disc-fw">{{ t('integrations.view.firmwareLabel') }}: {{ dev.firmware }}</span>
             </div>
 
             <!-- Entities preview -->
