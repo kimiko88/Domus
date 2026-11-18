@@ -355,7 +355,10 @@
       "deleteConfirm": "Delete dashboard “{title}”?",
       "dashboardNameRequired": "Enter a dashboard name.",
       "saveFailed": "Unable to save the dashboard. Try again.",
-      "deleteFailed": "Unable to delete the dashboard."
+      "deleteFailed": "Unable to delete the dashboard.",
+      "extensionUninstalled": "Extension uninstalled successfully",
+      "extensionInstalled": "Extension installed and active locally",
+      "extensionToggleFailed": "Unable to change the package state"
     }
   },
   "areas": {
@@ -440,7 +443,21 @@
       "ipPrefix": "IP:",
       "deviceCount": "devices",
       "addToHome": "Add to your Domus smart home.",
-      "addToDomus": "Add to Domus"
+      "addToDomus": "Add to Domus",
+      "scanCompletedTitle": "Network scan completed",
+      "scanCompletedMessage": "Found {count} devices on the local network",
+      "scanErrorTitle": "Scan error",
+      "scanErrorMessage": "Unable to complete the scan",
+      "deviceAddedTitle": "Device added",
+      "deviceAddedMessage": "{name} is now configured in Domus.",
+      "addDeviceErrorTitle": "Device add error",
+      "addDeviceErrorMessage": "Unable to add the device",
+      "matterConnectedTitle": "Matter connected",
+      "matterConnectedMessage": "Device commissioned on the local Thread network",
+      "devicesUpdatedTitle": "Devices updated",
+      "devicesUpdatedMessage": "Device list and integration status refreshed.",
+      "refreshErrorTitle": "Refresh failed",
+      "refreshErrorMessage": "Unable to refresh devices."
     }
   },
   "integrations": {
@@ -1522,7 +1539,35 @@
       "editRoomHint": "Select a room on the floor plan to edit its position, size and color.",
       "allDevicesPlaced": "All devices are already placed on this map!",
       "finishEditing": "Finish editing",
-      "editPositions": "Edit positions"
+      "editPositions": "Edit positions",
+      "commandSentTitle": "Command sent",
+      "entityTurnedOn": "{name}: turned on",
+      "entityTurnedOff": "{name}: turned off",
+      "commandFailed": "Unable to send the command",
+      "positionSavedTitle": "Position saved",
+      "positionSavedMessage": "Device placed on the map",
+      "markerSaveFailed": "Unable to save the marker",
+      "markerRemovedTitle": "Device removed",
+      "markerRemovedMessage": "Device removed from the map",
+      "markerRemoveFailed": "Unable to remove the marker",
+      "roomNames": {
+        "living": "Living room",
+        "room": "Room",
+        "livingOpen": "Open-plan living room",
+        "kitchen": "Kitchen",
+        "masterBedroom": "Master bedroom",
+        "bathroom": "Bathroom",
+        "office": "Study / Office"
+      },
+      "roomCreatedTitle": "Room created",
+      "roomCreatedMessage": "Room “{name}” added to the floor plan",
+      "floorplanGeneratedTitle": "Floor plan generated",
+      "floorplanGeneratedMessage": "Five rooms prepared with the standard layout",
+      "roomRemovedTitle": "Room removed",
+      "roomRemovedMessage": "Room deleted from the floor plan",
+      "floorCreatedTitle": "Floor created",
+      "floorCreatedMessage": "New floor added to the floor plan",
+      "floorCreateFailed": "Unable to create the floor"
     }
   },
   "media": {
