@@ -5,6 +5,7 @@ import { usePredictiveClimateStore } from '../stores/predictiveClimate'
 import { apiClient } from '../api/client'
 import type {
   PredictiveZoneConfig,
+  PredictiveEvaluation,
   Entity,
   RoomOrientation,
   EmitterType,
@@ -92,6 +93,35 @@ function entityKey(entity: Entity): string {
 
 function entityOptionLabel(entity: Entity): string {
   return entity.name ? entity.name + ' (' + entityKey(entity) + ')' : entityKey(entity)
+}
+
+function formatClimateNumber(value: number): string {
+  return new Intl.NumberFormat(locale.value, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
+}
+
+function localizedEvaluationReason(evaluation: PredictiveEvaluation): string {
+  switch (evaluation.mode) {
+    case 'frost_protection':
+      return t('predictiveClimate.view.reasons.frostProtection')
+    case 'eco':
+      return t('predictiveClimate.view.reasons.eco')
+    case 'solar_cutoff':
+      return t('predictiveClimate.view.reasons.solarCutoff', {
+        radiation: formatClimateNumber(evaluation.direct_radiation_forecast)
+      })
+    case 'cold_front_boost':
+      return t('predictiveClimate.view.reasons.coldFront', {
+        trend: formatClimateNumber(Math.abs(evaluation.pressure_trend_hpa_hr))
+      })
+    case 'preheat':
+      return t('predictiveClimate.view.reasons.preheat', {
+        outdoor: formatClimateNumber(evaluation.outdoor_temp_forecast)
+      })
+    case 'comfort':
+      return t('predictiveClimate.view.reasons.comfort')
+    default:
+      return t('predictiveClimate.view.reasons.default')
+  }
 }
 
 function formatEvaluationTime(value?: string): string {
@@ -552,7 +582,7 @@ function getEmitterLabel(emitter: EmitterType): string {
         <!-- Explainability Note -->
         <div v-if="item.latest_evaluation?.reason" class="zone-reason">
           <span class="reason-icon">💡</span>
-          <span class="reason-text">{{ item.latest_evaluation.reason }}</span>
+          <span class="reason-text">{{ localizedEvaluationReason(item.latest_evaluation) }}</span>
         </div>
 
         <!-- Actions -->
