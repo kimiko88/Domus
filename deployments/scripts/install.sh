@@ -436,6 +436,12 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 # DOMUS_CLOUD_ASSISTANT_TOKEN=
 # DOMUS_FAILOVER_HEARTBEAT_TOKEN=
 #
+# Browser Web Push (VAPID P-256). The installer generates and stores these
+# keys automatically on first install; never rotate them while subscriptions exist.
+# DOMUS_VAPID_PUBLIC_KEY=
+# DOMUS_VAPID_PRIVATE_KEY=
+# DOMUS_VAPID_SUBJECT=mailto:admin@example.com
+#
 # Optional geofence overrides (normally configure these in domus.toml):
 # DOMUS_PRESENCE_HOME_LATITUDE=
 # DOMUS_PRESENCE_HOME_LONGITUDE=
