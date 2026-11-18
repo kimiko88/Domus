@@ -2549,7 +2549,16 @@
       "preheatNoAdvanceReason": "Die aktuelle Temperatur ({current} °C) hat den gewünschten Komfortwert ({target} °C) bereits erreicht; ein früheres Einschalten ist nicht nötig.",
       "preheatScheduledReason": "Heizung {minutes} Min. früher um {start} einschalten, um {target} °C bis {targetTime} zu erreichen (geschätzte Heizrate {rate} °C/h; Außentemperatur {outdoor} °C).",
       "coastDownNoShutdownReason": "Eine frühzeitige Abschaltung ist nicht nötig: Die Temperatur liegt bereits unter der Komfortgrenze ({limit} °C).",
-      "coastDownScheduledReason": "Heizung {minutes} Min. früher um {stop} abschalten, vor der Abfahrt um {departure}; geschätzte Energieeinsparung {energy} kWh."
+      "coastDownScheduledReason": "Heizung {minutes} Min. früher um {stop} abschalten, vor der Abfahrt um {departure}; geschätzte Energieeinsparung {energy} kWh.",
+      "reasons": {
+        "frostProtection": "Fenster geöffnet: Frostschutztemperatur ist aktiv, um Energieverschwendung zu vermeiden.",
+        "eco": "Der Eco-Modus ist aktiv: Der Sollwert wird zur Begrenzung des Energieverbrauchs abgesenkt.",
+        "solarCutoff": "Der Sollwert wird vorsorglich wegen der erwarteten Sonneneinstrahlung ({radiation} W/m²) reduziert.",
+        "coldFront": "Ein Luftdruckabfall von {trend} hPa/h wurde erkannt; eine Kompensation für die herannahende Kaltfront ist aktiv.",
+        "preheat": "Das vorbeugende Vorheizen ist aktiv: erwartete Außentemperatur {outdoor} °C.",
+        "comfort": "Die Heizung arbeitet im Standard-Komfortmodus.",
+        "default": "Die vorausschauende Klimaregelung ist aktiv."
+      }
     }
   },
   "sharedDashboard": {
