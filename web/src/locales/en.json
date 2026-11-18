@@ -335,7 +335,8 @@
     "saveSuccess": "Area saved successfully",
     "saveError": "Unable to save area",
     "deleteSuccess": "Area deleted successfully",
-    "deleteError": "Unable to delete area"
+    "deleteError": "Unable to delete area",
+    "nameRequired": "An area name is required."
   },
   "devices": {
     "title": "Devices",
@@ -1514,7 +1515,12 @@
       "manualOverrideExpiryHint": "When it expires, Domus restores the previous setpoint.",
       "noProgrammableSetpoint": "This device does not expose a programmable setpoint.",
       "deleteTimeSlot": "Delete time slot",
-      "deleteTimeSlotAria": "Delete time slot"
+      "deleteTimeSlotAria": "Delete time slot",
+      "eventSources": {
+        "entity": "Domus entity",
+        "tuya_local": "Tuya Local",
+        "tuya_cloud": "Tuya Cloud"
+      }
     }
   },
   "login": {
