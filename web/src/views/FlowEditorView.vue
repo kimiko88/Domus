@@ -71,7 +71,7 @@ export interface FlowWire {
 
 // --- Editor Reactive State ---
 const automationId = ref<string>((route.params.id as string) || '')
-const automationName = ref('Nuova Automazione a Nodi')
+const automationName = ref(t('flowchart.view.newAutomationName'))
 const automationDesc = ref('')
 const automationEnabled = ref(true)
 const executionMode = ref<'single' | 'restart' | 'queued' | 'parallel'>('single')
@@ -126,15 +126,15 @@ const paletteItems: PaletteItem[] = [
   {
     type: 'trigger',
     subType: 'state',
-    title: 'Cambio Stato',
-    desc: 'Commutazione entità (es. On/Off o sensore)',
+    title: t('flowchart.view.palette.stateChangeTitle'),
+    desc: t('flowchart.view.palette.stateChangeDesc'),
     icon: Zap,
     category: 'Triggers'
   },
   {
     type: 'trigger',
     subType: 'numeric_state',
-    title: 'Soglia Numerica',
+    title: t('flowchart.view.palette.numericThresholdTitle'),
     desc: t('flowchart.view.sensorTriggerDesc'),
     icon: Activity,
     category: 'Triggers'
@@ -142,104 +142,104 @@ const paletteItems: PaletteItem[] = [
   {
     type: 'trigger',
     subType: 'time',
-    title: 'Orario Programmato',
-    desc: 'Ora esatta (HH:MM:SS) o alba/tramonto',
+    title: t('flowchart.view.palette.timeTriggerTitle'),
+    desc: t('flowchart.view.palette.timeTriggerDesc'),
     icon: Clock,
     category: 'Triggers'
   },
   {
     type: 'condition',
     subType: 'state',
-    title: 'Stato Attuale',
-    desc: 'Verifica se un dispositivo è attivo',
+    title: t('flowchart.view.palette.stateConditionTitle'),
+    desc: t('flowchart.view.palette.stateConditionDesc'),
     icon: Filter,
     category: 'Conditions'
   },
   {
     type: 'condition',
     subType: 'time',
-    title: 'Finestra Oraria',
-    desc: 'Solo tra orari specifici (es. Notte)',
+    title: t('flowchart.view.palette.timeConditionTitle'),
+    desc: t('flowchart.view.palette.timeConditionDesc'),
     icon: Sun,
     category: 'Conditions'
   },
   {
     type: 'action',
     subType: 'service',
-    title: 'Comando Entità',
-    desc: 'Accendi, spegni, apri, imposta clima',
+    title: t('flowchart.view.palette.entityCommandTitle'),
+    desc: t('flowchart.view.palette.entityCommandDesc'),
     icon: Sliders,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'scene',
-    title: 'Attiva Scena',
-    desc: 'Applica atmosfera luminosa o profilo',
+    title: t('flowchart.view.palette.activateSceneTitle'),
+    desc: t('flowchart.view.palette.activateSceneDesc'),
     icon: Sparkles,
     category: 'Actions & Flow'
   },
   {
     type: 'delay',
     subType: 'delay',
-    title: 'Pausa / Delay',
-    desc: 'Attesa programmata prima del prossimo step',
+    title: t('flowchart.view.palette.delayTitle'),
+    desc: t('flowchart.view.palette.delayDesc'),
     icon: Clock,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'notify',
-    title: 'Invia Notifica',
-    desc: 'Alert push prioritario su smartphone',
+    title: t('flowchart.view.palette.sendNotificationTitle'),
+    desc: t('flowchart.view.palette.sendNotificationDesc'),
     icon: Send,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'choose',
-    title: 'Scelta condizionale',
-    desc: 'Primo ramo che soddisfa le condizioni, con fallback',
+    title: t('flowchart.view.palette.chooseTitle'),
+    desc: t('flowchart.view.palette.chooseDesc'),
     icon: Filter,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'if',
-    title: 'If / Else',
-    desc: 'Esegui sequenze distinte in base alle condizioni',
+    title: t('flowchart.view.palette.ifElseTitle'),
+    desc: t('flowchart.view.palette.ifElseDesc'),
     icon: Activity,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'repeat',
-    title: 'Ripeti',
-    desc: 'Ripetizione per conteggio, mentre o fino a',
+    title: t('flowchart.view.palette.repeatTitle'),
+    desc: t('flowchart.view.palette.repeatDesc'),
     icon: RotateCcw,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'parallel',
-    title: 'Esecuzione parallela',
-    desc: 'Avvia più azioni concorrenti',
+    title: t('flowchart.view.palette.parallelTitle'),
+    desc: t('flowchart.view.palette.parallelDesc'),
     icon: Copy,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'climate_profile',
-    title: 'Profilo climatico',
-    desc: 'Comfort, Eco, Notte, Away o setpoint personalizzato',
+    title: t('flowchart.view.palette.climateProfileTitle'),
+    desc: t('flowchart.view.palette.climateProfileDesc'),
     icon: Sliders,
     category: 'Actions & Flow'
   },
   {
     type: 'action',
     subType: 'event',
-    title: 'Emetti evento',
-    desc: 'Pubblica un evento applicativo con payload',
+    title: t('flowchart.view.palette.emitEventTitle'),
+    desc: t('flowchart.view.palette.emitEventDesc'),
     icon: Send,
     category: 'Actions & Flow'
   }
@@ -685,15 +685,15 @@ function getGraphExecutionOrder(): FlowNode[] {
     if (wire.branchKey || branchNodes.has(wire.fromNodeId) || branchNodes.has(wire.toNodeId)) continue
     const source = nodeById.get(wire.fromNodeId)
     const target = nodeById.get(wire.toNodeId)
-    if (!source || !target) throw new Error('Il flusso contiene un collegamento a un nodo inesistente.')
+    if (!source || !target) throw new Error(t('flowchart.view.validation.missingNode'))
     const stage = (node: FlowNode) => node.type === 'trigger' ? 0 : node.type === 'condition' || node.type === 'logic' ? 1 : 2
     if (stage(source) > stage(target)) {
-      throw new Error('Collegamento non valido: trigger, condizioni e azioni devono rispettare l’ordine del flusso.')
+      throw new Error(t('flowchart.view.validation.invalidOrder'))
     }
     const targets = outgoing.get(wire.fromNodeId) || []
     targets.push(wire.toNodeId)
     if (targets.length > 1) {
-      throw new Error('Un nodo della sequenza principale può avere una sola uscita. Usa le porte nominate di IF/ELSE o CHOOSE per creare rami.')
+      throw new Error(t('flowchart.view.validation.singleOutput'))
     }
     outgoing.set(wire.fromNodeId, targets)
     indegree.set(wire.toNodeId, (indegree.get(wire.toNodeId) || 0) + 1)
@@ -701,7 +701,7 @@ function getGraphExecutionOrder(): FlowNode[] {
 
   const disconnectedNode = rootNodes.find((node) => node.type !== 'trigger' && (indegree.get(node.id) || 0) === 0)
   if (disconnectedNode) {
-    throw new Error(`Il nodo “${disconnectedNode.title}” non è collegato al flusso. Collega ogni condizione e azione prima di salvare.`)
+    throw new Error(t('flowchart.view.validation.disconnectedNode', { title: disconnectedNode.title }))
   }
 
   const ready = rootNodes.filter((node) => indegree.get(node.id) === 0)
@@ -719,34 +719,34 @@ function getGraphExecutionOrder(): FlowNode[] {
     }
   }
   if (ordered.length !== rootNodes.length) {
-    throw new Error('Il flusso contiene un ciclo. Rimuovi i collegamenti circolari prima di salvare.')
+    throw new Error(t('flowchart.view.validation.cycle'))
   }
 
   for (const wire of wires.value.filter((item) => !!item.branchKey)) {
     const source = nodeById.get(wire.fromNodeId)
     const target = nodeById.get(wire.toNodeId)
-    if (!source || !target) throw new Error('Un ramo punta a un nodo inesistente.')
+    if (!source || !target) throw new Error(t('flowchart.view.validation.missingBranchNode'))
     if (!getBranchPorts(source).some((port) => port.key === wire.branchKey)) {
-      throw new Error(`L’uscita “${wire.branchKey}” non esiste più nel nodo “${source.title}”.`)
+      throw new Error(t('flowchart.view.validation.missingBranchPort', { port: wire.branchKey, node: source.title }))
     }
     if (isConditionBranchKey(wire.branchKey)) {
       if (target.type !== 'condition') {
-        throw new Error('Le porte delle condizioni possono collegarsi soltanto a nodi condizione.')
+        throw new Error(t('flowchart.view.validation.conditionPortTarget'))
       }
     } else if (target.type !== 'action' && target.type !== 'delay') {
-      throw new Error('I rami delle azioni composite possono contenere soltanto azioni o pause.')
+      throw new Error(t('flowchart.view.validation.actionBranchTarget'))
     }
   }
   const rejoiningWire = wires.value.find((wire) =>
     branchNodes.has(wire.fromNodeId) && !branchNodes.has(wire.toNodeId)
   )
   if (rejoiningWire) {
-    throw new Error('Una sequenza di ramo non può ricongiungersi al flusso principale: duplica le azioni successive in ciascun ramo.')
+    throw new Error(t('flowchart.view.validation.branchRejoin'))
   }
   for (const nodeId of branchNodes) {
     const incoming = wires.value.filter((wire) => wire.toNodeId === nodeId)
     if (incoming.length !== 1) {
-      throw new Error('Ogni nodo interno a un ramo deve avere un solo collegamento in ingresso. Non sono supportate convergenze tra rami.')
+      throw new Error(t('flowchart.view.validation.branchMerge'))
     }
   }
   return ordered
@@ -765,7 +765,7 @@ function compileGraphToAutomation(): Partial<Automation> {
   for (const node of orderedNodes) {
     if (node.type === 'trigger') {
       if (!['state', 'numeric_state', 'time'].includes(node.subType)) {
-        throw new Error(`Il trigger “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+        throw new Error(t('flowchart.view.validation.unsupportedTrigger', { type: node.subType }))
       }
       const trig: AutomationTrigger = {
         ...(node.data.originalTrigger || {}),
@@ -789,17 +789,17 @@ function compileGraphToAutomation(): Partial<Automation> {
           try {
             parsed = JSON.parse(node.data.advancedConditionJson || '')
           } catch {
-            throw new Error('La condizione logica contiene un JSON non valido.')
+            throw new Error(t('flowchart.view.validation.invalidLogicJson'))
           }
         }
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('La condizione logica deve essere un oggetto JSON.')
+          throw new Error(t('flowchart.view.validation.logicObjectRequired'))
         }
         conditions.push(parsed as AutomationCondition)
         continue
       }
       if (!['state', 'time', 'numeric_state', 'trigger'].includes(node.subType)) {
-        throw new Error(`La condizione “${node.subType}” non è ancora modificabile nell’editor visuale. Il salvataggio è bloccato per non perdere la configurazione originale.`)
+        throw new Error(t('flowchart.view.validation.unsupportedCondition', { type: node.subType }))
       }
       const cond: AutomationCondition = {
         ...(node.data.originalCondition || {}),
@@ -827,7 +827,7 @@ function compileGraphToAutomation(): Partial<Automation> {
         continue
       }
       if (node.subType === 'unsupported') {
-        throw new Error('Questa azione avanzata non è modificabile nell’editor visuale. Il salvataggio è bloccato per preservare la configurazione originale.')
+        throw new Error(t('flowchart.view.validation.unsupportedAction'))
       }
       const act: AutomationAction = {
         ...(node.data.originalAction || {}),
@@ -973,23 +973,23 @@ async function handleSave() {
     const autoData = compileGraphToAutomation()
     if (automationId.value) {
       await automationsStore.updateAutomation(automationId.value, autoData)
-      notificationsStore.success('Automazione Aggiornata', `"${autoData.name}" salvata con successo.`)
+      notificationsStore.success(t('flowchart.view.notifications.updatedTitle'), t('flowchart.view.notifications.updatedMessage', { name: autoData.name }))
     } else {
       const created = await automationsStore.createAutomation(autoData)
       if (created) automationId.value = created.id
-      notificationsStore.success('Automazione Creata', `"${autoData.name}" è ora attiva sull'Hub.`)
+      notificationsStore.success(t('flowchart.view.notifications.createdTitle'), t('flowchart.view.notifications.createdMessage', { name: autoData.name }))
     }
     soundEffects.playSuccessChime()
   } catch (err: any) {
-    notificationsStore.error('Errore Salvataggio', err?.message || 'Impossibile salvare il flusso.')
+    notificationsStore.error(t('flowchart.view.notifications.saveErrorTitle'), err?.message || t('flowchart.view.notifications.saveErrorMessage'))
   }
 }
 
 async function handleTestRun() {
   if (!automationId.value) {
     notificationsStore.info(
-      'Salva prima il flusso',
-      'Per simulare l’automazione devi prima salvarla. Il test non esegue comandi sui dispositivi.'
+      t('flowchart.view.notifications.saveBeforeTestTitle'),
+      t('flowchart.view.notifications.saveBeforeTestMessage')
     )
     return
   }
@@ -1012,15 +1012,15 @@ async function handleTestRun() {
     if (result.passed) {
       soundEffects.playSuccessChime()
       notificationsStore.success(
-        'Simulazione completata',
+        t('flowchart.view.notifications.simulationSuccessTitle'),
         result.triggers_evaluated
-          ? 'Le condizioni risultano verificate.'
+          ? t('flowchart.view.notifications.simulationSuccessMessage')
           : 'Le condizioni risultano verificate. I trigger non sono stati simulati.'
       )
     } else {
       notificationsStore.warning(
-        'Simulazione non superata',
-        'Una o più condizioni non risultano verificate. Consulta il dettaglio per individuare il blocco.'
+        t('flowchart.view.notifications.simulationFailedTitle'),
+        t('flowchart.view.notifications.simulationFailedMessage')
       )
     }
 
@@ -1029,10 +1029,10 @@ async function handleTestRun() {
     )
     const warnings = result.warnings || []
     if (details.length || warnings.length) {
-      notificationsStore.info('Risultato simulazione', [...warnings, ...details].join(' · '))
+      notificationsStore.info(t('flowchart.view.notifications.simulationResultTitle'), [...warnings, ...details].join(' · '))
     }
   } catch (err: any) {
-    notificationsStore.error('Errore simulazione', err?.message || 'Impossibile simulare il flusso.')
+    notificationsStore.error(t('flowchart.view.notifications.simulationErrorTitle'), err?.message || t('flowchart.view.notifications.simulationErrorMessage'))
   } finally {
     isTestingRun.value = false
     activeRunStepNodeId.value = null
@@ -1046,7 +1046,7 @@ function handleOpenJson() {
     compiledJson.value = JSON.stringify(payload, null, 2)
     isJsonModalOpen.value = true
   } catch (err: any) {
-    notificationsStore.warning('Flusso non valido', err?.message || 'Correggi i collegamenti prima di esportare.')
+    notificationsStore.warning(t('flowchart.view.notifications.invalidFlowTitle'), err?.message || t('flowchart.view.notifications.invalidFlowMessage'))
   }
 }
 
@@ -1196,7 +1196,7 @@ onBeforeUnmount(() => {
             :key="cat"
             class="palette-group"
           >
-            <h5 class="category-title">{{ cat }}</h5>
+            <h5 class="category-title">{{ cat === 'Triggers' ? t('flowchart.view.paletteCategories.triggers') : cat === 'Conditions' ? t('flowchart.view.paletteCategories.conditions') : t('flowchart.view.paletteCategories.actionsFlow') }}</h5>
             <div class="palette-items">
               <div
                 v-for="item in paletteItems.filter((i) => i.category === cat)"
@@ -1362,7 +1362,7 @@ onBeforeUnmount(() => {
                 ><span class="port-dot"></span></button>
               </div>
               <div class="branch-port-row">
-                <span class="branch-port-label">Continua</span>
+                <span class="branch-port-label">{{ t('flowchart.view.branchContinue') }}</span>
                 <button
                   class="node-port port-output branch-port"
                   type="button"
@@ -1500,16 +1500,16 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'time' && selectedNode.type === 'condition'" class="prop-group">
-            <label class="prop-label">Dalle (HH:MM:SS)</label>
+            <label class="prop-label">{{ t('flowchart.view.timeFrom') }}</label>
             <input v-model="selectedNode.data.after" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
-            <label class="prop-label mt-12">Alle (HH:MM:SS)</label>
+            <label class="prop-label mt-12">{{ t('flowchart.view.timeTo') }}</label>
             <input v-model="selectedNode.data.before" type="time" step="1" class="prop-input" @input="handleInspectorDataChange" />
           </div>
 
           <div v-else-if="selectedNode.subType === 'logic' && selectedNode.type === 'condition'" class="prop-group">
-            <label class="prop-label">Condizioni annidate</label>
+            <label class="prop-label">{{ t('flowchart.view.nestedConditions') }}</label>
             <p class="palette-desc">
-              Configura i gruppi AND, OR e NOT aggiungendo condizioni e altri gruppi. I tipi non supportati restano conservati senza modifiche.
+              {{ t('flowchart.view.nestedConditionsDescription') }}
             </p>
             <ConditionTreeEditor
               v-if="selectedNode.data.logicCondition"
@@ -1520,7 +1520,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else-if="selectedNode.subType === 'trigger' && selectedNode.type === 'condition'" class="prop-group">
-            <label class="prop-label">ID trigger</label>
+            <label class="prop-label">{{ t('flowchart.view.triggerId') }}</label>
             <input v-model="selectedNode.data.trigger_id" type="text" class="prop-input" @input="handleInspectorDataChange" />
           </div>
 
@@ -1582,9 +1582,9 @@ onBeforeUnmount(() => {
             v-else-if="['choose', 'if', 'if_then_else', 'repeat', 'parallel', 'climate_profile', 'event'].includes(selectedNode.subType)"
             class="prop-group"
           >
-            <label class="prop-label">Configurazione annidata (JSON)</label>
+            <label class="prop-label">{{ t('flowchart.view.nestedConfiguration') }}</label>
             <p class="palette-desc">
-              Modifica qui rami, condizioni e sequenze. Domus conserva la struttura annidata; un JSON non valido o un'azione non supportata blocca il salvataggio.
+              {{ t('flowchart.view.nestedConfigurationDescription') }}
             </p>
             <textarea
               v-model="selectedNode.data.advancedJson"
