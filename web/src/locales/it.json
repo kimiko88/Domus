@@ -496,7 +496,18 @@
         "deviceOfflineDesc": "Il dispositivo è offline. Controlla l'alimentazione e la connessione alla rete locale.",
         "arpScanCompleteDesc": "Scansione ARP completata. Dispositivi trovati: {count}.",
         "deviceUnblockedTitle": "Dispositivo sbloccato"
-      }
+      },
+      "devicesShown": "{count} visualizzati",
+      "deviceOnline": "Online",
+      "deviceOffline": "Offline",
+      "turnOff": "Spegni",
+      "turnOn": "Accendi",
+      "chooseTemperature": "Seleziona la temperatura",
+      "encodedValue": "invia",
+      "valueToSend": "Valore da inviare",
+      "setpointMapAria": "Tabella di conversione del setpoint del termostato",
+      "hideCommands": "Nascondi comandi",
+      "availableApiCommands": "Comandi disponibili via API"
     }
   },
   "history": {
