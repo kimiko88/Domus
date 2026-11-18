@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -185,14 +186,30 @@ func (s *WebPushService) SendUser(ctx context.Context, userID, title, body, cate
 			if firstErr == nil { firstErr = errors.New("web push provider returned an empty response") }
 			continue
 		}
+		// Keep a small provider response excerpt for actionable diagnostics (for
+		// example, VAPID/JWT rejection details) without logging subscription secrets.
+		providerBody, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
 		_ = response.Body.Close()
+		providerMessage := strings.TrimSpace(string(providerBody))
+		if len(providerMessage) > 512 {
+			providerMessage = providerMessage[:512]
+		}
 		if response.StatusCode == http.StatusGone || response.StatusCode == http.StatusNotFound {
 			_ = s.repo.DeleteWebPushSubscription(ctx, userID, subscription.Endpoint)
 			continue
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			err := fmt.Errorf("web push provider returned HTTP %d", response.StatusCode)
-			s.logger.WarnContext(ctx, "web push provider rejected notification", "user_id", userID, "status", response.StatusCode)
+			providerHost := ""
+			if endpointURL, parseErr := url.Parse(subscription.Endpoint); parseErr == nil {
+				providerHost = endpointURL.Hostname()
+			}
+			err := fmt.Errorf("web push provider %s returned HTTP %d: %s", providerHost, response.StatusCode, providerMessage)
+			s.logger.WarnContext(ctx, "web push provider rejected notification",
+				"user_id", userID,
+				"provider_host", providerHost,
+				"status", response.StatusCode,
+				"provider_response", providerMessage,
+			)
 			if firstErr == nil { firstErr = err }
 			continue
 		}
