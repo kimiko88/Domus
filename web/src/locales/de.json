@@ -828,7 +828,15 @@
       "closeWindow": "Szenenfenster schließen",
       "nameRequired": "Ein Szenenname ist erforderlich.",
       "actionRequired": "Füge mindestens eine Aktion hinzu.",
-      "entityRequired": "Jede Aktion muss eine gültige Entität angeben."
+      "entityRequired": "Jede Aktion muss eine gültige Entität angeben.",
+      "entityKey": "Entitäts-ID",
+      "entityPlaceholder": "z. B. light.wohnzimmer",
+      "action": "Aktion",
+      "actions": {
+        "turnOn": "Einschalten",
+        "turnOff": "Ausschalten",
+        "toggle": "Umschalten"
+      }
     }
   },
   "audit": {
