@@ -2511,7 +2511,11 @@
       "startsAt": "Starts",
       "earlyShutdown": "Early shutdown",
       "stopsAt": "Stops",
-      "cycleTrainingDescription": "Enter observations from a session to calibrate parameters using exponential moving average (EMA)."
+      "cycleTrainingDescription": "Enter observations from a session to calibrate parameters using exponential moving average (EMA).",
+      "preheatNoAdvanceReason": "The current temperature ({current} °C) has already reached the desired comfort target ({target} °C); no advance heating is needed.",
+      "preheatScheduledReason": "Start heating {minutes} min early at {start} to reach {target} °C by {targetTime} (estimated rate {rate} °C/h; outdoor temperature {outdoor} °C).",
+      "coastDownNoShutdownReason": "Early shutdown is not needed: the temperature is already below the comfort limit ({limit} °C).",
+      "coastDownScheduledReason": "Switch heating off {minutes} min early at {stop}, before the {departure} departure; estimated energy saving {energy} kWh."
     }
   },
   "sharedDashboard": {
