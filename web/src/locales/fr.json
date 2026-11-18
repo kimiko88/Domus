@@ -180,7 +180,7 @@
       "fileReadFailed": "Impossible de lire le fichier sélectionné."
     },
     "close": "Fermer",
-    "notificationRegion": "Notifications"
+    "notificationRegion": "Zone des notifications"
   },
   "nav": {
     "sectionOverview": "Vue d'ensemble",
