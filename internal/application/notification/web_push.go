@@ -66,6 +66,14 @@ func ValidateVAPIDSubject(subject string) error {
 	}
 }
 
+// webPushLibrarySubscriber adapts the configured subject to webpush-go's API:
+// the library prepends "mailto:" to non-HTTPS subscribers itself, so passing
+// an already-qualified mailto: URI would produce an invalid mailto:mailto: JWT claim.
+func webPushLibrarySubscriber(subject string) string {
+	subject = strings.TrimSpace(subject)
+	return strings.TrimPrefix(subject, "mailto:")
+}
+
 func WebPushConfigFromEnv() WebPushConfig {
 	publicKey := strings.TrimSpace(envOr("DOMUS_VAPID_PUBLIC_KEY", "VAPID_PUBLIC_KEY"))
 	privateKey := strings.TrimSpace(envOr("DOMUS_VAPID_PRIVATE_KEY", "VAPID_PRIVATE_KEY"))
@@ -205,7 +213,7 @@ func (s *WebPushService) SendUser(ctx context.Context, userID, title, body, cate
 		}
 		response, sendErr := webpush.SendNotificationWithContext(ctx, message, webSubscription, &webpush.Options{
 			HTTPClient: s.client,
-			Subscriber: s.config.Subject,
+			Subscriber: webPushLibrarySubscriber(s.config.Subject),
 			VAPIDPublicKey: s.config.PublicKey,
 			VAPIDPrivateKey: s.config.PrivateKey,
 			TTL: 3600,
