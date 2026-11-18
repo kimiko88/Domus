@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import FlowEditorView from './FlowEditorView.vue'
 import { apiClient } from '../api/client'
+import { i18n } from '../locales'
 
 // Mock vue-router
 vi.mock('vue-router', () => ({
@@ -27,9 +28,9 @@ describe('FlowEditorView.vue', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Libreria nodi')
-    expect(wrapper.text()).toContain('Triggers')
-    expect(wrapper.text()).toContain('Conditions')
-    expect(wrapper.text()).toContain('Actions & Flow')
+    expect(wrapper.text()).toContain(i18n.global.t('flowchart.view.paletteCategories.triggers'))
+    expect(wrapper.text()).toContain(i18n.global.t('flowchart.view.paletteCategories.conditions'))
+    expect(wrapper.text()).toContain(i18n.global.t('flowchart.view.paletteCategories.actionsFlow'))
     expect(wrapper.text()).toContain('Test Run')
     expect(wrapper.text()).toContain('Salva flusso')
     expect(wrapper.text()).toContain('JSON AST')
@@ -41,8 +42,9 @@ describe('FlowEditorView.vue', () => {
 
     const initialNodesCount = wrapper.findAll('.flow-node').length
 
-    // Click on "Orario Programmato" in palette
-    const timePaletteItem = wrapper.findAll('.palette-item').find(el => el.text().includes('Orario Programmato'))
+    // Select the localized scheduled-time trigger in the palette.
+    const timeLabel = i18n.global.t('flowchart.view.palette.timeTriggerTitle')
+    const timePaletteItem = wrapper.findAll('.palette-item').find(el => el.text().includes(timeLabel))
     expect(timePaletteItem).toBeDefined()
 
     await timePaletteItem?.trigger('click')
