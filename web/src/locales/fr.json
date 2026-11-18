@@ -2549,7 +2549,16 @@
       "preheatNoAdvanceReason": "La température actuelle ({current} °C) a déjà atteint la consigne de confort souhaitée ({target} °C) ; aucun préchauffage anticipé n'est nécessaire.",
       "preheatScheduledReason": "Démarrer le chauffage {minutes} min plus tôt à {start} pour atteindre {target} °C à {targetTime} (vitesse estimée {rate} °C/h ; température extérieure {outdoor} °C).",
       "coastDownNoShutdownReason": "L'arrêt anticipé n'est pas nécessaire : la température est déjà sous la limite de confort ({limit} °C).",
-      "coastDownScheduledReason": "Arrêter le chauffage {minutes} min plus tôt à {stop}, avant le départ à {departure} ; économie d'énergie estimée : {energy} kWh."
+      "coastDownScheduledReason": "Arrêter le chauffage {minutes} min plus tôt à {stop}, avant le départ à {departure} ; économie d'énergie estimée : {energy} kWh.",
+      "reasons": {
+        "frostProtection": "Fenêtre ouverte : la température de protection antigel est activée pour limiter le gaspillage.",
+        "eco": "Le mode Éco est actif : la consigne est réduite pour limiter la consommation.",
+        "solarCutoff": "La consigne est réduite par anticipation de l'ensoleillement prévu ({radiation} W/m²).",
+        "coldFront": "Une baisse de pression de {trend} hPa/h a été détectée ; une compensation pour le front froid approche est appliquée.",
+        "preheat": "Le préchauffage préventif est actif : température extérieure prévue de {outdoor} °C.",
+        "comfort": "Le chauffage fonctionne en mode confort standard.",
+        "default": "La régulation climatique prédictive est active."
+      }
     }
   },
   "sharedDashboard": {
