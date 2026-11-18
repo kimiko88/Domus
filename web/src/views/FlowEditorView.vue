@@ -1014,8 +1014,9 @@ async function handleTestRun() {
       soundEffects.playSuccessChime()
       notificationsStore.success(
         t('flowchart.view.notifications.simulationSuccessTitle'),
-        result.triggers_evaluated
-          ? t(result.triggers_evaluated ? 'flowchart.view.notifications.simulationSuccessMessage' : 'flowchart.view.notifications.simulationWithoutTriggersMessage')
+        t(result.triggers_evaluated
+          ? 'flowchart.view.notifications.simulationSuccessMessage'
+          : 'flowchart.view.notifications.simulationWithoutTriggersMessage')
       )
     } else {
       notificationsStore.warning(
