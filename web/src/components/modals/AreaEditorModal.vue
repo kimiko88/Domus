@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, toRef } from 'vue'
+import { computed, ref, watch, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Area } from '../../api/types'
 import BaseButton from '../ui/BaseButton.vue'
@@ -44,7 +44,7 @@ const selectedIcon = ref('grid')
 const sortOrder = ref(0)
 const error = ref<string | null>(null)
 
-const presetIcons = [
+const presetIcons = computed(() => [
   { id: 'sofa', label: t('areas.icons.livingRoom'), component: Sofa },
   { id: 'utensils', label: t('areas.icons.kitchen'), component: Utensils },
   { id: 'bed', label: t('areas.icons.bedroom'), component: Bed },
@@ -55,7 +55,7 @@ const presetIcons = [
   { id: 'car', label: t('areas.icons.garage'), component: Car },
   { id: 'tv', label: t('areas.icons.cinema'), component: Tv },
   { id: 'grid', label: t('areas.icons.other'), component: Grid },
-]
+])
 
 watch(
   () => props.area,
