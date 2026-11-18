@@ -958,7 +958,35 @@
       "thresholdPassed": "Umbral del 65 % superado",
       "accessConfirmed": "Acceso confirmado",
       "profileValidated": "Perfil validado por el motor NVR local. Las automatizaciones de bienvenida están desbloqueadas.",
-      "testMatchButton": "Probar coincidencia"
+      "testMatchButton": "Probar coincidencia",
+      "wallSync": "SINCRONIZACIÓN MULTIPANTALLA ({matrix})",
+      "cameraNumber": "CÁMARA {number}: {name}",
+      "channelWaiting": "Canal {channel} en espera",
+      "filterAll": "Todos ({count})",
+      "recording": "REC",
+      "cameraLabel": "Cámara",
+      "confidenceLabel": "Confianza",
+      "playClip": "Reproducir clip ({seconds}s)",
+      "storageNvr": "Almacenamiento NVR: {used} GB / {total} GB (búfer circular WAL)",
+      "online": "En línea",
+      "streamingLatencyHint": "Latencia de transmisión inferior a 200 ms",
+      "cameraId": "ID de cámara",
+      "directWebRtcStream": "Transmisión WebRTC directa",
+      "sensitivityLabel": "Sensibilidad",
+      "familyOwner": "Familiar",
+      "privateVehicle": "Vehículo privado",
+      "newZoneName": "Nueva zona {count}",
+      "confirmDeleteFace": "¿Eliminar el perfil biométrico de {name}?",
+      "confirmDeletePlate": "¿Eliminar la matrícula {plate}?",
+      "detectionLabels": {
+        "person": "Persona",
+        "vehicle": "Vehículo",
+        "package": "Paquete",
+        "animal": "Animal"
+      },
+      "saveProfile": "Guardar perfil",
+      "autoOpenGateLights": "Abrir automáticamente la puerta de entrada y encender las luces del camino",
+      "registerPlate": "Registrar matrícula"
     }
   },
   "shopping": {
