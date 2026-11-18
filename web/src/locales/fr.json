@@ -1711,7 +1711,18 @@
       "newThermostatTitle": "Nouveau programme de thermostat",
       "newThermostatMessage": "{name} a été créé.",
       "calendarImportSuccess": "Calendrier importé avec succès.",
-      "calendarImportError": "Impossible d'importer le calendrier iCal."
+      "calendarImportError": "Impossible d'importer le calendrier iCal.",
+      "hvacModes": {
+        "automatic": "Automatique",
+        "heating": "Chauffage",
+        "off": "Arrêt",
+        "manual": "Manuel",
+        "cooling": "Refroidissement",
+        "heatCool": "Chauffage et refroidissement",
+        "dry": "Déshumidification",
+        "fanOnly": "Ventilation seule",
+        "other": "Autre mode"
+      }
     }
   },
   "login": {
