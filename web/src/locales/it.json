@@ -168,7 +168,9 @@
       "deleteFailed": "Impossibile eliminare l'elemento. Riprova.",
       "actionFailed": "Impossibile completare l'operazione. Riprova.",
       "syncFailed": "Sincronizzazione non riuscita. Riprova.",
-      "exportFailed": "Esportazione non riuscita. Riprova."
+      "exportFailed": "Esportazione non riuscita. Riprova.",
+      "pdfTooLarge": "Il PDF supera il limite di 3 MB.",
+      "imageTooLarge": "L’immagine supera il limite di 4 MB."
     },
     "close": "Chiudi"
   },
