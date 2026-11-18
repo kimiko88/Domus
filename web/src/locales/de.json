@@ -169,7 +169,8 @@
       "actionFailed": "Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
       "syncFailed": "Die Synchronisierung ist fehlgeschlagen. Bitte erneut versuchen.",
       "exportFailed": "Der Export ist fehlgeschlagen. Bitte erneut versuchen."
-    }
+    },
+    "close": "Schließen"
   },
   "nav": {
     "sectionOverview": "Übersicht",
