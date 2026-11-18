@@ -1118,7 +1118,9 @@
       "registerPlate": "Enregistrer la plaque",
       "filterPerson": "Personne",
       "filterVehicle": "Véhicule",
-      "filterPackage": "Colis"
+      "filterPackage": "Colis",
+      "aiOverviewDescription": "Reconnaissance faciale locale des résidents par similarité cosinus et lecture automatique des plaques pour le contrôle d'accès.",
+      "subSecondDelay": "Latence inférieure à une seconde"
     }
   },
   "shopping": {
@@ -2328,7 +2330,23 @@
       "sections": "Sections du garde-manger",
       "inventoryTab": "Garde-manger et stocks",
       "recipesTab": "Livre de recettes",
-      "mealCalendarTab": "Calendrier des repas"
+      "mealCalendarTab": "Calendrier des repas",
+      "subtitle": "Suivez les stocks alimentaires, créez des recettes, planifiez les repas et importez les tickets.",
+      "itemUpdated": "Article alimentaire mis à jour.",
+      "itemCreated": "Article ajouté au garde-manger.",
+      "confirmDeleteItem": "Supprimer cet article du garde-manger ?",
+      "itemDeleted": "Article supprimé.",
+      "lowStockToast": "Stock faible pour {name} ({quantity} {unit}).",
+      "stockAdjustFailed": "Impossible de modifier le stock.",
+      "recipeUpdated": "Recette mise à jour.",
+      "recipeCreated": "Nouvelle recette enregistrée.",
+      "confirmDeleteRecipe": "Supprimer cette recette ?",
+      "recipeDeleted": "Recette supprimée.",
+      "mealCreated": "Repas ajouté au calendrier.",
+      "mealConsumed": "Repas consommé. Les ingrédients ont été déduits selon le nombre de convives.",
+      "mealConsumeFailed": "Impossible de consommer le repas.",
+      "confirmDeleteMeal": "Supprimer ce repas du calendrier ?",
+      "mealDeleted": "Repas supprimé du calendrier."
     }
   },
   "predictiveClimate": {
@@ -2457,7 +2475,23 @@
       "standardSolarGain": "Apport solaire standard",
       "pressureTrend": "Tendance",
       "saveConfiguration": "Enregistrer la configuration",
-      "estimated": "Estim."
+      "estimated": "Estim.",
+      "subtitle": "Contrôle intelligent avec inertie thermique, prévision barométrique locale et prévisions solaires",
+      "addZoneCta": "Nouvelle zone",
+      "loadingZones": "Chargement des zones...",
+      "configureFirstZone": "Configurer la première zone",
+      "glazedAreaLabel": "surface vitrée",
+      "perceived": "ressentie",
+      "gain": "Gain",
+      "evaluateNow": "Évaluer",
+      "thermalModelStart": "Modèle thermique et démarrage",
+      "editAction": "Modifier",
+      "deleteAction": "Supprimer",
+      "requiredPreheat": "Préchauffage nécessaire",
+      "startsAt": "Démarrage",
+      "earlyShutdown": "Arrêt anticipé",
+      "stopsAt": "Arrêt",
+      "cycleTrainingDescription": "Saisissez les observations d'une session pour calibrer les paramètres avec une moyenne mobile exponentielle (EMA)."
     }
   },
   "sharedDashboard": {
