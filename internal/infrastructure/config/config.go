@@ -241,7 +241,9 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.Server.LAN.Host = v
 	}
 	if v := os.Getenv("DOMUS_LAN_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil { cfg.Server.LAN.Port = port }
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Server.LAN.Port = port
+		}
 	}
 	if v := os.Getenv("DOMUS_LAN_TLS_CERT_FILE"); v != "" {
 		cfg.Server.LAN.TLSCertFile = v
