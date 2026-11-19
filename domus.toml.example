@@ -16,8 +16,8 @@ host = "0.0.0.0"
 # Port number for HTTP traffic.
 port = 8080
 
-# Set to true whenever users access Domus over HTTPS (including a TLS reverse proxy).
-# Keep false only for direct plain-HTTP LAN access; never expose that mode to untrusted networks.
+# Set to true when any browser endpoint uses HTTPS (including Tailscale Serve or server.lan).
+# Required when the optional HTTPS LAN listener is enabled.
 cookie_secure = false
 
 # Optional HTTPS listener for home-network access. Requires a trusted TLS cert/key.
