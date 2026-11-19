@@ -562,7 +562,9 @@ ensure_lan_tls_certificate() {
         log_error "LAN TLS certificate and key must use different paths"
         exit 1
     }
-    install -d -o root -g "${DOMUS_GROUP}" -m 0750 "${cert_dir}" "${key_dir}"
+    # Do not change permissions/ownership on pre-existing custom parent directories.
+    [[ -d "${cert_dir}" ]] || install -d -o root -g "${DOMUS_GROUP}" -m 0750 "${cert_dir}"
+    [[ -d "${key_dir}" ]] || install -d -o root -g "${DOMUS_GROUP}" -m 0750 "${key_dir}"
 
     if [[ -e "${cert_file}" || -e "${key_file}" ]]; then
         if [[ ! -s "${cert_file}" || ! -s "${key_file}" ]]; then
@@ -571,6 +573,10 @@ ensure_lan_tls_certificate() {
         fi
         openssl x509 -in "${cert_file}" -noout >/dev/null 2>&1 || {
             log_error "Existing LAN TLS certificate is invalid: ${cert_file}"
+            exit 1
+        }
+        openssl x509 -in "${cert_file}" -checkend 0 -noout >/dev/null 2>&1 || {
+            log_error "Existing LAN TLS certificate is expired: ${cert_file}. Replace it manually; the installer will not overwrite it."
             exit 1
         }
         openssl pkey -in "${key_file}" -noout >/dev/null 2>&1 || {
