@@ -751,6 +751,74 @@ fi
 chown root:"${DOMUS_GROUP}" "${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
 
+# When the optional LAN HTTPS listener is active, Secure cookies are mandatory.
+# Check the effective value (TOML first, then the systemd EnvironmentFile override)
+# and synchronize both sources so an old DOMUS_SERVER_COOKIE_SECURE=false cannot
+# override the secure TOML value during service startup.
+read_toml_server_bool() {
+    local wanted_section="$1" wanted_key="$2"
+    awk -v section="${wanted_section}" -v key="${wanted_key}" '
+        /^\[/ { inside = ($0 == section) }
+        inside && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+            sub(/^[^=]*=[[:space:]]*/, "")
+            sub(/[[:space:]#].*$/, "")
+            gsub(/["\047]/, "")
+            value = tolower($0)
+        }
+        END { print value }
+    ' "${CONFIG_TARGET}"
+}
+read_env_bool() {
+    local key="$1"
+    awk -F= -v key="${key}" '
+        $1 == key {
+            value = $2
+            sub(/^[[:space:]]+/, "", value)
+            sub(/[[:space:]]+#.*$/, "", value)
+            gsub(/["\047[:space:]]/, "", value)
+        }
+        END { print tolower(value) }
+    ' "${ENV_FILE}"
+}
+effective_lan_enabled="$(read_toml_server_bool '[server.lan]' enabled)"
+lan_enabled_override="$(read_env_bool DOMUS_LAN_ENABLED)"
+[[ -n "${lan_enabled_override}" ]] && effective_lan_enabled="${lan_enabled_override}"
+case "${effective_lan_enabled}" in
+    true|1|t|yes|on)
+        secure_tmp="$(mktemp "${DOMUS_CONFIG_DIR}/.domus-toml.XXXXXX")"
+        awk '
+            /^\[/ {
+                if (in_server && !found) {
+                    print "cookie_secure = true"
+                    found = 1
+                }
+                in_server = ($0 == "[server]")
+                print
+                next
+            }
+            in_server && /^[[:space:]]*cookie_secure[[:space:]]*=/ {
+                print "cookie_secure = true"
+                found = 1
+                next
+            }
+            { print }
+            END {
+                if (in_server && !found) print "cookie_secure = true"
+            }
+        ' "${CONFIG_TARGET}" > "${secure_tmp}"
+        cat "${secure_tmp}" > "${CONFIG_TARGET}"
+        rm -f "${secure_tmp}"
+        if grep -Eq '^[[:space:]]*DOMUS_SERVER_COOKIE_SECURE[[:space:]]*=' "${ENV_FILE}"; then
+            sed -i -E 's|^[[:space:]]*DOMUS_SERVER_COOKIE_SECURE[[:space:]]*=.*|DOMUS_SERVER_COOKIE_SECURE=true|' "${ENV_FILE}"
+        else
+            printf 'DOMUS_SERVER_COOKIE_SECURE=true\n' >> "${ENV_FILE}"
+        fi
+        chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}" "${ENV_FILE}"
+        chmod 0640 "${CONFIG_TARGET}" "${ENV_FILE}"
+        log_warn "LAN HTTPS is enabled: forced server.cookie_secure=true (including the systemd environment override)"
+        ;;
+esac
+
 # The application applies DOMUS_SERVER_HOST after reading domus.toml, so keep
 # the systemd environment file aligned with the loopback binding as well.
 if (( TAILSCALE_SERVES_DOMUS )); then
