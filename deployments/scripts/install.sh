@@ -980,6 +980,8 @@ if (( HAVE_SYSTEMD )); then
         log_warn "'ss' is unavailable; cannot preflight TCP port ownership."
     fi
 
+    # Clear the systemd start-limit lock left by a previous failed upgrade.
+    systemctl reset-failed domus.service >/dev/null 2>&1 || true
     log_info "Starting domus.service"
     systemctl restart domus.service
 
