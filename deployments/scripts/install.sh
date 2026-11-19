@@ -491,8 +491,8 @@ else
     ensure_lan_config_key enabled false
     ensure_lan_config_key host '"0.0.0.0"'
     ensure_lan_config_key port 8081
-    ensure_lan_config_key tls_cert_file "\"\${DOMUS_LAN_TLS_CERT_FILE}\""
-    ensure_lan_config_key tls_key_file "\"\${DOMUS_LAN_TLS_KEY_FILE}\""
+    ensure_lan_config_key tls_cert_file "\"${DOMUS_LAN_TLS_CERT_FILE}\""
+    ensure_lan_config_key tls_key_file "\"${DOMUS_LAN_TLS_KEY_FILE}\""
 fi
 chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
 chmod 0640 "${CONFIG_TARGET}"
