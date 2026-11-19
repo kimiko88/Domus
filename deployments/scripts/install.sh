@@ -21,6 +21,7 @@
 #
 # Environment overrides:
 #   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_COOKIE_SECURE, DOMUS_VAPID_SUBJECT, DOMUS_USER, DOMUS_GROUP
+#   DOMUS_LAN_TLS_CERT_FILE, DOMUS_LAN_TLS_KEY_FILE (optional custom LAN TLS paths)
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
@@ -41,6 +42,10 @@ DOMUS_HOST="${DOMUS_HOST:-0.0.0.0}"
 DOMUS_PORT="${DOMUS_PORT:-8080}"
 DOMUS_COOKIE_SECURE_EXPLICIT="${DOMUS_COOKIE_SECURE+x}"
 DOMUS_COOKIE_SECURE="${DOMUS_COOKIE_SECURE:-false}"
+DOMUS_LAN_TLS_CERT_FILE_EXPLICIT="${DOMUS_LAN_TLS_CERT_FILE+x}"
+DOMUS_LAN_TLS_KEY_FILE_EXPLICIT="${DOMUS_LAN_TLS_KEY_FILE+x}"
+DOMUS_LAN_TLS_CERT_FILE="${DOMUS_LAN_TLS_CERT_FILE:-${DOMUS_CONFIG_DIR}/tls/lan.crt}"
+DOMUS_LAN_TLS_KEY_FILE="${DOMUS_LAN_TLS_KEY_FILE:-${DOMUS_CONFIG_DIR}/tls/lan.key}"
 REQUESTED_VAPID_SUBJECT="${DOMUS_VAPID_SUBJECT:-}"
 if [[ "${DOMUS_COOKIE_SECURE}" != "true" && "${DOMUS_COOKIE_SECURE}" != "false" ]]; then
     printf '%s\n' 'DOMUS_COOKIE_SECURE must be true or false' >&2
@@ -460,6 +465,188 @@ else
         log_warn "Server is bound to ${cfg_host}; LAN access requires host = \"0.0.0.0\" in ${CONFIG_TARGET}"
     fi
 fi
+
+# Add optional LAN listener defaults to older configurations without enabling it
+# or replacing administrator-supplied values.
+if ! grep -Fqx '[server.lan]' "${CONFIG_TARGET}"; then
+    cat >> "${CONFIG_TARGET}" <<EOF
+
+[server.lan]
+enabled = false
+host = "0.0.0.0"
+port = 8081
+tls_cert_file = "${DOMUS_LAN_TLS_CERT_FILE}"
+tls_key_file = "${DOMUS_LAN_TLS_KEY_FILE}"
+EOF
+else
+    ensure_lan_config_key() {
+        local key="$1" value="$2"
+        if ! awk -v target='[server.lan]' -v key="${key}" '
+            /^\[/ { inside = ($0 == target) }
+            inside && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" { found = 1 }
+            END { exit(found ? 0 : 1) }
+        ' "${CONFIG_TARGET}"; then
+            sed -i "/^\[server\.lan\]/a ${key} = ${value}" "${CONFIG_TARGET}"
+        fi
+    }
+    ensure_lan_config_key enabled false
+    ensure_lan_config_key host '"0.0.0.0"'
+    ensure_lan_config_key port 8081
+    ensure_lan_config_key tls_cert_file "\"${DOMUS_LAN_TLS_CERT_FILE}\""
+    ensure_lan_config_key tls_key_file "\"${DOMUS_LAN_TLS_KEY_FILE}\""
+fi
+chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+chmod 0640 "${CONFIG_TARGET}"
+log_info "LAN HTTPS configuration prepared; listener remains disabled by default"
+
+# Resolve certificate paths from the effective TOML config. Explicit installer
+# overrides are written into [server.lan]; otherwise existing custom paths win.
+set_lan_config_path() {
+    local key="$1" value="$2" tmp_file
+    tmp_file="$(mktemp "${DOMUS_CONFIG_DIR}/.domus-toml.XXXXXX")"
+    awk -v target='[server.lan]' -v key="${key}" -v value="${value}" '
+        /^\[/ { inside = ($0 == target) }
+        inside && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+            print key " = \"" value "\""
+            found = 1
+            next
+        }
+        { print }
+        END { if (!found) exit 1 }
+    ' "${CONFIG_TARGET}" > "${tmp_file}" || {
+        rm -f "${tmp_file}"
+        log_error "Could not update server.lan.${key} in ${CONFIG_TARGET}"
+        exit 1
+    }
+    cat "${tmp_file}" > "${CONFIG_TARGET}"
+    rm -f "${tmp_file}"
+}
+read_lan_config_path() {
+    local key="$1"
+    awk -v target='[server.lan]' -v key="${key}" '
+        /^\[/ { inside = ($0 == target) }
+        inside && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+            sub(/^[^=]*=[[:space:]]*/, "")
+            gsub(/^["\047]|["\047]$/, "")
+            print
+            exit
+        }
+    ' "${CONFIG_TARGET}"
+}
+if [[ "${DOMUS_LAN_TLS_CERT_FILE_EXPLICIT}" == "x" ]]; then
+    set_lan_config_path tls_cert_file "${DOMUS_LAN_TLS_CERT_FILE}"
+else
+    DOMUS_LAN_TLS_CERT_FILE="$(read_lan_config_path tls_cert_file)"
+fi
+if [[ "${DOMUS_LAN_TLS_KEY_FILE_EXPLICIT}" == "x" ]]; then
+    set_lan_config_path tls_key_file "${DOMUS_LAN_TLS_KEY_FILE}"
+else
+    DOMUS_LAN_TLS_KEY_FILE="$(read_lan_config_path tls_key_file)"
+fi
+[[ -n "${DOMUS_LAN_TLS_CERT_FILE}" && -n "${DOMUS_LAN_TLS_KEY_FILE}" ]] || {
+    log_error "server.lan TLS certificate and key paths must not be empty"
+    exit 1
+}
+chown root:"${DOMUS_GROUP}" "${CONFIG_TARGET}"
+chmod 0640 "${CONFIG_TARGET}"
+
+# Prepare a persistent self-signed certificate for the optional LAN HTTPS listener.
+# It is safe to create these files while the listener remains disabled.
+# Existing pairs are preserved; incomplete or mismatched pairs fail closed.
+ensure_lan_tls_certificate() {
+    local cert_file="$1" key_file="$2" cert_dir key_dir tmp_dir
+    local short_host fqdn san_file dns_index ip_index cert_pub key_pub interface address
+    cert_dir="$(dirname "${cert_file}")"
+    key_dir="$(dirname "${key_file}")"
+    [[ "${cert_file}" != "${key_file}" ]] || {
+        log_error "LAN TLS certificate and key must use different paths"
+        exit 1
+    }
+    # Do not change permissions/ownership on pre-existing custom parent directories.
+    [[ -d "${cert_dir}" ]] || install -d -o root -g "${DOMUS_GROUP}" -m 0750 "${cert_dir}"
+    [[ -d "${key_dir}" ]] || install -d -o root -g "${DOMUS_GROUP}" -m 0750 "${key_dir}"
+
+    if [[ -e "${cert_file}" || -e "${key_file}" ]]; then
+        if [[ ! -s "${cert_file}" || ! -s "${key_file}" ]]; then
+            log_error "An incomplete LAN TLS pair exists; restore both files. Existing files were not overwritten."
+            exit 1
+        fi
+        openssl x509 -in "${cert_file}" -noout >/dev/null 2>&1 || {
+            log_error "Existing LAN TLS certificate is invalid: ${cert_file}"
+            exit 1
+        }
+        openssl x509 -in "${cert_file}" -checkend 0 -noout >/dev/null 2>&1 || {
+            log_error "Existing LAN TLS certificate is expired: ${cert_file}. Replace it manually; the installer will not overwrite it."
+            exit 1
+        }
+        openssl pkey -in "${key_file}" -noout >/dev/null 2>&1 || {
+            log_error "Existing LAN TLS private key is invalid: ${key_file}"
+            exit 1
+        }
+        cert_pub="$(openssl x509 -in "${cert_file}" -pubkey -noout 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | openssl dgst -sha256)" || {
+            log_error "Could not validate existing LAN TLS certificate"
+            exit 1
+        }
+        key_pub="$(openssl pkey -in "${key_file}" -pubout -outform DER 2>/dev/null | openssl dgst -sha256)" || {
+            log_error "Could not validate existing LAN TLS private key"
+            exit 1
+        }
+        [[ -n "${cert_pub}" && "${cert_pub}" == "${key_pub}" ]] || {
+            log_error "Existing LAN TLS certificate and private key do not match"
+            exit 1
+        }
+        chown root:"${DOMUS_GROUP}" "${cert_file}" "${key_file}"
+        chmod 0644 "${cert_file}"
+        chmod 0640 "${key_file}"
+        log_info "Preserving existing LAN TLS certificate and key"
+        return 0
+    fi
+
+    short_host="$(hostname -s 2>/dev/null || hostname)"
+    [[ -n "${short_host}" ]] || short_host="domus"
+    fqdn="$(hostname -f 2>/dev/null || true)"
+    tmp_dir="$(mktemp -d "${DOMUS_CONFIG_DIR}/.lan-tls.XXXXXX")"
+    san_file="${tmp_dir}/openssl.cnf"
+    {
+        printf '%s\n' '[req]' 'prompt = no' 'distinguished_name = dn' 'x509_extensions = v3_req' '[dn]'
+        printf 'CN = Domus LAN (%s)\n' "${short_host}"
+        printf '%s\n' '[v3_req]' 'basicConstraints = critical,CA:FALSE' 'keyUsage = critical,digitalSignature,keyEncipherment' 'extendedKeyUsage = serverAuth' 'subjectAltName = @alt_names' '[alt_names]'
+        dns_index=1
+        printf 'DNS.%d = %s\n' "${dns_index}" "${short_host}"
+        dns_index=$((dns_index + 1))
+        printf 'DNS.%d = %s.local\n' "${dns_index}" "${short_host}"
+        if [[ -n "${fqdn}" && "${fqdn}" != "${short_host}" && "${fqdn}" != "localhost" ]]; then
+            dns_index=$((dns_index + 1))
+            printf 'DNS.%d = %s\n' "${dns_index}" "${fqdn}"
+        fi
+        ip_index=0
+        if command -v ip >/dev/null 2>&1; then
+            while read -r interface address; do
+                [[ -n "${address}" ]] || continue
+                case "${interface}" in
+                    tailscale*|docker*|br-*|veth*|virbr*|lo|wg*|tun*) continue ;;
+                esac
+                ip_index=$((ip_index + 1))
+                printf 'IP.%d = %s\n' "${ip_index}" "${address}"
+            done < <(ip -o addr show scope global 2>/dev/null | awk '{iface=$2; sub(/@.*/, "", iface); addr=$4; sub(/\/.*/, "", addr); print iface, addr}')
+        fi
+    } > "${san_file}"
+
+    if ! openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -sha256 -nodes \
+        -days 825 -config "${san_file}" -extensions v3_req \
+        -keyout "${tmp_dir}/lan.key" -out "${tmp_dir}/lan.crt" >/dev/null 2>&1; then
+        rm -rf "${tmp_dir}"
+        log_error "Could not generate the LAN TLS certificate with OpenSSL"
+        exit 1
+    fi
+    install -o root -g "${DOMUS_GROUP}" -m 0644 "${tmp_dir}/lan.crt" "${cert_file}"
+    install -o root -g "${DOMUS_GROUP}" -m 0640 "${tmp_dir}/lan.key" "${key_file}"
+    rm -rf "${tmp_dir}"
+    log_success "Created self-signed LAN TLS certificate: ${cert_file}"
+    log_info "LAN TLS private key installed with root:${DOMUS_GROUP} ownership and mode 0640"
+}
+
+ensure_lan_tls_certificate "${DOMUS_LAN_TLS_CERT_FILE}" "${DOMUS_LAN_TLS_KEY_FILE}"
 
 # Tailscale Serve can bind the Tailscale interface on the same TCP port that
 # it proxies to localhost. In that case Domus must bind loopback, not 0.0.0.0.

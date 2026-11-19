@@ -34,8 +34,21 @@ type ServerConfig struct {
 	Host         string `toml:"host"`
 	Port         int    `toml:"port"`
 	CookieSecure bool   `toml:"cookie_secure"`
-	WebDir       string `toml:"web_dir"`
+	WebDir       string          `toml:"web_dir"`
+	LAN          LANServerConfig `toml:"lan"`
 }
+
+// LANServerConfig enables a separate HTTPS listener for trusted home networks.
+type LANServerConfig struct {
+	Enabled     bool   `toml:"enabled"`
+	Host        string `toml:"host"`
+	Port        int    `toml:"port"`
+	TLSCertFile string `toml:"tls_cert_file"`
+	TLSKeyFile  string `toml:"tls_key_file"`
+}
+
+// Addr returns the LAN listener address.
+func (s LANServerConfig) Addr() string { return fmt.Sprintf("%s:%d", s.Host, s.Port) }
 
 // Addr returns the "host:port" string used by net/http.
 func (s ServerConfig) Addr() string {
@@ -123,6 +136,9 @@ func Load(path string) (Config, error) {
 	if err := validatePresenceConfig(cfg.Presence); err != nil {
 		return Config{}, err
 	}
+	if err := validateLANServerConfig(cfg.Server); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -133,6 +149,7 @@ func defaults() Config {
 			Host:         "0.0.0.0",
 			Port:         8080,
 			CookieSecure: false,
+			LAN: LANServerConfig{Host: "0.0.0.0", Port: 8081},
 		},
 		Database: DatabaseConfig{
 			Path:          "./data/domus.db",
@@ -164,6 +181,27 @@ func defaults() Config {
 }
 
 
+// validateLANServerConfig ensures the optional LAN endpoint uses HTTPS and secure cookies.
+func validateLANServerConfig(server ServerConfig) error {
+	lan := server.LAN
+	if !lan.Enabled {
+		return nil
+	}
+	if lan.Host == "" || lan.Port < 1 || lan.Port > 65535 {
+		return fmt.Errorf("invalid LAN listener: host and a port between 1 and 65535 are required")
+	}
+	if lan.Port == server.Port && (lan.Host == server.Host || lan.Host == "0.0.0.0" || server.Host == "0.0.0.0") {
+		return fmt.Errorf("LAN listener must not overlap the primary listener address and port")
+	}
+	if !server.CookieSecure {
+		return fmt.Errorf("server.cookie_secure must be true when the HTTPS LAN listener is enabled")
+	}
+	if lan.TLSCertFile == "" || lan.TLSKeyFile == "" {
+		return fmt.Errorf("server.lan.tls_cert_file and server.lan.tls_key_file are required when the LAN listener is enabled")
+	}
+	return nil
+}
+
 // validatePresenceConfig prevents invalid home coordinates from silently
 // producing incorrect geofence and solar calculations.
 func validatePresenceConfig(cfg PresenceConfig) error {
@@ -192,6 +230,30 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("DOMUS_SERVER_PORT"); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {
 			cfg.Server.Port = port
+		}
+	}
+	if v := os.Getenv("DOMUS_LAN_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Server.LAN.Enabled = b
+		}
+	}
+	if v := os.Getenv("DOMUS_LAN_HOST"); v != "" {
+		cfg.Server.LAN.Host = v
+	}
+	if v := os.Getenv("DOMUS_LAN_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Server.LAN.Port = port
+		}
+	}
+	if v := os.Getenv("DOMUS_LAN_TLS_CERT_FILE"); v != "" {
+		cfg.Server.LAN.TLSCertFile = v
+	}
+	if v := os.Getenv("DOMUS_LAN_TLS_KEY_FILE"); v != "" {
+		cfg.Server.LAN.TLSKeyFile = v
+	}
+	if v := os.Getenv("DOMUS_SERVER_COOKIE_SECURE"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Server.CookieSecure = b
 		}
 	}
 	if v := os.Getenv("DOMUS_SERVER_WEB_DIR"); v != "" {

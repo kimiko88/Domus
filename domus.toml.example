@@ -16,9 +16,21 @@ host = "0.0.0.0"
 # Port number for HTTP traffic.
 port = 8080
 
-# Set to true whenever users access Domus over HTTPS (including a TLS reverse proxy).
-# Keep false only for direct plain-HTTP LAN access; never expose that mode to untrusted networks.
+# Set to true when any browser endpoint uses HTTPS (including Tailscale Serve or server.lan).
+# Required when the optional HTTPS LAN listener is enabled.
 cookie_secure = false
+
+# Optional HTTPS listener for home-network access. The installer provisions a
+# self-signed certificate/key at these paths, with detected LAN IPs and hostnames
+# in the certificate SAN. Install/trust the certificate on each client device.
+# The listener remains disabled by default; enable it only after configuring trust
+# and restricting TCP 8081 to the home subnet.
+[server.lan]
+enabled = false
+host = "0.0.0.0"
+port = 8081
+tls_cert_file = "/etc/domus/tls/lan.crt"
+tls_key_file = "/etc/domus/tls/lan.key"
 
 [database]
 # Path to SQLite database file. Parent directory will be created automatically.
