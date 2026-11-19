@@ -184,14 +184,18 @@ func defaults() Config {
 // validateLANServerConfig ensures the optional LAN endpoint uses HTTPS and secure cookies.
 func validateLANServerConfig(server ServerConfig) error {
 	lan := server.LAN
-	if !lan.Enabled { return nil }
+	if !lan.Enabled {
+		return nil
+	}
 	if lan.Host == "" || lan.Port < 1 || lan.Port > 65535 {
 		return fmt.Errorf("invalid LAN listener: host and a port between 1 and 65535 are required")
 	}
 	if lan.Port == server.Port && (lan.Host == server.Host || lan.Host == "0.0.0.0" || server.Host == "0.0.0.0") {
 		return fmt.Errorf("LAN listener must not overlap the primary listener address and port")
 	}
-	if !server.CookieSecure { return fmt.Errorf("server.cookie_secure must be true when the HTTPS LAN listener is enabled") }
+	if !server.CookieSecure {
+		return fmt.Errorf("server.cookie_secure must be true when the HTTPS LAN listener is enabled")
+	}
 	if lan.TLSCertFile == "" || lan.TLSKeyFile == "" {
 		return fmt.Errorf("server.lan.tls_cert_file and server.lan.tls_key_file are required when the LAN listener is enabled")
 	}
@@ -228,9 +232,13 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.Server.Port = port
 		}
 	}
-	if v := os.Getenv("DOMUS_LAN_ENABLED"); v != "" { if b, err := strconv.ParseBool(v); err == nil { cfg.Server.LAN.Enabled = b } }
+	if v := os.Getenv("DOMUS_LAN_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil { cfg.Server.LAN.Enabled = b }
+	}
 	if v := os.Getenv("DOMUS_LAN_HOST"); v != "" { cfg.Server.LAN.Host = v }
-	if v := os.Getenv("DOMUS_LAN_PORT"); v != "" { if port, err := strconv.Atoi(v); err == nil { cfg.Server.LAN.Port = port } }
+	if v := os.Getenv("DOMUS_LAN_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil { cfg.Server.LAN.Port = port }
+	}
 	if v := os.Getenv("DOMUS_LAN_TLS_CERT_FILE"); v != "" { cfg.Server.LAN.TLSCertFile = v }
 	if v := os.Getenv("DOMUS_LAN_TLS_KEY_FILE"); v != "" { cfg.Server.LAN.TLSKeyFile = v }
 	if v := os.Getenv("DOMUS_SERVER_WEB_DIR"); v != "" {
