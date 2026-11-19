@@ -21,6 +21,7 @@
 #
 # Environment overrides:
 #   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_COOKIE_SECURE, DOMUS_VAPID_SUBJECT, DOMUS_USER, DOMUS_GROUP
+#   DOMUS_LAN_TLS_CERT_FILE, DOMUS_LAN_TLS_KEY_FILE (optional custom LAN TLS paths)
 #   DOMUS_INSTALL_DIR (/usr/local/bin)   DOMUS_CONFIG_DIR (/etc/domus)
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
