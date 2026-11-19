@@ -20,6 +20,15 @@ port = 8080
 # Keep false only for direct plain-HTTP LAN access; never expose that mode to untrusted networks.
 cookie_secure = false
 
+# Optional HTTPS listener for home-network access. Requires a trusted TLS cert/key.
+# Keep disabled unless you have installed a certificate trusted by your devices.
+[server.lan]
+enabled = false
+host = "0.0.0.0"
+port = 8081
+tls_cert_file = "/etc/domus/tls/lan.crt"
+tls_key_file = "/etc/domus/tls/lan.key"
+
 [database]
 # Path to SQLite database file. Parent directory will be created automatically.
 # Use ":memory:" for transient in-memory database testing.
