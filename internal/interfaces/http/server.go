@@ -1198,8 +1198,8 @@ func (s *Server) Start() error {
 	}
 	s.listener = primary
 	type endpoint struct {
-		name string
-		server *http.Server
+		name     string
+		server   *http.Server
 		listener net.Listener
 	}
 	endpoints := []endpoint{{name: "primary", server: s.httpServer, listener: primary}}
@@ -1216,7 +1216,7 @@ func (s *Server) Start() error {
 		}
 		s.lanListener = lan
 		tlsListener := tls.NewListener(lan, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12})
-		endpoints = append(endpoints, endpoint{name:"LAN HTTPS", server:s.lanHTTPServer, listener:tlsListener})
+		endpoints = append(endpoints, endpoint{name: "LAN HTTPS", server: s.lanHTTPServer, listener: tlsListener})
 	}
 	s.startPredictiveClimateScheduler()
 	errCh := make(chan error, len(endpoints))
@@ -1288,9 +1288,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	var shutdownErr error
 	if s.lanHTTPServer != nil {
-		if err := s.lanHTTPServer.Shutdown(ctx); err != nil { shutdownErr = err }
+		if err := s.lanHTTPServer.Shutdown(ctx); err != nil {
+			shutdownErr = err
+		}
 	}
-	if err := s.httpServer.Shutdown(ctx); err != nil && shutdownErr == nil { shutdownErr = err }
+	if err := s.httpServer.Shutdown(ctx); err != nil && shutdownErr == nil {
+		shutdownErr = err
+	}
 	return shutdownErr
 }
 
