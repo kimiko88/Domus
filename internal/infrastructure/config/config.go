@@ -241,6 +241,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("DOMUS_LAN_TLS_CERT_FILE"); v != "" { cfg.Server.LAN.TLSCertFile = v }
 	if v := os.Getenv("DOMUS_LAN_TLS_KEY_FILE"); v != "" { cfg.Server.LAN.TLSKeyFile = v }
+	if v := os.Getenv("DOMUS_SERVER_COOKIE_SECURE"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil { cfg.Server.CookieSecure = b }
+	}
 	if v := os.Getenv("DOMUS_SERVER_WEB_DIR"); v != "" {
 		cfg.Server.WebDir = v
 	}
