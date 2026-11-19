@@ -1166,7 +1166,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	srv.router = r
 	srv.httpServer = newHTTPServer(cfg.Addr(), r)
-	if cfg.LAN.Enabled { srv.lanHTTPServer = newHTTPServer(cfg.LAN.Addr(), r) }
+	if cfg.LAN.Enabled {
+		srv.lanHTTPServer = newHTTPServer(cfg.LAN.Addr(), r)
+	}
 
 	return srv
 }
@@ -1177,24 +1179,43 @@ func (s *Server) Router() chi.Router {
 }
 
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
-	return &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 5*time.Second, ReadTimeout: 30*time.Second, WriteTimeout: 30*time.Second, IdleTimeout: 120*time.Second, MaxHeaderBytes: 1 << 20}
+	return &http.Server{
+		Addr: addr, Handler: handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout: 30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout: 120 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
 }
 
 // Start serves the primary HTTP endpoint and an optional HTTPS LAN endpoint.
 // Both listeners share one router and one application instance.
 func (s *Server) Start() error {
 	primary, err := net.Listen("tcp", s.cfg.Addr())
-	if err != nil { return fmt.Errorf("http server failed to listen on %s: %w", s.cfg.Addr(), err) }
+	if err != nil {
+		return fmt.Errorf("http server failed to listen on %s: %w", s.cfg.Addr(), err)
+	}
 	s.listener = primary
-	type endpoint struct { name string; server *http.Server; listener net.Listener }
-	endpoints := []endpoint{{name:"primary", server:s.httpServer, listener:primary}}
+	type endpoint struct {
+		name string
+		server *http.Server
+		listener net.Listener
+	}
+	endpoints := []endpoint{{name: "primary", server: s.httpServer, listener: primary}}
 	if s.cfg.LAN.Enabled {
 		cert, certErr := tls.LoadX509KeyPair(s.cfg.LAN.TLSCertFile, s.cfg.LAN.TLSKeyFile)
-		if certErr != nil { _ = primary.Close(); return fmt.Errorf("load LAN TLS certificate: %w", certErr) }
+		if certErr != nil {
+			_ = primary.Close()
+			return fmt.Errorf("load LAN TLS certificate: %w", certErr)
+		}
 		lan, listenErr := net.Listen("tcp", s.cfg.LAN.Addr())
-		if listenErr != nil { _ = primary.Close(); return fmt.Errorf("HTTPS LAN server failed to listen on %s: %w", s.cfg.LAN.Addr(), listenErr) }
+		if listenErr != nil {
+			_ = primary.Close()
+			return fmt.Errorf("HTTPS LAN server failed to listen on %s: %w", s.cfg.LAN.Addr(), listenErr)
+		}
 		s.lanListener = lan
-		tlsListener := tls.NewListener(lan, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion:tls.VersionTLS12})
+		tlsListener := tls.NewListener(lan, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12})
 		endpoints = append(endpoints, endpoint{name:"LAN HTTPS", server:s.lanHTTPServer, listener:tlsListener})
 	}
 	s.startPredictiveClimateScheduler()
@@ -1204,7 +1225,11 @@ func (s *Server) Start() error {
 		slog.Info("http endpoint listening", "endpoint", ep.name, "addr", ep.server.Addr)
 		go func() {
 			serveErr := ep.server.Serve(ep.listener)
-			if serveErr != nil && serveErr != http.ErrServerClosed { errCh <- fmt.Errorf("%s server error: %w", ep.name, serveErr) } else { errCh <- nil }
+			if serveErr != nil && serveErr != http.ErrServerClosed {
+				errCh <- fmt.Errorf("%s server error: %w", ep.name, serveErr)
+			} else {
+				errCh <- nil
+			}
 		}()
 	}
 	return <-errCh
@@ -1262,7 +1287,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		_ = s.tuyaLocalAdapter.Stop(ctx)
 	}
 	var shutdownErr error
-	if s.lanHTTPServer != nil { if err := s.lanHTTPServer.Shutdown(ctx); err != nil { shutdownErr = err } }
+	if s.lanHTTPServer != nil {
+		if err := s.lanHTTPServer.Shutdown(ctx); err != nil { shutdownErr = err }
+	}
 	if err := s.httpServer.Shutdown(ctx); err != nil && shutdownErr == nil { shutdownErr = err }
 	return shutdownErr
 }
