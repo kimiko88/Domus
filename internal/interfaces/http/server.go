@@ -1180,12 +1180,13 @@ func (s *Server) Router() chi.Router {
 
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr: addr, Handler: handler,
+		Addr:              addr,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout: 120 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 }
 
