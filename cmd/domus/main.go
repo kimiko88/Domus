@@ -66,6 +66,8 @@ func run() int {
 		"build_time", BuildTime,
 		"config_path", *configPath,
 		"server_addr", cfg.Server.Addr(),
+		"lan_enabled", cfg.Server.LAN.Enabled,
+		"lan_addr", cfg.Server.LAN.Addr(),
 		"db_path", cfg.Database.Path,
 	)
 
