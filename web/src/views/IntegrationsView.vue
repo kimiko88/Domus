@@ -2086,13 +2086,16 @@ onMounted(() => {
           <code>{{ xiaomiCloudEventCallback }}</code>
         </div>
         <div v-if="xiaomiCloudConnected" class="vendor-connected-meta">
-          <span>{{ xiaomiCloudNickname }} · {{ xiaomiCloudUserId }} · {{ xiaomiCloudRegion.toUpperCase() }}</span>
+          <span>{{ xiaomiCloudNickname }} · {{ xiaomiCloudUserId }} · {{ xiaomiCloudRegion.toUpperCase() }} · {{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(xiaomiCloudExpiresAt) }}</span>
           <div class="vendor-form-actions">
             <button class="btn-action glass-panel" type="button" :disabled="xiaomiCloudSyncBusy" @click="syncXiaomiCloudDevices">
               <RefreshCw :size="14" :class="{ 'animate-spin': xiaomiCloudSyncBusy }" /> {{ t('integrations.view.vendors.syncEntities') }}
             </button>
             <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiDeviceStatus">
               <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeStatus') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="disconnectXiaomiCloud">
+              <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
             </button>
           </div>
         </div>
@@ -2166,6 +2169,14 @@ onMounted(() => {
           <button class="btn-scan" type="button" :disabled="imouBusy" @click="loadImouDevices">
             <RefreshCw :size="14" :class="{ 'animate-spin': imouBusy }" /> {{ t('integrations.view.vendors.refreshDevices') }}
           </button>
+          <button class="btn-action glass-panel" type="button" @click="disconnectImouLife">
+            <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
+          </button>
+        </div>
+        <div v-if="imouConnected" class="vendor-connected-meta">
+          <span>{{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(imouExpiresAt) }}</span>
+          <span>{{ t('integrations.view.vendors.adminTokenExpires') }}: {{ formatVendorDate(imouAdminTokenExpiresAt) }}</span>
+          <span>{{ t('integrations.view.vendors.eventsStatus') }}: {{ imouPushEnabled ? t('integrations.view.vendors.eventsEnabled') : t('integrations.view.vendors.eventsDisabled') }}</span>
         </div>
         <p v-if="imouError" class="vendor-error">{{ imouError }}</p>
         <div v-if="imouDevices.length" class="vendor-imou-grid">
@@ -2201,6 +2212,16 @@ onMounted(() => {
               </span>
             </div>
             <div class="vendor-recording-search">
+              <div class="vendor-form-grid">
+                <label class="form-group">
+                  <span>{{ t('integrations.view.vendors.recordingStart') }}</span>
+                  <input v-model="imouRecordingBegin" class="form-control glass-panel" type="datetime-local" />
+                </label>
+                <label class="form-group">
+                  <span>{{ t('integrations.view.vendors.recordingEnd') }}</span>
+                  <input v-model="imouRecordingEnd" class="form-control glass-panel" type="datetime-local" />
+                </label>
+              </div>
               <button class="btn-action glass-panel" type="button" :disabled="imouRecordingBusy" @click="searchImouRecordings(device)">
                 {{ imouRecordingBusy && imouRecordDevice === device.deviceId ? t('integrations.view.vendors.searchingRecordings') : t('integrations.view.vendors.searchRecordings') }}
               </button>
@@ -2209,8 +2230,17 @@ onMounted(() => {
                 <div v-for="record in imouRecordings" :key="record.fileName">
                   <strong>{{ record.beginTime }} – {{ record.endTime }}</strong>
                   <span>{{ record.fileName }} · {{ record.fileLength || 0 }} bytes</span>
+                  <button class="btn-action glass-panel" type="button" @click="playImouRecording(device, record)">
+                    {{ t('integrations.view.vendors.playRecording') }}
+                  </button>
                 </div>
               </div>
+              <img
+                v-if="imouRecordingPreviewDevice === device.deviceId && imouRecordingPreviewURL"
+                class="vendor-camera-preview"
+                :src="imouRecordingPreviewURL"
+                :alt="t('integrations.view.vendors.playRecording')"
+              />
             </div>
           </article>
         </div>
