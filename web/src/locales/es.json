@@ -3567,7 +3567,8 @@
       "temperature_anomaly": "Cambio de temperatura inusual",
       "humidity_low": "Humedad por debajo del umbral",
       "humidity_high": "Humedad por encima del umbral",
-      "humidity_comfort": "Humedad fuera del rango de confort"
+      "humidity_comfort": "Humedad fuera del rango de confort",
+      "sensor_offline": "Sensor climático desconectado"
     },
     "errors": {
       "load": "No se pudo cargar el historial climático.",
