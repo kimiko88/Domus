@@ -219,13 +219,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	var imouLifeHandler *handlers.ImouLifeHandler
 	var xiaomiHomeHandler *handlers.XiaomiHomeHandler
 	if srv.repos != nil && srv.repos.Integrations != nil && srv.repos.Cipher != nil {
-		imouLifeHandler, err = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
-		if err != nil {
-			slog.Error("Imou Life integration disabled: handler initialization failed", "error", err)
+		var handlerErr error
+		imouLifeHandler, handlerErr = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr != nil {
+			slog.Error("Imou Life integration disabled: handler initialization failed", "error", handlerErr)
 		}
-		xiaomiHomeHandler, err = handlers.NewXiaomiHomeHandler(srv.repos.Integrations, srv.repos.Cipher)
-		if err != nil {
-			slog.Error("Xiaomi Home integration disabled: handler initialization failed", "error", err)
+		xiaomiHomeHandler, handlerErr = handlers.NewXiaomiHomeHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr != nil {
+			slog.Error("Xiaomi Home integration disabled: handler initialization failed", "error", handlerErr)
 		}
 	} else {
 		slog.Warn("Xiaomi Home and Imou Life integrations disabled: encrypted integration storage is required")
