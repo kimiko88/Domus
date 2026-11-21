@@ -26,9 +26,15 @@ func RequestLogger() func(next http.Handler) http.Handler {
 				}
 
 				requestPath := r.URL.Path
-				const imouCallbackPrefix = "/api/v1/integrations/imou-life/callback/"
-				if strings.HasPrefix(requestPath, imouCallbackPrefix) {
-					requestPath = imouCallbackPrefix + "[redacted]"
+				const imouCallbackPrefixes = []string{
+					"/api/v1/integrations/imou-life/callback/",
+					"/api/v1/integrations/imou-life/events/",
+				}
+				for _, prefix := range imouCallbackPrefixes {
+					if strings.HasPrefix(requestPath, prefix) {
+						requestPath = prefix + "[redacted]"
+						break
+					}
 				}
 
 				attrs := []any{
