@@ -79,17 +79,15 @@ describe('ClimateHistoryView.vue', () => {
       return store.settings
     })
     await flushPromises()
-    const analysisToggle = wrapper.find('input[type="checkbox"][value=""]')
     // The room-comparison checkbox is the fourth feature toggle in the analysis group.
     const checkboxes = wrapper.findAll('details.settings-panel input[type="checkbox"]')
     expect(checkboxes.length).toBeGreaterThanOrEqual(10)
-    await checkboxes[7].setValue(false)
+    await checkboxes[12].setValue(false)
     const saveButton = wrapper.findAll('details.settings-panel button').find(button => button.text().includes('Salva impostazioni'))
     expect(saveButton).toBeTruthy()
     await saveButton!.trigger('click')
     await flushPromises()
     expect(saveSpy).toHaveBeenCalledTimes(1)
     expect(saveSpy.mock.calls[0][0].room_map_enabled).toBe(false)
-    void analysisToggle
   })
 })
