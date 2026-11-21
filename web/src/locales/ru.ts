@@ -202,6 +202,7 @@ const ru = {
 "broadlinkCommandPlaceholder":"Например, питание телевизора",
 "broadlinkLearn":"Начать обучение",
 "broadlinkLearning":"Обучение…",
+"broadlinkLearningDesc":"Обучение запущено. Нажмите кнопку физического пульта рядом с BroadLink, затем сохраните считанный код.",
 "broadlinkSaving":"Сохранение…",
 "broadlinkSaveCode":"Считать и сохранить",
 "broadlinkLearnHint":"Запустите обучение, нажмите кнопку на физическом пульте рядом с BroadLink, затем считайте и сохраните код.",
