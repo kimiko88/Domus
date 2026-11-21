@@ -800,13 +800,47 @@ R: Sì. Domus gira su qualsiasi Linux x86-64 via Docker o installazione nativa.
 R: Non c'è un limite fisso. Su Raspberry Pi 4 con 4 GB RAM, funziona correttamente con centinaia di entità MQTT e flussi video simultanei.
 
 **D: I dati escono dalla mia rete?**  
-R: No, mai. Domus non trasmette dati a server remoti. Tutti i modelli di intelligenza artificiale (visione telecamere ed elaborazione voce) funzionano localmente.
+R: Le funzioni core e lo storico climatico sono locali. Solo le integrazioni cloud opzionali inviano ai rispettivi fornitori i dati necessari al loro funzionamento.
 
 **D: Come aggiorno Domus OS?**  
 R: Domus OS usa aggiornamenti **A/B atomici** con RAUC. Un aggiornamento non riuscito ripristina automaticamente la slot precedente.
 
 **D: Posso aggiungere un'integrazione personalizzata?**  
 R: Sì. Implementa l'interfaccia `Integration` in Go e aggiungi il tuo adapter in `internal/plugins/`.
+
+---
+
+## 32. Storico climatico e analisi delle stanze
+
+Domus può registrare in modo automatico le misure di temperatura e umidità dei sensori e dei termostati, insieme alla temperatura impostata e allo stato HVAC quando disponibili. La raccolta è eseguita dal backend: continua anche quando nessun browser è collegato.
+
+### Registrazione
+
+- Intervallo selezionabile: 1, 2, 5, 10, 15, 30 o 60 minuti (predefinito: 10 minuti).
+- Sensori temperatura, sensori umidità e termostati possono essere inclusi o esclusi separatamente.
+- La modalità intelligente registra anche le variazioni che superano le soglie configurate, oltre alla raccolta periodica.
+- I sensori offline o non disponibili non vengono registrati come misurazioni valide.
+- La temperatura misurata dal termostato è distinta dal setpoint; i valori in Fahrenheit vengono normalizzati in Celsius.
+
+### Conservazione e aggregazioni SQLite
+
+Il database conserva le misurazioni dettagliate per il numero di giorni scelto. La manutenzione compatta automaticamente i campioni più vecchi in aggregati orari (media, minimo, massimo e numero di misurazioni); gli aggregati orari più vecchi diventano aggregati giornalieri. La compattazione e la cancellazione avvengono nella stessa transazione, per evitare perdita di dati in caso di arresto durante la manutenzione. Gli aggregati giornalieri vengono mantenuti come storico a lungo termine.
+
+### Dashboard Clima & storico
+
+Apri **Automazioni & Media → Clima & storico** per consultare:
+- Grafici interattivi per temperatura, umidità e setpoint, con selezione di stanze, sensori e termostati.
+- Intervalli di 24 ore, 7 giorni, 30 giorni o periodo personalizzato.
+- Riepiloghi per stanza con valori correnti, medie, minimi e massimi.
+- Avvisi di soglia per temperatura e umidità, indicatori di comfort e rilevamento di variazioni anomale.
+- Tasso di riscaldamento/raffreddamento e stima lineare dell'andamento nella prossima ora.
+- Esportazione dello storico in CSV.
+
+### Funzioni opzionali
+
+Dalle impostazioni della pagina puoi attivare o disattivare singolarmente raccolta, campi registrati, campionamento intelligente, avvisi di soglia, analisi del comfort, confronto tra stanze, analisi termica, rilevamento anomalie, stima a un'ora e riepilogo climatico per stanza. Le soglie di temperatura e umidità, l'intervallo di raccolta e i periodi di conservazione sono modificabili.
+
+La raccolta e l'analisi sono locali: i campioni climatici vengono archiviati nel database SQLite dell'istanza Domus e non richiedono un servizio cloud.
 
 ---
 
@@ -837,6 +871,7 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Chiamate Servizio Ecosistema** | `POST /api/v1/services/{domain}/{service}` |
 | **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` · `POST /api/v1/automations/{id}/dry-run` |
 | **Scene** | `POST /api/v1/scenes/{id}/activate` · `GET /api/v1/scenes` |
+| **Storico climatico** | `GET/PUT /api/v1/climate/history/settings` · `GET /api/v1/climate/history/history` · `GET /api/v1/climate/history/summary` · `GET /api/v1/climate/history/export.csv` |
 | **Sistema & Metriche** | `GET /api/v1/system/health` · `GET /api/v1/system/metrics` · `GET /api/v1/system/sun` |
 | **OS Diagnostica** | `GET /api/v1/system/diagnostics` · `GET /api/v1/system/diagnostics/export` |
 | **OS Manutenzione** | `POST /api/v1/system/maintenance/enable` · `POST /api/v1/system/maintenance/disable` |
