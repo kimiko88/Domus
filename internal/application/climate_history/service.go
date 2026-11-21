@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -414,7 +415,19 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			}
 		}
 	}
-	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled && !settings.ThermalAnalysisEnabled && !settings.ForecastEnabled { out.Rooms = out.Rooms[:0] }
+	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled && !settings.ThermalAnalysisEnabled && !settings.ForecastEnabled {
+		out.Rooms = out.Rooms[:0]
+	}
+	sort.Slice(out.Rooms, func(i, j int) bool { return out.Rooms[i].AreaID < out.Rooms[j].AreaID })
+	sort.Slice(out.Insights, func(i, j int) bool {
+		if out.Insights[i].AreaID != out.Insights[j].AreaID {
+			return out.Insights[i].AreaID < out.Insights[j].AreaID
+		}
+		if out.Insights[i].Code != out.Insights[j].Code {
+			return out.Insights[i].Code < out.Insights[j].Code
+		}
+		return out.Insights[i].EntityName < out.Insights[j].EntityName
+	})
 	return out, nil
 }
 
