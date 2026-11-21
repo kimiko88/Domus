@@ -1639,7 +1639,8 @@
         "addFinance": "Registra la spesa in Home Finance",
         "addFinanceHint": "Crea un’uscita con il totale del documento.",
         "importing": "Importazione in corso…",
-        "confirmImport": "Conferma e importa"
+        "confirmImport": "Conferma e importa",
+        "cameraFallbackButton": "Usa la fotocamera del dispositivo"
       }
     }
   },

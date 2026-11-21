@@ -63,6 +63,8 @@ const pendingPDF = ref<File | null>(null)
 const previewURL = ref('')
 const imageRotation = ref(0)
 let requestStarted = false
+let cameraRequestId = 0
+let componentActive = true
 
 const categories: { key: PantryCategory; label: string }[] = [
   { key: 'produce', label: '🍎 Ortofrutta' },
@@ -127,6 +129,7 @@ function stopCamera() {
 
 async function startCamera() {
   cameraError.value = ''
+  const requestId = ++cameraRequestId
   if (!navigator.mediaDevices?.getUserMedia) {
     cameraFallbackInput.value?.click()
     return
@@ -142,19 +145,28 @@ async function startCamera() {
         height: { ideal: 1080 }
       }
     })
+    if (!componentActive || requestId !== cameraRequestId) {
+      stream.getTracks().forEach(track => track.stop())
+      return
+    }
     cameraStream.value = stream
     cameraOpen.value = true
     await nextTick()
+    if (!componentActive || requestId !== cameraRequestId) {
+      stream.getTracks().forEach(track => track.stop())
+      cameraStream.value = null
+      return
+    }
     if (!videoElement.value) throw new Error('Camera preview is not available')
     videoElement.value.srcObject = stream
     await videoElement.value.play()
   } catch {
-    stopCamera()
-    cameraError.value = t('shopping.view.receiptScanner.cameraUnavailable')
-    // Safari may deny an in-page stream while still supporting its native camera picker.
-    cameraFallbackInput.value?.click()
+    if (componentActive && requestId === cameraRequestId) {
+      stopCamera()
+      cameraError.value = t('shopping.view.receiptScanner.cameraUnavailable')
+    }
   } finally {
-    cameraBusy.value = false
+    if (componentActive && requestId === cameraRequestId) cameraBusy.value = false
   }
 }
 
@@ -448,6 +460,8 @@ watch(() => props.parsedReceipt, receipt => {
 })
 
 onBeforeUnmount(() => {
+  componentActive = false
+  cameraRequestId++
   stopCamera()
   revokePreview()
 })
@@ -506,7 +520,12 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <p v-if="cameraError" class="ocr-status ocr-error" role="alert">{{ cameraError }}</p>
+      <div v-if="cameraError" class="camera-fallback-actions">
+        <p class="ocr-status ocr-error" role="alert">{{ cameraError }}</p>
+        <button type="button" class="btn btn-secondary" @click="cameraFallbackInput?.click()">
+          {{ t('shopping.view.receiptScanner.cameraFallbackButton') }}
+        </button>
+      </div>
 
       <div v-if="pendingImage && previewURL" class="selected-document-card">
         <div class="selected-document-heading">

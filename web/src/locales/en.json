@@ -1639,7 +1639,8 @@
         "addFinance": "Record the expense in Home Finance",
         "addFinanceHint": "Create an expense using the document total.",
         "importing": "Importing…",
-        "confirmImport": "Confirm and import"
+        "confirmImport": "Confirm and import",
+        "cameraFallbackButton": "Use the device camera"
       }
     }
   },
