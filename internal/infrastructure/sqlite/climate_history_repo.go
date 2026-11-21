@@ -197,15 +197,15 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 			target_temperature_avg,target_temperature_min,target_temperature_max,target_temperature_sum,target_temperature_count,
 			sample_count,heating_samples
 		)
-		SELECT entity_id,MAX(entity_key),MAX(entity_name),MAX(device_id),MAX(area_id),
+		SELECT entity_id,MAX(entity_key),MAX(entity_name),MAX(device_id),area_id,
 			strftime('%Y-%m-%dT%H:00:00Z',recorded_at),strftime('%Y-%m-%dT%H:00:00Z',recorded_at,'+1 hour'),
 			AVG(temperature),MIN(temperature),MAX(temperature),COALESCE(SUM(temperature),0),COUNT(temperature),
 			AVG(humidity),MIN(humidity),MAX(humidity),COALESCE(SUM(humidity),0),COUNT(humidity),
 			AVG(target_temperature),MIN(target_temperature),MAX(target_temperature),COALESCE(SUM(target_temperature),0),COUNT(target_temperature),
 			COUNT(*),SUM(CASE WHEN lower(hvac_action) LIKE '%heat%' THEN 1 ELSE 0 END)
 		FROM climate_history_samples WHERE recorded_at < ?
-		GROUP BY entity_id,strftime('%Y-%m-%dT%H:00:00Z',recorded_at)
-		ON CONFLICT(entity_id,period_start) DO UPDATE SET
+		GROUP BY entity_id,area_id,strftime('%Y-%m-%dT%H:00:00Z',recorded_at)
+		ON CONFLICT(entity_id,area_id,period_start) DO UPDATE SET
 			entity_key=excluded.entity_key,entity_name=excluded.entity_name,device_id=excluded.device_id,area_id=excluded.area_id,
 			period_end=excluded.period_end,
 			temperature_sum=climate_history_hourly.temperature_sum+excluded.temperature_sum,
@@ -238,7 +238,7 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 			target_temperature_avg,target_temperature_min,target_temperature_max,target_temperature_sum,target_temperature_count,
 			sample_count,heating_samples
 		)
-		SELECT entity_id,MAX(entity_key),MAX(entity_name),MAX(device_id),MAX(area_id),
+		SELECT entity_id,MAX(entity_key),MAX(entity_name),MAX(device_id),area_id,
 			strftime('%Y-%m-%dT00:00:00Z',period_start),strftime('%Y-%m-%dT00:00:00Z',period_start,'+1 day'),
 			CASE WHEN SUM(temperature_count)>0 THEN SUM(temperature_sum)/SUM(temperature_count) END,
 			MIN(temperature_min),MAX(temperature_max),SUM(temperature_sum),SUM(temperature_count),
@@ -248,7 +248,7 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 			MIN(target_temperature_min),MAX(target_temperature_max),SUM(target_temperature_sum),SUM(target_temperature_count),
 			SUM(sample_count),SUM(heating_samples)
 		FROM climate_history_hourly WHERE period_start < ?
-		GROUP BY entity_id,strftime('%Y-%m-%dT00:00:00Z',period_start)
+		GROUP BY entity_id,area_id,strftime('%Y-%m-%dT00:00:00Z',period_start)
 		ON CONFLICT(entity_id,period_start) DO UPDATE SET
 			entity_key=excluded.entity_key,entity_name=excluded.entity_name,device_id=excluded.device_id,area_id=excluded.area_id,
 			period_end=excluded.period_end,
