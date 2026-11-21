@@ -164,7 +164,7 @@ func TestSummarizeReportsUnavailableClimateSensors(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	offline := &entity.Entity{
 		ID: "offline-1", EntityKey: "sensor.office_temperature", Domain: "sensor",
-		Name: "Office temperature", UnitOfMeasurement: "°C", State: "19",
+		Name: "Office temperature", UnitOfMeasurement: "°C", State: "unavailable",
 		Attributes: "{\"device_class\":\"temperature\"}", Available: false, AreaID: "office",
 	}
 	repo := &climateRepoStub{settings: settings}
