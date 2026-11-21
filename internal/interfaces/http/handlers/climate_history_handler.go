@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -31,7 +32,7 @@ func (h *ClimateHistoryHandler) GetSettings(w http.ResponseWriter, r *http.Reque
 
 func (h *ClimateHistoryHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var settings domclimatehistory.Settings
-	if err := decodeJSON(r, &settings); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&settings); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "invalid climate history settings payload")
 		return
 	}
@@ -145,4 +146,3 @@ func formatOptionalFloat(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', 3, 64)
 }
 
-var _ = errors.Is
