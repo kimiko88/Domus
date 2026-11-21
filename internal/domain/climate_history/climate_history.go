@@ -99,6 +99,8 @@ type Point struct {
 	HVACMode             string    `json:"hvac_mode,omitempty"`
 	HVACAction           string    `json:"hvac_action,omitempty"`
 	SampleCount          int       `json:"sample_count"`
+	TemperatureCount      int       `json:"temperature_sample_count,omitempty"`
+	HumidityCount         int       `json:"humidity_sample_count,omitempty"`
 	HeatingSamples       int       `json:"heating_samples,omitempty"`
 	Period               string    `json:"period"`
 }
