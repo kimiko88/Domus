@@ -52,6 +52,12 @@ const (
 	CameraPersonDetected EventType = "camera.person_detected"
 	// CameraAlarmReceived fires when a camera reports a security alarm event.
 	CameraAlarmReceived EventType = "camera.alarm_received"
+	// XiaomiPropertyChanged fires when a Xiaomi MIoT property changes.
+	XiaomiPropertyChanged EventType = "xiaomi.property_changed"
+	// XiaomiMIoTEvent fires when a Xiaomi MIoT event is reported.
+	XiaomiMIoTEvent EventType = "xiaomi.miot_event"
+	// XiaomiDeviceStatusChanged fires when a Xiaomi cloud device goes online/offline.
+	XiaomiDeviceStatusChanged EventType = "xiaomi.device_status_changed"
 
 	// TagScanned fires when an NFC tag or QR code is scanned.
 	TagScanned EventType = "tag.scanned"
