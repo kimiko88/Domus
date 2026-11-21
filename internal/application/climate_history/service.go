@@ -350,6 +350,28 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			out.Rooms[i].ForecastTemperature = floatPtr(sum / float64(len(forecasts)))
 		}
 	}
+
+	if settings.AnomalyDetectionEnabled && s.entities != nil {
+		liveEntities, listErr := s.entities.List(ctx, entity.ListFilter{})
+		if listErr != nil {
+			s.logger.Warn("unable to check climate sensor availability", "error", listErr)
+		} else {
+			for _, liveEntity := range liveEntities {
+				if liveEntity == nil || liveEntity.Available {
+					continue
+				}
+				if _, supported := sampleEntity(liveEntity, settings, time.Now().UTC()); supported {
+					area := liveEntity.AreaID
+					if area == "" {
+						area = "unassigned"
+					}
+					out.Insights = append(out.Insights, domclimate.Insight{
+						Code: "sensor_offline", AreaID: area, EntityName: liveEntity.Name,
+					})
+				}
+			}
+		}
+	}
 	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled { out.Rooms = out.Rooms[:0] }
 	return out, nil
 }
