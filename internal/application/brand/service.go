@@ -49,10 +49,18 @@ func NewService(
 	client *http.Client,
 ) *Service {
 	if client == nil {
-		client = &http.Client{
-			Timeout: 3 * time.Second,
-		}
+		client = &http.Client{Timeout: 3 * time.Second}
 	}
+	// Commands sent to a paired device must obey the same no-redirect policy
+	// as discovery; otherwise a compromised device could redirect requests.
+	safeClient := *client
+	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	if safeClient.Timeout <= 0 {
+		safeClient.Timeout = 3 * time.Second
+	}
+	client = &safeClient
 
 	s := &Service{
 		deviceRepo:        devRepo,
