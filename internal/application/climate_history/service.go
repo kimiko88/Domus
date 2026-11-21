@@ -74,7 +74,7 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, ent := range entities {
-		if ent == nil || !ent.Available {
+		if entityUnavailable(ent) {
 			continue
 		}
 		sample, ok := sampleEntity(ent, settings, now)
@@ -103,6 +103,18 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 		s.lastSaved[sample.EntityID] = now
 	}
 	return len(batch), nil
+}
+
+func entityUnavailable(ent *entity.Entity) bool {
+	if ent == nil || !ent.Available {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(ent.State)) {
+	case "unavailable", "unknown", "none":
+		return true
+	default:
+		return false
+	}
 }
 
 func significantChange(previous, current domclimate.Sample, cfg domclimate.Settings) bool {
@@ -392,7 +404,7 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			s.logger.Warn("unable to check climate sensor availability", "error", listErr)
 		} else {
 			for _, liveEntity := range liveEntities {
-				if liveEntity == nil || liveEntity.Available {
+				if liveEntity == nil || !entityUnavailable(liveEntity) {
 					continue
 				}
 				if filter.AreaID != "" && filter.AreaID != liveEntity.AreaID {
