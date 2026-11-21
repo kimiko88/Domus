@@ -8,6 +8,7 @@ import (
 	"github.com/domus-hub/domus/internal/application/alarm"
 	domainAlarm "github.com/domus-hub/domus/internal/domain/alarm"
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
@@ -56,19 +57,19 @@ func TestAlarmService_Lifecycle(t *testing.T) {
 
 	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 64, Workers: 2})
 	sirenCtrl := &mockSirenController{}
-	svc := alarm.NewService(db, bus, sirenCtrl)
+	svc := alarm.NewService(db, bus, sirenCtrl).WithPINHasher(crypto.NewArgon2Hasher(crypto.DefaultArgon2Params()))
 	ctx := context.Background()
 
 	// 1. Get initial panel
 	panel, err := svc.GetPanel(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, domainAlarm.StateDisarmed, panel.State)
-	assert.Equal(t, "1234", panel.PinHash)
+	assert.Empty(t, panel.PinHash)
 
 	// 2. Configure sensors and sirens
-	panel, err = svc.UpdateConfig(ctx, 0, 0, []string{"binary_sensor.front_door"}, []string{"binary_sensor.living_motion"}, []string{"switch.siren"}, "4321")
+	panel, err = svc.UpdateConfig(ctx, 0, 0, []string{"binary_sensor.front_door"}, []string{"binary_sensor.living_motion"}, []string{"switch.siren"}, "432198")
 	require.NoError(t, err)
-	assert.Equal(t, "4321", panel.PinHash)
+	assert.Contains(t, panel.PinHash, "$argon2id$")
 	assert.Contains(t, panel.PerimeterSensors, "binary_sensor.front_door")
 
 	// 3. Arm with incorrect PIN should fail
@@ -76,7 +77,7 @@ func TestAlarmService_Lifecycle(t *testing.T) {
 	assert.ErrorIs(t, err, domainAlarm.ErrInvalidPin)
 
 	// 4. Arm with correct PIN
-	panel, err = svc.Arm(ctx, domainAlarm.StateArmedHome, "4321", "user1")
+	panel, err = svc.Arm(ctx, domainAlarm.StateArmedHome, "432198", "user1")
 	require.NoError(t, err)
 	assert.Equal(t, domainAlarm.StateArmedHome, panel.State)
 	assert.Equal(t, "user1", panel.LastChangedBy)
@@ -96,4 +97,14 @@ func TestAlarmService_Lifecycle(t *testing.T) {
 	assert.Equal(t, domainAlarm.StateDisarmed, panel.State)
 	assert.Equal(t, "switch.siren", sirenCtrl.lastEntityKey)
 	assert.Equal(t, "turn_off", sirenCtrl.lastService)
+}
+
+func TestAlarmService_RequiresConfiguredPIN(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := alarm.NewService(db, nil, nil).WithPINHasher(crypto.NewArgon2Hasher(crypto.DefaultArgon2Params()))
+	_, err := svc.Arm(context.Background(), domainAlarm.StateArmedHome, "", "user")
+	require.ErrorIs(t, err, domainAlarm.ErrPinNotConfigured)
+	_, err = svc.Disarm(context.Background(), "", "user")
+	require.ErrorIs(t, err, domainAlarm.ErrPinNotConfigured)
 }
