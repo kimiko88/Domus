@@ -217,7 +217,8 @@
     "pantry": "Despensa y Recetas",
     "settings": "Ajustes",
     "logout": "Cerrar Sesión",
-    "guide": "Guía y Manual"
+    "guide": "Guía y Manual",
+    "climateHistory": "Historial climático"
   },
   "dashboard": {
     "title": "Visión General del Hogar",
@@ -3486,5 +3487,92 @@
   "dashboardMarketplace": {
     "community": "Comunidad",
     "verified": "Verificado"
+  },
+  "climateHistory": {
+    "title": "Historial climático",
+    "subtitle": "Evolución de la temperatura y la humedad por habitación y dispositivo.",
+    "refresh": "Actualizar",
+    "exportCsv": "Exportar CSV",
+    "filters": "Filtros del historial",
+    "ranges": {
+      "24h": "24 horas",
+      "7d": "7 días",
+      "30d": "30 días",
+      "custom": "Personalizado"
+    },
+    "room": "Habitación",
+    "allRooms": "Todas las habitaciones",
+    "metric": "Medición",
+    "metrics": {
+      "temperature": "Temperatura medida",
+      "humidity": "Humedad",
+      "target": "Consigna del termostato"
+    },
+    "from": "Desde",
+    "to": "Hasta",
+    "selectSeries": "Sensores y termostatos que mostrar",
+    "selectSeriesHint": "Selecciona varios elementos para comparar sus curvas; sin selección se muestran todas las series.",
+    "trendTitle": "Evolución climática",
+    "chartDescription": "Compara la temperatura real, la consigna y la humedad en el periodo seleccionado.",
+    "samples": "{count} muestras",
+    "chartAria": "Gráfico histórico de temperatura, consigna y humedad",
+    "loading": "Cargando mediciones…",
+    "noData": "Todavía no hay mediciones en el periodo seleccionado.",
+    "samplesShort": "muestras",
+    "temperature": "Temperatura",
+    "humidity": "Humedad",
+    "average": "Media",
+    "thermalRate": "Velocidad de calentamiento/enfriamiento",
+    "forecast": "Estimación a una hora",
+    "minMax": "Mín. / máx.",
+    "insightsTitle": "Confort y anomalías",
+    "insightsDescription": "Avisos generados a partir del historial según los ajustes activos.",
+    "unassigned": "Sin habitación",
+    "settings": {
+      "title": "Ajustes de registro y análisis",
+      "description": "La recopilación se ejecuta en el backend aunque el panel esté cerrado. Las muestras recientes se compactan en medias/mínimos/máximos horarios y después diarios.",
+      "enabled": "Activar recopilación climática",
+      "interval": "Intervalo de registro",
+      "minutes": "minutos",
+      "recordTemperature": "Registrar temperatura de sensores",
+      "recordHumidity": "Registrar humedad de sensores",
+      "recordThermostat": "Registrar mediciones y consignas de termostatos",
+      "smartSampling": "Registrar también cambios significativos",
+      "temperatureThreshold": "Cambio de temperatura (°C)",
+      "humidityThreshold": "Cambio de humedad (%)",
+      "rawRetention": "Conservar muestras detalladas (días)",
+      "hourlyRetention": "Conservar agregados horarios (días)",
+      "analysisTitle": "Funciones opcionales",
+      "temperatureAlerts": "Alertas de umbral de temperatura",
+      "humidityAlerts": "Alertas de umbral de humedad",
+      "comfortAnalysis": "Análisis del confort",
+      "roomComparison": "Comparación de habitaciones",
+      "thermalAnalysis": "Análisis de calentamiento/enfriamiento",
+      "anomalyDetection": "Detección de anomalías",
+      "forecast": "Estimación de tendencia a una hora",
+      "roomMap": "Resumen climático por habitación",
+      "thresholdsTitle": "Umbrales de alerta",
+      "lowTemperature": "Temperatura mínima (°C)",
+      "highTemperature": "Temperatura máxima (°C)",
+      "lowHumidity": "Humedad mínima (%)",
+      "highHumidity": "Humedad máxima (%)",
+      "saving": "Guardando…",
+      "saved": "Ajustes guardados",
+      "save": "Guardar ajustes"
+    },
+    "insights": {
+      "temperature_low": "Temperatura por debajo del umbral",
+      "temperature_high": "Temperatura por encima del umbral",
+      "temperature_comfort": "Temperatura fuera del rango de confort",
+      "temperature_anomaly": "Cambio de temperatura inusual",
+      "humidity_low": "Humedad por debajo del umbral",
+      "humidity_high": "Humedad por encima del umbral",
+      "humidity_comfort": "Humedad fuera del rango de confort"
+    },
+    "errors": {
+      "load": "No se pudo cargar el historial climático.",
+      "save": "No se pudieron guardar los ajustes.",
+      "export": "No se pudieron exportar los datos climáticos."
+    }
   }
 }
