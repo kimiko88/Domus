@@ -143,6 +143,151 @@ const tuyaFunctionBusy = ref<string | null>(null)
 const tuyaTemperatureInputs = reactive<Record<string, string>>({})
 
 
+// --- BroadLink RM local integration ---
+interface BroadlinkDevice {
+  id: string; mac: string; ip: string; name: string; model: string
+  online: boolean; supports_ir: boolean; supports_rf: boolean; entity_key: string
+}
+interface BroadlinkDiscoveredDevice {
+  mac: string; ip: string; port: number; device_type: number; model: string
+  supports_ir: boolean; supports_rf: boolean
+}
+interface BroadlinkSavedCommand { name: string; medium: string; created_at: number }
+
+const broadlinkDevices = ref<BroadlinkDevice[]>([])
+const broadlinkDiscovered = ref<BroadlinkDiscoveredDevice[]>([])
+const broadlinkCommands = ref<Record<string, BroadlinkSavedCommand[]>>({})
+const broadlinkManualIP = ref('')
+const broadlinkScanning = ref(false)
+const broadlinkPairing = ref<string | null>(null)
+const broadlinkLearning = ref<string | null>(null)
+const broadlinkSaving = ref<string | null>(null)
+const broadlinkSending = ref<string | null>(null)
+const broadlinkNames = reactive<Record<string, string>>({})
+const broadlinkCommandNames = reactive<Record<string, string>>({})
+const broadlinkMedia = reactive<Record<string, 'ir' | 'rf'>>({})
+const broadlinkError = ref('')
+
+async function loadBroadlinkDevices() {
+  try {
+    const result = await apiClient.get<{ devices: BroadlinkDevice[] }>('/api/v1/integrations/broadlink-local/devices')
+    broadlinkDevices.value = result.devices || []
+    await Promise.all(broadlinkDevices.value.map(device => loadBroadlinkCommands(device.id)))
+    broadlinkError.value = ''
+  } catch {
+    broadlinkError.value = t('integrations.view.vendors.broadlinkLoadError')
+  }
+}
+
+async function scanBroadlink() {
+  broadlinkScanning.value = true
+  try {
+    const result = await apiClient.post<{ devices: BroadlinkDiscoveredDevice[] }>('/api/v1/integrations/broadlink-local/discovery/scan', {
+      ip: broadlinkManualIP.value.trim() || undefined
+    })
+    broadlinkDiscovered.value = result.devices || []
+    await loadBroadlinkDevices()
+    if (!broadlinkDiscovered.value.length) {
+      notificationsStore.info(t('integrations.view.vendors.broadlinkScanEmptyTitle'), t('integrations.view.vendors.broadlinkScanEmptyDesc'))
+    }
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkScanError'), t('integrations.view.vendors.broadlinkScanErrorDesc'))
+  } finally {
+    broadlinkScanning.value = false
+  }
+}
+
+async function pairBroadlinkDevice(device: BroadlinkDiscoveredDevice) {
+  broadlinkPairing.value = device.mac
+  try {
+    await apiClient.post('/api/v1/integrations/broadlink-local/devices', {
+      ip: device.ip,
+      name: broadlinkNames[device.ip]?.trim() || device.model
+    })
+    await loadBroadlinkDevices()
+    notificationsStore.success(t('integrations.view.vendors.broadlinkPaired'), t('integrations.view.vendors.broadlinkPairedDesc', { model: device.model }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkPairError'), t('integrations.view.vendors.broadlinkPairErrorDesc'))
+  } finally {
+    broadlinkPairing.value = null
+  }
+}
+
+async function loadBroadlinkCommands(deviceID: string) {
+  try {
+    const result = await apiClient.get<{ commands: BroadlinkSavedCommand[] }>(
+      `/api/v1/integrations/broadlink-local/devices/${encodeURIComponent(deviceID)}/commands`
+    )
+    broadlinkCommands.value[deviceID] = result.commands || []
+  } catch {
+    broadlinkCommands.value[deviceID] = []
+  }
+}
+
+async function startBroadlinkLearning(device: BroadlinkDevice) {
+  broadlinkLearning.value = device.id
+  const medium = broadlinkMedia[device.id] || 'ir'
+  try {
+    await apiClient.post(
+      `/api/v1/integrations/broadlink-local/devices/${encodeURIComponent(device.id)}/learn/start`,
+      { medium }
+    )
+    notificationsStore.info(t('integrations.view.vendors.broadlinkLearning'), t('integrations.view.vendors.broadlinkLearningDesc', { medium: medium.toUpperCase() }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkLearnError'), t('integrations.view.vendors.broadlinkLearnErrorDesc'))
+  } finally {
+    broadlinkLearning.value = null
+  }
+}
+
+async function saveBroadlinkLearnedCommand(device: BroadlinkDevice) {
+  const name = (broadlinkCommandNames[device.id] || '').trim()
+  if (!name) {
+    notificationsStore.warning(t('integrations.view.vendors.broadlinkNameRequired'), t('integrations.view.vendors.broadlinkNameRequiredDesc'))
+    return
+  }
+  broadlinkSaving.value = device.id
+  try {
+    await apiClient.post(
+      `/api/v1/integrations/broadlink-local/devices/${encodeURIComponent(device.id)}/learn/result`,
+      { name, medium: broadlinkMedia[device.id] || 'ir' }
+    )
+    broadlinkCommandNames[device.id] = ''
+    await loadBroadlinkCommands(device.id)
+    notificationsStore.success(t('integrations.view.vendors.broadlinkSaved'), t('integrations.view.vendors.broadlinkSavedDesc', { name }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkCaptureError'), t('integrations.view.vendors.broadlinkCaptureErrorDesc'))
+  } finally {
+    broadlinkSaving.value = null
+  }
+}
+
+async function sendBroadlinkCommand(device: BroadlinkDevice, command: BroadlinkSavedCommand) {
+  const key = `${device.id}:${command.name}:${command.medium}`
+  broadlinkSending.value = key
+  try {
+    await apiClient.post(
+      `/api/v1/integrations/broadlink-local/devices/${encodeURIComponent(device.id)}/commands/send`,
+      { name: command.name, medium: command.medium }
+    )
+    notificationsStore.success(t('integrations.view.vendors.broadlinkSent'), t('integrations.view.vendors.broadlinkSentDesc', { name: command.name }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkSendError'), t('integrations.view.vendors.broadlinkSendErrorDesc'))
+  } finally {
+    broadlinkSending.value = null
+  }
+}
+
+async function removeBroadlinkDevice(device: BroadlinkDevice) {
+  try {
+    await apiClient.delete(`/api/v1/integrations/broadlink-local/devices/${encodeURIComponent(device.id)}`)
+    await loadBroadlinkDevices()
+    notificationsStore.success(t('integrations.view.vendors.broadlinkRemoved'), t('integrations.view.vendors.broadlinkRemovedDesc', { name: device.name }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.broadlinkRemoveError'), t('integrations.view.vendors.broadlinkRemoveErrorDesc'))
+  }
+}
+
 // --- Xiaomi Home and Imou Life administration ---
 interface XiaomiLocalDevice {
   id: string; name: string; ip: string; model?: string; firmware?: string; mac?: string; device_id?: number
@@ -216,7 +361,7 @@ async function loadXiaomiVendorData() {
   try {
     const [local, cloud] = await Promise.all([
       apiClient.get<{ devices: XiaomiLocalDevice[]; configured?: boolean }>('/api/v1/integrations/xiaomi-home/status'),
-      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
+      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string; expires_at?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
     ])
     xiaomiLocalDevices.value = local.devices || []
     xiaomiLocalStatus.value = true
@@ -1266,6 +1411,7 @@ onMounted(() => {
   fetchTuyaConfig()
   loadXiaomiVendorData()
   loadImouVendorData()
+  loadBroadlinkDevices()
 })
 </script>
 
@@ -2060,13 +2206,119 @@ onMounted(() => {
             <p class="disc-sub">{{ t('integrations.view.vendors.subtitle') }}</p>
           </div>
         </div>
-        <button class="btn-scan" @click="loadXiaomiVendorData(); loadImouVendorData()">
+        <button class="btn-scan" @click="loadXiaomiVendorData(); loadImouVendorData(); loadBroadlinkDevices()">
           <RefreshCw :size="15" />
           {{ t('integrations.view.vendors.refresh') }}
         </button>
       </div>
 
-      <section class="vendor-section glass-card">
+      <section class="vendor-section glass-card broadlink-section">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.broadlinkTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.broadlinkDesc') }}</p>
+          </div>
+          <span class="badge-lan">{{ t('integrations.view.vendors.localOnly') }}</span>
+        </div>
+
+        <div class="manual-probe-box broadlink-scan-row">
+          <input
+            v-model="broadlinkManualIP"
+            type="text"
+            :placeholder="t('integrations.view.vendors.broadlinkIPPlaceholder')"
+            class="ip-input"
+            @keyup.enter="scanBroadlink"
+          />
+          <button type="button" class="btn-scan" :disabled="broadlinkScanning" @click="scanBroadlink">
+            <RefreshCw :size="15" :class="{ 'animate-spin': broadlinkScanning }" />
+            {{ broadlinkScanning ? t('integrations.view.vendors.broadlinkScanning') : t('integrations.view.vendors.broadlinkScan') }}
+          </button>
+        </div>
+        <p v-if="broadlinkError" class="error-box">{{ broadlinkError }}</p>
+
+        <div v-if="broadlinkDiscovered.length" class="discovered-grid broadlink-discovered">
+          <article v-for="item in broadlinkDiscovered" :key="item.mac" class="discovered-card glass-card">
+            <div class="disc-card-header">
+              <span class="disc-badge-brand"><Radio :size="15" /> BroadLink</span>
+              <span class="zero-cloud-tag"><ShieldCheck :size="13" /> {{ t('integrations.view.vendors.localOnly') }}</span>
+            </div>
+            <div class="disc-card-body">
+              <h4 class="disc-name">{{ item.model }}</h4>
+              <div class="disc-meta"><span>{{ item.ip }} · {{ item.mac }}</span></div>
+              <div class="tags-cloud">
+                <span class="entity-chip">IR</span>
+                <span v-if="item.supports_rf" class="entity-chip">RF</span>
+              </div>
+              <label class="form-group">
+                <span>{{ t('integrations.view.vendors.deviceName') }}</span>
+                <input v-model="broadlinkNames[item.ip]" type="text" :placeholder="item.model" />
+              </label>
+            </div>
+            <div class="disc-card-footer">
+              <button type="button" class="btn-pair" :disabled="broadlinkPairing === item.mac" @click="pairBroadlinkDevice(item)">
+                <RefreshCw v-if="broadlinkPairing === item.mac" :size="14" class="animate-spin" />
+                <Plus v-else :size="14" />
+                {{ t('integrations.view.vendors.broadlinkPair') }}
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <div class="broadlink-paired-list">
+          <h4>{{ t('integrations.view.vendors.broadlinkPairedTitle') }} ({{ broadlinkDevices.length }})</h4>
+          <p v-if="!broadlinkDevices.length" class="disc-sub">{{ t('integrations.view.vendors.broadlinkNoDevices') }}</p>
+          <article v-for="device in broadlinkDevices" :key="device.id" class="vendor-device-card">
+            <div class="vendor-section-heading">
+              <div>
+                <strong>{{ device.name }}</strong>
+                <p>{{ device.model }} · {{ device.ip }} · {{ device.mac }}</p>
+                <span :class="['status-badge', device.online ? 'badge-connected' : 'badge-disconnected']">
+                  {{ device.online ? t('integrations.view.vendors.online') : t('integrations.view.vendors.offline') }}
+                </span>
+              </div>
+              <button type="button" class="btn-action glass-panel" @click="removeBroadlinkDevice(device)">
+                {{ t('integrations.view.vendors.remove') }}
+              </button>
+            </div>
+            <div class="vendor-form-grid broadlink-controls">
+              <label class="form-group">
+                <span>{{ t('integrations.view.vendors.broadlinkMedium') }}</span>
+                <select v-model="broadlinkMedia[device.id]">
+                  <option value="ir">IR</option>
+                  <option v-if="device.supports_rf" value="rf">RF</option>
+                </select>
+              </label>
+              <label class="form-group">
+                <span>{{ t('integrations.view.vendors.broadlinkCommandName') }}</span>
+                <input v-model="broadlinkCommandNames[device.id]" type="text" :placeholder="t('integrations.view.vendors.broadlinkCommandPlaceholder')" />
+              </label>
+              <div class="broadlink-buttons">
+                <button type="button" class="btn-action glass-panel" :disabled="broadlinkLearning === device.id" @click="startBroadlinkLearning(device)">
+                  {{ broadlinkLearning === device.id ? t('integrations.view.vendors.broadlinkLearning') : t('integrations.view.vendors.broadlinkLearn') }}
+                </button>
+                <button type="button" class="btn-action glass-panel" :disabled="broadlinkSaving === device.id" @click="saveBroadlinkLearnedCommand(device)">
+                  {{ broadlinkSaving === device.id ? t('integrations.view.vendors.broadlinkSaving') : t('integrations.view.vendors.broadlinkSaveCode') }}
+                </button>
+              </div>
+            </div>
+            <p class="disc-sub">{{ t('integrations.view.vendors.broadlinkLearnHint') }}</p>
+            <div v-if="(broadlinkCommands[device.id] || []).length" class="tags-cloud broadlink-command-list">
+              <button
+                v-for="command in broadlinkCommands[device.id] || []"
+                :key="`${command.name}:${command.medium}`"
+                type="button"
+                class="entity-chip broadlink-command"
+                :disabled="broadlinkSending === `${device.id}:${command.name}:${command.medium}`"
+                @click="sendBroadlinkCommand(device, command)"
+              >
+                {{ command.name }} · {{ command.medium.toUpperCase() }}
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+            <section class="vendor-section glass-card">
         <div class="vendor-section-heading">
           <div>
             <h3>{{ t('integrations.view.vendors.xiaomiLocalTitle') }}</h3>
@@ -3956,5 +4208,22 @@ onMounted(() => {
   .vendor-form-actions > button { flex: 1 1 auto; min-height: 42px; }
 }
 
-</style>
+.broadlink-scan-row { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+.broadlink-scan-row .ip-input { flex: 1; min-width: 0; }
+.broadlink-paired-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.broadlink-paired-list > h4 { color: var(--text-main); font-size: 14px; font-weight: 650; }
+.vendor-device-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: rgba(255,255,255,0.02); }
+.broadlink-controls { align-items: end; }
+.broadlink-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.broadlink-command-list { margin-top: 8px; }
+.broadlink-command { cursor: pointer; }
+.broadlink-command:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 620px) {
+  .broadlink-scan-row { flex-direction: column; align-items: stretch; }
+  .broadlink-scan-row > * { width: 100%; }
+  .broadlink-buttons > button { flex: 1 1 auto; min-height: 42px; }
+  .broadlink-controls { grid-template-columns: minmax(0, 1fr); }
+}
 
+
+</style>

@@ -511,6 +511,7 @@ onBeforeUnmount(() => {
           @change="handleFileSelected"
         />
         <input
+          id="receipt-image-input"
           ref="cameraFallbackInput"
           class="visually-hidden"
           type="file"

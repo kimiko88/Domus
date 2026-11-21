@@ -106,7 +106,7 @@ describe('IntegrationsView.vue', () => {
 
     // Switch to discovery tab
     const tabs = wrapper.findAll('.tab-btn')
-    expect(tabs.length).toBe(5)
+    expect(tabs.length).toBe(6)
     await tabs[1].trigger('click')
     await wrapper.vm.$nextTick()
 
@@ -704,6 +704,108 @@ describe('IntegrationsView.vue', () => {
       '/api/v1/integrations/tuya-local/devices/tuya-upper-temp/command',
       expect.anything()
     )
+  })
+
+
+  it('scans, pairs and controls a BroadLink RM remote from the vendor panel', async () => {
+    const discovered = {
+      mac: '24:DF:A7:11:22:33',
+      ip: '192.168.1.50',
+      port: 80,
+      device_type: 0x51da,
+      model: 'RM4 Mini',
+      supports_ir: true,
+      supports_rf: false
+    }
+    const pairedDevice = {
+      id: 'broadlink_24dfa7112233',
+      mac: discovered.mac,
+      ip: discovered.ip,
+      name: 'RM4 Mini TV',
+      model: 'RM4 Mini',
+      device_type: discovered.device_type,
+      online: true,
+      supports_ir: true,
+      supports_rf: false,
+      entity_key: 'remote.broadlink_24dfa7112233'
+    }
+    const savedCommand = { name: 'TV Power', medium: 'ir', created_at: 1795280400 }
+    let paired = false
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/broadlink-local/devices') {
+        return { devices: paired ? [pairedDevice] : [] }
+      }
+      if (url.endsWith('/broadlink_24dfa7112233/commands')) {
+        return { commands: [savedCommand] }
+      }
+      if (url === '/api/v1/integrations') return []
+      if (url === '/api/v1/integrations/catalog') return []
+      if (url === '/api/v1/integrations/discovery/devices') return []
+      return []
+    })
+
+    const postSpy = vi.spyOn(apiClient, 'post').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/broadlink-local/discovery/scan') {
+        return { devices: [discovered], count: 1 }
+      }
+      if (url === '/api/v1/integrations/broadlink-local/devices') {
+        paired = true
+        return { device: pairedDevice }
+      }
+      return { success: true }
+    })
+    const deleteSpy = vi.spyOn(apiClient, 'delete').mockResolvedValue({ status: 'deleted' })
+
+    const wrapper = mount(IntegrationsView)
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    const tabs = wrapper.findAll('.tab-btn')
+    expect(tabs.length).toBe(6)
+    await tabs[5].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('BroadLink Local · telecomandi IR/RF')
+    await wrapper.find('.broadlink-scan-row button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('RM4 Mini')
+
+    await wrapper.find('.broadlink-discovered .btn-pair').trigger('click')
+    await flushPromises()
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/broadlink-local/devices', {
+      ip: '192.168.1.50',
+      name: 'RM4 Mini'
+    })
+    expect(wrapper.find('.vendor-device-card').exists()).toBe(true)
+
+    const learnButton = wrapper.findAll('button').find(button => button.text().includes('Avvia apprendimento'))
+    expect(learnButton).toBeDefined()
+    await learnButton!.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/broadlink-local/devices/broadlink_24dfa7112233/learn/start',
+      { medium: 'ir' }
+    )
+
+    const saveButton = wrapper.findAll('button').find(button => button.text().includes('Acquisisci e salva'))
+    await wrapper.find('.vendor-device-card input[placeholder="es. Accensione TV"]').setValue('TV Power')
+    await saveButton!.trigger('click')
+    await flushPromises()
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/broadlink-local/devices/broadlink_24dfa7112233/learn/result',
+      { name: 'TV Power', medium: 'ir' }
+    )
+
+    const sendButton = wrapper.find('.broadlink-command')
+    expect(sendButton.text()).toContain('TV Power')
+    await sendButton.trigger('click')
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/integrations/broadlink-local/devices/broadlink_24dfa7112233/commands/send',
+      { name: 'TV Power', medium: 'ir' }
+    )
+
+    await wrapper.find('.vendor-device-card .btn-action').trigger('click')
+    expect(deleteSpy).toHaveBeenCalledWith('/api/v1/integrations/broadlink-local/devices/broadlink_24dfa7112233')
   })
 
 })

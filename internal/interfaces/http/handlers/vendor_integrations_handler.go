@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"crypto/sha256"
 	"io"
 	"math"
 	"net/http"
@@ -314,7 +313,7 @@ func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	config.AccessToken = token.AccessToken
 	config.RefreshToken = token.RefreshToken
 	config.ExpiresAt = token.ExpiresAt
-	if err := h.saveConfig(r.Context(), config, "connected"); err != nil {
+	if err := h.saveConfig(r.Context(), *config, "connected"); err != nil {
 		http.Error(w, "Imou authorization succeeded but token storage failed", http.StatusInternalServerError)
 		return
 	}
@@ -963,7 +962,7 @@ func (h *ImouLifeHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	config.AccessToken = ""
 	config.RefreshToken = ""
 	config.ExpiresAt = time.Time{}
-	if err := h.saveConfig(r.Context(), config, "disconnected"); err != nil {
+	if err := h.saveConfig(r.Context(), *config, "disconnected"); err != nil {
 		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Could not disconnect Imou account")
 		return
 	}
@@ -1245,7 +1244,7 @@ func validateImouServiceInput(service imou_life.CapabilityService, input map[str
 			return fmt.Errorf("input %q is not declared by this device", field)
 		}
 	}
-	for field, typeName := range declared {
+	for field := range declared {
 		value, present := input[field]
 		if !present { continue }
 		if err := validateImouDataType(typeNameDataType(service, field), value); err != nil {
