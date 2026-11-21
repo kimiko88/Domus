@@ -92,7 +92,7 @@ func TestAlarmService_Lifecycle(t *testing.T) {
 	assert.Equal(t, "turn_on", sirenCtrl.lastService)
 
 	// 6. Disarm
-	panel, err = svc.Disarm(ctx, "4321", "user1")
+	panel, err = svc.Disarm(ctx, "432198", "user1")
 	require.NoError(t, err)
 	assert.Equal(t, domainAlarm.StateDisarmed, panel.State)
 	assert.Equal(t, "switch.siren", sirenCtrl.lastEntityKey)
