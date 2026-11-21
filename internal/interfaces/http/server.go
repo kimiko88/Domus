@@ -24,6 +24,7 @@ import (
 	appcamera "github.com/domus-hub/domus/internal/application/camera"
 	appchore "github.com/domus-hub/domus/internal/application/chore"
 	appclimate "github.com/domus-hub/domus/internal/application/climate"
+	appclimatehistory "github.com/domus-hub/domus/internal/application/climate_history"
 	appcloudassistant "github.com/domus-hub/domus/internal/application/cloud_assistant"
 	appdash "github.com/domus-hub/domus/internal/application/dashboard"
 	"github.com/domus-hub/domus/internal/application/energy"
@@ -107,6 +108,11 @@ func WithAdvancedFeatures(energyCtrl *energy.Controller, presenceSvc *presence.S
 	}
 }
 
+// WithClimateHistory attaches climate telemetry collection and analytics.
+func WithClimateHistory(service *appclimatehistory.Service) ServerOption {
+	return func(s *Server) { s.climateHistory = service }
+}
+
 // WithWebPushService attaches the authenticated browser Web Push service.
 func WithWebPushService(service *appnotif.WebPushService) ServerOption {
 	return func(s *Server) { s.webPushService = service }
@@ -159,6 +165,7 @@ type Server struct {
 	tuyaLocalAdapter *tuya_local.Adapter
 	broadlinkAdapter *broadlink.Adapter
 	predictiveClimate *appclimate.PredictiveService
+	climateHistory   *appclimatehistory.Service
 	predictiveCancel context.CancelFunc
 	predictiveDone chan struct{}
 }
@@ -571,6 +578,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					devRouter.Get("/", deviceH.List)
 					devRouter.Get("/{id}", deviceH.GetByID)
 				})
+
+				if srv.climateHistory != nil {
+					climateHistoryHandler := handlers.NewClimateHistoryHandler(srv.climateHistory)
+					domainRouter.Route("/climate/history", func(climateRouter chi.Router) {
+						climateRouter.Get("/settings", climateHistoryHandler.GetSettings)
+						climateRouter.With(domusmw.RequireSettingsPermission()).Put("/settings", climateHistoryHandler.UpdateSettings)
+						climateRouter.Get("/history", climateHistoryHandler.GetHistory)
+						climateRouter.Get("/summary", climateHistoryHandler.GetSummary)
+						climateRouter.Get("/export.csv", climateHistoryHandler.ExportCSV)
+					})
+				}
 
 				domainRouter.Route("/entities", func(entRouter chi.Router) {
 					entRouter.Get("/", entityH.List)
