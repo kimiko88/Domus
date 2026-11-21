@@ -14,6 +14,7 @@ func TestDeviceModel(t *testing.T) {
 		{0x520b,"RM4 Pro",true},
 		{0x649b,"RM4 Pro",true},
 		{0x6184,"RM4C Pro",true},
+		{0x5211,"RM4C Mate",false},
 		{0x2712,"RM Pro",true},
 	}
 	for _,tt := range tests {
@@ -21,6 +22,12 @@ func TestDeviceModel(t *testing.T) {
 		if model != tt.model || !ir || rf != tt.rf { t.Fatalf("DeviceModel(%#x) = %q ir=%v rf=%v",tt.typ,model,ir,rf) }
 	}
 	if model,_,_ := DeviceModel(0x2711); model != "" { t.Fatalf("plug was incorrectly classified as RM: %s",model) }
+	if !usesModernRemoteFrame(0x51da) || !usesModernRemoteFrame(0x520b) || !usesModernRemoteFrame(0x5f36) {
+		t.Fatal("RM4 and new RM Mini 3 devices must use the extended remote frame")
+	}
+	if usesModernRemoteFrame(0x2737) || usesModernRemoteFrame(0x27c2) {
+		t.Fatal("legacy RM Mini 3 devices must use the legacy remote frame")
+	}
 }
 
 func TestDiscoveryPacket(t *testing.T) {

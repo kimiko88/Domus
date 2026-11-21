@@ -36,7 +36,7 @@ func NewClient(ip string, deviceType uint16, mac string, deviceID uint32, key []
 	if err != nil {
 		return nil, err
 	}
-	client := &Client{ip: parsedIP.String(), deviceType: deviceType, mac: parsedMAC, deviceID: deviceID, timeout: 2500 * time.Millisecond}
+	client := &Client{ip: parsedIP.String(), deviceType: deviceType, mac: parsedMAC, deviceID: deviceID, timeout: 2500 * time.Millisecond, counter: 0x8000}
 	if len(key) == 16 {
 		copy(client.key[:], key)
 	}
@@ -106,7 +106,7 @@ func (c *Client) exchange(ctx context.Context, command uint16, payload []byte, k
 	if err != nil {
 		return nil, err
 	}
-	c.counter++
+	c.counter = (c.counter + 1) | 0x8000
 	packet := make([]byte, 0x38+len(encrypted))
 	copy(packet[:8], []byte{0x5a, 0xa5, 0xaa, 0x55, 0x5a, 0xa5, 0xaa, 0x55})
 	binary.LittleEndian.PutUint16(packet[0x24:0x26], c.deviceType)
