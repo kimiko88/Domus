@@ -173,8 +173,8 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 	if err != nil { return nil, fmt.Errorf("sqlite: begin climate compaction: %w", err) }
 	defer tx.Rollback()
 	result := &domclimate.RetentionSummary{}
-	raw := rawCutoff.UTC().Format(time.RFC3339Nano)
-	hourly := hourlyCutoff.UTC().Format(time.RFC3339Nano)
+	raw := rawCutoff.UTC().Truncate(time.Second).Format(time.RFC3339)
+	hourly := hourlyCutoff.UTC().Truncate(time.Second).Format(time.RFC3339)
 
 	hourlySQL := `
 		INSERT INTO climate_history_hourly(
