@@ -8,12 +8,20 @@ Domus provides administrator-only setup and management under **Settings → Inte
 
 The local adapter supports IP devices that expose the legacy Xiaomi miIO protocol over UDP port 54321.
 
-- Enter the device's private LAN IP address, a display name, and the device's 32-character hexadecimal local miIO token.
-- Domus probes the device with `miIO.info` before storing it.
+- Use **Discover devices on LAN** to send bounded miIO hello probes to private IPv4 subnets on active Ethernet/Wi-Fi interfaces. Virtual, VPN, loopback, public and link-local interfaces are excluded; subnets wider than /24 are narrowed to the /24 containing the host interface address, with a hard cap of 512 targets.
+- Select a discovered IP or enter it manually, then provide a display name and the device's 32-character hexadecimal local miIO token. Discovery does not reveal or recover the token.
+- Domus authenticates with `miIO.info` before storing the device. The pairing flow only saves the token after the device accepts it.
 - The token is stored encrypted and is never returned by the API.
 - Local targets must be private IP literals. Hostnames, public IPs, loopback, URLs and arbitrary ports are rejected.
 
-This is not universal Xiaomi Home support. BLE Mesh/Zigbee products, hubs that expose only cloud APIs, and models without a compatible local miIO token are not covered. Do not enter an account password or use a token you are not authorized to administer.
+The local API exposes bounded read-only property reads. Power and mode writes are currently enabled only for recognized `zhimi.airpurifier.*` models; other device families can be paired and probed, but write controls remain disabled until a validated model-specific profile is added. BLE Mesh/Zigbee products, hubs that expose only cloud APIs, and models without a compatible local miIO token are not covered. Do not enter an account password or use a token you are not authorized to administer.
+
+Local administrator API:
+
+- `POST /api/v1/integrations/xiaomi-home/discovery` scans eligible private IPv4 LAN subnets and returns discovered IPs and device IDs. It never returns tokens.
+- `POST /api/v1/integrations/xiaomi-home/devices` pairs a device after its local token passes `miIO.info`.
+- `POST /api/v1/integrations/xiaomi-home/devices/{id}/probe` checks authenticated reachability and reads the device identity.
+- `POST /api/v1/integrations/xiaomi-home/devices/{id}/commands` accepts only `read_properties`, `set_power` and `set_mode`; arbitrary miIO method names cannot be submitted.
 
 ### Xiaomi Open Platform OAuth and MIoT Cloud
 

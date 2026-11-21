@@ -110,6 +110,12 @@ type xiaomiDeviceView struct {
 	AddedAt time.Time `json:"added_at"`
 }
 
+type xiaomiCommandRequest struct {
+	Action string   `json:"action"`
+	Value  any      `json:"value,omitempty"`
+	Properties []string `json:"properties,omitempty"`
+}
+
 func NewImouLifeHandler(repo integration.Repository, cipher *crypto.EnvelopeCipher) (*ImouLifeHandler, error) {
 	if repo == nil || cipher == nil {
 		return nil, errors.New("imou: integration repository and encryption are required")
@@ -160,7 +166,9 @@ func (h *XiaomiHomeHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/devices", h.AddDevice)
 	r.Get("/devices/{id}", h.GetDevice)
 	r.Delete("/devices/{id}", h.DeleteDevice)
+	r.Post("/discovery", h.Discover)
 	r.Post("/devices/{id}/probe", h.ProbeDevice)
+	r.Post("/devices/{id}/commands", h.CommandDevice)
 }
 
 func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
@@ -1053,6 +1061,113 @@ func (h *XiaomiHomeHandler) ListDevices(w http.ResponseWriter, r *http.Request) 
 	views := make([]xiaomiDeviceView, 0, len(config.Devices))
 	for _, d := range config.Devices { views = append(views, viewXiaomiDevice(d)) }
 	writeJSON(w, http.StatusOK, views)
+}
+
+
+func (h *XiaomiHomeHandler) Discover(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+	defer cancel()
+	devices, err := h.client.DiscoverLAN(ctx)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "DISCOVERY_FAILED", "Could not scan private LAN interfaces for Xiaomi miIO devices")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"devices": devices,
+		"scanned_at": time.Now().UTC(),
+	})
+}
+
+func (h *XiaomiHomeHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	var req xiaomiCommandRequest
+	if !decodeLimitedJSON(w, r, &req, 8*1024) {
+		return
+	}
+	config, err := h.loadConfig(r)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Xiaomi device not found")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	for _, d := range config.Devices {
+		if d.ID != id {
+			continue
+		}
+		if req.Action != "read_properties" && !isSupportedXiaomiPurifier(d.Model) {
+			writeError(w, http.StatusUnprocessableEntity, "UNSUPPORTED_DEVICE", "Write controls are currently enabled only for supported Xiaomi air-purifier miIO models")
+			return
+		}
+		method, params, commandErr := xiaomiCommandForRequest(req)
+		if commandErr != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_COMMAND", commandErr.Error())
+			return
+		}
+		result, callErr := h.client.Call(r.Context(), d.IP, d.Token, method, params)
+		if callErr != nil {
+			writeError(w, http.StatusBadGateway, "DEVICE_COMMAND_FAILED", "The Xiaomi device rejected the command or did not respond")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"action": req.Action,
+			"result": result,
+			"executed_at": time.Now().UTC(),
+		})
+		return
+	}
+	writeError(w, http.StatusNotFound, "NOT_FOUND", "Xiaomi device not found")
+}
+
+func xiaomiCommandForRequest(req xiaomiCommandRequest) (string, any, error) {
+	switch req.Action {
+	case "read_properties":
+		if len(req.Properties) == 0 || len(req.Properties) > 16 {
+			return "", nil, errors.New("choose between 1 and 16 property names")
+		}
+		for _, property := range req.Properties {
+			if !validXiaomiPropertyName(property) {
+				return "", nil, errors.New("invalid Xiaomi property name")
+			}
+		}
+		return "get_prop", req.Properties, nil
+	case "set_power":
+		value, ok := req.Value.(bool)
+		if !ok {
+			return "", nil, errors.New("power value must be boolean")
+		}
+		return "set_power", []any{value}, nil
+	case "set_mode":
+		value, ok := req.Value.(string)
+		if !ok {
+			return "", nil, errors.New("mode value must be a string")
+		}
+		switch value {
+		case "auto", "silent", "favorite", "idle":
+			return "set_mode", []any{value}, nil
+		default:
+			return "", nil, errors.New("unsupported purifier mode")
+		}
+	default:
+		return "", nil, errors.New("unsupported Xiaomi command")
+	}
+}
+
+func validXiaomiPropertyName(value string) bool {
+	if value == "" || len(value) > 64 {
+		return false
+	}
+	for _, ch := range value {
+		if !(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') &&
+			!(ch >= '0' && ch <= '9') && ch != '_' && ch != '-' && ch != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+func isSupportedXiaomiPurifier(model string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "zhimi.airpurifier.")
 }
 
 func (h *XiaomiHomeHandler) AddDevice(w http.ResponseWriter, r *http.Request) {

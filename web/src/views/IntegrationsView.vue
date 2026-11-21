@@ -292,6 +292,9 @@ async function removeBroadlinkDevice(device: BroadlinkDevice) {
 interface XiaomiLocalDevice {
   id: string; name: string; ip: string; model?: string; firmware?: string; mac?: string; device_id?: number
 }
+interface XiaomiDiscoveredDevice {
+  ip: string; device_id: number; device_timestamp: number
+}
 interface XiaomiCloudDevice {
   did: string; name: string; online: boolean; type: string; category?: string; rid?: string
 }
@@ -312,8 +315,13 @@ interface ImouRecording {
 }
 
 const xiaomiLocalDevices = ref<XiaomiLocalDevice[]>([])
+const xiaomiDiscoveredDevices = ref<XiaomiDiscoveredDevice[]>([])
+const xiaomiDiscoveryBusy = ref(false)
+const xiaomiDiscoveryScanned = ref(false)
 const xiaomiLocalForm = reactive({ ip: '', name: '', token: '' })
+const xiaomiLocalModes = reactive<Record<string, string>>({})
 const xiaomiLocalBusy = ref(false)
+const xiaomiLocalCommandBusy = ref('')
 const xiaomiLocalStatus = ref(false)
 const xiaomiCloudConfigured = ref(false)
 const xiaomiCloudConnected = ref(false)
@@ -364,6 +372,9 @@ async function loadXiaomiVendorData() {
       apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string; expires_at?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
     ])
     xiaomiLocalDevices.value = local.devices || []
+    for (const device of xiaomiLocalDevices.value) {
+      if (!xiaomiLocalModes[device.id]) xiaomiLocalModes[device.id] = 'auto'
+    }
     xiaomiLocalStatus.value = true
     xiaomiCloudConfigured.value = cloud.configured
     xiaomiCloudConnected.value = cloud.connected
@@ -376,6 +387,81 @@ async function loadXiaomiVendorData() {
     if (cloud.connected) await Promise.all([loadXiaomiCloudDevices(), loadXiaomiHomes()])
   } catch {
     xiaomiCloudError.value = t('integrations.view.vendors.statusError')
+  }
+}
+
+async function discoverXiaomiLocalDevices() {
+  xiaomiDiscoveryBusy.value = true
+  xiaomiDiscoveryScanned.value = false
+  try {
+    const result = await apiClient.post<{ devices: XiaomiDiscoveredDevice[] }>(
+      '/api/v1/integrations/xiaomi-home/discovery'
+    )
+    xiaomiDiscoveredDevices.value = result.devices || []
+    xiaomiDiscoveryScanned.value = true
+    notificationsStore.success(
+      t('integrations.view.vendors.xiaomiDiscoveryComplete'),
+      t('integrations.view.vendors.xiaomiDiscoverySummary', { count: xiaomiDiscoveredDevices.value.length })
+    )
+  } catch {
+    notificationsStore.error(
+      t('integrations.view.vendors.xiaomiDiscoveryError'),
+      t('integrations.view.vendors.xiaomiDiscoveryErrorDesc')
+    )
+  } finally {
+    xiaomiDiscoveryBusy.value = false
+  }
+}
+
+function useDiscoveredXiaomiDevice(device: XiaomiDiscoveredDevice) {
+  xiaomiLocalForm.ip = device.ip
+  if (!xiaomiLocalForm.name.trim()) xiaomiLocalForm.name = `Xiaomi ${device.device_id}`
+}
+
+function supportsXiaomiPurifierControls(device: XiaomiLocalDevice) {
+  return (device.model || '').toLowerCase().startsWith('zhimi.airpurifier.')
+}
+
+async function probeXiaomiLocalDevice(device: XiaomiLocalDevice) {
+  const busyKey = `${device.id}:probe`
+  xiaomiLocalCommandBusy.value = busyKey
+  try {
+    const result = await apiClient.post<{ model?: string; firmware?: string }>(
+      `/api/v1/integrations/xiaomi-home/devices/${encodeURIComponent(device.id)}/probe`
+    )
+    notificationsStore.success(
+      t('integrations.view.vendors.xiaomiProbeComplete'),
+      t('integrations.view.vendors.xiaomiProbeSummary', { name: device.name, model: result.model || device.model || 'miIO' })
+    )
+  } catch {
+    notificationsStore.error(
+      t('integrations.view.vendors.xiaomiCommandError'),
+      t('integrations.view.vendors.xiaomiCommandErrorDesc')
+    )
+  } finally {
+    xiaomiLocalCommandBusy.value = ''
+  }
+}
+
+async function sendXiaomiLocalCommand(device: XiaomiLocalDevice, action: 'set_power' | 'set_mode', value: boolean | string) {
+  const busyKey = `${device.id}:${action}:${String(value)}`
+  xiaomiLocalCommandBusy.value = busyKey
+  try {
+    await apiClient.post(
+      `/api/v1/integrations/xiaomi-home/devices/${encodeURIComponent(device.id)}/commands`,
+      { action, value }
+    )
+    notificationsStore.success(
+      t('integrations.view.vendors.xiaomiCommandComplete'),
+      t('integrations.view.vendors.xiaomiCommandCompleteDesc', { name: device.name })
+    )
+  } catch {
+    notificationsStore.error(
+      t('integrations.view.vendors.xiaomiCommandError'),
+      t('integrations.view.vendors.xiaomiCommandErrorDesc')
+    )
+  } finally {
+    xiaomiLocalCommandBusy.value = ''
   }
 }
 
@@ -2326,6 +2412,23 @@ onMounted(() => {
           </div>
           <span class="badge-lan">{{ t('integrations.view.vendors.localOnly') }}</span>
         </div>
+        <div class="vendor-discovery-block">
+          <button class="btn-scan" type="button" :disabled="xiaomiDiscoveryBusy" @click="discoverXiaomiLocalDevices">
+            {{ xiaomiDiscoveryBusy ? t('integrations.view.vendors.xiaomiScanning') : t('integrations.view.vendors.xiaomiScanLan') }}
+          </button>
+          <div v-if="xiaomiDiscoveredDevices.length" class="vendor-device-list">
+            <div v-for="device in xiaomiDiscoveredDevices" :key="device.ip" class="vendor-device-row">
+              <div class="vendor-device-info">
+                <strong>{{ device.ip }}</strong>
+                <span>{{ t('integrations.view.vendors.xiaomiDiscoveredDevice') }} · ID {{ device.device_id }}</span>
+              </div>
+              <button class="btn-action glass-panel" type="button" @click="useDiscoveredXiaomiDevice(device)">
+                {{ t('integrations.view.vendors.xiaomiUseIP') }}
+              </button>
+            </div>
+          </div>
+          <p v-else-if="xiaomiDiscoveryScanned" class="vendor-empty">{{ t('integrations.view.vendors.xiaomiNoDiscoveredDevices') }}</p>
+        </div>
         <form class="vendor-form-grid" @submit.prevent="pairXiaomiLocalDevice">
           <label class="form-group">
             <span>{{ t('integrations.view.vendors.deviceName') }}</span>
@@ -2349,6 +2452,42 @@ onMounted(() => {
             <div class="vendor-device-info">
               <strong>{{ device.name }}</strong>
               <span>{{ device.model || 'Xiaomi miIO' }} · {{ device.ip }}</span>
+              <div class="vendor-device-controls">
+                <button
+                  class="btn-action glass-panel"
+                  type="button"
+                  :disabled="xiaomiLocalCommandBusy === `${device.id}:probe`"
+                  @click="probeXiaomiLocalDevice(device)"
+                >
+                  {{ xiaomiLocalCommandBusy === `${device.id}:probe` ? t('integrations.view.vendors.xiaomiProbing') : t('integrations.view.vendors.xiaomiProbe') }}
+                </button>
+                <template v-if="supportsXiaomiPurifierControls(device)">
+                  <button
+                    class="btn-action glass-panel"
+                    type="button"
+                    :disabled="xiaomiLocalCommandBusy.startsWith(`${device.id}:`)"
+                    @click="sendXiaomiLocalCommand(device, 'set_power', true)"
+                  >{{ t('integrations.view.vendors.xiaomiPowerOn') }}</button>
+                  <button
+                    class="btn-action glass-panel"
+                    type="button"
+                    :disabled="xiaomiLocalCommandBusy.startsWith(`${device.id}:`)"
+                    @click="sendXiaomiLocalCommand(device, 'set_power', false)"
+                  >{{ t('integrations.view.vendors.xiaomiPowerOff') }}</button>
+                  <select v-model="xiaomiLocalModes[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.xiaomiMode')">
+                    <option value="auto">{{ t('integrations.view.vendors.xiaomiModeAuto') }}</option>
+                    <option value="silent">{{ t('integrations.view.vendors.xiaomiModeSilent') }}</option>
+                    <option value="favorite">{{ t('integrations.view.vendors.xiaomiModeFavorite') }}</option>
+                  </select>
+                  <button
+                    class="btn-action glass-panel"
+                    type="button"
+                    :disabled="xiaomiLocalCommandBusy.startsWith(`${device.id}:`)"
+                    @click="sendXiaomiLocalCommand(device, 'set_mode', xiaomiLocalModes[device.id] || 'auto')"
+                  >{{ t('integrations.view.vendors.xiaomiApplyMode') }}</button>
+                </template>
+              </div>
+              <small v-if="supportsXiaomiPurifierControls(device)" class="vendor-hint">{{ t('integrations.view.vendors.xiaomiControlsHint') }}</small>
             </div>
             <button class="btn-action glass-panel" type="button" @click="removeXiaomiLocalDevice(device)">{{ t('integrations.view.vendors.remove') }}</button>
           </div>
@@ -4172,6 +4311,9 @@ onMounted(() => {
 .vendor-secret-url strong { color: var(--text-muted); font-size: 12px; }
 .vendor-secret-url code { color: var(--primary); font-size: 11px; white-space: normal; overflow-wrap: anywhere; user-select: text; }
 .vendor-connected-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; }
+.vendor-discovery-block { display: flex; flex-direction: column; gap: 10px; }
+.vendor-device-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
+.vendor-device-controls .form-control { width: auto; min-width: 118px; min-height: 36px; }
 .vendor-device-list { display: flex; flex-direction: column; gap: 8px; }
 .vendor-device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); }
 .vendor-device-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
