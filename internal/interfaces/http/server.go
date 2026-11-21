@@ -221,6 +221,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	if srv.repos != nil && srv.repos.Integrations != nil && srv.repos.Cipher != nil {
 		var handlerErr error
 		imouLifeHandler, handlerErr = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr == nil {
+			imouLifeHandler.WithEventBus(srv.bus)
+		}
 		if handlerErr != nil {
 			slog.Error("Imou Life integration disabled: handler initialization failed", "error", handlerErr)
 		}
