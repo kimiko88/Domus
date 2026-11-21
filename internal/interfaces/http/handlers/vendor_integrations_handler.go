@@ -839,9 +839,24 @@ func (h *ImouLifeHandler) RecordingPreview(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadGateway, "IMOU_ADMIN_TOKEN_ERROR", "Could not obtain Imou playback authorization")
 		return
 	}
+	deviceID := chi.URLParam(r, "deviceID")
+	productID := ""
+	for page := 1; page <= 20; page++ {
+		devices, _, listErr := client.ListDevices(r.Context(), config.AccessToken, page, 50)
+		if listErr != nil { break }
+		found := false
+		for _, item := range devices {
+			if item.DeviceID == deviceID {
+				productID = item.ProductID
+				found = true
+				break
+			}
+		}
+		if found || len(devices) < 50 { break }
+	}
 	streamURL, err := client.CreateVideoDownloadStreamURL(
-		r.Context(), adminToken, chi.URLParam(r, "deviceID"),
-		strconv.Itoa(channel), businessType, strconv.Itoa(stream), begin, end,
+		r.Context(), adminToken, deviceID,
+		strconv.Itoa(channel), productID, businessType, strconv.Itoa(stream), begin, end,
 	)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "IMOU_RECORDING_PLAYBACK_ERROR", "Imou could not create a temporary recording stream for this account and device")
