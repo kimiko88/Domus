@@ -110,7 +110,7 @@ func (c *Client) endpoint(region string) (string, error) {
 }
 
 func traceID() string {
-	return strconv.FormatInt(time.Now().UnixMilli(), 10)
+	return strconv.FormatInt(time.Now().Unix(), 10)
 }
 
 func terminalID() string {
@@ -324,17 +324,28 @@ func (c *Client) ListDevices(ctx context.Context, session Session) ([]DeviceInfo
 		if cid == "" {
 			continue
 		}
-		model := stringValue(raw["deviceType"])
+		deviceType := stringValue(raw["deviceType"])
+		configModule := stringValue(raw["configModule"])
+		model := knownPurifierModel(deviceType)
+		if model == "" {
+			model = knownPurifierModel(configModule)
+		}
+		if model == "" {
+			model = deviceType
+		}
 		productType, modes, levels := modelCapabilities(model)
 		if productType == "unknown" {
-			productType = classifyProduct(model)
+			productType = classifyProduct(deviceType)
+		}
+		if productType == "unknown" {
+			productType = classifyProduct(configModule)
 		}
 		devices = append(devices, DeviceInfo{
 			ID: cid,
 			Name: fallback(stringValue(raw["deviceName"]), model),
 			Model: model,
-			DeviceType: model,
-			ConfigModule: stringValue(raw["configModule"]),
+			DeviceType: deviceType,
+			ConfigModule: configModule,
 			ProductType: productType,
 			Status: stringValue(raw["deviceStatus"]),
 			ConnectionStatus: stringValue(raw["connectionStatus"]),
@@ -411,6 +422,19 @@ var purifierCapabilities = map[string]struct {
 	"LAP-B851S-WUS": {modes: []string{"sleep", "manual", "auto"}, levels: []int{1, 2, 3}},
 }
 
+func knownPurifierModel(rawModel string) string {
+	rawModel = strings.TrimSpace(rawModel)
+	if _, ok := purifierCapabilities[rawModel]; ok {
+		return rawModel
+	}
+	for model := range purifierCapabilities {
+		if strings.Contains(rawModel, model) {
+			return model
+		}
+	}
+	return ""
+}
+
 func modelCapabilities(model string) (string, []string, []int) {
 	caps, ok := purifierCapabilities[strings.TrimSpace(model)]
 	if !ok {
@@ -457,7 +481,57 @@ func (c *Client) callPurifier(ctx context.Context, session Session, device Devic
 	if _, ok := allowed[method]; !ok {
 		return nil, errors.New("vesync: unsupported purifier command")
 	}
-	return c.post(ctx, session.Region, "/cloud/v2/deviceManaged/bypassV2", BypassV2Request(session, device, method, data), true)
+	response, err := c.post(ctx, session.Region, "/cloud/v2/deviceManaged/bypassV2", BypassV2Request(session, device, method, data), true)
+	if err != nil {
+		return nil, err
+	}
+	if code, message, failed := nestedProviderError(response); failed {
+		return nil, &APIError{Code: code, Message: safeAPIMessage(message)}
+	}
+	return response, nil
+}
+
+func providerErrorCode(value any) (string, bool) {
+	switch code := value.(type) {
+	case float64:
+		if code != 0 {
+			return strconv.FormatInt(int64(code), 10), true
+		}
+	case int:
+		if code != 0 {
+			return strconv.Itoa(code), true
+		}
+	case json.Number:
+		if parsed, err := code.Float64(); err == nil && parsed != 0 {
+			return code.String(), true
+		}
+	}
+	return "", false
+}
+
+func nestedProviderError(value any) (string, string, bool) {
+	switch current := value.(type) {
+	case map[string]any:
+		for key, child := range current {
+			lower := strings.ToLower(key)
+			if lower == "code" || lower == "error" || lower == "error_code" || lower == "errorcode" || lower == "device_error_code" {
+				if code, failed := providerErrorCode(child); failed {
+					message, _ := current["msg"].(string)
+					return code, message, true
+				}
+			}
+			if code, message, failed := nestedProviderError(child); failed {
+				return code, message, true
+			}
+		}
+	case []any:
+		for _, child := range current {
+			if code, message, failed := nestedProviderError(child); failed {
+				return code, message, true
+			}
+		}
+	}
+	return "", "", false
 }
 
 func (c *Client) GetPurifierStatus(ctx context.Context, session Session, device DeviceInfo) (map[string]any, error) {

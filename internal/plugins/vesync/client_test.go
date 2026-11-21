@@ -79,7 +79,7 @@ func TestListDevicesSanitizesAndAddsModelCapabilities(t *testing.T) {
 		if r.Header.Get("User-Agent") != apiUserAgent {
 			t.Fatalf("unexpected bypass user-agent %q", r.Header.Get("User-Agent"))
 		}
-		_, _ = w.Write([]byte(`{"code":0,"result":{"list":[{"cid":"cid-1","deviceName":"Purifier","deviceType":"Core300S","configModule":"Core300S","deviceStatus":"on","connectionStatus":"online","currentFirmVersion":"1.0"},{"deviceName":"invalid"}]}}`))
+		_, _ = w.Write([]byte(`{"code":0,"result":{"list":[{"cid":"cid-1","deviceName":"Purifier","deviceType":"unknown-model","configModule":"WiFiBTOnboarding_AirPurifier_Core300S_EU","deviceStatus":"on","connectionStatus":"online","currentFirmVersion":"1.0"},{"deviceName":"invalid"}]}}`))
 	}))
 	defer server.Close()
 	client := newClientForTest(server.Client(), server.URL)
@@ -166,4 +166,36 @@ func mustJSON(t *testing.T, value any) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+
+func TestPurifierCommandRejectsNestedDeviceError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"result":{"code":10001,"msg":"device rejected command"}}`))
+	}))
+	defer server.Close()
+	client := newClientForTest(server.Client(), server.URL)
+	device := DeviceInfo{ID: "cid", ProductType: "purifier", ConfigModule: "Core300S"}
+	_, err := client.SetPurifierPower(context.Background(), Session{
+		AccountID: "acct", Token: "token", CountryCode: "IT", Region: "EU", TimeZone: "Europe/Rome",
+	}, device, true)
+	if err == nil {
+		t.Fatal("nested non-zero device result code must be treated as a failed command")
+	}
+}
+
+
+func TestPurifierCommandRejectsDeviceErrorCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"result":{"code":0,"device_error_code":10002,"msg":"purifier fault"}}`))
+	}))
+	defer server.Close()
+	client := newClientForTest(server.Client(), server.URL)
+	device := DeviceInfo{ID: "cid", ProductType: "purifier", ConfigModule: "Core300S"}
+	_, err := client.SetPurifierPower(context.Background(), Session{
+		AccountID: "acct", Token: "token", CountryCode: "IT", Region: "EU", TimeZone: "Europe/Rome",
+	}, device, true)
+	if err == nil {
+		t.Fatal("non-zero device_error_code must be treated as a failed device command")
+	}
 }
