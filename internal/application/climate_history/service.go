@@ -194,7 +194,6 @@ func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 
 func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 	class := strings.ToLower(fmt.Sprint(attrs["device_class"]))
-	unit := strings.TrimSpace(ent.UnitOfMeasurement)
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
 	return class == "humidity" || strings.Contains(class, "humidity") || strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
@@ -243,30 +242,41 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 	if err != nil { return nil, err }
 	points, err := s.GetHistory(ctx, filter)
 	if err != nil { return nil, err }
-	out := &domclimate.DashboardSummary{Rooms: []domclimate.RoomSummary{}, Insights: []domclimate.Insight{}, SampleCount: len(points), From: filter.From, To: filter.To}
+	out := &domclimate.DashboardSummary{Rooms: []domclimate.RoomSummary{}, Insights: []domclimate.Insight{}, SampleCount: 0, From: filter.From, To: filter.To}
 	type bucket struct { points []domclimate.Point }
 	rooms := map[string]*bucket{}
 	entities := map[string][]domclimate.Point{}
+	roomRates := map[string][]float64{}
+	roomForecasts := map[string][]float64{}
 	for _, point := range points {
 		area := point.AreaID
 		if area == "" { area = "unassigned" }
+		weight := point.SampleCount
+		if weight < 1 { weight = 1 }
+		out.SampleCount += weight
 		if rooms[area] == nil { rooms[area] = &bucket{} }
 		rooms[area].points = append(rooms[area].points, point)
 		entities[point.EntityID] = append(entities[point.EntityID], point)
 	}
 	for area, room := range rooms {
-		summary := domclimate.RoomSummary{AreaID: area, SampleCount: len(room.points)}
+		summary := domclimate.RoomSummary{AreaID: area, SampleCount: 0}
 		var tempSum, humiditySum float64
 		var tempCount, humidityCount int
 		for _, point := range room.points {
+			weight := point.SampleCount
+			if weight < 1 { weight = 1 }
+			summary.SampleCount += weight
 			if point.TemperatureAverage != nil {
-				v := *point.TemperatureAverage; tempSum += v; tempCount++
-				if summary.MinimumTemperature == nil || v < *summary.MinimumTemperature { summary.MinimumTemperature = floatPtr(v) }
-				if summary.MaximumTemperature == nil || v > *summary.MaximumTemperature { summary.MaximumTemperature = floatPtr(v) }
+				v := *point.TemperatureAverage; tempSum += v * float64(weight); tempCount += weight
+				minimum, maximum := point.TemperatureMinimum, point.TemperatureMaximum
+				if minimum == nil { minimum = point.TemperatureAverage }
+				if maximum == nil { maximum = point.TemperatureAverage }
+				if summary.MinimumTemperature == nil || *minimum < *summary.MinimumTemperature { summary.MinimumTemperature = floatPtr(*minimum) }
+				if summary.MaximumTemperature == nil || *maximum > *summary.MaximumTemperature { summary.MaximumTemperature = floatPtr(*maximum) }
 				summary.CurrentTemperature = floatPtr(v); summary.LastUpdatedAt = point.RecordedAt
 			}
 			if point.HumidityAverage != nil {
-				v := *point.HumidityAverage; humiditySum += v; humidityCount++; summary.CurrentHumidity = floatPtr(v)
+				v := *point.HumidityAverage; humiditySum += v * float64(weight); humidityCount += weight; summary.CurrentHumidity = floatPtr(v)
 			}
 		}
 		if tempCount > 0 { summary.AverageTemperature = floatPtr(tempSum/float64(tempCount)) }
@@ -298,7 +308,8 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 				if hours >= 0.25 && first.TemperatureAverage != nil {
 					rate := (v-*first.TemperatureAverage)/hours
 					// Attach the measured rate and a one-hour linear estimate to the room containing this entity.
-					for i := range out.Rooms { if out.Rooms[i].AreaID == area { out.Rooms[i].HeatingRate = floatPtr(rate); if settings.ForecastEnabled { out.Rooms[i].ForecastTemperature = floatPtr(v+rate) }; break } }
+					roomRates[area] = append(roomRates[area], rate)
+					if settings.ForecastEnabled { roomForecasts[area] = append(roomForecasts[area], v+rate) }
 				}
 			}
 		}
@@ -311,6 +322,19 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			if settings.ComfortAnalysisEnabled && (v < 40 || v > 60) {
 				out.Insights = append(out.Insights, domclimate.Insight{Code:"humidity_comfort", AreaID:area, EntityName:name, Metric:"humidity", Value:v})
 			}
+		}
+	}
+	for i := range out.Rooms {
+		area := out.Rooms[i].AreaID
+		if rates := roomRates[area]; len(rates) > 0 {
+			var sum float64
+			for _, rate := range rates { sum += rate }
+			out.Rooms[i].TemperatureChangeRate = floatPtr(sum / float64(len(rates)))
+		}
+		if forecasts := roomForecasts[area]; len(forecasts) > 0 {
+			var sum float64
+			for _, forecast := range forecasts { sum += forecast }
+			out.Rooms[i].ForecastTemperature = floatPtr(sum / float64(len(forecasts)))
 		}
 	}
 	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled { out.Rooms = out.Rooms[:0] }
