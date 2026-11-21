@@ -368,7 +368,8 @@ func decryptVideoDownloadURL(encoded, token string) (string, error) {
 
 func validateImouRTSPURL(ctx context.Context, raw string) (string, error) {
 	u, err := url.Parse(raw)
-	if err != nil || !strings.EqualFold(u.Scheme, "rtsp") || u.Host == "" || u.Fragment != "" {
+	if err != nil || !strings.EqualFold(u.Scheme, "rtsp") || u.Host == "" || u.Fragment != "" ||
+		strings.ContainsAny(raw, "\\r\\n\\\\ ") || u.Opaque != "" {
 		return "", errors.New("imou: provider returned an invalid RTSP URL")
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
