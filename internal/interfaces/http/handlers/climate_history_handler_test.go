@@ -112,6 +112,12 @@ func TestClimateHistoryHandlerSettingsHistoryAndExport(t *testing.T) {
 		AreaID:"living", RecordedAt:now, Temperature:&temp, Humidity:&humidity, TargetTemperature:&target,
 	}}))
 
+	formulaValue := "=HYPERLINK(\"https://example.invalid\",\"sensor\")"
+	require.NoError(t, repos.ClimateHistory.SaveSamples(ctx, []domclimatehistory.Sample{{
+		EntityID: "sensor-untrusted", EntityKey: "sensor.untrusted", EntityName: formulaValue,
+		AreaID: "living", RecordedAt: now.Add(time.Second), Temperature: &temp,
+	}}))
+
 	t.Run("history and summary", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/history?area_id=living", nil)
 		res := httptest.NewRecorder()
@@ -133,6 +139,7 @@ func TestClimateHistoryHandlerSettingsHistoryAndExport(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.Code)
 		require.Contains(t, res.Header().Get("Content-Type"), "text/csv")
 		require.Contains(t, res.Body.String(), "temperature_avg_c")
+		require.Contains(t, res.Body.String(), "'=HYPERLINK")
 
 		req = httptest.NewRequest(http.MethodGet, "/history?from=not-a-date", nil)
 		res = httptest.NewRecorder()
