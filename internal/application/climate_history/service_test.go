@@ -120,7 +120,7 @@ func TestSummarizeAppliesAlertsAndThermalAnalysis(t *testing.T) {
 	summary, err := service.Summarize(context.Background(), domclimate.Filter{From:time.Now().Add(-2*time.Hour), To:time.Now()})
 	require.NoError(t, err)
 	require.Len(t, summary.Rooms, 1)
-	require.NotNil(t, summary.Rooms[0].HeatingRate)
+	require.NotNil(t, summary.Rooms[0].TemperatureChangeRate)
 	require.NotNil(t, summary.Rooms[0].ForecastTemperature)
 	foundLow, foundHumidity := false, false
 	for _, insight := range summary.Insights {
