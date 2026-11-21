@@ -71,7 +71,7 @@ func (h *ClimateHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Reques
 
 func (h *ClimateHistoryHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	filter, ok := parseClimateFilter(w, r)
-	if !ok {
+	if !ok || !h.applyAccessScope(w, r, &filter) {
 		return
 	}
 	if filter.From.IsZero() {
@@ -90,7 +90,7 @@ func (h *ClimateHistoryHandler) GetSummary(w http.ResponseWriter, r *http.Reques
 
 func (h *ClimateHistoryHandler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 	filter, ok := parseClimateFilter(w, r)
-	if !ok {
+	if !ok || !h.applyAccessScope(w, r, &filter) {
 		return
 	}
 	points, err := h.service.GetHistory(r.Context(), filter)
