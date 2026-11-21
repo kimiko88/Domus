@@ -1,6 +1,6 @@
 # Domus 🏠 — Manuale Utente
 
-> **Versione**: 1.0.0 · **Aggiornato**: Ottobre 2026  
+> **Versione**: 1.0.0 · **Aggiornato**: Novembre 2026  
 > **Piattaforme**: Raspberry Pi 4 ARM64 (Domus OS), Linux/Docker, macOS/Windows (sviluppo)
 
 ---
@@ -918,4 +918,4 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 
 ---
 
-*Domus v1.2.0 — Ottobre 2026 · Licenza MIT*
+*Domus v1.2.0 — Novembre 2026 · Licenza MIT*
