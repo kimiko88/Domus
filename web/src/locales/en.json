@@ -217,7 +217,8 @@
     "pantry": "Pantry & Recipes",
     "settings": "Settings",
     "logout": "Log Out",
-    "guide": "Guide & Manual"
+    "guide": "Guide & Manual",
+    "climateHistory": "Climate history"
   },
   "dashboard": {
     "title": "Home Overview",
@@ -3486,5 +3487,92 @@
   "dashboardMarketplace": {
     "community": "Community",
     "verified": "Verified"
+  },
+  "climateHistory": {
+    "title": "Climate history",
+    "subtitle": "Temperature and humidity trends by room and device.",
+    "refresh": "Refresh",
+    "exportCsv": "Export CSV",
+    "filters": "History filters",
+    "ranges": {
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days",
+      "custom": "Custom"
+    },
+    "room": "Room",
+    "allRooms": "All rooms",
+    "metric": "Measurement",
+    "metrics": {
+      "temperature": "Measured temperature",
+      "humidity": "Humidity",
+      "target": "Thermostat setpoint"
+    },
+    "from": "From",
+    "to": "To",
+    "selectSeries": "Sensors and thermostats to display",
+    "selectSeriesHint": "Select multiple items to compare their curves; with no selection, all series are shown.",
+    "trendTitle": "Climate trends",
+    "chartDescription": "Compare actual temperature, target setpoint and humidity over the selected period.",
+    "samples": "{count} samples",
+    "chartAria": "Historical temperature, setpoint and humidity chart",
+    "loading": "Loading measurements…",
+    "noData": "There are no measurements in the selected period yet.",
+    "samplesShort": "samples",
+    "temperature": "Temperature",
+    "humidity": "Humidity",
+    "average": "Average",
+    "thermalRate": "Heating/cooling rate",
+    "forecast": "One-hour estimate",
+    "minMax": "Min / max",
+    "insightsTitle": "Comfort and anomalies",
+    "insightsDescription": "Insights derived from history according to the enabled settings.",
+    "unassigned": "Unassigned",
+    "settings": {
+      "title": "Collection and analysis settings",
+      "description": "Collection runs in the backend even when the dashboard is closed. Recent samples are compacted into hourly and then daily averages/minima/maxima.",
+      "enabled": "Enable climate collection",
+      "interval": "Recording interval",
+      "minutes": "minutes",
+      "recordTemperature": "Record sensor temperature",
+      "recordHumidity": "Record sensor humidity",
+      "recordThermostat": "Record thermostat readings and setpoints",
+      "smartSampling": "Also record significant changes",
+      "temperatureThreshold": "Temperature change (°C)",
+      "humidityThreshold": "Humidity change (%)",
+      "rawRetention": "Keep detailed samples (days)",
+      "hourlyRetention": "Keep hourly aggregates (days)",
+      "analysisTitle": "Optional features",
+      "temperatureAlerts": "Temperature threshold alerts",
+      "humidityAlerts": "Humidity threshold alerts",
+      "comfortAnalysis": "Comfort analysis",
+      "roomComparison": "Room comparison",
+      "thermalAnalysis": "Heating/cooling analysis",
+      "anomalyDetection": "Anomaly detection",
+      "forecast": "One-hour trend estimate",
+      "roomMap": "Room climate summary",
+      "thresholdsTitle": "Alert thresholds",
+      "lowTemperature": "Minimum temperature (°C)",
+      "highTemperature": "Maximum temperature (°C)",
+      "lowHumidity": "Minimum humidity (%)",
+      "highHumidity": "Maximum humidity (%)",
+      "saving": "Saving…",
+      "saved": "Settings saved",
+      "save": "Save settings"
+    },
+    "insights": {
+      "temperature_low": "Temperature below threshold",
+      "temperature_high": "Temperature above threshold",
+      "temperature_comfort": "Temperature outside comfort range",
+      "temperature_anomaly": "Unusual temperature change",
+      "humidity_low": "Humidity below threshold",
+      "humidity_high": "Humidity above threshold",
+      "humidity_comfort": "Humidity outside comfort range"
+    },
+    "errors": {
+      "load": "Unable to load climate history.",
+      "save": "Unable to save settings.",
+      "export": "Unable to export climate data."
+    }
   }
 }
