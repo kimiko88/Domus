@@ -460,3 +460,6 @@ func CompareCloudState(expected, got string) bool {
 	return len(expected) == len(got) && len(expected) >= 32 &&
 		subtle.ConstantTimeCompare([]byte(expected), []byte(got)) == 1
 }
+
+// ValidMIoTDeviceType reports whether a cloud device advertises a MIoT-Spec-V2 type URN.
+func ValidMIoTDeviceType(value string) bool { return validMIoTTypeURN(value) }
