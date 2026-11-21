@@ -317,7 +317,7 @@ func (h *XiaomiCloudHandler) SyncDevices(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *XiaomiCloudHandler) GetDeviceSpec(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.ensureFreshToken(r.Context())
+	_, client, err := h.ensureFreshToken(r.Context())
 	if err != nil {
 		writeError(w, http.StatusConflict, "XIAOMI_NOT_CONNECTED", "Authorize Xiaomi Home before loading a device specification")
 		return
