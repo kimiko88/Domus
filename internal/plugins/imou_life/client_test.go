@@ -2,6 +2,12 @@ package imou_life
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,4 +51,44 @@ func TestListDevicesUsesSignedFixedHostAndDoesNotExposeProviderSecrets(t *testin
 	if err != nil { t.Fatalf("ListDevices: %v", err) }
 	if gotPath != "/openapi/v2/device.detail.page" { t.Fatalf("unexpected API path %q", gotPath) }
 	if count != 1 || len(devices) != 1 || devices[0].DeviceID != "dev-1" { t.Fatalf("unexpected device response: %+v (count %d)", devices, count) }
+}
+
+func TestDecryptVideoDownloadURLRoundTripAndAuthentication(t *testing.T) {
+	token := "At_test-administrator-token"
+	key := sha256.Sum256([]byte(token + "ENCRYPTKEY"))
+	block, err := aes.NewCipher(key[:])
+	if err != nil { t.Fatal(err) }
+	gcm, err := cipher.NewGCM(block)
+	if err != nil { t.Fatal(err) }
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil { t.Fatal(err) }
+	plain := []byte("rtsp://camera-1.lechange.com:554/live")
+	sealed := gcm.Seal(nonce, nonce, plain, nil)
+	got, err := decryptVideoDownloadURL(base64.StdEncoding.EncodeToString(sealed), token)
+	if err != nil { t.Fatalf("decryptVideoDownloadURL: %v", err) }
+	if got != string(plain) { t.Fatalf("got %q, want %q", got, plain) }
+
+	sealed[len(sealed)-1] ^= 0xff
+	if _, err := decryptVideoDownloadURL(base64.StdEncoding.EncodeToString(sealed), token); err == nil {
+		t.Fatal("expected modified authentication tag to be rejected")
+	}
+	if _, err := decryptVideoDownloadURL("not-base64", token); err == nil {
+		t.Fatal("expected invalid base64 to be rejected")
+	}
+}
+
+func TestImouRTSPTargetRejectsPrivateAndUnapprovedHosts(t *testing.T) {
+	for _, raw := range []string{
+		"rtsp://127.0.0.1/live",
+		"rtsp://192.168.1.10/live",
+		"rtsp://169.254.169.254/latest",
+		"rtsp://localhost/live",
+		"rtsp://attacker.example.org/live",
+		"rtsp://evil.lechange.com\\r\\nfile '/etc/passwd'",
+	} {
+		if _, err := validateImouRTSPURL(context.Background(), raw); err == nil {
+			t.Errorf("expected unsafe stream URL %q to be rejected", raw)
+		}
+	}
+	_ = net.IPv4(127,0,0,1) // keep tests explicit about IP target classification
 }
