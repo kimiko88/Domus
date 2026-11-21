@@ -11,6 +11,7 @@ import (
 
 	appclimatehistory "github.com/domus-hub/domus/internal/application/climate_history"
 	domclimatehistory "github.com/domus-hub/domus/internal/domain/climate_history"
+	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/user"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
@@ -22,6 +23,8 @@ import (
 func TestClimateHistoryReadEndpointsRespectAreaPermissions(t *testing.T) {
 	repos, _ := setupTestEnvironment(t)
 	ctx := context.Background()
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{ID: "bedroom", Name: "Bedroom"}))
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{ID: "living", Name: "Living room"}))
 	allowed := &entity.Entity{ID: "climate-bedroom", EntityKey: "sensor.bedroom_temperature", Domain: "sensor", Name: "Bedroom temperature", State: "20", Attributes: "{}", Available: true, AreaID: "bedroom"}
 	denied := &entity.Entity{ID: "climate-living", EntityKey: "sensor.living_temperature", Domain: "sensor", Name: "Living temperature", State: "unavailable", Attributes: "{\"device_class\":\"temperature\"}", Available: false, AreaID: "living"}
 	require.NoError(t, repos.Entities.Create(ctx, allowed))
