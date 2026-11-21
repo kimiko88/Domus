@@ -52,6 +52,7 @@ import (
 	domainShop "github.com/domus-hub/domus/internal/domain/shopping"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/network"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
@@ -1042,7 +1043,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks
 				if srv.repos.DB != nil {
-					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil)
+					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil).
+						WithPINHasher(crypto.NewArgon2Hasher(crypto.DefaultArgon2Params()))
 					alarmH := handlers.NewAlarmHandler(alarmSvc)
 					alarmH.RegisterRoutes(domainRouter)
 
