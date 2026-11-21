@@ -155,7 +155,6 @@ func (c *CloudClient) AuthorizationURL(state string, scopes []string) (string, e
 		return "", errors.New("xiaomi: invalid OAuth state")
 	}
 	query := url.Values{
-		"pt": {"0"},
 		"client_id": {c.config.ClientID},
 		"redirect_uri": {c.config.RedirectURL},
 		"response_type": {"code"},
@@ -171,7 +170,7 @@ func (c *CloudClient) AuthorizationURL(state string, scopes []string) (string, e
 	} else {
 		query.Set("scope", "1")
 	}
-	return xiaomiOAuthBase + "/oauth2/auth/code?" + query.Encode(), nil
+	return xiaomiOAuthBase + "/oauth2/authorize?" + query.Encode(), nil
 }
 
 func (c *CloudClient) ExchangeCode(ctx context.Context, code string) (*CloudToken, error) {
@@ -205,11 +204,10 @@ func (c *CloudClient) RefreshToken(ctx context.Context, refreshToken string) (*C
 }
 
 func (c *CloudClient) tokenRequest(ctx context.Context, form url.Values) (*CloudToken, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, xiaomiOAuthBase+"/oauth2/auth/token", strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xiaomiOAuthBase+"/oauth2/token?"+form.Encode(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: create token request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -262,6 +260,9 @@ func (c *CloudClient) GetUserProfile(ctx context.Context, accessToken string) (*
 	}
 	if err := c.oauthGET(ctx, xiaomiProfileURL, values, &result); err != nil {
 		return nil, err
+	}
+	if result.Result != "ok" {
+		return nil, errors.New("xiaomi: Xiaomi profile API rejected the access token")
 	}
 	userID := strings.TrimSpace(fmt.Sprint(result.Data.UserID))
 	if userID == "" || userID == "<nil>" {
