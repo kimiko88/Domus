@@ -580,7 +580,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				})
 
 				if srv.climateHistory != nil {
-					climateHistoryHandler := handlers.NewClimateHistoryHandler(srv.climateHistory)
+					climateHistoryHandler := handlers.NewClimateHistoryHandler(srv.climateHistory, srv.repos.Entities)
 					domainRouter.Route("/climate/history", func(climateRouter chi.Router) {
 						climateRouter.Get("/settings", climateHistoryHandler.GetSettings)
 						climateRouter.With(domusmw.RequireSettingsPermission()).Put("/settings", climateHistoryHandler.UpdateSettings)
