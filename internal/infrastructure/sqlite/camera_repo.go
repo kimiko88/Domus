@@ -330,7 +330,7 @@ func (r *CameraRepository) decryptAndMigrateCamera(ctx context.Context, cam *cam
 		return fmt.Errorf("sqlite: decrypt camera snapshot URL: %w", err)
 	}
 	// Encrypt credentials from older plaintext rows on first access.
-	if !streamWasEncrypted || (!snapshotWasEncrypted && snapshotURL != "") {
+	if (!streamWasEncrypted && streamURL != "") || (!snapshotWasEncrypted && snapshotURL != "") {
 		encryptedStream, encErr := r.cipher.Encrypt(streamURL)
 		if encErr != nil {
 			return fmt.Errorf("sqlite: migrate camera stream URL: %w", encErr)
