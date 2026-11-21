@@ -1341,7 +1341,7 @@ export interface ClimateRoomSummary {
   maximum_temperature?: number
   current_humidity?: number
   average_humidity?: number
-  heating_rate_c_per_hour?: number
+  temperature_change_rate_c_per_hour?: number
   forecast_temperature_1h?: number
   last_updated_at: string
 }
