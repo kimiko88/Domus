@@ -1,6 +1,7 @@
 package xiaomi_home
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
