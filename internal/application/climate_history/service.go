@@ -206,6 +206,20 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
+func isTrackedClimateEntity(ent *entity.Entity, cfg domclimate.Settings) bool {
+	attrs := map[string]any{}
+	_ = json.Unmarshal([]byte(ent.Attributes), &attrs)
+	switch ent.Domain {
+	case "climate":
+		return cfg.RecordThermostat
+	case "sensor":
+		return (cfg.RecordTemperature && isTemperatureSensor(ent, attrs)) ||
+			(cfg.RecordHumidity && isHumiditySensor(ent, attrs))
+	default:
+		return false
+	}
+}
+
 func normalizeTemperature(value float64, unit string, attrs map[string]any) float64 {
 	u := strings.ToLower(unit + " " + fmt.Sprint(attrs["unit_of_measurement"]))
 	if strings.Contains(u, "°f") || strings.Contains(u, "fahrenheit") { return (value - 32) * 5 / 9 }
@@ -360,7 +374,7 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 				if liveEntity == nil || liveEntity.Available {
 					continue
 				}
-				if _, supported := sampleEntity(liveEntity, settings, time.Now().UTC()); supported {
+				if isTrackedClimateEntity(liveEntity, settings) {
 					area := liveEntity.AreaID
 					if area == "" {
 						area = "unassigned"
