@@ -206,6 +206,15 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
+func containsEntity(ids []string, candidate string) bool {
+	for _, id := range ids {
+		if id == candidate {
+			return true
+		}
+	}
+	return false
+}
+
 func isTrackedClimateEntity(ent *entity.Entity, cfg domclimate.Settings) bool {
 	attrs := map[string]any{}
 	_ = json.Unmarshal([]byte(ent.Attributes), &attrs)
@@ -372,6 +381,15 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 		} else {
 			for _, liveEntity := range liveEntities {
 				if liveEntity == nil || liveEntity.Available {
+					continue
+				}
+				if filter.AreaID != "" && filter.AreaID != liveEntity.AreaID {
+					continue
+				}
+				if filter.EntityID != "" && filter.EntityID != liveEntity.ID {
+					continue
+				}
+				if filter.EntityIDs != nil && !containsEntity(filter.EntityIDs, liveEntity.ID) {
 					continue
 				}
 				if isTrackedClimateEntity(liveEntity, settings) {
