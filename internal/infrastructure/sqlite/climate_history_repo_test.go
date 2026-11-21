@@ -55,6 +55,8 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 	require.InDelta(t, 19.5, *points[0].TemperatureMinimum, 0.001)
 	require.InDelta(t, 21.5, *points[0].TemperatureMaximum, 0.001)
 	require.InDelta(t, 52.0, *points[0].HumidityAverage, 0.001)
+			require.Equal(t, 2, points[0].TemperatureCount)
+			require.Equal(t, 2, points[0].HumidityCount)
 
 	second, err := repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-7*24*time.Hour))
 	require.NoError(t, err)
