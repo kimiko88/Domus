@@ -66,7 +66,7 @@ func (h *BroadlinkHandler) StartLearning(w http.ResponseWriter, r *http.Request)
 	var req struct { Medium string `json:"medium"` }
 	if r.Body != nil { _ = json.NewDecoder(r.Body).Decode(&req) }
 	if req.Medium == "" { req.Medium = "ir" }
-	ctx,cancel := withBroadlinkTimeout(r,6*time.Second); defer cancel()
+	ctx,cancel := withBroadlinkTimeout(r,10*time.Second); defer cancel()
 	if err := h.adapter.StartLearning(ctx,chi.URLParam(r,"deviceID"),req.Medium); err != nil { writeError(w,http.StatusBadGateway,"BROADLINK_LEARN_FAILED",err.Error()); return }
 	writeJSON(w,http.StatusAccepted,map[string]any{"status":"learning","medium":req.Medium})
 }

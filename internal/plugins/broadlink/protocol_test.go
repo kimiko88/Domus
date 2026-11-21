@@ -34,7 +34,9 @@ func TestDiscoveryPacket(t *testing.T) {
 	packet := discoveryPacket(net.ParseIP("192.168.1.10"),12345,time.Date(2026,11,21,12,34,56,0,time.FixedZone("CET",3600)))
 	if len(packet) != 48 { t.Fatalf("discovery packet size %d",len(packet)) }
 	if packet[0x26] != 0x06 { t.Fatalf("wrong discovery command %x",packet[0x26]) }
-	if packet[0x18] != 192 || packet[0x1b] != 10 { t.Fatalf("wrong source IP: %v",packet[0x18:0x1c]) }
+	if packet[0x18] != 10 || packet[0x19] != 1 || packet[0x1a] != 168 || packet[0x1b] != 192 {
+		t.Fatalf("wrong reversed source IP: %v",packet[0x18:0x1c])
+	}
 	copyForChecksum := append([]byte(nil), packet...)
 	got := binary.LittleEndian.Uint16(packet[0x20:0x22])
 	copyForChecksum[0x20], copyForChecksum[0x21] = 0, 0

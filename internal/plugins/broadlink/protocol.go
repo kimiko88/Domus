@@ -94,7 +94,10 @@ func discoveryPacket(localIP net.IP, localPort int, now time.Time) []byte {
 	packet[0x12] = byte(now.Day())
 	packet[0x13] = byte(now.Month())
 	if ip := localIP.To4(); ip != nil {
-		copy(packet[0x18:0x1c], ip)
+		// BroadLink expects the source IPv4 address in reverse byte order.
+		for i := 0; i < 4; i++ {
+			packet[0x18+i] = ip[3-i]
+		}
 	}
 	binary.LittleEndian.PutUint16(packet[0x1c:0x1e], uint16(localPort))
 	packet[0x26] = 0x06
