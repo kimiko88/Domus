@@ -33,8 +33,8 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 	humA, humB := 48.0, 56.0
 	target := 20.0
 	samples := []climate_history.Sample{
-		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Add(-8*24*time.Hour), Temperature:&tempA, Humidity:&humA},
-		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Add(-8*24*time.Hour+30*time.Minute), Temperature:&tempB, Humidity:&humB, TargetTemperature:&target, HVACMode:"heat", HVACAction:"heating"},
+		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Truncate(time.Hour).Add(-8*24*time.Hour + 10*time.Minute), Temperature:&tempA, Humidity:&humA},
+		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Truncate(time.Hour).Add(-8*24*time.Hour + 20*time.Minute), Temperature:&tempB, Humidity:&humB, TargetTemperature:&target, HVACMode:"heat", HVACAction:"heating"},
 	}
 	require.NoError(t, repo.SaveSamples(ctx, samples))
 
