@@ -141,6 +141,7 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 			}
 		}
 		if v, ok := attributeNumber(attrs, "target_temperature", "temperature_target", "target_temp", "temperature"); ok {
+			v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
 			if plausibleTemperature(v) { s.TargetTemperature = &v }
 		}
 		s.HVACMode = stringAttribute(attrs, "hvac_mode", "mode")
@@ -197,7 +198,7 @@ func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
 	return class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
-		strings.Contains(unit, "celsius") || strings.Contains(unit, "fahrenheit") ||
+		strings.Contains(unit, "celsius") || strings.Contains(unit, "fahrenheit") || unit == "c" || unit == "f" ||
 		strings.Contains(key, "temperature") || strings.Contains(key, "temperatura")
 }
 
@@ -237,7 +238,7 @@ func isTrackedClimateEntity(ent *entity.Entity, cfg domclimate.Settings) bool {
 
 func normalizeTemperature(value float64, unit string, attrs map[string]any) float64 {
 	u := strings.ToLower(unit + " " + fmt.Sprint(attrs["unit_of_measurement"]))
-	if strings.Contains(u, "°f") || strings.Contains(u, "fahrenheit") { return (value - 32) * 5 / 9 }
+	if strings.Contains(u, "°f") || strings.Contains(u, "fahrenheit") || strings.TrimSpace(u) == "f" { return (value - 32) * 5 / 9 }
 	return value
 }
 func plausibleTemperature(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= -50 && v <= 70 }
