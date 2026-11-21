@@ -4,6 +4,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -24,9 +25,23 @@ func RequestLogger() func(next http.Handler) http.Handler {
 					status = http.StatusOK
 				}
 
+				requestPath := r.URL.Path
+				const imouCallbackPrefixes = []string{
+					"/api/v1/integrations/imou-life/callback/",
+					"/api/v1/integrations/imou-life/events/",
+					"/api/v1/integrations/xiaomi-home/cloud/callback/",
+					"/api/v1/integrations/xiaomi-home/cloud/events/",
+				}
+				for _, prefix := range imouCallbackPrefixes {
+					if strings.HasPrefix(requestPath, prefix) {
+						requestPath = prefix + "[redacted]"
+						break
+					}
+				}
+
 				attrs := []any{
 					"method", r.Method,
-					"path", r.URL.Path,
+					"path", requestPath,
 					"status", status,
 					"duration_ms", latency.Milliseconds(),
 					"remote_ip", r.RemoteAddr,

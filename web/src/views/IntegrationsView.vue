@@ -82,7 +82,7 @@ interface BrandCatalogEntry {
   icon: string
 }
 
-const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian' | 'cloud'>('active')
+const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian' | 'cloud' | 'vendors'>('active')
 const integrations = ref<Integration[]>([])
 const discoveredDevices = ref<DiscoveredDevice[]>([])
 const catalog = ref<BrandCatalogEntry[]>([])
@@ -141,6 +141,446 @@ const tuyaFunctionsLoading = ref<string | null>(null)
 const tuyaFunctionInputs = reactive<Record<string, string>>({})
 const tuyaFunctionBusy = ref<string | null>(null)
 const tuyaTemperatureInputs = reactive<Record<string, string>>({})
+
+
+// --- Xiaomi Home and Imou Life administration ---
+interface XiaomiLocalDevice {
+  id: string; name: string; ip: string; model?: string; firmware?: string; mac?: string; device_id?: number
+}
+interface XiaomiCloudDevice {
+  did: string; name: string; online: boolean; type: string; category?: string; rid?: string
+}
+interface ImouChannel { channelId: string; channelName?: string; channelStatus?: string }
+interface ImouDevice {
+  deviceId: string; deviceName?: string; deviceStatus?: string; deviceModel?: string
+  channelList?: ImouChannel[]; channelNum?: number
+}
+interface ImouCapabilityService { serviceId: string; name?: string; inputData?: Record<string, unknown>[] }
+interface ImouCapability {
+  capabilityId: string; name?: string
+  properties?: { propertyId: string; name?: string; accessMode?: string }[]
+  services?: ImouCapabilityService[]
+  events?: { eventId: string; name?: string }[]
+}
+interface ImouRecording {
+  fileName?: string; fileLength?: number; type?: number; beginTime?: string; endTime?: string
+}
+
+const xiaomiLocalDevices = ref<XiaomiLocalDevice[]>([])
+const xiaomiLocalForm = reactive({ ip: '', name: '', token: '' })
+const xiaomiLocalBusy = ref(false)
+const xiaomiLocalStatus = ref(false)
+const xiaomiCloudConfigured = ref(false)
+const xiaomiCloudConnected = ref(false)
+const xiaomiCloudRegion = ref('eu')
+const xiaomiCloudNickname = ref('')
+const xiaomiCloudUserId = ref('')
+const xiaomiCloudCallback = ref('')
+const xiaomiCloudEventCallback = ref('')
+const xiaomiCloudForm = reactive({ client_id: '', client_secret: '', public_base_url: '', region: 'eu' })
+const xiaomiCloudDevices = ref<XiaomiCloudDevice[]>([])
+const xiaomiCloudHomes = ref<{ id: number; name: string; rooms?: { id: string; name: string }[] }[]>([])
+const xiaomiCloudBusy = ref(false)
+const xiaomiCloudSyncBusy = ref(false)
+const xiaomiCloudError = ref('')
+const imouConfigured = ref(false)
+const imouConnected = ref(false)
+const imouDataCenter = ref('eu')
+const imouCallback = ref('')
+const imouEventsCallback = ref('')
+const imouAuthorizationURL = ref('')
+const imouForm = reactive({
+  access_key: '', secret_key: '', data_center: 'eu',
+  authorization_url: '', public_base_url: ''
+})
+const imouDevices = ref<ImouDevice[]>([])
+const imouCapabilities = ref<Record<string, ImouCapability[]>>({})
+const imouBusy = ref(false)
+const imouError = ref('')
+const imouPreviewDevice = ref<string | null>(null)
+const imouPreviewChannel = ref<Record<string, string>>({})
+const imouRecordDevice = ref<string | null>(null)
+const imouRecordings = ref<ImouRecording[]>([])
+const imouRecordingBegin = ref(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 16))
+const imouRecordingEnd = ref(new Date().toISOString().slice(0, 16))
+const imouRecordingBusy = ref(false)
+const imouRecordingPreviewURL = ref('')
+const imouRecordingPreviewDevice = ref<string | null>(null)
+const imouPtzBusy = ref<string | null>(null)
+const xiaomiCloudExpiresAt = ref('')
+const imouExpiresAt = ref('')
+const imouAdminTokenExpiresAt = ref('')
+const imouPushEnabled = ref(false)
+
+async function loadXiaomiVendorData() {
+  try {
+    const [local, cloud] = await Promise.all([
+      apiClient.get<{ devices: XiaomiLocalDevice[]; configured?: boolean }>('/api/v1/integrations/xiaomi-home/status'),
+      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
+    ])
+    xiaomiLocalDevices.value = local.devices || []
+    xiaomiLocalStatus.value = true
+    xiaomiCloudConfigured.value = cloud.configured
+    xiaomiCloudConnected.value = cloud.connected
+    xiaomiCloudNickname.value = cloud.nickname || ''
+    xiaomiCloudUserId.value = cloud.user_id_masked || ''
+    xiaomiCloudRegion.value = cloud.region || 'eu'
+    xiaomiCloudCallback.value = cloud.callback_url || ''
+    xiaomiCloudEventCallback.value = cloud.events_callback_url || ''
+    xiaomiCloudExpiresAt.value = cloud.expires_at || ''
+    if (cloud.connected) await Promise.all([loadXiaomiCloudDevices(), loadXiaomiHomes()])
+  } catch {
+    xiaomiCloudError.value = t('integrations.view.vendors.statusError')
+  }
+}
+
+async function pairXiaomiLocalDevice() {
+  xiaomiLocalBusy.value = true
+  try {
+    const response = await apiClient.post('/api/v1/integrations/xiaomi-home/devices', {
+      ip: xiaomiLocalForm.ip.trim(), name: xiaomiLocalForm.name.trim(), token: xiaomiLocalForm.token.trim()
+    })
+    xiaomiLocalForm.token = ''
+    xiaomiLocalForm.ip = ''
+    xiaomiLocalForm.name = ''
+    notificationsStore.success(t('integrations.view.vendors.paired'), t('integrations.view.vendors.pairedDesc'))
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.pairError'), t('integrations.view.vendors.pairErrorDesc'))
+  } finally {
+    xiaomiLocalBusy.value = false
+  }
+}
+
+async function removeXiaomiLocalDevice(device: XiaomiLocalDevice) {
+  try {
+    await apiClient.delete(`/api/v1/integrations/xiaomi-home/devices/${encodeURIComponent(device.id)}`)
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.removeError'), t('integrations.view.vendors.removeErrorDesc'))
+  }
+}
+
+async function configureXiaomiCloud() {
+  xiaomiCloudBusy.value = true
+  try {
+    const result = await apiClient.put<{ callback_url: string; events_callback_url: string }>('/api/v1/integrations/xiaomi-home/cloud/config', xiaomiCloudForm)
+    xiaomiCloudCallback.value = result.callback_url
+    xiaomiCloudEventCallback.value = result.events_callback_url
+    xiaomiCloudConfigured.value = true
+    xiaomiCloudForm.client_secret = ''
+    notificationsStore.success(t('integrations.view.vendors.configSaved'), t('integrations.view.vendors.configSavedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.configError'), t('integrations.view.vendors.configErrorDesc'))
+  } finally {
+    xiaomiCloudBusy.value = false
+  }
+}
+
+async function authorizeXiaomiCloud() {
+  try {
+    const result = await apiClient.get<{ authorization_url: string }>('/api/v1/integrations/xiaomi-home/cloud/authorize')
+    window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.authError'), t('integrations.view.vendors.authErrorDesc'))
+  }
+}
+
+async function loadXiaomiCloudDevices() {
+  try {
+    const result = await apiClient.get<{ devices: XiaomiCloudDevice[] }>('/api/v1/integrations/xiaomi-home/cloud/devices')
+    xiaomiCloudDevices.value = result.devices || []
+  } catch {
+    xiaomiCloudError.value = t('integrations.view.vendors.devicesError')
+  }
+}
+
+async function loadXiaomiHomes() {
+  try {
+    const result = await apiClient.get<{ homes: typeof xiaomiCloudHomes.value }>('/api/v1/integrations/xiaomi-home/cloud/homes')
+    xiaomiCloudHomes.value = result.homes || []
+  } catch {
+    xiaomiCloudHomes.value = []
+  }
+}
+
+async function syncXiaomiCloudDevices() {
+  xiaomiCloudSyncBusy.value = true
+  try {
+    const result = await apiClient.post<{ synced: number; skipped: number; failed: number }>('/api/v1/integrations/xiaomi-home/cloud/sync', {})
+    notificationsStore.success(
+      t('integrations.view.vendors.syncComplete'),
+      t('integrations.view.vendors.syncSummary', result)
+    )
+    await fetchIntegrations()
+    await loadXiaomiCloudDevices()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.syncError'), t('integrations.view.vendors.syncErrorDesc'))
+  } finally {
+    xiaomiCloudSyncBusy.value = false
+  }
+}
+
+async function subscribeXiaomiDeviceStatus() {
+  try {
+    const ids = xiaomiCloudDevices.value.map(device => device.did)
+    if (!ids.length) return
+    const result = await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/events/subscribe', {
+      topic: 'devices-status-changed', ids
+    })
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), JSON.stringify(result))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+interface XiaomiMioTSpec {
+  services?: {
+    iid: number
+    properties?: { iid: number; access?: string[] }[]
+    events?: { iid: number }[]
+  }[]
+}
+
+async function subscribeXiaomiTopic(topic: 'properties-changed' | 'events-occured', ids: string[]) {
+  if (!ids.length) {
+    notificationsStore.warning(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.noNotifiableItems'))
+    return
+  }
+  try {
+    for (let start = 0; start < ids.length; start += 100) {
+      await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/events/subscribe', {
+        topic, ids: ids.slice(start, start + 100)
+      })
+    }
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), t('integrations.view.vendors.subscriptionCount', { count: ids.length }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+async function subscribeXiaomiPropertyChanges() {
+  const ids: string[] = []
+  for (const device of xiaomiCloudDevices.value) {
+    try {
+      const spec = await apiClient.get<XiaomiMioTSpec>(
+        `/api/v1/integrations/xiaomi-home/cloud/devices/${encodeURIComponent(device.did)}/spec`
+      )
+      for (const service of spec.services || []) {
+        for (const property of service.properties || []) {
+          if ((property.access || []).some(mode => mode.toLowerCase() === 'notify')) {
+            ids.push(`${device.did}.${service.iid}.${property.iid}`)
+          }
+        }
+      }
+    } catch {
+      // A missing MIoT spec for one device must not block the other devices.
+    }
+  }
+  await subscribeXiaomiTopic('properties-changed', ids)
+}
+
+async function subscribeXiaomiMIoTEvents() {
+  const ids: string[] = []
+  for (const device of xiaomiCloudDevices.value) {
+    try {
+      const spec = await apiClient.get<XiaomiMioTSpec>(
+        `/api/v1/integrations/xiaomi-home/cloud/devices/${encodeURIComponent(device.did)}/spec`
+      )
+      for (const service of spec.services || []) {
+        for (const event of service.events || []) {
+          ids.push(`${device.did}.${service.iid}.${event.iid}`)
+        }
+      }
+    } catch {
+      // Ignore unsupported or unavailable device specifications.
+    }
+  }
+  await subscribeXiaomiTopic('events-occured', ids)
+}
+
+async function loadImouVendorData() {
+  try {
+    const status = await apiClient.get<{
+      configured: boolean; connected: boolean; data_center?: string
+      callback_url?: string; events_callback_url?: string
+      authorization_url?: string; access_token_expires_at?: string
+      admin_token_expires_at?: string; push_enabled?: boolean
+    }>('/api/v1/integrations/imou-life/status')
+    imouConfigured.value = status.configured
+    imouConnected.value = status.connected
+    imouDataCenter.value = status.data_center || 'eu'
+    imouCallback.value = status.callback_url || ''
+    imouEventsCallback.value = status.events_callback_url || ''
+    imouAuthorizationURL.value = status.authorization_url || ''
+    imouExpiresAt.value = status.access_token_expires_at || ''
+    imouAdminTokenExpiresAt.value = status.admin_token_expires_at || ''
+    imouPushEnabled.value = Boolean(status.push_enabled)
+    if (status.connected) await loadImouDevices()
+  } catch {
+    imouError.value = t('integrations.view.vendors.statusError')
+  }
+}
+
+async function configureImouLife() {
+  imouBusy.value = true
+  try {
+    const result = await apiClient.put<{ callback_url: string; authorization_url: string; configured: boolean }>('/api/v1/integrations/imou-life/config', imouForm)
+    imouCallback.value = result.callback_url
+    imouAuthorizationURL.value = result.authorization_url
+    imouConfigured.value = true
+    imouForm.secret_key = ''
+    notificationsStore.success(t('integrations.view.vendors.configSaved'), t('integrations.view.vendors.configSavedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.configError'), t('integrations.view.vendors.configErrorDesc'))
+  } finally {
+    imouBusy.value = false
+  }
+}
+
+async function authorizeImouLife() {
+  try {
+    const result = await apiClient.get<{ authorization_url: string }>('/api/v1/integrations/imou-life/authorize')
+    window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.authError'), t('integrations.view.vendors.authErrorDesc'))
+  }
+}
+
+async function loadImouDevices() {
+  imouBusy.value = true
+  imouError.value = ''
+  try {
+    const result = await apiClient.get<{ devices: ImouDevice[]; count: number }>('/api/v1/integrations/imou-life/devices?page=1&page_size=50')
+    imouDevices.value = result.devices || []
+    await Promise.all(imouDevices.value.map(device => loadImouCapabilities(device)))
+  } catch {
+    imouError.value = t('integrations.view.vendors.devicesError')
+  } finally {
+    imouBusy.value = false
+  }
+}
+
+async function loadImouCapabilities(device: ImouDevice) {
+  try {
+    const channel = device.channelList?.[0]?.channelId || '0'
+    const result = await apiClient.get<{ capabilities: ImouCapability[] }>(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/capabilities?channel=${encodeURIComponent(channel)}`
+    )
+    imouCapabilities.value[device.deviceId] = result.capabilities || []
+  } catch {
+    imouCapabilities.value[device.deviceId] = []
+  }
+}
+
+function imouHasPTZ(deviceId: string) {
+  return (imouCapabilities.value[deviceId] || []).some(capability =>
+    (capability.services || []).some(service => service.serviceId === 'ptz.aim.relative')
+  )
+}
+
+async function moveImouPTZ(device: ImouDevice, horizontal: string, vertical: string, zoom = '0') {
+  const serviceId = 'ptz.aim.relative'
+  imouPtzBusy.value = device.deviceId
+  try {
+    const channel = device.channelList?.[0]?.channelId || '0'
+    await apiClient.post(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/services/${encodeURIComponent(serviceId)}`,
+      { channel_id: channel, input: { horizontal, vertical, zoom, duration: 500 } }
+    )
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.ptzError'), t('integrations.view.vendors.ptzErrorDesc'))
+  } finally {
+    imouPtzBusy.value = null
+  }
+}
+
+async function configureImouEvents() {
+  try {
+    const result = await apiClient.post<{ enabled: boolean }>('/api/v1/integrations/imou-life/events/config', {
+      enabled: true, flags: ['alarm', 'deviceStatus', 'capabilityEvent']
+    })
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), result.enabled ? t('integrations.view.vendors.eventsEnabled') : t('integrations.view.vendors.eventsDisabled'))
+    await loadImouVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+async function searchImouRecordings(device: ImouDevice) {
+  imouRecordDevice.value = device.deviceId
+  imouRecordingBusy.value = true
+  try {
+    const begin = imouRecordingBegin.value
+    const end = imouRecordingEnd.value
+    const channel = device.channelList?.[0]?.channelId || '0'
+    const query = new URLSearchParams({ begin, end, channel, type: '0', limit: '50' })
+    const result = await apiClient.get<{ records: ImouRecording[]; session_id?: string }>(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/recordings?${query.toString()}`
+    )
+    imouRecordings.value = result.records || []
+  } catch {
+    imouRecordings.value = []
+    notificationsStore.error(t('integrations.view.vendors.recordingsError'), t('integrations.view.vendors.recordingsErrorDesc'))
+  } finally {
+    imouRecordingBusy.value = false
+  }
+}
+
+function playImouRecording(device: ImouDevice, record: ImouRecording) {
+  const begin = record.beginTime || imouRecordingBegin.value
+  const end = record.endTime || imouRecordingEnd.value
+  const beginDate = new Date(begin.replace(' ', 'T'))
+  const endDate = new Date(end.replace(' ', 'T'))
+  if (Number.isNaN(beginDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate <= beginDate) {
+    notificationsStore.error(t('integrations.view.vendors.recordingsError'), t('integrations.view.vendors.invalidRecordingTime'))
+    return
+  }
+  const channel = device.channelList?.[0]?.channelId || '0'
+  const query = new URLSearchParams({
+    channel,
+    stream: '0',
+    business_type: 'localRecord',
+    begin: beginDate.toISOString(),
+    end: endDate.toISOString()
+  })
+  imouRecordingPreviewDevice.value = device.deviceId
+  imouRecordingPreviewURL.value = `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/recording-preview?${query.toString()}`
+}
+
+async function disconnectImouLife() {
+  if (!window.confirm(t('integrations.view.vendors.confirmDisconnect'))) return
+  try {
+    await apiClient.post('/api/v1/integrations/imou-life/disconnect', {})
+    imouDevices.value = []
+    imouCapabilities.value = {}
+    imouPreviewDevice.value = null
+    imouRecordingPreviewDevice.value = null
+    imouRecordingPreviewURL.value = ''
+    await loadImouVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.disconnectError'), t('integrations.view.vendors.disconnectErrorDesc'))
+  }
+}
+
+async function disconnectXiaomiCloud() {
+  if (!window.confirm(t('integrations.view.vendors.confirmDisconnect'))) return
+  try {
+    await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/disconnect', {})
+    xiaomiCloudDevices.value = []
+    xiaomiCloudHomes.value = []
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.disconnectError'), t('integrations.view.vendors.disconnectErrorDesc'))
+  }
+}
+
+function formatVendorDate(value: string) {
+  if (!value) return t('integrations.view.vendors.notAvailable')
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? t('integrations.view.vendors.notAvailable') : date.toLocaleString(locale.value)
+}
+
 
 const tuyaSelectedCount = computed(() =>
   tuyaCloudDevices.value.filter(device => selectedTuyaDeviceIds.value.includes(device.id)).length
@@ -824,6 +1264,8 @@ onMounted(() => {
   fetchDiscovered()
   fetchGuardianData()
   fetchTuyaConfig()
+  loadXiaomiVendorData()
+  loadImouVendorData()
 })
 </script>
 
@@ -886,6 +1328,13 @@ onMounted(() => {
           <Globe :size="16" />
           <span>{{ t('integrations.view.smartLifeCloud') }}</span>
           <span v-if="tuyaCloudDevices.length > 0" class="counter-badge">{{ tuyaCloudDevices.length }}</span>
+        </button>
+        <button
+          :class="['tab-btn', { active: activeTab === 'vendors' }]"
+          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadImouVendorData()"
+        >
+          <Activity :size="16" />
+          <span>{{ t('integrations.view.vendors.title') }}</span>
         </button>
       </div>
     </div>
@@ -1599,6 +2048,277 @@ onMounted(() => {
         <p>{{ t('integrations.view.adjustSearchFilters') }}</p>
         <button type="button" class="btn-action glass-panel" @click="tuyaDeviceFilter = 'all'; tuyaSearchQuery = ''">{{ t('integrations.view.resetFilters') }}</button>
       </div>
+    </div>
+
+    <!-- Xiaomi Home and Imou Life administration -->
+    <div v-if="activeTab === 'vendors'" class="tab-content vendor-integrations">
+      <div class="discovery-toolbar glass-card">
+        <div class="discovery-intro">
+          <div class="icon-chip"><Activity :size="20" /></div>
+          <div>
+            <h3 class="disc-title">{{ t('integrations.view.vendors.title') }}</h3>
+            <p class="disc-sub">{{ t('integrations.view.vendors.subtitle') }}</p>
+          </div>
+        </div>
+        <button class="btn-scan" @click="loadXiaomiVendorData(); loadImouVendorData()">
+          <RefreshCw :size="15" />
+          {{ t('integrations.view.vendors.refresh') }}
+        </button>
+      </div>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.xiaomiLocalTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.xiaomiLocalDesc') }}</p>
+          </div>
+          <span class="badge-lan">{{ t('integrations.view.vendors.localOnly') }}</span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="pairXiaomiLocalDevice">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.deviceName') }}</span>
+            <input v-model="xiaomiLocalForm.name" class="form-control glass-panel" required maxlength="80" :placeholder="t('integrations.view.vendors.deviceNamePlaceholder')" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.lanAddress') }}</span>
+            <input v-model="xiaomiLocalForm.ip" class="form-control glass-panel" required inputmode="decimal" placeholder="192.168.1.20" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.localToken') }}</span>
+            <input v-model="xiaomiLocalForm.token" class="form-control glass-panel" required type="password" autocomplete="off" maxlength="32" minlength="32" placeholder="32 hexadecimal characters" />
+          </label>
+          <button class="btn-scan" type="submit" :disabled="xiaomiLocalBusy || !xiaomiLocalForm.ip || !xiaomiLocalForm.name || xiaomiLocalForm.token.length !== 32">
+            <Plus :size="15" /> {{ xiaomiLocalBusy ? t('integrations.view.vendors.pairing') : t('integrations.view.vendors.pairDevice') }}
+          </button>
+        </form>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.localTokenHint') }}</p>
+        <div v-if="xiaomiLocalDevices.length" class="vendor-device-list">
+          <div v-for="device in xiaomiLocalDevices" :key="device.id" class="vendor-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.model || 'Xiaomi miIO' }} · {{ device.ip }}</span>
+            </div>
+            <button class="btn-action glass-panel" type="button" @click="removeXiaomiLocalDevice(device)">{{ t('integrations.view.vendors.remove') }}</button>
+          </div>
+        </div>
+        <div v-else class="vendor-empty">{{ t('integrations.view.vendors.noLocalDevices') }}</div>
+      </section>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.xiaomiCloudTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.xiaomiCloudDesc') }}</p>
+          </div>
+          <span :class="['status-badge', xiaomiCloudConnected ? 'status-online' : 'status-offline']">
+            {{ xiaomiCloudConnected ? t('integrations.view.vendors.connected') : t('integrations.view.vendors.disconnected') }}
+          </span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="configureXiaomiCloud">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.appId') }}</span>
+            <input v-model="xiaomiCloudForm.client_id" class="form-control glass-panel" required autocomplete="off" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.appSecret') }}</span>
+            <input v-model="xiaomiCloudForm.client_secret" class="form-control glass-panel" required type="password" autocomplete="new-password" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.region') }}</span>
+            <select v-model="xiaomiCloudForm.region" class="form-control glass-panel">
+              <option value="eu">{{ t('integrations.view.vendors.regionEU') }}</option>
+              <option value="us">{{ t('integrations.view.vendors.regionUS') }}</option>
+              <option value="sg">{{ t('integrations.view.vendors.regionSG') }}</option>
+            </select>
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.publicBaseURL') }}</span>
+            <input v-model="xiaomiCloudForm.public_base_url" class="form-control glass-panel" required type="url" placeholder="https://domus.example.it" />
+          </label>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="xiaomiCloudBusy">
+              <CheckCircle :size="15" /> {{ t('integrations.view.vendors.saveConfig') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" :disabled="!xiaomiCloudConfigured" @click="authorizeXiaomiCloud">
+              <Key :size="15" /> {{ t('integrations.view.vendors.authorize') }}
+            </button>
+          </div>
+        </form>
+        <div v-if="xiaomiCloudCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerOAuthCallback') }}</strong>
+          <code>{{ xiaomiCloudCallback }}</code>
+        </div>
+        <div v-if="xiaomiCloudEventCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerEventCallback') }}</strong>
+          <code>{{ xiaomiCloudEventCallback }}</code>
+        </div>
+        <div v-if="xiaomiCloudConnected" class="vendor-connected-meta">
+          <span>{{ xiaomiCloudNickname }} · {{ xiaomiCloudUserId }} · {{ xiaomiCloudRegion.toUpperCase() }} · {{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(xiaomiCloudExpiresAt) }}</span>
+          <div class="vendor-form-actions">
+            <button class="btn-action glass-panel" type="button" :disabled="xiaomiCloudSyncBusy" @click="syncXiaomiCloudDevices">
+              <RefreshCw :size="14" :class="{ 'animate-spin': xiaomiCloudSyncBusy }" /> {{ t('integrations.view.vendors.syncEntities') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiDeviceStatus">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeStatus') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiPropertyChanges">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeProperties') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiMIoTEvents">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeMIoTEvents') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="disconnectXiaomiCloud">
+              <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
+            </button>
+          </div>
+        </div>
+        <div v-if="xiaomiCloudDevices.length" class="vendor-device-list">
+          <div v-for="device in xiaomiCloudDevices" :key="device.did" class="vendor-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.type }} · {{ device.did }}</span>
+            </div>
+            <span :class="device.online ? 'badge-lan' : 'badge-quarantined'">{{ device.online ? t('integrations.view.vendors.online') : t('integrations.view.vendors.offline') }}</span>
+          </div>
+        </div>
+        <div v-if="xiaomiCloudHomes.length" class="vendor-homes">
+          <strong>{{ t('integrations.view.vendors.homesAndRooms') }}</strong>
+          <span v-for="home in xiaomiCloudHomes" :key="home.id">{{ home.name }} · {{ (home.rooms || []).length }} {{ t('integrations.view.vendors.rooms') }}</span>
+        </div>
+        <p v-if="xiaomiCloudError" class="vendor-error">{{ xiaomiCloudError }}</p>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.xiaomiCloudHint') }}</p>
+      </section>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.imouTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.imouDesc') }}</p>
+          </div>
+          <span :class="['status-badge', imouConnected ? 'status-online' : 'status-offline']">
+            {{ imouConnected ? t('integrations.view.vendors.connected') : t('integrations.view.vendors.disconnected') }}
+          </span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="configureImouLife">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.accessKey') }}</span>
+            <input v-model="imouForm.access_key" class="form-control glass-panel" required autocomplete="off" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.secretKey') }}</span>
+            <input v-model="imouForm.secret_key" class="form-control glass-panel" required type="password" autocomplete="new-password" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.dataCenter') }}</span>
+            <input v-model="imouForm.data_center" class="form-control glass-panel" required placeholder="eu / fk / ..." />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.authorizationURL') }}</span>
+            <input v-model="imouForm.authorization_url" class="form-control glass-panel" required type="url" placeholder="https://..." />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.publicBaseURL') }}</span>
+            <input v-model="imouForm.public_base_url" class="form-control glass-panel" required type="url" placeholder="https://domus.example.it" />
+          </label>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="imouBusy">
+              <CheckCircle :size="15" /> {{ t('integrations.view.vendors.saveConfig') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" :disabled="!imouConfigured" @click="authorizeImouLife">
+              <Key :size="15" /> {{ t('integrations.view.vendors.authorize') }}
+            </button>
+          </div>
+        </form>
+        <div v-if="imouCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerOAuthCallback') }}</strong>
+          <code>{{ imouCallback }}</code>
+        </div>
+        <div v-if="imouEventsCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerEventCallback') }}</strong>
+          <code>{{ imouEventsCallback }}</code>
+          <button class="btn-action glass-panel" type="button" @click="configureImouEvents">{{ t('integrations.view.vendors.enableEvents') }}</button>
+        </div>
+        <div v-if="imouConnected" class="vendor-form-actions">
+          <button class="btn-scan" type="button" :disabled="imouBusy" @click="loadImouDevices">
+            <RefreshCw :size="14" :class="{ 'animate-spin': imouBusy }" /> {{ t('integrations.view.vendors.refreshDevices') }}
+          </button>
+          <button class="btn-action glass-panel" type="button" @click="disconnectImouLife">
+            <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
+          </button>
+        </div>
+        <div v-if="imouConnected" class="vendor-connected-meta">
+          <span>{{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(imouExpiresAt) }}</span>
+          <span>{{ t('integrations.view.vendors.adminTokenExpires') }}: {{ formatVendorDate(imouAdminTokenExpiresAt) }}</span>
+          <span>{{ t('integrations.view.vendors.eventsStatus') }}: {{ imouPushEnabled ? t('integrations.view.vendors.eventsEnabled') : t('integrations.view.vendors.eventsDisabled') }}</span>
+        </div>
+        <p v-if="imouError" class="vendor-error">{{ imouError }}</p>
+        <div v-if="imouDevices.length" class="vendor-imou-grid">
+          <article v-for="device in imouDevices" :key="device.deviceId" class="vendor-camera-card">
+            <div class="vendor-device-info">
+              <strong>{{ device.deviceName || device.deviceId }}</strong>
+              <span>{{ device.deviceModel || device.deviceId }} · {{ device.deviceStatus || t('integrations.view.vendors.statusUnknown') }}</span>
+            </div>
+            <div class="vendor-form-actions">
+              <button class="btn-action glass-panel" type="button" @click="imouPreviewDevice = imouPreviewDevice === device.deviceId ? null : device.deviceId">
+                {{ imouPreviewDevice === device.deviceId ? t('integrations.view.vendors.stopPreview') : t('integrations.view.vendors.livePreview') }}
+              </button>
+              <button class="btn-action glass-panel" type="button" @click="loadImouCapabilities(device)">{{ t('integrations.view.vendors.capabilities') }}</button>
+            </div>
+            <img
+              v-if="imouPreviewDevice === device.deviceId"
+              class="vendor-camera-preview"
+              :alt="t('integrations.view.vendors.livePreview')"
+              :src="`/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/preview?channel=${encodeURIComponent(device.channelList?.[0]?.channelId || '0')}&stream=0`"
+            />
+            <div v-if="imouHasPTZ(device.deviceId)" class="vendor-ptz">
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '0.5')">↑</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '-0.5', '0')">←</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '0')">■</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0.5', '0')">→</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '-0.5')">↓</button>
+            </div>
+            <div class="vendor-capabilities" v-if="imouCapabilities[device.deviceId]?.length">
+              <strong>{{ t('integrations.view.vendors.capabilities') }}</strong>
+              <span v-for="capability in imouCapabilities[device.deviceId]" :key="capability.capabilityId">
+                {{ capability.name || capability.capabilityId }}
+                <small>{{ (capability.services || []).map(service => service.serviceId).join(', ') }}</small>
+              </span>
+            </div>
+            <div class="vendor-recording-search">
+              <div class="vendor-form-grid">
+                <label class="form-group">
+                  <span>{{ t('integrations.view.vendors.recordingStart') }}</span>
+                  <input v-model="imouRecordingBegin" class="form-control glass-panel" type="datetime-local" />
+                </label>
+                <label class="form-group">
+                  <span>{{ t('integrations.view.vendors.recordingEnd') }}</span>
+                  <input v-model="imouRecordingEnd" class="form-control glass-panel" type="datetime-local" />
+                </label>
+              </div>
+              <button class="btn-action glass-panel" type="button" :disabled="imouRecordingBusy" @click="searchImouRecordings(device)">
+                {{ imouRecordingBusy && imouRecordDevice === device.deviceId ? t('integrations.view.vendors.searchingRecordings') : t('integrations.view.vendors.searchRecordings') }}
+              </button>
+              <span v-if="imouRecordDevice === device.deviceId && imouRecordings.length === 0">{{ t('integrations.view.vendors.noRecordings') }}</span>
+              <div v-if="imouRecordDevice === device.deviceId && imouRecordings.length" class="vendor-recordings">
+                <div v-for="record in imouRecordings" :key="record.fileName">
+                  <strong>{{ record.beginTime }} – {{ record.endTime }}</strong>
+                  <span>{{ record.fileName }} · {{ record.fileLength || 0 }} bytes</span>
+                  <button class="btn-action glass-panel" type="button" @click="playImouRecording(device, record)">
+                    {{ t('integrations.view.vendors.playRecording') }}
+                  </button>
+                </div>
+              </div>
+              <img
+                v-if="imouRecordingPreviewDevice === device.deviceId && imouRecordingPreviewURL"
+                class="vendor-camera-preview"
+                :src="imouRecordingPreviewURL"
+                :alt="t('integrations.view.vendors.playRecording')"
+              />
+            </div>
+          </article>
+        </div>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.imouPlaybackHint') }}</p>
+      </section>
     </div>
 
     <FirmwareFlasherModal :is-open="isFlasherOpen" @close="isFlasherOpen = false" />
@@ -3186,6 +3906,54 @@ onMounted(() => {
   }
   .tuya-function-row { grid-template-columns: 1fr; }
   .tuya-function-input input { flex: 1; width: min(100%, 180px); }
+}
+
+
+.vendor-integrations { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.vendor-section { display: flex; flex-direction: column; gap: 14px; padding: 20px; min-width: 0; }
+.vendor-section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.vendor-section-heading h3 { margin: 0; color: var(--text-main); font-size: 16px; font-weight: 700; }
+.vendor-section-heading p, .vendor-hint { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.vendor-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; align-items: end; }
+.vendor-form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.vendor-secret-url { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); min-width: 0; }
+.vendor-secret-url strong { color: var(--text-muted); font-size: 12px; }
+.vendor-secret-url code { color: var(--primary); font-size: 11px; white-space: normal; overflow-wrap: anywhere; user-select: text; }
+.vendor-connected-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; }
+.vendor-device-list { display: flex; flex-direction: column; gap: 8px; }
+.vendor-device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); }
+.vendor-device-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vendor-device-info strong { color: var(--text-main); font-size: 13px; overflow-wrap: anywhere; }
+.vendor-device-info span { color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.vendor-homes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--text-muted); font-size: 12px; }
+.vendor-homes strong { color: var(--text-main); }
+.vendor-homes span { padding: 4px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
+.vendor-empty { color: var(--text-muted); font-size: 12px; padding: 10px 0; }
+.vendor-error { color: var(--danger, #ef4444); font-size: 12px; margin: 0; }
+.vendor-imou-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.vendor-camera-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); }
+.vendor-camera-preview { width: 100%; max-height: 320px; object-fit: contain; border-radius: var(--radius-md); background: #000; }
+.vendor-ptz { display: grid; grid-template-columns: repeat(3, minmax(44px, 1fr)); gap: 6px; max-width: 210px; margin: 0 auto; }
+.vendor-ptz button { min-height: 42px; justify-content: center; }
+.vendor-ptz button:first-child { grid-column: 2; }
+.vendor-ptz button:nth-child(2) { grid-column: 1; }
+.vendor-ptz button:nth-child(3) { grid-column: 2; }
+.vendor-ptz button:nth-child(4) { grid-column: 3; grid-row: 2; }
+.vendor-ptz button:nth-child(5) { grid-column: 2; grid-row: 3; }
+.vendor-capabilities { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--text-muted); }
+.vendor-capabilities strong { color: var(--text-main); font-size: 12px; }
+.vendor-capabilities span { display: flex; flex-direction: column; gap: 2px; }
+.vendor-capabilities small { overflow-wrap: anywhere; color: var(--text-dim); }
+.vendor-recording-search { display: flex; flex-direction: column; gap: 8px; }
+.vendor-recordings { display: flex; flex-direction: column; gap: 6px; }
+.vendor-recordings > div { display: flex; flex-direction: column; gap: 3px; padding: 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 11px; overflow-wrap: anywhere; }
+.vendor-recordings strong { color: var(--text-main); }
+.vendor-recordings span { color: var(--text-muted); }
+@media (max-width: 620px) {
+  .vendor-section { padding: 14px; }
+  .vendor-section-heading { flex-direction: column; align-items: stretch; }
+  .vendor-form-actions { align-items: stretch; }
+  .vendor-form-actions > button { flex: 1 1 auto; min-height: 42px; }
 }
 
 </style>

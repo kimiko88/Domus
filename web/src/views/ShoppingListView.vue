@@ -1463,7 +1463,7 @@ onMounted(async () => {
 
 .receipt-modal-card {
   width: 100%;
-  max-width: 680px;
+  max-width: 940px;
   max-height: 85vh;
   overflow-y: auto;
   border-radius: 16px;
