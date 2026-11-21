@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"regexp"
 	"strings"
@@ -144,7 +143,8 @@ func (c *Client) Call(ctx context.Context, target, tokenHex, method string, para
 		return nil, err
 	}
 
-	request := map[string]any{"id": uint64(time.Now().UnixNano()), "method": method, "params": params}
+	requestID := uint64(time.Now().UnixNano()%9999) + 1
+	request := map[string]any{"id": requestID, "method": method, "params": params}
 	plain, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: encode command: %w", err)
@@ -172,6 +172,9 @@ func (c *Client) Call(ctx context.Context, target, tokenHex, method string, para
 	var response miIOResponse
 	if err := json.Unmarshal(responseBody, &response); err != nil {
 		return nil, errors.New("xiaomi: invalid miIO response")
+	}
+	if response.ID != requestID {
+		return nil, errors.New("xiaomi: response ID does not match the request")
 	}
 	if len(response.Error) != 0 && string(response.Error) != "null" {
 		return nil, errors.New("xiaomi: device rejected the command")
@@ -360,7 +363,3 @@ func validateTarget(target string) (net.IP, error) {
 	}
 	return ip, nil
 }
-
-// Keep an explicit reference to io in this package to make the framing code's
-// strict reader contract obvious; network reads are always datagram-bounded.
-var _ = io.EOF
