@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"net/url"
 	"strings"
@@ -36,6 +38,7 @@ type ImouLifeHandler struct {
 	bus events.Bus
 	mu sync.Mutex
 	seenEvents map[string]time.Time
+	streamSlots chan struct{}
 }
 
 type imouStoredConfig struct {
@@ -110,7 +113,7 @@ func NewImouLifeHandler(repo integration.Repository, cipher *crypto.EnvelopeCiph
 	if repo == nil || cipher == nil {
 		return nil, errors.New("imou: integration repository and encryption are required")
 	}
-	return &ImouLifeHandler{repo: repo, cipher: cipher, seenEvents: make(map[string]time.Time)}, nil
+	return &ImouLifeHandler{repo: repo, cipher: cipher, seenEvents: make(map[string]time.Time), streamSlots: make(chan struct{}, 2)}, nil
 }
 
 // WithEventBus connects provider notifications to Domus automations and notifications.
@@ -137,7 +140,7 @@ func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
 	r.Put("/config", h.Configure)
 	r.Get("/authorize", h.Authorization)
 	r.Get("/devices", h.Devices)
-	r.Get("/devices/{deviceID}/stream", h.StreamURL)
+	r.Get("/devices/{deviceID}/preview", h.StreamPreview)
 	r.Get("/devices/{deviceID}/capabilities", h.Capabilities)
 	r.Get("/devices/{deviceID}/properties", h.ReadProperties)
 	r.Put("/devices/{deviceID}/properties", h.WriteProperties)
@@ -322,7 +325,7 @@ func (h *ImouLifeHandler) ConfigureEvents(w http.ResponseWriter, r *http.Request
 	if !decodeLimitedJSON(w, r, &req, 16*1024) {
 		return
 	}
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Configure and authorize Imou Life before enabling events")
 		return
@@ -487,23 +490,6 @@ func (h *ImouLifeHandler) acceptEvent(key string) bool {
 	}
 	h.seenEvents[key] = now
 	return true
-}
-
-func (h *ImouLifeHandler) loadClient(r *http.Request) (*imouStoredConfig, *imou_life.Client, error) {
-	config, err := h.loadConfig(r)
-	if err != nil {
-		return nil, nil, err
-	}
-	if config.AccessToken == "" || config.RefreshToken == "" {
-		return nil, nil, errors.New("imou: OAuth user token is not configured")
-	}
-	client, err := imou_life.NewClient(imou_life.Config{
-		AccessKey: config.AccessKey, SecretKey: config.SecretKey, DataCenter: config.DataCenter,
-	}, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	return config, client, nil
 }
 
 func (h *ImouLifeHandler) ensureAdminToken(r *http.Request, config *imouStoredConfig, client *imou_life.Client) (string, error) {
@@ -752,29 +738,102 @@ func (h *ImouLifeHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, imouDeviceListResponse{Devices:devices,Count:count,Page:page,PageSize:pageSize})
 }
 
-func (h *ImouLifeHandler) StreamURL(w http.ResponseWriter, r *http.Request) {
+// StreamPreview proxies the provider RTSP stream as a low-bandwidth MJPEG preview.
+// The source RTSP URL is held only in backend memory and passed to ffmpeg through
+// an inherited pipe descriptor, never in argv, environment variables, browser URLs or logs.
+func (h *ImouLifeHandler) StreamPreview(w http.ResponseWriter, r *http.Request) {
+	select {
+	case h.streamSlots <- struct{}{}:
+		defer func() { <-h.streamSlots }()
+	default:
+		writeError(w, http.StatusTooManyRequests, "STREAM_LIMIT", "Maximum number of concurrent Imou previews reached")
+		return
+	}
 	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
-		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before requesting a stream")
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before viewing a camera")
 		return
 	}
 	deviceID := chi.URLParam(r, "deviceID")
 	channel := 0
 	stream := 0
 	if value := r.URL.Query().Get("channel"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil { channel = parsed } else { channel = -1 }
+		if parsed, parseErr := strconv.Atoi(value); parseErr == nil { channel = parsed } else { channel = -1 }
 	}
 	if value := r.URL.Query().Get("stream"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil { stream = parsed } else { stream = -1 }
+		if parsed, parseErr := strconv.Atoi(value); parseErr == nil { stream = parsed } else { stream = -1 }
 	}
 	streamURL, err := client.GetStreamURL(r.Context(), config.AccessToken, deviceID, channel, stream)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "IMOU_STREAM_ERROR", "Could not obtain Imou stream URL")
+		writeError(w, http.StatusBadGateway, "IMOU_STREAM_ERROR", "Could not open the Imou camera stream")
 		return
 	}
+	if strings.ContainsAny(streamURL, "\r\n") {
+		writeError(w, http.StatusBadGateway, "IMOU_STREAM_ERROR", "Imou returned an invalid stream address")
+		return
+	}
+	binary, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "MEDIA_PROXY_UNAVAILABLE", "Install ffmpeg on the Domus host to enable camera previews")
+		return
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "MEDIA_PROXY_ERROR", "Could not create the isolated media input")
+		return
+	}
+	defer reader.Close()
+	defer writer.Close()
+	playlist := "file '" + strings.ReplaceAll(streamURL, "'", "'\\''") + "'\n"
+	cmd := exec.CommandContext(r.Context(), binary,
+		"-nostdin", "-hide_banner", "-loglevel", "error",
+		"-protocol_whitelist", "pipe,rtsp,tcp,udp,rtp",
+		"-f", "concat", "-safe", "0", "-i", "pipe:3",
+		"-map", "0:v:0", "-an",
+		"-vf", "fps=5,scale=960:-2:force_original_aspect_ratio=decrease",
+		"-c:v", "mjpeg", "-q:v", "6", "-f", "mpjpeg", "pipe:1",
+	)
+	cmd.ExtraFiles = []*os.File{reader}
+	cmd.Stdout = nil
+	cmd.Stderr = nil // Provider URLs and credentials must never be copied into logs.
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "MEDIA_PROXY_ERROR", "Could not create the media output")
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "MEDIA_PROXY_ERROR", "Could not start the local media proxy")
+		return
+	}
+	_ = reader.Close()
+	_, writeErr := io.WriteString(writer, playlist)
+	_ = writer.Close()
+	if writeErr != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		writeError(w, http.StatusBadGateway, "MEDIA_PROXY_ERROR", "Could not provide the camera stream to the media proxy")
+		return
+	}
+	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=ffmpeg")
 	w.Header().Set("Cache-Control", "no-store, private")
 	w.Header().Set("Pragma", "no-cache")
-	writeJSON(w, http.StatusOK, map[string]string{"url":streamURL,"warning":"This RTSP URL is a secret. Do not share it or store it in browser logs."})
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Accel-Buffering", "no")
+	buffer := make([]byte, 32*1024)
+	for {
+		n, readErr := output.Read(buffer)
+		if n > 0 {
+			if _, err := w.Write(buffer[:n]); err != nil {
+				break
+			}
+			_ = http.NewResponseController(w).Flush()
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
 }
 
 func (h *ImouLifeHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
