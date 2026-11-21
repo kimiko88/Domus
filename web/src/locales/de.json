@@ -3567,7 +3567,8 @@
       "temperature_anomaly": "Ungewöhnliche Temperaturänderung",
       "humidity_low": "Luftfeuchtigkeit unter dem Grenzwert",
       "humidity_high": "Luftfeuchtigkeit über dem Grenzwert",
-      "humidity_comfort": "Luftfeuchtigkeit außerhalb des Komfortbereichs"
+      "humidity_comfort": "Luftfeuchtigkeit außerhalb des Komfortbereichs",
+      "sensor_offline": "Klimasensor offline"
     },
     "errors": {
       "load": "Raumklima-Verlauf konnte nicht geladen werden.",
