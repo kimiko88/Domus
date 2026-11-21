@@ -5,7 +5,7 @@ import ClimateHistoryView from './ClimateHistoryView.vue'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
-import { i18n } from '@/locales'
+import { i18n, setLanguage } from '@/locales'
 
 vi.mock('chart.js/auto', () => ({
   default: class MockChart {
@@ -16,6 +16,7 @@ vi.mock('chart.js/auto', () => ({
 describe('ClimateHistoryView.vue', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    setLanguage('it')
     vi.restoreAllMocks()
   })
 
