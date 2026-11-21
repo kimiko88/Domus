@@ -697,8 +697,3 @@ func validHTTPSCallback(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && u.Fragment == ""
 }
-
-func isImouCarrierGradeNAT(ip net.IP) bool {
-	v4 := ip.To4()
-	return v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
-}
