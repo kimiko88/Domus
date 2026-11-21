@@ -165,7 +165,7 @@ func TestSummarizeReportsUnavailableClimateSensors(t *testing.T) {
 	offline := &entity.Entity{
 		ID: "offline-1", EntityKey: "sensor.office_temperature", Domain: "sensor",
 		Name: "Office temperature", UnitOfMeasurement: "°C", State: "unavailable",
-		Attributes: "{\"device_class\":\"temperature\"}", Available: false, AreaID: "office",
+		Attributes: "{\"device_class\":\"temperature\"}", Available: true, AreaID: "office",
 	}
 	repo := &climateRepoStub{settings: settings}
 	service := NewService(repo, &climateEntityRepoStub{entities: []*entity.Entity{offline}}, testLogger())
@@ -226,6 +226,21 @@ func TestTemperatureSensorUsesAttributeUnitAndSmartSamplingAccumulatesChanges(t 
 	require.Equal(t, 1, count, "small changes should accumulate against the last persisted sample")
 	require.Len(t, repo.samples, 2)
 	require.InDelta(t, (68.4-32)*5/9, *repo.samples[1].Temperature, 0.001)
+}
+
+func TestCollectNowSkipsUnavailableStateEvenWhenAvailabilityFlagIsTrue(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	repo := &climateRepoStub{settings: settings}
+	unavailable := &entity.Entity{
+		ID: "sensor-unavailable", EntityKey: "sensor.office_temperature", Domain: "sensor",
+		Name: "Office temperature", State: "unavailable",
+		Attributes: "{\"device_class\":\"temperature\"}", Available: true,
+	}
+	service := NewService(repo, &climateEntityRepoStub{entities: []*entity.Entity{unavailable}}, testLogger())
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Empty(t, repo.samples)
 }
 
 func TestSettingsValidation(t *testing.T) {
