@@ -528,7 +528,7 @@ func (h *ImouLifeHandler) ensureAdminToken(r *http.Request, config *imouStoredCo
 }
 
 func (h *ImouLifeHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before loading capabilities")
 		return
@@ -545,7 +545,7 @@ func (h *ImouLifeHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ImouLifeHandler) ReadProperties(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before reading properties")
 		return
@@ -589,7 +589,7 @@ func (h *ImouLifeHandler) WriteProperties(w http.ResponseWriter, r *http.Request
 	if !decodeLimitedJSON(w, r, &req, 16*1024) {
 		return
 	}
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before writing properties")
 		return
@@ -631,7 +631,7 @@ func (h *ImouLifeHandler) InvokeService(w http.ResponseWriter, r *http.Request) 
 	if !decodeLimitedJSON(w, r, &req, 16*1024) {
 		return
 	}
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before controlling the device")
 		return
@@ -666,7 +666,7 @@ func (h *ImouLifeHandler) InvokeService(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ImouLifeHandler) MessageHistory(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before reading messages")
 		return
@@ -687,7 +687,7 @@ func (h *ImouLifeHandler) MessageHistory(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ImouLifeHandler) Recordings(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.loadClient(r)
+	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before searching recordings")
 		return
