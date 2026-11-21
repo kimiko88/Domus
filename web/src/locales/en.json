@@ -1552,7 +1552,7 @@
       "noProductsForStore": "No products found for \"{store}\".",
       "allPurchasedOrEmpty": "All items have been purchased or the list is empty.",
       "receiptTitle": "Scan shopping receipt",
-      "receiptIntro": "Take a photo, upload an image or PDF, or paste the text. Review the products before confirming.",
+      "receiptIntro": "Scan the receipt with your iPhone camera, choose an image, or upload the PDF created with Files > Scan Documents. Review the extracted data before importing.",
       "closeScanner": "Close scanner",
       "compareWithList": "Compare with shopping list",
       "noAutoMatches": "No automatic matches: you can still review the receipt and confirm the import.",
