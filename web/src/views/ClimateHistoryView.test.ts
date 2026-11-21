@@ -40,7 +40,7 @@ describe('ClimateHistoryView.vue', () => {
           area_id: 'bedroom', sample_count: 1, current_temperature: 21.5,
           average_temperature: 21.5, minimum_temperature: 21, maximum_temperature: 22,
           current_humidity: 52, average_humidity: 52,
-          heating_rate_c_per_hour: 0.4, forecast_temperature_1h: 21.9,
+          temperature_change_rate_c_per_hour: 0.4, forecast_temperature_1h: 21.9,
           last_updated_at: '2026-11-21T12:00:00Z'
         }],
         insights: [{ code: 'temperature_low', area_id: 'bedroom', value: 15, metric: 'temperature' }],
