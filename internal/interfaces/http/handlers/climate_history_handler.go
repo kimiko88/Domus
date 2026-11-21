@@ -132,7 +132,10 @@ func (h *ClimateHistoryHandler) applyAccessScope(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusInternalServerError, "CLIMATE_ACCESS_FAILED", "failed to resolve permitted climate entities")
 		return false
 	}
-	allowed := make([]string, 0, len(items))
+if permissions.AllowedAreaIDs != nil {
+		filter.AreaIDs = append([]string(nil), permissions.AllowedAreaIDs...)
+	}
+		allowed := make([]string, 0, len(items))
 	for _, item := range items {
 		if item != nil && currentUser.CanAccessEntityInArea(item.ID, item.AreaID) &&
 			(filter.AreaID == "" || filter.AreaID == item.AreaID) &&
