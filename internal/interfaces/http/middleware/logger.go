@@ -4,6 +4,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -24,9 +25,15 @@ func RequestLogger() func(next http.Handler) http.Handler {
 					status = http.StatusOK
 				}
 
+				requestPath := r.URL.Path
+				const imouCallbackPrefix = "/api/v1/integrations/imou-life/callback/"
+				if strings.HasPrefix(requestPath, imouCallbackPrefix) {
+					requestPath = imouCallbackPrefix + "[redacted]"
+				}
+
 				attrs := []any{
 					"method", r.Method,
-					"path", r.URL.Path,
+					"path", requestPath,
 					"status", status,
 					"duration_ms", latency.Milliseconds(),
 					"remote_ip", r.RemoteAddr,
