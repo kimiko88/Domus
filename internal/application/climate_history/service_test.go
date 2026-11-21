@@ -160,6 +160,29 @@ func TestForecastCanRunWithoutThermalRateAnalysis(t *testing.T) {
 	require.InDelta(t, 21.0, *summary.Rooms[0].ForecastTemperature, 0.01)
 }
 
+func TestSummarizeReportsUnavailableClimateSensors(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	offline := &entity.Entity{
+		ID: "offline-1", EntityKey: "sensor.office_temperature", Domain: "sensor",
+		Name: "Office temperature", UnitOfMeasurement: "°C", State: "19",
+		Attributes: "{\"device_class\":\"temperature\"}", Available: false, AreaID: "office",
+	}
+	repo := &climateRepoStub{settings: settings}
+	service := NewService(repo, &climateEntityRepoStub{entities: []*entity.Entity{offline}}, testLogger())
+	summary, err := service.Summarize(context.Background(), domclimate.Filter{})
+	require.NoError(t, err)
+	require.Len(t, summary.Insights, 1)
+	require.Equal(t, "sensor_offline", summary.Insights[0].Code)
+	require.Equal(t, "office", summary.Insights[0].AreaID)
+	require.Equal(t, "Office temperature", summary.Insights[0].EntityName)
+
+	settings.AnomalyDetectionEnabled = false
+	repo.settings = settings
+	summary, err = service.Summarize(context.Background(), domclimate.Filter{})
+	require.NoError(t, err)
+	require.Empty(t, summary.Insights)
+}
+
 func TestSettingsValidation(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	require.NoError(t, settings.Validate())
