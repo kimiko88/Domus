@@ -189,13 +189,20 @@ func (r *CameraRepository) ListCameras(ctx context.Context) ([]*camera.Camera, e
 		if t, err := time.Parse(time.RFC3339, updatedStr); err == nil {
 			cam.UpdatedAt = t
 		}
-		if err := r.decryptAndMigrateCamera(ctx, &cam); err != nil {
-			return nil, err
-		}
 		cameras = append(cameras, &cam)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: rows error: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("sqlite: close camera rows: %w", err)
+	}
+	// Perform legacy credential migration only after closing the SELECT cursor;
+	// this also avoids deadlocks when SQLite is configured with one connection.
+	for _, cam := range cameras {
+		if err := r.decryptAndMigrateCamera(ctx, cam); err != nil {
+			return nil, err
+		}
 	}
 
 	if cameras == nil {
