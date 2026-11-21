@@ -165,7 +165,8 @@ func (c *Client) oauthToken(ctx context.Context, values url.Values) (*OAuthToken
 	if raw.Error != "" {
 		return nil, fmt.Errorf("imou: OAuth provider error %q", raw.Error)
 	}
-	if !strings.HasPrefix(raw.AccessToken, "Ot_") || raw.RefreshToken == "" || raw.ExpiresIn < 60 || raw.ExpiresIn > 86400 {
+	if !strings.HasPrefix(raw.AccessToken, "Ot_") || len(raw.AccessToken) > 4096 ||
+		raw.RefreshToken == "" || len(raw.RefreshToken) > 4096 || raw.ExpiresIn < 60 || raw.ExpiresIn > 86400 {
 		return nil, errors.New("imou: token response is missing required or valid fields")
 	}
 	if raw.TokenType != "" && !strings.EqualFold(raw.TokenType, "bearer") {
