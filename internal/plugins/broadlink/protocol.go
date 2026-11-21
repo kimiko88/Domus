@@ -48,6 +48,8 @@ func DeviceModel(deviceType uint16) (string, bool, bool) {
 		return "RM Mini 3", true, false
 	case 0x51da, 0x520c, 0x5216, 0x521c, 0x610e, 0x62bc, 0x648d, 0x653a:
 		return "RM4 Mini", true, false
+	case 0x6364:
+		return "RM4S", true, false
 	case 0x520d, 0x6070, 0x610f, 0x62be, 0x6539:
 		return "RM4C Mini", true, false
 	case 0x5211:
@@ -67,7 +69,7 @@ func DeviceModel(deviceType uint16) (string, bool, bool) {
 
 func usesModernRemoteFrame(deviceType uint16) bool {
 	model, _, _ := DeviceModel(deviceType)
-	if model == "RM4 Mini" || model == "RM4C Mini" || model == "RM4 TV Mate" || model == "RM4 Pro" || model == "RM4C Pro" {
+	if model == "RM4 Mini" || model == "RM4C Mini" || model == "RM4C Mate" || model == "RM4 TV Mate" || model == "RM4S" || model == "RM4 Pro" || model == "RM4C Pro" {
 		return true
 	}
 	switch deviceType {
