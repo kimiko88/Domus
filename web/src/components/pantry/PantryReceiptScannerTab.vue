@@ -514,7 +514,7 @@ onBeforeUnmount(() => {
             <ImagePlus :size="18" />
             <div>
               <strong>{{ t('shopping.view.receiptScanner.imageReadyTitle') }}</strong>
-              <small>{{ pendingImage.name }} · {{ (pendingImage.size / 1024).toFixed(0) }} KB</small>
+              <small>{{ sourceImage?.name || pendingImage.name }} · {{ (pendingImage.size / 1024).toFixed(0) }} KB</small>
             </div>
           </div>
           <button class="icon-action" type="button" :aria-label="t('shopping.view.receiptScanner.removeFile')" @click="resetSelectedFile">
