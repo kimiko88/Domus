@@ -331,3 +331,14 @@ func TestPairDeviceAndSendCommand(t *testing.T) {
 		t.Errorf("expected /rpc/Switch.Set to be called on Shelly device")
 	}
 }
+
+func TestValidateLANProbeTargetRejectsNonLANAddresses(t *testing.T) {
+	for _, target := range []string{"example.com", "8.8.8.8", "169.254.169.254", "127.0.0.1", "http://192.168.1.2"} {
+		if err := ValidateLANProbeTarget(target); err == nil {
+			t.Errorf("expected target %q to be rejected", target)
+		}
+	}
+	if err := ValidateLANProbeTarget("192.168.1.20"); err != nil {
+		t.Errorf("expected private LAN IP to be accepted, got %v", err)
+	}
+}

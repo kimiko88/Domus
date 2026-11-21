@@ -4,6 +4,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/domus-hub/domus/internal/application/brand"
@@ -128,8 +129,18 @@ func (h *IntegrationHandler) Scan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req scanRequest
-	if r.Body != nil && r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	if r.Body != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "bad_request", "invalid scan request payload")
+			return
+		}
+	}
+	if req.Target != "" {
+		if err := brand.ValidateLANProbeTarget(req.Target); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_target", "target must be a private LAN IP address")
+			return
+		}
 	}
 
 	devices, err := h.brandService.Scan(r.Context(), req.Target)
@@ -156,8 +167,13 @@ func (h *IntegrationHandler) Pair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req brand.PairRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "bad_request", "invalid pair request payload")
+		return
+	}
+	if err := brand.ValidateLANProbeTarget(req.IP); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_target", "device IP must be a private LAN address")
 		return
 	}
 

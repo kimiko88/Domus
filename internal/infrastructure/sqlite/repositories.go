@@ -228,6 +228,9 @@ func (r *Repositories) WithCipher(c *crypto.EnvelopeCipher) *Repositories {
 	if whRepo, ok := r.OutboundWebhooks.(*OutboundWebhookRepository); ok && whRepo != nil {
 		whRepo.WithCipher(c)
 	}
+	if r.Cameras != nil {
+		r.Cameras.WithCipher(c)
+	}
 	return r
 }
 

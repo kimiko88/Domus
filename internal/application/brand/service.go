@@ -22,6 +22,10 @@ import (
 var keySanitizer = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // Service manages smart home brand catalog, auto-discovery, zero-cloud pairing, and direct HTTP/RPC command execution.
+type SecretCipher interface {
+	Encrypt(plaintext string) (string, error)
+}
+
 type Service struct {
 	deviceRepo      device.Repository
 	entityRepo      entity.Repository
@@ -29,6 +33,7 @@ type Service struct {
 	bus             events.Bus
 	scanner         *Scanner
 	httpClient      *http.Client
+	secretCipher    SecretCipher
 
 	mu                sync.RWMutex
 	discoveredDevices map[string]*DiscoveredDevice
@@ -44,10 +49,18 @@ func NewService(
 	client *http.Client,
 ) *Service {
 	if client == nil {
-		client = &http.Client{
-			Timeout: 3 * time.Second,
-		}
+		client = &http.Client{Timeout: 3 * time.Second}
 	}
+	// Commands sent to a paired device must obey the same no-redirect policy
+	// as discovery; otherwise a compromised device could redirect requests.
+	safeClient := *client
+	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	if safeClient.Timeout <= 0 {
+		safeClient.Timeout = 3 * time.Second
+	}
+	client = &safeClient
 
 	s := &Service{
 		deviceRepo:        devRepo,
@@ -64,6 +77,12 @@ func NewService(
 		bus.Subscribe(events.CommandRequested, s.handleCommandEvent)
 	}
 
+	return s
+}
+
+// WithSecretCipher enables authenticated encryption for device credentials at rest.
+func (s *Service) WithSecretCipher(cipher SecretCipher) *Service {
+	s.secretCipher = cipher
 	return s
 }
 
@@ -120,6 +139,9 @@ func (s *Service) PairDevice(ctx context.Context, req PairRequest) (*device.Devi
 	if req.IP == "" {
 		return nil, nil, fmt.Errorf("brand: target ip is required")
 	}
+	if req.AuthToken != "" && s.secretCipher == nil {
+		return nil, nil, fmt.Errorf("brand: credential encryption is unavailable; refusing to persist a plaintext token")
+	}
 
 	// 1. Identify device if not already discovered
 	s.mu.RLock()
@@ -174,14 +196,27 @@ func (s *Service) PairDevice(ctx context.Context, req PairRequest) (*device.Devi
 		extID = fmt.Sprintf("%s_%s", disc.Brand, disc.IP)
 	}
 
-	metaJSON, _ := json.Marshal(map[string]any{
-		"ip":         disc.IP,
-		"port":       disc.Port,
-		"brand":      disc.Brand,
-		"model":      disc.Model,
-		"firmware":   disc.Firmware,
-		"auth_token": req.AuthToken,
-	})
+	metadata := map[string]any{
+		"ip":       disc.IP,
+		"port":     disc.Port,
+		"brand":    disc.Brand,
+		"model":    disc.Model,
+		"firmware": disc.Firmware,
+	}
+	if req.AuthToken != "" {
+		if s.secretCipher == nil {
+			return nil, nil, fmt.Errorf("brand: credential encryption is unavailable; refusing to persist a plaintext token")
+		}
+		encryptedToken, err := s.secretCipher.Encrypt(req.AuthToken)
+		if err != nil {
+			return nil, nil, fmt.Errorf("brand: failed to encrypt device credential: %w", err)
+		}
+		metadata["auth_token_enc"] = encryptedToken
+	}
+	metaJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, nil, fmt.Errorf("brand: failed to encode device metadata: %w", err)
+	}
 
 	now := time.Now().UTC()
 	dev := &device.Device{
