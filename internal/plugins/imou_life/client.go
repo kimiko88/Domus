@@ -244,7 +244,7 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 }
 
 func (c *Client) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
-	if method == "" || strings.ContainsAny(method, "/\\?#") {
+	if !validAPIMethod(method) {
 		return nil, errors.New("imou: invalid API method")
 	}
 	now := time.Now().UTC().Unix()
@@ -311,4 +311,23 @@ func randomUUID() (string, error) {
 	value[8] = (value[8] & 0x3f) | 0x80
 	encoded := hex.EncodeToString(value[:])
 	return encoded[:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:], nil
+}
+
+func validAPIMethod(method string) bool {
+	if method == "" || len(method) > 128 || strings.HasPrefix(method, "/") ||
+		strings.HasSuffix(method, "/") || strings.ContainsAny(method, "\\\\?#") {
+		return false
+	}
+	for _, part := range strings.Split(method, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+		for _, ch := range part {
+			if !(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') &&
+				!(ch >= '0' && ch <= '9') && ch != '.' && ch != '_' && ch != '-' {
+				return false
+			}
+		}
+	}
+	return true
 }
