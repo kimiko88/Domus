@@ -52,6 +52,7 @@ import (
 	domainShop "github.com/domus-hub/domus/internal/domain/shopping"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/network"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	infrasup "github.com/domus-hub/domus/internal/infrastructure/supervisor"
@@ -215,6 +216,33 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		slog.Warn("tuya user OAuth disabled: App Authorization credentials, HTTPS H5 URL, callback URL and encrypted database storage are all required")
 	}
 
+	// New vendor integrations share the existing encrypted integration repository.
+	var imouLifeHandler *handlers.ImouLifeHandler
+	var xiaomiHomeHandler *handlers.XiaomiHomeHandler
+	var xiaomiCloudHandler *handlers.XiaomiCloudHandler
+	if srv.repos != nil && srv.repos.Integrations != nil && srv.repos.Cipher != nil {
+		var handlerErr error
+		imouLifeHandler, handlerErr = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr == nil {
+			imouLifeHandler.WithEventBus(srv.bus)
+		}
+		if handlerErr != nil {
+			slog.Error("Imou Life integration disabled: handler initialization failed", "error", handlerErr)
+		}
+		xiaomiHomeHandler, handlerErr = handlers.NewXiaomiHomeHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr != nil {
+			slog.Error("Xiaomi Home local integration disabled: handler initialization failed", "error", handlerErr)
+		}
+		xiaomiCloudHandler, handlerErr = handlers.NewXiaomiCloudHandler(
+			srv.repos.Integrations, srv.repos.Devices, srv.repos.Entities, srv.repos.Cipher, srv.bus,
+		)
+		if handlerErr != nil {
+			slog.Error("Xiaomi Home Cloud integration disabled: handler initialization failed", "error", handlerErr)
+		}
+	} else {
+		slog.Warn("Xiaomi Home and Imou Life integrations disabled: encrypted integration storage is required")
+	}
+
 	// Initialize Tuya Local LAN adapter for direct local-first control via local_key
 	if srv.bus != nil {
 		srv.tuyaLocalAdapter = tuya_local.NewAdapter("tuya_local", srv.bus)
@@ -297,6 +325,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// the administrator who initiated the authorization.
 		if tuyaOAuthHandler != nil {
 			tuyaOAuthHandler.RegisterCallback(api)
+		}
+		if imouLifeHandler != nil {
+			imouLifeHandler.RegisterCallback(api)
+		}
+		if xiaomiCloudHandler != nil {
+			xiaomiCloudHandler.RegisterCallback(api)
 		}
 
 		if srv.wsHub != nil {
@@ -403,7 +437,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
+			if xiaomiCloudHandler != nil {
+				entityH.WithXiaomiCloud(xiaomiCloudHandler)
+			}
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
+			if srv.repos.Cipher != nil {
+				brandSvc.WithSecretCipher(srv.repos.Cipher)
+			}
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
 			var webhookH *handlers.WebhookHandler
@@ -458,6 +498,24 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/tuya-local", func(localRouter chi.Router) {
 						localRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						localH.RegisterRoutes(localRouter)
+					})
+				}
+				if imouLifeHandler != nil {
+					domainRouter.Route("/integrations/imou-life", func(imouRouter chi.Router) {
+						imouRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						imouLifeHandler.RegisterRoutes(imouRouter)
+					})
+				}
+				if xiaomiHomeHandler != nil {
+					domainRouter.Route("/integrations/xiaomi-home", func(xiaomiRouter chi.Router) {
+						xiaomiRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						xiaomiHomeHandler.RegisterRoutes(xiaomiRouter)
+					})
+				}
+				if xiaomiCloudHandler != nil {
+					domainRouter.Route("/integrations/xiaomi-home/cloud", func(cloudRouter chi.Router) {
+						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						xiaomiCloudHandler.RegisterRoutes(cloudRouter)
 					})
 				}
 
@@ -1039,7 +1097,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 				// Security Alarm Control Panel & Zigbee Direct Binding & Inbound Webhooks
 				if srv.repos.DB != nil {
-					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil)
+					alarmSvc := appalarm.NewService(srv.repos.DB, srv.bus, nil).
+						WithPINHasher(crypto.NewArgon2Hasher(crypto.DefaultArgon2Params()))
 					alarmH := handlers.NewAlarmHandler(alarmSvc)
 					alarmH.RegisterRoutes(domainRouter)
 

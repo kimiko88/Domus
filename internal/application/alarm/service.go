@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,10 +20,22 @@ type SirenController interface {
 }
 
 // Service manages security alarm states, delays, PIN validation and sensor monitoring.
+type PINHasher interface {
+	HashPassword(password string) (string, error)
+	VerifyPassword(password, encodedHash string) (bool, error)
+}
+
+type pinAttemptState struct {
+	failures    int
+	blockedUntil time.Time
+}
+
 type Service struct {
 	db        *sql.DB
 	bus       events.Bus
 	sirenCtrl SirenController
+	pinHasher PINHasher
+	pinAttempts map[string]pinAttemptState
 	mu        sync.RWMutex
 
 	// Active timers
@@ -35,75 +48,23 @@ func NewService(db *sql.DB, bus events.Bus, sirenCtrl SirenController) *Service 
 		db:        db,
 		bus:       bus,
 		sirenCtrl: sirenCtrl,
+		pinAttempts: make(map[string]pinAttemptState),
 	}
 	s.listenSensorEvents()
 	return s
 }
 
+// WithPINHasher configures Argon2id hashing and verification for alarm PINs.
+func (s *Service) WithPINHasher(hasher PINHasher) *Service {
+	s.pinHasher = hasher
+	return s
+}
+
 // GetPanel retrieves the current alarm panel state.
 func (s *Service) GetPanel(ctx context.Context) (*alarm.ControlPanel, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, state, pin_hash, entry_delay_seconds, exit_delay_seconds, trigger_delay_seconds,
-		       perimeter_sensors_json, interior_sensors_json, siren_entities_json,
-		       last_changed_by, last_triggered_reason, triggered_at, updated_at
-		FROM alarm_control_panels
-		WHERE id = 'alarm_main'
-	`)
-
-	var cp alarm.ControlPanel
-	var perimJSON, interiorJSON, sirenJSON string
-	var lastChangedBy, lastTriggeredReason sql.NullString
-	var triggeredAt sql.NullTime
-
-	err := row.Scan(
-		&cp.ID, &cp.Name, &cp.State, &cp.PinHash, &cp.EntryDelaySeconds, &cp.ExitDelaySeconds, &cp.TriggerDelaySeconds,
-		&perimJSON, &interiorJSON, &sirenJSON,
-		&lastChangedBy, &lastTriggeredReason, &triggeredAt, &cp.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		// Initialize default panel
-		cp = alarm.ControlPanel{
-			ID:                "alarm_main",
-			Name:              "Allarme Domus Casa",
-			State:             alarm.StateDisarmed,
-			PinHash:           "1234",
-			EntryDelaySeconds: 30,
-			ExitDelaySeconds:  60,
-			PerimeterSensors:  []string{},
-			InteriorSensors:   []string{},
-			SirenEntities:     []string{},
-			UpdatedAt:         time.Now().UTC(),
-		}
-		_, _ = s.db.ExecContext(ctx, `
-			INSERT OR IGNORE INTO alarm_control_panels (
-				id, name, state, pin_hash, entry_delay_seconds, exit_delay_seconds,
-				perimeter_sensors_json, interior_sensors_json, siren_entities_json
-			) VALUES ('alarm_main', 'Allarme Domus Casa', 'disarmed', '1234', 30, 60, '[]', '[]', '[]')
-		`)
-		return &cp, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("alarm: failed to query panel: %w", err)
-	}
-
-	_ = json.Unmarshal([]byte(perimJSON), &cp.PerimeterSensors)
-	_ = json.Unmarshal([]byte(interiorJSON), &cp.InteriorSensors)
-	_ = json.Unmarshal([]byte(sirenJSON), &cp.SirenEntities)
-
-	if lastChangedBy.Valid {
-		cp.LastChangedBy = lastChangedBy.String
-	}
-	if lastTriggeredReason.Valid {
-		cp.LastTriggeredReason = lastTriggeredReason.String
-	}
-	if triggeredAt.Valid {
-		t := triggeredAt.Time
-		cp.TriggeredAt = &t
-	}
-
-	return &cp, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getPanelUnsafe(ctx)
 }
 
 // Arm arms the system into armed_home, armed_away, or armed_night.
@@ -120,8 +81,8 @@ func (s *Service) Arm(ctx context.Context, targetState alarm.State, pin, user st
 		return nil, alarm.ErrInvalidMode
 	}
 
-	if cp.PinHash != "" && !cp.VerifyPin(pin) {
-		return nil, alarm.ErrInvalidPin
+	if err := s.verifyPIN(cp, pin, user); err != nil {
+		return nil, err
 	}
 
 	// Cancel any active pending timer
@@ -158,8 +119,8 @@ func (s *Service) Disarm(ctx context.Context, pin, user string) (*alarm.ControlP
 		return nil, err
 	}
 
-	if cp.PinHash != "" && !cp.VerifyPin(pin) {
-		return nil, alarm.ErrInvalidPin
+	if err := s.verifyPIN(cp, pin, user); err != nil {
+		return nil, err
 	}
 
 	if s.pendingTimer != nil {
@@ -306,7 +267,22 @@ func (s *Service) UpdateConfig(ctx context.Context, entryDelay, exitDelay int, p
 		cp.SirenEntities = sirens
 	}
 	if newPin != "" {
-		cp.PinHash = newPin
+		if len(newPin) < 6 || len(newPin) > 12 {
+			return nil, fmt.Errorf("alarm: PIN must contain between 6 and 12 digits")
+		}
+		for _, digit := range newPin {
+			if digit < '0' || digit > '9' {
+				return nil, fmt.Errorf("alarm: PIN must contain only digits")
+			}
+		}
+		if s.pinHasher == nil {
+			return nil, fmt.Errorf("alarm: PIN hashing is unavailable")
+		}
+		hashed, err := s.pinHasher.HashPassword(newPin)
+		if err != nil {
+			return nil, fmt.Errorf("alarm: failed to hash PIN: %w", err)
+		}
+		cp.PinHash = hashed
 	}
 	cp.UpdatedAt = time.Now().UTC()
 
@@ -315,6 +291,38 @@ func (s *Service) UpdateConfig(ctx context.Context, entryDelay, exitDelay int, p
 	}
 
 	return cp, nil
+}
+
+func (s *Service) verifyPIN(cp *alarm.ControlPanel, pin, actor string) error {
+	if cp.PinHash == "" {
+		return alarm.ErrPinNotConfigured
+	}
+	if s.pinHasher == nil {
+		return fmt.Errorf("alarm: PIN verifier is unavailable")
+	}
+	key := strings.TrimSpace(actor)
+	if key == "" {
+		key = "anonymous"
+	}
+	now := time.Now().UTC()
+	attempt := s.pinAttempts[key]
+	if attempt.blockedUntil.After(now) {
+		return alarm.ErrPinRateLimited
+	}
+	valid, err := s.pinHasher.VerifyPassword(strings.TrimSpace(pin), cp.PinHash)
+	if err != nil {
+		return fmt.Errorf("alarm: PIN verifier rejected stored hash: %w", err)
+	}
+	if !valid {
+		attempt.failures++
+		if attempt.failures >= 5 {
+			attempt.blockedUntil = now.Add(5 * time.Minute)
+		}
+		s.pinAttempts[key] = attempt
+		return alarm.ErrInvalidPin
+	}
+	delete(s.pinAttempts, key)
+	return nil
 }
 
 func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, error) {
@@ -327,12 +335,12 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 	`)
 
 	var cp alarm.ControlPanel
+	var pinHash, lastChangedBy, lastTriggeredReason sql.NullString
 	var perimJSON, interiorJSON, sirenJSON string
-	var lastChangedBy, lastTriggeredReason sql.NullString
 	var triggeredAt sql.NullTime
 
 	err := row.Scan(
-		&cp.ID, &cp.Name, &cp.State, &cp.PinHash, &cp.EntryDelaySeconds, &cp.ExitDelaySeconds, &cp.TriggerDelaySeconds,
+		&cp.ID, &cp.Name, &cp.State, &pinHash, &cp.EntryDelaySeconds, &cp.ExitDelaySeconds, &cp.TriggerDelaySeconds,
 		&perimJSON, &interiorJSON, &sirenJSON,
 		&lastChangedBy, &lastTriggeredReason, &triggeredAt, &cp.UpdatedAt,
 	)
@@ -341,7 +349,7 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 			ID:                "alarm_main",
 			Name:              "Allarme Domus Casa",
 			State:             alarm.StateDisarmed,
-			PinHash:           "1234",
+			PinHash:           "",
 			EntryDelaySeconds: 30,
 			ExitDelaySeconds:  60,
 			PerimeterSensors:  []string{},
@@ -349,11 +357,21 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 			SirenEntities:     []string{},
 			UpdatedAt:         time.Now().UTC(),
 		}
+		_, insertErr := s.db.ExecContext(ctx, `
+			INSERT OR IGNORE INTO alarm_control_panels (
+				id, name, state, pin_hash, entry_delay_seconds, exit_delay_seconds,
+				perimeter_sensors_json, interior_sensors_json, siren_entities_json
+			) VALUES ('alarm_main', 'Allarme Domus Casa', 'disarmed', NULL, 30, 60, '[]', '[]', '[]')
+		`)
+		if insertErr != nil {
+			return nil, fmt.Errorf("alarm: initialize panel: %w", insertErr)
+		}
 		return &cp, nil
 	} else if err != nil {
 		return nil, err
 	}
 
+	cp.PinHash = pinHash.String
 	_ = json.Unmarshal([]byte(perimJSON), &cp.PerimeterSensors)
 	_ = json.Unmarshal([]byte(interiorJSON), &cp.InteriorSensors)
 	_ = json.Unmarshal([]byte(sirenJSON), &cp.SirenEntities)
@@ -367,6 +385,27 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 	if triggeredAt.Valid {
 		t := triggeredAt.Time
 		cp.TriggeredAt = &t
+	}
+
+	// Migrate legacy plaintext PINs in place. The historical default 1234 is
+	// discarded rather than carried forward as a usable security credential.
+	if cp.PinHash == "1234" {
+		cp.PinHash = ""
+		if _, err := s.db.ExecContext(ctx, "UPDATE alarm_control_panels SET pin_hash = NULL WHERE id = 'alarm_main'"); err != nil {
+			return nil, fmt.Errorf("alarm: clear insecure default PIN: %w", err)
+		}
+	} else if cp.PinHash != "" && !strings.HasPrefix(cp.PinHash, "$argon2id$") {
+		if s.pinHasher == nil {
+			return nil, fmt.Errorf("alarm: legacy PIN needs migration but Argon2id is unavailable")
+		}
+		encoded, err := s.pinHasher.HashPassword(strings.TrimSpace(cp.PinHash))
+		if err != nil {
+			return nil, fmt.Errorf("alarm: migrate legacy PIN: %w", err)
+		}
+		if _, err := s.db.ExecContext(ctx, "UPDATE alarm_control_panels SET pin_hash = ? WHERE id = 'alarm_main'", encoded); err != nil {
+			return nil, fmt.Errorf("alarm: persist migrated PIN: %w", err)
+		}
+		cp.PinHash = encoded
 	}
 
 	return &cp, nil

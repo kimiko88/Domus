@@ -3,13 +3,14 @@ package alarm
 
 import (
 	"errors"
-	"strings"
 	"time"
 )
 
 var (
 	ErrAlarmNotFound   = errors.New("alarm: control panel not found")
 	ErrInvalidPin      = errors.New("alarm: invalid PIN code")
+	ErrPinNotConfigured = errors.New("alarm: PIN has not been configured")
+	ErrPinRateLimited   = errors.New("alarm: too many invalid PIN attempts")
 	ErrInvalidMode     = errors.New("alarm: unsupported arm mode")
 	ErrAlreadyArmed    = errors.New("alarm: already armed")
 	ErrAlreadyDisarmed = errors.New("alarm: already disarmed")
@@ -51,10 +52,3 @@ func (cp *ControlPanel) IsArmed() bool {
 	return cp.State == StateArmedHome || cp.State == StateArmedAway || cp.State == StateArmedNight
 }
 
-// VerifyPin checks if the provided PIN matches the panel's PIN.
-func (cp *ControlPanel) VerifyPin(pin string) bool {
-	if cp.PinHash == "" {
-		return true // No PIN configured
-	}
-	return strings.TrimSpace(pin) == strings.TrimSpace(cp.PinHash)
-}

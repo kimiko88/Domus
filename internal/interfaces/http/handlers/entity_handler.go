@@ -18,10 +18,15 @@ import (
 )
 
 // EntityHandler handles HTTP operations for Entity objects.
+type XiaomiEntityController interface {
+	ControlEntity(ctx context.Context, entityKey, service string, params map[string]any) error
+}
+
 type EntityHandler struct {
 	repo          entity.Repository
 	bus           events.Bus
 	climateEngine *appauto.Engine
+	xiaomiCloud   XiaomiEntityController
 }
 
 // NewEntityHandler constructs an EntityHandler.
@@ -57,6 +62,13 @@ func (h *EntityHandler) resolveEntity(ctx context.Context, idOrKey string) (*ent
 // thermostat profile overrides.
 func (h *EntityHandler) WithClimateEngine(engine *appauto.Engine) *EntityHandler {
 	h.climateEngine = engine
+	return h
+}
+
+// WithXiaomiCloud connects MIoT-backed entities to the official Xiaomi Cloud
+// control API while preserving the normal Domus entity authorization flow.
+func (h *EntityHandler) WithXiaomiCloud(controller XiaomiEntityController) *EntityHandler {
+	h.xiaomiCloud = controller
 	return h
 }
 
@@ -203,6 +215,20 @@ func (h *EntityHandler) Command(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_request", "service is required")
 		return
 	}
+	var entityAttributes map[string]any
+	_ = json.Unmarshal([]byte(ent.Attributes), &entityAttributes)
+	if entityAttributes["source"] == "xiaomi_home" {
+		if h.xiaomiCloud == nil {
+			writeError(w, http.StatusServiceUnavailable, "XIAOMI_UNAVAILABLE", "Xiaomi Home Cloud controller is unavailable")
+			return
+		}
+		if err := h.xiaomiCloud.ControlEntity(r.Context(), ent.EntityKey, req.Service, req.Params); err != nil {
+			writeError(w, http.StatusBadGateway, "XIAOMI_COMMAND_FAILED", "Xiaomi device command failed: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"status":"accepted","entity_key":ent.EntityKey,"service":req.Service})
+		return
+	}
 
 	source := "system"
 	if u := domusmw.GetUser(r.Context()); u != nil {
@@ -265,6 +291,27 @@ func (h *EntityHandler) CallService(w http.ResponseWriter, r *http.Request) {
 
 	if !ent.Writable {
 		writeError(w, http.StatusForbidden, "not_writable", "entity is read-only")
+		return
+	}
+	if currentUser := domusmw.GetUser(r.Context()); currentUser != nil {
+		permissions := currentUser.EffectivePermissions()
+		if !currentUser.CanAccessEntityInArea(ent.ID, ent.AreaID) || permissions == nil || !permissions.CanControlDevices {
+			writeError(w, http.StatusForbidden, "forbidden", "member is not allowed to control this entity")
+			return
+		}
+	}
+	var entityAttributes map[string]any
+	_ = json.Unmarshal([]byte(ent.Attributes), &entityAttributes)
+	if entityAttributes["source"] == "xiaomi_home" {
+		if h.xiaomiCloud == nil {
+			writeError(w, http.StatusServiceUnavailable, "XIAOMI_UNAVAILABLE", "Xiaomi Home Cloud controller is unavailable")
+			return
+		}
+		if err := h.xiaomiCloud.ControlEntity(r.Context(), ent.EntityKey, service, req.Data); err != nil {
+			writeError(w, http.StatusBadGateway, "XIAOMI_COMMAND_FAILED", "Xiaomi device command failed: "+err.Error())
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"status":"accepted","entity_key":ent.EntityKey,"service":service,"domain":domain})
 		return
 	}
 
