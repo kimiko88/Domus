@@ -3567,7 +3567,8 @@
       "temperature_anomaly": "Variazione anomala di temperatura",
       "humidity_low": "Umidità sotto la soglia",
       "humidity_high": "Umidità sopra la soglia",
-      "humidity_comfort": "Umidità fuori dalla fascia di comfort"
+      "humidity_comfort": "Umidità fuori dalla fascia di comfort",
+      "sensor_offline": "Sensore climatico offline"
     },
     "errors": {
       "load": "Impossibile caricare lo storico climatico.",
