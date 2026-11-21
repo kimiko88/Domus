@@ -183,6 +183,34 @@ func TestSummarizeReportsUnavailableClimateSensors(t *testing.T) {
 	require.Empty(t, summary.Insights)
 }
 
+func TestTemperatureSensorUsesAttributeUnitAndSmartSamplingAccumulatesChanges(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.SmartSampling = true
+	settings.TemperatureChangeThreshold = 0.2
+	repo := &climateRepoStub{settings: settings}
+	room := &entity.Entity{
+		ID: "fahrenheit-sensor", EntityKey: "sensor.room_temp", Domain: "sensor",
+		Name: "Room sensor", State: "68", Attributes: "{\"unit_of_measurement\":\"°F\"}",
+		Available: true,
+	}
+	service := NewService(repo, &climateEntityRepoStub{entities: []*entity.Entity{room}}, testLogger())
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.InDelta(t, 20.0, *repo.samples[0].Temperature, 0.001)
+
+	room.State = "68.18"
+	count, err = service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count, "a change below threshold should not be persisted")
+	room.State = "68.36"
+	count, err = service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count, "small changes should accumulate against the last persisted sample")
+	require.Len(t, repo.samples, 2)
+	require.InDelta(t, (68.36-32)*5/9, *repo.samples[1].Temperature, 0.001)
+}
+
 func TestSettingsValidation(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	require.NoError(t, settings.Validate())
