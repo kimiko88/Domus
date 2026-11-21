@@ -82,7 +82,7 @@ interface BrandCatalogEntry {
   icon: string
 }
 
-const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian' | 'cloud'>('active')
+const activeTab = ref<'active' | 'discovery' | 'catalog' | 'guardian' | 'cloud' | 'vendors'>('active')
 const integrations = ref<Integration[]>([])
 const discoveredDevices = ref<DiscoveredDevice[]>([])
 const catalog = ref<BrandCatalogEntry[]>([])
@@ -141,6 +141,315 @@ const tuyaFunctionsLoading = ref<string | null>(null)
 const tuyaFunctionInputs = reactive<Record<string, string>>({})
 const tuyaFunctionBusy = ref<string | null>(null)
 const tuyaTemperatureInputs = reactive<Record<string, string>>({})
+
+
+// --- Xiaomi Home and Imou Life administration ---
+interface XiaomiLocalDevice {
+  id: string; name: string; ip: string; model?: string; firmware?: string; mac?: string; device_id?: number
+}
+interface XiaomiCloudDevice {
+  did: string; name: string; online: boolean; type: string; category?: string; rid?: string
+}
+interface ImouChannel { channelId: string; channelName?: string; channelStatus?: string }
+interface ImouDevice {
+  deviceId: string; deviceName?: string; deviceStatus?: string; deviceModel?: string
+  channelList?: ImouChannel[]; channelNum?: number
+}
+interface ImouCapabilityService { serviceId: string; name?: string; inputData?: Record<string, unknown>[] }
+interface ImouCapability {
+  capabilityId: string; name?: string
+  properties?: { propertyId: string; name?: string; accessMode?: string }[]
+  services?: ImouCapabilityService[]
+  events?: { eventId: string; name?: string }[]
+}
+interface ImouRecording {
+  fileName?: string; fileLength?: number; type?: number; beginTime?: string; endTime?: string
+}
+
+const xiaomiLocalDevices = ref<XiaomiLocalDevice[]>([])
+const xiaomiLocalForm = reactive({ ip: '', name: '', token: '' })
+const xiaomiLocalBusy = ref(false)
+const xiaomiLocalStatus = ref(false)
+const xiaomiCloudConfigured = ref(false)
+const xiaomiCloudConnected = ref(false)
+const xiaomiCloudRegion = ref('eu')
+const xiaomiCloudNickname = ref('')
+const xiaomiCloudUserId = ref('')
+const xiaomiCloudCallback = ref('')
+const xiaomiCloudEventCallback = ref('')
+const xiaomiCloudForm = reactive({ client_id: '', client_secret: '', public_base_url: '', region: 'eu' })
+const xiaomiCloudDevices = ref<XiaomiCloudDevice[]>([])
+const xiaomiCloudHomes = ref<{ id: number; name: string; rooms?: { id: string; name: string }[] }[]>([])
+const xiaomiCloudBusy = ref(false)
+const xiaomiCloudSyncBusy = ref(false)
+const xiaomiCloudError = ref('')
+const imouConfigured = ref(false)
+const imouConnected = ref(false)
+const imouDataCenter = ref('eu')
+const imouCallback = ref('')
+const imouEventsCallback = ref('')
+const imouAuthorizationURL = ref('')
+const imouForm = reactive({
+  access_key: '', secret_key: '', data_center: 'eu',
+  authorization_url: '', public_base_url: ''
+})
+const imouDevices = ref<ImouDevice[]>([])
+const imouCapabilities = ref<Record<string, ImouCapability[]>>({})
+const imouBusy = ref(false)
+const imouError = ref('')
+const imouPreviewDevice = ref<string | null>(null)
+const imouPreviewChannel = ref<Record<string, string>>({})
+const imouRecordDevice = ref<string | null>(null)
+const imouRecordings = ref<ImouRecording[]>([])
+const imouRecordingBegin = ref(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 16))
+const imouRecordingEnd = ref(new Date().toISOString().slice(0, 16))
+const imouRecordingBusy = ref(false)
+const imouPtzBusy = ref<string | null>(null)
+
+async function loadXiaomiVendorData() {
+  try {
+    const [local, cloud] = await Promise.all([
+      apiClient.get<{ devices: XiaomiLocalDevice[]; configured?: boolean }>('/api/v1/integrations/xiaomi-home/status'),
+      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
+    ])
+    xiaomiLocalDevices.value = local.devices || []
+    xiaomiLocalStatus.value = true
+    xiaomiCloudConfigured.value = cloud.configured
+    xiaomiCloudConnected.value = cloud.connected
+    xiaomiCloudNickname.value = cloud.nickname || ''
+    xiaomiCloudUserId.value = cloud.user_id_masked || ''
+    xiaomiCloudRegion.value = cloud.region || 'eu'
+    xiaomiCloudCallback.value = cloud.callback_url || ''
+    xiaomiCloudEventCallback.value = cloud.events_callback_url || ''
+    if (cloud.connected) await Promise.all([loadXiaomiCloudDevices(), loadXiaomiHomes()])
+  } catch {
+    xiaomiCloudError.value = t('integrations.view.vendors.statusError')
+  }
+}
+
+async function pairXiaomiLocalDevice() {
+  xiaomiLocalBusy.value = true
+  try {
+    const response = await apiClient.post('/api/v1/integrations/xiaomi-home/devices', {
+      ip: xiaomiLocalForm.ip.trim(), name: xiaomiLocalForm.name.trim(), token: xiaomiLocalForm.token.trim()
+    })
+    xiaomiLocalForm.token = ''
+    xiaomiLocalForm.ip = ''
+    xiaomiLocalForm.name = ''
+    notificationsStore.success(t('integrations.view.vendors.paired'), t('integrations.view.vendors.pairedDesc'))
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.pairError'), t('integrations.view.vendors.pairErrorDesc'))
+  } finally {
+    xiaomiLocalBusy.value = false
+  }
+}
+
+async function removeXiaomiLocalDevice(device: XiaomiLocalDevice) {
+  try {
+    await apiClient.delete(`/api/v1/integrations/xiaomi-home/devices/${encodeURIComponent(device.id)}`)
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.removeError'), t('integrations.view.vendors.removeErrorDesc'))
+  }
+}
+
+async function configureXiaomiCloud() {
+  xiaomiCloudBusy.value = true
+  try {
+    const result = await apiClient.put<{ callback_url: string; events_callback_url: string }>('/api/v1/integrations/xiaomi-home/cloud/config', xiaomiCloudForm)
+    xiaomiCloudCallback.value = result.callback_url
+    xiaomiCloudEventCallback.value = result.events_callback_url
+    xiaomiCloudConfigured.value = true
+    xiaomiCloudForm.client_secret = ''
+    notificationsStore.success(t('integrations.view.vendors.configSaved'), t('integrations.view.vendors.configSavedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.configError'), t('integrations.view.vendors.configErrorDesc'))
+  } finally {
+    xiaomiCloudBusy.value = false
+  }
+}
+
+async function authorizeXiaomiCloud() {
+  try {
+    const result = await apiClient.get<{ authorization_url: string }>('/api/v1/integrations/xiaomi-home/cloud/authorize')
+    window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.authError'), t('integrations.view.vendors.authErrorDesc'))
+  }
+}
+
+async function loadXiaomiCloudDevices() {
+  try {
+    const result = await apiClient.get<{ devices: XiaomiCloudDevice[] }>('/api/v1/integrations/xiaomi-home/cloud/devices')
+    xiaomiCloudDevices.value = result.devices || []
+  } catch {
+    xiaomiCloudError.value = t('integrations.view.vendors.devicesError')
+  }
+}
+
+async function loadXiaomiHomes() {
+  try {
+    const result = await apiClient.get<{ homes: typeof xiaomiCloudHomes.value }>('/api/v1/integrations/xiaomi-home/cloud/homes')
+    xiaomiCloudHomes.value = result.homes || []
+  } catch {
+    xiaomiCloudHomes.value = []
+  }
+}
+
+async function syncXiaomiCloudDevices() {
+  xiaomiCloudSyncBusy.value = true
+  try {
+    const result = await apiClient.post<{ synced: number; skipped: number; failed: number }>('/api/v1/integrations/xiaomi-home/cloud/sync', {})
+    notificationsStore.success(
+      t('integrations.view.vendors.syncComplete'),
+      t('integrations.view.vendors.syncSummary', result)
+    )
+    await fetchIntegrations()
+    await loadXiaomiCloudDevices()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.syncError'), t('integrations.view.vendors.syncErrorDesc'))
+  } finally {
+    xiaomiCloudSyncBusy.value = false
+  }
+}
+
+async function subscribeXiaomiDeviceStatus() {
+  try {
+    const ids = xiaomiCloudDevices.value.map(device => device.did)
+    if (!ids.length) return
+    const result = await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/events/subscribe', {
+      topic: 'devices-status-changed', ids
+    })
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), JSON.stringify(result))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+async function loadImouVendorData() {
+  try {
+    const status = await apiClient.get<{
+      configured: boolean; connected: boolean; data_center?: string
+      callback_url?: string; events_callback_url?: string
+      authorization_url?: string
+    }>('/api/v1/integrations/imou-life/status')
+    imouConfigured.value = status.configured
+    imouConnected.value = status.connected
+    imouDataCenter.value = status.data_center || 'eu'
+    imouCallback.value = status.callback_url || ''
+    imouEventsCallback.value = status.events_callback_url || ''
+    imouAuthorizationURL.value = status.authorization_url || ''
+    if (status.connected) await loadImouDevices()
+  } catch {
+    imouError.value = t('integrations.view.vendors.statusError')
+  }
+}
+
+async function configureImouLife() {
+  imouBusy.value = true
+  try {
+    const result = await apiClient.put<{ callback_url: string; authorization_url: string; configured: boolean }>('/api/v1/integrations/imou-life/config', imouForm)
+    imouCallback.value = result.callback_url
+    imouAuthorizationURL.value = result.authorization_url
+    imouConfigured.value = true
+    imouForm.secret_key = ''
+    notificationsStore.success(t('integrations.view.vendors.configSaved'), t('integrations.view.vendors.configSavedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.configError'), t('integrations.view.vendors.configErrorDesc'))
+  } finally {
+    imouBusy.value = false
+  }
+}
+
+async function authorizeImouLife() {
+  try {
+    const result = await apiClient.get<{ authorization_url: string }>('/api/v1/integrations/imou-life/authorize')
+    window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.authError'), t('integrations.view.vendors.authErrorDesc'))
+  }
+}
+
+async function loadImouDevices() {
+  imouBusy.value = true
+  imouError.value = ''
+  try {
+    const result = await apiClient.get<{ devices: ImouDevice[]; count: number }>('/api/v1/integrations/imou-life/devices?page=1&page_size=50')
+    imouDevices.value = result.devices || []
+    await Promise.all(imouDevices.value.map(device => loadImouCapabilities(device)))
+  } catch {
+    imouError.value = t('integrations.view.vendors.devicesError')
+  } finally {
+    imouBusy.value = false
+  }
+}
+
+async function loadImouCapabilities(device: ImouDevice) {
+  try {
+    const channel = device.channelList?.[0]?.channelId || '0'
+    const result = await apiClient.get<{ capabilities: ImouCapability[] }>(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/capabilities?channel=${encodeURIComponent(channel)}`
+    )
+    imouCapabilities.value[device.deviceId] = result.capabilities || []
+  } catch {
+    imouCapabilities.value[device.deviceId] = []
+  }
+}
+
+function imouHasPTZ(deviceId: string) {
+  return (imouCapabilities.value[deviceId] || []).some(capability =>
+    (capability.services || []).some(service => service.serviceId === 'ptz.aim.relative')
+  )
+}
+
+async function moveImouPTZ(device: ImouDevice, horizontal: string, vertical: string, zoom = '0') {
+  const serviceId = 'ptz.aim.relative'
+  imouPtzBusy.value = device.deviceId
+  try {
+    const channel = device.channelList?.[0]?.channelId || '0'
+    await apiClient.post(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/services/${encodeURIComponent(serviceId)}`,
+      { channel_id: channel, input: { horizontal, vertical, zoom, duration: 500 } }
+    )
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.ptzError'), t('integrations.view.vendors.ptzErrorDesc'))
+  } finally {
+    imouPtzBusy.value = null
+  }
+}
+
+async function configureImouEvents() {
+  try {
+    const result = await apiClient.post<{ enabled: boolean }>('/api/v1/integrations/imou-life/events/config', {
+      enabled: true, flags: ['alarm', 'deviceStatus', 'capabilityEvent']
+    })
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), result.enabled ? t('integrations.view.vendors.eventsEnabled') : t('integrations.view.vendors.eventsDisabled'))
+    await loadImouVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+async function searchImouRecordings(device: ImouDevice) {
+  imouRecordDevice.value = device.deviceId
+  imouRecordingBusy.value = true
+  try {
+    const begin = new Date(imouRecordingBegin.value).toISOString()
+    const end = new Date(imouRecordingEnd.value).toISOString()
+    const channel = device.channelList?.[0]?.channelId || '0'
+    const query = new URLSearchParams({ begin, end, channel, type: '0', limit: '50' })
+    const result = await apiClient.get<{ records: ImouRecording[]; session_id?: string }>(
+      `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/recordings?${query.toString()}`
+    )
+    imouRecordings.value = result.records || []
+  } catch {
+    imouRecordings.value = []
+    notificationsStore.error(t('integrations.view.vendors.recordingsError'), t('integrations.view.vendors.recordingsErrorDesc'))
+  } finally {
+    imouRecordingBusy.value = false
+  }
+}
 
 const tuyaSelectedCount = computed(() =>
   tuyaCloudDevices.value.filter(device => selectedTuyaDeviceIds.value.includes(device.id)).length
@@ -824,6 +1133,8 @@ onMounted(() => {
   fetchDiscovered()
   fetchGuardianData()
   fetchTuyaConfig()
+  loadXiaomiVendorData()
+  loadImouVendorData()
 })
 </script>
 
