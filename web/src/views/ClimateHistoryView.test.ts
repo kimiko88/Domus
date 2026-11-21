@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import ClimateHistoryView from './ClimateHistoryView.vue'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
+import { useAreasStore } from '@/stores/areas'
 import { i18n } from '@/locales'
 
 vi.mock('chart.js/auto', () => ({
@@ -21,11 +22,13 @@ describe('ClimateHistoryView.vue', () => {
   function setupView() {
     const store = useClimateHistoryStore()
     const entities = useEntitiesStore()
+    const areas = useAreasStore()
     vi.spyOn(store, 'fetchSettings').mockImplementation(async () => {
       Object.assign(store.settings, defaultClimateHistorySettings)
       return store.settings
     })
     vi.spyOn(entities, 'fetchEntities').mockResolvedValue([])
+    vi.spyOn(areas, 'fetchAreas').mockResolvedValue([{ id: 'bedroom', name: 'Bedroom', icon: 'bed', sort_order: 1, created_at: '', updated_at: '' }])
     const refresh = vi.spyOn(store, 'refresh').mockImplementation(async () => {
       store.points = [{
         entity_id: 'sensor-bedroom', entity_key: 'sensor.bedroom_temperature',
