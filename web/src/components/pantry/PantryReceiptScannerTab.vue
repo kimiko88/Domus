@@ -167,12 +167,12 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
   })
 }
 
-async function loadBrowserImage(file: File): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(file)
+async function loadBrowserImage(file: File): Promise<{ image: HTMLImageElement; objectURL: string }> {
+  const objectURL = URL.createObjectURL(file)
   try {
     const image = new Image()
     image.decoding = 'async'
-    image.src = url
+    image.src = objectURL
     if (typeof image.decode === 'function') {
       await image.decode()
     } else {
@@ -181,12 +181,10 @@ async function loadBrowserImage(file: File): Promise<HTMLImageElement> {
         image.onerror = () => reject(new Error('Unsupported image format'))
       })
     }
-    return image
+    return { image, objectURL }
   } catch (error) {
+    URL.revokeObjectURL(objectURL)
     throw error
-  } finally {
-    // The decoded image remains drawable after its temporary URL is revoked.
-    URL.revokeObjectURL(url)
   }
 }
 
@@ -195,7 +193,9 @@ async function normalizeReceiptImage(file: File, rotation = 0): Promise<File> {
     throw new Error(t('shopping.view.receiptScanner.sourceImageTooLarge'))
   }
 
-  const image = await loadBrowserImage(file)
+  const loaded = await loadBrowserImage(file)
+  const image = loaded.image
+  try {
   const sourceWidth = image.naturalWidth
   const sourceHeight = image.naturalHeight
   if (!sourceWidth || !sourceHeight || sourceWidth * sourceHeight > 60_000_000) {
@@ -240,6 +240,9 @@ async function normalizeReceiptImage(file: File, rotation = 0): Promise<File> {
   }
 
   throw new Error(t('shopping.view.receiptScanner.imageStillTooLarge'))
+  } finally {
+    URL.revokeObjectURL(loaded.objectURL)
+  }
 }
 
 async function setReceiptImage(file: File) {
@@ -263,6 +266,7 @@ async function setReceiptImage(file: File) {
 
 async function handleFile(file: File) {
   stopCamera()
+  cameraError.value = ''
   rawReceiptText.value = ''
   revokePreview()
   sourceImage.value = null
@@ -701,7 +705,7 @@ onBeforeUnmount(() => {
 
       <div class="confirm-bar">
         <button type="button" class="btn btn-secondary" @click="clearAndRestart">{{ t('common.cancel') }}</button>
-        <button type="button" class="btn btn-primary btn-large" :disabled="parsedReceipt.items.length === 0 || loading" @click="handleConfirmImport">
+        <button type="button" class="btn btn-primary btn-large" :disabled="parsedReceipt.items.length === 0 || parsedReceipt.items.some(item => !item.name.trim() || !Number.isFinite(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.total_price) || item.total_price < 0) || !Number.isFinite(parsedReceipt.total_amount) || parsedReceipt.total_amount < 0 || loading" @click="handleConfirmImport">
           <PackageCheck :size="20" />
           <span>{{ loading ? t('shopping.view.receiptScanner.importing') : t('shopping.view.receiptScanner.confirmImport') }}</span>
         </button>
