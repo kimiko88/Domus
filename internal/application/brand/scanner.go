@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,18 +22,80 @@ type Scanner struct {
 // NewScanner creates a new scanner instance with a low probe timeout.
 func NewScanner(client *http.Client) *Scanner {
 	if client == nil {
-		client = &http.Client{
-			Timeout: 2 * time.Second,
-		}
+		client = &http.Client{Timeout: 3 * time.Second}
 	}
-	return &Scanner{client: client}
+	// A LAN device must never be able to redirect Domus to another host.
+	// Copy the caller's transport/settings while replacing the redirect policy.
+	safeClient := *client
+	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	if safeClient.Timeout <= 0 {
+		safeClient.Timeout = 3 * time.Second
+	}
+	return &Scanner{client: &safeClient}
+}
+
+// ValidateLANProbeTarget restricts user-requested discovery to private LAN IPs.
+// Hostnames, public addresses and loopback are rejected to prevent SSRF against
+// services on the Pi or on the Internet.
+func ValidateLANProbeTarget(target string) error {
+	normalized, ip, _, err := normalizeProbeTarget(target)
+	if err != nil {
+		return err
+	}
+	_ = normalized
+	if ip.IsPrivate() || (ip.To4() == nil && ip.IsLinkLocalUnicast()) {
+		return nil
+	}
+	return fmt.Errorf("scanner: target must be a private LAN IP address")
+}
+
+func normalizeProbeTarget(target string) (string, net.IP, string, error) {
+	target = strings.TrimSpace(target)
+	if target == "" || strings.ContainsAny(target, "/?#@\\\\\r\n\t ") {
+		return "", nil, "", fmt.Errorf("scanner: target must be an IP address, optionally with a port")
+	}
+
+	host, port := target, ""
+	if h, p, err := net.SplitHostPort(target); err == nil {
+		host, port = h, p
+		if n, convErr := strconv.Atoi(port); convErr != nil || n < 1 || n > 65535 {
+			return "", nil, "", fmt.Errorf("scanner: invalid target port")
+		}
+	} else if strings.HasPrefix(target, "[") && strings.HasSuffix(target, "]") {
+		host = strings.TrimSuffix(strings.TrimPrefix(target, "["), "]")
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "", nil, "", fmt.Errorf("scanner: hostnames and non-IP targets are not allowed")
+	}
+	allowed := ip.IsPrivate() || (ip.To4() == nil && ip.IsLinkLocalUnicast())
+	// Explicit loopback ports are accepted only for in-process callers/tests.
+	// Public HTTP discovery routes use ValidateLANProbeTarget and reject them.
+	if ip.IsLoopback() && port != "" {
+		allowed = true
+	}
+	if !allowed {
+		return "", nil, "", fmt.Errorf("scanner: target must be a private LAN IP address")
+	}
+
+	canonical := ip.String()
+	if port != "" {
+		canonical = net.JoinHostPort(canonical, port)
+	} else if ip.To4() == nil {
+		canonical = "[" + canonical + "]"
+	}
+	return canonical, ip, port, nil
 }
 
 // ProbeIP interrogates a specific IP address against known brand signatures.
 func (s *Scanner) ProbeIP(ctx context.Context, ip string, brandHint BrandIdentifier) (*DiscoveredDevice, error) {
-	ip = strings.TrimSpace(ip)
-	if ip == "" {
-		return nil, fmt.Errorf("scanner: ip cannot be empty")
+	var err error
+	ip, _, _, err = normalizeProbeTarget(ip)
+	if err != nil {
+		return nil, err
 	}
 
 	// 1. If brandHint is provided, test it first
