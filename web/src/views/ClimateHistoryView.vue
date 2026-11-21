@@ -31,8 +31,8 @@ let mounted = false
 const availableAreas = computed(() => {
   const values = new Map<string, string>()
   store.points.forEach(point => {
-    const id = point.area_id || 'unassigned'
-    if (!values.has(id)) values.set(id, id === 'unassigned' ? t('climateHistory.unassigned') : id)
+    const id = point.area_id || ''
+    if (id && !values.has(id)) values.set(id, id)
   })
   return [...values.entries()].map(([id, label]) => ({ id, label }))
 })
@@ -93,7 +93,7 @@ const chartData = computed(() => {
 
 const metricUnit = computed(() => selectedMetric.value === 'humidity' ? '%' : '°C')
 const visibleRooms = computed(() => store.summary?.rooms || [])
-const hasClimateReadings = computed(() => store.points.length > 0)
+const hasClimateReadings = computed(() => filteredPoints.value.length > 0)
 
 function rangeQuery() {
   const to = selectedRange.value === 'custom' && dateTo.value
@@ -297,7 +297,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div v-if="settingsForm.thermal_analysis_enabled && room.temperature_change_rate_c_per_hour !== undefined" class="thermal-info">
-          <span>{{ t(room.temperature_change_rate_c_per_hour >= 0 ? 'climateHistory.heatingRate' : 'climateHistory.coolingRate') }}: {{ formatNumber(room.heating_rate_c_per_hour) }} °C/h</span>
+          <span>{{ t(room.temperature_change_rate_c_per_hour >= 0 ? 'climateHistory.heatingRate' : 'climateHistory.coolingRate') }}: {{ formatNumber(room.temperature_change_rate_c_per_hour) }} °C/h</span>
           <span v-if="settingsForm.forecast_enabled && room.forecast_temperature_1h !== undefined">
             {{ t('climateHistory.forecast') }}: {{ formatNumber(room.forecast_temperature_1h) }} °C
           </span>
