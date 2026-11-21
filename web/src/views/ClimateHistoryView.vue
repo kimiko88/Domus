@@ -84,7 +84,7 @@ const chartData = computed(() => {
       backgroundColor: palette[index % palette.length],
       borderWidth: 2,
       tension: 0.25,
-      spanGaps: false,
+      spanGaps: true,
       pointRadius: timestamps.length < 40 ? 2 : 0
     }
   })
@@ -94,6 +94,7 @@ const chartData = computed(() => {
 const metricUnit = computed(() => selectedMetric.value === 'humidity' ? '%' : '°C')
 const visibleRooms = computed(() => store.summary?.rooms || [])
 const hasClimateReadings = computed(() => filteredPoints.value.length > 0)
+const filteredSampleCount = computed(() => filteredPoints.value.reduce((total, point) => total + Math.max(0, point.sample_count || 0), 0))
 
 function rangeQuery() {
   const to = selectedRange.value === 'custom' && dateTo.value
@@ -270,7 +271,7 @@ onBeforeUnmount(() => {
           <h2>{{ t('climateHistory.trendTitle') }}</h2>
           <p>{{ t('climateHistory.chartDescription') }}</p>
         </div>
-        <span class="sample-count">{{ t('climateHistory.samples', { count: filteredPoints.length }) }}</span>
+        <span class="sample-count">{{ t('climateHistory.samples', { count: filteredSampleCount }) }}</span>
       </div>
       <div v-if="store.loading" class="empty-state" role="status">{{ t('climateHistory.loading') }}</div>
       <div v-else-if="!hasClimateReadings" class="empty-state">{{ t('climateHistory.noData') }}</div>
