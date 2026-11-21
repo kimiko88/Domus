@@ -34,7 +34,7 @@ Administrator API:
 - `PUT /api/v1/integrations/imou-life/config` with `access_key`, `secret_key`, `data_center`, `authorization_url` and `public_base_url`.
 - `GET /api/v1/integrations/imou-life/status`
 - `GET /api/v1/integrations/imou-life/authorize`
-- Complete the Imou consent flow. Imou redirects the one-time authorization code to the configured callback route, protected by a random 256-bit path capability. Domus redacts that path from its own request logs.
+- Complete the Imou consent flow. Imou redirects the one-time authorization code to the configured callback route, protected by a random 256-bit path capability. Domus redacts that path from its own request logs. Configure any reverse proxy, CDN and load balancer in front of Domus to redact this callback path as well; do not log it in access logs or analytics.
 - `GET /api/v1/integrations/imou-life/devices?page=1&page_size=50`
 - `GET /api/v1/integrations/imou-life/devices/{deviceID}/stream?channel=0&stream=0`
 - `POST /api/v1/integrations/imou-life/disconnect`
