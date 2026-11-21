@@ -566,7 +566,12 @@ func (h *XiaomiCloudHandler) EventCallback(w http.ResponseWriter, r *http.Reques
 			publishOne(events.XiaomiDeviceStatusChanged, map[string]any{"device_id": record.ID, "did": item.DID, "online": item.Online})
 		}
 	default:
-		publish(events.WebhookReceived, map[string]any{"source": "xiaomi_home", "topic": callback.Topic, "oid": callback.OID})
+		publishOne(events.WebhookReceived, map[string]any{"source": "xiaomi_home", "topic": callback.Topic, "oid": callback.OID})
+	}
+	if publishErr != nil {
+		h.forgetEvent(eventKey)
+		http.Error(w, "Domus could not queue Xiaomi event", http.StatusServiceUnavailable)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
