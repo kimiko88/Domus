@@ -3567,7 +3567,8 @@
       "temperature_anomaly": "Unusual temperature change",
       "humidity_low": "Humidity below threshold",
       "humidity_high": "Humidity above threshold",
-      "humidity_comfort": "Humidity outside comfort range"
+      "humidity_comfort": "Humidity outside comfort range",
+      "sensor_offline": "Climate sensor offline"
     },
     "errors": {
       "load": "Unable to load climate history.",
