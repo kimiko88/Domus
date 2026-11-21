@@ -60,8 +60,49 @@ components:
         humidity_minimum: { type: number, nullable: true }
         humidity_maximum: { type: number, nullable: true }
         target_temperature_average: { type: number, nullable: true }
+        temperature_sample_count: { type: integer }
+        humidity_sample_count: { type: integer }
         sample_count: { type: integer }
         period: { type: string, enum: [raw, aggregate] }
+
+
+    ClimateRoomSummary:
+      type: object
+      properties:
+        area_id: { type: string }
+        sample_count: { type: integer }
+        current_temperature: { type: number, nullable: true }
+        average_temperature: { type: number, nullable: true }
+        minimum_temperature: { type: number, nullable: true }
+        maximum_temperature: { type: number, nullable: true }
+        current_humidity: { type: number, nullable: true }
+        average_humidity: { type: number, nullable: true }
+        temperature_change_rate_c_per_hour: { type: number, nullable: true }
+        forecast_temperature_1h: { type: number, nullable: true }
+        last_updated_at: { type: string, format: date-time }
+    ClimateInsight:
+      type: object
+      properties:
+        code: { type: string, enum: [temperature_low, temperature_high, temperature_comfort, temperature_anomaly, humidity_low, humidity_high, humidity_comfort, sensor_offline] }
+        area_id: { type: string }
+        entity_name: { type: string }
+        metric: { type: string, enum: [temperature, humidity] }
+        value: { type: number }
+        limit: { type: number }
+    ClimateDashboardSummary:
+      type: object
+      properties:
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClimateRoomSummary"
+        insights:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClimateInsight"
+        sample_count: { type: integer }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
 
     Error:
       type: object
@@ -524,6 +565,10 @@ paths:
       responses:
         "200":
           description: Room summaries and climate alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClimateDashboardSummary"
   /climate/history/export.csv:
     get:
       summary: Export climate history as CSV
