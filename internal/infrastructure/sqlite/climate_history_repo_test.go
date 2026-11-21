@@ -35,6 +35,7 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 	samples := []climate_history.Sample{
 		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Truncate(time.Hour).Add(-8*24*time.Hour + 10*time.Minute), Temperature:&tempA, Humidity:&humA},
 		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"bedroom", RecordedAt:now.Truncate(time.Hour).Add(-8*24*time.Hour + 20*time.Minute), Temperature:&tempB, Humidity:&humB, TargetTemperature:&target, HVACMode:"heat", HVACAction:"heating"},
+		{EntityID:"sensor-1", EntityKey:"sensor.bedroom_temperature", EntityName:"Bedroom temperature", AreaID:"living", RecordedAt:now.Truncate(time.Hour).Add(-8*24*time.Hour + 15*time.Minute), Temperature:floatPointer(23), Humidity:floatPointer(60)},
 	}
 	require.NoError(t, repo.SaveSamples(ctx, samples))
 
@@ -45,13 +46,16 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 
 	first, err := repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-90*24*time.Hour))
 	require.NoError(t, err)
-	require.EqualValues(t, 1, first.HourlyBuckets)
-	require.EqualValues(t, 2, first.RawDeleted)
-	points, err = repo.GetHistory(ctx, climate_history.Filter{AreaID:"bedroom", Limit:100})
+	require.EqualValues(t, 2, first.HourlyBuckets)
+	require.EqualValues(t, 3, first.RawDeleted)
+	points, err = repo.GetHistory(ctx, climate_history.Filter{Limit:100})
 	require.NoError(t, err)
-	require.Len(t, points, 1)
+	require.Len(t, points, 2)
 	require.Equal(t, "aggregate", points[0].Period)
+	require.Equal(t, "bedroom", points[0].AreaID)
+	require.Equal(t, "living", points[1].AreaID)
 	require.InDelta(t, 20.5, *points[0].TemperatureAverage, 0.001)
+	require.InDelta(t, 23.0, *points[1].TemperatureAverage, 0.001)
 	require.InDelta(t, 19.5, *points[0].TemperatureMinimum, 0.001)
 	require.InDelta(t, 21.5, *points[0].TemperatureMaximum, 0.001)
 	require.InDelta(t, 52.0, *points[0].HumidityAverage, 0.001)
@@ -60,8 +64,8 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 
 	second, err := repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-7*24*time.Hour))
 	require.NoError(t, err)
-	require.EqualValues(t, 1, second.DailyBuckets)
-	require.EqualValues(t, 1, second.HourlyDeleted)
+	require.EqualValues(t, 2, second.DailyBuckets)
+	require.EqualValues(t, 2, second.HourlyDeleted)
 	points, err = repo.GetHistory(ctx, climate_history.Filter{AreaID:"bedroom", Limit:100})
 	require.NoError(t, err)
 	require.Len(t, points, 1)
