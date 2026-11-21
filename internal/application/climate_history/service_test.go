@@ -141,6 +141,24 @@ func TestSummarizeAppliesAlertsAndThermalAnalysis(t *testing.T) {
 	}
 }
 
+func TestForecastCanRunWithoutThermalRateAnalysis(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.ThermalAnalysisEnabled = false
+	settings.ForecastEnabled = true
+	first, second := time.Now().Add(-time.Hour), time.Now()
+	repo := &climateRepoStub{settings: settings, points: []domclimate.Point{
+		{EntityID: "temp-1", AreaID: "bedroom", RecordedAt: first, TemperatureAverage: floatPtr(19), Period: "raw"},
+		{EntityID: "temp-1", AreaID: "bedroom", RecordedAt: second, TemperatureAverage: floatPtr(20), Period: "raw"},
+	}}
+	service := NewService(repo, &climateEntityRepoStub{}, testLogger())
+	summary, err := service.Summarize(context.Background(), domclimate.Filter{})
+	require.NoError(t, err)
+	require.Len(t, summary.Rooms, 1)
+	require.Nil(t, summary.Rooms[0].TemperatureChangeRate)
+	require.NotNil(t, summary.Rooms[0].ForecastTemperature)
+	require.InDelta(t, 21.0, *summary.Rooms[0].ForecastTemperature, 0.01)
+}
+
 func TestSettingsValidation(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	require.NoError(t, settings.Validate())
