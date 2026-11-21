@@ -86,6 +86,10 @@ func (c *Client) Handshake(ctx context.Context, target string) (DeviceInfo, erro
 // Info authenticates to a local device with its 16-byte (32 hex character)
 // miIO token and retrieves its model and firmware identity.
 func (c *Client) Info(ctx context.Context, target, token string) (DeviceInfo, error) {
+	ip, err := validateTarget(target)
+	if err != nil {
+		return DeviceInfo{}, err
+	}
 	result, err := c.Call(ctx, target, token, "miIO.info", []any{})
 	if err != nil {
 		return DeviceInfo{}, err
@@ -99,7 +103,7 @@ func (c *Client) Info(ctx context.Context, target, token string) (DeviceInfo, er
 	if err := json.Unmarshal(result, &payload); err != nil {
 		return DeviceInfo{}, errors.New("xiaomi: device returned invalid miIO.info payload")
 	}
-	info := DeviceInfo{IP: target, Model: payload.Model, Firmware: payload.Firmware, MAC: payload.MAC, Hardware: payload.Hardware}
+	info := DeviceInfo{IP: ip.String(), Model: payload.Model, Firmware: payload.Firmware, MAC: payload.MAC, Hardware: payload.Hardware}
 	if info.Model == "" {
 		return DeviceInfo{}, errors.New("xiaomi: token accepted but device did not return a model")
 	}
