@@ -49,7 +49,7 @@ func TestCollectNowRecordsTemperatureHumidityAndThermostatSetpoint(t *testing.T)
 	entities := &climateEntityRepoStub{entities: []*entity.Entity{
 		{ID:"temp-1", EntityKey:"sensor.living_temperature", Domain:"sensor", Name:"Living temperature", UnitOfMeasurement:"°C", State:"21.4", Attributes:"{\"device_class\":\"temperature\"}", Available:true, AreaID:"living"},
 		{ID:"hum-1", EntityKey:"sensor.living_humidity", Domain:"sensor", Name:"Living humidity", UnitOfMeasurement:"%", State:"53", Attributes:"{\"device_class\":\"humidity\"}", Available:true, AreaID:"living"},
-		{ID:"climate-1", EntityKey:"climate.living", Domain:"climate", Name:"Living thermostat", State:"heat", Attributes:"{\"current_temperature\":21.1,\"temperature\":22.0,\"hvac_action\":\"heating\"}", Available:true, AreaID:"living"},
+		{ID:"climate-1", EntityKey:"climate.living", Domain:"climate", Name:"Living thermostat", State:"heat", Attributes:"{\"current_temperature\":21.1,\"temperature\":22.0,\"hvac_mode\":\"auto\",\"hvac_action\":\"heating\"}", Available:true, AreaID:"living"},
 	}}
 	service := NewService(repo, entities, testLogger())
 	count, err := service.CollectNow(context.Background())
