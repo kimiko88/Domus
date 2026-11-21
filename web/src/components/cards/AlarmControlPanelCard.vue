@@ -35,7 +35,7 @@ const isTriggered = computed(() => currentState.value === 'triggered')
 const isPending = computed(() => currentState.value === 'pending')
 
 function appendDigit(digit: string) {
-  if (pinInput.value.length < 8) {
+  if (pinInput.value.length < 12) {
     pinInput.value += digit
   }
 }
@@ -168,7 +168,7 @@ const statusClass = computed(() => {
       <label class="pin-label">{{ t('common.alarmPanel.keypadPin') }}</label>
       <div class="pin-dots">
         <span
-          v-for="i in 6"
+          v-for="i in 12"
           :key="i"
           class="pin-dot"
           :class="{ filled: i <= pinInput.length }"
