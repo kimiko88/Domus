@@ -29,11 +29,15 @@ func TestClimateHistoryReadEndpointsRespectAreaPermissions(t *testing.T) {
 	denied := &entity.Entity{ID: "climate-living", EntityKey: "sensor.living_temperature", Domain: "sensor", Name: "Living temperature", State: "unavailable", Attributes: "{\"device_class\":\"temperature\"}", Available: false, AreaID: "living"}
 	require.NoError(t, repos.Entities.Create(ctx, allowed))
 	require.NoError(t, repos.Entities.Create(ctx, denied))
+	moved := &entity.Entity{ID: "climate-moved", EntityKey: "sensor.moved_temperature", Domain: "sensor", Name: "Moved temperature", State: "20", Attributes: "{}", Available: true, AreaID: "bedroom"}
+	require.NoError(t, repos.Entities.Create(ctx, moved))
 	now := time.Now().UTC().Truncate(time.Second)
 	bedroomTemp, livingTemp := 20.0, 23.0
 	require.NoError(t, repos.ClimateHistory.SaveSamples(ctx, []domclimatehistory.Sample{
 		{EntityID: allowed.ID, EntityKey: allowed.EntityKey, EntityName: allowed.Name, AreaID: allowed.AreaID, RecordedAt: now, Temperature: &bedroomTemp},
 		{EntityID: denied.ID, EntityKey: denied.EntityKey, EntityName: denied.Name, AreaID: denied.AreaID, RecordedAt: now, Temperature: &livingTemp},
+		{EntityID: moved.ID, EntityKey: moved.EntityKey, EntityName: moved.Name, AreaID: "living", RecordedAt: now.Add(-time.Minute), Temperature: &livingTemp},
+		{EntityID: moved.ID, EntityKey: moved.EntityKey, EntityName: moved.Name, AreaID: "bedroom", RecordedAt: now, Temperature: &bedroomTemp},
 	}))
 
 	service := appclimatehistory.NewService(repos.ClimateHistory, repos.Entities, nil)
@@ -61,7 +65,10 @@ func TestClimateHistoryReadEndpointsRespectAreaPermissions(t *testing.T) {
 	history := request("/history")
 	require.Equal(t, http.StatusOK, history.Code)
 	require.Contains(t, history.Body.String(), "Bedroom temperature")
+	require.Contains(t, history.Body.String(), "Moved temperature")
+	require.Equal(t, 1, strings.Count(history.Body.String(), "Moved temperature"))
 	require.NotContains(t, history.Body.String(), "Living temperature")
+	require.NotContains(t, history.Body.String(), "AreaID": "living")
 
 	summary := request("/summary?from=" + now.Add(-time.Hour).Format(time.RFC3339) + "&to=" + now.Add(time.Hour).Format(time.RFC3339))
 	require.Equal(t, http.StatusOK, summary.Code)
