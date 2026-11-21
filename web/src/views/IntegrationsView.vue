@@ -1198,6 +1198,13 @@ onMounted(() => {
           <span>{{ t('integrations.view.smartLifeCloud') }}</span>
           <span v-if="tuyaCloudDevices.length > 0" class="counter-badge">{{ tuyaCloudDevices.length }}</span>
         </button>
+        <button
+          :class="['tab-btn', { active: activeTab === 'vendors' }]"
+          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadImouVendorData()"
+        >
+          <Activity :size="16" />
+          <span>{{ t('integrations.view.vendors.title') }}</span>
+        </button>
       </div>
     </div>
   </div>
@@ -1910,6 +1917,241 @@ onMounted(() => {
         <p>{{ t('integrations.view.adjustSearchFilters') }}</p>
         <button type="button" class="btn-action glass-panel" @click="tuyaDeviceFilter = 'all'; tuyaSearchQuery = ''">{{ t('integrations.view.resetFilters') }}</button>
       </div>
+    </div>
+
+    <!-- Xiaomi Home and Imou Life administration -->
+    <div v-if="activeTab === 'vendors'" class="tab-content vendor-integrations">
+      <div class="discovery-toolbar glass-card">
+        <div class="discovery-intro">
+          <div class="icon-chip"><Activity :size="20" /></div>
+          <div>
+            <h3 class="disc-title">{{ t('integrations.view.vendors.title') }}</h3>
+            <p class="disc-sub">{{ t('integrations.view.vendors.subtitle') }}</p>
+          </div>
+        </div>
+        <button class="btn-scan" @click="loadXiaomiVendorData(); loadImouVendorData()">
+          <RefreshCw :size="15" />
+          {{ t('integrations.view.vendors.refresh') }}
+        </button>
+      </div>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.xiaomiLocalTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.xiaomiLocalDesc') }}</p>
+          </div>
+          <span class="badge-lan">{{ t('integrations.view.vendors.localOnly') }}</span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="pairXiaomiLocalDevice">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.deviceName') }}</span>
+            <input v-model="xiaomiLocalForm.name" class="form-control glass-panel" required maxlength="80" :placeholder="t('integrations.view.vendors.deviceNamePlaceholder')" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.lanAddress') }}</span>
+            <input v-model="xiaomiLocalForm.ip" class="form-control glass-panel" required inputmode="decimal" placeholder="192.168.1.20" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.localToken') }}</span>
+            <input v-model="xiaomiLocalForm.token" class="form-control glass-panel" required type="password" autocomplete="off" maxlength="32" minlength="32" placeholder="32 hexadecimal characters" />
+          </label>
+          <button class="btn-scan" type="submit" :disabled="xiaomiLocalBusy || !xiaomiLocalForm.ip || !xiaomiLocalForm.name || xiaomiLocalForm.token.length !== 32">
+            <Plus :size="15" /> {{ xiaomiLocalBusy ? t('integrations.view.vendors.pairing') : t('integrations.view.vendors.pairDevice') }}
+          </button>
+        </form>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.localTokenHint') }}</p>
+        <div v-if="xiaomiLocalDevices.length" class="vendor-device-list">
+          <div v-for="device in xiaomiLocalDevices" :key="device.id" class="vendor-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.model || 'Xiaomi miIO' }} · {{ device.ip }}</span>
+            </div>
+            <button class="btn-action glass-panel" type="button" @click="removeXiaomiLocalDevice(device)">{{ t('integrations.view.vendors.remove') }}</button>
+          </div>
+        </div>
+        <div v-else class="vendor-empty">{{ t('integrations.view.vendors.noLocalDevices') }}</div>
+      </section>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.xiaomiCloudTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.xiaomiCloudDesc') }}</p>
+          </div>
+          <span :class="['status-badge', xiaomiCloudConnected ? 'status-online' : 'status-offline']">
+            {{ xiaomiCloudConnected ? t('integrations.view.vendors.connected') : t('integrations.view.vendors.disconnected') }}
+          </span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="configureXiaomiCloud">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.appId') }}</span>
+            <input v-model="xiaomiCloudForm.client_id" class="form-control glass-panel" required autocomplete="off" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.appSecret') }}</span>
+            <input v-model="xiaomiCloudForm.client_secret" class="form-control glass-panel" required type="password" autocomplete="new-password" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.region') }}</span>
+            <select v-model="xiaomiCloudForm.region" class="form-control glass-panel">
+              <option value="eu">{{ t('integrations.view.vendors.regionEU') }}</option>
+              <option value="us">{{ t('integrations.view.vendors.regionUS') }}</option>
+              <option value="sg">{{ t('integrations.view.vendors.regionSG') }}</option>
+            </select>
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.publicBaseURL') }}</span>
+            <input v-model="xiaomiCloudForm.public_base_url" class="form-control glass-panel" required type="url" placeholder="https://domus.example.it" />
+          </label>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="xiaomiCloudBusy">
+              <CheckCircle :size="15" /> {{ t('integrations.view.vendors.saveConfig') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" :disabled="!xiaomiCloudConfigured" @click="authorizeXiaomiCloud">
+              <Key :size="15" /> {{ t('integrations.view.vendors.authorize') }}
+            </button>
+          </div>
+        </form>
+        <div v-if="xiaomiCloudCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerOAuthCallback') }}</strong>
+          <code>{{ xiaomiCloudCallback }}</code>
+        </div>
+        <div v-if="xiaomiCloudEventCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerEventCallback') }}</strong>
+          <code>{{ xiaomiCloudEventCallback }}</code>
+        </div>
+        <div v-if="xiaomiCloudConnected" class="vendor-connected-meta">
+          <span>{{ xiaomiCloudNickname }} · {{ xiaomiCloudUserId }} · {{ xiaomiCloudRegion.toUpperCase() }}</span>
+          <div class="vendor-form-actions">
+            <button class="btn-action glass-panel" type="button" :disabled="xiaomiCloudSyncBusy" @click="syncXiaomiCloudDevices">
+              <RefreshCw :size="14" :class="{ 'animate-spin': xiaomiCloudSyncBusy }" /> {{ t('integrations.view.vendors.syncEntities') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiDeviceStatus">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeStatus') }}
+            </button>
+          </div>
+        </div>
+        <div v-if="xiaomiCloudDevices.length" class="vendor-device-list">
+          <div v-for="device in xiaomiCloudDevices" :key="device.did" class="vendor-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.type }} · {{ device.did }}</span>
+            </div>
+            <span :class="device.online ? 'badge-lan' : 'badge-quarantined'">{{ device.online ? t('integrations.view.vendors.online') : t('integrations.view.vendors.offline') }}</span>
+          </div>
+        </div>
+        <div v-if="xiaomiCloudHomes.length" class="vendor-homes">
+          <strong>{{ t('integrations.view.vendors.homesAndRooms') }}</strong>
+          <span v-for="home in xiaomiCloudHomes" :key="home.id">{{ home.name }} · {{ (home.rooms || []).length }} {{ t('integrations.view.vendors.rooms') }}</span>
+        </div>
+        <p v-if="xiaomiCloudError" class="vendor-error">{{ xiaomiCloudError }}</p>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.xiaomiCloudHint') }}</p>
+      </section>
+
+      <section class="vendor-section glass-card">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.imouTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.imouDesc') }}</p>
+          </div>
+          <span :class="['status-badge', imouConnected ? 'status-online' : 'status-offline']">
+            {{ imouConnected ? t('integrations.view.vendors.connected') : t('integrations.view.vendors.disconnected') }}
+          </span>
+        </div>
+        <form class="vendor-form-grid" @submit.prevent="configureImouLife">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.accessKey') }}</span>
+            <input v-model="imouForm.access_key" class="form-control glass-panel" required autocomplete="off" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.secretKey') }}</span>
+            <input v-model="imouForm.secret_key" class="form-control glass-panel" required type="password" autocomplete="new-password" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.dataCenter') }}</span>
+            <input v-model="imouForm.data_center" class="form-control glass-panel" required placeholder="eu / fk / ..." />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.authorizationURL') }}</span>
+            <input v-model="imouForm.authorization_url" class="form-control glass-panel" required type="url" placeholder="https://..." />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.publicBaseURL') }}</span>
+            <input v-model="imouForm.public_base_url" class="form-control glass-panel" required type="url" placeholder="https://domus.example.it" />
+          </label>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="imouBusy">
+              <CheckCircle :size="15" /> {{ t('integrations.view.vendors.saveConfig') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" :disabled="!imouConfigured" @click="authorizeImouLife">
+              <Key :size="15" /> {{ t('integrations.view.vendors.authorize') }}
+            </button>
+          </div>
+        </form>
+        <div v-if="imouCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerOAuthCallback') }}</strong>
+          <code>{{ imouCallback }}</code>
+        </div>
+        <div v-if="imouEventsCallback" class="vendor-secret-url">
+          <strong>{{ t('integrations.view.vendors.registerEventCallback') }}</strong>
+          <code>{{ imouEventsCallback }}</code>
+          <button class="btn-action glass-panel" type="button" @click="configureImouEvents">{{ t('integrations.view.vendors.enableEvents') }}</button>
+        </div>
+        <div v-if="imouConnected" class="vendor-form-actions">
+          <button class="btn-scan" type="button" :disabled="imouBusy" @click="loadImouDevices">
+            <RefreshCw :size="14" :class="{ 'animate-spin': imouBusy }" /> {{ t('integrations.view.vendors.refreshDevices') }}
+          </button>
+        </div>
+        <p v-if="imouError" class="vendor-error">{{ imouError }}</p>
+        <div v-if="imouDevices.length" class="vendor-imou-grid">
+          <article v-for="device in imouDevices" :key="device.deviceId" class="vendor-camera-card">
+            <div class="vendor-device-info">
+              <strong>{{ device.deviceName || device.deviceId }}</strong>
+              <span>{{ device.deviceModel || device.deviceId }} · {{ device.deviceStatus || t('integrations.view.vendors.statusUnknown') }}</span>
+            </div>
+            <div class="vendor-form-actions">
+              <button class="btn-action glass-panel" type="button" @click="imouPreviewDevice = imouPreviewDevice === device.deviceId ? null : device.deviceId">
+                {{ imouPreviewDevice === device.deviceId ? t('integrations.view.vendors.stopPreview') : t('integrations.view.vendors.livePreview') }}
+              </button>
+              <button class="btn-action glass-panel" type="button" @click="loadImouCapabilities(device)">{{ t('integrations.view.vendors.capabilities') }}</button>
+            </div>
+            <img
+              v-if="imouPreviewDevice === device.deviceId"
+              class="vendor-camera-preview"
+              :alt="t('integrations.view.vendors.livePreview')"
+              :src="`/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/preview?channel=${encodeURIComponent(device.channelList?.[0]?.channelId || '0')}&stream=0`"
+            />
+            <div v-if="imouHasPTZ(device.deviceId)" class="vendor-ptz">
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '0.5')">↑</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '-0.5', '0')">←</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '0')">■</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0.5', '0')">→</button>
+              <button class="btn-action glass-panel" :disabled="imouPtzBusy === device.deviceId" @click="moveImouPTZ(device, '0', '-0.5')">↓</button>
+            </div>
+            <div class="vendor-capabilities" v-if="imouCapabilities[device.deviceId]?.length">
+              <strong>{{ t('integrations.view.vendors.capabilities') }}</strong>
+              <span v-for="capability in imouCapabilities[device.deviceId]" :key="capability.capabilityId">
+                {{ capability.name || capability.capabilityId }}
+                <small>{{ (capability.services || []).map(service => service.serviceId).join(', ') }}</small>
+              </span>
+            </div>
+            <div class="vendor-recording-search">
+              <button class="btn-action glass-panel" type="button" :disabled="imouRecordingBusy" @click="searchImouRecordings(device)">
+                {{ imouRecordingBusy && imouRecordDevice === device.deviceId ? t('integrations.view.vendors.searchingRecordings') : t('integrations.view.vendors.searchRecordings') }}
+              </button>
+              <span v-if="imouRecordDevice === device.deviceId && imouRecordings.length === 0">{{ t('integrations.view.vendors.noRecordings') }}</span>
+              <div v-if="imouRecordDevice === device.deviceId && imouRecordings.length" class="vendor-recordings">
+                <div v-for="record in imouRecordings" :key="record.fileName">
+                  <strong>{{ record.beginTime }} – {{ record.endTime }}</strong>
+                  <span>{{ record.fileName }} · {{ record.fileLength || 0 }} bytes</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.imouPlaybackHint') }}</p>
+      </section>
     </div>
 
     <FirmwareFlasherModal :is-open="isFlasherOpen" @close="isFlasherOpen = false" />
