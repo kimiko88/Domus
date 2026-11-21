@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiClient } from '@/api/client'
+import i18n from '@/locales'
 import type {
   ClimateDashboardSummary,
   ClimateHistoryPoint,
@@ -61,7 +62,7 @@ export const useClimateHistoryStore = defineStore('climateHistory', () => {
       settings.value = await apiClient.put<ClimateHistorySettings>('/api/v1/climate/history/settings', next)
       return settings.value
     } catch (err: any) {
-      error.value = err?.message || 'Unable to save climate history settings'
+      error.value = i18n.global.t('climateHistory.errors.save')
       throw err
     } finally {
       saving.value = false
@@ -76,7 +77,7 @@ export const useClimateHistoryStore = defineStore('climateHistory', () => {
       points.value = Array.isArray(response?.points) ? response.points : []
       return points.value
     } catch (err: any) {
-      error.value = err?.message || 'Unable to load climate history'
+      error.value = i18n.global.t('climateHistory.errors.load')
       throw err
     } finally {
       loading.value = false
