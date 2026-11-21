@@ -509,37 +509,50 @@ func (h *XiaomiCloudHandler) EventCallback(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid Xiaomi subscription", http.StatusForbidden)
 		return
 	}
-	if callback.OID != "" && !h.acceptEvent(callback.OID) {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	if h.bus == nil {
 		http.Error(w, "Domus event bus unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	publish := func(eventType events.EventType, payload map[string]any) {
-		_ = h.bus.Publish(r.Context(), events.Event{ID: uuid.NewString(), Type: eventType, OccurredAt: time.Now().UTC(), Source: "xiaomi_home", Payload: payload})
+	eventKey := callback.OID
+	if eventKey == "" {
+		encoded, _ := json.Marshal(callback)
+		digest := sha256.Sum256(encoded)
+		eventKey = hex.EncodeToString(digest[:])
+	}
+	if !h.acceptEvent(eventKey) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	publish := func(eventType events.EventType, payload map[string]any) error {
+		return h.bus.Publish(r.Context(), events.Event{ID: uuid.NewString(), Type: eventType, OccurredAt: time.Now().UTC(), Source: "xiaomi_home", Payload: payload})
+	}
+	publishErr := error(nil)
+	publishOne := func(eventType events.EventType, payload map[string]any) {
+		if err := publish(eventType, payload); err != nil && publishErr == nil { publishErr = err }
 	}
 	switch callback.Topic {
 	case "properties-changed":
+		config, client, tokenErr := h.ensureFreshToken(r.Context())
+		if tokenErr != nil {
+			h.forgetEvent(eventKey)
+			http.Error(w, "Xiaomi cloud token is unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		for _, item := range callback.Properties {
 			parts := strings.Split(item.PID, ".")
 			if len(parts) != 3 { continue }
 			record, err := h.devices.GetByExternalID(r.Context(), xiaomiCloudIntegrationID, parts[0])
-			if err != nil { continue }
-			config, client, err := h.ensureFreshToken(r.Context())
 			if err != nil { continue }
 			var metadata struct { MIoTType string `json:"miot_type"` }
 			if json.Unmarshal([]byte(record.Metadata), &metadata) != nil { continue }
 			spec, err := client.FetchDeviceSpec(r.Context(), metadata.MIoTType)
 			if err != nil { continue }
 			h.updateEntityState(r.Context(), record, spec, item.PID, item.Value, item.Status)
-			_ = config
-			publish(events.XiaomiPropertyChanged, map[string]any{"did": parts[0], "pid": item.PID, "value": item.Value, "status": item.Status})
+			publishOne(events.XiaomiPropertyChanged, map[string]any{"did": parts[0], "pid": item.PID, "value": item.Value, "status": item.Status})
 		}
 	case "events-occured":
 		for _, item := range callback.Events {
-			publish(events.XiaomiMIoTEvent, map[string]any{"eid": item.EID, "arguments": item.Arguments})
+			publishOne(events.XiaomiMIoTEvent, map[string]any{"eid": item.EID, "arguments": item.Arguments})
 		}
 	case "devices-status-changed":
 		for _, item := range callback.Devices {
@@ -548,8 +561,8 @@ func (h *XiaomiCloudHandler) EventCallback(w http.ResponseWriter, r *http.Reques
 			_ = h.devices.SetOnline(r.Context(), record.ID, item.Online)
 			eventType := events.DeviceOffline
 			if item.Online { eventType = events.DeviceOnline }
-			publish(eventType, map[string]any{"device_id": record.ID, "did": item.DID, "online": item.Online})
-			publish(events.XiaomiDeviceStatusChanged, map[string]any{"device_id": record.ID, "did": item.DID, "online": item.Online})
+			publishOne(eventType, map[string]any{"device_id": record.ID, "did": item.DID, "online": item.Online})
+			publishOne(events.XiaomiDeviceStatusChanged, map[string]any{"device_id": record.ID, "did": item.DID, "online": item.Online})
 		}
 	default:
 		publish(events.WebhookReceived, map[string]any{"source": "xiaomi_home", "topic": callback.Topic, "oid": callback.OID})
