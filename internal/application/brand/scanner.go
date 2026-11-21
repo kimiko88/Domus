@@ -40,11 +40,13 @@ func NewScanner(client *http.Client) *Scanner {
 // Hostnames, public addresses and loopback are rejected to prevent SSRF against
 // services on the Pi or on the Internet.
 func ValidateLANProbeTarget(target string) error {
-	normalized, ip, _, err := normalizeProbeTarget(target)
+	_, ip, port, err := normalizeProbeTarget(target)
 	if err != nil {
 		return err
 	}
-	_ = normalized
+	if port != "" {
+		return fmt.Errorf("scanner: provide a private LAN IP address without a port")
+	}
 	if ip.IsPrivate() || (ip.To4() == nil && ip.IsLinkLocalUnicast()) {
 		return nil
 	}
