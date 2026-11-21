@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"crypto/sha256"
 	"io"
 	"math"
 	"net/http"
