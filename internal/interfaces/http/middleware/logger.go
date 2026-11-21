@@ -26,7 +26,7 @@ func RequestLogger() func(next http.Handler) http.Handler {
 				}
 
 				requestPath := r.URL.Path
-				const imouCallbackPrefixes = []string{
+				imouCallbackPrefixes := []string{
 					"/api/v1/integrations/imou-life/callback/",
 					"/api/v1/integrations/imou-life/events/",
 					"/api/v1/integrations/xiaomi-home/cloud/callback/",
