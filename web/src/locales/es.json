@@ -763,6 +763,7 @@
         "broadlinkCommandPlaceholder": "p. ej. Encender TV",
         "broadlinkLearn": "Iniciar aprendizaje",
         "broadlinkLearning": "Aprendiendo…",
+"broadlinkLearningDesc": "El aprendizaje está iniciado. Pulsa el botón del mando físico cerca del BroadLink y guarda el código capturado.",
         "broadlinkSaving": "Guardando…",
         "broadlinkSaveCode": "Capturar y guardar",
         "broadlinkLearnHint": "Inicia el aprendizaje, pulsa el botón del mando físico cerca del BroadLink y después captura y guarda el código.",
