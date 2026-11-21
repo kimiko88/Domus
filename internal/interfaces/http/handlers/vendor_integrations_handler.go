@@ -143,6 +143,7 @@ func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/authorize", h.Authorization)
 	r.Get("/devices", h.Devices)
 	r.Get("/devices/{deviceID}/preview", h.StreamPreview)
+	r.Get("/devices/{deviceID}/recording-preview", h.RecordingPreview)
 	r.Get("/devices/{deviceID}/capabilities", h.Capabilities)
 	r.Get("/devices/{deviceID}/properties", h.ReadProperties)
 	r.Put("/devices/{deviceID}/properties", h.WriteProperties)
@@ -793,30 +794,79 @@ func (h *ImouLifeHandler) Devices(w http.ResponseWriter, r *http.Request) {
 // The source RTSP URL is held only in backend memory and passed to ffmpeg through
 // an inherited pipe descriptor, never in argv, environment variables, browser URLs or logs.
 func (h *ImouLifeHandler) StreamPreview(w http.ResponseWriter, r *http.Request) {
-	select {
-	case h.streamSlots <- struct{}{}:
-		defer func() { <-h.streamSlots }()
-	default:
-		writeError(w, http.StatusTooManyRequests, "STREAM_LIMIT", "Maximum number of concurrent Imou previews reached")
-		return
-	}
 	config, client, err := h.ensureFreshToken(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before viewing a camera")
 		return
 	}
-	deviceID := chi.URLParam(r, "deviceID")
-	channel := 0
-	stream := 0
-	if value := r.URL.Query().Get("channel"); value != "" {
-		if parsed, parseErr := strconv.Atoi(value); parseErr == nil { channel = parsed } else { channel = -1 }
-	}
-	if value := r.URL.Query().Get("stream"); value != "" {
-		if parsed, parseErr := strconv.Atoi(value); parseErr == nil { stream = parsed } else { stream = -1 }
-	}
-	streamURL, err := client.GetStreamURL(r.Context(), config.AccessToken, deviceID, channel, stream)
+	channel, stream := imouStreamQuery(r)
+	streamURL, err := client.GetStreamURL(r.Context(), config.AccessToken, chi.URLParam(r, "deviceID"), channel, stream)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "IMOU_STREAM_ERROR", "Could not open the Imou camera stream")
+		return
+	}
+	h.proxyRTSPPreview(w, r, streamURL)
+}
+
+// RecordingPreview creates a short-lived provider RTSP pull URL using the
+// documented Imou video-download API, decrypts it in memory and reuses the
+// same authenticated MJPEG proxy. The browser never sees the RTSP URL.
+func (h *ImouLifeHandler) RecordingPreview(w http.ResponseWriter, r *http.Request) {
+	config, client, err := h.ensureFreshToken(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before playing a recording")
+		return
+	}
+	begin, beginErr := time.Parse(time.RFC3339, r.URL.Query().Get("begin"))
+	end, endErr := time.Parse(time.RFC3339, r.URL.Query().Get("end"))
+	if beginErr != nil || endErr != nil || !end.After(begin) || end.Sub(begin) > 24*time.Hour {
+		writeError(w, http.StatusBadRequest, "INVALID_TIME_RANGE", "Recording playback requires a valid RFC3339 time range of at most 24 hours")
+		return
+	}
+	channel, stream := imouStreamQuery(r)
+	if channel < 0 || stream < 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_STREAM", "Invalid camera channel or stream type")
+		return
+	}
+	businessType := r.URL.Query().Get("business_type")
+	if businessType == "" { businessType = "localRecord" }
+	if businessType != "localRecord" && businessType != "cloudRecord" {
+		writeError(w, http.StatusBadRequest, "INVALID_RECORDING_TYPE", "Only local or cloud recordings can be played")
+		return
+	}
+	adminToken, err := h.ensureAdminToken(r, config, client)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_ADMIN_TOKEN_ERROR", "Could not obtain Imou playback authorization")
+		return
+	}
+	streamURL, err := client.CreateVideoDownloadStreamURL(
+		r.Context(), adminToken, chi.URLParam(r, "deviceID"),
+		strconv.Itoa(channel), businessType, strconv.Itoa(stream), begin, end,
+	)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_RECORDING_PLAYBACK_ERROR", "Imou could not create a temporary recording stream for this account and device")
+		return
+	}
+	h.proxyRTSPPreview(w, r, streamURL)
+}
+
+func imouStreamQuery(r *http.Request) (int, int) {
+	channel, stream := 0, 0
+	if value := r.URL.Query().Get("channel"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil { channel = parsed } else { channel = -1 }
+	}
+	if value := r.URL.Query().Get("stream"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil { stream = parsed } else { stream = -1 }
+	}
+	return channel, stream
+}
+
+func (h *ImouLifeHandler) proxyRTSPPreview(w http.ResponseWriter, r *http.Request, streamURL string) {
+	select {
+	case h.streamSlots <- struct{}{}:
+		defer func() { <-h.streamSlots }()
+	default:
+		writeError(w, http.StatusTooManyRequests, "STREAM_LIMIT", "Maximum number of concurrent Imou previews reached")
 		return
 	}
 	if strings.ContainsAny(streamURL, "\r\n") {
@@ -836,17 +886,20 @@ func (h *ImouLifeHandler) StreamPreview(w http.ResponseWriter, r *http.Request) 
 	defer reader.Close()
 	defer writer.Close()
 	playlist := "file '" + strings.ReplaceAll(streamURL, "'", "'\\''") + "'\n"
-	cmd := exec.CommandContext(r.Context(), binary,
+	mediaCtx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(mediaCtx, binary,
 		"-nostdin", "-hide_banner", "-loglevel", "error",
 		"-protocol_whitelist", "pipe,rtsp,tcp,udp,rtp",
+		"-rw_timeout", "5000000", "-rtsp_transport", "tcp",
+		"-threads", "1", "-max_probe_packets", "32",
 		"-f", "concat", "-safe", "0", "-i", "pipe:3",
 		"-map", "0:v:0", "-an",
 		"-vf", "fps=5,scale=960:-2:force_original_aspect_ratio=decrease",
 		"-c:v", "mjpeg", "-q:v", "6", "-f", "mpjpeg", "pipe:1",
 	)
 	cmd.ExtraFiles = []*os.File{reader}
-	cmd.Stdout = nil
-	cmd.Stderr = nil // Provider URLs and credentials must never be copied into logs.
+	cmd.Stderr = nil // Never log provider URLs or RTSP credentials.
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "MEDIA_PROXY_ERROR", "Could not create the media output")
@@ -874,14 +927,10 @@ func (h *ImouLifeHandler) StreamPreview(w http.ResponseWriter, r *http.Request) 
 	for {
 		n, readErr := output.Read(buffer)
 		if n > 0 {
-			if _, err := w.Write(buffer[:n]); err != nil {
-				break
-			}
+			if _, err := w.Write(buffer[:n]); err != nil { break }
 			_ = http.NewResponseController(w).Flush()
 		}
-		if readErr != nil {
-			break
-		}
+		if readErr != nil { break }
 	}
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
