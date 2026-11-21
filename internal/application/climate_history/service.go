@@ -194,8 +194,13 @@ func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 
 func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 	class := strings.ToLower(fmt.Sprint(attrs["device_class"]))
+	unit := strings.TrimSpace(ent.UnitOfMeasurement)
+	if unit == "" {
+		unit = fmt.Sprint(attrs["unit_of_measurement"])
+	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
-	return class == "humidity" || strings.Contains(class, "humidity") || strings.Contains(key, "humidity") || strings.Contains(key, "umid")
+	return class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
+		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
 func normalizeTemperature(value float64, unit string, attrs map[string]any) float64 {
@@ -303,13 +308,17 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 					out.Insights = append(out.Insights, domclimate.Insight{Code:"temperature_anomaly", AreaID:area, EntityName:name, Metric:"temperature", Value:v})
 				}
 			}
-			if settings.ThermalAnalysisEnabled && len(series) >= 2 {
+			if (settings.ThermalAnalysisEnabled || settings.ForecastEnabled) && len(series) >= 2 {
 				hours := last.RecordedAt.Sub(first.RecordedAt).Hours()
 				if hours >= 0.25 && first.TemperatureAverage != nil {
 					rate := (v-*first.TemperatureAverage)/hours
 					// Attach the measured rate and a one-hour linear estimate to the room containing this entity.
-					roomRates[area] = append(roomRates[area], rate)
-					if settings.ForecastEnabled { roomForecasts[area] = append(roomForecasts[area], v+rate) }
+					if settings.ThermalAnalysisEnabled {
+						roomRates[area] = append(roomRates[area], rate)
+					}
+					if settings.ForecastEnabled {
+						roomForecasts[area] = append(roomForecasts[area], v+rate)
+					}
 				}
 			}
 		}
