@@ -763,6 +763,7 @@
         "broadlinkCommandPlaceholder": "z. B. TV einschalten",
         "broadlinkLearn": "Lernen starten",
         "broadlinkLearning": "Lernvorgang…",
+"broadlinkLearningDesc": "Der Lernvorgang wurde gestartet. Drücke die Taste auf der physischen Fernbedienung nahe dem BroadLink und speichere anschließend den erfassten Code.",
         "broadlinkSaving": "Speichern…",
         "broadlinkSaveCode": "Signal erfassen und speichern",
         "broadlinkLearnHint": "Lernvorgang starten, die Taste auf der physischen Fernbedienung nahe dem BroadLink drücken und anschließend den Code erfassen und speichern.",
