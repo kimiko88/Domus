@@ -133,7 +133,7 @@ func (h *ClimateHistoryHandler) applyAccessScope(w http.ResponseWriter, r *http.
 		return false
 	}
 if permissions.AllowedAreaIDs != nil {
-		filter.AreaIDs = append([]string(nil), permissions.AllowedAreaIDs...)
+		filter.AreaIDs = append([]string{}, permissions.AllowedAreaIDs...)
 	}
 		allowed := make([]string, 0, len(items))
 	for _, item := range items {
