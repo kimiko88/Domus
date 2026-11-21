@@ -334,6 +334,71 @@ async function subscribeXiaomiDeviceStatus() {
   }
 }
 
+interface XiaomiMioTSpec {
+  services?: {
+    iid: number
+    properties?: { iid: number; access?: string[] }[]
+    events?: { iid: number }[]
+  }[]
+}
+
+async function subscribeXiaomiTopic(topic: 'properties-changed' | 'events-occured', ids: string[]) {
+  if (!ids.length) {
+    notificationsStore.warning(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.noNotifiableItems'))
+    return
+  }
+  try {
+    for (let start = 0; start < ids.length; start += 100) {
+      await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/events/subscribe', {
+        topic, ids: ids.slice(start, start + 100)
+      })
+    }
+    notificationsStore.success(t('integrations.view.vendors.eventsSubscribed'), t('integrations.view.vendors.subscriptionCount', { count: ids.length }))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.eventsError'), t('integrations.view.vendors.eventsErrorDesc'))
+  }
+}
+
+async function subscribeXiaomiPropertyChanges() {
+  const ids: string[] = []
+  for (const device of xiaomiCloudDevices.value) {
+    try {
+      const spec = await apiClient.get<XiaomiMioTSpec>(
+        `/api/v1/integrations/xiaomi-home/cloud/devices/${encodeURIComponent(device.did)}/spec`
+      )
+      for (const service of spec.services || []) {
+        for (const property of service.properties || []) {
+          if ((property.access || []).some(mode => mode.toLowerCase() === 'notify')) {
+            ids.push(`${device.did}.${service.iid}.${property.iid}`)
+          }
+        }
+      }
+    } catch {
+      // A missing MIoT spec for one device must not block the other devices.
+    }
+  }
+  await subscribeXiaomiTopic('properties-changed', ids)
+}
+
+async function subscribeXiaomiMIoTEvents() {
+  const ids: string[] = []
+  for (const device of xiaomiCloudDevices.value) {
+    try {
+      const spec = await apiClient.get<XiaomiMioTSpec>(
+        `/api/v1/integrations/xiaomi-home/cloud/devices/${encodeURIComponent(device.did)}/spec`
+      )
+      for (const service of spec.services || []) {
+        for (const event of service.events || []) {
+          ids.push(`${device.did}.${service.iid}.${event.iid}`)
+        }
+      }
+    } catch {
+      // Ignore unsupported or unavailable device specifications.
+    }
+  }
+  await subscribeXiaomiTopic('events-occured', ids)
+}
+
 async function loadImouVendorData() {
   try {
     const status = await apiClient.get<{
@@ -2095,6 +2160,12 @@ onMounted(() => {
             </button>
             <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiDeviceStatus">
               <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeStatus') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiPropertyChanges">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeProperties') }}
+            </button>
+            <button class="btn-action glass-panel" type="button" @click="subscribeXiaomiMIoTEvents">
+              <Activity :size="14" /> {{ t('integrations.view.vendors.subscribeMIoTEvents') }}
             </button>
             <button class="btn-action glass-panel" type="button" @click="disconnectXiaomiCloud">
               <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
