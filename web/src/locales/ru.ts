@@ -2,7 +2,7 @@ import en from './en.json'
 
 // Russian catalog. English is the fallback for legacy screens while their
 // remaining hard-coded copy is migrated to vue-i18n.
-const ru = {
+let ru = {
   ...en,
   common: {
     ...en.common, done: 'Готово',
@@ -298,6 +298,10 @@ const ru = {
   tour: { ...en.tour, stepsAria: "Шаги тура", goToStep: "Перейти к шагу {step}" },
 }
 
+// Detach nested locale objects from the English fallback before applying the
+// translations below. The shallow top-level spread above otherwise leaves
+// nested objects shared with en, so Object.assign would mutate the source locale.
+ru = JSON.parse(JSON.stringify(ru)) as typeof ru
 
 Object.assign(ru.flowchart.view, {
   newAutomationName: 'Новая визуальная автоматизация',
