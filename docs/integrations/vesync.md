@@ -16,8 +16,8 @@ You need:
 Official app/account entry points:
 
 - [VeSync account portal](https://account.vesync.com/)
-- [VeSync app on Apple App Store](https://apps.apple.com/app/vesync/id1132150426)
-- [VeSync app on Google Play](https://play.google.com/store/apps/details?id=com.etekcity.vesync)
+- [VeSync app on Apple App Store](https://apps.apple.com/it/app/vesync/id1289575311)
+- [VeSync app on Google Play](https://play.google.com/store/apps/details?id=com.etekcity.vesyncplatform)
 
 For product-specific first-time pairing, follow the instructions in the device's own manual and in the VeSync app. The usual flow is **Sign Up / Log In → + / Add Device → select the product → follow the in-app Wi-Fi setup**. Keep the phone and device close during Bluetooth-assisted onboarding, and grant the permissions requested by the app. VeSync's product manuals explicitly distinguish a personal account from a guest session.
 
