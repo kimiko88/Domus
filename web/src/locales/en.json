@@ -498,6 +498,7 @@
 "broadlinkCommandPlaceholder": "e.g. TV Power",
 "broadlinkLearn": "Start learning",
 "broadlinkLearning": "Learning…",
+"broadlinkLearningDesc": "Start learning has been enabled. Press the physical remote button near the BroadLink, then save the captured code.",
 "broadlinkSaving": "Saving…",
 "broadlinkSaveCode": "Capture and save",
 "broadlinkLearnHint": "Start learning, press the physical remote button near the BroadLink, then capture and save it.",
