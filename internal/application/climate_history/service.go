@@ -292,7 +292,8 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 		out.SampleCount += weight
 		if rooms[area] == nil { rooms[area] = &bucket{} }
 		rooms[area].points = append(rooms[area].points, point)
-		entities[point.EntityID] = append(entities[point.EntityID], point)
+		seriesKey := point.EntityID + "\x00" + area
+		entities[seriesKey] = append(entities[seriesKey], point)
 	}
 	for area, room := range rooms {
 		summary := domclimate.RoomSummary{AreaID: area, SampleCount: 0}
