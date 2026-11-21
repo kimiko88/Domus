@@ -179,7 +179,6 @@ func (c *CloudClient) ExchangeCode(ctx context.Context, code string) (*CloudToke
 		return nil, errors.New("xiaomi: invalid OAuth authorization code")
 	}
 	return c.tokenRequest(ctx, url.Values{
-		"pt": {"0"},
 		"client_id": {c.config.ClientID},
 		"client_secret": {c.config.ClientSecret},
 		"redirect_uri": {c.config.RedirectURL},
@@ -194,7 +193,6 @@ func (c *CloudClient) RefreshToken(ctx context.Context, refreshToken string) (*C
 		return nil, errors.New("xiaomi: invalid OAuth refresh token")
 	}
 	return c.tokenRequest(ctx, url.Values{
-		"pt": {"0"},
 		"client_id": {c.config.ClientID},
 		"client_secret": {c.config.ClientSecret},
 		"redirect_uri": {c.config.RedirectURL},
