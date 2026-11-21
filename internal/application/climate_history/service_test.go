@@ -64,6 +64,7 @@ func TestCollectNowRecordsTemperatureHumidityAndThermostatSetpoint(t *testing.T)
 	require.InDelta(t, 21.1, *byKey["climate.living"].Temperature, 0.001)
 	require.InDelta(t, 22.0, *byKey["climate.living"].TargetTemperature, 0.001)
 	require.Equal(t, "heating", byKey["climate.living"].HVACAction)
+	require.Equal(t, "auto", byKey["climate.living"].HVACMode)
 }
 
 func TestCollectNowHonorsDisabledAndSamplingInterval(t *testing.T) {
