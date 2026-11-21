@@ -2639,7 +2639,7 @@ onMounted(() => {
               {{ vesyncBusy ? t('integrations.view.vendors.vesyncConnecting') : t('integrations.view.vendors.vesyncConnect') }}
             </button>
             <button v-if="vesyncConnected" class="btn-action glass-panel" type="button" :disabled="vesyncRefreshing" @click="refreshVeSyncDevices">
-              <RefreshCw :size="14" :class="{ 'animate-spin': vesyncRefreshing }" /> {{ t('integrations.view.vendors.refreshDevices') }}
+              <RefreshCw :size="14" :class="{ 'animate-spin': vesyncRefreshing }" /> {{ t('integrations.view.vendors.vesyncRefreshDevices') }}
             </button>
             <button v-if="vesyncConnected" class="btn-action glass-panel" type="button" :disabled="vesyncBusy" @click="disconnectVeSync">
               <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
@@ -2656,7 +2656,7 @@ onMounted(() => {
             <div class="vendor-device-info">
               <strong>{{ device.name }}</strong>
               <span>{{ device.model }} · {{ device.status || t('integrations.view.vendors.statusUnknown') }} · {{ device.connection_status || t('integrations.view.vendors.statusUnknown') }}</span>
-              <small v-if="device.firmware" class="vendor-hint">{{ t('integrations.view.vendors.firmware') }}: {{ device.firmware }}</small>
+              <small v-if="device.firmware" class="vendor-hint">{{ t('integrations.view.vendors.vesyncFirmware') }}: {{ device.firmware }}</small>
               <div v-if="isVeSyncPurifier(device)" class="vendor-device-controls">
                 <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_power', true)">{{ t('integrations.view.vendors.xiaomiPowerOn') }}</button>
                 <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_power', false)">{{ t('integrations.view.vendors.xiaomiPowerOff') }}</button>

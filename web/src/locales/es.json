@@ -846,7 +846,9 @@
         "vesyncApplyMode": "Aplicar modo",
         "vesyncFanLevel": "Nivel del ventilador",
         "vesyncApplyFanLevel": "Aplicar velocidad",
-        "vesyncRefreshStatus": "Actualizar estado"
+        "vesyncRefreshStatus": "Actualizar estado",
+        "vesyncFirmware": "Firmware",
+        "vesyncRefreshDevices": "Actualizar dispositivos"
       }
     }
   },

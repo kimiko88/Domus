@@ -668,7 +668,9 @@
         "vesyncApplyMode": "Apply mode",
         "vesyncFanLevel": "Fan level",
         "vesyncApplyFanLevel": "Apply speed",
-        "vesyncRefreshStatus": "Refresh status"
+        "vesyncRefreshStatus": "Refresh status",
+        "vesyncFirmware": "Firmware",
+        "vesyncRefreshDevices": "Refresh devices"
       },
       "bridgeInfo": "Hardware bridges and protocols currently connected to the local Domus system.",
       "localScanTitle": "Zero-cloud scan of the local network",

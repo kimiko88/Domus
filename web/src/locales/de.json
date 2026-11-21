@@ -846,7 +846,9 @@
         "vesyncApplyMode": "Modus anwenden",
         "vesyncFanLevel": "Lüfterstufe",
         "vesyncApplyFanLevel": "Geschwindigkeit anwenden",
-        "vesyncRefreshStatus": "Status aktualisieren"
+        "vesyncRefreshStatus": "Status aktualisieren",
+        "vesyncFirmware": "Firmware",
+        "vesyncRefreshDevices": "Geräte aktualisieren"
       }
     }
   },

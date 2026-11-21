@@ -668,7 +668,9 @@
         "vesyncApplyMode": "Applica modalità",
         "vesyncFanLevel": "Velocità ventola",
         "vesyncApplyFanLevel": "Applica velocità",
-        "vesyncRefreshStatus": "Aggiorna stato"
+        "vesyncRefreshStatus": "Aggiorna stato",
+        "vesyncFirmware": "Firmware",
+        "vesyncRefreshDevices": "Aggiorna dispositivi"
       },
       "bridgeInfo": "Ponti hardware e protocolli attualmente collegati al sistema locale Domus.",
       "localScanTitle": "Scansione Zero-Cloud della rete locale",
