@@ -3573,6 +3573,8 @@
       "load": "No se pudo cargar el historial climático.",
       "save": "No se pudieron guardar los ajustes.",
       "export": "No se pudieron exportar los datos climáticos."
-    }
+    },
+    "heatingRate": "Velocidad de calentamiento",
+    "coolingRate": "Velocidad de enfriamiento"
   }
 }
