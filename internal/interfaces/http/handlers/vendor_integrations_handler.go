@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/plugins/imou_life"
 	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
@@ -32,7 +33,9 @@ const (
 type ImouLifeHandler struct {
 	repo integration.Repository
 	cipher *crypto.EnvelopeCipher
+	bus events.Bus
 	mu sync.Mutex
+	seenEvents map[string]time.Time
 }
 
 type imouStoredConfig struct {
@@ -42,6 +45,11 @@ type imouStoredConfig struct {
 	AuthorizationURL string `json:"authorization_url"`
 	PublicBaseURL string `json:"public_base_url"`
 	CallbackSecret string `json:"callback_secret"`
+	EventSecret string `json:"event_secret,omitempty"`
+	PushEnabled bool `json:"push_enabled,omitempty"`
+	PushFlags []string `json:"push_flags,omitempty"`
+	AdminAccessToken string `json:"admin_access_token,omitempty"`
+	AdminExpiresAt time.Time `json:"admin_expires_at,omitempty"`
 	AccessToken string `json:"access_token,omitempty"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	ExpiresAt time.Time `json:"expires_at,omitempty"`
@@ -102,7 +110,13 @@ func NewImouLifeHandler(repo integration.Repository, cipher *crypto.EnvelopeCiph
 	if repo == nil || cipher == nil {
 		return nil, errors.New("imou: integration repository and encryption are required")
 	}
-	return &ImouLifeHandler{repo: repo, cipher: cipher}, nil
+	return &ImouLifeHandler{repo: repo, cipher: cipher, seenEvents: make(map[string]time.Time)}, nil
+}
+
+// WithEventBus connects provider notifications to Domus automations and notifications.
+func (h *ImouLifeHandler) WithEventBus(bus events.Bus) *ImouLifeHandler {
+	h.bus = bus
+	return h
 }
 
 func NewXiaomiHomeHandler(repo integration.Repository, cipher *crypto.EnvelopeCipher) (*XiaomiHomeHandler, error) {
@@ -115,6 +129,7 @@ func NewXiaomiHomeHandler(repo integration.Repository, cipher *crypto.EnvelopeCi
 func (h *ImouLifeHandler) RegisterCallback(r chi.Router) {
 	r.Get("/integrations/imou-life/callback/{secret}", h.Callback)
 	r.Post("/integrations/imou-life/callback/{secret}", h.Callback)
+	r.Post("/integrations/imou-life/events/{secret}", h.EventCallback)
 }
 
 func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
@@ -123,6 +138,14 @@ func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/authorize", h.Authorization)
 	r.Get("/devices", h.Devices)
 	r.Get("/devices/{deviceID}/stream", h.StreamURL)
+	r.Get("/devices/{deviceID}/capabilities", h.Capabilities)
+	r.Get("/devices/{deviceID}/properties", h.ReadProperties)
+	r.Put("/devices/{deviceID}/properties", h.WriteProperties)
+	r.Post("/devices/{deviceID}/services/{serviceID}", h.InvokeService)
+	r.Get("/devices/{deviceID}/messages", h.MessageHistory)
+	r.Get("/devices/{deviceID}/recordings", h.Recordings)
+	r.Post("/events/config", h.ConfigureEvents)
+	r.Get("/events/status", h.EventStatus)
 	r.Post("/disconnect", h.Disconnect)
 }
 
@@ -175,6 +198,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		AuthorizationURL:strings.TrimSpace(req.AuthorizationURL),
 		PublicBaseURL:strings.TrimRight(req.PublicBaseURL, "/"),
 		CallbackSecret:hex.EncodeToString(secretBytes[:]),
+		EventSecret:hex.EncodeToString(secretBytes[:]),
 	}
 	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}, nil); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou API configuration")
@@ -188,6 +212,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"configured":true,
 		"callback_url":callbackURL,
+		"events_callback_url":config.PublicBaseURL + "/api/v1/integrations/imou-life/events/" + config.EventSecret,
 		"authorization_url":config.AuthorizationURL,
 		"message":"Register this exact HTTPS callback URL in the Imou Open Platform project, then start user authorization.",
 	})
@@ -212,6 +237,10 @@ func (h *ImouLifeHandler) Status(w http.ResponseWriter, r *http.Request) {
 		"expires_at":config.ExpiresAt,
 		"authorization_url":config.AuthorizationURL,
 		"callback_url":config.PublicBaseURL + "/api/v1/integrations/imou-life/callback/" + config.CallbackSecret,
+		"events_callback_url":config.PublicBaseURL + "/api/v1/integrations/imou-life/events/" + config.EventSecret,
+		"push_enabled":config.PushEnabled,
+		"push_flags":config.PushFlags,
+		"admin_token_expires_at":config.AdminExpiresAt,
 	})
 }
 
@@ -281,6 +310,423 @@ func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{"connected":true,"message":"Imou Life connected to Domus. You can close this page."})
+}
+
+
+func (h *ImouLifeHandler) ConfigureEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	var req struct {
+		Enabled bool     `json:"enabled"`
+		Flags   []string `json:"flags"`
+	}
+	if !decodeLimitedJSON(w, r, &req, 16*1024) {
+		return
+	}
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Configure and authorize Imou Life before enabling events")
+		return
+	}
+	callbackURL := config.PublicBaseURL + "/api/v1/integrations/imou-life/events/" + config.EventSecret
+	adminToken, err := h.ensureAdminToken(r, config, client)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_ADMIN_TOKEN_ERROR", "Could not obtain an Imou project token for event registration")
+		return
+	}
+	if err := client.ConfigureMessageCallback(r.Context(), adminToken, callbackURL, req.Enabled, req.Flags); err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CALLBACK_CONFIG_ERROR", "Imou rejected the event callback configuration")
+		return
+	}
+	config.PushEnabled = req.Enabled
+	config.PushFlags = append([]string(nil), req.Flags...)
+	if err := h.saveConfig(r.Context(), *config, "connected"); err != nil {
+		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Could not persist Imou event configuration")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled":config.PushEnabled, "flags":config.PushFlags, "callback_url":callbackURL})
+}
+
+func (h *ImouLifeHandler) EventStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	config, err := h.loadConfig(r)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "Imou Life is not configured")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled": config.PushEnabled,
+		"flags": config.PushFlags,
+		"callback_url": config.PublicBaseURL + "/api/v1/integrations/imou-life/events/" + config.EventSecret,
+		"admin_token_expires_at": config.AdminExpiresAt,
+	})
+}
+
+func (h *ImouLifeHandler) EventCallback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	secret := chi.URLParam(r, "secret")
+	if len(secret) != 64 || r.Method != http.MethodPost {
+		http.Error(w, "Invalid Imou event callback", http.StatusBadRequest)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	var message imou_life.DeviceMessage
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&message); err != nil {
+		http.Error(w, "Invalid Imou event payload", http.StatusBadRequest)
+		return
+	}
+	if decoder.Decode(new(any)) != io.EOF {
+		http.Error(w, "Invalid Imou event payload", http.StatusBadRequest)
+		return
+	}
+	config, err := h.loadConfig(r)
+	if err != nil || subtle.ConstantTimeCompare([]byte(secret), []byte(config.EventSecret)) != 1 {
+		http.Error(w, "Invalid Imou event callback", http.StatusNotFound)
+		return
+	}
+	if message.AppID != "" && subtle.ConstantTimeCompare([]byte(message.AppID), []byte(config.AccessKey)) != 1 {
+		http.Error(w, "Invalid Imou event application", http.StatusForbidden)
+		return
+	}
+	deviceID := message.DeviceID
+	if deviceID == "" {
+		deviceID = message.LegacyDeviceID
+	}
+	channelID := message.ChannelID
+	if channelID == "" {
+		channelID = message.LegacyChannelID
+	}
+	if deviceID == "" || len(deviceID) > 128 {
+		http.Error(w, "Invalid Imou event device", http.StatusBadRequest)
+		return
+	}
+	eventKey := message.ID
+	if eventKey == "" {
+		eventKey = strings.Join([]string{deviceID, channelID, message.MessageType, strconv.FormatInt(message.OccurredUnix, 10), message.AlarmID}, ":")
+	}
+	if !h.acceptEvent(eventKey) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if h.bus == nil {
+		http.Error(w, "Domus event bus is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	occurredAt := time.Now().UTC()
+	if message.OccurredUnix > 0 {
+		occurredAt = time.Unix(message.OccurredUnix, 0).UTC()
+	}
+	payload := map[string]any{
+		"source": "imou_life",
+		"device_id": deviceID,
+		"channel_id": channelID,
+		"message_type": message.MessageType,
+		"alarm_id": message.AlarmID,
+		"label_type": message.LabelType,
+		"device_status": message.DeviceStatus,
+		"local_time": message.LocalTime,
+	}
+	eventType := events.WebhookReceived
+	messageType := strings.ToLower(strings.TrimSpace(message.MessageType))
+	if messageType == "devicestatus" {
+		status := strings.ToLower(strings.TrimSpace(message.DeviceStatus))
+		switch status {
+		case "online", "1", "on":
+			eventType = events.DeviceOnline
+		case "offline", "0", "off":
+			eventType = events.DeviceOffline
+		}
+	} else if messageType == "alarm" || messageType == "capabilityevent" ||
+		strings.Contains(messageType, "motion") || strings.Contains(messageType, "person") ||
+		strings.Contains(messageType, "human") || strings.Contains(messageType, "intrusion") {
+		eventType = events.CameraDetected
+		label := strings.ToLower(strings.TrimSpace(message.LabelType))
+		if label == "" {
+			label = messageType
+		}
+		payload["label"] = label
+		payload["confidence"] = 1.0
+		payload["camera_id"] = deviceID
+	}
+	if err := h.bus.Publish(r.Context(), events.Event{
+		ID: uuid.NewString(), Type: eventType, OccurredAt: occurredAt,
+		Source: "imou_life", Payload: payload,
+	}); err != nil {
+		http.Error(w, "Domus could not queue Imou event", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ImouLifeHandler) acceptEvent(key string) bool {
+	now := time.Now().UTC()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.seenEvents == nil {
+		h.seenEvents = make(map[string]time.Time)
+	}
+	for id, seenAt := range h.seenEvents {
+		if now.Sub(seenAt) > 24*time.Hour {
+			delete(h.seenEvents, id)
+		}
+	}
+	if _, exists := h.seenEvents[key]; exists {
+		return false
+	}
+	if len(h.seenEvents) >= 10000 {
+		// Evict the oldest key to keep callback memory bounded.
+		var oldestKey string
+		var oldest time.Time
+		for id, seenAt := range h.seenEvents {
+			if oldest.IsZero() || seenAt.Before(oldest) {
+				oldestKey, oldest = id, seenAt
+			}
+		}
+		delete(h.seenEvents, oldestKey)
+	}
+	h.seenEvents[key] = now
+	return true
+}
+
+func (h *ImouLifeHandler) loadClient(r *http.Request) (*imouStoredConfig, *imou_life.Client, error) {
+	config, err := h.loadConfig(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	if config.AccessToken == "" || config.RefreshToken == "" {
+		return nil, nil, errors.New("imou: OAuth user token is not configured")
+	}
+	client, err := imou_life.NewClient(imou_life.Config{
+		AccessKey: config.AccessKey, SecretKey: config.SecretKey, DataCenter: config.DataCenter,
+	}, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return config, client, nil
+}
+
+func (h *ImouLifeHandler) ensureAdminToken(r *http.Request, config *imouStoredConfig, client *imou_life.Client) (string, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if config.AdminAccessToken != "" && time.Until(config.AdminExpiresAt) > 5*time.Minute {
+		return config.AdminAccessToken, nil
+	}
+	token, err := client.GetAdminToken(r.Context())
+	if err != nil {
+		return "", err
+	}
+	config.AdminAccessToken = token.AccessToken
+	config.AdminExpiresAt = token.ExpiresAt
+	if err := h.saveConfig(r.Context(), *config, "connected"); err != nil {
+		return "", err
+	}
+	return config.AdminAccessToken, nil
+}
+
+func (h *ImouLifeHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before loading capabilities")
+		return
+	}
+	deviceID := chi.URLParam(r, "deviceID")
+	channelID := r.URL.Query().Get("channel")
+	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, channelID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not discover Imou device capabilities")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, map[string]any{"device_id":deviceID,"channel_id":channelID,"capabilities":capabilities})
+}
+
+func (h *ImouLifeHandler) ReadProperties(w http.ResponseWriter, r *http.Request) {
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before reading properties")
+		return
+	}
+	deviceID := chi.URLParam(r, "deviceID")
+	ids := strings.Split(r.URL.Query().Get("ids"), ",")
+	channelID := r.URL.Query().Get("channel")
+	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, channelID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not verify property permissions")
+		return
+	}
+	allowed := make(map[string]bool)
+	for _, capability := range capabilities {
+		for _, property := range capability.Properties {
+			if strings.Contains(strings.ToLower(property.AccessMode), "r") {
+				allowed[property.PropertyID] = true
+			}
+		}
+	}
+	for _, id := range ids {
+		if !allowed[strings.TrimSpace(id)] {
+			writeError(w, http.StatusForbidden, "PROPERTY_NOT_READABLE", "Requested property is not advertised as readable by this device")
+			return
+		}
+	}
+	values, err := client.ReadProperties(r.Context(), config.AccessToken, deviceID, channelID, ids)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_PROPERTY_READ_ERROR", "Could not read device properties")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, values)
+}
+
+func (h *ImouLifeHandler) WriteProperties(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ChannelID string         `json:"channel_id"`
+		Values    map[string]any `json:"values"`
+	}
+	if !decodeLimitedJSON(w, r, &req, 16*1024) {
+		return
+	}
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before writing properties")
+		return
+	}
+	deviceID := chi.URLParam(r, "deviceID")
+	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, req.ChannelID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not verify property permissions")
+		return
+	}
+	allowed := make(map[string]imou_life.CapabilityProperty)
+	for _, capability := range capabilities {
+		for _, property := range capability.Properties {
+			if strings.Contains(strings.ToLower(property.AccessMode), "w") {
+				allowed[property.PropertyID] = property
+			}
+		}
+	}
+	for id := range req.Values {
+		if _, ok := allowed[id]; !ok {
+			writeError(w, http.StatusForbidden, "PROPERTY_NOT_WRITABLE", "Requested property is not advertised as writable by this device")
+			return
+		}
+	}
+	result, err := client.WriteProperties(r.Context(), config.AccessToken, deviceID, req.ChannelID, req.Values)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_PROPERTY_WRITE_ERROR", "Could not write device properties")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *ImouLifeHandler) InvokeService(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ChannelID string         `json:"channel_id"`
+		Input     map[string]any `json:"input"`
+	}
+	if !decodeLimitedJSON(w, r, &req, 16*1024) {
+		return
+	}
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before controlling the device")
+		return
+	}
+	deviceID := chi.URLParam(r, "deviceID")
+	serviceID := chi.URLParam(r, "serviceID")
+	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, req.ChannelID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not verify service availability")
+		return
+	}
+	allowed := false
+	for _, capability := range capabilities {
+		for _, service := range capability.Services {
+			if service.ServiceID == serviceID {
+				allowed = true
+				break
+			}
+		}
+	}
+	if !allowed {
+		writeError(w, http.StatusForbidden, "SERVICE_NOT_SUPPORTED", "Service is not advertised by this device")
+		return
+	}
+	result, err := client.InvokeService(r.Context(), config.AccessToken, deviceID, req.ChannelID, serviceID, req.Input)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_SERVICE_ERROR", "Imou device rejected the requested service")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *ImouLifeHandler) MessageHistory(w http.ResponseWriter, r *http.Request) {
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before reading messages")
+		return
+	}
+	begin, errBegin := time.Parse(time.RFC3339, r.URL.Query().Get("begin"))
+	end, errEnd := time.Parse(time.RFC3339, r.URL.Query().Get("end"))
+	if errBegin != nil || errEnd != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_TIME_RANGE", "begin and end must be RFC3339 timestamps")
+		return
+	}
+	page, err := client.ListMessageHistory(r.Context(), config.AccessToken, chi.URLParam(r, "deviceID"), r.URL.Query().Get("channel"), begin, end, r.URL.Query().Get("cursor"))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_MESSAGE_HISTORY_ERROR", "Could not load Imou event history")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, page)
+}
+
+func (h *ImouLifeHandler) Recordings(w http.ResponseWriter, r *http.Request) {
+	config, client, err := h.loadClient(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before searching recordings")
+		return
+	}
+	begin, errBegin := time.Parse(time.RFC3339, r.URL.Query().Get("begin"))
+	end, errEnd := time.Parse(time.RFC3339, r.URL.Query().Get("end"))
+	if errBegin != nil || errEnd != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_TIME_RANGE", "begin and end must be RFC3339 timestamps")
+		return
+	}
+	recordType := 0
+	limit := 50
+	if value := r.URL.Query().Get("type"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil { recordType = parsed } else { recordType = -1 }
+	}
+	if value := r.URL.Query().Get("limit"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil { limit = parsed } else { limit = -1 }
+	}
+	deviceID := chi.URLParam(r, "deviceID")
+	channelID := r.URL.Query().Get("channel")
+	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, channelID)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not discover recording capabilities")
+		return
+	}
+	supported := false
+	for _, capability := range capabilities {
+		for _, service := range capability.Services {
+			if service.ServiceID == "record.file.list" { supported = true }
+		}
+	}
+	if !supported {
+		writeError(w, http.StatusNotImplemented, "RECORDINGS_NOT_SUPPORTED", "This camera does not advertise local recording search")
+		return
+	}
+	records, sessionID, err := client.ListLocalRecordings(r.Context(), config.AccessToken, deviceID, channelID, begin, end, recordType, limit)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "IMOU_RECORDINGS_ERROR", "Could not search Imou recordings")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store, private")
+	writeJSON(w, http.StatusOK, map[string]any{"records":records,"session_id":sessionID})
 }
 
 func (h *ImouLifeHandler) Devices(w http.ResponseWriter, r *http.Request) {
