@@ -7,6 +7,8 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -311,8 +313,62 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 	if err := json.Unmarshal(data, &result); err != nil {
 		return "", errors.New("imou: invalid stream URL response")
 	}
-	u, err := url.Parse(result.URL)
-	if err != nil || u.Scheme != "rtsp" || u.Host == "" || u.User == nil && strings.Contains(u.Host, "@") {
+	return validateImouRTSPURL(ctx, result.URL)
+}
+
+
+func (c *Client) CreateVideoDownloadStreamURL(ctx context.Context, adminToken, deviceID, channelID, businessType, streamType string, begin, end time.Time) (string, error) {
+	if !strings.HasPrefix(adminToken, "At_") || len(adminToken) > 4096 {
+		return "", errors.New("imou: administrator token is required for video download")
+	}
+	if !validDeviceID(deviceID) || !validRequiredChannel(channelID) {
+		return "", errors.New("imou: invalid device or channel for video download")
+	}
+	if streamType == "" { streamType = "0" }
+	if streamType != "0" && streamType != "1" {
+		return "", errors.New("imou: stream type must be 0 (main) or 1 (sub)")
+	}
+	params := map[string]any{"token": adminToken, "deviceId": deviceID, "channelId": channelID, "businessType": businessType, "streamType": streamType}
+	switch businessType {
+	case "real":
+	case "localRecord", "cloudRecord":
+		if begin.IsZero() || end.IsZero() || !end.After(begin) || end.Sub(begin) > 24*time.Hour {
+			return "", errors.New("imou: recording playback range must be between 0 and 24 hours")
+		}
+		params["beginTime"] = begin.Format("2006-01-02 15:04:05")
+		params["endTime"] = end.Format("2006-01-02 15:04:05")
+	default:
+		return "", errors.New("imou: unsupported video business type")
+	}
+	data, err := c.call(ctx, "createVideoDownloadStreamUrl", params)
+	if err != nil { return "", err }
+	var result struct { URL string `json:"url"` }
+	if err := json.Unmarshal(data, &result); err != nil || result.URL == "" {
+		return "", errors.New("imou: provider returned an invalid encrypted video URL")
+	}
+	plainURL, err := decryptVideoDownloadURL(result.URL, adminToken)
+	if err != nil { return "", err }
+	return validateImouRTSPURL(ctx, plainURL)
+}
+
+func decryptVideoDownloadURL(encoded, token string) (string, error) {
+	payload, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(payload) < 12+16 {
+		return "", errors.New("imou: invalid encrypted video URL payload")
+	}
+	key := sha256.Sum256([]byte(token + "ENCRYPTKEY"))
+	block, err := aes.NewCipher(key[:])
+	if err != nil { return "", errors.New("imou: could not initialize video URL decryption") }
+	gcm, err := cipher.NewGCM(block)
+	if err != nil { return "", errors.New("imou: could not initialize video URL authentication") }
+	plain, err := gcm.Open(nil, payload[:gcm.NonceSize()], payload[gcm.NonceSize():], nil)
+	if err != nil { return "", errors.New("imou: encrypted video URL authentication failed") }
+	return string(plain), nil
+}
+
+func validateImouRTSPURL(ctx context.Context, raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || !strings.EqualFold(u.Scheme, "rtsp") || u.Host == "" || u.Fragment != "" {
 		return "", errors.New("imou: provider returned an invalid RTSP URL")
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
@@ -320,6 +376,11 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 		strings.HasSuffix(host, ".easy4ip.com") || host == "easy4ip.com" ||
 		strings.HasSuffix(host, ".imoulife.com") || host == "imoulife.com") {
 		return "", errors.New("imou: stream host is not an approved Imou media domain")
+	}
+	if port := u.Port(); port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			return "", errors.New("imou: invalid RTSP port")
+		}
 	}
 	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if err != nil || len(addresses) == 0 {
@@ -334,6 +395,11 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 		}
 	}
 	return u.String(), nil
+}
+
+func isImouCarrierGradeNAT(ip net.IP) bool {
+	v4 := ip.To4()
+	return v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
 }
 
 func (c *Client) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
