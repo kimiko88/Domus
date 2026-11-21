@@ -234,7 +234,7 @@ func (h *XiaomiCloudHandler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *XiaomiCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
-	config, client, err := h.ensureFreshToken(r.Context())
+	_, client, err := h.ensureFreshToken(r.Context())
 	if err != nil {
 		writeError(w, http.StatusConflict, "XIAOMI_NOT_CONNECTED", "Authorize Xiaomi Home before listing devices")
 		return
@@ -711,7 +711,7 @@ func (h *XiaomiCloudHandler) syncDeviceSpec(ctx context.Context, client *xiaomi_
 				Domain: domain, Name: ref.Property.Description,
 				UnitOfMeasurement: xiaomi_home.MIoTUnitName(ref.Property.Unit),
 				Writable: writable, State: "null", Attributes: string(attributes),
-				Available: cloudDevice.Online, CreatedAt: time.Now().UTC(),
+				Available: cloudDevice.Online,
 				LastChangedAt: time.Now().UTC(), LastUpdatedAt: time.Now().UTC(),
 			}
 			if createErr := h.entities.Create(ctx, item); createErr != nil { return createErr }
@@ -825,6 +825,12 @@ func (h *XiaomiCloudHandler) saveConfig(ctx context.Context, config xiaomiCloudC
 	record.ConfigEncrypted = []byte(encrypted)
 	if err := h.integrations.Create(ctx, record); err != nil { return err }
 	return h.integrations.SetStatus(ctx, xiaomiCloudIntegrationID, status, "")
+}
+
+func (h *XiaomiCloudHandler) forgetEvent(key string) {
+	h.mu.Lock()
+	delete(h.seenEvents, key)
+	h.mu.Unlock()
 }
 
 func (h *XiaomiCloudHandler) acceptEvent(key string) bool {
