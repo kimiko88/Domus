@@ -440,15 +440,25 @@ func (h *ImouLifeHandler) EventCallback(w http.ResponseWriter, r *http.Request) 
 		case "offline", "0", "off":
 			eventType = events.DeviceOffline
 		}
-	} else if messageType == "alarm" || messageType == "capabilityevent" ||
-		strings.Contains(messageType, "motion") || strings.Contains(messageType, "person") ||
-		strings.Contains(messageType, "human") || strings.Contains(messageType, "intrusion") {
+	} else if messageType == "alarm" || strings.Contains(messageType, "alarm") ||
+		strings.Contains(messageType, "intrusion") {
+		eventType = events.CameraAlarmReceived
+		payload["label"] = "alarm"
+		payload["camera_id"] = deviceID
+	} else if strings.Contains(messageType, "person") || strings.Contains(messageType, "human") ||
+		strings.Contains(strings.ToLower(message.LabelType), "person") {
+		eventType = events.CameraPersonDetected
+		payload["label"] = "person"
+		payload["confidence"] = 1.0
+		payload["camera_id"] = deviceID
+	} else if strings.Contains(messageType, "motion") {
+		eventType = events.CameraMotionDetected
+		payload["label"] = "motion"
+		payload["confidence"] = 1.0
+		payload["camera_id"] = deviceID
+	} else if messageType == "capabilityevent" {
 		eventType = events.CameraDetected
-		label := strings.ToLower(strings.TrimSpace(message.LabelType))
-		if label == "" {
-			label = messageType
-		}
-		payload["label"] = label
+		payload["label"] = strings.ToLower(strings.TrimSpace(message.LabelType))
 		payload["confidence"] = 1.0
 		payload["camera_id"] = deviceID
 	}
@@ -456,10 +466,17 @@ func (h *ImouLifeHandler) EventCallback(w http.ResponseWriter, r *http.Request) 
 		ID: uuid.NewString(), Type: eventType, OccurredAt: occurredAt,
 		Source: "imou_life", Payload: payload,
 	}); err != nil {
+		h.forgetEvent(eventKey)
 		http.Error(w, "Domus could not queue Imou event", http.StatusServiceUnavailable)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ImouLifeHandler) forgetEvent(key string) {
+	h.mu.Lock()
+	delete(h.seenEvents, key)
+	h.mu.Unlock()
 }
 
 func (h *ImouLifeHandler) acceptEvent(key string) bool {
