@@ -3567,7 +3567,8 @@
       "temperature_anomaly": "Variation inhabituelle de température",
       "humidity_low": "Humidité sous le seuil",
       "humidity_high": "Humidité au-dessus du seuil",
-      "humidity_comfort": "Humidité hors de la plage de confort"
+      "humidity_comfort": "Humidité hors de la plage de confort",
+      "sensor_offline": "Capteur climatique hors ligne"
     },
     "errors": {
       "load": "Impossible de charger l’historique climatique.",
