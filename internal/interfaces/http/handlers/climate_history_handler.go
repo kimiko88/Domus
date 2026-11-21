@@ -4,6 +4,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+
+	"github.com/domus-hub/domus/internal/domain/entity"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,10 +18,13 @@ import (
 // ClimateHistoryHandler exposes climate telemetry, summaries, settings and CSV export.
 type ClimateHistoryHandler struct {
 	service *appclimatehistory.Service
+	entities entity.Repository
 }
 
-func NewClimateHistoryHandler(service *appclimatehistory.Service) *ClimateHistoryHandler {
-	return &ClimateHistoryHandler{service: service}
+func NewClimateHistoryHandler(service *appclimatehistory.Service, entities ...entity.Repository) *ClimateHistoryHandler {
+	h := &ClimateHistoryHandler{service: service}
+	if len(entities) > 0 { h.entities = entities[0] }
+	return h
 }
 
 func (h *ClimateHistoryHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +55,7 @@ func (h *ClimateHistoryHandler) UpdateSettings(w http.ResponseWriter, r *http.Re
 
 func (h *ClimateHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	filter, ok := parseClimateFilter(w, r)
-	if !ok {
+	if !ok || !h.applyAccessScope(w, r, &filter) {
 		return
 	}
 	points, err := h.service.GetHistory(r.Context(), filter)
@@ -109,6 +115,32 @@ func (h *ClimateHistoryHandler) ExportCSV(w http.ResponseWriter, r *http.Request
 		// Headers have already been sent; only the server can log the streaming error.
 		return
 	}
+}
+
+func (h *ClimateHistoryHandler) applyAccessScope(w http.ResponseWriter, r *http.Request, filter *domclimatehistory.Filter) bool {
+	currentUser := domusmw.GetUser(r.Context())
+	if currentUser == nil { return true }
+	permissions := currentUser.EffectivePermissions()
+	if permissions == nil || (permissions.AllowedAreaIDs == nil && permissions.AllowedEntityIDs == nil) { return true }
+	if h.entities == nil {
+		writeError(w, http.StatusServiceUnavailable, "CLIMATE_ACCESS_UNAVAILABLE", "cannot validate climate history access")
+		return false
+	}
+	items, err := h.entities.List(r.Context(), entity.ListFilter{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "CLIMATE_ACCESS_FAILED", "failed to resolve permitted climate entities")
+		return false
+	}
+	allowed := make([]string, 0, len(items))
+	for _, item := range items {
+		if item != nil && currentUser.CanAccessEntityInArea(item.ID, item.AreaID) &&
+			(filter.AreaID == "" || filter.AreaID == item.AreaID) &&
+			(filter.EntityID == "" || filter.EntityID == item.ID) {
+			allowed = append(allowed, item.ID)
+		}
+	}
+	filter.EntityIDs = allowed
+	return true
 }
 
 func parseClimateFilter(w http.ResponseWriter, r *http.Request) (domclimatehistory.Filter, bool) {
