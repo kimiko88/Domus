@@ -29,6 +29,8 @@ func RequestLogger() func(next http.Handler) http.Handler {
 				const imouCallbackPrefixes = []string{
 					"/api/v1/integrations/imou-life/callback/",
 					"/api/v1/integrations/imou-life/events/",
+					"/api/v1/integrations/xiaomi-home/cloud/callback/",
+					"/api/v1/integrations/xiaomi-home/cloud/events/",
 				}
 				for _, prefix := range imouCallbackPrefixes {
 					if strings.HasPrefix(requestPath, prefix) {
