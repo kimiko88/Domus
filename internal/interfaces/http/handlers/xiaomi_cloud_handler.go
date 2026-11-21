@@ -234,7 +234,7 @@ func (h *XiaomiCloudHandler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *XiaomiCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
-	_, client, err := h.ensureFreshToken(r.Context())
+	config, client, err := h.ensureFreshToken(r.Context())
 	if err != nil {
 		writeError(w, http.StatusConflict, "XIAOMI_NOT_CONNECTED", "Authorize Xiaomi Home before listing devices")
 		return
