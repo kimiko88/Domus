@@ -218,6 +218,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	// New vendor integrations share the existing encrypted integration repository.
 	var imouLifeHandler *handlers.ImouLifeHandler
 	var xiaomiHomeHandler *handlers.XiaomiHomeHandler
+	var xiaomiCloudHandler *handlers.XiaomiCloudHandler
 	if srv.repos != nil && srv.repos.Integrations != nil && srv.repos.Cipher != nil {
 		var handlerErr error
 		imouLifeHandler, handlerErr = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
@@ -229,7 +230,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 		xiaomiHomeHandler, handlerErr = handlers.NewXiaomiHomeHandler(srv.repos.Integrations, srv.repos.Cipher)
 		if handlerErr != nil {
-			slog.Error("Xiaomi Home integration disabled: handler initialization failed", "error", handlerErr)
+			slog.Error("Xiaomi Home local integration disabled: handler initialization failed", "error", handlerErr)
+		}
+		xiaomiCloudHandler, handlerErr = handlers.NewXiaomiCloudHandler(
+			srv.repos.Integrations, srv.repos.Devices, srv.repos.Entities, srv.repos.Cipher, srv.bus,
+		)
+		if handlerErr != nil {
+			slog.Error("Xiaomi Home Cloud integration disabled: handler initialization failed", "error", handlerErr)
 		}
 	} else {
 		slog.Warn("Xiaomi Home and Imou Life integrations disabled: encrypted integration storage is required")
@@ -320,6 +327,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		}
 		if imouLifeHandler != nil {
 			imouLifeHandler.RegisterCallback(api)
+		}
+		if xiaomiCloudHandler != nil {
+			xiaomiCloudHandler.RegisterCallback(api)
 		}
 
 		if srv.wsHub != nil {
@@ -496,6 +506,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/xiaomi-home", func(xiaomiRouter chi.Router) {
 						xiaomiRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						xiaomiHomeHandler.RegisterRoutes(xiaomiRouter)
+					})
+				}
+				if xiaomiCloudHandler != nil {
+					domainRouter.Route("/integrations/xiaomi-home/cloud", func(cloudRouter chi.Router) {
+						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						xiaomiCloudHandler.RegisterRoutes(cloudRouter)
 					})
 				}
 
