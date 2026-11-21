@@ -183,6 +183,23 @@ func TestSummarizeReportsUnavailableClimateSensors(t *testing.T) {
 	require.Empty(t, summary.Insights)
 }
 
+func TestThermostatFahrenheitNormalizesMeasuredTemperatureAndSetpoint(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	repo := &climateRepoStub{settings: settings}
+	thermostat := &entity.Entity{
+		ID: "climate-fahrenheit", EntityKey: "climate.office", Domain: "climate",
+		Name: "Office thermostat", State: "heat",
+		Attributes: "{\"current_temperature\":68,\"temperature\":71.6,\"unit_of_measurement\":\"°F\"}",
+		Available: true, AreaID: "office",
+	}
+	service := NewService(repo, &climateEntityRepoStub{entities: []*entity.Entity{thermostat}}, testLogger())
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.InDelta(t, 20.0, *repo.samples[0].Temperature, 0.001)
+	require.InDelta(t, 22.0, *repo.samples[0].TargetTemperature, 0.001)
+}
+
 func TestTemperatureSensorUsesAttributeUnitAndSmartSamplingAccumulatesChanges(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	settings.SmartSampling = true
