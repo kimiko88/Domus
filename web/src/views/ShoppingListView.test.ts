@@ -177,8 +177,8 @@ describe('ShoppingListView.vue', () => {
 
     expect(wrapper.find('.receipt-modal-backdrop').exists()).toBe(true)
     expect(wrapper.text()).toContain('Scansiona scontrino spesa')
-    expect(wrapper.find('#receipt-image-input').exists()).toBe(true)
-    expect(wrapper.find('#receipt-image-input').attributes('capture')).toBe('environment')
+    expect(wrapper.find('input[type="file"][accept*="application/pdf"]').exists()).toBe(true)
+    expect(wrapper.find('input[type="file"][capture="environment"]').exists()).toBe(true)
 
     // Mock receipt parsing
     vi.mocked(apiClient.post).mockResolvedValueOnce({
