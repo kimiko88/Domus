@@ -144,7 +144,7 @@ describe('Localization (i18n)', () => {
         // Some words are legitimately shared across languages and are not English fallbacks.
         if (code === 'fr' && keyPath === 'pantry.view.mealCalendar.mealTypes.dessert') {
           expect(translated, keyPath).toBe('Dessert')
-        } else if (code === 'de' && keyPath === 'integrations.view.deviceOnline') {
+        } else if (code === 'de' && (keyPath === 'integrations.view.deviceOnline' || keyPath === 'cameras.view.filterPerson')) {
           expect(translated, keyPath).toBe('Online')
         } else {
           expect(translated, `Missing translation for ${keyPath}`).not.toBe(english)
