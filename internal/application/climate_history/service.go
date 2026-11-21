@@ -128,7 +128,7 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 			return s, false
 		}
 		if cfg.RecordTemperature {
-			if v, ok := attributeNumber(attrs, "current_temperature", "current_temp", "temperature"); ok {
+			if v, ok := attributeNumber(attrs, "current_temperature", "current_temp", "measured_temperature"); ok {
 				v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
 				if plausibleTemperature(v) { s.Temperature = &v }
 			}
@@ -138,14 +138,14 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 				s.Humidity = &v
 			}
 		}
-		if v, ok := attributeNumber(attrs, "target_temperature", "temperature_target", "target_temp"); ok {
+		if v, ok := attributeNumber(attrs, "target_temperature", "temperature_target", "target_temp", "temperature"); ok {
 			if plausibleTemperature(v) { s.TargetTemperature = &v }
 		}
 		s.HVACMode = strings.ToLower(strings.TrimSpace(ent.State))
 		s.HVACAction = stringAttribute(attrs, "hvac_action", "action")
 	case "sensor":
 		if cfg.RecordTemperature && isTemperatureSensor(ent, attrs) {
-			if v, ok := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); ok == nil {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); err == nil {
 				v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
 				if plausibleTemperature(v) { s.Temperature = &v }
 			}
@@ -196,7 +196,7 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 	class := strings.ToLower(fmt.Sprint(attrs["device_class"]))
 	unit := strings.TrimSpace(ent.UnitOfMeasurement)
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
-	return class == "humidity" || unit == "%" || strings.Contains(key, "humidity") || strings.Contains(key, "umid")
+	return class == "humidity" || strings.Contains(class, "humidity") || strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
 func normalizeTemperature(value float64, unit string, attrs map[string]any) float64 {
@@ -313,7 +313,7 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			}
 		}
 	}
-	if !settings.RoomComparisonEnabled { out.Rooms = out.Rooms[:0] }
+	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled { out.Rooms = out.Rooms[:0] }
 	return out, nil
 }
 
