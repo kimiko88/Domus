@@ -114,6 +114,7 @@ func NewXiaomiHomeHandler(repo integration.Repository, cipher *crypto.EnvelopeCi
 
 func (h *ImouLifeHandler) RegisterCallback(r chi.Router) {
 	r.Get("/integrations/imou-life/callback/{secret}", h.Callback)
+	r.Post("/integrations/imou-life/callback/{secret}", h.Callback)
 }
 
 func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
@@ -233,6 +234,21 @@ func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	secret := chi.URLParam(r, "secret")
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if r.Method == http.MethodPost {
+		contentType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+		if contentType != "application/x-www-form-urlencoded" {
+			http.Error(w, "Invalid Imou authorization callback", http.StatusBadRequest)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 8*1024)
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid Imou authorization callback", http.StatusBadRequest)
+			return
+		}
+		if code == "" {
+			code = strings.TrimSpace(r.PostForm.Get("code"))
+		}
+	}
 	if len(secret) != 64 || code == "" || len(code) > 2048 {
 		http.Error(w, "Invalid Imou authorization callback", http.StatusBadRequest)
 		return
