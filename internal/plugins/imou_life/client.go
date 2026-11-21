@@ -80,6 +80,78 @@ type apiEnvelope struct {
 	} `json:"result"`
 }
 
+type AdminToken struct {
+	AccessToken string
+	ExpiresAt   time.Time
+}
+
+type Capability struct {
+	CapabilityID string                `json:"capabilityId"`
+	Name         string                `json:"name,omitempty"`
+	Scope        string                `json:"scope,omitempty"`
+	Properties   []CapabilityProperty  `json:"properties,omitempty"`
+	Services     []CapabilityService   `json:"services,omitempty"`
+	Events       []CapabilityEvent     `json:"events,omitempty"`
+}
+
+type CapabilityProperty struct {
+	PropertyID string         `json:"propertyId"`
+	Name       string         `json:"name,omitempty"`
+	AccessMode string         `json:"accessMode,omitempty"`
+	DataType   map[string]any `json:"dataType,omitempty"`
+	Default    any            `json:"defaultData,omitempty"`
+}
+
+type CapabilityService struct {
+	ServiceID string         `json:"serviceId"`
+	Name      string         `json:"name,omitempty"`
+	InputData []map[string]any `json:"inputData,omitempty"`
+	OutputData []map[string]any `json:"outputData,omitempty"`
+	TimeoutMS int            `json:"timeoutMs,omitempty"`
+}
+
+type CapabilityEvent struct {
+	EventID    string           `json:"eventId"`
+	Name       string           `json:"name,omitempty"`
+	OutputData []map[string]any `json:"outputData,omitempty"`
+}
+
+type DeviceMessage struct {
+	ID                string          `json:"id,omitempty"`
+	MessageType       string          `json:"msgType"`
+	DeviceID          string          `json:"deviceId,omitempty"`
+	LegacyDeviceID    string          `json:"did,omitempty"`
+	ProductID         string          `json:"productId,omitempty"`
+	ChannelID         string          `json:"channelId,omitempty"`
+	LegacyChannelID   string          `json:"cid,omitempty"`
+	OutputData        json.RawMessage `json:"outputData,omitempty"`
+	OccurredUnix      int64           `json:"time,omitempty"`
+	LocalTime         string          `json:"localTime,omitempty"`
+	AlarmID           string          `json:"alarmId,omitempty"`
+	LabelType         string          `json:"labelType,omitempty"`
+	DeviceStatus      string          `json:"deviceStatus,omitempty"`
+	// Play tokens, temporary image URLs and recording tokens are intentionally omitted.
+}
+
+type MessagePage struct {
+	Count       int             `json:"count"`
+	NextAlarmID string          `json:"nextAlarmId,omitempty"`
+	Messages    []DeviceMessage `json:"messages"`
+}
+
+type Recording struct {
+	FileName      string `json:"fileName,omitempty"`
+	FileLength    int64  `json:"fileLength,omitempty"`
+	Type          int    `json:"type,omitempty"`
+	StreamType    int    `json:"streamType,omitempty"`
+	BeginTime     string `json:"beginTime,omitempty"`
+	EndTime       string `json:"endTime,omitempty"`
+	LocalBeginTime string `json:"localBeginTime,omitempty"`
+	LocalEndTime  string `json:"localEndTime,omitempty"`
+	ObjectType    string `json:"objectType,omitempty"`
+	XSeq          int64  `json:"xseq,omitempty"`
+}
+
 type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -331,4 +403,204 @@ func validAPIMethod(method string) bool {
 		}
 	}
 	return true
+}
+
+func (c *Client) GetAdminToken(ctx context.Context) (*AdminToken, error) {
+	data, err := c.call(ctx, "accessToken", map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		AccessToken string `json:"accessToken"`
+		ExpireTime  int64  `json:"expireTime"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, errors.New("imou: invalid administrator token response")
+	}
+	if !strings.HasPrefix(result.AccessToken, "At_") || result.ExpireTime < 60 || result.ExpireTime > 259200 {
+		return nil, errors.New("imou: administrator token response is invalid")
+	}
+	return &AdminToken{AccessToken: result.AccessToken, ExpiresAt: time.Now().UTC().Add(time.Duration(result.ExpireTime) * time.Second)}, nil
+}
+
+func (c *Client) ListCapabilities(ctx context.Context, accessToken, deviceID, channelID string) ([]Capability, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validOptionalChannel(channelID) {
+		return nil, errors.New("imou: invalid token, device or channel")
+	}
+	params := map[string]any{"token": accessToken, "deviceId": deviceID}
+	if channelID != "" {
+		params["channelId"] = channelID
+	}
+	data, err := c.call(ctx, "v2/device.capability.list", params)
+	if err != nil {
+		return nil, err
+	}
+	var result struct { Capabilities []Capability `json:"capabilities"` }
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, errors.New("imou: invalid capability-list response")
+	}
+	if result.Capabilities == nil {
+		result.Capabilities = []Capability{}
+	}
+	return result.Capabilities, nil
+}
+
+func (c *Client) ReadProperties(ctx context.Context, accessToken, deviceID, channelID string, properties []string) (json.RawMessage, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validOptionalChannel(channelID) ||
+		len(properties) == 0 || len(properties) > 64 {
+		return nil, errors.New("imou: invalid property-read request")
+	}
+	for _, propertyID := range properties {
+		if !validCapabilityID(propertyID) {
+			return nil, errors.New("imou: invalid property identifier")
+		}
+	}
+	params := map[string]any{"token": accessToken, "deviceId": deviceID, "properties": properties}
+	if channelID != "" { params["channelId"] = channelID }
+	return c.call(ctx, "v2/device.property.get", params)
+}
+
+func (c *Client) WriteProperties(ctx context.Context, accessToken, deviceID, channelID string, properties map[string]any) (json.RawMessage, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validOptionalChannel(channelID) ||
+		len(properties) == 0 || len(properties) > 32 {
+		return nil, errors.New("imou: invalid property-write request")
+	}
+	for propertyID := range properties {
+		if !validCapabilityID(propertyID) {
+			return nil, errors.New("imou: invalid property identifier")
+		}
+	}
+	encoded, err := json.Marshal(properties)
+	if err != nil || len(encoded) > 16*1024 {
+		return nil, errors.New("imou: property values are invalid or too large")
+	}
+	params := map[string]any{"token": accessToken, "deviceId": deviceID, "properties": properties}
+	if channelID != "" { params["channelId"] = channelID }
+	return c.call(ctx, "v2/device.property.set", params)
+}
+
+func (c *Client) InvokeService(ctx context.Context, accessToken, deviceID, channelID, serviceID string, input map[string]any) (json.RawMessage, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validOptionalChannel(channelID) ||
+		!validCapabilityID(serviceID) {
+		return nil, errors.New("imou: invalid service invocation request")
+	}
+	if input == nil { input = map[string]any{} }
+	encoded, err := json.Marshal(input)
+	if err != nil || len(encoded) > 16*1024 {
+		return nil, errors.New("imou: service input is invalid or too large")
+	}
+	params := map[string]any{"token": accessToken, "deviceId": deviceID, "serviceId": serviceID, "inputData": input}
+	if channelID != "" { params["channelId"] = channelID }
+	return c.call(ctx, "v2/device.service.invoke", params)
+}
+
+func (c *Client) ListMessageHistory(ctx context.Context, accessToken, deviceID, channelID string, begin, end time.Time, cursor string) (*MessagePage, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validOptionalChannel(channelID) ||
+		begin.IsZero() || end.IsZero() || !end.After(begin) || end.Sub(begin) > 31*24*time.Hour {
+		return nil, errors.New("imou: invalid message-history query")
+	}
+	params := map[string]any{
+		"token": accessToken, "deviceId": deviceID,
+		"beginTime": begin.Format("20060102T150405"),
+		"endTime": end.Format("20060102T150405"),
+	}
+	if channelID != "" { params["channelId"] = channelID }
+	if cursor != "" {
+		if len(cursor) > 128 || strings.ContainsAny(cursor, "\r\n\t ") { return nil, errors.New("imou: invalid message cursor") }
+		params["nextAlarmId"] = cursor
+	} else {
+		params["nextAlarmId"] = "-1"
+	}
+	data, err := c.call(ctx, "v2/device.message.list", params)
+	if err != nil { return nil, err }
+	var page MessagePage
+	if err := json.Unmarshal(data, &page); err != nil { return nil, errors.New("imou: invalid message-history response") }
+	if page.Messages == nil { page.Messages = []DeviceMessage{} }
+	return &page, nil
+}
+
+func (c *Client) ListLocalRecordings(ctx context.Context, accessToken, deviceID, channelID string, begin, end time.Time, recordType, limit int) ([]Recording, string, error) {
+	if !validUserToken(accessToken) || !validDeviceID(deviceID) || !validRequiredChannel(channelID) ||
+		begin.IsZero() || end.IsZero() || !end.After(begin) || end.Sub(begin) > 7*24*time.Hour ||
+		recordType < 0 || recordType > 21 || recordType == 16 || limit < 30 || limit > 100 {
+		return nil, "", errors.New("imou: invalid local-recording query")
+	}
+	input := map[string]any{
+		"type": strconv.Itoa(recordType),
+		"beginTime": begin.Format("2006-01-02 15:04:05"),
+		"endTime": end.Format("2006-01-02 15:04:05"),
+		"limit": limit,
+	}
+	data, err := c.InvokeService(ctx, accessToken, deviceID, channelID, "record.file.list", input)
+	if err != nil { return nil, "", err }
+	var result struct {
+		OutputData struct {
+			Records []Recording `json:"records"`
+			SessionID string `json:"sessionId"`
+		} `json:"outputData"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, "", errors.New("imou: invalid local-recording response")
+	}
+	if result.OutputData.Records == nil { result.OutputData.Records = []Recording{} }
+	return result.OutputData.Records, result.OutputData.SessionID, nil
+}
+
+func (c *Client) ConfigureMessageCallback(ctx context.Context, adminToken, callbackURL string, enabled bool, flags []string) error {
+	if !strings.HasPrefix(adminToken, "At_") || len(adminToken) > 256 {
+		return errors.New("imou: administrator token is required to configure message push")
+	}
+	if !validHTTPSCallback(callbackURL) { return errors.New("imou: callback URL must be absolute HTTPS") }
+	allowed := map[string]bool{"alarm": true, "deviceStatus": true, "numberstat": true, "faceAnalysis": true, "capabilityEvent": true, "iot": true}
+	unique := make(map[string]bool)
+	clean := make([]string, 0, len(flags))
+	for _, flag := range flags {
+		if !allowed[flag] { return fmt.Errorf("imou: unsupported callback flag %q", flag) }
+		if !unique[flag] { unique[flag] = true; clean = append(clean, flag) }
+	}
+	status := "off"
+	if enabled {
+		if len(clean) == 0 { return errors.New("imou: at least one message callback flag is required") }
+		status = "on"
+	}
+	_, err := c.call(ctx, "setMessageCallback", map[string]any{
+		"token": adminToken, "status": status, "callbackUrl": callbackURL,
+		"callbackFlag": strings.Join(clean, ","), "basePush": "2",
+	})
+	return err
+}
+
+func (c *Client) MessageCallbackStatus(ctx context.Context, adminToken string) (json.RawMessage, error) {
+	if !strings.HasPrefix(adminToken, "At_") { return nil, errors.New("imou: administrator token is required") }
+	return c.call(ctx, "getMessageCallback", map[string]any{"token": adminToken})
+}
+
+func validUserToken(token string) bool {
+	return strings.HasPrefix(token, "Ot_") && len(token) <= 4096
+}
+func validDeviceID(id string) bool {
+	return id != "" && len(id) <= 128 && !strings.ContainsAny(id, "/\\?#\r\n\t ")
+}
+func validOptionalChannel(channel string) bool {
+	if channel == "" { return true }
+	return validRequiredChannel(channel)
+}
+func validRequiredChannel(channel string) bool {
+	n, err := strconv.Atoi(channel)
+	return err == nil && n >= 0 && n <= 255
+}
+func validCapabilityID(id string) bool {
+	if id == "" || len(id) > 160 { return false }
+	for _, part := range strings.Split(id, ".") {
+		if part == "" { return false }
+		for _, ch := range part {
+			if !(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') &&
+				!(ch >= '0' && ch <= '9') && ch != '_' && ch != '-' { return false }
+		}
+	}
+	return true
+}
+func validHTTPSCallback(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && u.Fragment == ""
 }
