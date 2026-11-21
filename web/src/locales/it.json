@@ -498,6 +498,7 @@
 "broadlinkCommandPlaceholder": "es. Accensione TV",
 "broadlinkLearn": "Avvia apprendimento",
 "broadlinkLearning": "Apprendimento…",
+"broadlinkLearningDesc": "Apprendimento avviato. Premi il tasto del telecomando fisico vicino al BroadLink, poi salva il codice acquisito.",
 "broadlinkSaving": "Salvataggio…",
 "broadlinkSaveCode": "Acquisisci e salva",
 "broadlinkLearnHint": "Avvia l'apprendimento, premi il tasto sul telecomando fisico vicino al BroadLink, quindi acquisisci e salva il codice.",
