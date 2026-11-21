@@ -3573,6 +3573,8 @@
       "load": "Impossible de charger l’historique climatique.",
       "save": "Impossible d’enregistrer les paramètres.",
       "export": "Impossible d’exporter les données climatiques."
-    }
+    },
+    "heatingRate": "Vitesse de chauffage",
+    "coolingRate": "Vitesse de refroidissement"
   }
 }
