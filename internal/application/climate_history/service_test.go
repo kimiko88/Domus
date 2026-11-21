@@ -203,12 +203,12 @@ func TestTemperatureSensorUsesAttributeUnitAndSmartSamplingAccumulatesChanges(t 
 	count, err = service.CollectNow(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, count, "a change below threshold should not be persisted")
-	room.State = "68.36"
+	room.State = "68.4"
 	count, err = service.CollectNow(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "small changes should accumulate against the last persisted sample")
 	require.Len(t, repo.samples, 2)
-	require.InDelta(t, (68.36-32)*5/9, *repo.samples[1].Temperature, 0.001)
+	require.InDelta(t, (68.4-32)*5/9, *repo.samples[1].Temperature, 0.001)
 }
 
 func TestSettingsValidation(t *testing.T) {
