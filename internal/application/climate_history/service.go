@@ -141,7 +141,10 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 		if v, ok := attributeNumber(attrs, "target_temperature", "temperature_target", "target_temp", "temperature"); ok {
 			if plausibleTemperature(v) { s.TargetTemperature = &v }
 		}
-		s.HVACMode = strings.ToLower(strings.TrimSpace(ent.State))
+		s.HVACMode = stringAttribute(attrs, "hvac_mode", "mode")
+		if s.HVACMode == "" {
+			s.HVACMode = strings.ToLower(strings.TrimSpace(ent.State))
+		}
 		s.HVACAction = stringAttribute(attrs, "hvac_action", "action")
 	case "sensor":
 		if cfg.RecordTemperature && isTemperatureSensor(ent, attrs) {
