@@ -139,6 +139,9 @@ func (s *Service) PairDevice(ctx context.Context, req PairRequest) (*device.Devi
 	if req.IP == "" {
 		return nil, nil, fmt.Errorf("brand: target ip is required")
 	}
+	if req.AuthToken != "" && s.secretCipher == nil {
+		return nil, nil, fmt.Errorf("brand: credential encryption is unavailable; refusing to persist a plaintext token")
+	}
 
 	// 1. Identify device if not already discovered
 	s.mu.RLock()
