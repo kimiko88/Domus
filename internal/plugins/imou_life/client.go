@@ -317,7 +317,7 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 }
 
 
-func (c *Client) CreateVideoDownloadStreamURL(ctx context.Context, adminToken, deviceID, channelID, businessType, streamType string, begin, end time.Time) (string, error) {
+func (c *Client) CreateVideoDownloadStreamURL(ctx context.Context, adminToken, deviceID, channelID, productID, businessType, streamType string, begin, end time.Time) (string, error) {
 	if !strings.HasPrefix(adminToken, "At_") || len(adminToken) > 4096 {
 		return "", errors.New("imou: administrator token is required for video download")
 	}
@@ -329,6 +329,12 @@ func (c *Client) CreateVideoDownloadStreamURL(ctx context.Context, adminToken, d
 		return "", errors.New("imou: stream type must be 0 (main) or 1 (sub)")
 	}
 	params := map[string]any{"token": adminToken, "deviceId": deviceID, "channelId": channelID, "businessType": businessType, "streamType": streamType}
+	if productID != "" {
+		if len(productID) > 128 || strings.ContainsAny(productID, "/\\?#\r\n\t ") {
+			return "", errors.New("imou: invalid IoT product ID")
+		}
+		params["productId"] = productID
+	}
 	switch businessType {
 	case "real":
 	case "localRecord", "cloudRecord":
