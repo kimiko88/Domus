@@ -161,12 +161,12 @@ async function startCamera() {
     videoElement.value.srcObject = stream
     await videoElement.value.play()
   } catch {
-    stopCamera()
     if (componentActive && requestId === cameraRequestId) {
+      stopCamera()
       cameraError.value = t('shopping.view.receiptScanner.cameraUnavailable')
     }
   } finally {
-    cameraBusy.value = false
+    if (componentActive && requestId === cameraRequestId) cameraBusy.value = false
   }
 }
 
