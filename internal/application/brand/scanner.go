@@ -192,7 +192,7 @@ func (s *Scanner) probeShelly(ctx context.Context, ip string) (*DiscoveredDevice
 				App     string `json:"app"`
 				Profile string `json:"profile"`
 			}
-			if err := json.NewDecoder(resp.Body).Decode(&data); err == nil && data.ID != "" {
+			if err := json.NewDecoder(io.LimitReader(resp.Body, 64*1024)).Decode(&data); err == nil && data.ID != "" {
 				name := data.App
 				if name == "" {
 					name = data.Model
@@ -449,7 +449,7 @@ func (s *Scanner) probeHue(ctx context.Context, ip string) (*DiscoveredDevice, e
 		return nil, fmt.Errorf("status not ok")
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 	if err != nil {
 		return nil, err
 	}
