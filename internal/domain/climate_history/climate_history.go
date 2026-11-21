@@ -108,6 +108,7 @@ type Point struct {
 type Filter struct {
 	EntityID  string
 	EntityIDs []string
+	AreaIDs   []string
 	AreaID    string
 	From     time.Time
 	To       time.Time
