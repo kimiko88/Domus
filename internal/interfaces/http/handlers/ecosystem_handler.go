@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"path/filepath"
@@ -25,7 +26,10 @@ import (
 	appTunnel "github.com/domus-hub/domus/internal/application/tunnel"
 	appWeather "github.com/domus-hub/domus/internal/application/weather"
 	"github.com/domus-hub/domus/internal/domain/events"
+	domainCamera "github.com/domus-hub/domus/internal/domain/camera"
 	domainMedia "github.com/domus-hub/domus/internal/domain/media"
+	"github.com/domus-hub/domus/internal/domain/user"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	domainSchedule "github.com/domus-hub/domus/internal/domain/schedule"
 	domainTag "github.com/domus-hub/domus/internal/domain/tag"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
@@ -243,7 +247,50 @@ func (h *EcosystemHandler) ListCameras(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, cams)
+	result := make([]*domainCamera.Camera, 0, len(cams))
+	for _, cam := range cams {
+		result = append(result, cameraForAPI(cam, canViewCameraCredentials(r)))
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func canViewCameraCredentials(r *http.Request) bool {
+	u := domusmw.GetUser(r.Context())
+	return u != nil && u.Role == user.RoleAdmin
+}
+
+// cameraForAPI never exposes embedded RTSP/snapshot credentials to non-admin
+// camera viewers. URLs remain encrypted at rest by the SQLite repository.
+func cameraForAPI(cam *domainCamera.Camera, revealCredentials bool) *domainCamera.Camera {
+	if cam == nil {
+		return nil
+	}
+	copy := *cam
+	if !revealCredentials {
+		copy.StreamURL = redactURLCredentials(copy.StreamURL)
+		copy.SnapshotURL = redactURLCredentials(copy.SnapshotURL)
+	}
+	return &copy
+}
+
+func redactURLCredentials(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	u.User = nil
+	query := u.Query()
+	for key := range query {
+		switch strings.ToLower(key) {
+		case "user", "username", "password", "passwd", "pwd", "token", "access_token", "auth", "authorization", "secret", "key", "signature", "sign":
+			query.Del(key)
+		}
+	}
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 func (h *EcosystemHandler) CreateCamera(w http.ResponseWriter, r *http.Request) {
@@ -262,7 +309,7 @@ func (h *EcosystemHandler) CreateCamera(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, cam)
+	writeJSON(w, http.StatusCreated, cameraForAPI(cam, canViewCameraCredentials(r)))
 }
 
 func (h *EcosystemHandler) NegotiateWebRTC(w http.ResponseWriter, r *http.Request) {
