@@ -216,7 +216,7 @@ async function loadXiaomiVendorData() {
   try {
     const [local, cloud] = await Promise.all([
       apiClient.get<{ devices: XiaomiLocalDevice[]; configured?: boolean }>('/api/v1/integrations/xiaomi-home/status'),
-      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
+      apiClient.get<{ configured: boolean; connected: boolean; nickname?: string; user_id_masked?: string; region?: string; callback_url?: string; events_callback_url?: string; expires_at?: string }>('/api/v1/integrations/xiaomi-home/cloud/status')
     ])
     xiaomiLocalDevices.value = local.devices || []
     xiaomiLocalStatus.value = true
