@@ -86,6 +86,18 @@ func climateWhere(filter domclimate.Filter, column string) (string, []any) {
 	if !filter.From.IsZero() { clauses = append(clauses, column+" >= ?"); args = append(args, filter.From.UTC().Truncate(time.Second).Format(time.RFC3339)) }
 	if !filter.To.IsZero() { clauses = append(clauses, column+" <= ?"); args = append(args, filter.To.UTC().Truncate(time.Second).Format(time.RFC3339)) }
 	if filter.AreaID != "" { clauses = append(clauses, "area_id = ?"); args = append(args, filter.AreaID) }
+	if filter.AreaIDs != nil {
+		if len(filter.AreaIDs) == 0 {
+			clauses = append(clauses, "1 = 0")
+		} else {
+			placeholders := make([]string, len(filter.AreaIDs))
+			for i, id := range filter.AreaIDs {
+				placeholders[i] = "?"
+				args = append(args, id)
+			}
+			clauses = append(clauses, "area_id IN ("+strings.Join(placeholders, ",")+")")
+		}
+	}
 	if filter.EntityID != "" { clauses = append(clauses, "entity_id = ?"); args = append(args, filter.EntityID) }
 	if filter.EntityIDs != nil {
 		if len(filter.EntityIDs) == 0 {
