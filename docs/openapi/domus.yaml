@@ -986,6 +986,289 @@ paths:
                   status: { type: string }
                   message: { type: string }
 
+  /integrations/xiaomi-home/discovery:
+    post:
+      summary: Discover Xiaomi miIO devices on eligible private LAN subnets
+      description: Administrator-only. Returns device IP and miIO device ID; never returns or recovers the local token.
+      tags: [Integrations]
+      responses:
+        "200":
+          description: LAN scan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ip: { type: string, format: ipv4 }
+                        device_id: { type: integer, format: int64 }
+                        device_timestamp: { type: integer, format: int64 }
+                  scanned_at: { type: string, format: date-time }
+        "503":
+          description: LAN discovery failed
+  /integrations/xiaomi-home/status:
+    get:
+      summary: Get Xiaomi local miIO status and sanitized paired device list
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Xiaomi local integration status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  mode: { type: string, enum: [local_miio] }
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        ip: { type: string, format: ipv4 }
+                        model: { type: string }
+                        firmware: { type: string }
+                        device_id: { type: integer, format: int64 }
+  /integrations/xiaomi-home/devices:
+    post:
+      summary: Pair a Xiaomi device using its local miIO token
+      description: Administrator-only. The supplied 32-character token is validated with miIO.info and stored encrypted; it is never returned.
+      tags: [Integrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ip, name, token]
+              properties:
+                ip: { type: string, format: ipv4 }
+                name: { type: string, maxLength: 80 }
+                token: { type: string, minLength: 32, maxLength: 32, pattern: "^[0-9a-fA-F]{32}$", writeOnly: true }
+      responses:
+        "201":
+          description: Device paired and encrypted
+        "400":
+          description: Invalid IP/token or device could not authenticate
+        "409":
+          description: Device is already paired
+  /integrations/xiaomi-home/devices/{id}/probe:
+    post:
+      summary: Probe a paired Xiaomi device with its stored local token
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Device answered
+        "404":
+          description: Paired device not found
+        "502":
+          description: Device did not respond
+  /integrations/xiaomi-home/devices/{id}/commands:
+    post:
+      summary: Send a constrained local miIO command
+      description: Read-only get_prop is bounded to 1-16 property names. Power and mode writes are restricted to supported zhimi.airpurifier models; arbitrary miIO methods cannot be submitted.
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [read_properties, set_power, set_mode] }
+                value: { description: Boolean for set_power or a supported mode string for set_mode }
+                properties:
+                  type: array
+                  minItems: 1
+                  maxItems: 16
+                  items: { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: Device command returned a result
+        "400":
+          description: Invalid command
+        "422":
+          description: Write command is not supported by this device model
+        "502":
+          description: Device command failed
+  /integrations/xiaomi-home/devices/{id}:
+    delete:
+      summary: Remove a paired Xiaomi local device and its encrypted token
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Device removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: deleted }
+                  id: { type: string }
+        "404":
+          description: Device not found
+  /integrations/vesync/status:
+    get:
+      summary: Get VeSync Cloud connection status without returning secrets
+      tags: [Integrations]
+      responses:
+        "200":
+          description: VeSync account status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  connected: { type: boolean }
+                  region: { type: string, enum: [EU, US] }
+                  country_code: { type: string }
+                  mode: { type: string, enum: [cloud] }
+  /integrations/vesync/config:
+    put:
+      summary: Authenticate a VeSync account and store the encrypted cloud session
+      description: Administrator-only. A normal VeSync consumer account is required; no VeSync developer API key is used. The plaintext password is not persisted.
+      tags: [Integrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, maxLength: 1024, writeOnly: true }
+                country_code: { type: string, default: IT, example: IT }
+                time_zone: { type: string, default: Europe/Rome, example: Europe/Rome }
+      responses:
+        "200":
+          description: VeSync session validated and saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  connected: { type: boolean }
+                  region: { type: string, enum: [EU, US] }
+                  country_code: { type: string }
+                  device_count: { type: integer }
+        "400":
+          description: Invalid credentials or time zone
+        "502":
+          description: VeSync authentication or device-list request failed
+  /integrations/vesync/devices:
+    get:
+      summary: Refresh the VeSync cloud device inventory
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Sanitized cloud device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        model: { type: string }
+                        device_type: { type: string }
+                        config_module: { type: string }
+                        product_type: { type: string }
+                        status: { type: string }
+                        connection_status: { type: string }
+                        firmware: { type: string }
+                        supported_modes:
+                          type: array
+                          items: { type: string }
+                        fan_levels:
+                          type: array
+                          items: { type: integer }
+                  count: { type: integer }
+                  mode: { type: string, enum: [cloud] }
+        "409":
+          description: VeSync is not connected
+        "502":
+          description: Cloud device-list request failed
+  /integrations/vesync/devices/{id}/commands:
+    post:
+      summary: Execute a model-allowlisted VeSync purifier command
+      description: Supports refresh, power, mode and fan-level commands for recognized purifier profiles. Other discovered device types remain read-only.
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [refresh, set_power, set_mode, set_fan_level] }
+                value:
+                  oneOf:
+                    - type: boolean
+                    - type: string
+                    - type: integer
+      responses:
+        "200":
+          description: Provider returned a device command result
+        "400":
+          description: Invalid command value
+        "409":
+          description: VeSync is not connected
+        "422":
+          description: Device model or command value is not supported
+        "502":
+          description: VeSync command failed
+  /integrations/vesync/disconnect:
+    post:
+      summary: Clear the stored VeSync cloud session
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Session cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected: { type: boolean, example: false }
+        "404":
+          description: VeSync is not configured
+
   # ── SYSTEM & METRICS ───────────────────────────────────────────
   /system/health:
     get:
