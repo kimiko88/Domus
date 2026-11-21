@@ -19,6 +19,50 @@ components:
       name: domus_session
 
   schemas:
+    ClimateHistorySettings:
+      type: object
+      required: [enabled, interval_minutes, record_temperature, record_humidity, record_thermostat, smart_sampling]
+      properties:
+        enabled: { type: boolean }
+        interval_minutes: { type: integer, enum: [1, 2, 5, 10, 15, 30, 60] }
+        record_temperature: { type: boolean }
+        record_humidity: { type: boolean }
+        record_thermostat: { type: boolean }
+        smart_sampling: { type: boolean }
+        temperature_change_threshold: { type: number, minimum: 0.1, maximum: 10 }
+        humidity_change_threshold: { type: number, minimum: 0.1, maximum: 30 }
+        raw_retention_days: { type: integer, minimum: 1, maximum: 30 }
+        hourly_retention_days: { type: integer, minimum: 30, maximum: 365 }
+        temperature_alerts_enabled: { type: boolean }
+        humidity_alerts_enabled: { type: boolean }
+        comfort_analysis_enabled: { type: boolean }
+        room_comparison_enabled: { type: boolean }
+        thermal_analysis_enabled: { type: boolean }
+        anomaly_detection_enabled: { type: boolean }
+        forecast_enabled: { type: boolean }
+        room_map_enabled: { type: boolean }
+        low_temperature_limit: { type: number }
+        high_temperature_limit: { type: number }
+        low_humidity_limit: { type: number }
+        high_humidity_limit: { type: number }
+    ClimateHistoryPoint:
+      type: object
+      properties:
+        entity_id: { type: string }
+        entity_key: { type: string }
+        entity_name: { type: string }
+        area_id: { type: string }
+        recorded_at: { type: string, format: date-time }
+        temperature_average: { type: number, nullable: true }
+        temperature_minimum: { type: number, nullable: true }
+        temperature_maximum: { type: number, nullable: true }
+        humidity_average: { type: number, nullable: true }
+        humidity_minimum: { type: number, nullable: true }
+        humidity_maximum: { type: number, nullable: true }
+        target_temperature_average: { type: number, nullable: true }
+        sample_count: { type: integer }
+        period: { type: string, enum: [raw, aggregate] }
+
     Error:
       type: object
       properties:
@@ -403,6 +447,104 @@ paths:
                   database:
                     type: string
                     example: "healthy"
+
+  /climate/history/settings:
+    get:
+      summary: Get climate history collection and analysis settings
+      tags: [Climate History]
+      responses:
+        "200":
+          description: Climate history settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClimateHistorySettings"
+    put:
+      summary: Update climate history collection and analysis settings
+      tags: [Climate History]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClimateHistorySettings"
+      responses:
+        "200":
+          description: Updated settings
+        "400":
+          description: Invalid interval, retention or thresholds
+  /climate/history/history:
+    get:
+      summary: Read climate samples and time-bucket aggregates
+      tags: [Climate History]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: area_id
+          schema: { type: string }
+        - in: query
+          name: entity_id
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 2000 }
+      responses:
+        "200":
+          description: Ordered climate history points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ClimateHistoryPoint"
+                  total:
+                    type: integer
+  /climate/history/summary:
+    get:
+      summary: Summarize rooms and climate insights
+      tags: [Climate History]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: area_id
+          schema: { type: string }
+      responses:
+        "200":
+          description: Room summaries and climate alerts
+  /climate/history/export.csv:
+    get:
+      summary: Export climate history as CSV
+      tags: [Climate History]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: area_id
+          schema: { type: string }
+      responses:
+        "200":
+          description: CSV climate data export
+          content:
+            text/csv:
+              schema:
+                type: string
 
   /auth/setup:
     post:
