@@ -455,7 +455,7 @@ func (h *XiaomiHomeHandler) AddDevice(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	config.Devices = append(config.Devices, xiaomiStoredDevice{
-		ID:uuid.NewString(),Name:req.Name,IP:req.IP,Token:req.Token,Model:info.Model,Firmware:info.Firmware,
+		ID:uuid.NewString(),Name:req.Name,IP:info.IP,Token:req.Token,Model:info.Model,Firmware:info.Firmware,
 		MAC:info.MAC,Hardware:info.Hardware,DeviceID:handshake.DeviceID,AddedAt:time.Now().UTC(),
 	})
 	if err := h.saveConfig(r.Context(), *config); err != nil {
