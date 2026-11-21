@@ -72,7 +72,7 @@ func (r *ClimateHistoryRepository) SaveSamples(ctx context.Context, samples []do
 	for _, sample := range samples {
 		if sample.EntityID == "" || sample.EntityKey == "" || sample.RecordedAt.IsZero() { return fmt.Errorf("sqlite: invalid climate sample identity or timestamp") }
 		_, err := stmt.ExecContext(ctx, sample.EntityID, sample.EntityKey, sample.EntityName,
-			sample.DeviceID, sample.AreaID, sample.RecordedAt.UTC().Format(time.RFC3339Nano),
+			sample.DeviceID, sample.AreaID, sample.RecordedAt.UTC().Truncate(time.Second).Format(time.RFC3339),
 			sample.Temperature, sample.Humidity, sample.TargetTemperature, sample.HVACMode, sample.HVACAction)
 		if err != nil { return fmt.Errorf("sqlite: insert climate sample for %s: %w", sample.EntityKey, err) }
 	}
@@ -83,8 +83,8 @@ func (r *ClimateHistoryRepository) SaveSamples(ctx context.Context, samples []do
 func climateWhere(filter domclimate.Filter, column string) (string, []any) {
 	clauses := make([]string, 0, 4)
 	args := make([]any, 0, 4)
-	if !filter.From.IsZero() { clauses = append(clauses, column+" >= ?"); args = append(args, filter.From.UTC().Format(time.RFC3339Nano)) }
-	if !filter.To.IsZero() { clauses = append(clauses, column+" <= ?"); args = append(args, filter.To.UTC().Format(time.RFC3339Nano)) }
+	if !filter.From.IsZero() { clauses = append(clauses, column+" >= ?"); args = append(args, filter.From.UTC().Truncate(time.Second).Format(time.RFC3339)) }
+	if !filter.To.IsZero() { clauses = append(clauses, column+" <= ?"); args = append(args, filter.To.UTC().Truncate(time.Second).Format(time.RFC3339)) }
 	if filter.AreaID != "" { clauses = append(clauses, "area_id = ?"); args = append(args, filter.AreaID) }
 	if filter.EntityID != "" { clauses = append(clauses, "entity_id = ?"); args = append(args, filter.EntityID) }
 	if filter.EntityIDs != nil {
