@@ -706,8 +706,8 @@ func (h *ImouLifeHandler) MessageHistory(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusConflict, "IMOU_NOT_CONNECTED", "Authorize Imou Life before reading messages")
 		return
 	}
-	begin, errBegin := time.Parse(time.RFC3339, r.URL.Query().Get("begin"))
-	end, errEnd := time.Parse(time.RFC3339, r.URL.Query().Get("end"))
+	begin, errBegin := parseImouLocalTime(r.URL.Query().Get("begin"))
+	end, errEnd := parseImouLocalTime(r.URL.Query().Get("end"))
 	if errBegin != nil || errEnd != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_TIME_RANGE", "begin and end must be RFC3339 timestamps")
 		return
@@ -1318,4 +1318,15 @@ func numericImouInput(value any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func parseImouLocalTime(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil { return parsed, nil }
+	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02 15:04:05"} {
+		if parsed, err := time.ParseInLocation(layout, raw, time.Local); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, errors.New("invalid Imou local time")
 }
