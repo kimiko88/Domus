@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   Camera,
   FileText,
+  FolderOpen,
   ImagePlus,
   Sparkles,
   ShoppingBag,
@@ -346,21 +347,17 @@ async function captureCameraFrame() {
 }
 
 async function rotateReceiptImage() {
-  if (!sourceImage.value) return
+  if (!sourceImage.value || props.loading) return
   imageRotation.value = (imageRotation.value + 90) % 360
-  await setReceiptImage(sourceImage.value)
-  // Preserve the selected orientation after reprocessing.
-  if (sourceImage.value && imageRotation.value !== 0) {
-    const rotation = imageRotation.value
-    try {
-      const normalized = await normalizeReceiptImage(sourceImage.value, rotation)
-      revokePreview()
-      pendingImage.value = normalized
-      previewURL.value = URL.createObjectURL(normalized)
-      ocrStatus.value = t('shopping.view.receiptScanner.imageReady')
-    } catch {
-      ocrStatus.value = t('shopping.view.receiptScanner.imagePrepareFailed')
-    }
+  ocrStatus.value = t('shopping.view.receiptScanner.preparingImage')
+  try {
+    const normalized = await normalizeReceiptImage(sourceImage.value, imageRotation.value)
+    revokePreview()
+    pendingImage.value = normalized
+    previewURL.value = URL.createObjectURL(normalized)
+    ocrStatus.value = t('shopping.view.receiptScanner.imageReady')
+  } catch {
+    ocrStatus.value = t('shopping.view.receiptScanner.imagePrepareFailed')
   }
 }
 
@@ -482,7 +479,7 @@ onBeforeUnmount(() => {
           </span>
         </button>
         <button class="scan-method" type="button" :disabled="loading" @click="fileInput?.click()">
-          <FolderOpenIconFallback />
+          <FolderOpen :size="22" />
           <span>
             <strong>{{ t('shopping.view.receiptScanner.chooseFile') }}</strong>
             <small>{{ t('shopping.view.receiptScanner.fileHint') }}</small>
