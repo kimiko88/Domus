@@ -299,7 +299,9 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			if weight < 1 { weight = 1 }
 			summary.SampleCount += weight
 			if point.TemperatureAverage != nil {
-				v := *point.TemperatureAverage; tempSum += v * float64(weight); tempCount += weight
+				metricWeight := point.TemperatureCount
+				if metricWeight < 1 { metricWeight = 1 }
+				v := *point.TemperatureAverage; tempSum += v * float64(metricWeight); tempCount += metricWeight
 				minimum, maximum := point.TemperatureMinimum, point.TemperatureMaximum
 				if minimum == nil { minimum = point.TemperatureAverage }
 				if maximum == nil { maximum = point.TemperatureAverage }
@@ -308,7 +310,9 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 				summary.CurrentTemperature = floatPtr(v); summary.LastUpdatedAt = point.RecordedAt
 			}
 			if point.HumidityAverage != nil {
-				v := *point.HumidityAverage; humiditySum += v * float64(weight); humidityCount += weight; summary.CurrentHumidity = floatPtr(v)
+				metricWeight := point.HumidityCount
+				if metricWeight < 1 { metricWeight = 1 }
+				v := *point.HumidityAverage; humiditySum += v * float64(metricWeight); humidityCount += metricWeight; summary.CurrentHumidity = floatPtr(v)
 			}
 		}
 		if tempCount > 0 { summary.AverageTemperature = floatPtr(tempSum/float64(tempCount)) }
