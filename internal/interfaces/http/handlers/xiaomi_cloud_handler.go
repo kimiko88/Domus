@@ -175,7 +175,7 @@ func (h *XiaomiCloudHandler) Authorize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "Could not create OAuth state")
 		return
 	}
-	authorizeURL, err := client.AuthorizationURL(state, []string{"1"})
+	authorizeURL, err := client.AuthorizationURL(state, []string{"1", "6000"})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "OAUTH_CONFIG_ERROR", "Could not create Xiaomi authorization URL")
 		return
