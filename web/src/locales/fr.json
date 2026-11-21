@@ -217,7 +217,8 @@
     "pantry": "Garde-manger & Recettes",
     "settings": "Paramètres",
     "logout": "Déconnexion",
-    "guide": "Guide & Manuel"
+    "guide": "Guide & Manuel",
+    "climateHistory": "Historique climatique"
   },
   "dashboard": {
     "title": "Aperçu de la Maison",
@@ -3486,5 +3487,92 @@
   "dashboardMarketplace": {
     "community": "Communauté",
     "verified": "Vérifié"
+  },
+  "climateHistory": {
+    "title": "Historique climatique",
+    "subtitle": "Évolution de la température et de l’humidité par pièce et appareil.",
+    "refresh": "Actualiser",
+    "exportCsv": "Exporter CSV",
+    "filters": "Filtres de l’historique",
+    "ranges": {
+      "24h": "24 heures",
+      "7d": "7 jours",
+      "30d": "30 jours",
+      "custom": "Personnalisé"
+    },
+    "room": "Pièce",
+    "allRooms": "Toutes les pièces",
+    "metric": "Mesure",
+    "metrics": {
+      "temperature": "Température mesurée",
+      "humidity": "Humidité",
+      "target": "Consigne du thermostat"
+    },
+    "from": "Du",
+    "to": "Au",
+    "selectSeries": "Capteurs et thermostats à afficher",
+    "selectSeriesHint": "Sélectionnez plusieurs éléments pour comparer les courbes ; sans sélection, toutes les séries sont affichées.",
+    "trendTitle": "Évolution climatique",
+    "chartDescription": "Comparez la température réelle, la consigne et l’humidité sur la période choisie.",
+    "samples": "{count} mesures",
+    "chartAria": "Graphique historique de température, consigne et humidité",
+    "loading": "Chargement des mesures…",
+    "noData": "Aucune mesure pour la période sélectionnée.",
+    "samplesShort": "mesures",
+    "temperature": "Température",
+    "humidity": "Humidité",
+    "average": "Moyenne",
+    "thermalRate": "Vitesse de chauffage/refroidissement",
+    "forecast": "Estimation à une heure",
+    "minMax": "Min / max",
+    "insightsTitle": "Confort et anomalies",
+    "insightsDescription": "Informations issues de l’historique selon les options activées.",
+    "unassigned": "Sans pièce",
+    "settings": {
+      "title": "Paramètres de collecte et d’analyse",
+      "description": "La collecte fonctionne sur le serveur même lorsque le tableau de bord est fermé. Les données récentes sont compactées en moyennes/minima/maxima horaires puis journaliers.",
+      "enabled": "Activer la collecte climatique",
+      "interval": "Intervalle d’enregistrement",
+      "minutes": "minutes",
+      "recordTemperature": "Enregistrer la température des capteurs",
+      "recordHumidity": "Enregistrer l’humidité des capteurs",
+      "recordThermostat": "Enregistrer les mesures et consignes des thermostats",
+      "smartSampling": "Enregistrer aussi les variations significatives",
+      "temperatureThreshold": "Variation de température (°C)",
+      "humidityThreshold": "Variation d’humidité (%)",
+      "rawRetention": "Conserver les mesures détaillées (jours)",
+      "hourlyRetention": "Conserver les agrégats horaires (jours)",
+      "analysisTitle": "Fonctionnalités facultatives",
+      "temperatureAlerts": "Alertes de seuil de température",
+      "humidityAlerts": "Alertes de seuil d’humidité",
+      "comfortAnalysis": "Analyse du confort",
+      "roomComparison": "Comparaison des pièces",
+      "thermalAnalysis": "Analyse du chauffage/refroidissement",
+      "anomalyDetection": "Détection des anomalies",
+      "forecast": "Estimation de tendance à une heure",
+      "roomMap": "Résumé climatique par pièce",
+      "thresholdsTitle": "Seuils d’alerte",
+      "lowTemperature": "Température minimale (°C)",
+      "highTemperature": "Température maximale (°C)",
+      "lowHumidity": "Humidité minimale (%)",
+      "highHumidity": "Humidité maximale (%)",
+      "saving": "Enregistrement…",
+      "saved": "Paramètres enregistrés",
+      "save": "Enregistrer les paramètres"
+    },
+    "insights": {
+      "temperature_low": "Température sous le seuil",
+      "temperature_high": "Température au-dessus du seuil",
+      "temperature_comfort": "Température hors de la plage de confort",
+      "temperature_anomaly": "Variation inhabituelle de température",
+      "humidity_low": "Humidité sous le seuil",
+      "humidity_high": "Humidité au-dessus du seuil",
+      "humidity_comfort": "Humidité hors de la plage de confort"
+    },
+    "errors": {
+      "load": "Impossible de charger l’historique climatique.",
+      "save": "Impossible d’enregistrer les paramètres.",
+      "export": "Impossible d’exporter les données climatiques."
+    }
   }
 }
