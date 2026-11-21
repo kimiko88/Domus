@@ -279,13 +279,13 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section v-if="settingsForm.room_comparison_enabled || settingsForm.room_map_enabled" class="room-grid">
+    <section v-if="settingsForm.room_comparison_enabled || settingsForm.room_map_enabled || settingsForm.thermal_analysis_enabled || settingsForm.forecast_enabled" class="room-grid">
       <article v-for="room in visibleRooms" :key="room.area_id" class="panel room-card">
         <div class="room-heading">
           <h3>{{ roomName(room.area_id) }}</h3>
           <span>{{ room.sample_count }} {{ t('climateHistory.samplesShort') }}</span>
         </div>
-        <div class="room-metrics">
+        <div v-if="settingsForm.room_comparison_enabled || settingsForm.room_map_enabled" class="room-metrics">
           <div>
             <span>{{ t('climateHistory.temperature') }}</span>
             <strong>{{ formatNumber(room.current_temperature) }} °C</strong>
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
             {{ t('climateHistory.forecast') }}: {{ formatNumber(room.forecast_temperature_1h) }} °C
           </span>
         </div>
-        <div class="minmax">{{ t('climateHistory.minMax') }}: {{ formatNumber(room.minimum_temperature) }} / {{ formatNumber(room.maximum_temperature) }} °C</div>
+        <div v-if="settingsForm.room_comparison_enabled" class="minmax">{{ t('climateHistory.minMax') }}: {{ formatNumber(room.minimum_temperature) }} / {{ formatNumber(room.maximum_temperature) }} °C</div>
       </article>
     </section>
 
