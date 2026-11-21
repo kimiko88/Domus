@@ -588,7 +588,7 @@ func (h *ImouLifeHandler) ReadProperties(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	for _, id := range ids {
-		if !allowed[strings.TrimSpace(id)] {
+		if !allowed[id] {
 			writeError(w, http.StatusForbidden, "PROPERTY_NOT_READABLE", "Requested property is not advertised as readable by this device")
 			return
 		}
@@ -629,9 +629,18 @@ func (h *ImouLifeHandler) WriteProperties(w http.ResponseWriter, r *http.Request
 			}
 		}
 	}
-	for id := range req.Values {
-		if _, ok := allowed[id]; !ok {
+	if len(req.Values) == 0 || len(req.Values) > 32 {
+		writeError(w, http.StatusBadRequest, "INVALID_PROPERTY_VALUES", "Provide between 1 and 32 property values")
+		return
+	}
+	for id, value := range req.Values {
+		property, ok := allowed[id]
+		if !ok {
 			writeError(w, http.StatusForbidden, "PROPERTY_NOT_WRITABLE", "Requested property is not advertised as writable by this device")
+			return
+		}
+		if err := validateImouDataType(property.DataType, value); err != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_PROPERTY_VALUE", fmt.Sprintf("Property %s: %v", id, err))
 			return
 		}
 	}
@@ -1159,8 +1168,11 @@ func validateImouServiceInput(service imou_life.CapabilityService, input map[str
 		if field == "" || typeName == "" {
 			return errors.New("service capability contains an incomplete input definition")
 		}
+		required := true
+		if optional, ok := definition["required"].(bool); ok { required = optional }
+		if optional, ok := definition["optional"].(bool); ok && optional { required = false }
 		declared[field] = strings.ToLower(typeName)
-		if _, ok := input[field]; !ok {
+		if _, ok := input[field]; !ok && required {
 			return fmt.Errorf("missing required input %q", field)
 		}
 	}
@@ -1173,36 +1185,77 @@ func validateImouServiceInput(service imou_life.CapabilityService, input map[str
 		return errors.New("service input does not match the declared capability fields")
 	}
 	for field, typeName := range declared {
-		value := input[field]
-		switch typeName {
-		case "text", "string":
-			if _, ok := value.(string); !ok {
-				return fmt.Errorf("input %q must be a string", field)
-			}
-		case "int", "integer":
-			number, ok := numericImouInput(value)
-			if !ok || math.Trunc(number) != number {
-				return fmt.Errorf("input %q must be an integer", field)
-			}
-		case "float", "number", "double":
-			if _, ok := numericImouInput(value); !ok {
-				return fmt.Errorf("input %q must be numeric", field)
-			}
-		case "bool", "boolean":
-			if _, ok := value.(bool); !ok {
-				return fmt.Errorf("input %q must be boolean", field)
-			}
-		case "enum":
-			switch value.(type) {
-			case string, float64, int:
-			default:
-				return fmt.Errorf("input %q must be a string or number", field)
-			}
-		default:
-			return fmt.Errorf("service input %q uses unsupported type %q", field, typeName)
+		value, present := input[field]
+		if !present { continue }
+		if err := validateImouDataType(typeNameDataType(service, field), value); err != nil {
+			return fmt.Errorf("input %q: %w", field, err)
 		}
 	}
 	return nil
+}
+
+func typeNameDataType(service imou_life.CapabilityService, field string) map[string]any {
+	for _, definition := range service.InputData {
+		if definition["field"] == field {
+			dataType, _ := definition["dataType"].(map[string]any)
+			return dataType
+		}
+	}
+	return nil
+}
+
+func validateImouDataType(dataType map[string]any, value any) error {
+	typeName, _ := dataType["type"].(string)
+	switch strings.ToLower(typeName) {
+	case "text", "string":
+		if _, ok := value.(string); !ok { return errors.New("must be a string") }
+	case "int", "integer":
+		number, ok := numericImouInput(value)
+		if !ok || math.Trunc(number) != number { return errors.New("must be an integer") }
+		if err := validateImouNumberRange(dataType, number); err != nil { return err }
+	case "float", "number", "double":
+		number, ok := numericImouInput(value)
+		if !ok { return errors.New("must be numeric") }
+		if err := validateImouNumberRange(dataType, number); err != nil { return err }
+	case "bool", "boolean":
+		if _, ok := value.(bool); !ok { return errors.New("must be boolean") }
+	case "enum":
+		if !imouEnumContains(dataType, value) { return errors.New("is not an allowed enum value") }
+	default:
+		return fmt.Errorf("uses unsupported data type %q", typeName)
+	}
+	if specs, ok := dataType["specs"].(map[string]any); ok {
+		if list, ok := specs["list"].([]any); ok && len(list) > 0 && !imouEnumContains(dataType, value) {
+			return errors.New("is not in the allowed value list")
+		}
+	}
+	return nil
+}
+
+func validateImouNumberRange(dataType map[string]any, number float64) error {
+	specs, _ := dataType["specs"].(map[string]any)
+	if specs == nil { return nil }
+	if min, ok := numericImouInput(specs["min"]); ok && number < min { return errors.New("is below the minimum") }
+	if max, ok := numericImouInput(specs["max"]); ok && number > max { return errors.New("is above the maximum") }
+	if step, ok := numericImouInput(specs["step"]); ok && step > 0 {
+		min, hasMin := numericImouInput(specs["min"])
+		if !hasMin { min = 0 }
+		steps := (number - min) / step
+		if math.Abs(steps-math.Round(steps)) > 0.0001 { return errors.New("does not match the required step") }
+	}
+	return nil
+}
+
+func imouEnumContains(dataType map[string]any, value any) bool {
+	specs, _ := dataType["specs"].(map[string]any)
+	list, _ := specs["list"].([]any)
+	if len(list) == 0 { return true }
+	for _, item := range list {
+		entry, _ := item.(map[string]any)
+		candidate := entry["value"]
+		if fmt.Sprint(candidate) == fmt.Sprint(value) { return true }
+	}
+	return false
 }
 
 func numericImouInput(value any) (float64, bool) {
