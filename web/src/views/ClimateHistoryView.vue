@@ -294,8 +294,8 @@ onBeforeUnmount(() => {
             <small>{{ t('climateHistory.average') }} {{ formatNumber(room.average_humidity) }}%</small>
           </div>
         </div>
-        <div v-if="settingsForm.thermal_analysis_enabled && room.heating_rate_c_per_hour !== undefined" class="thermal-info">
-          <span>{{ t('climateHistory.thermalRate') }}: {{ formatNumber(room.heating_rate_c_per_hour) }} °C/h</span>
+        <div v-if="settingsForm.thermal_analysis_enabled && room.temperature_change_rate_c_per_hour !== undefined" class="thermal-info">
+          <span>{{ t(room.temperature_change_rate_c_per_hour >= 0 ? 'climateHistory.heatingRate' : 'climateHistory.coolingRate') }}: {{ formatNumber(room.heating_rate_c_per_hour) }} °C/h</span>
           <span v-if="settingsForm.forecast_enabled && room.forecast_temperature_1h !== undefined">
             {{ t('climateHistory.forecast') }}: {{ formatNumber(room.forecast_temperature_1h) }} °C
           </span>
