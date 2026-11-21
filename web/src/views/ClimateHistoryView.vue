@@ -290,12 +290,12 @@ onBeforeUnmount(() => {
           <div>
             <span>{{ t('climateHistory.temperature') }}</span>
             <strong>{{ formatNumber(room.current_temperature) }} °C</strong>
-            <small>{{ t('climateHistory.average') }} {{ formatNumber(room.average_temperature) }} °C</small>
+            <small v-if="settingsForm.room_comparison_enabled">{{ t('climateHistory.average') }} {{ formatNumber(room.average_temperature) }} °C</small>
           </div>
           <div>
             <span>{{ t('climateHistory.humidity') }}</span>
             <strong>{{ formatNumber(room.current_humidity) }}%</strong>
-            <small>{{ t('climateHistory.average') }} {{ formatNumber(room.average_humidity) }}%</small>
+            <small v-if="settingsForm.room_comparison_enabled">{{ t('climateHistory.average') }} {{ formatNumber(room.average_humidity) }}%</small>
           </div>
         </div>
         <div v-if="settingsForm.thermal_analysis_enabled || settingsForm.forecast_enabled" class="thermal-info">
