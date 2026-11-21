@@ -118,6 +118,7 @@ type CapabilityEvent struct {
 
 type DeviceMessage struct {
 	ID                string          `json:"id,omitempty"`
+	AppID             string          `json:"appId,omitempty"`
 	MessageType       string          `json:"msgType"`
 	DeviceID          string          `json:"deviceId,omitempty"`
 	LegacyDeviceID    string          `json:"did,omitempty"`
