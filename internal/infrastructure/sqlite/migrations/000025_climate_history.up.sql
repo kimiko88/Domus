@@ -76,6 +76,6 @@ CREATE TABLE IF NOT EXISTS climate_history_daily (
     target_temperature_count INTEGER NOT NULL DEFAULT 0,
     sample_count INTEGER NOT NULL DEFAULT 0,
     heating_samples INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY(entity_id, period_start)
+    PRIMARY KEY(entity_id, area_id, period_start)
 );
 CREATE INDEX IF NOT EXISTS idx_climate_daily_area_time ON climate_history_daily(area_id, period_start);
