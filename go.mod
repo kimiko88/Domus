@@ -3,9 +3,8 @@ module github.com/domus-hub/domus
 go 1.26.0
 
 require (
-	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/BurntSushi/toml v1.4.0
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/google/uuid v1.6.0
@@ -19,6 +18,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
