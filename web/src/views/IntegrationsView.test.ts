@@ -106,7 +106,7 @@ describe('IntegrationsView.vue', () => {
 
     // Switch to discovery tab
     const tabs = wrapper.findAll('.tab-btn')
-    expect(tabs.length).toBe(5)
+    expect(tabs).toHaveLength(6)
     await tabs[1].trigger('click')
     await wrapper.vm.$nextTick()
 
