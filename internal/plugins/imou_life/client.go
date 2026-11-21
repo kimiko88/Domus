@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -311,10 +312,28 @@ func (c *Client) GetStreamURL(ctx context.Context, accessToken, deviceID string,
 		return "", errors.New("imou: invalid stream URL response")
 	}
 	u, err := url.Parse(result.URL)
-	if err != nil || u.Scheme != "rtsp" || u.Host == "" {
+	if err != nil || u.Scheme != "rtsp" || u.Host == "" || u.User == nil && strings.Contains(u.Host, "@") {
 		return "", errors.New("imou: provider returned an invalid RTSP URL")
 	}
-	return result.URL, nil
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if net.ParseIP(host) != nil || !(strings.HasSuffix(host, ".lechange.com") || host == "lechange.com" ||
+		strings.HasSuffix(host, ".easy4ip.com") || host == "easy4ip.com" ||
+		strings.HasSuffix(host, ".imoulife.com") || host == "imoulife.com") {
+		return "", errors.New("imou: stream host is not an approved Imou media domain")
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil || len(addresses) == 0 {
+		return "", errors.New("imou: stream host could not be resolved safely")
+	}
+	for _, address := range addresses {
+		ip := address.IP
+		if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() ||
+			ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() ||
+			isImouCarrierGradeNAT(ip) {
+			return "", errors.New("imou: stream host resolves to a non-public network address")
+		}
+	}
+	return u.String(), nil
 }
 
 func (c *Client) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
@@ -604,4 +623,9 @@ func validCapabilityID(id string) bool {
 func validHTTPSCallback(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && u.Fragment == ""
+}
+
+func isImouCarrierGradeNAT(ip net.IP) bool {
+	v4 := ip.To4()
+	return v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
 }
