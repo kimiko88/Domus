@@ -60,6 +60,7 @@ import (
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
+	"github.com/domus-hub/domus/internal/plugins/broadlink"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -156,6 +157,7 @@ type Server struct {
 	sunEngine      *appauto.SunEngine
 	commuteTracker *presence.CommuteTracker
 	tuyaLocalAdapter *tuya_local.Adapter
+	broadlinkAdapter *broadlink.Adapter
 	predictiveClimate *appclimate.PredictiveService
 	predictiveCancel context.CancelFunc
 	predictiveDone chan struct{}
@@ -258,6 +260,20 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	}
 	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
 		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)
+	}
+
+	// BroadLink RM remotes are controlled directly over the local UDP protocol.
+	// Pairing is enabled only when the session key can be encrypted at rest.
+	if srv.bus != nil && srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
+		srv.broadlinkAdapter = broadlink.NewAdapter("broadlink_local", srv.bus).
+			WithPersistence(srv.repos.DB, srv.repos.Cipher).
+			WithRepositories(srv.repos.Devices, srv.repos.Entities)
+		if err := srv.broadlinkAdapter.Start(context.Background()); err != nil {
+			slog.Error("broadlink_local: adapter startup failed", "error", err)
+			srv.broadlinkAdapter = nil
+		}
+	} else {
+		slog.Warn("broadlink_local disabled: event bus, database and encrypted key storage are required")
 	}
 
 	r := chi.NewRouter()
@@ -498,6 +514,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/tuya-local", func(localRouter chi.Router) {
 						localRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						localH.RegisterRoutes(localRouter)
+					})
+				}
+				if srv.broadlinkAdapter != nil {
+					broadlinkH := handlers.NewBroadlinkHandler(srv.broadlinkAdapter)
+					domainRouter.Route("/integrations/broadlink-local", func(localRouter chi.Router) {
+						localRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						broadlinkH.RegisterRoutes(localRouter)
 					})
 				}
 				if imouLifeHandler != nil {
@@ -1345,6 +1368,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.stopPredictiveClimateScheduler(ctx)
 	if s.tuyaLocalAdapter != nil {
 		_ = s.tuyaLocalAdapter.Stop(ctx)
+	}
+	if s.broadlinkAdapter != nil {
+		_ = s.broadlinkAdapter.Stop(ctx)
 	}
 	var shutdownErr error
 	if s.lanHTTPServer != nil {
