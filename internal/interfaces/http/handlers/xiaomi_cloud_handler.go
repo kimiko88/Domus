@@ -557,6 +557,92 @@ func (h *XiaomiCloudHandler) EventCallback(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ControlEntity lets MIoT-backed entities use the standard Domus command path.
+func (h *XiaomiCloudHandler) ControlEntity(ctx context.Context, entityKey, service string, params map[string]any) error {
+	ent, err := h.entities.GetByKey(ctx, entityKey)
+	if err != nil { return err }
+	var attrs map[string]any
+	if err := json.Unmarshal([]byte(ent.Attributes), &attrs); err != nil || attrs["source"] != "xiaomi_home" {
+		return errors.New("xiaomi: entity is not a cloud MIoT entity")
+	}
+	siid, ok1 := numericInt(attrs["siid"])
+	piid, ok2 := numericInt(attrs["piid"])
+	if !ok1 || !ok2 { return errors.New("xiaomi: entity has invalid MIoT identifiers") }
+	config, client, err := h.ensureFreshToken(ctx)
+	if err != nil { return err }
+	record, err := h.devices.GetByID(ctx, ent.DeviceID)
+	if err != nil { return err }
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(record.Metadata), &metadata); err != nil { return err }
+	miotType, _ := metadata["miot_type"].(string)
+	spec, err := client.FetchDeviceSpec(ctx, miotType)
+	if err != nil { return err }
+
+	if service == "miot_action" {
+		actionService, ok1 := numericInt(params["siid"])
+		actionID, ok2 := numericInt(params["aiid"])
+		input, ok3 := params["input"].([]any)
+		if !ok1 || !ok2 || !ok3 { return errors.New("xiaomi: miot_action requires siid, aiid and input") }
+		action, ok := spec.FindAction(actionService, actionID)
+		if !ok || len(action.In) != len(input) { return errors.New("xiaomi: action is unsupported or its input count is invalid") }
+		for i, propertyID := range action.In {
+			ref, exists := spec.FindProperty(actionService, propertyID)
+			if !exists { return errors.New("xiaomi: action input is absent from the MIoT specification") }
+			if err := ref.Property.ValidateValue(input[i]); err != nil { return err }
+		}
+		_, err := client.InvokeAction(ctx, config.AccessToken, config.UserID, fmt.Sprintf("%s.%d.%d", record.ExternalID, actionService, actionID), input)
+		return err
+	}
+
+	ref, ok := spec.FindProperty(siid, piid)
+	if !ok || !ref.Property.CanWrite() { return errors.New("xiaomi: property is not writable") }
+	var value any
+	switch service {
+	case "turn_on":
+		value = true
+	case "turn_off":
+		value = false
+	case "toggle":
+		var current any
+		if err := json.Unmarshal([]byte(ent.State), &current); err != nil { return errors.New("xiaomi: current entity state is invalid") }
+		flag, ok := current.(bool)
+		if !ok { return errors.New("xiaomi: toggle is only available for boolean MIoT properties") }
+		value = !flag
+	case "set_value", "set_temperature", "set_percentage":
+		value = params["value"]
+		if value == nil { value = params["temperature"] }
+	case "select_option":
+		value = params["option"]
+	default:
+		return fmt.Errorf("xiaomi: unsupported entity command %q", service)
+	}
+	if value == nil { return errors.New("xiaomi: command value is required") }
+	if err := ref.Property.ValidateValue(value); err != nil { return err }
+	pid := fmt.Sprintf("%s.%d.%d", record.ExternalID, siid, piid)
+	results, err := client.SetProperties(ctx, config.AccessToken, config.UserID, []xiaomi_home.PropertyUpdate{{PID: pid, Value: value}})
+	if err != nil { return err }
+	if len(results) == 0 || results[0].Status != 0 {
+		return errors.New("xiaomi: device rejected the property update")
+	}
+	h.updateEntityState(ctx, record, spec, pid, value, 0)
+	return nil
+}
+
+func numericInt(value any) (int, bool) {
+	switch n := value.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		if n == float64(int(n)) { return int(n), true }
+	case json.Number:
+		parsed, err := n.Int64()
+		return int(parsed), err == nil
+	}
+	return 0, false
+}
+
 func (h *XiaomiCloudHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 	config, err := h.loadConfig(r.Context())
 	if err != nil {
