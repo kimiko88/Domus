@@ -146,6 +146,9 @@ describe('Localization (i18n)', () => {
           expect(translated, keyPath).toBe('Dessert')
         } else if (code === 'de' && keyPath === 'integrations.view.deviceOnline') {
           expect(translated, keyPath).toBe('Online')
+        } else if (code === 'de' && keyPath === 'cameras.view.filterPerson') {
+          // "Person" is also the correct German spelling.
+          expect(translated, keyPath).toBe('Person')
         } else {
           expect(translated, `Missing translation for ${keyPath}`).not.toBe(english)
         }
