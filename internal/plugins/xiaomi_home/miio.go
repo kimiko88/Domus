@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"sort"
+	"sync"
 	"strings"
 	"time"
 )
@@ -81,6 +83,152 @@ func (c *Client) Handshake(ctx context.Context, target string) (DeviceInfo, erro
 		return DeviceInfo{}, err
 	}
 	return DeviceInfo{IP: addr.IP.String(), DeviceID: deviceID, Stamp: stamp}, nil
+}
+
+
+// DiscoverLAN finds miIO devices on private IPv4 networks attached to this host.
+// It uses the protocol's unauthenticated hello handshake; it never retrieves or
+// guesses device tokens. Networks wider than /24 are narrowed to the /24 that
+// contains the host interface address, and at most 512 addresses are probed.
+func (c *Client) DiscoverLAN(ctx context.Context) ([]DeviceInfo, error) {
+	targets, err := localIPv4Targets()
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) == 0 {
+		return []DeviceInfo{}, nil
+	}
+
+	timeout := c.timeout
+	if timeout <= 0 || timeout > 750*time.Millisecond {
+		timeout = 750 * time.Millisecond
+	}
+	scanner := NewClient(timeout)
+	sem := make(chan struct{}, 32)
+	results := make(chan DeviceInfo, len(targets))
+	var wg sync.WaitGroup
+
+	for _, target := range targets {
+		select {
+		case <-ctx.Done():
+		case sem <- struct{}{}:
+		}
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			probeCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			info, probeErr := scanner.Handshake(probeCtx, ip)
+			if probeErr == nil {
+				results <- info
+			}
+		}(target)
+	}
+	wg.Wait()
+	close(results)
+
+	found := make([]DeviceInfo, 0, len(results))
+	seen := make(map[string]struct{}, len(results))
+	for info := range results {
+		if _, ok := seen[info.IP]; ok {
+			continue
+		}
+		seen[info.IP] = struct{}{}
+		found = append(found, info)
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].IP < found[j].IP })
+	return found, nil
+}
+
+// localIPv4Targets returns bounded host targets from private LAN interfaces only.
+// It deliberately excludes loopback, link-local, public and non-IPv4 interfaces.
+func localIPv4Targets() ([]string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("xiaomi: enumerate LAN interfaces: %w", err)
+	}
+	seen := make(map[string]struct{})
+	var targets []string
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagPointToPoint != 0 ||
+			strings.HasPrefix(iface.Name, "wg") || strings.HasPrefix(iface.Name, "tailscale") ||
+			strings.HasPrefix(iface.Name, "docker") || strings.HasPrefix(iface.Name, "br-") ||
+			strings.HasPrefix(iface.Name, "veth") || strings.HasPrefix(iface.Name, "tun") ||
+			strings.HasPrefix(iface.Name, "tap") {
+			continue
+		}
+		addresses, addrErr := iface.Addrs()
+		if addrErr != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ip, network, parseErr := net.ParseCIDR(address.String())
+			if parseErr != nil {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil || !ip4.IsPrivate() {
+				continue
+			}
+			for _, target := range subnetTargets(ip4, network) {
+				if _, exists := seen[target]; exists {
+					continue
+				}
+				seen[target] = struct{}{}
+				targets = append(targets, target)
+				if len(targets) >= 512 {
+					break
+				}
+			}
+			if len(targets) >= 512 {
+				break
+			}
+		}
+		if len(targets) >= 512 {
+			break
+		}
+	}
+	sort.Strings(targets)
+	return targets, nil
+}
+
+// subnetTargets expands a local IPv4 subnet into usable hosts. Large private
+// networks are narrowed to the /24 containing the interface address.
+func subnetTargets(ip net.IP, network *net.IPNet) []string {
+	ip4 := ip.To4()
+	if ip4 == nil || network == nil {
+		return nil
+	}
+	prefix, bits := network.Mask.Size()
+	if bits != 32 || prefix >= 31 {
+		return nil
+	}
+	if prefix < 24 {
+		prefix = 24
+	}
+	mask := net.CIDRMask(prefix, 32)
+	baseIP := ip4.Mask(mask)
+	hostCount := uint32(1) << uint(32-prefix)
+	base := binary.BigEndian.Uint32(baseIP)
+	local := binary.BigEndian.Uint32(ip4)
+	targets := make([]string, 0, hostCount)
+	for offset := uint32(1); offset < hostCount-1; offset++ {
+		value := base + offset
+		if value == local {
+			continue
+		}
+		var raw [4]byte
+		binary.BigEndian.PutUint32(raw[:], value)
+		candidate := net.IPv4(raw[0], raw[1], raw[2], raw[3])
+		if candidate.IsPrivate() {
+			targets = append(targets, candidate.String())
+		}
+	}
+	return targets
 }
 
 // Info authenticates to a local device with its 16-byte (32 hex character)

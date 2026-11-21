@@ -222,6 +222,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	var imouLifeHandler *handlers.ImouLifeHandler
 	var xiaomiHomeHandler *handlers.XiaomiHomeHandler
 	var xiaomiCloudHandler *handlers.XiaomiCloudHandler
+	var vesyncHandler *handlers.VeSyncHandler
 	if srv.repos != nil && srv.repos.Integrations != nil && srv.repos.Cipher != nil {
 		var handlerErr error
 		imouLifeHandler, handlerErr = handlers.NewImouLifeHandler(srv.repos.Integrations, srv.repos.Cipher)
@@ -240,6 +241,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		)
 		if handlerErr != nil {
 			slog.Error("Xiaomi Home Cloud integration disabled: handler initialization failed", "error", handlerErr)
+		}
+		vesyncHandler, handlerErr = handlers.NewVeSyncHandler(srv.repos.Integrations, srv.repos.Cipher)
+		if handlerErr != nil {
+			slog.Error("VeSync cloud integration disabled: handler initialization failed", "error", handlerErr)
 		}
 	} else {
 		slog.Warn("Xiaomi Home and Imou Life integrations disabled: encrypted integration storage is required")
@@ -539,6 +544,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/xiaomi-home/cloud", func(cloudRouter chi.Router) {
 						cloudRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						xiaomiCloudHandler.RegisterRoutes(cloudRouter)
+					})
+				}
+				if vesyncHandler != nil {
+					domainRouter.Route("/integrations/vesync", func(vesyncRouter chi.Router) {
+						vesyncRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						vesyncHandler.RegisterRoutes(vesyncRouter)
 					})
 				}
 
