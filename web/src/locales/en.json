@@ -3573,6 +3573,8 @@
       "load": "Unable to load climate history.",
       "save": "Unable to save settings.",
       "export": "Unable to export climate data."
-    }
+    },
+    "heatingRate": "Heating rate",
+    "coolingRate": "Cooling rate"
   }
 }
