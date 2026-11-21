@@ -85,7 +85,8 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 		due := lastSaved.IsZero() || now.Sub(lastSaved) >= interval
 		changed := settings.SmartSampling && hasPrevious && significantChange(previous, sample, settings)
 		if !due && !changed {
-			s.last[ent.ID] = sample
+			// Compare future changes with the last persisted sample, not the
+			// latest poll; otherwise small gradual changes never accumulate.
 			continue
 		}
 		batch = append(batch, sample)
