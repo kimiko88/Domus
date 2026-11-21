@@ -13,5 +13,6 @@ describe('climate history localization', () => {
     expect(i18n.global.t('climateHistory.coolingRate')).not.toBe('climateHistory.coolingRate')
     expect(i18n.global.t('climateHistory.settings.roomMap')).not.toBe('climateHistory.settings.roomMap')
     expect(i18n.global.t('climateHistory.insights.humidity_high')).not.toBe('climateHistory.insights.humidity_high')
+    expect(i18n.global.t('climateHistory.insights.sensor_offline')).not.toBe('climateHistory.insights.sensor_offline')
   })
 })
