@@ -404,6 +404,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
 			brandSvc := appbrand.NewService(srv.repos.Devices, srv.repos.Entities, srv.repos.Integrations, srv.bus, nil)
+			if srv.repos.Cipher != nil {
+				brandSvc.WithSecretCipher(srv.repos.Cipher)
+			}
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
 			var webhookH *handlers.WebhookHandler
