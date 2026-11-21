@@ -214,7 +214,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou API configuration")
 		return
 	}
-	if err := h.saveConfig(r.Context(), config, "disconnected"); err != nil {
+	if err := h.saveConfig(r.Context(), *config, "disconnected"); err != nil {
 		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Could not save encrypted Imou configuration")
 		return
 	}
@@ -314,7 +314,7 @@ func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	config.AccessToken = token.AccessToken
 	config.RefreshToken = token.RefreshToken
 	config.ExpiresAt = token.ExpiresAt
-	if err := h.saveConfig(r.Context(), config, "connected"); err != nil {
+	if err := h.saveConfig(r.Context(), *config, "connected"); err != nil {
 		http.Error(w, "Imou authorization succeeded but token storage failed", http.StatusInternalServerError)
 		return
 	}
