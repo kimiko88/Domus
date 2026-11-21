@@ -120,6 +120,7 @@ const macroSections: NavMacroSection[] = [
       { name: 'Programmazione', labelKey: 'nav.schedules', path: '/schedules', icon: Clock },
       { name: 'Energia & Solare', labelKey: 'nav.energy', path: '/energy', icon: Sun },
       { name: 'Termostato Predittivo', labelKey: 'nav.predictiveClimate', path: '/climate/predictive', icon: Thermometer },
+      { name: 'Clima & Storico', labelKey: 'nav.climateHistory', path: '/climate/history', icon: Activity },
       { name: 'Audio Multi-room', labelKey: 'nav.media', path: '/media', icon: Music },
       { name: 'Zone & Presenza', labelKey: 'nav.zones', path: '/zones', icon: MapPin }
     ]
