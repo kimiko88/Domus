@@ -446,8 +446,8 @@ async function searchImouRecordings(device: ImouDevice) {
   imouRecordDevice.value = device.deviceId
   imouRecordingBusy.value = true
   try {
-    const begin = new Date(imouRecordingBegin.value).toISOString()
-    const end = new Date(imouRecordingEnd.value).toISOString()
+    const begin = imouRecordingBegin.value
+    const end = imouRecordingEnd.value
     const channel = device.channelList?.[0]?.channelId || '0'
     const query = new URLSearchParams({ begin, end, channel, type: '0', limit: '50' })
     const result = await apiClient.get<{ records: ImouRecording[]; session_id?: string }>(
@@ -463,8 +463,10 @@ async function searchImouRecordings(device: ImouDevice) {
 }
 
 function playImouRecording(device: ImouDevice, record: ImouRecording) {
-  const beginDate = record.beginTime ? new Date(record.beginTime) : new Date(imouRecordingBegin.value)
-  const endDate = record.endTime ? new Date(record.endTime) : new Date(imouRecordingEnd.value)
+  const begin = record.beginTime || imouRecordingBegin.value
+  const end = record.endTime || imouRecordingEnd.value
+  const beginDate = new Date(begin.replace(' ', 'T'))
+  const endDate = new Date(end.replace(' ', 'T'))
   if (Number.isNaN(beginDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate <= beginDate) {
     notificationsStore.error(t('integrations.view.vendors.recordingsError'), t('integrations.view.vendors.invalidRecordingTime'))
     return
