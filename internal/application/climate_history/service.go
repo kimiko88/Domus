@@ -191,9 +191,13 @@ func stringAttribute(attrs map[string]any, keys ...string) string {
 func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 	class := strings.ToLower(fmt.Sprint(attrs["device_class"]))
 	unit := strings.ToLower(ent.UnitOfMeasurement)
+	if unit == "" {
+		unit = strings.ToLower(fmt.Sprint(attrs["unit_of_measurement"]))
+	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
 	return class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
-		strings.Contains(unit, "celsius") || strings.Contains(key, "temperature") || strings.Contains(key, "temperatura")
+		strings.Contains(unit, "celsius") || strings.Contains(unit, "fahrenheit") ||
+		strings.Contains(key, "temperature") || strings.Contains(key, "temperatura")
 }
 
 func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
@@ -409,7 +413,7 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 			}
 		}
 	}
-	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled { out.Rooms = out.Rooms[:0] }
+	if !settings.RoomComparisonEnabled && !settings.RoomMapEnabled && !settings.ThermalAnalysisEnabled && !settings.ForecastEnabled { out.Rooms = out.Rooms[:0] }
 	return out, nil
 }
 
