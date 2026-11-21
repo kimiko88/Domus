@@ -171,6 +171,7 @@ function formatNumber(value?: number, digits = 1) {
   return new Intl.NumberFormat(locale.value, { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(value)
 }
 function roomName(areaId: string) {
+  if (areaId === 'unassigned') return t('climateHistory.unassigned')
   return areasStore.byId(areaId)?.name || availableAreas.value.find(area => area.id === areaId)?.label || areaId
 }
 function insightLabel(code: string) {
