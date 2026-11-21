@@ -249,7 +249,7 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 			SUM(sample_count),SUM(heating_samples)
 		FROM climate_history_hourly WHERE period_start < ?
 		GROUP BY entity_id,area_id,strftime('%Y-%m-%dT00:00:00Z',period_start)
-		ON CONFLICT(entity_id,period_start) DO UPDATE SET
+		ON CONFLICT(entity_id,area_id,period_start) DO UPDATE SET
 			entity_key=excluded.entity_key,entity_name=excluded.entity_name,device_id=excluded.device_id,area_id=excluded.area_id,
 			period_end=excluded.period_end,
 			temperature_sum=climate_history_daily.temperature_sum+excluded.temperature_sum,
