@@ -536,13 +536,22 @@ func viewXiaomiDevice(d xiaomiStoredDevice) xiaomiDeviceView {
 	return xiaomiDeviceView{ID:d.ID,Name:d.Name,IP:d.IP,Model:d.Model,Firmware:d.Firmware,MAC:d.MAC,Hardware:d.Hardware,DeviceID:d.DeviceID,AddedAt:d.AddedAt}
 }
 
-func decodeLimitedJSON(w http.ResponseWriter,r *http.Request,dst any,max int64) bool {
-	if r.Body == nil { writeError(w,http.StatusBadRequest,"INVALID_JSON","Request body is required"); return false }
-	r.Body=http.MaxBytesReader(w,r.Body,max)
-	decoder:=json.NewDecoder(r.Body)
+func decodeLimitedJSON(w http.ResponseWriter, r *http.Request, dst any, max int64) bool {
+	if r.Body == nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "Request body is required")
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, max)
+	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
-	if err:=decoder.Decode(dst); err!=nil { writeError(w,http.StatusBadRequest,"INVALID_JSON","Invalid or oversized JSON request"); return false }
-	if decoder.Decode(new(any)) == nil { writeError(w,http.StatusBadRequest,"INVALID_JSON","Only one JSON value is allowed"); return false }
+	if err := decoder.Decode(dst); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid or oversized JSON request")
+		return false
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "Only one JSON value is allowed")
+		return false
+	}
 	return true
 }
 
