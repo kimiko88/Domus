@@ -134,6 +134,7 @@ func (h *XiaomiHomeHandler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var req imouConfigRequest
@@ -191,6 +192,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ImouLifeHandler) Status(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	config, err := h.loadConfig(r)
 	if err != nil {
 		if errors.Is(err, integration.ErrIntegrationNotFound) {
@@ -309,6 +311,7 @@ func (h *ImouLifeHandler) StreamURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ImouLifeHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	config, err := h.loadConfig(r)
@@ -381,6 +384,7 @@ func (h *ImouLifeHandler) saveConfig(ctx context.Context, config imouStoredConfi
 }
 
 func (h *XiaomiHomeHandler) Status(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	config, err := h.loadConfig(r)
 	if err != nil {
 		if errors.Is(err, integration.ErrIntegrationNotFound) {
@@ -396,6 +400,7 @@ func (h *XiaomiHomeHandler) Status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *XiaomiHomeHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	config, err := h.loadConfig(r)
 	if errors.Is(err, integration.ErrIntegrationNotFound) {
 		writeJSON(w, http.StatusOK, []xiaomiDeviceView{})
@@ -411,6 +416,7 @@ func (h *XiaomiHomeHandler) ListDevices(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *XiaomiHomeHandler) AddDevice(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
 	var req struct {
 		IP string `json:"ip"`
 		Name string `json:"name"`
