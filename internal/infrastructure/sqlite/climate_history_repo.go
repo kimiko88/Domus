@@ -128,13 +128,14 @@ func (r *ClimateHistoryRepository) loadPoints(ctx context.Context, table, timest
 	if aggregate {
 		columns = "entity_id, entity_key, entity_name, device_id, area_id, period_start, " +
 			"temperature_avg, temperature_min, temperature_max, humidity_avg, humidity_min, humidity_max, " +
-			"target_temperature_avg, '' AS hvac_mode, '' AS hvac_action, sample_count, heating_samples, 'aggregate' AS period"
+			"target_temperature_avg, '' AS hvac_mode, '' AS hvac_action, sample_count, heating_samples, 'aggregate' AS period, temperature_count, humidity_count"
 	} else {
 		columns = "entity_id, entity_key, entity_name, device_id, area_id, recorded_at, " +
 			"temperature AS temperature_average, temperature AS temperature_minimum, temperature AS temperature_maximum, " +
 			"humidity AS humidity_average, humidity AS humidity_minimum, humidity AS humidity_maximum, " +
 			"target_temperature AS target_temperature_average, hvac_mode, hvac_action, 1 AS sample_count, " +
-			"CASE WHEN lower(hvac_action) LIKE '%heat%' THEN 1 ELSE 0 END AS heating_samples, 'raw' AS period"
+			"CASE WHEN lower(hvac_action) LIKE '%heat%' THEN 1 ELSE 0 END AS heating_samples, 'raw' AS period, " +
+			"CASE WHEN temperature IS NOT NULL THEN 1 ELSE 0 END AS temperature_count, CASE WHEN humidity IS NOT NULL THEN 1 ELSE 0 END AS humidity_count"
 	}
 	query := "SELECT " + columns + " FROM " + table + where + " ORDER BY " + timestampColumn + " DESC LIMIT ?"
 	args = append(args, limit)
@@ -148,7 +149,7 @@ func (r *ClimateHistoryRepository) loadPoints(ctx context.Context, table, timest
 		var tempAvg, tempMin, tempMax, humidityAvg, humidityMin, humidityMax, target sql.NullFloat64
 		if err := rows.Scan(&p.EntityID, &p.EntityKey, &p.EntityName, &p.DeviceID, &p.AreaID, &at,
 			&tempAvg, &tempMin, &tempMax, &humidityAvg, &humidityMin, &humidityMax, &target,
-			&p.HVACMode, &p.HVACAction, &p.SampleCount, &p.HeatingSamples, &p.Period); err != nil {
+			&p.HVACMode, &p.HVACAction, &p.SampleCount, &p.HeatingSamples, &p.Period, &p.TemperatureCount, &p.HumidityCount); err != nil {
 			return nil, fmt.Errorf("sqlite: scan climate history point: %w", err)
 		}
 		p.RecordedAt, _ = time.Parse(time.RFC3339Nano, at)
