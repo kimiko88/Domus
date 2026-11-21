@@ -52,11 +52,19 @@ func (h *AlarmHandler) Arm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := "user"
+	user := alarmActor(r)
 	panel, err := h.svc.Arm(r.Context(), domainAlarm.State(req.Mode), req.Pin, user)
 	if err != nil {
 		if err == domainAlarm.ErrInvalidPin {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		if err == domainAlarm.ErrPinNotConfigured {
+			http.Error(w, "configure an alarm PIN before using the alarm", http.StatusConflict)
+			return
+		}
+		if err == domainAlarm.ErrPinRateLimited {
+			http.Error(w, "too many invalid PIN attempts; try again later", http.StatusTooManyRequests)
 			return
 		}
 		if err == domainAlarm.ErrInvalidMode {
@@ -82,11 +90,19 @@ func (h *AlarmHandler) Disarm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := "user"
+	user := alarmActor(r)
 	panel, err := h.svc.Disarm(r.Context(), req.Pin, user)
 	if err != nil {
 		if err == domainAlarm.ErrInvalidPin {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		if err == domainAlarm.ErrPinNotConfigured {
+			http.Error(w, "configure an alarm PIN before using the alarm", http.StatusConflict)
+			return
+		}
+		if err == domainAlarm.ErrPinRateLimited {
+			http.Error(w, "too many invalid PIN attempts; try again later", http.StatusTooManyRequests)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -142,4 +158,11 @@ func (h *AlarmHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(panel)
+}
+
+func alarmActor(r *http.Request) string {
+	if u := domusmw.GetUser(r.Context()); u != nil && u.ID != "" {
+		return u.ID
+	}
+	return "anonymous"
 }
