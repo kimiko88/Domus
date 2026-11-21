@@ -292,6 +292,7 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 		if len(series) == 0 { continue }
 		first, last := series[0], series[len(series)-1]
 		name, area := last.EntityName, last.AreaID
+		if area == "" { area = "unassigned" }
 		if last.TemperatureAverage != nil {
 			v := *last.TemperatureAverage
 			if settings.TemperatureAlertsEnabled {
