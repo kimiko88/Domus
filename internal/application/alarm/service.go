@@ -335,12 +335,12 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 	`)
 
 	var cp alarm.ControlPanel
+	var pinHash, lastChangedBy, lastTriggeredReason sql.NullString
 	var perimJSON, interiorJSON, sirenJSON string
-	var lastChangedBy, lastTriggeredReason sql.NullString
 	var triggeredAt sql.NullTime
 
 	err := row.Scan(
-		&cp.ID, &cp.Name, &cp.State, &cp.PinHash, &cp.EntryDelaySeconds, &cp.ExitDelaySeconds, &cp.TriggerDelaySeconds,
+		&cp.ID, &cp.Name, &cp.State, &pinHash, &cp.EntryDelaySeconds, &cp.ExitDelaySeconds, &cp.TriggerDelaySeconds,
 		&perimJSON, &interiorJSON, &sirenJSON,
 		&lastChangedBy, &lastTriggeredReason, &triggeredAt, &cp.UpdatedAt,
 	)
@@ -371,6 +371,7 @@ func (s *Service) getPanelUnsafe(ctx context.Context) (*alarm.ControlPanel, erro
 		return nil, err
 	}
 
+	cp.PinHash = pinHash.String
 	_ = json.Unmarshal([]byte(perimJSON), &cp.PerimeterSensors)
 	_ = json.Unmarshal([]byte(interiorJSON), &cp.InteriorSensors)
 	_ = json.Unmarshal([]byte(sirenJSON), &cp.SirenEntities)
