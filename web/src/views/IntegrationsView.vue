@@ -204,7 +204,13 @@ const imouRecordings = ref<ImouRecording[]>([])
 const imouRecordingBegin = ref(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 16))
 const imouRecordingEnd = ref(new Date().toISOString().slice(0, 16))
 const imouRecordingBusy = ref(false)
+const imouRecordingPreviewURL = ref('')
+const imouRecordingPreviewDevice = ref<string | null>(null)
 const imouPtzBusy = ref<string | null>(null)
+const xiaomiCloudExpiresAt = ref('')
+const imouExpiresAt = ref('')
+const imouAdminTokenExpiresAt = ref('')
+const imouPushEnabled = ref(false)
 
 async function loadXiaomiVendorData() {
   try {
@@ -221,6 +227,7 @@ async function loadXiaomiVendorData() {
     xiaomiCloudRegion.value = cloud.region || 'eu'
     xiaomiCloudCallback.value = cloud.callback_url || ''
     xiaomiCloudEventCallback.value = cloud.events_callback_url || ''
+    xiaomiCloudExpiresAt.value = cloud.expires_at || ''
     if (cloud.connected) await Promise.all([loadXiaomiCloudDevices(), loadXiaomiHomes()])
   } catch {
     xiaomiCloudError.value = t('integrations.view.vendors.statusError')
@@ -332,7 +339,8 @@ async function loadImouVendorData() {
     const status = await apiClient.get<{
       configured: boolean; connected: boolean; data_center?: string
       callback_url?: string; events_callback_url?: string
-      authorization_url?: string
+      authorization_url?: string; access_token_expires_at?: string
+      admin_token_expires_at?: string; push_enabled?: boolean
     }>('/api/v1/integrations/imou-life/status')
     imouConfigured.value = status.configured
     imouConnected.value = status.connected
@@ -340,6 +348,9 @@ async function loadImouVendorData() {
     imouCallback.value = status.callback_url || ''
     imouEventsCallback.value = status.events_callback_url || ''
     imouAuthorizationURL.value = status.authorization_url || ''
+    imouExpiresAt.value = status.access_token_expires_at || ''
+    imouAdminTokenExpiresAt.value = status.admin_token_expires_at || ''
+    imouPushEnabled.value = Boolean(status.push_enabled)
     if (status.connected) await loadImouDevices()
   } catch {
     imouError.value = t('integrations.view.vendors.statusError')
@@ -450,6 +461,59 @@ async function searchImouRecordings(device: ImouDevice) {
     imouRecordingBusy.value = false
   }
 }
+
+function playImouRecording(device: ImouDevice, record: ImouRecording) {
+  const beginDate = record.beginTime ? new Date(record.beginTime) : new Date(imouRecordingBegin.value)
+  const endDate = record.endTime ? new Date(record.endTime) : new Date(imouRecordingEnd.value)
+  if (Number.isNaN(beginDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate <= beginDate) {
+    notificationsStore.error(t('integrations.view.vendors.recordingsError'), t('integrations.view.vendors.invalidRecordingTime'))
+    return
+  }
+  const channel = device.channelList?.[0]?.channelId || '0'
+  const query = new URLSearchParams({
+    channel,
+    stream: '0',
+    business_type: 'localRecord',
+    begin: beginDate.toISOString(),
+    end: endDate.toISOString()
+  })
+  imouRecordingPreviewDevice.value = device.deviceId
+  imouRecordingPreviewURL.value = `/api/v1/integrations/imou-life/devices/${encodeURIComponent(device.deviceId)}/recording-preview?${query.toString()}`
+}
+
+async function disconnectImouLife() {
+  if (!window.confirm(t('integrations.view.vendors.confirmDisconnect'))) return
+  try {
+    await apiClient.post('/api/v1/integrations/imou-life/disconnect', {})
+    imouDevices.value = []
+    imouCapabilities.value = {}
+    imouPreviewDevice.value = null
+    imouRecordingPreviewDevice.value = null
+    imouRecordingPreviewURL.value = ''
+    await loadImouVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.disconnectError'), t('integrations.view.vendors.disconnectErrorDesc'))
+  }
+}
+
+async function disconnectXiaomiCloud() {
+  if (!window.confirm(t('integrations.view.vendors.confirmDisconnect'))) return
+  try {
+    await apiClient.post('/api/v1/integrations/xiaomi-home/cloud/disconnect', {})
+    xiaomiCloudDevices.value = []
+    xiaomiCloudHomes.value = []
+    await loadXiaomiVendorData()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.disconnectError'), t('integrations.view.vendors.disconnectErrorDesc'))
+  }
+}
+
+function formatVendorDate(value: string) {
+  if (!value) return t('integrations.view.vendors.notAvailable')
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? t('integrations.view.vendors.notAvailable') : date.toLocaleString(locale.value)
+}
+
 
 const tuyaSelectedCount = computed(() =>
   tuyaCloudDevices.value.filter(device => selectedTuyaDeviceIds.value.includes(device.id)).length
