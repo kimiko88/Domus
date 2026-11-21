@@ -9,6 +9,7 @@ import (
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	appclimatehistory "github.com/domus-hub/domus/internal/application/climate_history"
@@ -104,10 +105,10 @@ func (h *ClimateHistoryHandler) ExportCSV(w http.ResponseWriter, r *http.Request
 	_ = writer.Write([]string{"recorded_at", "area_id", "entity_id", "entity_name", "period", "temperature_avg_c", "temperature_min_c", "temperature_max_c", "humidity_avg_percent", "humidity_min_percent", "humidity_max_percent", "target_temperature_c", "hvac_mode", "hvac_action", "sample_count"})
 	for _, p := range points {
 		_ = writer.Write([]string{
-			p.RecordedAt.UTC().Format(time.RFC3339), p.AreaID, p.EntityID, p.EntityName, p.Period,
+			p.RecordedAt.UTC().Format(time.RFC3339), safeCSVText(p.AreaID), safeCSVText(p.EntityID), safeCSVText(p.EntityName), safeCSVText(p.Period),
 			formatOptionalFloat(p.TemperatureAverage), formatOptionalFloat(p.TemperatureMinimum), formatOptionalFloat(p.TemperatureMaximum),
 			formatOptionalFloat(p.HumidityAverage), formatOptionalFloat(p.HumidityMinimum), formatOptionalFloat(p.HumidityMaximum),
-			formatOptionalFloat(p.TargetTemperatureAvg), p.HVACMode, p.HVACAction, strconv.Itoa(p.SampleCount),
+			formatOptionalFloat(p.TargetTemperatureAvg), safeCSVText(p.HVACMode), safeCSVText(p.HVACAction), strconv.Itoa(p.SampleCount),
 		})
 	}
 	writer.Flush()
@@ -169,6 +170,20 @@ func parseClimateFilter(w http.ResponseWriter, r *http.Request) (domclimatehisto
 		filter.Limit = limit
 	}
 	return filter, true
+}
+
+// safeCSVText prevents sensor-controlled labels from being interpreted as formulas by spreadsheet applications.
+func safeCSVText(value string) string {
+	trimmed := strings.TrimLeft(value, " 	\r\n")
+	if trimmed == "" {
+		return value
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + value
+	default:
+		return value
+	}
 }
 
 func formatOptionalFloat(value *float64) string {
