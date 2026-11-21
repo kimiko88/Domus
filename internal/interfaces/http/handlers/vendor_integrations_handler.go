@@ -227,6 +227,10 @@ func (h *ImouLifeHandler) Authorization(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	secret := chi.URLParam(r, "secret")
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
 	if len(secret) != 64 || code == "" || len(code) > 2048 {
