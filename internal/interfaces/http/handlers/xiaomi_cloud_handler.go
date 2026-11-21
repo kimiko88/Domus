@@ -533,7 +533,7 @@ func (h *XiaomiCloudHandler) EventCallback(w http.ResponseWriter, r *http.Reques
 	}
 	switch callback.Topic {
 	case "properties-changed":
-		config, client, tokenErr := h.ensureFreshToken(r.Context())
+		_, client, tokenErr := h.ensureFreshToken(r.Context())
 		if tokenErr != nil {
 			h.forgetEvent(eventKey)
 			http.Error(w, "Xiaomi cloud token is unavailable", http.StatusServiceUnavailable)
