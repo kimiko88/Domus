@@ -288,6 +288,104 @@ async function removeBroadlinkDevice(device: BroadlinkDevice) {
   }
 }
 
+// --- VeSync cloud integration ---
+interface VeSyncDevice {
+  id: string; name: string; model: string; device_type: string; config_module?: string
+  product_type: string; status?: string; connection_status?: string; firmware?: string
+  supported_modes?: string[]; fan_levels?: number[]
+}
+const vesyncConfigured = ref(false)
+const vesyncConnected = ref(false)
+const vesyncRegion = ref('')
+const vesyncDevices = ref<VeSyncDevice[]>([])
+const vesyncForm = reactive({ email: '', password: '', country_code: 'IT', time_zone: 'Europe/Rome' })
+const vesyncBusy = ref(false)
+const vesyncRefreshing = ref(false)
+const vesyncError = ref('')
+const vesyncCommandBusy = ref('')
+const vesyncModes = reactive<Record<string, string>>({})
+const vesyncFanLevels = reactive<Record<string, number>>({})
+
+async function loadVeSyncData() {
+  try {
+    const status = await apiClient.get<{ configured: boolean; connected: boolean; region?: string }>('/api/v1/integrations/vesync/status')
+    vesyncConfigured.value = status.configured
+    vesyncConnected.value = status.connected
+    vesyncRegion.value = status.region || ''
+    vesyncError.value = ''
+    if (status.connected) await refreshVeSyncDevices()
+    else vesyncDevices.value = []
+  } catch {
+    vesyncError.value = t('integrations.view.vendors.vesyncLoadError')
+  }
+}
+
+async function configureVeSync() {
+  vesyncBusy.value = true
+  vesyncError.value = ''
+  try {
+    await apiClient.put('/api/v1/integrations/vesync/config', vesyncForm)
+    vesyncForm.password = ''
+    notificationsStore.success(t('integrations.view.vendors.vesyncConfigured'), t('integrations.view.vendors.vesyncConfiguredDesc'))
+    await loadVeSyncData()
+  } catch {
+    vesyncError.value = t('integrations.view.vendors.vesyncConfigureError')
+    notificationsStore.error(t('integrations.view.vendors.vesyncConfigureError'), t('integrations.view.vendors.vesyncConfigureErrorDesc'))
+  } finally {
+    vesyncBusy.value = false
+  }
+}
+
+async function refreshVeSyncDevices() {
+  vesyncRefreshing.value = true
+  try {
+    const result = await apiClient.get<{ devices: VeSyncDevice[] }>('/api/v1/integrations/vesync/devices')
+    vesyncDevices.value = result.devices || []
+    for (const device of vesyncDevices.value) {
+      if (!vesyncModes[device.id] && device.supported_modes?.length) vesyncModes[device.id] = device.supported_modes[0]
+      if (!vesyncFanLevels[device.id] && device.fan_levels?.length) vesyncFanLevels[device.id] = device.fan_levels[0]
+    }
+    vesyncError.value = ''
+  } catch {
+    vesyncError.value = t('integrations.view.vendors.vesyncDevicesError')
+  } finally {
+    vesyncRefreshing.value = false
+  }
+}
+
+async function sendVeSyncCommand(device: VeSyncDevice, action: 'refresh' | 'set_power' | 'set_mode' | 'set_fan_level', value?: boolean | string | number) {
+  const key = `${device.id}:${action}`
+  vesyncCommandBusy.value = key
+  try {
+    await apiClient.post(`/api/v1/integrations/vesync/devices/${encodeURIComponent(device.id)}/commands`, { action, value })
+    notificationsStore.success(t('integrations.view.vendors.vesyncCommandSent'), t('integrations.view.vendors.vesyncCommandSentDesc', { name: device.name }))
+    if (action === 'refresh') await refreshVeSyncDevices()
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.vesyncCommandError'), t('integrations.view.vendors.vesyncCommandErrorDesc'))
+  } finally {
+    vesyncCommandBusy.value = ''
+  }
+}
+
+async function disconnectVeSync() {
+  vesyncBusy.value = true
+  try {
+    await apiClient.post('/api/v1/integrations/vesync/disconnect', {})
+    vesyncConnected.value = false
+    vesyncConfigured.value = false
+    vesyncDevices.value = []
+    notificationsStore.success(t('integrations.view.vendors.vesyncDisconnected'), t('integrations.view.vendors.vesyncDisconnectedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.vendors.disconnectError'), t('integrations.view.vendors.disconnectErrorDesc'))
+  } finally {
+    vesyncBusy.value = false
+  }
+}
+
+function isVeSyncPurifier(device: VeSyncDevice) {
+  return device.product_type === 'purifier' && (device.supported_modes?.length || 0) > 0
+}
+
 // --- Xiaomi Home and Imou Life administration ---
 interface XiaomiLocalDevice {
   id: string; name: string; ip: string; model?: string; firmware?: string; mac?: string; device_id?: number
@@ -1496,6 +1594,7 @@ onMounted(() => {
   fetchGuardianData()
   fetchTuyaConfig()
   loadXiaomiVendorData()
+  loadVeSyncData()
   loadImouVendorData()
   loadBroadlinkDevices()
 })
@@ -1563,7 +1662,7 @@ onMounted(() => {
         </button>
         <button
           :class="['tab-btn', { active: activeTab === 'vendors' }]"
-          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadImouVendorData()"
+          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadVeSyncData(); loadImouVendorData()"
         >
           <Activity :size="16" />
           <span>{{ t('integrations.view.vendors.title') }}</span>
@@ -2292,7 +2391,7 @@ onMounted(() => {
             <p class="disc-sub">{{ t('integrations.view.vendors.subtitle') }}</p>
           </div>
         </div>
-        <button class="btn-scan" @click="loadXiaomiVendorData(); loadImouVendorData(); loadBroadlinkDevices()">
+        <button class="btn-scan" @click="loadXiaomiVendorData(); loadVeSyncData(); loadImouVendorData(); loadBroadlinkDevices()">
           <RefreshCw :size="15" />
           {{ t('integrations.view.vendors.refresh') }}
         </button>
@@ -2493,6 +2592,87 @@ onMounted(() => {
           </div>
         </div>
         <div v-else class="vendor-empty">{{ t('integrations.view.vendors.noLocalDevices') }}</div>
+      </section>
+
+
+      <section class="vendor-section glass-card vesync-section">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.vesyncTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.vesyncDesc') }}</p>
+          </div>
+          <span :class="['status-badge', vesyncConnected ? 'status-online' : 'status-offline']">
+            {{ vesyncConnected ? t('integrations.view.vendors.connected') : t('integrations.view.vendors.disconnected') }}
+          </span>
+        </div>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.vesyncCloudOnlyHint') }}</p>
+        <form class="vendor-form-grid" @submit.prevent="configureVeSync">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.vesyncEmail') }}</span>
+            <input v-model="vesyncForm.email" class="form-control glass-panel" type="email" required autocomplete="username" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.vesyncPassword') }}</span>
+            <input v-model="vesyncForm.password" class="form-control glass-panel" type="password" required autocomplete="current-password" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.vesyncCountry') }}</span>
+            <select v-model="vesyncForm.country_code" class="form-control glass-panel">
+              <option value="IT">Italia</option>
+              <option value="DE">Deutschland</option>
+              <option value="FR">France</option>
+              <option value="ES">España</option>
+              <option value="GB">United Kingdom</option>
+              <option value="US">United States</option>
+              <option value="CA">Canada</option>
+              <option value="JP">Japan</option>
+            </select>
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.vesyncTimeZone') }}</span>
+            <input v-model="vesyncForm.time_zone" class="form-control glass-panel" required placeholder="Europe/Rome" />
+          </label>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="vesyncBusy || !vesyncForm.email || !vesyncForm.password">
+              <RefreshCw v-if="vesyncBusy" :size="14" class="animate-spin" />
+              <Key v-else :size="14" />
+              {{ vesyncBusy ? t('integrations.view.vendors.vesyncConnecting') : t('integrations.view.vendors.vesyncConnect') }}
+            </button>
+            <button v-if="vesyncConnected" class="btn-action glass-panel" type="button" :disabled="vesyncRefreshing" @click="refreshVeSyncDevices">
+              <RefreshCw :size="14" :class="{ 'animate-spin': vesyncRefreshing }" /> {{ t('integrations.view.vendors.refreshDevices') }}
+            </button>
+            <button v-if="vesyncConnected" class="btn-action glass-panel" type="button" :disabled="vesyncBusy" @click="disconnectVeSync">
+              <Unlock :size="14" /> {{ t('integrations.view.vendors.disconnect') }}
+            </button>
+          </div>
+        </form>
+        <div v-if="vesyncConnected" class="vendor-connected-meta">
+          <span>{{ t('integrations.view.vendors.vesyncRegion') }}: {{ vesyncRegion.toUpperCase() }} · {{ t('integrations.view.vendors.vesyncDeviceCount', { count: vesyncDevices.length }) }}</span>
+        </div>
+        <p v-if="vesyncError" class="vendor-error">{{ vesyncError }}</p>
+        <div v-if="vesyncConnected && !vesyncDevices.length && !vesyncRefreshing" class="vendor-empty">{{ t('integrations.view.vendors.vesyncNoDevices') }}</div>
+        <div v-if="vesyncDevices.length" class="vendor-device-list">
+          <article v-for="device in vesyncDevices" :key="device.id" class="vendor-device-row vesync-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.model }} · {{ device.status || t('integrations.view.vendors.statusUnknown') }} · {{ device.connection_status || t('integrations.view.vendors.statusUnknown') }}</span>
+              <small v-if="device.firmware" class="vendor-hint">{{ t('integrations.view.vendors.firmware') }}: {{ device.firmware }}</small>
+              <div v-if="isVeSyncPurifier(device)" class="vendor-device-controls">
+                <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_power', true)">{{ t('integrations.view.vendors.xiaomiPowerOn') }}</button>
+                <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_power', false)">{{ t('integrations.view.vendors.xiaomiPowerOff') }}</button>
+                <select v-model="vesyncModes[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.vesyncMode')">
+                  <option v-for="mode in device.supported_modes || []" :key="mode" :value="mode">{{ mode }}</option>
+                </select>
+                <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_mode', vesyncModes[device.id])">{{ t('integrations.view.vendors.vesyncApplyMode') }}</button>
+                <select v-model.number="vesyncFanLevels[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.vesyncFanLevel')">
+                  <option v-for="level in device.fan_levels || []" :key="level" :value="level">{{ level }}</option>
+                </select>
+                <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy.startsWith(`${device.id}:`)" @click="sendVeSyncCommand(device, 'set_fan_level', vesyncFanLevels[device.id])">{{ t('integrations.view.vendors.vesyncApplyFanLevel') }}</button>
+                <button class="btn-action glass-panel" type="button" :disabled="vesyncCommandBusy === `${device.id}:refresh`" @click="sendVeSyncCommand(device, 'refresh')">{{ t('integrations.view.vendors.vesyncRefreshStatus') }}</button>
+              </div>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="vendor-section glass-card">
@@ -4313,6 +4493,9 @@ onMounted(() => {
 .vendor-connected-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; }
 .vendor-discovery-block { display: flex; flex-direction: column; gap: 10px; }
 .vendor-device-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
+.vesync-device-row { align-items: flex-start; }
+.vesync-device-row .vendor-device-info { min-width: 0; flex: 1; }
+
 .vendor-device-controls .form-control { width: auto; min-width: 118px; min-height: 36px; }
 .vendor-device-list { display: flex; flex-direction: column; gap: 8px; }
 .vendor-device-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); }
