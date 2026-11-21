@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+func TestSignMatchesImouWorkedExample(t *testing.T) {
+	client, err := NewClient(Config{AccessKey:"test-app",SecretKey:"test123456789test123456789",DataCenter:"fk"},nil)
+	if err != nil { t.Fatal(err) }
+	got := client.sign(1706511734,"f5a1ae2d-c09c-4d39-a744-83a5c2c653c2")
+	want := "xjhCQBoJ9hRDsCjyDcHjtDNzRZ3ZJezcawsfWeiaoxU="
+	if got != want { t.Fatalf("signature mismatch: got %q want %q",got,want) }
+}
+
 func TestValidAPIMethod(t *testing.T) {
 	valid := []string{"getStreamUrl", "v2/device.detail.page", "v2/device.get"}
 	for _, method := range valid {
