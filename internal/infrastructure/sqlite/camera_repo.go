@@ -7,12 +7,20 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/camera"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/google/uuid"
 )
 
 // CameraRepository implements camera.Repository for SQLite.
 type CameraRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	cipher *crypto.EnvelopeCipher
+}
+
+// WithCipher enables transparent encryption of camera stream credentials at rest.
+func (r *CameraRepository) WithCipher(cipher *crypto.EnvelopeCipher) *CameraRepository {
+	r.cipher = cipher
+	return r
 }
 
 // NewCameraRepository creates a new SQLite-backed CameraRepository.
@@ -48,13 +56,25 @@ func (r *CameraRepository) SaveCamera(ctx context.Context, cam *camera.Camera) e
 			detection_enabled = excluded.detection_enabled,
 			updated_at = excluded.updated_at
 	`
+	streamURL, snapshotURL := cam.StreamURL, cam.SnapshotURL
+	if r.cipher != nil {
+		var err error
+		streamURL, err = r.cipher.Encrypt(streamURL)
+		if err != nil {
+			return fmt.Errorf("sqlite: encrypt camera stream URL: %w", err)
+		}
+		snapshotURL, err = r.cipher.Encrypt(snapshotURL)
+		if err != nil {
+			return fmt.Errorf("sqlite: encrypt camera snapshot URL: %w", err)
+		}
+	}
 	_, err := r.db.ExecContext(
 		ctx, query,
 		cam.ID,
 		cam.Name,
 		cam.AreaID,
-		cam.StreamURL,
-		cam.SnapshotURL,
+		streamURL,
+		snapshotURL,
 		string(cam.StreamType),
 		detEnabledInt,
 		cam.CreatedAt.Format(time.RFC3339),
@@ -113,6 +133,9 @@ func (r *CameraRepository) GetCamera(ctx context.Context, id string) (*camera.Ca
 	if t, err := time.Parse(time.RFC3339, updatedStr); err == nil {
 		cam.UpdatedAt = t
 	}
+	if err := r.decryptAndMigrateCamera(ctx, &cam); err != nil {
+		return nil, err
+	}
 
 	return &cam, nil
 }
@@ -165,6 +188,9 @@ func (r *CameraRepository) ListCameras(ctx context.Context) ([]*camera.Camera, e
 		}
 		if t, err := time.Parse(time.RFC3339, updatedStr); err == nil {
 			cam.UpdatedAt = t
+		}
+		if err := r.decryptAndMigrateCamera(ctx, &cam); err != nil {
+			return nil, err
 		}
 		cameras = append(cameras, &cam)
 	}
@@ -280,4 +306,37 @@ func (r *CameraRepository) ListEvents(ctx context.Context, cameraID string, limi
 		events = []*camera.DetectionEvent{}
 	}
 	return events, nil
+}
+
+func (r *CameraRepository) decryptAndMigrateCamera(ctx context.Context, cam *camera.Camera) error {
+	if r.cipher == nil {
+		return nil
+	}
+	streamWasEncrypted := r.cipher.IsEncrypted(cam.StreamURL)
+	snapshotWasEncrypted := r.cipher.IsEncrypted(cam.SnapshotURL)
+	streamURL, err := r.cipher.Decrypt(cam.StreamURL)
+	if err != nil {
+		return fmt.Errorf("sqlite: decrypt camera stream URL: %w", err)
+	}
+	snapshotURL, err := r.cipher.Decrypt(cam.SnapshotURL)
+	if err != nil {
+		return fmt.Errorf("sqlite: decrypt camera snapshot URL: %w", err)
+	}
+	// Encrypt credentials from older plaintext rows on first access.
+	if !streamWasEncrypted || (!snapshotWasEncrypted && snapshotURL != "") {
+		encryptedStream, encErr := r.cipher.Encrypt(streamURL)
+		if encErr != nil {
+			return fmt.Errorf("sqlite: migrate camera stream URL: %w", encErr)
+		}
+		encryptedSnapshot, encErr := r.cipher.Encrypt(snapshotURL)
+		if encErr != nil {
+			return fmt.Errorf("sqlite: migrate camera snapshot URL: %w", encErr)
+		}
+		if _, err := r.db.ExecContext(ctx, "UPDATE cameras SET stream_url = ?, snapshot_url = ? WHERE id = ?", encryptedStream, encryptedSnapshot, cam.ID); err != nil {
+			return fmt.Errorf("sqlite: persist encrypted camera credentials: %w", err)
+		}
+	}
+	cam.StreamURL = streamURL
+	cam.SnapshotURL = snapshotURL
+	return nil
 }
