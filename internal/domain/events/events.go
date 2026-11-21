@@ -44,8 +44,14 @@ const (
 	// NotificationCreated fires when an internal notification is generated.
 	NotificationCreated EventType = "notification.created"
 
-	// CameraDetected fires when an object (person, vehicle, animal, package) is detected by Frigate/camera vision.
+	// CameraDetected fires when a camera reports a generic detection.
 	CameraDetected EventType = "camera.detected"
+	// CameraMotionDetected fires when an Imou or local camera reports motion.
+	CameraMotionDetected EventType = "camera.motion_detected"
+	// CameraPersonDetected fires when a camera reports a person/human detection.
+	CameraPersonDetected EventType = "camera.person_detected"
+	// CameraAlarmReceived fires when a camera reports a security alarm event.
+	CameraAlarmReceived EventType = "camera.alarm_received"
 
 	// TagScanned fires when an NFC tag or QR code is scanned.
 	TagScanned EventType = "tag.scanned"
