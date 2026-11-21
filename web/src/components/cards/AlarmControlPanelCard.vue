@@ -414,7 +414,10 @@ const statusClass = computed(() => {
 
 .pin-dots {
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 240px;
 }
 
 .pin-dot {
