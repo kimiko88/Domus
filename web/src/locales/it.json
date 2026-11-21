@@ -1552,7 +1552,7 @@
       "noProductsForStore": "Nessun prodotto trovato per il supermercato \"{store}\".",
       "allPurchasedOrEmpty": "Tutti gli articoli sono stati acquistati o la lista è vuota.",
       "receiptTitle": "Scansiona scontrino spesa",
-      "receiptIntro": "Scatta una foto, carica un’immagine o un PDF oppure incolla il testo. Verifica i prodotti prima di confermare.",
+      "receiptIntro": "Scansiona lo scontrino con la fotocamera dell’iPhone, scegli un’immagine o carica il PDF creato da File > Scansiona documenti. Controlla i dati estratti prima dell’importazione.",
       "closeScanner": "Chiudi scanner",
       "compareWithList": "Confronto con la lista della spesa",
       "noAutoMatches": "Nessuna corrispondenza automatica: puoi comunque verificare lo scontrino e confermare l’importazione.",
