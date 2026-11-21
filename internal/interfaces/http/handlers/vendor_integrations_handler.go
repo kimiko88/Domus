@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 	"net/url"
 	"strings"
 	"sync"
@@ -132,6 +134,8 @@ func (h *XiaomiHomeHandler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	var req imouConfigRequest
 	if !decodeLimitedJSON(w, r, &req, 16*1024) {
 		return
@@ -198,7 +202,8 @@ func (h *ImouLifeHandler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"configured":true,
-		"connected":config.AccessToken != "" && time.Now().Before(config.ExpiresAt),
+		"connected":config.AccessToken != "" && config.RefreshToken != "",
+		"access_token_expires_at":config.ExpiresAt,
 		"data_center":config.DataCenter,
 		"expires_at":config.ExpiresAt,
 		"authorization_url":config.AuthorizationURL,
@@ -264,10 +269,10 @@ func (h *ImouLifeHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	page := 1
 	pageSize := 50
 	if value := r.URL.Query().Get("page"); value != "" {
-		if _, err := fmt.Sscanf(value, "%d", &page); err != nil { page = 0 }
+		if parsed, err := strconv.Atoi(value); err == nil { page = parsed } else { page = 0 }
 	}
 	if value := r.URL.Query().Get("page_size"); value != "" {
-		if _, err := fmt.Sscanf(value, "%d", &pageSize); err != nil { pageSize = 0 }
+		if parsed, err := strconv.Atoi(value); err == nil { pageSize = parsed } else { pageSize = 0 }
 	}
 	devices, count, err := client.ListDevices(r.Context(), config.AccessToken, page, pageSize)
 	if err != nil {
@@ -288,10 +293,10 @@ func (h *ImouLifeHandler) StreamURL(w http.ResponseWriter, r *http.Request) {
 	channel := 0
 	stream := 0
 	if value := r.URL.Query().Get("channel"); value != "" {
-		if _, err := fmt.Sscanf(value, "%d", &channel); err != nil { channel = -1 }
+		if parsed, err := strconv.Atoi(value); err == nil { channel = parsed } else { channel = -1 }
 	}
 	if value := r.URL.Query().Get("stream"); value != "" {
-		if _, err := fmt.Sscanf(value, "%d", &stream); err != nil { stream = -1 }
+		if parsed, err := strconv.Atoi(value); err == nil { stream = parsed } else { stream = -1 }
 	}
 	streamURL, err := client.GetStreamURL(r.Context(), config.AccessToken, deviceID, channel, stream)
 	if err != nil {
@@ -304,6 +309,8 @@ func (h *ImouLifeHandler) StreamURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ImouLifeHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	config, err := h.loadConfig(r)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "NOT_CONFIGURED", "Imou integration is not configured")
@@ -371,15 +378,6 @@ func (h *ImouLifeHandler) saveConfig(ctx context.Context, config imouStoredConfi
 	record.ConfigEncrypted = []byte(encrypted)
 	if err := h.repo.Create(ctx, record); err != nil { return err }
 	return h.repo.SetStatus(ctx, imouIntegrationID, status, "")
-}
-
-func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) { // kept as an explicit router capability
-	r.Get("/status", h.Status)
-	r.Put("/config", h.Configure)
-	r.Get("/authorize", h.Authorization)
-	r.Get("/devices", h.Devices)
-	r.Get("/devices/{deviceID}/stream", h.StreamURL)
-	r.Post("/disconnect", h.Disconnect)
 }
 
 func (h *XiaomiHomeHandler) Status(w http.ResponseWriter, r *http.Request) {
