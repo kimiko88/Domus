@@ -3573,6 +3573,8 @@
       "load": "Raumklima-Verlauf konnte nicht geladen werden.",
       "save": "Einstellungen konnten nicht gespeichert werden.",
       "export": "Klimadaten konnten nicht exportiert werden."
-    }
+    },
+    "heatingRate": "Heizrate",
+    "coolingRate": "Abkühlrate"
   }
 }
