@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -189,9 +190,13 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_URL", "Public callback base URL cannot contain credentials, query or fragment")
 		return
 	}
-	var secretBytes [32]byte
-	if _, err := rand.Read(secretBytes[:]); err != nil {
-		writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "Could not create callback secret")
+	var callbackSecret, eventSecret [32]byte
+	if _, err := rand.Read(callbackSecret[:]); err != nil {
+		writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "Could not create OAuth callback secret")
+		return
+	}
+	if _, err := rand.Read(eventSecret[:]); err != nil {
+		writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "Could not create event callback secret")
 		return
 	}
 	config := imouStoredConfig{
@@ -200,8 +205,8 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		DataCenter:req.DataCenter,
 		AuthorizationURL:strings.TrimSpace(req.AuthorizationURL),
 		PublicBaseURL:strings.TrimRight(req.PublicBaseURL, "/"),
-		CallbackSecret:hex.EncodeToString(secretBytes[:]),
-		EventSecret:hex.EncodeToString(secretBytes[:]),
+		CallbackSecret:hex.EncodeToString(callbackSecret[:]),
+		EventSecret:hex.EncodeToString(eventSecret[:]),
 	}
 	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}, nil); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou API configuration")
@@ -408,12 +413,12 @@ func (h *ImouLifeHandler) EventCallback(w http.ResponseWriter, r *http.Request) 
 	if eventKey == "" {
 		eventKey = strings.Join([]string{deviceID, channelID, message.MessageType, strconv.FormatInt(message.OccurredUnix, 10), message.AlarmID}, ":")
 	}
-	if !h.acceptEvent(eventKey) {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	if h.bus == nil {
 		http.Error(w, "Domus event bus is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if !h.acceptEvent(eventKey) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	occurredAt := time.Now().UTC()
@@ -551,7 +556,22 @@ func (h *ImouLifeHandler) ReadProperties(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	deviceID := chi.URLParam(r, "deviceID")
-	ids := strings.Split(r.URL.Query().Get("ids"), ",")
+	rawIDs := strings.Split(r.URL.Query().Get("ids"), ",")
+	ids := make([]string, 0, len(rawIDs))
+	seenIDs := make(map[string]bool)
+	for _, rawID := range rawIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" || seenIDs[id] || !validImouCapabilityID(id) {
+			writeError(w, http.StatusBadRequest, "INVALID_PROPERTY_IDS", "Property identifiers must be non-empty, unique capability IDs")
+			return
+		}
+		seenIDs[id] = true
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 || len(ids) > 64 {
+		writeError(w, http.StatusBadRequest, "INVALID_PROPERTY_IDS", "Provide between 1 and 64 property identifiers")
+		return
+	}
 	channelID := r.URL.Query().Get("channel")
 	capabilities, err := client.ListCapabilities(r.Context(), config.AccessToken, deviceID, channelID)
 	if err != nil {
@@ -643,17 +663,21 @@ func (h *ImouLifeHandler) InvokeService(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadGateway, "IMOU_CAPABILITIES_ERROR", "Could not verify service availability")
 		return
 	}
-	allowed := false
+	var selected *imou_life.CapabilityService
 	for _, capability := range capabilities {
-		for _, service := range capability.Services {
-			if service.ServiceID == serviceID {
-				allowed = true
+		for i := range capability.Services {
+			if capability.Services[i].ServiceID == serviceID {
+				selected = &capability.Services[i]
 				break
 			}
 		}
 	}
-	if !allowed {
+	if selected == nil {
 		writeError(w, http.StatusForbidden, "SERVICE_NOT_SUPPORTED", "Service is not advertised by this device")
+		return
+	}
+	if err := validateImouServiceInput(*selected, req.Input); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_SERVICE_INPUT", err.Error())
 		return
 	}
 	result, err := client.InvokeService(r.Context(), config.AccessToken, deviceID, req.ChannelID, serviceID, req.Input)
@@ -1109,4 +1133,89 @@ func validHTTPSURL(raw string, allowQuery bool) bool {
 	if err!=nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || u.Fragment!="" { return false }
 	if !allowQuery && u.RawQuery!="" { return false }
 	return true
+}
+
+func validImouCapabilityID(id string) bool {
+	if id == "" || len(id) > 160 { return false }
+	for _, part := range strings.Split(id, ".") {
+		if part == "" { return false }
+		for _, ch := range part {
+			if !(ch >= 'a' && ch <= 'z') && !(ch >= 'A' && ch <= 'Z') &&
+				!(ch >= '0' && ch <= '9') && ch != '_' && ch != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validateImouServiceInput(service imou_life.CapabilityService, input map[string]any) error {
+	declared := make(map[string]string, len(service.InputData))
+	for _, definition := range service.InputData {
+		field, _ := definition["field"].(string)
+		dataType, _ := definition["dataType"].(map[string]any)
+		typeName, _ := dataType["type"].(string)
+		if field == "" || typeName == "" {
+			return errors.New("service capability contains an incomplete input definition")
+		}
+		declared[field] = strings.ToLower(typeName)
+		if _, ok := input[field]; !ok {
+			return fmt.Errorf("missing required input %q", field)
+		}
+	}
+	for field := range input {
+		if _, ok := declared[field]; !ok {
+			return fmt.Errorf("input %q is not declared by this device", field)
+		}
+	}
+	if len(input) != len(declared) {
+		return errors.New("service input does not match the declared capability fields")
+	}
+	for field, typeName := range declared {
+		value := input[field]
+		switch typeName {
+		case "text", "string":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("input %q must be a string", field)
+			}
+		case "int", "integer":
+			number, ok := numericImouInput(value)
+			if !ok || math.Trunc(number) != number {
+				return fmt.Errorf("input %q must be an integer", field)
+			}
+		case "float", "number", "double":
+			if _, ok := numericImouInput(value); !ok {
+				return fmt.Errorf("input %q must be numeric", field)
+			}
+		case "bool", "boolean":
+			if _, ok := value.(bool); !ok {
+				return fmt.Errorf("input %q must be boolean", field)
+			}
+		case "enum":
+			switch value.(type) {
+			case string, float64, int:
+			default:
+				return fmt.Errorf("input %q must be a string or number", field)
+			}
+		default:
+			return fmt.Errorf("service input %q uses unsupported type %q", field, typeName)
+		}
+	}
+	return nil
+}
+
+func numericImouInput(value any) (float64, bool) {
+	switch n := value.(type) {
+	case float64:
+		return n, !math.IsNaN(n) && !math.IsInf(n, 0)
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		parsed, err := n.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
