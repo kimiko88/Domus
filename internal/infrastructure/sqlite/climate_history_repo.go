@@ -128,7 +128,15 @@ func (r *ClimateHistoryRepository) GetHistory(ctx context.Context, filter domcli
 		if err != nil { return nil, err }
 		out = append(out, rows...)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].RecordedAt.Before(out[j].RecordedAt) })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RecordedAt.Equal(out[j].RecordedAt) {
+			if out[i].EntityID == out[j].EntityID {
+				return out[i].AreaID < out[j].AreaID
+			}
+			return out[i].EntityID < out[j].EntityID
+		}
+		return out[i].RecordedAt.Before(out[j].RecordedAt)
+	})
 	if len(out) > limit { out = out[len(out)-limit:] }
 	return out, nil
 }
