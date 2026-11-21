@@ -763,6 +763,7 @@
         "broadlinkCommandPlaceholder": "ex. Marche TV",
         "broadlinkLearn": "Démarrer l’apprentissage",
         "broadlinkLearning": "Apprentissage…",
+"broadlinkLearningDesc": "L’apprentissage est lancé. Appuyez sur le bouton de la télécommande physique près du BroadLink, puis enregistrez le code capturé.",
         "broadlinkSaving": "Enregistrement…",
         "broadlinkSaveCode": "Capturer et enregistrer",
         "broadlinkLearnHint": "Démarrez l’apprentissage, appuyez sur le bouton de la télécommande physique près du BroadLink, puis capturez et enregistrez le code.",
