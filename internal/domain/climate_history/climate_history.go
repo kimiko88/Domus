@@ -104,8 +104,9 @@ type Point struct {
 }
 
 type Filter struct {
-	EntityID string
-	AreaID   string
+	EntityID  string
+	EntityIDs []string
+	AreaID    string
 	From     time.Time
 	To       time.Time
 	Limit    int
@@ -120,7 +121,7 @@ type RoomSummary struct {
 	MaximumTemperature *float64 `json:"maximum_temperature,omitempty"`
 	CurrentHumidity    *float64 `json:"current_humidity,omitempty"`
 	AverageHumidity    *float64 `json:"average_humidity,omitempty"`
-	HeatingRate        *float64 `json:"heating_rate_c_per_hour,omitempty"`
+	TemperatureChangeRate *float64 `json:"temperature_change_rate_c_per_hour,omitempty"`
 	ForecastTemperature *float64 `json:"forecast_temperature_1h,omitempty"`
 	LastUpdatedAt      time.Time `json:"last_updated_at"`
 }
