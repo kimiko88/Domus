@@ -4,11 +4,13 @@ import { useI18n } from 'vue-i18n'
 import Chart from 'chart.js/auto'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
+import { useAreasStore } from '@/stores/areas'
 import type { ClimateHistoryPoint, ClimateHistorySettings } from '@/api/types'
 
 const { t, locale } = useI18n()
 const store = useClimateHistoryStore()
 const entitiesStore = useEntitiesStore()
+const areasStore = useAreasStore()
 
 type RangeKey = '24h' | '7d' | '30d' | 'custom'
 type MetricKey = 'temperature' | 'humidity' | 'target_temperature'
@@ -169,7 +171,7 @@ function formatNumber(value?: number, digits = 1) {
   return new Intl.NumberFormat(locale.value, { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(value)
 }
 function roomName(areaId: string) {
-  return availableAreas.value.find(area => area.id === areaId)?.label || areaId
+  return areasStore.byId(areaId)?.name || availableAreas.value.find(area => area.id === areaId)?.label || areaId
 }
 function insightLabel(code: string) {
   return t('climateHistory.insights.' + code)
@@ -189,7 +191,7 @@ watch(selectedMetric, async () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([store.fetchSettings(), entitiesStore.fetchEntities()])
+    await Promise.all([store.fetchSettings(), entitiesStore.fetchEntities(), areasStore.fetchAreas().catch(() => [])])
     Object.assign(settingsForm, store.settings)
   } catch {
     loadError.value = store.error || t('climateHistory.errors.load')
