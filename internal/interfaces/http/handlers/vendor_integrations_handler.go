@@ -1181,9 +1181,6 @@ func validateImouServiceInput(service imou_life.CapabilityService, input map[str
 			return fmt.Errorf("input %q is not declared by this device", field)
 		}
 	}
-	if len(input) != len(declared) {
-		return errors.New("service input does not match the declared capability fields")
-	}
 	for field, typeName := range declared {
 		value, present := input[field]
 		if !present { continue }
