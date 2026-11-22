@@ -637,7 +637,9 @@
         "unsupportedTemperatureTitle": "Temperatur nicht unterstützt",
         "unsupportedTemperatureDesc": "Wähle einen verfügbaren Sollwert: 1, 1,5, 2, 7, 12, 17, 21 oder 22 °C.",
         "manualIsolationReason": "Gerät wurde manuell durch Network Guardian isoliert.",
-        "tuyaSyncCompletedDesc": "{count} Geräte synchronisiert: {local} mit LAN-Steuerung, {climate} Klimadatenquellen."
+        "tuyaSyncCompletedDesc": "{count} Geräte synchronisiert: {local} mit LAN-Steuerung, {climate} Klimadatenquellen.",
+        "tuyaOAuthConnectErrorTitle": "Smart-Life-Autorisierung konnte nicht gestartet werden",
+        "tuyaOAuthConnectErrorDesc": "Prüfen Sie die Tuya-OAuth-Konfiguration und versuchen Sie es erneut."
       },
       "devicesShown": "{count} angezeigt",
       "deviceOnline": "Online",
@@ -854,7 +856,10 @@
       },
       "selectedForSync": "Zur Synchronisierung ausgewählt: {count}",
       "syncSelectedDevices": "Auswahl synchronisieren ({count})",
-      "syncingDevices": "Geräte werden synchronisiert…"
+      "syncingDevices": "Geräte werden synchronisiert…",
+      "connectSmartLifeOAuth": "Smart Life mit OAuth verbinden",
+      "smartLifeOAuthConnected": "Smart-Life-Konto über OAuth verbunden",
+      "configureDirectTuya": "Zusätzlich Server-to-Server-Zugriff konfigurieren"
     }
   },
   "history": {
