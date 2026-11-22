@@ -200,7 +200,7 @@ describe('AreasView.vue', () => {
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
     expect(updateAreaSpy).toHaveBeenCalledTimes(2)
-    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null)
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null, expect.objectContaining({ external_id: 'sensor_1', integration_id: 'tuya_local' }))
     expect(updateAreaSpy).toHaveBeenCalledWith('shelly_office_1', 'living-room')
     expect(wrapper.find('.area-device-modal').exists()).toBe(false)
   })
@@ -248,7 +248,7 @@ describe('AreasView.vue', () => {
     await checkbox.setValue(false)
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
-    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null)
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null, expect.objectContaining({ external_id: 'legacy_thermo', integration_id: 'tuya_local' }))
   })
 
   it('lists and assigns online Tuya Cloud and Smart Life OAuth devices that are not in the local registry', async () => {
