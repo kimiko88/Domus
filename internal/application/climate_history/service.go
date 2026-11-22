@@ -52,10 +52,13 @@ func (s *Service) UpdateSettings(ctx context.Context, settings domclimate.Settin
 		compatible := make(map[string]struct{})
 		sourceSettings := domclimate.DefaultSettings()
 		for _, item := range items {
-			if item == nil || item.DeviceID == "" || !isTrackedClimateEntity(item, sourceSettings) {
+			if item == nil || !isTrackedClimateEntity(item, sourceSettings) {
 				continue
 			}
-			compatible[item.DeviceID] = struct{}{}
+			deviceID := climateEntityDeviceID(item)
+			if deviceID != "" {
+				compatible[deviceID] = struct{}{}
+			}
 		}
 		for _, deviceID := range settings.TrackedDeviceIDs {
 			if _, ok := compatible[deviceID]; !ok {
@@ -96,8 +99,10 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, ent := range entities {
-		if settings.TrackedDeviceIDs != nil && (ent == nil || !containsEntity(settings.TrackedDeviceIDs, ent.DeviceID)) {
-			continue
+		if settings.TrackedDeviceIDs != nil {
+			if ent == nil || !containsEntity(settings.TrackedDeviceIDs, climateEntityDeviceID(ent)) {
+				continue
+			}
 		}
 		if entityUnavailable(ent) {
 			continue
@@ -159,7 +164,7 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 	_ = json.Unmarshal([]byte(ent.Attributes), &attrs)
 	s := domclimate.Sample{
 		EntityID: ent.ID, EntityKey: ent.EntityKey, EntityName: ent.Name,
-		DeviceID: ent.DeviceID, AreaID: ent.AreaID, RecordedAt: at,
+		DeviceID: climateEntityDeviceID(ent), AreaID: ent.AreaID, RecordedAt: at,
 	}
 	switch ent.Domain {
 	case "climate":
@@ -255,6 +260,29 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 	_, hasTelemetry := attributeNumber(attrs, "current_humidity", "humidity", "humidity_value", "va_humidity")
 	return hasTelemetry || class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
 		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
+}
+
+// climateEntityDeviceID returns the canonical device key used by selection and
+// collection. Older Tuya entities can lack device_id while still carrying the
+// stable tuya_<external-id> suffix in their entity key.
+func climateEntityDeviceID(ent *entity.Entity) string {
+	if ent == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(ent.DeviceID); id != "" {
+		return id
+	}
+	for _, candidate := range []string{ent.EntityKey, ent.ID} {
+		parts := strings.Split(strings.TrimSpace(candidate), ".")
+		if len(parts) == 0 {
+			continue
+		}
+		last := parts[len(parts)-1]
+		if strings.HasPrefix(last, "tuya_") && len(last) > len("tuya_") {
+			return last
+		}
+	}
+	return ""
 }
 
 func containsEntity(ids []string, candidate string) bool {
