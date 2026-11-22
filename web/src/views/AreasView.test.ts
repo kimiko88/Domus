@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import AreasView from './AreasView.vue'
 import { useAreasStore } from '../stores/areas'
@@ -23,6 +23,12 @@ describe('AreasView.vue', () => {
     devicesStore = useDevicesStore()
     authStore = useAuthStore()
     vi.spyOn(devicesStore, 'fetchDevices').mockImplementation(async () => devicesStore.devices)
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-local/devices') return { devices: [] }
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
   })
 
   it('renders areas and displays their names and entity counts', async () => {
@@ -47,6 +53,7 @@ describe('AreasView.vue', () => {
     vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
 
     const wrapper = mount(AreasView)
+    await flushPromises()
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Soggiorno')
@@ -182,6 +189,7 @@ describe('AreasView.vue', () => {
     }))
 
     const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
+    await flushPromises()
     await wrapper.vm.$nextTick()
 
     await wrapper.find('.manage-devices-action').trigger('click')
@@ -313,9 +321,9 @@ describe('AreasView.vue', () => {
     })
 
     const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await flushPromises()
     await wrapper.find('.manage-devices-action').trigger('click')
-    await new Promise(resolve => setTimeout(resolve, 0))
+    await flushPromises()
     await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.area-device-option')).toHaveLength(3)
     expect(wrapper.text()).toContain('Sensore Tuya LAN')
@@ -326,6 +334,7 @@ describe('AreasView.vue', () => {
       await option.find('input').setValue(true)
     }
     await wrapper.find('.area-device-primary-btn').trigger('click')
+    await flushPromises()
 
     expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_local-only-sensor/area', {
       area_id: 'living-room',
