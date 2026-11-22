@@ -48,7 +48,9 @@ describe('ClimateHistoryView.vue', () => {
         id: 'sensor.tuya_device-tuya-climate',
         entity_key: 'sensor.tuya_device-tuya-climate',
         domain: 'sensor', name: 'Tuya thermo-hygrometer', state: 'active',
-        attributes: { current_temperature: 22.1, current_humidity: 48 },
+        // Cloud-only Tuya devices must remain selectable before their first
+        // temperature sample arrives, using the category metadata from Tuya.
+        attributes: { tuya_climate_source: true, tuya_sensor_kind: 'temperature_humidity', device_class: 'temperature', unit_of_measurement: '°C' },
         last_changed: '', last_updated: ''
       }
     }
