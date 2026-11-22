@@ -12,15 +12,17 @@ import (
 	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/integration"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
 // DeviceHandler handles HTTP operations for Device entities.
 type DeviceHandler struct {
-	repo       device.Repository
-	entityRepo entity.Repository
-	areaRepo   area.Repository
+	repo           device.Repository
+	entityRepo     entity.Repository
+	areaRepo       area.Repository
+	integrationRepo integration.Repository
 }
 
 // NewDeviceHandler constructs a DeviceHandler.
@@ -36,6 +38,50 @@ func (h *DeviceHandler) WithEntities(repo entity.Repository) *DeviceHandler {
 func (h *DeviceHandler) WithAreas(repo area.Repository) *DeviceHandler {
 	h.areaRepo = repo
 	return h
+}
+
+func (h *DeviceHandler) WithIntegrations(repo integration.Repository) *DeviceHandler {
+	h.integrationRepo = repo
+	return h
+}
+
+// ensureTuyaIntegrationRecord satisfies the devices.integration_id foreign key
+// for a cloud-listed device that is first registered through room assignment.
+func (h *DeviceHandler) ensureTuyaIntegrationRecord(ctx context.Context, integrationID string, online bool) error {
+	if h.integrationRepo == nil {
+		return errors.New("integration repository is unavailable")
+	}
+	if _, err := h.integrationRepo.GetByID(ctx, integrationID); err == nil {
+		return nil
+	} else if !errors.Is(err, integration.ErrIntegrationNotFound) {
+		return err
+	}
+
+	name := "Tuya Local"
+	switch integrationID {
+	case "tuya_cloud":
+		name = "Tuya Cloud"
+	case "tuya_oauth":
+		name = "Smart Life OAuth"
+	}
+	status := "disconnected"
+	if online {
+		status = "connected"
+	}
+	now := time.Now().UTC()
+	candidate := &integration.Integration{
+		ID: integrationID, Type: integrationID, Name: name,
+		Enabled: true, Status: status, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := h.integrationRepo.Create(ctx, candidate); err != nil {
+		// Another request may have created the shared integration row in the
+		// meantime. Re-read it before returning an error.
+		if _, readErr := h.integrationRepo.GetByID(ctx, integrationID); readErr == nil {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // UpdateArea assigns a physical device and all of its entities to a room.
@@ -131,6 +177,10 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 		if validIdentity {
 			now := time.Now().UTC()
 			online := req.Online != nil && *req.Online
+			if err := h.ensureTuyaIntegrationRecord(r.Context(), integrationID, online); err != nil {
+				writeError(w, http.StatusInternalServerError, "INTEGRATION_UNAVAILABLE", "could not register the Tuya integration")
+				return
+			}
 			metadata := map[string]any{"protocol": integrationID, "cloud_managed": true}
 			metadataJSON, _ := json.Marshal(metadata)
 			dev = &device.Device{
