@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import AreasView from './AreasView.vue'
 import { useAreasStore } from '../stores/areas'
@@ -7,6 +7,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useDevicesStore } from '../stores/devices'
 import { useAuthStore } from '../stores/auth'
 import { i18n } from '../locales'
+import { apiClient } from '../api/client'
 
 describe('AreasView.vue', () => {
   let areasStore: ReturnType<typeof useAreasStore>
@@ -22,6 +23,12 @@ describe('AreasView.vue', () => {
     devicesStore = useDevicesStore()
     authStore = useAuthStore()
     vi.spyOn(devicesStore, 'fetchDevices').mockImplementation(async () => devicesStore.devices)
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-local/devices') return { devices: [] }
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
   })
 
   it('renders areas and displays their names and entity counts', async () => {
@@ -46,6 +53,7 @@ describe('AreasView.vue', () => {
     vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
 
     const wrapper = mount(AreasView)
+    await flushPromises()
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Soggiorno')
@@ -181,6 +189,7 @@ describe('AreasView.vue', () => {
     }))
 
     const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
+    await flushPromises()
     await wrapper.vm.$nextTick()
 
     await wrapper.find('.manage-devices-action').trigger('click')
@@ -197,9 +206,11 @@ describe('AreasView.vue', () => {
     await tuyaCheckbox.setValue(false)
     await shellyCheckbox.setValue(true)
     await wrapper.find('.area-device-primary-btn').trigger('click')
+    await flushPromises()
+    await wrapper.vm.$nextTick()
 
     expect(updateAreaSpy).toHaveBeenCalledTimes(2)
-    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null)
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null, expect.objectContaining({ external_id: 'sensor_1', integration_id: 'tuya_local' }))
     expect(updateAreaSpy).toHaveBeenCalledWith('shelly_office_1', 'living-room')
     expect(wrapper.find('.area-device-modal').exists()).toBe(false)
   })
@@ -247,7 +258,113 @@ describe('AreasView.vue', () => {
     await checkbox.setValue(false)
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
-    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null)
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null, expect.objectContaining({ external_id: 'legacy_thermo', integration_id: 'tuya_local' }))
+  })
+
+  it('lists and assigns online Tuya Cloud and Smart Life OAuth devices that are not in the local registry', async () => {
+    areasStore.areas = [{ id: 'living-room', name: 'Soggiorno' }]
+    authStore.user = {
+      id: 'admin-cloud',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-local/devices') {
+        return {
+          devices: [{
+            device_id: 'local-only-sensor',
+            name: 'Sensore Tuya LAN',
+            category: 'sensor',
+            connected: true,
+            ip: '192.168.1.55',
+            entity_key: 'sensor.tuya_local-only-sensor'
+          }]
+        }
+      }
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: true }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') {
+        return {
+          devices: [{
+            id: 'cloud-only-thermo',
+            name: 'Termoigrometro Cloud',
+            product_name: 'TH01',
+            category: 'wsdcgq',
+            online: true,
+            local_configured: false
+          }]
+        }
+      }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true }
+      if (url === '/api/v1/integrations/tuya-oauth/devices') {
+        return {
+          devices: [{
+            id: 'oauth-only-sensor',
+            name: 'Sensore Smart Life',
+            product_name: 'Temperature sensor',
+            category: 'temperature_sensor',
+            online: true,
+            local_configured: false
+          }]
+        }
+      }
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: '',
+      area_id: 'living-room',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await wrapper.find('.manage-devices-action').trigger('click')
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('.area-device-option')).toHaveLength(3)
+    expect(wrapper.text()).toContain('Sensore Tuya LAN')
+    expect(wrapper.text()).toContain('Termoigrometro Cloud')
+    expect(wrapper.text()).toContain('Sensore Smart Life')
+
+    for (const option of wrapper.findAll('.area-device-option')) {
+      await option.find('input').setValue(true)
+    }
+    await wrapper.find('.area-device-primary-btn').trigger('click')
+    await flushPromises()
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_local-only-sensor/area', {
+      area_id: 'living-room',
+      external_id: 'local-only-sensor',
+      name: 'Sensore Tuya LAN',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'sensor'
+    })
+        expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_cloud-only-thermo/area', {
+      area_id: 'living-room',
+      external_id: 'cloud-only-thermo',
+      name: 'Termoigrometro Cloud',
+      integration_id: 'tuya_cloud',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'TH01'
+    })
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_oauth-only-sensor/area', {
+      area_id: 'living-room',
+      external_id: 'oauth-only-sensor',
+      name: 'Sensore Smart Life',
+      integration_id: 'tuya_oauth',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'Temperature sensor'
+    })
   })
 
   it('does not expose area-device assignment to non-admin users', async () => {

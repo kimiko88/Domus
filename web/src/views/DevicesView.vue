@@ -22,6 +22,8 @@ const searchQuery = ref('')
 const filterIntegration = ref('all')
 const isRefreshing = ref(false)
 const tuyaCloudDevices = ref<TuyaCloudDeviceSummary[]>([])
+const tuyaOAuthDevices = ref<TuyaCloudDeviceSummary[]>([])
+const tuyaLocalDevices = ref<TuyaCloudDeviceSummary[]>([])
 const isScanning = ref(false)
 const discoveredHosts = ref<DiscoveredHost[]>([])
 const selectedHostForSetup = ref<DiscoveredHost | null>(null)
@@ -46,6 +48,10 @@ interface TuyaCloudDeviceSummary {
   local_configured?: boolean
   local_active?: boolean
   local_ip?: string
+  source?: 'tuya_cloud' | 'tuya_oauth' | 'tuya_local'
+  device_id?: string
+  connected?: boolean
+  ip?: string
 }
 
 interface UnifiedDevice extends Device {
@@ -61,7 +67,9 @@ onMounted(async () => {
     entitiesStore.fetchEntities(),
     areasStore.fetchAreas(),
     loadDiscoveredHosts(),
-    loadTuyaCloudDevices()
+    loadTuyaLocalDevices(),
+    loadTuyaCloudDevices(),
+    loadTuyaOAuthDevices()
   ])
 })
 
@@ -140,6 +148,20 @@ function closeMatterWizard() {
   matterPairingCode.value = ''
 }
 
+async function loadTuyaLocalDevices() {
+  if (!authStore.isAdmin) {
+    tuyaLocalDevices.value = []
+    return
+  }
+  try {
+    const result = await apiClient.get<{ devices?: TuyaCloudDeviceSummary[] }>('/api/v1/integrations/tuya-local/devices')
+    tuyaLocalDevices.value = result?.devices || []
+  } catch {
+    // The adapter may be disabled on installations that use cloud-only Tuya.
+    tuyaLocalDevices.value = []
+  }
+}
+
 async function loadTuyaCloudDevices() {
   try {
     const config = await apiClient.get<{ configured?: boolean }>('/api/v1/integrations/tuya-cloud/config')
@@ -155,6 +177,25 @@ async function loadTuyaCloudDevices() {
   }
 }
 
+async function loadTuyaOAuthDevices() {
+  if (!authStore.isAdmin) {
+    tuyaOAuthDevices.value = []
+    return
+  }
+  try {
+    const status = await apiClient.get<{ connected?: boolean }>('/api/v1/integrations/tuya-oauth/status')
+    if (!status?.connected) {
+      tuyaOAuthDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: TuyaCloudDeviceSummary[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = result?.devices || []
+  } catch {
+    // OAuth is optional. The central registry and the other sources remain usable.
+    tuyaOAuthDevices.value = []
+  }
+}
+
 async function assignDeviceToRoom(device: UnifiedDevice, event: Event) {
   const select = event.target as HTMLSelectElement | null
   if (!select) return
@@ -164,7 +205,18 @@ async function assignDeviceToRoom(device: UnifiedDevice, event: Event) {
 
   assigningRoomForDevice.value = device.id
   try {
-    await devicesStore.updateDeviceArea(device.id, nextAreaId)
+    if (device.id.startsWith('tuya_')) {
+      await devicesStore.updateDeviceArea(device.id, nextAreaId, {
+        external_id: device.external_id || device.id.slice(5),
+        name: device.name,
+        integration_id: device.integration_id,
+        online: device.status === 'online',
+        manufacturer: device.manufacturer || 'Tuya',
+        model: device.model
+      })
+    } else {
+      await devicesStore.updateDeviceArea(device.id, nextAreaId)
+    }
     await Promise.all([
       devicesStore.fetchDevices(),
       entitiesStore.fetchEntities()
@@ -193,7 +245,9 @@ async function refreshAllDevices() {
     const results = await Promise.allSettled([
       devicesStore.fetchDevices(),
       entitiesStore.fetchEntities(),
+      loadTuyaLocalDevices(),
       loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices(),
       loadDiscoveredHosts()
     ])
     if (results[0].status === 'rejected') {
@@ -223,11 +277,25 @@ const allDevices = computed<UnifiedDevice[]>(() => {
     source_label: device.integration_id
   }))
 
-  for (const cloudDevice of tuyaCloudDevices.value) {
+  const externalTuyaDevices = [
+    ...tuyaLocalDevices.value.map(device => ({
+      ...device,
+      id: device.device_id || device.id,
+      online: device.connected === true || device.online === true,
+      local_configured: true,
+      local_active: device.connected === true,
+      local_ip: device.ip || device.local_ip,
+      source: 'tuya_local' as const
+    })),
+    ...tuyaCloudDevices.value.map(device => ({ ...device, source: 'tuya_cloud' as const })),
+    ...tuyaOAuthDevices.value.map(device => ({ ...device, source: 'tuya_oauth' as const }))
+  ].filter(device => Boolean(device.id))
+
+  for (const cloudDevice of externalTuyaDevices) {
     const existingIndex = merged.findIndex(device =>
       device.external_id === cloudDevice.id ||
       device.id === cloudDevice.id ||
-      (device.integration_id === 'tuya_local' && device.id === `tuya_${cloudDevice.id}`)
+      device.id === `tuya_${cloudDevice.id}`
     )
     const existing = existingIndex >= 0 ? merged[existingIndex] : undefined
     const cloudFields = {
@@ -237,18 +305,20 @@ const allDevices = computed<UnifiedDevice[]>(() => {
       local_configured: Boolean(cloudDevice.local_configured || existing?.integration_id === 'tuya_local'),
       local_active: Boolean(cloudDevice.local_active),
       local_ip: cloudDevice.local_ip,
-      source_label: cloudDevice.local_configured || existing?.integration_id === 'tuya_local'
-        ? 'Tuya Cloud · LocalTuya'
-        : 'Tuya Cloud'
+      source_label: cloudDevice.source === 'tuya_local'
+        ? 'Tuya Local'
+        : cloudDevice.local_configured || existing?.integration_id === 'tuya_local'
+          ? 'Tuya Cloud · LocalTuya'
+          : cloudDevice.source === 'tuya_oauth' ? 'Smart Life · OAuth' : 'Tuya Cloud'
     }
     if (existingIndex >= 0) {
       merged[existingIndex] = { ...existing!, ...cloudFields }
     } else {
       merged.push({
-        id: `tuya-cloud:${cloudDevice.id}`,
+        id: `tuya_${cloudDevice.id}`,
         external_id: cloudDevice.id,
         name: cloudDevice.name,
-        integration_id: 'tuya_cloud',
+        integration_id: cloudDevice.source,
         created_at: '',
         updated_at: '',
         ...cloudFields
@@ -316,7 +386,7 @@ const allDevices = computed<UnifiedDevice[]>(() => {
 
     merged.push({
       id: deviceId,
-      external_id: String(attributes.external_id || deviceId),
+      external_id: String(attributes.external_id || (deviceId.startsWith('tuya_') ? deviceId.slice(5) : deviceId)),
       name,
       integration_id: integrationId,
       manufacturer: attributes.manufacturer ? String(attributes.manufacturer) : undefined,
@@ -504,7 +574,7 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
           </div>
         </div>
 
-        <div v-if="authStore.isAdmin && !device.id.startsWith('tuya-cloud:')" class="device-area-control">
+        <div v-if="authStore.isAdmin" class="device-area-control">
           <label :for="`device-room-${device.id}`">{{ t('devices.view.roomArea') }}</label>
           <select
             :id="`device-room-${device.id}`"

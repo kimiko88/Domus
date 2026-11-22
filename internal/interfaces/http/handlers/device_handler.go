@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,15 +13,18 @@ import (
 	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/domain/user"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
 // DeviceHandler handles HTTP operations for Device entities.
 type DeviceHandler struct {
-	repo       device.Repository
-	entityRepo entity.Repository
-	areaRepo   area.Repository
+	repo           device.Repository
+	entityRepo     entity.Repository
+	areaRepo       area.Repository
+	integrationRepo integration.Repository
 }
 
 // NewDeviceHandler constructs a DeviceHandler.
@@ -38,6 +42,50 @@ func (h *DeviceHandler) WithAreas(repo area.Repository) *DeviceHandler {
 	return h
 }
 
+func (h *DeviceHandler) WithIntegrations(repo integration.Repository) *DeviceHandler {
+	h.integrationRepo = repo
+	return h
+}
+
+// ensureTuyaIntegrationRecord satisfies the devices.integration_id foreign key
+// for a cloud-listed device that is first registered through room assignment.
+func (h *DeviceHandler) ensureTuyaIntegrationRecord(ctx context.Context, integrationID string, online bool) error {
+	if h.integrationRepo == nil {
+		return errors.New("integration repository is unavailable")
+	}
+	if _, err := h.integrationRepo.GetByID(ctx, integrationID); err == nil {
+		return nil
+	} else if !errors.Is(err, integration.ErrIntegrationNotFound) {
+		return err
+	}
+
+	name := "Tuya Local"
+	switch integrationID {
+	case "tuya_cloud":
+		name = "Tuya Cloud"
+	case "tuya_oauth":
+		name = "Smart Life OAuth"
+	}
+	status := "disconnected"
+	if online {
+		status = "connected"
+	}
+	now := time.Now().UTC()
+	candidate := &integration.Integration{
+		ID: integrationID, Type: integrationID, Name: name,
+		Enabled: true, Status: status, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := h.integrationRepo.Create(ctx, candidate); err != nil {
+		// Another request may have created the shared integration row in the
+		// meantime. Re-read it before returning an error.
+		if _, readErr := h.integrationRepo.GetByID(ctx, integrationID); readErr == nil {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 // UpdateArea assigns a physical device and all of its entities to a room.
 // Some integrations expose a device only through its entities; those devices
 // are still assignable by their shared device_id.
@@ -50,7 +98,13 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
 	var req struct {
-		AreaID json.RawMessage `json:"area_id"`
+		AreaID       json.RawMessage `json:"area_id"`
+		ExternalID   string          `json:"external_id"`
+		Name         string          `json:"name"`
+		IntegrationID string         `json:"integration_id"`
+		Online       *bool           `json:"online"`
+		Manufacturer string          `json:"manufacturer"`
+		Model        string          `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid room assignment payload")
@@ -106,9 +160,52 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if !deviceExists && len(linkedEntities) == 0 {
-		writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
-		return
+	deviceCreated := false
+	if !deviceExists {
+		// Cloud-listed Tuya devices can be visible in the UI before the local
+		// adapter has provisioned a registry row (for example, devices without
+		// a Local Key). Accept only the canonical tuya_<external-id> identifier
+		// and an explicit, supported Tuya integration identity from an admin.
+		prefixOK := strings.HasPrefix(deviceID, "tuya_")
+		externalID := strings.TrimSpace(req.ExternalID)
+		integrationID := strings.TrimSpace(req.IntegrationID)
+		name := strings.TrimSpace(req.Name)
+		validIntegration := integrationID == "tuya_cloud" ||
+			integrationID == "tuya_oauth" || integrationID == "tuya_local"
+		validIdentity := prefixOK && externalID != "" &&
+			len(externalID) <= 128 && externalID == strings.TrimPrefix(deviceID, "tuya_") &&
+			!strings.ContainsAny(externalID, "/?#") && validIntegration &&
+			name != "" && len(name) <= 256
+		if validIdentity {
+			currentUser := domusmw.GetUser(r.Context())
+			if currentUser == nil || currentUser.Role != user.RoleAdmin {
+				writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required to register cloud-only Tuya devices")
+				return
+			}
+			now := time.Now().UTC()
+			online := req.Online != nil && *req.Online
+			if err := h.ensureTuyaIntegrationRecord(r.Context(), integrationID, online); err != nil {
+				writeError(w, http.StatusInternalServerError, "INTEGRATION_UNAVAILABLE", "could not register the Tuya integration")
+				return
+			}
+			metadata := map[string]any{"protocol": integrationID, "cloud_managed": true}
+			metadataJSON, _ := json.Marshal(metadata)
+			dev = &device.Device{
+				ID: deviceID, IntegrationID: integrationID, ExternalID: externalID,
+				Name: name, Manufacturer: strings.TrimSpace(req.Manufacturer),
+				Model: strings.TrimSpace(req.Model), AreaID: areaID, Online: online,
+				Metadata: string(metadataJSON), CreatedAt: now, UpdatedAt: now,
+			}
+			if err := h.repo.Create(r.Context(), dev); err != nil {
+				writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to register cloud device for room assignment")
+				return
+			}
+			deviceExists = true
+			deviceCreated = true
+		} else if len(linkedEntities) == 0 {
+			writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
+			return
+		}
 	}
 
 	oldDeviceArea := ""
@@ -149,6 +246,7 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 		"device_id": deviceID,
 		"area_id": areaID,
 		"device_updated": deviceExists,
+		"device_created": deviceCreated,
 		"updated_entities": len(updatedEntities),
 	})
 }

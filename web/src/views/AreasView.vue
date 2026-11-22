@@ -6,6 +6,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useDevicesStore } from '../stores/devices'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationsStore } from '../stores/notifications'
+import { apiClient } from '../api/client'
 import type { Area, Device, Entity } from '../api/types'
 import BaseButton from '../components/ui/BaseButton.vue'
 import AreaEditorModal from '../components/modals/AreaEditorModal.vue'
@@ -24,7 +25,8 @@ import {
   Sun,
   Car,
   Tv,
-  Cpu
+  Cpu,
+  RefreshCw
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -41,18 +43,95 @@ const managingArea = ref<Area | null>(null)
 const isDeviceManagerOpen = ref(false)
 const isSavingAreaDevices = ref(false)
 const selectedDeviceIds = ref<string[]>([])
+const isLoadingAssignableDevices = ref(false)
+
+interface ExternalTuyaDevice {
+  id: string
+  name: string
+  product_name?: string
+  category?: string
+  online?: boolean
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
+  device_id?: string
+  connected?: boolean
+  ip?: string
+}
+
+const tuyaCloudDevices = ref<ExternalTuyaDevice[]>([])
+const tuyaOAuthDevices = ref<ExternalTuyaDevice[]>([])
+const tuyaLocalDevices = ref<ExternalTuyaDevice[]>([])
 
 onMounted(async () => {
+  isLoadingAssignableDevices.value = true
   try {
-    await Promise.all([
+    const results = await Promise.allSettled([
       areasStore.fetchAreas(),
       entitiesStore.fetchEntities(),
-      devicesStore.fetchDevices()
+      devicesStore.fetchDevices(),
+      loadTuyaLocalDevices(),
+      loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices()
     ])
-  } catch (err) {
-    console.warn('AreasView data fetch warning:', err)
+    const failed = results.filter(result => result.status === 'rejected')
+    if (failed.length > 0) {
+      console.warn('AreasView data fetch warning:', failed.length, 'source(s) could not be loaded')
+    }
+  } finally {
+    isLoadingAssignableDevices.value = false
   }
 })
+
+async function loadTuyaLocalDevices() {
+  if (!authStore.isAdmin) {
+    tuyaLocalDevices.value = []
+    return
+  }
+  try {
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-local/devices')
+    tuyaLocalDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // The local adapter may be disabled on installations using cloud-only Tuya.
+    tuyaLocalDevices.value = []
+  }
+}
+
+async function loadTuyaCloudDevices() {
+  try {
+    const config = await apiClient.get<{ configured?: boolean }>('/api/v1/integrations/tuya-cloud/config')
+    if (!config?.configured) {
+      tuyaCloudDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
+    tuyaCloudDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // This legacy Tuya Cloud connection is optional; registered/local devices
+    // must remain available even when the cloud API is not configured.
+    tuyaCloudDevices.value = []
+  }
+}
+
+async function loadTuyaOAuthDevices() {
+  if (!authStore.isAdmin) {
+    tuyaOAuthDevices.value = []
+    return
+  }
+  try {
+    const status = await apiClient.get<{ connected?: boolean }>('/api/v1/integrations/tuya-oauth/status')
+    if (!status?.connected) {
+      tuyaOAuthDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // OAuth devices are admin-only and optional. Do not block the room picker
+    // when the account is disconnected or the provider is temporarily offline.
+    tuyaOAuthDevices.value = []
+  }
+}
 
 function getEntitiesForArea(areaId: string) {
   return entitiesStore.allEntities.filter(
@@ -78,6 +157,44 @@ const assignableDevices = computed<Device[]>(() => {
   const result = new Map<string, Device>()
   for (const item of devicesStore.devices) {
     result.set(item.id, { ...item })
+  }
+
+  // DevicesView also lists Tuya devices directly from Cloud/Smart Life APIs.
+  // Include those same sources here even if the LocalTuya adapter has not yet
+  // created a device/entity registry row (e.g. cloud-only devices without key).
+  const externalTuyaDevices = [
+    ...tuyaLocalDevices.value.map(item => ({
+      ...item,
+      id: item.device_id || item.id,
+      online: item.connected === true || item.online === true,
+      local_configured: true,
+      source: 'tuya_local' as const
+    })),
+    ...tuyaCloudDevices.value.map(item => ({ ...item, source: 'tuya_cloud' as const })),
+    ...tuyaOAuthDevices.value.map(item => ({ ...item, source: 'tuya_oauth' as const }))
+  ].filter(item => Boolean(item.id))
+  for (const item of externalTuyaDevices) {
+    const id = `tuya_${item.id}`
+    const existing = result.get(id) || [...result.values()].find(device =>
+      device.external_id === item.id || device.id === item.id
+    )
+    if (existing) {
+      existing.status = existing.status === 'online' || item.online ? 'online' : 'offline'
+      if (!existing.name || existing.name === existing.id) existing.name = item.name
+      if (!existing.model) existing.model = item.product_name || item.category
+      continue
+    }
+    result.set(id, {
+      id,
+      external_id: item.id,
+      name: item.name,
+      integration_id: item.local_configured ? 'tuya_local' : item.source,
+      manufacturer: 'Tuya',
+      model: item.product_name || item.category,
+      status: item.online ? 'online' : 'offline',
+      created_at: '',
+      updated_at: ''
+    })
   }
 
   const entitiesByDevice = new Map<string, Entity[]>()
@@ -151,6 +268,27 @@ function closeDeviceManager() {
   selectedDeviceIds.value = []
 }
 
+async function refreshAssignableDevices() {
+  if (isLoadingAssignableDevices.value || isSavingAreaDevices.value) return
+  isLoadingAssignableDevices.value = true
+  try {
+    await Promise.all([
+      devicesStore.fetchDevices(),
+      entitiesStore.fetchEntities(),
+      loadTuyaLocalDevices(),
+      loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices()
+    ])
+  } catch {
+    notificationsStore.error(
+      t('devices.view.refreshErrorTitle'),
+      t('devices.view.refreshErrorMessage')
+    )
+  } finally {
+    isLoadingAssignableDevices.value = false
+  }
+}
+
 function updateSelectedDevice(deviceId: string, event: Event) {
   const checked = (event.target as HTMLInputElement | null)?.checked === true
   selectedDeviceIds.value = checked
@@ -169,16 +307,28 @@ async function saveAreaDevices() {
   isSavingAreaDevices.value = true
   try {
     for (const device of changes) {
-      await devicesStore.updateDeviceArea(device.id, selected.has(device.id) ? area.id : null)
+      const nextAreaId = selected.has(device.id) ? area.id : null
+      if (device.id.startsWith('tuya_')) {
+        await devicesStore.updateDeviceArea(device.id, nextAreaId, {
+          external_id: device.external_id || device.id.slice(5),
+          name: device.name,
+          integration_id: device.integration_id,
+          online: device.status === 'online',
+          manufacturer: device.manufacturer || 'Tuya',
+          model: device.model
+        })
+      } else {
+        await devicesStore.updateDeviceArea(device.id, nextAreaId)
+      }
     }
-    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaLocalDevices(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.success(
       t('areas.devicesSaveSuccess'),
       t('areas.devicesSaveMessage', { count: changes.length, area: area.name })
     )
     closeDeviceManager()
   } catch (err: any) {
-    await Promise.allSettled([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    await Promise.allSettled([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.error(
       t('areas.devicesSaveError'),
       err?.message || t('areas.devicesSaveError')
@@ -384,16 +534,30 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
         :aria-label="`${t('areas.manageDevices')} — ${managingArea.name}`"
       >
         <header class="area-device-modal-header">
-          <div>
+          <div class="area-device-modal-heading">
             <h3>{{ t('areas.manageDevices') }} · {{ managingArea.name }}</h3>
             <p>{{ t('areas.manageDevicesDescription') }}</p>
           </div>
-          <button class="btn-card-action" type="button" :aria-label="t('devices.view.close')" @click="closeDeviceManager">
-            ×
-          </button>
+          <div class="area-device-header-actions">
+            <button
+              class="area-device-refresh-btn"
+              type="button"
+              :disabled="isLoadingAssignableDevices || isSavingAreaDevices"
+              @click="refreshAssignableDevices"
+            >
+              <RefreshCw :size="14" />
+              {{ t('devices.view.refresh') }}
+            </button>
+            <button class="btn-card-action" type="button" :aria-label="t('devices.view.close')" @click="closeDeviceManager">
+              ×
+            </button>
+          </div>
         </header>
 
-        <p v-if="assignableDevices.length === 0" class="area-device-empty">
+        <p v-if="isLoadingAssignableDevices" class="area-device-empty" role="status">
+          {{ t('common.loading') }}
+        </p>
+        <p v-else-if="assignableDevices.length === 0" class="area-device-empty">
           {{ t('areas.noAssignableDevices') }}
         </p>
         <div v-else class="area-device-list">
@@ -418,7 +582,7 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           <button class="area-device-secondary-btn" type="button" :disabled="isSavingAreaDevices" @click="closeDeviceManager">
             {{ t('devices.view.close') }}
           </button>
-          <button class="area-device-primary-btn" type="button" :disabled="isSavingAreaDevices || assignableDevices.length === 0" @click="saveAreaDevices">
+          <button class="area-device-primary-btn" type="button" :disabled="isSavingAreaDevices || isLoadingAssignableDevices || assignableDevices.length === 0" @click="saveAreaDevices">
             {{ isSavingAreaDevices ? t('areas.savingDevices') : t('areas.saveDevices') }}
           </button>
         </footer>
@@ -677,10 +841,42 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
   gap: .75rem;
 }
 
+.area-device-modal-heading {
+  min-width: 0;
+}
+
 .area-device-modal-header h3 {
   color: var(--text-main);
   font-size: 1.05rem;
   font-weight: 700;
+}
+
+.area-device-header-actions {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: none;
+}
+
+.area-device-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 36px;
+  padding: .4rem .65rem;
+  color: var(--text-main);
+  background: var(--bg-surface-elevated, rgba(148,163,184,.08));
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.area-device-refresh-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 .area-device-modal-header p,

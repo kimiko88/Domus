@@ -280,7 +280,8 @@ describe('DevicesView.vue', () => {
     const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
       device_id: 'tuya_legacy_thermo',
       area_id: 'bedroom',
-      device_updated: false,
+      device_updated: true,
+      device_created: true,
       updated_entities: 1
     })
 
@@ -293,10 +294,136 @@ describe('DevicesView.vue', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_legacy_thermo/area', {
-      area_id: 'bedroom'
+      area_id: 'bedroom',
+      external_id: 'legacy_thermo',
+      name: 'Termoigrometro Tuya',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: undefined
     })
     expect(wrapper.text()).toContain('Termoigrometro Tuya')
     expect((roomSelect.element as HTMLSelectElement).value).toBe('bedroom')
+  })
+
+  it('allows administrators to assign Smart Life OAuth devices that are not yet in the registry', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'living-room', name: 'Salotto' }]
+    authStore.user = {
+      id: 'admin-oauth',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true }
+      if (url === '/api/v1/integrations/tuya-oauth/devices') {
+        return {
+          devices: [{
+            id: 'oauth-sensor-1',
+            name: 'Sensore Smart Life',
+            product_name: 'Temperature sensor',
+            category: 'temperature_sensor',
+            online: true
+          }]
+        }
+      }
+      if (url === '/api/v1/network/discovered') return []
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'tuya_oauth-sensor-1',
+      area_id: 'living-room',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(wrapper.text()).toContain('Sensore Smart Life')
+    const roomSelect = wrapper.find('#device-room-tuya_oauth-sensor-1')
+    expect(roomSelect.exists()).toBe(true)
+    expect(roomSelect.findAll('option').map(option => option.text())).toContain('Salotto')
+
+    await roomSelect.setValue('living-room')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_oauth-sensor-1/area', {
+      area_id: 'living-room',
+      external_id: 'oauth-sensor-1',
+      name: 'Sensore Smart Life',
+      integration_id: 'tuya_oauth',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'Temperature sensor'
+    })
+  })
+
+  it('lists and assigns a configured LocalTuya device when the central device registry has no row', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'office', name: 'Studio' }]
+    authStore.user = {
+      id: 'admin-local',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
+      if (url === '/api/v1/integrations/tuya-local/devices') {
+        return {
+          devices: [{
+            device_id: 'local-only-sensor',
+            name: 'Sensore Tuya LAN',
+            category: 'sensor',
+            connected: true,
+            ip: '192.168.1.55'
+          }]
+        }
+      }
+      if (url === '/api/v1/network/discovered') return []
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'tuya_local-only-sensor',
+      area_id: 'office',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(wrapper.text()).toContain('Sensore Tuya LAN')
+    const roomSelect = wrapper.find('#device-room-tuya_local-only-sensor')
+    expect(roomSelect.exists()).toBe(true)
+    expect(wrapper.text()).toContain('192.168.1.55')
+
+    await roomSelect.setValue('office')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_local-only-sensor/area', {
+      area_id: 'office',
+      external_id: 'local-only-sensor',
+      name: 'Sensore Tuya LAN',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'sensor'
+    })
   })
 
   it('does not expose room editing to non-administrator accounts', async () => {
