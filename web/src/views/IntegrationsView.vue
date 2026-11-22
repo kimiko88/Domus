@@ -116,6 +116,9 @@ interface TuyaCloudDevice {
   local_configured?: boolean
   local_active?: boolean
   local_ip?: string
+  inferred_category?: string
+  entity_key?: string
+  climate_source?: boolean
 }
 
 interface TuyaDeviceFunction {
@@ -1008,11 +1011,26 @@ async function loadTuyaTemperatureFunction(deviceId: string): Promise<TuyaDevice
   }
 }
 
-function isTuyaClimateDevice(device: TuyaCloudDevice) {
+function isTuyaThermostatDevice(device: TuyaCloudDevice) {
   const category = (device.category || '').toLowerCase()
+  const inferred = (device.inferred_category || '').toLowerCase()
   const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
   return category === 'wk' || category.includes('climate') || category.includes('thermostat') ||
-    label.includes('thermostat') || label.includes('termostato')
+    inferred === 'climate' || label.includes('thermostat') || label.includes('termostato')
+}
+
+function isTuyaClimateSourceDevice(device: TuyaCloudDevice) {
+  if (device.climate_source === true || isTuyaThermostatDevice(device)) return true
+  const category = (device.category || '').toLowerCase()
+  const inferred = (device.inferred_category || '').toLowerCase()
+  const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
+  const climateSensorCategories = ['wsdcg', 'wsdcgq', 'wsdcgq11lm', 'temperature_sensor', 'humidity_sensor', 'thermo_hygrometer']
+  if (inferred === 'sensor' && climateSensorCategories.includes(category)) return true
+  if (climateSensorCategories.includes(category)) return true
+  if (/temperature|temperatura|humidity|umid|thermometer|termometro|hygrometer|termoigrometro|thermo-hygrometer/.test(label)) return true
+  return (device.status || []).some(point =>
+    /^(va_temperature|current_temperature|temp_current|current_temp|temperature|va_humidity|current_humidity|humidity_value|humidity)$/i.test(point.code)
+  )
 }
 
 function canControlLocalTuya(device: TuyaCloudDevice) {
@@ -1138,8 +1156,10 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
     // Keep unsaved checkbox changes while refreshing status. Reconcile from the
     // server on the first load and immediately after applying the selection.
     if (!tuyaSelectionInitialized.value || reconcileSelection) {
+      // Keep already paired LAN devices selected, and include all detected
+      // thermostats / thermo-hygrometers even when Tuya did not issue a Local Key.
       selectedTuyaDeviceIds.value = tuyaCloudDevices.value
-        .filter(device => device.local_configured)
+        .filter(device => device.local_configured || isTuyaClimateSourceDevice(device))
         .map(device => device.id)
       tuyaSelectionInitialized.value = true
     } else {
@@ -1147,7 +1167,7 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
       selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
     }
     for (const device of tuyaCloudDevices.value) {
-      if (!isTuyaClimateDevice(device)) continue
+      if (!isTuyaThermostatDevice(device)) continue
       const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
       const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
       const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
@@ -1173,11 +1193,24 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
 async function syncTuyaCloudToLocal() {
   tuyaSyncing.value = true
   try {
-    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>(
+    const res = await apiClient.post<{
+      success: boolean
+      synced_count: number
+      local_control_count?: number
+      climate_sources_count?: number
+      message: string
+    }>(
       '/api/v1/integrations/tuya-cloud/sync-local',
       { device_ids: selectedTuyaDeviceIds.value }
     )
-    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
+    notificationsStore.success(
+      t('integrations.view.messages.localSelectionUpdatedTitle'),
+      t('integrations.view.messages.tuyaSyncCompletedDesc', {
+        count: res.synced_count,
+        local: res.local_control_count ?? 0,
+        climate: res.climate_sources_count ?? 0
+      })
+    )
     await fetchTuyaCloudDevices(true)
   } catch (err: any) {
     notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), t('integrations.view.messages.localSyncErrorDesc'))
@@ -2246,7 +2279,7 @@ onMounted(() => {
             <strong>{{ t('integrations.view.smartLifeDevices') }}</strong>
             <span class="tuya-device-count">{{ tuyaCloudDevices.length }} totali · {{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline</span>
           </div>
-          <span class="tuya-device-count">{{ t('integrations.view.selectedForLocalTuya', { count: tuyaSelectedCount }) }}</span>
+          <span class="tuya-device-count">{{ t('integrations.view.selectedForSync', { count: tuyaSelectedCount }) }}</span>
         </div>
         <div class="tuya-device-filter-row">
           <label class="tuya-device-search">
