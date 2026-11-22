@@ -465,7 +465,12 @@
       "devicesUpdatedMessage": "La liste des appareils et l’état des intégrations ont été actualisés.",
       "refreshErrorTitle": "Échec de l’actualisation",
       "refreshErrorMessage": "Impossible d’actualiser les appareils.",
-      "filteredCount": "{filtered} sur {total} appareils"
+      "filteredCount": "{filtered} sur {total} appareils",
+      "noRoom": "Non attribué",
+      "roomAssignedTitle": "Pièce mise à jour",
+      "roomAssignedMessage": "{device} a été associé à {room}.",
+      "roomAssignErrorTitle": "Échec de l’association à la pièce",
+      "roomAssignErrorMessage": "Impossible de mettre à jour la pièce de cet appareil."
     }
   },
   "integrations": {
