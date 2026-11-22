@@ -465,7 +465,12 @@
       "devicesUpdatedMessage": "Device list and integration status refreshed.",
       "refreshErrorTitle": "Refresh failed",
       "refreshErrorMessage": "Unable to refresh devices.",
-      "filteredCount": "{filtered} of {total} devices"
+      "filteredCount": "{filtered} of {total} devices",
+      "noRoom": "Not assigned",
+      "roomAssignedTitle": "Room updated",
+      "roomAssignedMessage": "{device} was assigned to {room}.",
+      "roomAssignErrorTitle": "Room assignment failed",
+      "roomAssignErrorMessage": "Unable to update this device's room."
     }
   },
   "integrations": {
