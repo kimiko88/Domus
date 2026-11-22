@@ -365,6 +365,66 @@ describe('DevicesView.vue', () => {
     })
   })
 
+  it('lists and assigns a configured LocalTuya device when the central device registry has no row', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'office', name: 'Studio' }]
+    authStore.user = {
+      id: 'admin-local',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: false }
+      if (url === '/api/v1/integrations/tuya-local/devices') {
+        return {
+          devices: [{
+            device_id: 'local-only-sensor',
+            name: 'Sensore Tuya LAN',
+            category: 'sensor',
+            connected: true,
+            ip: '192.168.1.55'
+          }]
+        }
+      }
+      if (url === '/api/v1/network/discovered') return []
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'tuya_local-only-sensor',
+      area_id: 'office',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(wrapper.text()).toContain('Sensore Tuya LAN')
+    const roomSelect = wrapper.find('#device-room-tuya_local-only-sensor')
+    expect(roomSelect.exists()).toBe(true)
+    expect(wrapper.text()).toContain('192.168.1.55')
+
+    await roomSelect.setValue('office')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_local-only-sensor/area', {
+      area_id: 'office',
+      external_id: 'local-only-sensor',
+      name: 'Sensore Tuya LAN',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'sensor'
+    })
+  })
+
   it('does not expose room editing to non-administrator accounts', async () => {
     const authStore = useAuthStore()
     authStore.user = {
