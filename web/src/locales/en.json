@@ -827,7 +827,8 @@
         "stateUnavailableDesc": "Unable to toggle {name}. Refresh the device state and try again.",
         "unsupportedTemperatureTitle": "Unsupported temperature",
         "unsupportedTemperatureDesc": "Choose one of the available setpoints: 1, 1.5, 2, 7, 12, 17, 21 or 22 °C.",
-        "manualIsolationReason": "Device manually isolated by Network Guardian."
+        "manualIsolationReason": "Device manually isolated by Network Guardian.",
+        "tuyaSyncCompletedDesc": "Synchronized {count} devices: {local} with LAN control, {climate} climate sources."
       },
       "devicesShown": "{count} shown",
       "deviceOnline": "Online",
@@ -850,7 +851,10 @@
       "firmwareLabel": "Firmware",
       "tuyaCloudSetupInstruction": "Create an account at iot.tuya.com, open Cloud → Development and select the Domus project.",
       "tuyaProjectIntro": "Open your project at",
-      "tuyaProjectPath": "Cloud → Development → open the Domus project"
+      "tuyaProjectPath": "Cloud → Development → open the Domus project",
+      "selectedForSync": "Selected for synchronization: {count}",
+      "syncSelectedDevices": "Sync selected ({count})",
+      "syncingDevices": "Synchronizing devices…"
     }
   },
   "history": {
