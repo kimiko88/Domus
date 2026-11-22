@@ -91,6 +91,13 @@ func TestParseCategory(t *testing.T) {
 		{"dd", CategoryLight},
 		{"wk", CategoryClimate},
 		{"climate", CategoryClimate},
+		{"sensor", CategorySensor},
+		{"wsdcg", CategorySensor},
+		{"wsdcgq", CategorySensor},
+		{"wsdcgq11lm", CategorySensor},
+		{"temperature_sensor", CategorySensor},
+		{"humidity_sensor", CategorySensor},
+		{"thermo_hygrometer", CategorySensor},
 		{"unknown_xyz", CategorySwitch},
 	}
 
