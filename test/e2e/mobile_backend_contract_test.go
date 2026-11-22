@@ -104,6 +104,7 @@ func TestMobileBackendContract_EndToEnd(t *testing.T) {
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine),
 	)
+	defer shutdownServer(t, srv)
 	router := srv.Router()
 
 	// 1. Initial Setup: Register First Admin (matching mobile setup flow)

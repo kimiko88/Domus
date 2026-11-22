@@ -92,8 +92,16 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 	defer bus.Close()
 
 	engine := appauto.NewEngine(repos.Automations, repos.Entities, bus)
-	require.NoError(t, engine.Start(ctx))
-	defer engine.Stop(ctx)
+	// The engine must outlive the short-lived setup/DB context below.
+	// Starting it with ctx would cancel all rule executions after 10 seconds.
+	require.NoError(t, engine.Start(context.Background()))
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		if err := engine.Stop(stopCtx); err != nil {
+			t.Errorf("stop automation engine: %v", err)
+		}
+	}()
 
 	sceneService := appscene.NewService(repos.Scenes, bus)
 
@@ -113,6 +121,7 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		serverpkg.WithWebSocket(wsHub),
 		serverpkg.WithAutomation(engine, sceneService),
 	)
+	defer shutdownServer(t, srv)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -358,9 +367,4 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		}, 1*time.Second, 20*time.Millisecond, "Scene activation must publish turn_off command to light")
 	})
 
-	// 9. Shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer shutdownCancel()
-	err = srv.Shutdown(shutdownCtx)
-	assert.NoError(t, err)
 }

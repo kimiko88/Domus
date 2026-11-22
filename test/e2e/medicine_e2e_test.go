@@ -64,6 +64,7 @@ func TestMedicineCabinet_EndToEnd(t *testing.T) {
 		serverpkg.WithRepositories(repos, bus),
 		authOption,
 	)
+	defer shutdownServer(t, srv)
 
 	ts := httptest.NewServer(srv.Router())
 	defer ts.Close()

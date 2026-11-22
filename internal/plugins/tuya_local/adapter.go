@@ -56,6 +56,7 @@ type Adapter struct {
 	devices map[string]*DeviceClient
 	configs map[string]DeviceConfig
 	active  bool
+	unsubscribe func()
 }
 
 // NewAdapter creates a new Tuya Local adapter instance.
@@ -129,9 +130,19 @@ func (a *Adapter) Start(ctx context.Context) error {
 		}
 	}
 
-	// Listen for command events on bus
+	// Listen for command events on bus. Keep the unsubscribe function so a
+	// stopped adapter cannot continue receiving commands from other integrations.
 	if a.bus != nil {
-		a.bus.Subscribe(events.CommandRequested, a.handleCommandEvent)
+		unsubscribe := a.bus.Subscribe(events.CommandRequested, a.handleCommandEvent)
+		a.mu.Lock()
+		if a.active && a.unsubscribe == nil {
+			a.unsubscribe = unsubscribe
+			unsubscribe = nil
+		}
+		a.mu.Unlock()
+		if unsubscribe != nil {
+			unsubscribe()
+		}
 	}
 
 	return nil
@@ -141,14 +152,25 @@ func (a *Adapter) Start(ctx context.Context) error {
 func (a *Adapter) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	a.active = false
-	a.discovery.Stop()
-
-	for devID, client := range a.devices {
-		_ = client.Close()
-		delete(a.devices, devID)
-	}
+	unsubscribe := a.unsubscribe
+	a.unsubscribe = nil
+	clients := a.devices
+	a.devices = make(map[string]*DeviceClient)
 	a.mu.Unlock()
 
+	// Stop external workers without holding a.mu: discovery callbacks and
+	// in-flight device connections also need that lock to finish cleanly.
+	if unsubscribe != nil {
+		unsubscribe()
+	}
+	if a.discovery != nil {
+		a.discovery.Stop()
+	}
+	for _, client := range clients {
+		if client != nil {
+			_ = client.Close()
+		}
+	}
 	return nil
 }
 
@@ -525,6 +547,11 @@ func (a *Adapter) connectDevice(cfg DeviceConfig) {
 	}
 
 	a.mu.Lock()
+	if !a.active {
+		a.mu.Unlock()
+		_ = client.Close()
+		return
+	}
 	a.devices[cfg.DeviceID] = client
 	a.mu.Unlock()
 
@@ -883,6 +910,22 @@ func (a *Adapter) handleCommandEvent(ctx context.Context, evt events.Event) erro
 		}
 	}
 	if cmd.EntityKey == "" || cmd.Command == "" {
+		return nil
+	}
+
+	// CommandRequested is broadcast to every integration adapter. LocalTuya
+	// owns only entities backed by its configured local-key allow-list; other
+	// adapters (Zigbee2MQTT, ESPHome, Tuya Cloud, etc.) must be ignored here.
+	a.mu.RLock()
+	locallyOwned := false
+	for _, cfg := range a.configs {
+		if cfg.DeviceID == cmd.EntityKey || cfg.EntityKey == cmd.EntityKey {
+			locallyOwned = true
+			break
+		}
+	}
+	a.mu.RUnlock()
+	if !locallyOwned {
 		return nil
 	}
 

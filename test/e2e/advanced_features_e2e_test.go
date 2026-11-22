@@ -111,6 +111,7 @@ func TestAdvancedFeatures_EndToEnd(t *testing.T) {
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine),
 	)
+	defer shutdownServer(t, srv)
 
 	router := srv.Router()
 

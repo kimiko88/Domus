@@ -101,6 +101,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithWebSocket(wsHub),
 	)
+	defer shutdownServer(t, srv)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -380,11 +381,6 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		assert.Equal(t, "degraded", payloadMap["status"])
 	})
 
-	// 7. Clean Shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer shutdownCancel()
-	err = srv.Shutdown(shutdownCtx)
-	assert.NoError(t, err)
 }
 
 func readWSEvent(t *testing.T, wsConn *gorilla.Conn, eventType string, timeout time.Duration) wsinfra.Message {
