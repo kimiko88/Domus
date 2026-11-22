@@ -465,7 +465,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
 			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).
 				WithEntities(srv.repos.Entities).
-				WithAreas(srv.repos.Areas)
+				WithAreas(srv.repos.Areas).
+				WithIntegrations(srv.repos.Integrations)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
 			if xiaomiCloudHandler != nil {
 				entityH.WithXiaomiCloud(xiaomiCloudHandler)
