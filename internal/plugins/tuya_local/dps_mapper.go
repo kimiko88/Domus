@@ -155,9 +155,98 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 		for k, v := range dps {
 			result.Attributes["dp_"+k] = v
 		}
+		// Common Tuya thermo-hygrometers (for example WSDCGQ profiles) expose
+		// temperature on DP1 and humidity on DP2. Keep the raw datapoints and
+		// only infer climate semantics when the values need Tuya scaling or the
+		// configured device name explicitly identifies a climate sensor.
+		enrichTuyaClimateSensorAttributes(result.Attributes, "")
 	}
 
 	return result
+}
+
+// enrichTuyaClimateSensorAttributes keeps generic Tuya sensors out of Climate
+// & History unless there is evidence that DP1/DP2 represent temperature and
+// humidity. Existing cloud telemetry is retained and takes precedence.
+func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName string) {
+	if attributes == nil {
+		return
+	}
+	temperatureRaw, hasTemperature := toFloat(attributes["dp_1"])
+	humidityRaw, hasHumidity := toFloat(attributes["dp_2"])
+	if !hasTemperature || !hasHumidity {
+		return
+	}
+
+	temperature, temperatureScaled, temperatureOK := normalizeTuyaTemperatureDPS(temperatureRaw)
+	humidity, humidityScaled, humidityOK := normalizeTuyaHumidityDPS(humidityRaw)
+	if !temperatureOK || !humidityOK {
+		return
+	}
+
+	name := strings.ToLower(strings.TrimSpace(deviceName))
+	nameHint := strings.Contains(name, "temperature") || strings.Contains(name, "temperatur") ||
+		strings.Contains(name, "temp ") || strings.Contains(name, "humidity") ||
+		strings.Contains(name, "umid") || strings.Contains(name, "thermo") ||
+		strings.Contains(name, "termomet") || strings.Contains(name, "igromet")
+	alreadyMarked, _ := attributes["tuya_climate_source"].(bool)
+	if !nameHint && !temperatureScaled && !humidityScaled && !alreadyMarked {
+		return
+	}
+
+	if _, exists := attributeNumberForTuya(attributes, "current_temperature", "temperature", "va_temperature"); !exists {
+		attributes["current_temperature"] = temperature
+	}
+	if _, exists := attributeNumberForTuya(attributes, "current_humidity", "humidity", "va_humidity"); !exists {
+		attributes["current_humidity"] = humidity
+	}
+	if strings.TrimSpace(fmt.Sprint(attributes["device_class"])) == "" {
+		attributes["device_class"] = "temperature"
+	}
+	if strings.TrimSpace(fmt.Sprint(attributes["unit_of_measurement"])) == "" {
+		attributes["unit_of_measurement"] = "°C"
+	}
+	attributes["tuya_climate_source"] = true
+	attributes["tuya_sensor_kind"] = "temperature_humidity"
+}
+
+func normalizeTuyaTemperatureDPS(value float64) (float64, bool, bool) {
+	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= -50 && value <= 70 {
+		return value, false, true
+	}
+	for _, scale := range []float64{10, 100, 1000} {
+		normalized := value / scale
+		if !math.IsNaN(normalized) && !math.IsInf(normalized, 0) && normalized >= -50 && normalized <= 70 {
+			return normalized, true, true
+		}
+	}
+	return 0, false, false
+}
+
+func normalizeTuyaHumidityDPS(value float64) (float64, bool, bool) {
+	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0 && value <= 100 {
+		return value, false, true
+	}
+	for _, scale := range []float64{10, 100, 1000} {
+		normalized := value / scale
+		if !math.IsNaN(normalized) && !math.IsInf(normalized, 0) && normalized >= 0 && normalized <= 100 {
+			return normalized, true, true
+		}
+	}
+	return 0, false, false
+}
+
+// attributeNumberForTuya checks whether an existing telemetry field is already
+// populated without replacing provider-reported values with inferred DPS data.
+func attributeNumberForTuya(attributes map[string]any, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		if value, exists := attributes[key]; exists {
+			if number, ok := toFloat(value); ok {
+				return number, true
+			}
+		}
+	}
+	return 0, false
 }
 
 // MapCommandToDPS converts a Domus entity command into a Tuya DPS payload.
