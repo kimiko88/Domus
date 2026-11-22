@@ -516,6 +516,30 @@ button:disabled { opacity:.55; cursor:not-allowed; }
   color:#e2e8f0;
   background-color:#111827;
 }
+:global(:root[data-theme="light"]) .climate-history-view input[type="date"],
+:global([data-theme="light"]) .climate-history-view input[type="date"],
+:global(:root[data-theme="light"]) .climate-history-view input[type="number"],
+:global([data-theme="light"]) .climate-history-view input[type="number"] {
+  color-scheme:light;
+  color:#0f172a;
+  background-color:#fff;
+  border-color:#cbd5e1;
+}
+:global(:root[data-theme="dark"]) .climate-history-view input[type="date"],
+:global([data-theme="dark"]) .climate-history-view input[type="date"],
+:global(:root[data-theme="dark"]) .climate-history-view input[type="number"],
+:global([data-theme="dark"]) .climate-history-view input[type="number"] {
+  color-scheme:dark;
+  color:#e2e8f0;
+  background-color:#111827;
+  border-color:#475569;
+}
+.climate-history-view select:focus-visible,
+.climate-history-view input[type="date"]:focus-visible,
+.climate-history-view input[type="number"]:focus-visible {
+  outline:2px solid var(--accent-color,#0ea5e9);
+  outline-offset:2px;
+}
 
 .chart-panel { min-height:19rem; }
 .sample-count { white-space:nowrap; color:var(--text-muted,#94a3b8); font-size:.8rem; }
