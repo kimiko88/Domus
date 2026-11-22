@@ -636,7 +636,8 @@
         "stateUnavailableDesc": "Der Status von {name} konnte nicht umgeschaltet werden. Aktualisiere den Gerätestatus und versuche es erneut.",
         "unsupportedTemperatureTitle": "Temperatur nicht unterstützt",
         "unsupportedTemperatureDesc": "Wähle einen verfügbaren Sollwert: 1, 1,5, 2, 7, 12, 17, 21 oder 22 °C.",
-        "manualIsolationReason": "Gerät wurde manuell durch Network Guardian isoliert."
+        "manualIsolationReason": "Gerät wurde manuell durch Network Guardian isoliert.",
+        "tuyaSyncCompletedDesc": "{count} Geräte synchronisiert: {local} mit LAN-Steuerung, {climate} Klimadatenquellen."
       },
       "devicesShown": "{count} angezeigt",
       "deviceOnline": "Online",
@@ -850,7 +851,10 @@
         "vesyncRefreshStatus": "Status aktualisieren",
         "vesyncFirmware": "Firmware",
         "vesyncRefreshDevices": "Geräte aktualisieren"
-      }
+      },
+      "selectedForSync": "Zur Synchronisierung ausgewählt: {count}",
+      "syncSelectedDevices": "Auswahl synchronisieren ({count})",
+      "syncingDevices": "Geräte werden synchronisiert…"
     }
   },
   "history": {
