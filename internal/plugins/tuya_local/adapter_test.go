@@ -3,9 +3,11 @@ package tuya_local
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
 	_ "modernc.org/sqlite"
 )
@@ -284,5 +286,91 @@ func TestAdapter_WaitForDiscoveredLANIPUsesFreshAnnouncement(t *testing.T) {
 	}
 	if cfg.Version != "3.5" {
 		t.Fatalf("resolved version = %q, want 3.5", cfg.Version)
+	}
+}
+
+type memoryTuyaEntityRepo struct {
+	entity *entity.Entity
+}
+
+func (r *memoryTuyaEntityRepo) Create(_ context.Context, item *entity.Entity) error {
+	r.entity = item
+	return nil
+}
+func (r *memoryTuyaEntityRepo) GetByID(_ context.Context, id string) (*entity.Entity, error) {
+	if r.entity != nil && r.entity.ID == id { return r.entity, nil }
+	return nil, entity.ErrEntityNotFound
+}
+func (r *memoryTuyaEntityRepo) GetByKey(_ context.Context, key string) (*entity.Entity, error) {
+	if r.entity != nil && r.entity.EntityKey == key { return r.entity, nil }
+	return nil, entity.ErrEntityNotFound
+}
+func (r *memoryTuyaEntityRepo) List(context.Context, entity.ListFilter) ([]*entity.Entity, error) {
+	if r.entity == nil { return nil, nil }
+	return []*entity.Entity{r.entity}, nil
+}
+func (r *memoryTuyaEntityRepo) Update(context.Context, *entity.Entity) error { return nil }
+func (r *memoryTuyaEntityRepo) UpdateState(_ context.Context, id, stateJSON, attributesJSON string, available bool, at time.Time) error {
+	if r.entity == nil || r.entity.ID != id { return entity.ErrEntityNotFound }
+	r.entity.State = stateJSON
+	r.entity.Attributes = attributesJSON
+	r.entity.Available = available
+	r.entity.LastUpdatedAt = at
+	return nil
+}
+func (r *memoryTuyaEntityRepo) Delete(context.Context, string) error { r.entity = nil; return nil }
+
+func TestAdapter_HandleDeviceStatusPersistsClimateTelemetryAndPreservesCloudFields(t *testing.T) {
+	repo := &memoryTuyaEntityRepo{entity: &entity.Entity{
+		ID: "climate-1", EntityKey: "climate.tuya_thermostat", Domain: "climate",
+		State: `{"state":"heat"}`,
+		Attributes: `{"current_humidity":46,"cloud_marker":"kept"}`,
+		Available: true,
+	}}
+	adapter := NewAdapter("tuya_test", &mockBus{}).WithRepositories(nil, repo)
+	adapter.handleDeviceStatus(DeviceConfig{
+		DeviceID: "thermostat", Category: CategoryClimate, EntityKey: "climate.tuya_thermostat",
+	}, map[string]any{"2": 225, "3": 217, "4": 1})
+
+	var state map[string]any
+	if err := json.Unmarshal([]byte(repo.entity.State), &state); err != nil {
+		t.Fatalf("decode persisted state: %v", err)
+	}
+	if state["state"] != "heat" {
+		t.Fatalf("state = %#v, expected previous heat state to be preserved", state["state"])
+	}
+	var attrs map[string]any
+	if err := json.Unmarshal([]byte(repo.entity.Attributes), &attrs); err != nil {
+		t.Fatalf("decode persisted attributes: %v", err)
+	}
+	if attrs["current_temperature"] != 21.7 || attrs["target_temperature"] != 22.5 {
+		t.Fatalf("expected live climate DPS telemetry, got %#v", attrs)
+	}
+	if attrs["current_humidity"] != float64(46) || attrs["cloud_marker"] != "kept" {
+		t.Fatalf("cloud fields should be preserved while merging DPS data, got %#v", attrs)
+	}
+}
+
+func TestAdapter_HandleDeviceStatusPreservesTuyaSensorCloudTelemetry(t *testing.T) {
+	repo := &memoryTuyaEntityRepo{entity: &entity.Entity{
+		ID: "sensor-1", EntityKey: "sensor.tuya_sensor", Domain: "sensor",
+		State: `{"state":"active"}`,
+		Attributes: `{"current_temperature":21.4,"current_humidity":49}`,
+		Available: true,
+	}}
+	adapter := NewAdapter("tuya_test", &mockBus{}).WithRepositories(nil, repo)
+	adapter.handleDeviceStatus(DeviceConfig{
+		DeviceID: "sensor", Category: CategorySensor, EntityKey: "sensor.tuya_sensor",
+	}, map[string]any{"1": 42})
+
+	var attrs map[string]any
+	if err := json.Unmarshal([]byte(repo.entity.Attributes), &attrs); err != nil {
+		t.Fatalf("decode persisted sensor attributes: %v", err)
+	}
+	if attrs["current_temperature"] != float64(21.4) || attrs["current_humidity"] != float64(49) {
+		t.Fatalf("cloud temperature/humidity readings should survive unmapped local DPS, got %#v", attrs)
+	}
+	if attrs["dp_1"] != float64(42) {
+		t.Fatalf("raw sensor DPS should also be retained, got %#v", attrs)
 	}
 }

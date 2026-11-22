@@ -246,12 +246,25 @@ func (h *TuyaOAuthHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		localKey := dev.LocalKey
 		ip := dev.IP
 
-		// If local_key was not included in user devices list, fetch single device details
-		if localKey == "" {
-			if detailed, err := h.client.GetDevice(r.Context(), token, dev.ID); err == nil && detailed != nil {
-				localKey = detailed.LocalKey
+		// The user-device list may omit both local_key and live status/function
+		// metadata. Fetch the detailed record when any fields needed for safe
+		// provisioning or climate classification are missing.
+		if localKey == "" || len(dev.Status) == 0 || dev.Category == "" || dev.ProductName == "" {
+			if detailed, detailErr := h.client.GetDevice(r.Context(), token, dev.ID); detailErr == nil && detailed != nil {
+				if localKey == "" {
+					localKey = detailed.LocalKey
+				}
 				if ip == "" {
 					ip = detailed.IP
+				}
+				if dev.Category == "" {
+					dev.Category = detailed.Category
+				}
+				if dev.ProductName == "" {
+					dev.ProductName = detailed.ProductName
+				}
+				if len(dev.Status) == 0 {
+					dev.Status = detailed.Status
 				}
 			}
 		}
@@ -260,21 +273,19 @@ func (h *TuyaOAuthHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			continue // cannot connect locally without local_key
 		}
 
-		cat := tuya_local.ParseCategory(dev.Category)
+		// Use the same product/status inference as the Tuya Cloud integration.
+		// Raw Tuya category codes such as "wk" and "wsdcg" are not Domus domains.
+		cat, entityKey, initialState, initialAttributes := inferTuyaDeviceCategoryAndTelemetry(dev)
 		cfg := tuya_local.DeviceConfig{
-			DeviceID:  dev.ID,
-			Name:      dev.Name,
-			IP:        ip,
-			LocalKey:  localKey,
-			Version:   "3.3",
-			Category:  cat,
-			EntityKey: fmt.Sprintf("switch.tuya_%s", dev.ID),
-		}
-		switch cat {
-		case tuya_local.CategoryLight:
-			cfg.EntityKey = fmt.Sprintf("light.tuya_%s", dev.ID)
-		case tuya_local.CategoryClimate:
-			cfg.EntityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
+			DeviceID:          dev.ID,
+			Name:              dev.Name,
+			IP:                ip,
+			LocalKey:          localKey,
+			Version:           "3.3",
+			Category:          cat,
+			EntityKey:         entityKey,
+			InitialState:      initialState,
+			InitialAttributes: initialAttributes,
 		}
 
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {

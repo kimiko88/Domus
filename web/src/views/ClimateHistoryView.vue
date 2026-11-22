@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Chart from 'chart.js/auto'
+import ClimateHistorySelect from '@/components/ClimateHistorySelect.vue'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
@@ -39,6 +40,22 @@ const availableAreas = computed(() => {
   return [...values.entries()].map(([id, label]) => ({ id, label }))
 })
 
+const roomSelectOptions = computed(() => [
+  { value: '', label: t('climateHistory.allRooms') },
+  ...availableAreas.value.map(area => ({ value: area.id, label: area.label }))
+])
+const metricSelectOptions = computed(() => [
+  { value: 'temperature', label: t('climateHistory.metrics.temperature') },
+  { value: 'humidity', label: t('climateHistory.metrics.humidity') },
+  { value: 'target_temperature', label: t('climateHistory.metrics.target') }
+])
+const intervalSelectOptions = computed(() =>
+  [1, 2, 5, 10, 15, 30, 60].map(value => ({
+    value,
+    label: `${value} ${t('climateHistory.settings.minutes')}`
+  }))
+)
+
 const availableSeries = computed(() => {
   const map = new Map<string, string>()
   store.points.forEach(point => {
@@ -49,6 +66,13 @@ const availableSeries = computed(() => {
   return [...map.entries()].map(([id, name]) => ({ id, name }))
 })
 
+function hasNumericAttribute(attributes: Record<string, any>, ...keys: string[]): boolean {
+  return keys.some(key => {
+    const value = attributes[key]
+    return typeof value === 'number' && Number.isFinite(value)
+  })
+}
+
 function isClimateSourceEntity(entity: Entity): boolean {
   if (entity.domain === 'climate') return true
   if (entity.domain !== 'sensor') return false
@@ -57,21 +81,63 @@ function isClimateSourceEntity(entity: Entity): boolean {
   const unit = String(entity.unit_of_measurement || attributes.unit_of_measurement || '').toLowerCase()
   const key = String(entity.entity_key || entity.id || '').toLowerCase()
   const name = String(entity.name || '').toLowerCase()
+  const hasTemperatureReading = hasNumericAttribute(
+    attributes, 'current_temperature', 'measured_temperature', 'temperature', 'temp_current', 'va_temperature'
+  )
+  const hasHumidityReading = hasNumericAttribute(
+    attributes, 'current_humidity', 'humidity', 'humidity_value', 'va_humidity'
+  )
   return deviceClass === 'temperature' || deviceClass.includes('humidity') ||
     ['°c', '°f', 'celsius', 'fahrenheit', 'c', 'f', '%'].includes(unit) ||
-    /temperature|temperatura|humidity|umid/.test(key + ' ' + name)
+    hasTemperatureReading || hasHumidityReading ||
+    /temperature|temperatura|humidity|umid|thermometer|hygrometer/.test(key + ' ' + name)
+}
+
+function tuyaDeviceIDFromEntity(entity: Entity): string {
+  for (const candidate of [entity.entity_key || '', entity.id || '']) {
+    const suffix = candidate.split('.').pop() || ''
+    if (suffix.startsWith('tuya_') && suffix.length > 'tuya_'.length) return suffix
+  }
+  return ''
 }
 
 const availableClimateDevices = computed(() => {
-  const sourceDeviceIDs = new Set(
-    entitiesStore.allEntities
-      .filter(isClimateSourceEntity)
-      .map(entity => entity.device_id)
-      .filter((id): id is string => Boolean(id))
-  )
-  return devicesStore.devices
-    .filter(device => sourceDeviceIDs.has(device.id))
-    .sort((a, b) => a.name.localeCompare(b.name, locale.value))
+  const sourceEntities = entitiesStore.allEntities.filter(isClimateSourceEntity)
+  const devicesByID = new Map<string, Device>()
+
+  sourceEntities.forEach(entity => {
+    // Keep the same ID the backend collector and settings validator use:
+    // entity.device_id, or the deterministic tuya_<id> suffix for legacy rows.
+    const sourceID = entity.device_id || tuyaDeviceIDFromEntity(entity)
+    if (!sourceID || devicesByID.has(sourceID)) return
+
+    const matchingDevice = devicesStore.devices.find(device => {
+      const normalizedID = device.id.startsWith('tuya_') ? device.id.slice('tuya_'.length) : device.id
+      const externalID = device.external_id || ''
+      return device.id === sourceID || normalizedID === sourceID ||
+        externalID === sourceID || (externalID !== '' && 'tuya_' + externalID === sourceID)
+    })
+
+    if (matchingDevice) {
+      devicesByID.set(sourceID, { ...matchingDevice, id: sourceID })
+      return
+    }
+
+    // Older integration entities can exist before a matching /devices record.
+    // The synthetic row still uses a backend-recognized stable device identifier.
+    const isTuya = sourceID.startsWith('tuya_') || (entity.entity_key || '').includes('.tuya_')
+    devicesByID.set(sourceID, {
+      id: sourceID,
+      external_id: isTuya ? sourceID.slice('tuya_'.length) : sourceID,
+      name: entity.name || sourceID,
+      integration_id: isTuya ? 'tuya_local' : t('climateHistory.sources.unknownIntegration'),
+      status: 'unknown',
+      created_at: '',
+      updated_at: ''
+    })
+  })
+
+  return [...devicesByID.values()].sort((a, b) => a.name.localeCompare(b.name, locale.value))
 })
 
 const allClimateDevicesSelected = computed({
@@ -285,18 +351,21 @@ onBeforeUnmount(() => {
       </div>
       <label>
         <span>{{ t('climateHistory.room') }}</span>
-        <select v-model="selectedArea">
-          <option value="">{{ t('climateHistory.allRooms') }}</option>
-          <option v-for="area in availableAreas" :key="area.id" :value="area.id">{{ area.label }}</option>
-        </select>
+        <ClimateHistorySelect
+          id="climate-room-select"
+          :label="t('climateHistory.room')"
+          v-model="selectedArea"
+          :options="roomSelectOptions"
+        />
       </label>
       <label>
         <span>{{ t('climateHistory.metric') }}</span>
-        <select v-model="selectedMetric">
-          <option value="temperature">{{ t('climateHistory.metrics.temperature') }}</option>
-          <option value="humidity">{{ t('climateHistory.metrics.humidity') }}</option>
-          <option value="target_temperature">{{ t('climateHistory.metrics.target') }}</option>
-        </select>
+        <ClimateHistorySelect
+          id="climate-metric-select"
+          :label="t('climateHistory.metric')"
+          v-model="selectedMetric"
+          :options="metricSelectOptions"
+        />
       </label>
       <label v-if="selectedRange === 'custom'">
         <span>{{ t('climateHistory.from') }}</span>
@@ -416,9 +485,12 @@ onBeforeUnmount(() => {
         <label class="switch-row"><input v-model="settingsForm.enabled" type="checkbox"><span>{{ t('climateHistory.settings.enabled') }}</span></label>
         <label>
           <span>{{ t('climateHistory.settings.interval') }}</span>
-          <select v-model.number="settingsForm.interval_minutes">
-            <option v-for="value in [1,2,5,10,15,30,60]" :key="value" :value="value">{{ value }} {{ t('climateHistory.settings.minutes') }}</option>
-          </select>
+          <ClimateHistorySelect
+            id="climate-interval-select"
+            :label="t('climateHistory.settings.interval')"
+            v-model="settingsForm.interval_minutes"
+            :options="intervalSelectOptions"
+          />
         </label>
         <label class="switch-row"><input v-model="settingsForm.record_temperature" type="checkbox"><span>{{ t('climateHistory.settings.recordTemperature') }}</span></label>
         <label class="switch-row"><input v-model="settingsForm.record_humidity" type="checkbox"><span>{{ t('climateHistory.settings.recordHumidity') }}</span></label>
