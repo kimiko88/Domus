@@ -39,7 +39,26 @@ export const useDevicesStore = defineStore('devices', () => {
         ...(metadata || {})
       })
       const existing = devices.value.find((device) => device.id === deviceId)
-      if (existing) existing.area_id = result.area_id || undefined
+      if (existing) {
+        existing.area_id = result.area_id || undefined
+      } else if (result.device_created && metadata) {
+        // Cloud-only Tuya devices become first-class registry devices on their
+        // first room assignment. Reflect the server-created row immediately so
+        // the Devices and Areas views show the same room without a full reload.
+        devices.value.push({
+          id: deviceId,
+          external_id: metadata.external_id,
+          name: metadata.name,
+          integration_id: metadata.integration_id,
+          manufacturer: metadata.manufacturer,
+          model: metadata.model,
+          area_id: result.area_id || undefined,
+          online: metadata.online,
+          status: metadata.online ? 'online' : 'unknown',
+          created_at: '',
+          updated_at: ''
+        })
+      }
       return result
     } catch (err: any) {
       error.value = i18n.global.t('devices.view.roomAssignErrorMessage')
