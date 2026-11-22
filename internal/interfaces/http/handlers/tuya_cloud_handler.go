@@ -284,26 +284,46 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 	for _, st := range dev.Status {
 		statusCodes = append(statusCodes, st.Code)
 	}
-	cat := tuya_local.DeviceCategory(strings.ToLower(strings.TrimSpace(dev.Category)))
-	switch cat {
-	case tuya_local.CategoryClimate, tuya_local.CategoryLight, tuya_local.CategoryPlug,
-		tuya_local.CategorySensor, tuya_local.CategorySwitch:
-		// The Cloud category already matches a supported Domus profile.
+	rawCategory := strings.ToLower(strings.TrimSpace(dev.Category))
+	name := strings.ToLower(dev.Name + " " + dev.ProductName)
+
+	// Tuya product categories are not identical to Domus entity domains.
+	// Keep the common thermostat and thermo-hygrometer category codes explicit,
+	// then use reported datapoints and descriptive names for vendor-specific codes.
+	cat := tuya_local.CategorySwitch
+	switch rawCategory {
+	case "wk", "climate", "thermostat":
+		cat = tuya_local.CategoryClimate
+	case "sensor", "wsdcg", "wsdcgq", "wsdcgq11lm", "temperature_sensor", "humidity_sensor", "thermo_hygrometer":
+		cat = tuya_local.CategorySensor
 	default:
-		name := strings.ToLower(dev.Name + " " + dev.ProductName)
-		switch {
-		case containsAnyTuyaCode(statusCodes, "temp_set", "target_temp", "target_temperature", "temp_current", "current_temp", "hvac_mode", "work_mode") ||
-			strings.Contains(name, "thermostat") ||
-			strings.Contains(name, "climate") || strings.Contains(name, "radiator") ||
-			strings.Contains(name, "heater"):
-			cat = tuya_local.CategoryClimate
-		case strings.Contains(name, "light") || strings.Contains(name, "lamp") || strings.Contains(name, "bulb"):
-			cat = tuya_local.CategoryLight
-		case strings.Contains(name, "plug") || strings.Contains(name, "socket"):
-			cat = tuya_local.CategoryPlug
-		default:
-			cat = tuya_local.CategorySwitch
-		}
+		cat = tuya_local.ParseCategory(rawCategory)
+	}
+
+	hasClimateSetpoint := containsAnyTuyaCode(statusCodes,
+		"temp_set", "target_temp", "target_temperature", "upper_temp", "set_temp")
+	hasClimateMode := containsAnyTuyaCode(statusCodes, "hvac_mode", "work_mode")
+	hasSensorTelemetry := containsAnyTuyaCode(statusCodes,
+		"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature",
+		"va_humidity", "current_humidity", "humidity_value", "humidity")
+	isThermostatName := strings.Contains(name, "thermostat") || strings.Contains(name, "climate") ||
+		strings.Contains(name, "radiator") || strings.Contains(name, "heater")
+	isClimateName := isThermostatName || strings.Contains(name, "thermostat valve")
+	isSensorName := strings.Contains(name, "temperature sensor") || strings.Contains(name, "humidity sensor") ||
+		strings.Contains(name, "thermo-hygrometer") || strings.Contains(name, "thermometer") ||
+		strings.Contains(name, "hygrometer") || strings.Contains(name, "temperature and humidity")
+
+	switch {
+	case hasClimateSetpoint || hasClimateMode || isClimateName:
+		cat = tuya_local.CategoryClimate
+	case rawCategory == "sensor" || rawCategory == "wsdcg" || rawCategory == "wsdcgq" ||
+		rawCategory == "wsdcgq11lm" || hasSensorTelemetry || isSensorName:
+		cat = tuya_local.CategorySensor
+	case cat == tuya_local.CategorySwitch && (strings.Contains(name, "light") ||
+		strings.Contains(name, "lamp") || strings.Contains(name, "bulb")):
+		cat = tuya_local.CategoryLight
+	case cat == tuya_local.CategorySwitch && (strings.Contains(name, "plug") || strings.Contains(name, "socket")):
+		cat = tuya_local.CategoryPlug
 	}
 
 	entityKey := fmt.Sprintf("switch.tuya_%s", dev.ID)
@@ -312,16 +332,52 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 		entityKey = fmt.Sprintf("light.tuya_%s", dev.ID)
 	case tuya_local.CategoryClimate:
 		entityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
+	case tuya_local.CategorySensor:
+		entityKey = fmt.Sprintf("sensor.tuya_%s", dev.ID)
+	}
+
+	state := "active"
+	attrs := make(map[string]any)
+	if cat == tuya_local.CategorySensor {
+		if value, ok := tuyaStatusNumber(dev.Status,
+			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature"); ok {
+			if value > 70 && value <= 1000 {
+				value /= 10
+			}
+			if value >= -50 && value <= 70 {
+				attrs["current_temperature"] = value
+				attrs["temperature"] = value
+			}
+		}
+		if value, ok := tuyaStatusNumber(dev.Status,
+			"va_humidity", "current_humidity", "humidity_value", "humidity"); ok {
+			if value > 100 && value <= 1000 {
+				value /= 10
+			}
+			if value >= 0 && value <= 100 {
+				attrs["current_humidity"] = value
+				attrs["humidity"] = value
+			}
+		}
+		if _, hasTemperature := attrs["current_temperature"]; hasTemperature {
+			if _, hasHumidity := attrs["current_humidity"]; !hasHumidity {
+				attrs["device_class"] = "temperature"
+				attrs["unit_of_measurement"] = "°C"
+			}
+		} else if _, hasHumidity := attrs["current_humidity"]; hasHumidity {
+			attrs["device_class"] = "humidity"
+			attrs["unit_of_measurement"] = "%"
+		}
+		attrsBytes, _ := json.Marshal(attrs)
+		return cat, entityKey, state, string(attrsBytes)
 	}
 
 	if cat != tuya_local.CategoryClimate {
 		return cat, entityKey, "", ""
 	}
 
-	state := "heat"
-	attrs := map[string]any{
-		"hvac_mode": "heat",
-	}
+	state = "heat"
+	attrs["hvac_mode"] = "heat"
 	for _, st := range dev.Status {
 		code := strings.ToLower(strings.TrimSpace(st.Code))
 		switch code {
@@ -359,11 +415,31 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 				}
 				attrs["current_temperature"] = num
 			}
+		case "va_humidity", "current_humidity", "humidity_value", "humidity":
+			if num, ok := tuyaNumericValue(st.Value); ok && num >= 0 && num <= 100 {
+				attrs["current_humidity"] = num
+			}
 		}
 	}
 
 	attrsBytes, _ := json.Marshal(attrs)
 	return cat, entityKey, state, string(attrsBytes)
+}
+
+func tuyaStatusNumber(statuses []tuya_cloud.Status, codes ...string) (float64, bool) {
+	wanted := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		wanted[strings.ToLower(strings.TrimSpace(code))] = struct{}{}
+	}
+	for _, status := range statuses {
+		if _, ok := wanted[strings.ToLower(strings.TrimSpace(status.Code))]; !ok {
+			continue
+		}
+		if value, ok := tuyaNumericValue(status.Value); ok {
+			return value, true
+		}
+	}
+	return 0, false
 }
 
 func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
