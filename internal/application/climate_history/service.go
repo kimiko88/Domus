@@ -245,7 +245,10 @@ func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
 	_, hasTelemetry := attributeNumber(attrs, "current_temperature", "measured_temperature", "temperature", "temp_current", "va_temperature")
-	return hasTelemetry || class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
+	tuyaKind := strings.ToLower(fmt.Sprint(attrs["tuya_sensor_kind"]))
+	tuyaClimateSource, _ := attrs["tuya_climate_source"].(bool)
+	return hasTelemetry || (tuyaClimateSource && tuyaKind != "humidity") || tuyaKind == "temperature" ||
+		tuyaKind == "temperature_humidity" || class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
 		strings.Contains(unit, "celsius") || strings.Contains(unit, "fahrenheit") || unit == "c" || unit == "f" ||
 		strings.Contains(key, "temperature") || strings.Contains(key, "temperatura")
 }
@@ -258,7 +261,11 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
 	_, hasTelemetry := attributeNumber(attrs, "current_humidity", "humidity", "humidity_value", "va_humidity")
-	return hasTelemetry || class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
+	tuyaKind := strings.ToLower(fmt.Sprint(attrs["tuya_sensor_kind"]))
+	tuyaClimateSource, _ := attrs["tuya_climate_source"].(bool)
+	return hasTelemetry || (tuyaClimateSource && strings.Contains(tuyaKind, "humidity")) ||
+		tuyaKind == "humidity" || tuyaKind == "temperature_humidity" ||
+		class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
 		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
