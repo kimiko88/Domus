@@ -1,6 +1,6 @@
 # Domus 🏠 — Manuale Utente
 
-> **Versione**: 1.0.0 · **Aggiornato**: Ottobre 2026  
+> **Versione**: 1.0.0 · **Aggiornato**: Novembre 2026  
 > **Piattaforme**: Raspberry Pi 4 ARM64 (Domus OS), Linux/Docker, macOS/Windows (sviluppo)
 
 ---
@@ -42,12 +42,13 @@
 29. [Lista della Spesa Familiare Condivisa](#29-lista-della-spesa-familiare-condivisa)
 30. [Risoluzione dei Problemi](#30-risoluzione-dei-problemi)
 31. [Domande Frequenti (FAQ)](#31-domande-frequenti-faq)
+32. [Integrazioni Xiaomi MiIO e VeSync](#32-integrazioni-xiaomi-miio-e-vesync)
 
 ---
 
 ## 1. Introduzione
 
-**Domus** è un hub domotico locale *privacy-first* progettato per funzionare interamente nella rete di casa, senza cloud obbligatorio e senza account esterni. È scritto in Go moderno e Vue 3 + TypeScript, ottimizzato per girare su un Raspberry Pi 4 con meno di 30 MB di RAM di occupazione del backend.
+**Domus** è un hub domotico locale *privacy-first*: il nucleo (automazioni, dispositivi LAN, dashboard e storico) funziona nella rete di casa senza cloud obbligatorio. Le integrazioni cloud opzionali, se configurate, comunicano con il rispettivo fornitore e richiedono Internet. È scritto in Go moderno e Vue 3 + TypeScript, ottimizzato per girare su un Raspberry Pi 4 con meno di 30 MB di RAM di occupazione del backend.
 
 ### Caratteristiche principali
 
@@ -857,6 +858,8 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Dispositivi & Mesh** | `GET /api/v1/devices` · `GET /api/v1/devices/bindings` · `POST /api/v1/devices/bindings` |
 | **Aree** | `GET /api/v1/areas` · `POST /api/v1/areas` · `PUT /api/v1/areas/{id}` · `DELETE /api/v1/areas/{id}` |
 | **Integrazioni & LAN** | `GET /api/v1/integrations` · `GET /api/v1/integrations/catalog` · `POST /api/v1/integrations/discovery/scan` · `POST /api/v1/integrations/discovery/pair` |
+| **Xiaomi MiIO locale** | `POST /api/v1/integrations/xiaomi-home/discovery` · `POST /api/v1/integrations/xiaomi-home/devices` · `POST /api/v1/integrations/xiaomi-home/devices/{id}/commands` |
+| **VeSync Cloud** | `GET /api/v1/integrations/vesync/status` · `PUT /api/v1/integrations/vesync/config` · `GET /api/v1/integrations/vesync/devices` · `POST /api/v1/integrations/vesync/devices/{id}/commands` · `POST /api/v1/integrations/vesync/disconnect` |
 | **Energia & Tariffe** | `GET /api/v1/energy/tariffs` · `GET /api/v1/energy/dynamic-tariffs` · `PUT /api/v1/energy/flexible-loads` · `POST /api/v1/energy/evaluate-tariffs` |
 | **Telecamere & NVR** | `GET /api/v1/cameras` · `GET /api/v1/cameras/nvr/status` · `POST /api/v1/cameras/{id}/webrtc` · `GET /api/v1/cameras/events` |
 | **Firmware & Flasher** | `GET /api/v1/ota/devices` · `GET /api/v1/ota/flasher/catalog` · `POST /api/v1/ota/flasher/provision` |
@@ -897,4 +900,4 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 
 ---
 
-*Domus v1.2.0 — Ottobre 2026 · Licenza MIT*
+*Domus v1.2.0 — Novembre 2026 · Licenza MIT*
