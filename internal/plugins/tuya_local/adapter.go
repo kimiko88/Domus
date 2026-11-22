@@ -994,6 +994,8 @@ func ParseCategory(code string) DeviceCategory {
 		return CategoryLight
 	case "wk", "climate", "thermostat":
 		return CategoryClimate
+	case "sensor", "wsdcg", "wsdcgq", "wsdcgq11lm", "temperature_sensor", "humidity_sensor", "thermo_hygrometer":
+		return CategorySensor
 	default:
 		return CategorySwitch
 	}
