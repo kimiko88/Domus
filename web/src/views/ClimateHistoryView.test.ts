@@ -43,12 +43,20 @@ describe('ClimateHistoryView.vue', () => {
         id: 'switch-not-climate', entity_key: 'switch.office', device_id: 'device-switch',
         domain: 'switch', name: 'Office switch', state: 'off',
         attributes: {}, last_changed: '', last_updated: ''
+      },
+      'sensor-tuya-climate': {
+        id: 'sensor.tuya_device-tuya-climate',
+        entity_key: 'sensor.tuya_device-tuya-climate',
+        domain: 'sensor', name: 'Tuya thermo-hygrometer', state: 'active',
+        attributes: { current_temperature: 22.1, current_humidity: 48 },
+        last_changed: '', last_updated: ''
       }
     }
     devices.devices = [
       { id: 'device-bedroom', name: 'Bedroom sensor', integration_id: 'tuya', status: 'online', created_at: '', updated_at: '' },
       { id: 'device-office', name: 'Office sensor', integration_id: 'mqtt', status: 'offline', created_at: '', updated_at: '' },
-      { id: 'device-switch', name: 'Office switch', integration_id: 'mqtt', status: 'online', created_at: '', updated_at: '' }
+      { id: 'device-switch', name: 'Office switch', integration_id: 'mqtt', status: 'online', created_at: '', updated_at: '' },
+      { id: 'tuya_device-tuya-climate', external_id: 'device-tuya-climate', name: 'Tuya thermo-hygrometer', integration_id: 'tuya_local', status: 'online', created_at: '', updated_at: '' }
     ]
     vi.spyOn(devices, 'fetchDevices').mockImplementation(async () => devices.devices)
     vi.spyOn(store, 'fetchSettings').mockImplementation(async () => {
@@ -116,7 +124,7 @@ describe('ClimateHistoryView.vue', () => {
 
     await wrapper.find('.source-all-toggle input').setValue(false)
     const sourceInputs = wrapper.findAll('.source-device input')
-    expect(sourceInputs).toHaveLength(2)
+    expect(sourceInputs).toHaveLength(3)
 
     const officeDevice = sourceInputs.find(input => (input.element as HTMLInputElement).value === 'device-office')
     expect(officeDevice).toBeTruthy()
@@ -125,7 +133,31 @@ describe('ClimateHistoryView.vue', () => {
     await flushPromises()
 
     expect(saveSpy).toHaveBeenCalledTimes(1)
-    expect(saveSpy.mock.calls[0][0].tracked_device_ids).toEqual(['device-bedroom'])
+    expect(saveSpy.mock.calls[0][0].tracked_device_ids).toEqual(['device-bedroom', 'tuya_device-tuya-climate'])
+  })
+
+  it('includes Tuya entities exposed through device keys even when entity.device_id is absent', async () => {
+    const { wrapper } = setupView()
+    await flushPromises()
+
+    await wrapper.find('.source-all-toggle input').setValue(false)
+    const devices = wrapper.findAll('.source-device')
+    expect(devices).toHaveLength(3)
+    expect(wrapper.text()).toContain('Tuya thermo-hygrometer')
+    expect(devices.some(device => device.text().includes('tuya_local'))).toBe(true)
+  })
+
+  it('uses app-rendered dropdown menus instead of native dark popups', async () => {
+    const { wrapper } = setupView()
+    await flushPromises()
+
+    const metric = wrapper.find('#climate-metric-select')
+    expect(metric.exists()).toBe(true)
+    await metric.trigger('click')
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    expect(wrapper.findAll('[role="option"]').map(option => option.text())).toContain('Umidità')
+    await wrapper.findAll('[role="option"]').find(option => option.text().includes('Umidità'))!.trigger('click')
+    expect(metric.text()).toContain('Umidità')
   })
 
   it('allows the user to disable optional climate analyses and persists settings', async () => {
