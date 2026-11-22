@@ -636,7 +636,8 @@
         "stateUnavailableDesc": "No se ha podido alternar el estado de {name}. Actualiza el estado del dispositivo e inténtalo de nuevo.",
         "unsupportedTemperatureTitle": "Temperatura no compatible",
         "unsupportedTemperatureDesc": "Selecciona una de las consignas disponibles: 1, 1,5, 2, 7, 12, 17, 21 o 22 °C.",
-        "manualIsolationReason": "Dispositivo aislado manualmente por Network Guardian."
+        "manualIsolationReason": "Dispositivo aislado manualmente por Network Guardian.",
+        "tuyaSyncCompletedDesc": "{count} dispositivos sincronizados: {local} con control LAN, {climate} fuentes climáticas."
       },
       "devicesShown": "{count} mostrados",
       "deviceOnline": "En línea",
@@ -850,7 +851,10 @@
         "vesyncRefreshStatus": "Actualizar estado",
         "vesyncFirmware": "Firmware",
         "vesyncRefreshDevices": "Actualizar dispositivos"
-      }
+      },
+      "selectedForSync": "Seleccionados para sincronización: {count}",
+      "syncSelectedDevices": "Sincronizar selección ({count})",
+      "syncingDevices": "Sincronizando dispositivos…"
     }
   },
   "history": {
