@@ -240,3 +240,31 @@ func TestDPSMapper_RecognizesNamedUnscaledThermoHygrometer(t *testing.T) {
 		t.Fatalf("named unscaled thermo-hygrometer was not recognized: %#v", attributes)
 	}
 }
+
+
+func TestDPSMapper_RecognizesSingleTemperatureSensorByName(t *testing.T) {
+	attributes := map[string]any{"dp_1": 215}
+	enrichTuyaClimateSensorAttributes(attributes, "Tuya temperature sensor")
+	if attributes["current_temperature"] != 21.5 ||
+		attributes["tuya_sensor_kind"] != "temperature" ||
+		attributes["unit_of_measurement"] != "°C" {
+		t.Fatalf("single temperature DPS was not normalized: %#v", attributes)
+	}
+	if _, exists := attributes["current_humidity"]; exists {
+		t.Fatalf("temperature-only source must not invent humidity: %#v", attributes)
+	}
+}
+
+func TestDPSMapper_RecognizesSingleHumiditySensorByName(t *testing.T) {
+	attributes := map[string]any{"dp_2": 450}
+	enrichTuyaClimateSensorAttributes(attributes, "Tuya humidity sensor")
+	if attributes["current_humidity"] != float64(45) ||
+		attributes["tuya_sensor_kind"] != "humidity" ||
+		attributes["device_class"] != "humidity" ||
+		attributes["unit_of_measurement"] != "%" {
+		t.Fatalf("single humidity DPS was not normalized: %#v", attributes)
+	}
+	if _, exists := attributes["current_temperature"]; exists {
+		t.Fatalf("humidity-only source must not invent temperature: %#v", attributes)
+	}
+}
