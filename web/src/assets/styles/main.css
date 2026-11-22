@@ -116,8 +116,22 @@ button, input, select, textarea {
   outline: none;
 }
 
-select {
+/* Keep native form widgets aligned with the active application theme.
+   In particular, color-scheme controls the operating-system popup palette. */
+:root {
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="oled"] {
+  color-scheme: dark;
+}
+
+select {
+  color-scheme: inherit;
 }
 
 select option {
@@ -125,13 +139,20 @@ select option {
   color: var(--text-main, #f8fafc);
 }
 
-:root[data-theme="light"] select {
-  color-scheme: light;
+:root[data-theme="light"] select,
+:root[data-theme="light"] select option {
+  color-scheme: light !important;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #0f172a;
 }
 
-:root[data-theme="light"] select option {
-  background-color: #ffffff;
-  color: #0f172a;
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] select option {
+  color-scheme: dark !important;
+  color: #f8fafc !important;
+  background-color: #1e293b !important;
+  -webkit-text-fill-color: #f8fafc;
 }
 
 button {
