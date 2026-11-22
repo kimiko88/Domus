@@ -25,7 +25,8 @@ import {
   Sun,
   Car,
   Tv,
-  Cpu
+  Cpu,
+  RefreshCw
 } from '@lucide/vue'
 
 const { t } = useI18n()
@@ -265,6 +266,27 @@ function closeDeviceManager() {
   isDeviceManagerOpen.value = false
   managingArea.value = null
   selectedDeviceIds.value = []
+}
+
+async function refreshAssignableDevices() {
+  if (isLoadingAssignableDevices.value || isSavingAreaDevices.value) return
+  isLoadingAssignableDevices.value = true
+  try {
+    await Promise.all([
+      devicesStore.fetchDevices(),
+      entitiesStore.fetchEntities(),
+      loadTuyaLocalDevices(),
+      loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices()
+    ])
+  } catch {
+    notificationsStore.error(
+      t('devices.view.refreshErrorTitle'),
+      t('devices.view.refreshErrorMessage')
+    )
+  } finally {
+    isLoadingAssignableDevices.value = false
+  }
 }
 
 function updateSelectedDevice(deviceId: string, event: Event) {
@@ -512,13 +534,24 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
         :aria-label="`${t('areas.manageDevices')} — ${managingArea.name}`"
       >
         <header class="area-device-modal-header">
-          <div>
+          <div class="area-device-modal-heading">
             <h3>{{ t('areas.manageDevices') }} · {{ managingArea.name }}</h3>
             <p>{{ t('areas.manageDevicesDescription') }}</p>
           </div>
-          <button class="btn-card-action" type="button" :aria-label="t('devices.view.close')" @click="closeDeviceManager">
-            ×
-          </button>
+          <div class="area-device-header-actions">
+            <button
+              class="area-device-refresh-btn"
+              type="button"
+              :disabled="isLoadingAssignableDevices || isSavingAreaDevices"
+              @click="refreshAssignableDevices"
+            >
+              <RefreshCw :size="14" />
+              {{ t('devices.view.refresh') }}
+            </button>
+            <button class="btn-card-action" type="button" :aria-label="t('devices.view.close')" @click="closeDeviceManager">
+              ×
+            </button>
+          </div>
         </header>
 
         <p v-if="isLoadingAssignableDevices" class="area-device-empty" role="status">
@@ -808,10 +841,42 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
   gap: .75rem;
 }
 
+.area-device-modal-heading {
+  min-width: 0;
+}
+
 .area-device-modal-header h3 {
   color: var(--text-main);
   font-size: 1.05rem;
   font-weight: 700;
+}
+
+.area-device-header-actions {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: none;
+}
+
+.area-device-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 36px;
+  padding: .4rem .65rem;
+  color: var(--text-main);
+  background: var(--bg-surface-elevated, rgba(148,163,184,.08));
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.area-device-refresh-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 .area-device-modal-header p,
