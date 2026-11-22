@@ -6,6 +6,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useDevicesStore } from '../stores/devices'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationsStore } from '../stores/notifications'
+import { apiClient } from '../api/client'
 import type { Area, Device, Entity } from '../api/types'
 import BaseButton from '../components/ui/BaseButton.vue'
 import AreaEditorModal from '../components/modals/AreaEditorModal.vue'
@@ -42,17 +43,69 @@ const isDeviceManagerOpen = ref(false)
 const isSavingAreaDevices = ref(false)
 const selectedDeviceIds = ref<string[]>([])
 
+interface ExternalTuyaDevice {
+  id: string
+  name: string
+  product_name?: string
+  category?: string
+  online?: boolean
+  local_configured?: boolean
+  local_active?: boolean
+  local_ip?: string
+}
+
+const tuyaCloudDevices = ref<ExternalTuyaDevice[]>([])
+const tuyaOAuthDevices = ref<ExternalTuyaDevice[]>([])
+
 onMounted(async () => {
-  try {
-    await Promise.all([
-      areasStore.fetchAreas(),
-      entitiesStore.fetchEntities(),
-      devicesStore.fetchDevices()
-    ])
-  } catch (err) {
-    console.warn('AreasView data fetch warning:', err)
+  const results = await Promise.allSettled([
+    areasStore.fetchAreas(),
+    entitiesStore.fetchEntities(),
+    devicesStore.fetchDevices(),
+    loadTuyaCloudDevices(),
+    loadTuyaOAuthDevices()
+  ])
+  const failed = results.filter(result => result.status === 'rejected')
+  if (failed.length > 0) {
+    console.warn('AreasView data fetch warning:', failed.length, 'source(s) could not be loaded')
   }
 })
+
+async function loadTuyaCloudDevices() {
+  try {
+    const config = await apiClient.get<{ configured?: boolean }>('/api/v1/integrations/tuya-cloud/config')
+    if (!config?.configured) {
+      tuyaCloudDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
+    tuyaCloudDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // This legacy Tuya Cloud connection is optional; registered/local devices
+    // must remain available even when the cloud API is not configured.
+    tuyaCloudDevices.value = []
+  }
+}
+
+async function loadTuyaOAuthDevices() {
+  if (!authStore.isAdmin) {
+    tuyaOAuthDevices.value = []
+    return
+  }
+  try {
+    const status = await apiClient.get<{ connected?: boolean }>('/api/v1/integrations/tuya-oauth/status')
+    if (!status?.connected) {
+      tuyaOAuthDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // OAuth devices are admin-only and optional. Do not block the room picker
+    // when the account is disconnected or the provider is temporarily offline.
+    tuyaOAuthDevices.value = []
+  }
+}
 
 function getEntitiesForArea(areaId: string) {
   return entitiesStore.allEntities.filter(
@@ -78,6 +131,37 @@ const assignableDevices = computed<Device[]>(() => {
   const result = new Map<string, Device>()
   for (const item of devicesStore.devices) {
     result.set(item.id, { ...item })
+  }
+
+  // DevicesView also lists Tuya devices directly from Cloud/Smart Life APIs.
+  // Include those same sources here even if the LocalTuya adapter has not yet
+  // created a device/entity registry row (e.g. cloud-only devices without key).
+  const externalTuyaDevices = [
+    ...tuyaCloudDevices.value.map(item => ({ ...item, source: 'tuya_cloud' as const })),
+    ...tuyaOAuthDevices.value.map(item => ({ ...item, source: 'tuya_oauth' as const }))
+  ]
+  for (const item of externalTuyaDevices) {
+    const id = `tuya_${item.id}`
+    const existing = result.get(id) || [...result.values()].find(device =>
+      device.external_id === item.id || device.id === item.id
+    )
+    if (existing) {
+      existing.status = item.online ? 'online' : 'offline'
+      if (!existing.name || existing.name === existing.id) existing.name = item.name
+      if (!existing.model) existing.model = item.product_name || item.category
+      continue
+    }
+    result.set(id, {
+      id,
+      external_id: item.id,
+      name: item.name,
+      integration_id: item.local_configured ? 'tuya_local' : item.source,
+      manufacturer: 'Tuya',
+      model: item.product_name || item.category,
+      status: item.online ? 'online' : 'offline',
+      created_at: '',
+      updated_at: ''
+    })
   }
 
   const entitiesByDevice = new Map<string, Entity[]>()
@@ -169,9 +253,20 @@ async function saveAreaDevices() {
   isSavingAreaDevices.value = true
   try {
     for (const device of changes) {
-      await devicesStore.updateDeviceArea(device.id, selected.has(device.id) ? area.id : null)
+      await devicesStore.updateDeviceArea(
+        device.id,
+        selected.has(device.id) ? area.id : null,
+        device.id.startsWith('tuya_') ? {
+          external_id: device.external_id || device.id.slice(5),
+          name: device.name,
+          integration_id: device.integration_id,
+          online: device.status === 'online',
+          manufacturer: device.manufacturer || 'Tuya',
+          model: device.model
+        } : undefined
+      )
     }
-    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.success(
       t('areas.devicesSaveSuccess'),
       t('areas.devicesSaveMessage', { count: changes.length, area: area.name })
