@@ -7,6 +7,7 @@ import { useEntitiesStore } from '../stores/entities'
 import { useDevicesStore } from '../stores/devices'
 import { useAuthStore } from '../stores/auth'
 import { i18n } from '../locales'
+import { apiClient } from '../api/client'
 
 describe('AreasView.vue', () => {
   let areasStore: ReturnType<typeof useAreasStore>
@@ -248,6 +249,89 @@ describe('AreasView.vue', () => {
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
     expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null)
+  })
+
+  it('lists and assigns online Tuya Cloud and Smart Life OAuth devices that are not in the local registry', async () => {
+    areasStore.areas = [{ id: 'living-room', name: 'Soggiorno' }]
+    authStore.user = {
+      id: 'admin-cloud',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: true }
+      if (url === '/api/v1/integrations/tuya-cloud/devices') {
+        return {
+          devices: [{
+            id: 'cloud-only-thermo',
+            name: 'Termoigrometro Cloud',
+            product_name: 'TH01',
+            category: 'wsdcgq',
+            online: true,
+            local_configured: false
+          }]
+        }
+      }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true }
+      if (url === '/api/v1/integrations/tuya-oauth/devices') {
+        return {
+          devices: [{
+            id: 'oauth-only-sensor',
+            name: 'Sensore Smart Life',
+            product_name: 'Temperature sensor',
+            category: 'temperature_sensor',
+            online: true,
+            local_configured: false
+          }]
+        }
+      }
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: '',
+      area_id: 'living-room',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
+    await vi.waitFor(() => expect(areasStore.areas).toHaveLength(1))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await wrapper.find('.manage-devices-action').trigger('click')
+
+    await vi.waitFor(() => expect(wrapper.findAll('.area-device-option')).toHaveLength(2))
+    expect(wrapper.text()).toContain('Termoigrometro Cloud')
+    expect(wrapper.text()).toContain('Sensore Smart Life')
+
+    for (const option of wrapper.findAll('.area-device-option')) {
+      await option.find('input').setValue(true)
+    }
+    await wrapper.find('.area-device-primary-btn').trigger('click')
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_cloud-only-thermo/area', {
+      area_id: 'living-room',
+      external_id: 'cloud-only-thermo',
+      name: 'Termoigrometro Cloud',
+      integration_id: 'tuya_cloud',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'TH01'
+    })
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_oauth-only-sensor/area', {
+      area_id: 'living-room',
+      external_id: 'oauth-only-sensor',
+      name: 'Sensore Smart Life',
+      integration_id: 'tuya_oauth',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'Temperature sensor'
+    })
   })
 
   it('does not expose area-device assignment to non-admin users', async () => {
