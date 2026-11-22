@@ -186,14 +186,18 @@ async function assignDeviceToRoom(device: UnifiedDevice, event: Event) {
 
   assigningRoomForDevice.value = device.id
   try {
-    await devicesStore.updateDeviceArea(device.id, nextAreaId, device.id.startsWith('tuya_') ? {
-      external_id: device.external_id || device.id.slice(5),
-      name: device.name,
-      integration_id: device.integration_id,
-      online: device.status === 'online',
-      manufacturer: device.manufacturer || 'Tuya',
-      model: device.model
-    } : undefined)
+    if (device.id.startsWith('tuya_')) {
+      await devicesStore.updateDeviceArea(device.id, nextAreaId, {
+        external_id: device.external_id || device.id.slice(5),
+        name: device.name,
+        integration_id: device.integration_id,
+        online: device.status === 'online',
+        manufacturer: device.manufacturer || 'Tuya',
+        model: device.model
+      })
+    } else {
+      await devicesStore.updateDeviceArea(device.id, nextAreaId)
+    }
     await Promise.all([
       devicesStore.fetchDevices(),
       entitiesStore.fetchEntities()
