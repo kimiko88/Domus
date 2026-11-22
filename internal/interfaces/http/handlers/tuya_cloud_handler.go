@@ -314,7 +314,8 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 		strings.Contains(name, "hygrometer") || strings.Contains(name, "temperature and humidity")
 
 	switch {
-	case hasClimateSetpoint || hasClimateMode || isClimateName:
+	case rawCategory == "wk" || rawCategory == "climate" || rawCategory == "thermostat" ||
+		hasClimateSetpoint || hasClimateMode || isClimateName:
 		cat = tuya_local.CategoryClimate
 	case rawCategory == "sensor" || rawCategory == "wsdcg" || rawCategory == "wsdcgq" ||
 		rawCategory == "wsdcgq11lm" || hasSensorTelemetry || isSensorName:
