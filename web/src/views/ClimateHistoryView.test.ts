@@ -116,7 +116,7 @@ describe('ClimateHistoryView.vue', () => {
 
     await wrapper.find('.source-all-toggle input').setValue(false)
     const sourceInputs = wrapper.findAll('.source-device input')
-    expect(sourceInputs).toHaveLength(2, 'only devices with a climate sensor or thermostat should be selectable')
+    expect(sourceInputs).toHaveLength(2)
 
     const officeDevice = sourceInputs.find(input => (input.element as HTMLInputElement).value === 'device-office')
     expect(officeDevice).toBeTruthy()
