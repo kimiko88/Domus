@@ -473,6 +473,9 @@ func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
 	assert.Equal(t, true, response["device_created"])
 	assert.Equal(t, true, response["device_updated"])
 
+	storedIntegration, err := repos.Integrations.GetByID(ctx, "tuya_oauth")
+	require.NoError(t, err)
+	assert.Equal(t, "Smart Life OAuth", storedIntegration.Name)
 	stored, err := repos.Devices.GetByID(ctx, deviceID)
 	require.NoError(t, err)
 	assert.Equal(t, externalID, stored.ExternalID)
