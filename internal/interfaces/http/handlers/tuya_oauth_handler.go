@@ -242,68 +242,87 @@ func (h *TuyaOAuthHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	synced := make([]tuya_local.DeviceConfig, 0, len(devices))
+	localControlCount := 0
+	climateSourceCount := 0
 	for _, dev := range devices {
-		localKey := dev.LocalKey
-		ip := dev.IP
+		localKey := strings.TrimSpace(dev.LocalKey)
 
-		// The user-device list may omit both local_key and live status/function
-		// metadata. Fetch the detailed record when any fields needed for safe
-		// provisioning or climate classification are missing.
+		// The user-device list can omit status, product category, product name,
+		// and Local Key. Fetch details before deciding whether the device is a
+		// thermostat or a climate sensor.
 		if localKey == "" || len(dev.Status) == 0 || dev.Category == "" || dev.ProductName == "" {
 			if detailed, detailErr := h.client.GetDevice(r.Context(), token, dev.ID); detailErr == nil && detailed != nil {
-				if localKey == "" {
-					localKey = detailed.LocalKey
-				}
-				if ip == "" {
-					ip = detailed.IP
-				}
-				if dev.Category == "" {
-					dev.Category = detailed.Category
-				}
-				if dev.ProductName == "" {
-					dev.ProductName = detailed.ProductName
-				}
-				if len(dev.Status) == 0 {
-					dev.Status = detailed.Status
-				}
+				if dev.Name == "" { dev.Name = detailed.Name }
+				if localKey == "" { localKey = detailed.LocalKey }
+				if dev.IP == "" { dev.IP = detailed.IP }
+				if dev.ProductID == "" { dev.ProductID = detailed.ProductID }
+				if dev.ProductName == "" { dev.ProductName = detailed.ProductName }
+				if dev.Category == "" { dev.Category = detailed.Category }
+				if len(dev.Status) == 0 { dev.Status = detailed.Status }
+				if !dev.Online && detailed.Online { dev.Online = true }
 			}
 		}
 
+		cat, entityKey, initialState, initialAttributes := inferTuyaDeviceCategoryAndTelemetry(dev)
+		climateSource := isTuyaClimateSource(dev, cat)
 		if localKey == "" {
-			continue // cannot connect locally without local_key
+			if !climateSource {
+				continue
+			}
+			// No Local Key means no LAN command capability, not no telemetry.
+			// Provision a read-only Domus entity so Climate & History can collect
+			// the Smart Life Cloud temperature/humidity values.
+			cfg := tuya_local.DeviceConfig{
+				DeviceID:          dev.ID,
+				Name:              dev.Name,
+				Version:           "3.3",
+				Category:          cat,
+				EntityKey:         entityKey,
+				IntegrationID:     "tuya_oauth",
+				Online:            dev.Online,
+				InitialState:      initialState,
+				InitialAttributes: initialAttributes,
+			}
+			if err := h.tuyaLocal.ProvisionCloudDevice(r.Context(), cfg, dev.Name); err != nil {
+				continue
+			}
+			synced = append(synced, cfg)
+			climateSourceCount++
+			continue
 		}
 
-		// Use the same product/status inference as the Tuya Cloud integration.
-		// Raw Tuya category codes such as "wk" and "wsdcg" are not Domus domains.
-		cat, entityKey, initialState, initialAttributes := inferTuyaDeviceCategoryAndTelemetry(dev)
 		cfg := tuya_local.DeviceConfig{
 			DeviceID:          dev.ID,
 			Name:              dev.Name,
-			IP:                ip,
+			IP:                dev.IP,
 			LocalKey:          localKey,
 			Version:           "3.3",
 			Category:          cat,
 			EntityKey:         entityKey,
+			Online:            dev.Online,
 			InitialState:      initialState,
 			InitialAttributes: initialAttributes,
 		}
-
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
 			continue
 		}
 		synced = append(synced, cfg)
+		localControlCount++
+		if climateSource {
+			climateSourceCount++
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":      true,
-		"synced_count": len(synced),
-		"message":      fmt.Sprintf("%d dispositivi Smart Life sincronizzati per il controllo locale LAN con Local Key", len(synced)),
-		"devices":      synced,
+		"success":               true,
+		"synced_count":          len(synced),
+		"local_control_count":   localControlCount,
+		"climate_sources_count": climateSourceCount,
+		"message":               fmt.Sprintf("%d dispositivi Smart Life sincronizzati: %d con controllo LAN, %d sorgenti climatiche", len(synced), localControlCount, climateSourceCount),
+		"devices":               synced,
 	})
 }
 
-// tuyaOAuthDeviceErrorMessage translates known provider authorization failures into
-// actionable guidance without exposing credentials or signed request data.
 func tuyaOAuthDeviceErrorMessage(err error) string {
 	var providerErr *tuya_cloud.OAuthAPIError
 	if errors.As(err, &providerErr) {
