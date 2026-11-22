@@ -280,7 +280,8 @@ describe('DevicesView.vue', () => {
     const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
       device_id: 'tuya_legacy_thermo',
       area_id: 'bedroom',
-      device_updated: false,
+      device_updated: true,
+      device_created: true,
       updated_entities: 1
     })
 
