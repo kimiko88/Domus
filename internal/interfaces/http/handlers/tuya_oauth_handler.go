@@ -246,12 +246,25 @@ func (h *TuyaOAuthHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		localKey := dev.LocalKey
 		ip := dev.IP
 
-		// If local_key was not included in user devices list, fetch single device details
-		if localKey == "" {
-			if detailed, err := h.client.GetDevice(r.Context(), token, dev.ID); err == nil && detailed != nil {
-				localKey = detailed.LocalKey
+		// The user-device list may omit both local_key and live status/function
+		// metadata. Fetch the detailed record when any fields needed for safe
+		// provisioning or climate classification are missing.
+		if localKey == "" || len(dev.Status) == 0 || dev.Category == "" || dev.ProductName == "" {
+			if detailed, detailErr := h.client.GetDevice(r.Context(), token, dev.ID); detailErr == nil && detailed != nil {
+				if localKey == "" {
+					localKey = detailed.LocalKey
+				}
 				if ip == "" {
 					ip = detailed.IP
+				}
+				if dev.Category == "" {
+					dev.Category = detailed.Category
+				}
+				if dev.ProductName == "" {
+					dev.ProductName = detailed.ProductName
+				}
+				if len(dev.Status) == 0 {
+					dev.Status = detailed.Status
 				}
 			}
 		}
