@@ -293,7 +293,13 @@ describe('DevicesView.vue', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_legacy_thermo/area', {
-      area_id: 'bedroom'
+      area_id: 'bedroom',
+      external_id: 'legacy_thermo',
+      name: 'Termoigrometro Tuya',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: undefined
     })
     expect(wrapper.text()).toContain('Termoigrometro Tuya')
     expect((roomSelect.element as HTMLSelectElement).value).toBe('bedroom')
