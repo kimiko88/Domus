@@ -1284,3 +1284,86 @@ export interface StorePackage {
 
 
 
+
+
+export interface ClimateHistorySettings {
+  enabled: boolean
+  interval_minutes: number
+  record_temperature: boolean
+  record_humidity: boolean
+  record_thermostat: boolean
+  smart_sampling: boolean
+  temperature_change_threshold: number
+  humidity_change_threshold: number
+  raw_retention_days: number
+  hourly_retention_days: number
+  temperature_alerts_enabled: boolean
+  humidity_alerts_enabled: boolean
+  comfort_analysis_enabled: boolean
+  room_comparison_enabled: boolean
+  thermal_analysis_enabled: boolean
+  anomaly_detection_enabled: boolean
+  forecast_enabled: boolean
+  room_map_enabled: boolean
+  low_temperature_limit: number
+  high_temperature_limit: number
+  low_humidity_limit: number
+  high_humidity_limit: number
+}
+
+export interface ClimateHistoryPoint {
+  entity_id: string
+  entity_key: string
+  entity_name: string
+  device_id?: string
+  area_id?: string
+  recorded_at: string
+  temperature_average?: number
+  temperature_minimum?: number
+  temperature_maximum?: number
+  humidity_average?: number
+  humidity_minimum?: number
+  humidity_maximum?: number
+  target_temperature_average?: number
+  hvac_mode?: string
+  hvac_action?: string
+  sample_count: number
+  heating_samples?: number
+  period: 'raw' | 'aggregate' | string
+}
+
+export interface ClimateRoomSummary {
+  area_id: string
+  sample_count: number
+  current_temperature?: number
+  average_temperature?: number
+  minimum_temperature?: number
+  maximum_temperature?: number
+  current_humidity?: number
+  average_humidity?: number
+  temperature_change_rate_c_per_hour?: number
+  forecast_temperature_1h?: number
+  last_updated_at: string
+}
+
+export interface ClimateInsight {
+  code: string
+  area_id?: string
+  entity_name?: string
+  metric?: string
+  value?: number
+  limit?: number
+}
+
+export interface ClimateDashboardSummary {
+  rooms: ClimateRoomSummary[]
+  insights: ClimateInsight[]
+  sample_count: number
+  from: string
+  to: string
+}
+
+export interface ClimateHistoryResponse {
+  points: ClimateHistoryPoint[]
+  total: number
+}

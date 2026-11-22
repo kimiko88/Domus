@@ -29,7 +29,7 @@ func DefaultPermissions(userID string, role Role) *UserPermissions {
 		p.CanViewCameras = true
 	case RoleViewer:
 		p.AllowedDashboardIDs = []string{}
-		p.AllowedViews = []string{"/", "/areas", "/devices", "/energy", "/history", "/custom-dashboards"}
+		p.AllowedViews = []string{"/", "/areas", "/devices", "/energy", "/history", "/climate/history", "/custom-dashboards"}
 	case RoleKid:
 		p.AllowedAreaIDs = []string{}
 		p.AllowedEntityIDs = []string{}

@@ -217,7 +217,8 @@
     "pantry": "Vorratskammer & Rezepte",
     "settings": "Einstellungen",
     "logout": "Abmelden",
-    "guide": "Handbuch & Anleitung"
+    "guide": "Handbuch & Anleitung",
+    "climateHistory": "Raumklima-Verlauf"
   },
   "dashboard": {
     "title": "Heim-Übersicht",
@@ -3486,5 +3487,95 @@
   "dashboardMarketplace": {
     "community": "Community",
     "verified": "Verifiziert"
+  },
+  "climateHistory": {
+    "title": "Raumklima-Verlauf",
+    "subtitle": "Temperatur- und Feuchtigkeitsverlauf nach Raum und Gerät.",
+    "refresh": "Aktualisieren",
+    "exportCsv": "CSV exportieren",
+    "filters": "Verlaufsfilter",
+    "ranges": {
+      "24h": "24 Stunden",
+      "7d": "7 Tage",
+      "30d": "30 Tage",
+      "custom": "Benutzerdefiniert"
+    },
+    "room": "Raum",
+    "allRooms": "Alle Räume",
+    "metric": "Messwert",
+    "metrics": {
+      "temperature": "Gemessene Temperatur",
+      "humidity": "Luftfeuchtigkeit",
+      "target": "Thermostat-Sollwert"
+    },
+    "from": "Von",
+    "to": "Bis",
+    "selectSeries": "Anzuzeigende Sensoren und Thermostate",
+    "selectSeriesHint": "Mehrere Einträge auswählen, um Kurven zu vergleichen; ohne Auswahl werden alle Reihen angezeigt.",
+    "trendTitle": "Raumklima-Verlauf",
+    "chartDescription": "Vergleiche tatsächliche Temperatur, Sollwert und Luftfeuchtigkeit im gewählten Zeitraum.",
+    "samples": "{count} Messungen",
+    "chartAria": "Verlaufsdiagramm für Temperatur, Sollwert und Luftfeuchtigkeit",
+    "loading": "Messwerte werden geladen…",
+    "noData": "Im gewählten Zeitraum sind noch keine Messwerte vorhanden.",
+    "samplesShort": "Messungen",
+    "temperature": "Temperatur",
+    "humidity": "Luftfeuchtigkeit",
+    "average": "Durchschnitt",
+    "thermalRate": "Heiz-/Abkühlgeschwindigkeit",
+    "forecast": "Prognose für eine Stunde",
+    "minMax": "Min. / Max.",
+    "insightsTitle": "Komfort und Auffälligkeiten",
+    "insightsDescription": "Aus dem Verlauf abgeleitete Hinweise gemäß den aktivierten Einstellungen.",
+    "unassigned": "Kein Raum",
+    "settings": {
+      "title": "Einstellungen für Aufzeichnung und Analyse",
+      "description": "Die Erfassung läuft im Backend auch bei geschlossenem Dashboard. Aktuelle Messwerte werden zu stündlichen und anschließend täglichen Mittel-/Minimal-/Maximalwerten verdichtet.",
+      "enabled": "Klimaaufzeichnung aktivieren",
+      "interval": "Aufzeichnungsintervall",
+      "minutes": "Minuten",
+      "recordTemperature": "Sensortemperatur aufzeichnen",
+      "recordHumidity": "Sensorluftfeuchtigkeit aufzeichnen",
+      "recordThermostat": "Thermostat-Messwerte und Sollwerte aufzeichnen",
+      "smartSampling": "Auch wesentliche Änderungen aufzeichnen",
+      "temperatureThreshold": "Temperaturänderung (°C)",
+      "humidityThreshold": "Feuchtigkeitsänderung (%)",
+      "rawRetention": "Detaillierte Messwerte behalten (Tage)",
+      "hourlyRetention": "Stündliche Aggregate behalten (Tage)",
+      "analysisTitle": "Optionale Funktionen",
+      "temperatureAlerts": "Temperaturgrenzwert-Warnungen",
+      "humidityAlerts": "Feuchtigkeitsgrenzwert-Warnungen",
+      "comfortAnalysis": "Komfortanalyse",
+      "roomComparison": "Raumvergleich",
+      "thermalAnalysis": "Heiz-/Kühlanalyse",
+      "anomalyDetection": "Anomalieerkennung",
+      "forecast": "Ein-Stunden-Trendschätzung",
+      "roomMap": "Raumklimaübersicht",
+      "thresholdsTitle": "Warngrenzwerte",
+      "lowTemperature": "Mindesttemperatur (°C)",
+      "highTemperature": "Höchsttemperatur (°C)",
+      "lowHumidity": "Mindestfeuchtigkeit (%)",
+      "highHumidity": "Höchstfeuchtigkeit (%)",
+      "saving": "Speichern…",
+      "saved": "Einstellungen gespeichert",
+      "save": "Einstellungen speichern"
+    },
+    "insights": {
+      "temperature_low": "Temperatur unter dem Grenzwert",
+      "temperature_high": "Temperatur über dem Grenzwert",
+      "temperature_comfort": "Temperatur außerhalb des Komfortbereichs",
+      "temperature_anomaly": "Ungewöhnliche Temperaturänderung",
+      "humidity_low": "Luftfeuchtigkeit unter dem Grenzwert",
+      "humidity_high": "Luftfeuchtigkeit über dem Grenzwert",
+      "humidity_comfort": "Luftfeuchtigkeit außerhalb des Komfortbereichs",
+      "sensor_offline": "Klimasensor offline"
+    },
+    "errors": {
+      "load": "Raumklima-Verlauf konnte nicht geladen werden.",
+      "save": "Einstellungen konnten nicht gespeichert werden.",
+      "export": "Klimadaten konnten nicht exportiert werden."
+    },
+    "heatingRate": "Heizrate",
+    "coolingRate": "Abkühlrate"
   }
 }

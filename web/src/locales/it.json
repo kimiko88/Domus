@@ -217,7 +217,8 @@
     "pantry": "Dispensa & Ricette",
     "settings": "Impostazioni",
     "logout": "Disconnetti",
-    "guide": "Guida & Manuale"
+    "guide": "Guida & Manuale",
+    "climateHistory": "Clima & storico"
   },
   "dashboard": {
     "title": "Panoramica della Casa",
@@ -3486,5 +3487,95 @@
   "dashboardMarketplace": {
     "community": "Comunità",
     "verified": "Verificato"
+  },
+  "climateHistory": {
+    "title": "Clima & storico",
+    "subtitle": "Andamento di temperatura e umidità per stanza e dispositivo.",
+    "refresh": "Aggiorna",
+    "exportCsv": "Esporta CSV",
+    "filters": "Filtri dello storico",
+    "ranges": {
+      "24h": "24 ore",
+      "7d": "7 giorni",
+      "30d": "30 giorni",
+      "custom": "Personalizzato"
+    },
+    "room": "Stanza",
+    "allRooms": "Tutte le stanze",
+    "metric": "Misurazione",
+    "metrics": {
+      "temperature": "Temperatura rilevata",
+      "humidity": "Umidità",
+      "target": "Setpoint termostato"
+    },
+    "from": "Dal",
+    "to": "Al",
+    "selectSeries": "Sensori e termostati da visualizzare",
+    "selectSeriesHint": "Seleziona più elementi per confrontare le curve; nessuna selezione mostra tutte le serie.",
+    "trendTitle": "Andamento climatico",
+    "chartDescription": "Confronta temperatura reale, setpoint e umidità nel periodo selezionato.",
+    "samples": "{count} campioni",
+    "chartAria": "Grafico storico di temperatura, setpoint e umidità",
+    "loading": "Caricamento misurazioni…",
+    "noData": "Non ci sono ancora misurazioni nel periodo selezionato.",
+    "samplesShort": "campioni",
+    "temperature": "Temperatura",
+    "humidity": "Umidità",
+    "average": "Media",
+    "thermalRate": "Velocità di riscaldamento/raffreddamento",
+    "forecast": "Stima a un'ora",
+    "minMax": "Min / max",
+    "insightsTitle": "Comfort e anomalie",
+    "insightsDescription": "Avvisi generati dallo storico in base alle impostazioni attive.",
+    "unassigned": "Senza stanza",
+    "settings": {
+      "title": "Impostazioni della registrazione e delle analisi",
+      "description": "La raccolta avviene sul backend anche quando la dashboard è chiusa. I campioni recenti vengono compattati in medie/minimi/massimi orari e poi giornalieri.",
+      "enabled": "Attiva raccolta climatica",
+      "interval": "Intervallo di registrazione",
+      "minutes": "minuti",
+      "recordTemperature": "Registra temperatura dei sensori",
+      "recordHumidity": "Registra umidità dei sensori",
+      "recordThermostat": "Registra misure e setpoint dei termostati",
+      "smartSampling": "Registra anche variazioni significative",
+      "temperatureThreshold": "Variazione temperatura (°C)",
+      "humidityThreshold": "Variazione umidità (%)",
+      "rawRetention": "Conserva campioni dettagliati (giorni)",
+      "hourlyRetention": "Conserva aggregati orari (giorni)",
+      "analysisTitle": "Funzioni aggiuntive attivabili",
+      "temperatureAlerts": "Avvisi soglie temperatura",
+      "humidityAlerts": "Avvisi soglie umidità",
+      "comfortAnalysis": "Analisi del comfort",
+      "roomComparison": "Confronto tra stanze",
+      "thermalAnalysis": "Analisi riscaldamento/raffreddamento",
+      "anomalyDetection": "Rilevamento anomalie",
+      "forecast": "Stima andamento a un'ora",
+      "roomMap": "Riepilogo climatico per stanza",
+      "thresholdsTitle": "Soglie degli avvisi",
+      "lowTemperature": "Temperatura minima (°C)",
+      "highTemperature": "Temperatura massima (°C)",
+      "lowHumidity": "Umidità minima (%)",
+      "highHumidity": "Umidità massima (%)",
+      "saving": "Salvataggio…",
+      "saved": "Impostazioni salvate",
+      "save": "Salva impostazioni"
+    },
+    "insights": {
+      "temperature_low": "Temperatura sotto la soglia",
+      "temperature_high": "Temperatura sopra la soglia",
+      "temperature_comfort": "Temperatura fuori dalla fascia di comfort",
+      "temperature_anomaly": "Variazione anomala di temperatura",
+      "humidity_low": "Umidità sotto la soglia",
+      "humidity_high": "Umidità sopra la soglia",
+      "humidity_comfort": "Umidità fuori dalla fascia di comfort",
+      "sensor_offline": "Sensore climatico offline"
+    },
+    "errors": {
+      "load": "Impossibile caricare lo storico climatico.",
+      "save": "Impossibile salvare le impostazioni.",
+      "export": "Impossibile esportare i dati."
+    },
+    "heatingRate": "Velocità di riscaldamento",
+    "coolingRate": "Velocità di raffreddamento"
   }
 }

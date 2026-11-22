@@ -19,6 +19,7 @@ import (
 	appchore "github.com/domus-hub/domus/internal/application/chore"
 	appenergy "github.com/domus-hub/domus/internal/application/energy"
 	apphistory "github.com/domus-hub/domus/internal/application/history"
+	appclimatehistory "github.com/domus-hub/domus/internal/application/climate_history"
 	appnotification "github.com/domus-hub/domus/internal/application/notification"
 	apppresence "github.com/domus-hub/domus/internal/application/presence"
 	"github.com/domus-hub/domus/internal/application/safety"
@@ -197,6 +198,12 @@ func run() int {
 	retentionService.Start(context.Background(), 24*time.Hour)
 	defer retentionService.Stop()
 
+	// Collect climate telemetry independently of connected clients and compact it in tiers.
+	climateHistoryService := appclimatehistory.NewService(repos.ClimateHistory, repos.Entities, slog.Default())
+	climateHistoryCtx, cancelClimateHistory := context.WithCancel(context.Background())
+	defer cancelClimateHistory()
+	climateHistoryService.Start(climateHistoryCtx)
+
 	// 8. Initialize VAPID Web Push delivery and household expiry reminders.
 	webPushService := appnotification.NewWebPushService(repos.WebPush, appnotification.WebPushConfigFromEnv(), slog.Default())
 	unsubscribeWebPushEvents := webPushService.RegisterEventHandlers(bus)
@@ -295,6 +302,7 @@ func run() int {
 		db,
 		serverpkg.WithAuth(authService, loginLimiter),
 		serverpkg.WithRepositories(repos, bus),
+		serverpkg.WithClimateHistory(climateHistoryService),
 		serverpkg.WithAutomation(autoEngine, sceneService),
 		serverpkg.WithAdvancedFeatures(energyCtrl, presenceSvc, sunEngine, commuteTracker),
 		serverpkg.WithWebSocket(wsHub),

@@ -248,6 +248,27 @@ func TestRequireViewAccessMapsAlarmAndAssistantRoutes(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, request(http.MethodGet, "/api/v1/assistant/satellites", kid))
 }
 
+func TestRequireViewAccessSeparatesClimateHistoryFromPredictiveClimate(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := domusmw.RequireViewAccess()(next)
+	request := func(path string, member *user.User) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req = req.WithContext(domusmw.WithUser(req.Context(), member))
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	viewer := &user.User{ID: "viewer-climate", Role: user.RoleViewer, Permissions: user.DefaultPermissions("viewer-climate", user.RoleViewer)}
+	assert.Equal(t, http.StatusNoContent, request("/api/v1/climate/history/history", viewer))
+	assert.Equal(t, http.StatusForbidden, request("/api/v1/climate/predictive", viewer))
+
+	kid := &user.User{ID: "kid-climate", Role: user.RoleKid, Permissions: user.DefaultPermissions("kid-climate", user.RoleKid)}
+	assert.Equal(t, http.StatusForbidden, request("/api/v1/climate/history/history", kid))
+}
+
 func TestRequireSettingsPermissionUsesExplicitGrant(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

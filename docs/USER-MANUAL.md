@@ -801,7 +801,7 @@ R: Sì. Domus gira su qualsiasi Linux x86-64 via Docker o installazione nativa.
 R: Non c'è un limite fisso. Su Raspberry Pi 4 con 4 GB RAM, funziona correttamente con centinaia di entità MQTT e flussi video simultanei.
 
 **D: I dati escono dalla mia rete?**  
-R: Il nucleo locale di Domus non richiede un servizio cloud. Se attivi un'integrazione cloud, i dati strettamente necessari (ad esempio autenticazione, elenco dispositivi e comandi) vengono scambiati con il provider scelto: Xiaomi, VeSync, Imou o Tuya secondo la configurazione. Le credenziali e i token gestiti da Domus sono conservati cifrati. Le integrazioni locali come Xiaomi miIO non richiedono l'invio di comandi al cloud.
+R: Le funzioni core e lo storico climatico sono locali. Solo le integrazioni cloud opzionali inviano ai rispettivi fornitori i dati necessari al loro funzionamento.
 
 **D: Come aggiorno Domus OS?**  
 R: Domus OS usa aggiornamenti **A/B atomici** con RAUC. Un aggiornamento non riuscito ripristina automaticamente la slot precedente.
@@ -811,58 +811,39 @@ R: Sì. Implementa l'interfaccia `Integration` in Go e aggiungi il tuo adapter i
 
 ---
 
-## 32. Integrazioni Xiaomi MiIO e VeSync
+## 32. Storico climatico e analisi delle stanze
 
-Queste integrazioni si configurano dalla scheda **Impostazioni → Integrazioni → Vendor**. La distinzione fondamentale è tra **Xiaomi MiIO locale** (token del singolo dispositivo, nessuna registrazione developer) e **VeSync Cloud** (normale account VeSync, nessuna API key developer).
+Domus può registrare in modo automatico le misure di temperatura e umidità dei sensori e dei termostati, insieme alla temperatura impostata e allo stato HVAC quando disponibili. La raccolta è eseguita dal backend: continua anche quando nessun browser è collegato.
 
-### Quali registrazioni e codici servono?
+### Registrazione
 
-| Integrazione | Registrazione necessaria | Codice / credenziale da ottenere | Internet |
-| --- | --- | --- | --- |
-| **Xiaomi MiIO locale** | Nessuna registrazione developer. Il dispositivo deve essere già configurato in Xiaomi Home / Mi Home. | Token locale specifico del dispositivo: 32 caratteri esadecimali. | Solo per recuperare eventualmente il token da Xiaomi Cloud; controllo e discovery sono LAN. |
-| **Xiaomi Open Platform Cloud** | Sì: registrazione sviluppatore Xiaomi, creazione app e attivazione Account Services. | App ID, App Secret, approvazione scope 6000 (Mi Home) e 1 (profilo), URL callback HTTPS pubblico. | Sì, per OAuth, API cloud e callback. |
-| **VeSync Cloud / Levoit** | Solo un normale account VeSync personale; non serve un account sviluppatore. | Email e password VeSync. Il token cloud viene generato durante il login e salvato cifrato da Domus; non va copiato manualmente. | Sì, sempre per autenticazione e comandi. |
+- Intervallo selezionabile: 1, 2, 5, 10, 15, 30 o 60 minuti (predefinito: 10 minuti).
+- Sensori temperatura, sensori umidità e termostati possono essere inclusi o esclusi separatamente.
+- La modalità intelligente registra anche le variazioni che superano le soglie configurate, oltre alla raccolta periodica.
+- I sensori offline o non disponibili non vengono registrati come misurazioni valide.
+- La temperatura misurata dal termostato è distinta dal setpoint; i valori in Fahrenheit vengono normalizzati in Celsius.
 
-### A. Xiaomi MiIO locale
+### Conservazione e aggregazioni SQLite
 
-1. Configura prima il dispositivo nell'app ufficiale Xiaomi Home / Mi Home e verifica che sia online.
-2. Individua il suo IP privato nel router (preferibilmente crea una prenotazione DHCP).
-3. Recupera il token locale dal tuo account Xiaomi su un computer personale e fidato. La procedura documentata dalla community consiste nell'installare python-miio e micloud in un ambiente Python isolato, quindi eseguire `miiocli cloud list`; il comando richiede interattivamente l'account Xiaomi e la regione. Cerca il dispositivo per nome, modello e IP e copia il suo token di 32 caratteri.
-4. Non usare la password dell'account nel campo Token di Domus. Non inviare token o password a siti di estrazione online, non allegarli a screenshot e non inserirli in ticket pubblici.
-5. In Domus premi **Discover devices on LAN**, seleziona l'IP trovato, inserisci nome e token e premi **Pair device**. Domus prova `miIO.info` prima di cifrare e salvare il token.
-6. Dopo l'associazione puoi verificare la raggiungibilità. I comandi di scrittura dalla UI sono limitati ai modelli di purificatore `zhimi.airpurifier.*` riconosciuti; gli altri dispositivi possono essere rilevati e associati ma non hanno ancora un profilo di controllo completo.
+Il database conserva le misurazioni dettagliate per il numero di giorni scelto. La manutenzione compatta automaticamente i campioni più vecchi in aggregati orari (media, minimo, massimo e numero di misurazioni); gli aggregati orari più vecchi diventano aggregati giornalieri. La compattazione e la cancellazione avvengono nella stessa transazione, per evitare perdita di dati in caso di arresto durante la manutenzione. Gli aggregati giornalieri vengono mantenuti come storico a lungo termine.
 
-**Non servono** App ID, App Secret, scope Xiaomi, callback pubblici o autorizzazione OAuth per il controllo locale. La discovery non ricava il token.
+### Dashboard Clima & storico
 
-Guida completa, troubleshooting, API e precauzioni: [Xiaomi Home / Imou Life](integrations/xiaomi-home-imou-life.md#local-miio-pairing-no-developer-registration-required). Per l'estrazione del token si veda anche la [documentazione python-miio](https://python-miio.readthedocs.io/en/latest/discovery.html).
+Apri **Automazioni & Media → Clima & storico** per consultare:
+- Grafici interattivi per temperatura, umidità e setpoint, con selezione di stanze, sensori e termostati.
+- Intervalli di 24 ore, 7 giorni, 30 giorni o periodo personalizzato.
+- Riepiloghi per stanza con valori correnti, medie, minimi e massimi.
+- Avvisi di soglia per temperatura e umidità, indicatori di comfort e rilevamento di variazioni anomale.
+- Tasso di riscaldamento/raffreddamento e stima lineare dell'andamento nella prossima ora.
+- Esportazione dello storico in CSV.
 
-### B. Xiaomi Open Platform Cloud (opzionale, distinta da MiIO locale)
+### Funzioni opzionali
 
-Questa modalità serve per dispositivi/entità esposti dall'API cloud Xiaomi e per sincronizzare specifiche MIoT-Spec-V2. Richiede:
+Dalle impostazioni della pagina puoi attivare o disattivare singolarmente raccolta, campi registrati, campionamento intelligente, avvisi di soglia, analisi del comfort, confronto tra stanze, analisi termica, rilevamento anomalie, stima a un'ora e riepilogo climatico per stanza. Le soglie di temperatura e umidità, l'intervallo di raccolta e i periodi di conservazione sono modificabili.
 
-1. Registrazione e approvazione come sviluppatore Xiaomi.
-2. Creazione di un'app e attivazione del servizio Xiaomi Account.
-3. App ID e App Secret della stessa applicazione.
-4. Approvazione degli scope 6000 (servizi Mi Home) e 1 (profilo).
-5. Un hostname HTTPS pubblico per la callback. Un URL accessibile soltanto tramite Tailscale non è raggiungibile dal server OAuth Xiaomi.
-6. Configurazione dell'app in Domus, copia dell'esatto callback URL mostrato dalla UI nella console Xiaomi e successiva autorizzazione dell'account.
+La raccolta e l'analisi sono locali: i campioni climatici vengono archiviati nel database SQLite dell'istanza Domus e non richiedono un servizio cloud.
 
-Il codice OAuth è temporaneo, monouso e viene scambiato automaticamente dal backend. Non copiarlo né inserirlo manualmente. I dettagli e i collegamenti ufficiali sono nella [guida Xiaomi Open Platform](integrations/xiaomi-home-imou-life.md#xiaomi-open-platform-oauth-and-miot-cloud-developer-registration-required).
-
-### C. VeSync Cloud / Levoit
-
-1. Installa l'app VeSync ufficiale su iPhone/Android e seleziona **Sign Up** per creare un account personale (non usare una sessione Guest).
-2. Aggiungi il dispositivo Levoit/VeSync dall'app con **+ / Add Device** e completa la procedura Wi-Fi del produttore. Verifica che il dispositivo appaia online nell'app.
-3. In Domus apri **Settings → Integrations → Vendors → VeSync Cloud**.
-4. Inserisci la stessa email e password dell'account VeSync, seleziona il Paese dell'account (per un account italiano: `IT`) e il fuso orario (`Europe/Rome`).
-5. Premi **Connect account**. Domus completa il login cloud, legge l'elenco dei dispositivi e salva la sessione cifrata.
-6. Aggiorna l'elenco dispositivi. I controlli di scrittura sono mostrati solo per i modelli di purificatore presenti nel profilo supportato.
-
-Non devi registrarti su un portale developer VeSync, ottenere App ID/App Secret, creare un QR OAuth, copiare un token o configurare una callback pubblica. Domus genera e conserva automaticamente il token della sessione. La connessione VeSync è **cloud-only** e richiede Internet.
-
-**Limite MFA:** questa versione del connettore Domus non gestisce ancora un'ulteriore sfida di autenticazione a due fattori (OTP email/app o backup code). Se VeSync richiede MFA, la connessione non verrà completata. Non disattivare MFA per aggirare il limite; attendere il supporto MFA in Domus.
-
-Guida completa con privacy, API, modelli supportati e troubleshooting: [VeSync Cloud](integrations/vesync.md).
+---
 
 ## Appendice A: API REST — Panoramica rapida
 
@@ -893,6 +874,7 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Chiamate Servizio Ecosistema** | `POST /api/v1/services/{domain}/{service}` |
 | **Automazioni** | `GET /api/v1/automations` · `POST /api/v1/automations` · `POST /api/v1/automations/{id}/dry-run` |
 | **Scene** | `POST /api/v1/scenes/{id}/activate` · `GET /api/v1/scenes` |
+| **Storico climatico** | `GET/PUT /api/v1/climate/history/settings` · `GET /api/v1/climate/history/history` · `GET /api/v1/climate/history/summary` · `GET /api/v1/climate/history/export.csv` |
 | **Sistema & Metriche** | `GET /api/v1/system/health` · `GET /api/v1/system/metrics` · `GET /api/v1/system/sun` |
 | **OS Diagnostica** | `GET /api/v1/system/diagnostics` · `GET /api/v1/system/diagnostics/export` |
 | **OS Manutenzione** | `POST /api/v1/system/maintenance/enable` · `POST /api/v1/system/maintenance/disable` |

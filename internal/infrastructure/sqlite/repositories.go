@@ -17,6 +17,7 @@ import (
 	"github.com/domus-hub/domus/internal/domain/floorplan"
 	"github.com/domus-hub/domus/internal/domain/helper"
 	"github.com/domus-hub/domus/internal/domain/history"
+	domclimate "github.com/domus-hub/domus/internal/domain/climate_history"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/domain/logbook"
 	"github.com/domus-hub/domus/internal/domain/notification"
@@ -62,6 +63,7 @@ type Repositories struct {
 	Store                *StoreRepository
 	Templates            template_entity.Repository
 	Statistics           history.StatisticsRepository
+	ClimateHistory        domclimate.Repository
 	TwoFactor            *TwoFactorRepository
 	BannedIPs            *BannedIPRepository
 	Zones                zone.Repository
@@ -120,6 +122,7 @@ func NewRepositories(db *sql.DB) *Repositories {
 		Store:                NewStoreRepository(db),
 		Templates:            NewTemplateEntityRepository(db),
 		Statistics:           NewStatisticsRepository(db),
+		ClimateHistory:        NewClimateHistoryRepository(db),
 		TwoFactor:            NewTwoFactorRepository(db),
 		BannedIPs:            NewBannedIPRepository(db),
 		Zones:                NewZoneRepository(db),
@@ -189,6 +192,7 @@ func NewRepositoriesWithPool(pool *DBPool) *Repositories {
 		Store:                NewStoreRepository(writeDB),
 		Templates:            NewTemplateEntityRepository(writeDB),
 		Statistics:           NewStatisticsRepository(writeDB, readDB),
+		ClimateHistory:        NewClimateHistoryRepository(writeDB, readDB),
 		TwoFactor:            NewTwoFactorRepository(writeDB),
 		BannedIPs:            NewBannedIPRepository(writeDB),
 		Zones:                NewZoneRepository(writeDB),

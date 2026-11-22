@@ -28,6 +28,7 @@ import ShoppingListView from '../views/ShoppingListView.vue'
 import PantryView from '../views/PantryView.vue'
 import MedicinesView from '../views/MedicinesView.vue'
 import PredictiveClimateView from '../views/PredictiveClimateView.vue'
+import ClimateHistoryView from '../views/ClimateHistoryView.vue'
 import FinanceView from '../views/FinanceView.vue'
 import GuideView from '../views/GuideView.vue'
 import LogbookView from '../views/LogbookView.vue'
@@ -126,6 +127,12 @@ export const routes: RouteRecordRaw[] = [
     name: 'medicines',
     component: MedicinesView,
     meta: { requiresAuth: true, title: 'Armadietto Farmaci' }
+  },
+  {
+    path: '/climate/history',
+    name: 'climate-history',
+    component: ClimateHistoryView,
+    meta: { requiresAuth: true, title: 'Clima & Storico' }
   },
   {
     path: '/climate/predictive',
