@@ -381,8 +381,12 @@ func (a *Adapter) provisionDevice(ctx context.Context, cfg DeviceConfig, name st
 				return fmt.Errorf("tuya_local: create Domus entity: %w", err)
 			}
 		} else {
+			existingEnt.DeviceID = devRecordID
+			existingEnt.Domain = entDomain
 			existingEnt.Name = cfg.Name
 			existingEnt.Writable = writable
+			existingEnt.Available = true
+			existingEnt.LastUpdatedAt = now
 			if err := a.entRepo.Update(ctx, existingEnt); err != nil {
 				return fmt.Errorf("tuya_local: update entity metadata: %w", err)
 			}

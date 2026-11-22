@@ -87,7 +87,9 @@ function isClimateSourceEntity(entity: Entity): boolean {
   const hasHumidityReading = hasNumericAttribute(
     attributes, 'current_humidity', 'humidity', 'humidity_value', 'va_humidity'
   )
-  return deviceClass === 'temperature' || deviceClass.includes('humidity') ||
+  const tuyaClimateSource = attributes.tuya_climate_source === true ||
+    ['temperature', 'humidity', 'temperature_humidity'].includes(String(attributes.tuya_sensor_kind || '').toLowerCase())
+  return tuyaClimateSource || deviceClass === 'temperature' || deviceClass.includes('humidity') ||
     ['°c', '°f', 'celsius', 'fahrenheit', 'c', 'f', '%'].includes(unit) ||
     hasTemperatureReading || hasHumidityReading ||
     /temperature|temperatura|humidity|umid|thermometer|hygrometer/.test(key + ' ' + name)

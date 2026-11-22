@@ -279,6 +279,41 @@ func containsAnyTuyaCode(codes []string, wanted ...string) bool {
 	return false
 }
 
+// isTuyaClimateSource reports whether a device classified as a sensor exposes
+// temperature/humidity telemetry or belongs to a known Tuya thermo-hygrometer
+// product category. Generic motion/contact/battery sensors are deliberately excluded.
+func isTuyaClimateSource(dev tuya_cloud.Device, category tuya_local.DeviceCategory) bool {
+	if category == tuya_local.CategoryClimate {
+		return true
+	}
+	if category != tuya_local.CategorySensor {
+		return false
+	}
+	rawCategory := strings.ToLower(strings.TrimSpace(dev.Category))
+	if rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+		rawCategory == "temperature_sensor" || rawCategory == "humidity_sensor" ||
+		rawCategory == "thermo_hygrometer" {
+		return true
+	}
+	name := strings.ToLower(dev.Name + " " + dev.ProductName)
+	if strings.Contains(name, "temperature") || strings.Contains(name, "temperatura") ||
+		strings.Contains(name, "humidity") || strings.Contains(name, "umid") ||
+		strings.Contains(name, "thermometer") || strings.Contains(name, "termometro") ||
+		strings.Contains(name, "hygrometer") || strings.Contains(name, "termoigrometro") ||
+		strings.Contains(name, "termo-igrometro") || strings.Contains(name, "thermo-hygrometer") {
+		return true
+	}
+	for _, status := range dev.Status {
+		code := strings.ToLower(strings.TrimSpace(status.Code))
+		if containsAnyTuyaCode([]string{code},
+			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature",
+			"va_humidity", "current_humidity", "humidity_value", "humidity") {
+			return true
+		}
+	}
+	return false
+}
+
 func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.DeviceCategory, string, string, string) {
 	statusCodes := make([]string, 0, len(dev.Status))
 	for _, st := range dev.Status {
@@ -362,14 +397,33 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 				attrs["humidity"] = value
 			}
 		}
-		if _, hasTemperature := attrs["current_temperature"]; hasTemperature {
-			if _, hasHumidity := attrs["current_humidity"]; !hasHumidity {
+		temperatureSensor := containsAnyTuyaCode(statusCodes,
+			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature") ||
+			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+			rawCategory == "temperature_sensor" || strings.Contains(name, "temperature") ||
+			strings.Contains(name, "temperatura") || strings.Contains(name, "termometro") ||
+			strings.Contains(name, "thermometer") || strings.Contains(name, "termoigrometro") ||
+			strings.Contains(name, "termo-igrometro") || strings.Contains(name, "thermo-hygrometer")
+		humiditySensor := containsAnyTuyaCode(statusCodes,
+			"va_humidity", "current_humidity", "humidity_value", "humidity") ||
+			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+			rawCategory == "humidity_sensor" || strings.Contains(name, "humidity") ||
+			strings.Contains(name, "umid")
+		if temperatureSensor || humiditySensor {
+			attrs["tuya_climate_source"] = true
+			switch {
+			case temperatureSensor:
 				attrs["device_class"] = "temperature"
 				attrs["unit_of_measurement"] = "°C"
+				attrs["tuya_sensor_kind"] = "temperature"
+			case humiditySensor:
+				attrs["device_class"] = "humidity"
+				attrs["unit_of_measurement"] = "%"
+				attrs["tuya_sensor_kind"] = "humidity"
 			}
-		} else if _, hasHumidity := attrs["current_humidity"]; hasHumidity {
-			attrs["device_class"] = "humidity"
-			attrs["unit_of_measurement"] = "%"
+			if humiditySensor && temperatureSensor {
+				attrs["tuya_sensor_kind"] = "temperature_humidity"
+			}
 		}
 		attrsBytes, _ := json.Marshal(attrs)
 		return cat, entityKey, state, string(attrsBytes)
@@ -462,6 +516,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 		tuya_cloud.Device
 		InferredCategory string `json:"inferred_category"`
 		EntityKey        string `json:"entity_key"`
+		ClimateSource    bool   `json:"climate_source"`
 		LocalConfigured  bool   `json:"local_configured"`
 		LocalActive      bool   `json:"local_active"`
 		LocalIP          string `json:"local_ip,omitempty"`
@@ -469,15 +524,17 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 
 	enriched := make([]enrichedDevice, 0, len(devices))
 	for _, dev := range devices {
+		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev, false)
 		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		ed := enrichedDevice{
 			Device:           dev,
 			InferredCategory: string(cat),
 			EntityKey:        entityKey,
+			ClimateSource:    isTuyaClimateSource(dev, cat),
 		}
 		if h.tuyaLocal != nil {
-			// If a device is already configured locally, ensure its Domus entity
-			// is updated with the inferred category (e.g. climate) and latest telemetry.
+			// Refresh records already configured for local LAN control with current
+			// cloud telemetry. Listing devices does not silently enable new devices.
 			if h.tuyaLocal.IsDeviceConfigured(dev.ID) {
 				localKey := dev.LocalKey
 				if localKey == "" {
@@ -497,6 +554,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 						Version:           "3.3",
 						Category:          cat,
 						EntityKey:         entityKey,
+						Online:            dev.Online,
 						InitialState:      initState,
 						InitialAttributes: initAttrs,
 					}, dev.Name)
@@ -510,6 +568,28 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"devices": enriched})
+}
+
+// fetchMissingTuyaDeviceDetails hydrates list responses that omit the product
+// category or current status datapoints. The cloud list and detail APIs expose
+// different subsets of the same device record.
+func fetchMissingTuyaDeviceDetails(ctx context.Context, client *tuya_cloud.Client, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
+	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "" && (!needLocalKey || dev.LocalKey != "")) {
+		return dev
+	}
+	detailed, err := client.GetDevice(ctx, dev.ID)
+	if err != nil || detailed == nil {
+		return dev
+	}
+	if dev.Name == "" { dev.Name = detailed.Name }
+	if dev.LocalKey == "" { dev.LocalKey = detailed.LocalKey }
+	if dev.IP == "" { dev.IP = detailed.IP }
+	if dev.ProductID == "" { dev.ProductID = detailed.ProductID }
+	if dev.ProductName == "" { dev.ProductName = detailed.ProductName }
+	if dev.Category == "" { dev.Category = detailed.Category }
+	if len(dev.Status) == 0 { dev.Status = detailed.Status }
+	if !dev.Online && detailed.Online { dev.Online = true }
+	return dev
 }
 
 func (h *TuyaCloudHandler) ListFunctions(w http.ResponseWriter, r *http.Request) {
@@ -660,15 +740,16 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A present device_ids array is an explicit allow-list. An omitted array keeps
-	// the legacy behaviour of syncing every device with a Local Key.
+	// A present device_ids array is an explicit allow-list. An omitted array
+	// keeps the legacy behaviour of provisioning every locally controllable
+	// device plus climate-capable sensors as read-only cloud entities.
 	var req struct {
 		DeviceIDs []string `json:"device_ids"`
 	}
 	hasSelection := false
 	if r.Body != nil && r.ContentLength != 0 {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid LocalTuya selection payload")
+			writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid Tuya device selection payload")
 			return
 		}
 		hasSelection = req.DeviceIDs != nil
@@ -677,7 +758,7 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 	for _, id := range req.DeviceIDs {
 		id = strings.TrimSpace(id)
 		if id == "" || len(id) > 128 || strings.ContainsAny(id, "/?#") {
-			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "invalid device ID in LocalTuya selection")
+			writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "invalid device ID in Tuya selection")
 			return
 		}
 		selected[id] = struct{}{}
@@ -706,8 +787,9 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// Only remove devices from the local-control allow-list. Cloud-only
+		// temperature/humidity source entities remain available to Climate & History.
 		for _, cfg := range h.tuyaLocal.GetConfiguredDevices() {
-			// Do not touch LocalTuya devices that are not part of this Smart Life account.
 			if _, belongsToAccount := known[cfg.DeviceID]; belongsToAccount {
 				if _, keep := selected[cfg.DeviceID]; !keep {
 					if err := h.tuyaLocal.UnregisterDevice(r.Context(), cfg.DeviceID); err != nil {
@@ -720,58 +802,90 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	synced := make([]tuya_local.DeviceConfig, 0, len(devices))
+	localControlCount := 0
+	climateSourceCount := 0
 	for _, dev := range devices {
 		if hasSelection {
 			if _, keep := selected[dev.ID]; !keep {
 				continue
 			}
 		}
-		localKey := dev.LocalKey
 
-		// Tuya Cloud's "ip" field is not a reliable LAN address: depending on the
-		// API it can contain the home's public WAN address. Only the UDP discovery
-		// packet's source IP is safe to use for direct LocalTuya connections.
-		// RegisterAndPersistDevice fills cfg.IP from its trusted discovery cache.
+		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev, true)
+		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
+		climateSource := isTuyaClimateSource(dev, cat)
+		localKey := strings.TrimSpace(dev.LocalKey)
 		if localKey == "" {
-			if detailed, err := client.GetDevice(r.Context(), dev.ID); err == nil && detailed != nil {
-				localKey = detailed.LocalKey
+			// Reuse a Local Key already stored by this Domus installation when
+			// Tuya omits it from a later account/device-list response.
+			for _, existing := range h.tuyaLocal.GetConfiguredDevices() {
+				if existing.DeviceID == dev.ID {
+					localKey = existing.LocalKey
+					break
+				}
 			}
 		}
+
+		// Tuya does not guarantee a Local Key for every product or account
+		// permission package. Temperature/humidity sensors and thermostats must
+		// still become visible and collect Cloud telemetry without LAN control.
 		if localKey == "" {
-			continue // cannot pair locally without the encryption key
+			if !climateSource {
+				continue
+			}
+			cfg := tuya_local.DeviceConfig{
+				DeviceID:          dev.ID,
+				Name:              dev.Name,
+				Version:           "3.3",
+				Category:          cat,
+				EntityKey:         entityKey,
+				IntegrationID:     "tuya_cloud",
+				Online:            dev.Online,
+				InitialState:      initState,
+				InitialAttributes: initAttrs,
+			}
+			if err := h.tuyaLocal.ProvisionCloudDevice(r.Context(), cfg, dev.Name); err != nil {
+				continue
+			}
+			synced = append(synced, cfg)
+			climateSourceCount++
+			continue
 		}
 
-		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		cfg := tuya_local.DeviceConfig{
 			DeviceID:          dev.ID,
 			Name:              dev.Name,
-			IP:                "", // populated only from trusted LAN UDP discovery
+			IP:                "", // only trusted LAN discovery can provide this
 			LocalKey:          localKey,
 			Version:           "3.3",
 			Category:          cat,
 			EntityKey:         entityKey,
+			Online:            dev.Online,
 			InitialState:      initState,
 			InitialAttributes: initAttrs,
 		}
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
 			continue
 		}
-		// Report the address resolved from LAN discovery, not the Cloud API response.
 		cfg.IP = h.tuyaLocal.GetDeviceIP(dev.ID)
 		synced = append(synced, cfg)
+		localControlCount++
+		if climateSource {
+			climateSourceCount++
+		}
 	}
 
-	message := fmt.Sprintf("%d dispositivi trasferiti al controllo locale LAN con Local Key", len(synced))
-	if hasSelection {
-		message = fmt.Sprintf("%d dispositivi selezionati abilitati per il controllo LocalTuya", len(synced))
-	}
+	message := fmt.Sprintf("%d dispositivi sincronizzati: %d con controllo LAN, %d sorgenti climatiche", len(synced), localControlCount, climateSourceCount)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"synced_count": len(synced),
-		"message": message,
-		"devices": synced,
+		"success":              true,
+		"synced_count":         len(synced),
+		"local_control_count":  localControlCount,
+		"climate_sources_count": climateSourceCount,
+		"message":              message,
+		"devices":               synced,
 	})
 }
+
 func isLocalTuyaSetpointFunction(code string) bool {
 	switch strings.ToLower(strings.TrimSpace(code)) {
 	case "temp_set", "target_temp", "target_temperature":

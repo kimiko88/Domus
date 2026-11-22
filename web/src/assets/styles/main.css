@@ -139,6 +139,43 @@ select option {
   color: var(--text-main, #f8fafc);
 }
 
+/* Climate & History uses its own panel/form palette. Explicit root selectors
+   override dark fallback colors from component-scoped styles in light mode. */
+:root[data-theme="light"] .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="light"] .climate-history-view textarea,
+:root[data-theme="light"] .climate-history-view select {
+  color-scheme: light !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+:root[data-theme="light"] .climate-history-view input::placeholder,
+:root[data-theme="light"] .climate-history-view textarea::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+:root[data-theme="oled"] .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root[data-theme="oled"] .climate-history-view textarea,
+:root[data-theme="oled"] .climate-history-view select {
+  color-scheme: dark !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  background: #09090b !important;
+  background-color: #09090b !important;
+  border-color: #3f3f46 !important;
+}
+:root:not([data-theme="light"]):not([data-theme="oled"]) .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:root:not([data-theme="light"]):not([data-theme="oled"]) .climate-history-view textarea,
+:root:not([data-theme="light"]):not([data-theme="oled"]) .climate-history-view select {
+  color-scheme: dark;
+  color: #e2e8f0;
+  -webkit-text-fill-color: #e2e8f0;
+  background-color: #111827;
+}
+
+
 :root[data-theme="light"] select,
 :root[data-theme="light"] select option {
   color-scheme: light !important;
