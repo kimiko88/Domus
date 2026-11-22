@@ -174,10 +174,12 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 	}
 
 	name := strings.ToLower(strings.TrimSpace(deviceName))
-	nameHint := strings.Contains(name, "temperature") || strings.Contains(name, "temperatur") ||
-		strings.Contains(name, "temp ") || strings.Contains(name, "humidity") ||
-		strings.Contains(name, "umid") || strings.Contains(name, "thermo") ||
-		strings.Contains(name, "termomet") || strings.Contains(name, "igromet")
+	nameHint := strings.Contains(name, "temp") || strings.Contains(name, "humidity") ||
+		strings.Contains(name, "humedad") || strings.Contains(name, "humidité") ||
+		strings.Contains(name, "umid") || strings.Contains(name, "влаж") ||
+		strings.Contains(name, "feucht") || strings.Contains(name, "moisture") ||
+		strings.Contains(name, "thermo") || strings.Contains(name, "termomet") ||
+		strings.Contains(name, "igromet")
 	alreadyMarked, _ := attributes["tuya_climate_source"].(bool)
 
 	temperatureRaw, hasTemperature := toFloat(attributes["dp_1"])
