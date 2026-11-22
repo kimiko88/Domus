@@ -27,15 +27,17 @@ type Config struct {
 
 // DeviceConfig holds settings for a specific configured Tuya device.
 type DeviceConfig struct {
-	DeviceID  string         `json:"device_id"`
-	Name      string         `json:"name,omitempty"`
-	IP        string         `json:"ip"`
-	LocalKey  string         `json:"local_key"`
-	Version   string         `json:"version"`
-	Category          DeviceCategory  `json:"category"`
-	EntityKey         string          `json:"entity_key"`
-	InitialState      string          `json:"initial_state,omitempty"`
-	InitialAttributes string          `json:"initial_attributes,omitempty"`
+	DeviceID          string         `json:"device_id"`
+	Name              string         `json:"name,omitempty"`
+	IP                string         `json:"ip"`
+	LocalKey          string         `json:"local_key,omitempty"`
+	Version           string         `json:"version"`
+	Category          DeviceCategory `json:"category"`
+	EntityKey         string         `json:"entity_key"`
+	IntegrationID     string         `json:"integration_id,omitempty"`
+	Online            bool           `json:"online,omitempty"`
+	InitialState      string         `json:"initial_state,omitempty"`
+	InitialAttributes string         `json:"initial_attributes,omitempty"`
 }
 
 // Adapter manages local Tuya integrations and bridges them to Domus domain events.
@@ -185,10 +187,35 @@ func (a *Adapter) RegisterDevice(cfg DeviceConfig) {
 
 // RegisterAndPersistDevice persists the device with an encrypted local_key, provisions
 // it in Domus repositories, and connects locally.
+// RegisterAndPersistDevice provisions a device for local LAN control.
+// A Local Key is mandatory here; Cloud-only devices must use ProvisionCloudDevice.
 func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig, name string) error {
-	cfg.IP = trustedLANIP(cfg.IP)
-	if cfg.DeviceID == "" || cfg.LocalKey == "" {
-		return errors.New("tuya_local: device_id and local_key are required")
+	if strings.TrimSpace(cfg.LocalKey) == "" {
+		return errors.New("tuya_local: local_key is required for local device registration")
+	}
+	return a.provisionDevice(ctx, cfg, name, true)
+}
+
+// ProvisionCloudDevice makes a Tuya device and its telemetry entity visible in Domus
+// even when Tuya does not expose a Local Key. Such entities are read-only; they can
+// be selected as Climate & History sources but cannot receive LAN commands.
+func (a *Adapter) ProvisionCloudDevice(ctx context.Context, cfg DeviceConfig, name string) error {
+	return a.provisionDevice(ctx, cfg, name, false)
+}
+
+func (a *Adapter) provisionDevice(ctx context.Context, cfg DeviceConfig, name string, localControl bool) error {
+	if cfg.DeviceID == "" || len(cfg.DeviceID) > 128 || strings.ContainsAny(cfg.DeviceID, "/?#") {
+		return errors.New("tuya_local: invalid device_id")
+	}
+	if localControl && strings.TrimSpace(cfg.LocalKey) == "" {
+		return errors.New("tuya_local: local_key is required for local device registration")
+	}
+	if !localControl {
+		// A Cloud-reported address may be the household's public WAN IP. A
+		// cloud-only record never opens a socket and therefore stores no address.
+		cfg.IP = ""
+	} else {
+		cfg.IP = trustedLANIP(cfg.IP)
 	}
 	if name == "" {
 		name = cfg.Name
@@ -209,87 +236,119 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 		cfg.EntityKey = fmt.Sprintf("%s.tuya_%s", domain, cfg.DeviceID)
 	}
 
-	// If IP is not provided, look in discovery cache
-	if cfg.IP == "" {
-		if disc, found := a.discovery.GetDevice(cfg.DeviceID); found && disc.IP != "" {
-			cfg.IP = disc.IP
-			if disc.Version != "" {
-				cfg.Version = disc.Version
+	isActive := false
+	if localControl {
+		// If IP is not provided, use only a trusted address learned from LAN discovery.
+		if cfg.IP == "" {
+			if disc, found := a.discovery.GetDevice(cfg.DeviceID); found && disc.IP != "" {
+				cfg.IP = trustedLANIP(disc.IP)
+				if disc.Version != "" {
+					cfg.Version = disc.Version
+				}
 			}
 		}
-	}
 
-	// Replace a stale LAN socket whenever the address or connection credentials
-	// change. In particular, a previous Cloud-reported WAN address must not survive
-	// a re-sync that has not yet observed a fresh LAN discovery packet.
-	var staleClient *DeviceClient
-	a.mu.Lock()
-	previous, previouslyConfigured := a.configs[cfg.DeviceID]
-	if previouslyConfigured && (previous.IP != cfg.IP || previous.LocalKey != cfg.LocalKey || previous.Version != cfg.Version) {
-		staleClient = a.devices[cfg.DeviceID]
-		delete(a.devices, cfg.DeviceID)
-	}
-	a.configs[cfg.DeviceID] = cfg
-	isActive := a.active
-	a.mu.Unlock()
-	if staleClient != nil {
-		_ = staleClient.Close()
-	}
+		// Replace a stale LAN socket whenever the address or connection credentials
+		// change. Do not put cloud-only records in the LocalTuya connection allow-list.
+		var staleClient *DeviceClient
+		a.mu.Lock()
+		previous, previouslyConfigured := a.configs[cfg.DeviceID]
+		if previouslyConfigured && (previous.IP != cfg.IP || previous.LocalKey != cfg.LocalKey || previous.Version != cfg.Version) {
+			staleClient = a.devices[cfg.DeviceID]
+			delete(a.devices, cfg.DeviceID)
+		}
+		a.configs[cfg.DeviceID] = cfg
+		isActive = a.active
+		a.mu.Unlock()
+		if staleClient != nil {
+			_ = staleClient.Close()
+		}
 
-	// 2. Persist in database
-	if a.db != nil {
-		keyEnc := cfg.LocalKey
-		if a.cipher != nil {
-			if enc, err := a.cipher.Encrypt(cfg.LocalKey); err == nil {
+		// Persist the Local Key encrypted at rest. Cloud-only devices never enter
+		// this table, which is intentionally reserved for LocalTuya credentials.
+		if a.db != nil {
+			keyEnc := cfg.LocalKey
+			if a.cipher != nil {
+				enc, err := a.cipher.Encrypt(cfg.LocalKey)
+				if err != nil {
+					return fmt.Errorf("tuya_local: encrypt local_key: %w", err)
+				}
 				keyEnc = enc
 			}
-		}
-
-		_, err := a.db.ExecContext(ctx, `
-			INSERT INTO tuya_local_devices (device_id, name, ip, local_key_enc, version, category, entity_key, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(device_id) DO UPDATE SET
-				name = excluded.name,
-				ip = excluded.ip,
-				local_key_enc = excluded.local_key_enc,
-				version = excluded.version,
-				category = excluded.category,
-				entity_key = excluded.entity_key,
-				updated_at = excluded.updated_at
-		`, cfg.DeviceID, cfg.Name, cfg.IP, keyEnc, cfg.Version, string(cfg.Category), cfg.EntityKey, time.Now().Unix())
-		if err != nil {
-			slog.Error("tuya_local: failed to persist device to database", "device_id", cfg.DeviceID, "error", err)
+			_, err := a.db.ExecContext(ctx, `
+				INSERT INTO tuya_local_devices (device_id, name, ip, local_key_enc, version, category, entity_key, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(device_id) DO UPDATE SET
+					name = excluded.name,
+					ip = excluded.ip,
+					local_key_enc = excluded.local_key_enc,
+					version = excluded.version,
+					category = excluded.category,
+					entity_key = excluded.entity_key,
+					updated_at = excluded.updated_at
+			`, cfg.DeviceID, cfg.Name, cfg.IP, keyEnc, cfg.Version, string(cfg.Category), cfg.EntityKey, time.Now().Unix())
+			if err != nil {
+				return fmt.Errorf("tuya_local: persist local device: %w", err)
+			}
 		}
 	}
 
-	// 3. Provision Domus core device & entity if repos attached
-	if a.devRepo != nil && a.entRepo != nil {
-		now := time.Now().UTC()
-		devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
-		existingDev, _ := a.devRepo.GetByID(ctx, devRecordID)
-		if existingDev == nil {
-			dev := &device.Device{
-				ID:            devRecordID,
-				IntegrationID: a.id,
-				ExternalID:    cfg.DeviceID,
-				Name:          cfg.Name,
-				Manufacturer:  "Tuya",
-				Model:         string(cfg.Category),
-				Online:        cfg.IP != "",
-				Metadata:      fmt.Sprintf(`{"protocol":"tuya_local","version":%q}`, cfg.Version),
-				CreatedAt:     now,
-				UpdatedAt:     now,
-			}
-			_ = a.devRepo.Create(ctx, dev)
-		}
+	now := time.Now().UTC()
+	devRecordID := fmt.Sprintf("tuya_%s", cfg.DeviceID)
+	integrationID := strings.TrimSpace(cfg.IntegrationID)
+	if integrationID == "" || localControl {
+		integrationID = a.id
+	}
+	protocol := "tuya_cloud"
+	if localControl {
+		protocol = "tuya_local"
+	}
 
-		existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
+	if a.devRepo != nil {
+		existingDev, err := a.devRepo.GetByID(ctx, devRecordID)
+		if err != nil && !errors.Is(err, device.ErrDeviceNotFound) {
+			return fmt.Errorf("tuya_local: get Domus device: %w", err)
+		}
+		if existingDev == nil {
+			existingDev = &device.Device{
+				ID:            devRecordID,
+				CreatedAt:     now,
+				Manufacturer:  "Tuya",
+				ExternalID:    cfg.DeviceID,
+			}
+		}
+		existingDev.IntegrationID = integrationID
+		existingDev.ExternalID = cfg.DeviceID
+		existingDev.Name = cfg.Name
+		existingDev.Manufacturer = "Tuya"
+		existingDev.Model = string(cfg.Category)
+		existingDev.Online = cfg.Online || cfg.IP != ""
+		existingDev.Metadata = fmt.Sprintf(`{"protocol":%q,"version":%q,"local_control":%t}`, protocol, cfg.Version, localControl)
+		existingDev.UpdatedAt = now
+		if existingDev.CreatedAt.IsZero() {
+			existingDev.CreatedAt = now
+		}
+		if existingDev.CreatedAt.Equal(now) {
+			if err := a.devRepo.Create(ctx, existingDev); err != nil {
+				return fmt.Errorf("tuya_local: create Domus device: %w", err)
+			}
+		} else if err := a.devRepo.Update(ctx, existingDev); err != nil {
+			return fmt.Errorf("tuya_local: update Domus device: %w", err)
+		}
+	}
+
+	if a.entRepo != nil {
 		entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
 		hasInitialTelemetry := cfg.InitialState != "" || cfg.InitialAttributes != ""
 		initialState := cfg.InitialState
 		if initialState == "" {
-			initialState = `{"state":false}`
-		} else if !json.Valid([]byte(initialState)) {
+			parsed := a.mapper.MapDPSToEntity(cfg.Category, nil)
+			initialState = parsed.State
+		}
+		if initialState == "" {
+			initialState = "unknown"
+		}
+		if !json.Valid([]byte(initialState)) {
 			// Cloud inference supplies a plain state value (e.g. "heat"); Domus
 			// stores entity state as a JSON object.
 			stateJSON, _ := json.Marshal(map[string]any{"state": initialState})
@@ -299,6 +358,11 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 		if initialAttributes == "" || !json.Valid([]byte(initialAttributes)) {
 			initialAttributes = `{}`
 		}
+		existingEnt, err := a.entRepo.GetByKey(ctx, cfg.EntityKey)
+		if err != nil && !errors.Is(err, entity.ErrEntityNotFound) {
+			return fmt.Errorf("tuya_local: get Domus entity: %w", err)
+		}
+		writable := localControl || a.IsDeviceConfigured(cfg.DeviceID)
 		if existingEnt == nil {
 			ent := &entity.Entity{
 				ID:            uuid.NewString(),
@@ -306,44 +370,35 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 				EntityKey:     cfg.EntityKey,
 				Domain:        entDomain,
 				Name:          cfg.Name,
-				Writable:      true,
+				Writable:      writable,
 				State:         initialState,
 				Attributes:    initialAttributes,
 				Available:     true,
 				LastChangedAt: now,
 				LastUpdatedAt: now,
 			}
-			_ = a.entRepo.Create(ctx, ent)
+			if err := a.entRepo.Create(ctx, ent); err != nil {
+				return fmt.Errorf("tuya_local: create Domus entity: %w", err)
+			}
 		} else {
-			existingEnt.DeviceID = devRecordID
-			existingEnt.Domain = entDomain
 			existingEnt.Name = cfg.Name
-			existingEnt.Writable = true
-			existingEnt.Available = true
-			existingEnt.LastUpdatedAt = now
-			if hasInitialTelemetry {
-				existingEnt.State = initialState
-				existingEnt.Attributes = initialAttributes
-			}
+			existingEnt.Writable = writable
 			if err := a.entRepo.Update(ctx, existingEnt); err != nil {
-				slog.Warn("tuya_local: failed to refresh entity metadata", "entity_key", cfg.EntityKey, "error", err)
+				return fmt.Errorf("tuya_local: update entity metadata: %w", err)
 			}
-			// EntityRepository.Update intentionally changes only metadata. Persist
-			// initial state only when Tuya returned telemetry: otherwise preserve the
-			// existing switch/light state instead of resetting it to a default.
+			// Keep a previous reading when the Cloud API omits status, but refresh
+			// the entity when the provider supplies current telemetry.
 			if hasInitialTelemetry {
 				if err := a.entRepo.UpdateState(ctx, existingEnt.ID, initialState, initialAttributes, true, now); err != nil {
-					slog.Warn("tuya_local: failed to refresh entity telemetry", "entity_key", cfg.EntityKey, "error", err)
+					return fmt.Errorf("tuya_local: update entity telemetry: %w", err)
 				}
 			}
 		}
 	}
 
-	// 4. Connect over LAN if IP is known
-	if isActive && cfg.IP != "" {
+	if localControl && isActive && cfg.IP != "" {
 		go a.connectDevice(cfg)
 	}
-
 	return nil
 }
 
