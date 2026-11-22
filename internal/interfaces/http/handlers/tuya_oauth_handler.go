@@ -260,21 +260,19 @@ func (h *TuyaOAuthHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			continue // cannot connect locally without local_key
 		}
 
-		cat := tuya_local.ParseCategory(dev.Category)
+		// Use the same product/status inference as the Tuya Cloud integration.
+		// Raw Tuya category codes such as "wk" and "wsdcg" are not Domus domains.
+		cat, entityKey, initialState, initialAttributes := inferTuyaDeviceCategoryAndTelemetry(dev)
 		cfg := tuya_local.DeviceConfig{
-			DeviceID:  dev.ID,
-			Name:      dev.Name,
-			IP:        ip,
-			LocalKey:  localKey,
-			Version:   "3.3",
-			Category:  cat,
-			EntityKey: fmt.Sprintf("switch.tuya_%s", dev.ID),
-		}
-		switch cat {
-		case tuya_local.CategoryLight:
-			cfg.EntityKey = fmt.Sprintf("light.tuya_%s", dev.ID)
-		case tuya_local.CategoryClimate:
-			cfg.EntityKey = fmt.Sprintf("climate.tuya_%s", dev.ID)
+			DeviceID:          dev.ID,
+			Name:              dev.Name,
+			IP:                ip,
+			LocalKey:          localKey,
+			Version:           "3.3",
+			Category:          cat,
+			EntityKey:         entityKey,
+			InitialState:      initialState,
+			InitialAttributes: initialAttributes,
 		}
 
 		if err := h.tuyaLocal.RegisterAndPersistDevice(r.Context(), cfg, dev.Name); err != nil {
