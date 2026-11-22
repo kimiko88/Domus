@@ -5,6 +5,8 @@ import DevicesView from './DevicesView.vue'
 import { apiClient } from '../api/client'
 import { useDevicesStore } from '../stores/devices'
 import { useEntitiesStore } from '../stores/entities'
+import { useAreasStore } from '../stores/areas'
+import { useAuthStore } from '../stores/auth'
 import type { Entity } from '../api/types'
 import { i18n } from '../locales'
 
@@ -194,6 +196,86 @@ describe('DevicesView.vue', () => {
     expect(wrapper.text()).toContain('Shelly')
     expect(wrapper.text()).toContain('Integrato · shelly')
     expect(wrapper.findAll('.device-card')).toHaveLength(1)
+  })
+
+  it('lets administrators assign a registered device to a room and clear the assignment', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'living-room', name: 'Salotto' }]
+    authStore.user = {
+      id: 'admin-1',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+
+    devicesStore.devices = [{
+      id: 'device-room-1',
+      name: 'Sensore temperatura',
+      integration_id: 'mqtt_generic',
+      area_id: '',
+      status: 'online',
+      created_at: '',
+      updated_at: ''
+    }]
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue(devicesStore.devices)
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'device-room-1',
+      area_id: 'living-room',
+      device_updated: true,
+      updated_entities: 1
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await wrapper.vm.$nextTick()
+    const roomSelect = wrapper.find('#device-room-device-room-1')
+    expect(roomSelect.exists()).toBe(true)
+    expect(roomSelect.findAll('option').map(option => option.text())).toContain('Salotto')
+
+    await roomSelect.setValue('living-room')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/device-room-1/area', {
+      area_id: 'living-room'
+    })
+    expect(wrapper.text()).toContain('Sensore temperatura')
+    expect(wrapper.text()).toContain('Stanza aggiornata')
+
+    putSpy.mockResolvedValueOnce({
+      device_id: 'device-room-1',
+      area_id: '',
+      device_updated: true,
+      updated_entities: 1
+    })
+    await roomSelect.setValue('')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(putSpy).toHaveBeenLastCalledWith('/api/v1/devices/device-room-1/area', {
+      area_id: null
+    })
+  })
+
+  it('does not expose room editing to non-administrator accounts', async () => {
+    const authStore = useAuthStore()
+    authStore.user = {
+      id: 'operator-1',
+      username: 'operator',
+      role: 'operator',
+      created_at: '',
+      updated_at: ''
+    }
+    devicesStore.devices = [{
+      id: 'device-room-2',
+      name: 'Presa studio',
+      integration_id: 'mqtt_generic',
+      status: 'online',
+      created_at: '',
+      updated_at: ''
+    }]
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue(devicesStore.devices)
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('#device-room-device-room-2').exists()).toBe(false)
   })
 
   it('renders empty state without crashing when devices list is empty or null', async () => {
