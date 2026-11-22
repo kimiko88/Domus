@@ -253,18 +253,19 @@ async function saveAreaDevices() {
   isSavingAreaDevices.value = true
   try {
     for (const device of changes) {
-      await devicesStore.updateDeviceArea(
-        device.id,
-        selected.has(device.id) ? area.id : null,
-        device.id.startsWith('tuya_') ? {
+      const nextAreaId = selected.has(device.id) ? area.id : null
+      if (device.id.startsWith('tuya_')) {
+        await devicesStore.updateDeviceArea(device.id, nextAreaId, {
           external_id: device.external_id || device.id.slice(5),
           name: device.name,
           integration_id: device.integration_id,
           online: device.status === 'online',
           manufacturer: device.manufacturer || 'Tuya',
           model: device.model
-        } : undefined
-      )
+        })
+      } else {
+        await devicesStore.updateDeviceArea(device.id, nextAreaId)
+      }
     }
     await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.success(
