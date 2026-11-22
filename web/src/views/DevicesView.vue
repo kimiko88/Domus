@@ -386,7 +386,7 @@ const allDevices = computed<UnifiedDevice[]>(() => {
 
     merged.push({
       id: deviceId,
-      external_id: String(attributes.external_id || deviceId),
+      external_id: String(attributes.external_id || (deviceId.startsWith('tuya_') ? deviceId.slice(5) : deviceId)),
       name,
       integration_id: integrationId,
       manufacturer: attributes.manufacturer ? String(attributes.manufacturer) : undefined,
