@@ -67,6 +67,35 @@ func TestCollectNowRecordsTemperatureHumidityAndThermostatSetpoint(t *testing.T)
 	require.Equal(t, "auto", byKey["climate.living"].HVACMode)
 }
 
+func TestCollectNowRecordsTuyaThermoHygrometerAttributes(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.TrackedDeviceIDs = []string{"tuya_device_sensor_1"}
+	repo := &climateRepoStub{settings: settings}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{
+			ID: "tuya-sensor-1", DeviceID: "tuya_device_sensor_1",
+			EntityKey: "sensor.tuya_sensor_1", Domain: "sensor",
+			Name: "Tuya Temperature and Humidity Sensor", State: "active",
+			Attributes: "{\"current_temperature\":21.7,\"current_humidity\":48}",
+			Available: true,
+		},
+	}}
+	service := NewService(repo, entities, testLogger())
+
+	// Attribute-only telemetry is sufficient to make the device selectable,
+	// even when Tuya does not provide Home-Assistant-style device_class values.
+	require.NoError(t, service.UpdateSettings(context.Background(), settings))
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Len(t, repo.samples, 1)
+	require.Equal(t, "tuya_device_sensor_1", repo.samples[0].DeviceID)
+	require.NotNil(t, repo.samples[0].Temperature)
+	require.NotNil(t, repo.samples[0].Humidity)
+	require.InDelta(t, 21.7, *repo.samples[0].Temperature, 0.001)
+	require.InDelta(t, 48.0, *repo.samples[0].Humidity, 0.001)
+}
+
 func TestCollectNowHonorsSelectedIntegrationDevices(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	settings.TrackedDeviceIDs = []string{"tuya-device-1"}
