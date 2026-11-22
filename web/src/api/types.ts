@@ -1289,6 +1289,8 @@ export interface StorePackage {
 export interface ClimateHistorySettings {
   enabled: boolean
   interval_minutes: number
+  // null means all compatible integration devices; [] means no devices.
+  tracked_device_ids: string[] | null
   record_temperature: boolean
   record_humidity: boolean
   record_thermostat: boolean
