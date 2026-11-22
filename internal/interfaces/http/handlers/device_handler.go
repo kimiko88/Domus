@@ -14,6 +14,7 @@ import (
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/domain/user"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
@@ -176,6 +177,11 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 			!strings.ContainsAny(externalID, "/?#") && validIntegration &&
 			name != "" && len(name) <= 256
 		if validIdentity {
+			currentUser := domusmw.GetUser(r.Context())
+			if currentUser == nil || currentUser.Role != user.RoleAdmin {
+				writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required to register cloud-only Tuya devices")
+				return
+			}
 			now := time.Now().UTC()
 			online := req.Online != nil && *req.Online
 			if err := h.ensureTuyaIntegrationRecord(r.Context(), integrationID, online); err != nil {
