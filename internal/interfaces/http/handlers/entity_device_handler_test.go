@@ -434,3 +434,87 @@ func TestDeviceHandler_UpdateAreaMatchesLegacyTuyaEntityWithoutDeviceID(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, "bedroom", storedDevice.AreaID)
 }
+
+
+func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
+		ID: "living-room", Name: "Living room", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	deviceID := "tuya_smart-life-device-42"
+	externalID := "smart-life-device-42"
+	handler := handlers.NewDeviceHandler(repos.Devices).
+		WithEntities(repos.Entities).
+		WithAreas(repos.Areas)
+	router := chi.NewRouter()
+	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
+
+	body, err := json.Marshal(map[string]any{
+		"area_id": "living-room",
+		"external_id": externalID,
+		"name": "Smart Life temperature sensor",
+		"integration_id": "tuya_oauth",
+		"online": true,
+		"manufacturer": "Tuya",
+		"model": "thermo_hygrometer",
+	})
+	require.NoError(t, err)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+deviceID+"/area", bytes.NewReader(body))
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, request)
+	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(result.Body.Bytes(), &response))
+	assert.Equal(t, deviceID, response["device_id"])
+	assert.Equal(t, true, response["device_created"])
+	assert.Equal(t, true, response["device_updated"])
+
+	stored, err := repos.Devices.GetByID(ctx, deviceID)
+	require.NoError(t, err)
+	assert.Equal(t, externalID, stored.ExternalID)
+	assert.Equal(t, "tuya_oauth", stored.IntegrationID)
+	assert.Equal(t, "Smart Life temperature sensor", stored.Name)
+	assert.Equal(t, "living-room", stored.AreaID)
+	assert.True(t, stored.Online)
+	assert.Empty(t, stored.ID[len("tuya_")+len(externalID):])
+
+	// A cloud-only placeholder remains editable and can be unassigned without
+	// requiring a LocalTuya key or a synthetic entity.
+	clearBody, err := json.Marshal(map[string]any{
+		"area_id": nil,
+		"external_id": externalID,
+		"name": "Smart Life temperature sensor",
+		"integration_id": "tuya_oauth",
+		"online": true,
+	})
+	require.NoError(t, err)
+	clearRequest := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+deviceID+"/area", bytes.NewReader(clearBody))
+	clearResult := httptest.NewRecorder()
+	router.ServeHTTP(clearResult, clearRequest)
+	require.Equal(t, http.StatusOK, clearResult.Code, clearResult.Body.String())
+	cleared, err := repos.Devices.GetByID(ctx, deviceID)
+	require.NoError(t, err)
+	assert.Empty(t, cleared.AreaID)
+}
+
+func TestDeviceHandler_DoesNotCreateArbitraryMissingDeviceFromRoomPayload(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
+		ID: "office", Name: "Office", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+	handler := handlers.NewDeviceHandler(repos.Devices).WithEntities(repos.Entities).WithAreas(repos.Areas)
+	router := chi.NewRouter()
+	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
+
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/not-a-tuya-device/area",
+		bytes.NewBufferString(`{"area_id":"office","external_id":"not-a-tuya-device","name":"Forged device","integration_id":"mqtt_generic","online":true}`))
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, request)
+	require.Equal(t, http.StatusNotFound, result.Code, result.Body.String())
+	_, err := repos.Devices.GetByID(ctx, "not-a-tuya-device")
+	require.Error(t, err)
+}
