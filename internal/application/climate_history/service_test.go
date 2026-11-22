@@ -73,8 +73,8 @@ func TestCollectNowRecordsTuyaThermoHygrometerAttributes(t *testing.T) {
 	repo := &climateRepoStub{settings: settings}
 	entities := &climateEntityRepoStub{entities: []*entity.Entity{
 		{
-			ID: "tuya-sensor-1", DeviceID: "tuya_device_sensor_1",
-			EntityKey: "sensor.tuya_sensor_1", Domain: "sensor",
+			ID: "tuya-sensor-1",
+			EntityKey: "sensor.tuya_device_sensor_1", Domain: "sensor",
 			Name: "Tuya Temperature and Humidity Sensor", State: "active",
 			Attributes: "{\"current_temperature\":21.7,\"current_humidity\":48}",
 			Available: true,
