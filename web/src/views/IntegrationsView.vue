@@ -2207,22 +2207,33 @@ onMounted(() => {
           </div>
         </div>
         <div class="discovery-inputs">
-          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="() => fetchTuyaCloudDevices()">
+          <button class="btn-action glass-panel" :disabled="tuyaOAuthLoading" @click="tuyaOAuthStatus.connected ? disconnectTuyaAccount() : connectTuyaAccount()">
+            <Key :size="15" />
+            <span>{{ tuyaOAuthStatus.connected ? t('integrations.view.disconnect') : t('integrations.view.connectSmartLifeOAuth') }}</span>
+          </button>
+          <button class="btn-scan" :disabled="tuyaCloudLoading || (!tuyaConfig.configured && !tuyaOAuthStatus.connected)" @click="refreshTuyaDevices">
             <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
             <span>{{ t('integrations.view.refreshDevices') }}</span>
           </button>
-          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || !tuyaConfig.configured" @click="syncTuyaCloudToLocal">
+          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || (!tuyaConfig.configured && !tuyaOAuthStatus.connected)" @click="syncTuyaCloudToLocal">
             <Wifi :size="15" />
-            <span>{{ tuyaSyncing ? 'Aggiornamento LocalTuya…' : `Applica selezione LAN (${selectedTuyaDeviceIds.length})` }}</span>
+            <span>{{ tuyaSyncing ? t('integrations.view.syncingDevices') : t('integrations.view.syncSelectedDevices', { count: selectedTuyaDeviceIds.length }) }}</span>
           </button>
-          <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
+          <button v-if="tuyaConfig.configured || tuyaOAuthStatus.connected" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
             <Key :size="15" />
-            <span>{{ isEditingTuyaConfig ? 'Chiudi Config' : 'Modifica Config' }}</span>
+            <span>{{ isEditingTuyaConfig ? t('common.cancel') : tuyaOAuthStatus.connected && !tuyaConfig.configured ? t('integrations.view.configureDirectTuya') : 'Modifica Config' }}</span>
           </button>
           <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="disconnectTuyaConfig">
             <Unlock :size="15" />
-            <span>{{ t('integrations.view.disconnect') }}</span>
+            <span>{{ t('integrations.view.disconnect') }} · Server-to-Server</span>
           </button>
+        </div>
+      </div>
+
+      <div v-if="tuyaOAuthStatus.connected" class="tuya-status-banner glass-card">
+        <div class="tuya-status-left">
+          <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>{{ t('integrations.view.smartLifeOAuthConnected') }}</span></div>
+          <span v-if="tuyaOAuthStatus.expires_at" class="meta-chip">{{ t('integrations.view.tokenExpires') }}: {{ formatVendorDate(tuyaOAuthStatus.expires_at) }}</span>
         </div>
       </div>
 
@@ -2239,7 +2250,7 @@ onMounted(() => {
       </div>
 
       <!-- SETUP GUIDE & CONFIG FORM (WHEN NOT CONFIGURED OR EDITING) -->
-      <div v-if="!tuyaConfig.configured || isEditingTuyaConfig" class="tuya-config-panel glass-card">
+      <div v-if="(!tuyaConfig.configured && !tuyaOAuthStatus.connected) || isEditingTuyaConfig" class="tuya-config-panel glass-card">
         <div class="tuya-guide-box">
           <h4 class="guide-title"><QrCode :size="18" /> {{ t('integrations.view.tuyaConnectTitle') }}</h4>
           <ol class="guide-steps">
@@ -2330,7 +2341,7 @@ onMounted(() => {
         </form>
       </div>
 
-      <div v-if="tuyaCloudError && tuyaConfig.configured" class="empty-guardian-state glass-card">
+      <div v-if="tuyaCloudError && (tuyaConfig.configured || tuyaOAuthStatus.connected)" class="empty-guardian-state glass-card">
         <AlertCircle :size="30" />
         <h4>{{ t('integrations.view.tuyaCloudUnavailable') }}</h4>
         <p>{{ tuyaCloudError }}</p>
@@ -2342,7 +2353,7 @@ onMounted(() => {
         <p>{{ t('integrations.view.loadingSmartLifeDevices') }}</p>
       </div>
 
-      <div v-else-if="tuyaConfig.configured && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
+      <div v-else-if="(tuyaConfig.configured || tuyaOAuthStatus.connected) && tuyaCloudDevices.length === 0 && !tuyaCloudLoading" class="empty-guardian-state glass-card">
         <Globe :size="32" />
         <h4>{{ t('integrations.view.noDevicesForUid') }}</h4>
         <p>{{ t('integrations.view.verifyUidInstruction') }}</p>
