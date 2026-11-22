@@ -636,7 +636,8 @@
         "stateUnavailableDesc": "Impossible d’inverser l’état de {name}. Actualisez l’état de l’appareil et réessayez.",
         "unsupportedTemperatureTitle": "Température non prise en charge",
         "unsupportedTemperatureDesc": "Choisissez une consigne disponible : 1, 1,5, 2, 7, 12, 17, 21 ou 22 °C.",
-        "manualIsolationReason": "Appareil isolé manuellement par Network Guardian."
+        "manualIsolationReason": "Appareil isolé manuellement par Network Guardian.",
+        "tuyaSyncCompletedDesc": "{count} appareils synchronisés : {local} avec contrôle LAN, {climate} sources climatiques."
       },
       "devicesShown": "{count} affichés",
       "deviceOnline": "En ligne",
@@ -850,7 +851,10 @@
         "vesyncRefreshStatus": "Actualiser l'état",
         "vesyncFirmware": "Micrologiciel",
         "vesyncRefreshDevices": "Actualiser les appareils"
-      }
+      },
+      "selectedForSync": "Sélectionnés pour synchronisation : {count}",
+      "syncSelectedDevices": "Synchroniser la sélection ({count})",
+      "syncingDevices": "Synchronisation des appareils…"
     }
   },
   "history": {
