@@ -322,7 +322,15 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 			existingEnt.Attributes = initialAttributes
 			existingEnt.Available = true
 			existingEnt.LastUpdatedAt = now
-			_ = a.entRepo.Update(ctx, existingEnt)
+			if err := a.entRepo.Update(ctx, existingEnt); err != nil {
+				slog.Warn("tuya_local: failed to refresh entity metadata", "entity_key", cfg.EntityKey, "error", err)
+			}
+			// EntityRepository.Update intentionally changes only metadata. Persist
+			// the refreshed initial state and cloud telemetry separately so a
+			// re-sync also updates existing climate/sensor entities.
+			if err := a.entRepo.UpdateState(ctx, existingEnt.ID, initialState, initialAttributes, true, now); err != nil {
+				slog.Warn("tuya_local: failed to refresh entity telemetry", "entity_key", cfg.EntityKey, "error", err)
+			}
 		}
 	}
 
