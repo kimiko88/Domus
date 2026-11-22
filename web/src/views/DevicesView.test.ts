@@ -318,7 +318,7 @@ describe('DevicesView.vue', () => {
     }
     vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
     vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
-    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
       if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
       if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true }
       if (url === '/api/v1/integrations/tuya-oauth/devices') {
