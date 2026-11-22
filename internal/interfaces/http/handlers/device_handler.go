@@ -2,10 +2,14 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
@@ -16,6 +20,7 @@ import (
 type DeviceHandler struct {
 	repo       device.Repository
 	entityRepo entity.Repository
+	areaRepo   area.Repository
 }
 
 // NewDeviceHandler constructs a DeviceHandler.
@@ -26,6 +31,120 @@ func NewDeviceHandler(repo device.Repository) *DeviceHandler {
 func (h *DeviceHandler) WithEntities(repo entity.Repository) *DeviceHandler {
 	h.entityRepo = repo
 	return h
+}
+
+func (h *DeviceHandler) WithAreas(repo area.Repository) *DeviceHandler {
+	h.areaRepo = repo
+	return h
+}
+
+// UpdateArea assigns a physical device and all of its entities to a room.
+// Some integrations expose a device only through its entities; those devices
+// are still assignable by their shared device_id.
+func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
+	deviceID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if deviceID == "" || len(deviceID) > 256 {
+		writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "invalid device ID")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
+	var req struct {
+		AreaID json.RawMessage `json:"area_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid room assignment payload")
+		return
+	}
+	if len(req.AreaID) == 0 {
+		writeError(w, http.StatusBadRequest, "MISSING_AREA_ID", "area_id is required; use null to remove the room")
+		return
+	}
+	var areaID string
+	if string(req.AreaID) != "null" {
+		if err := json.Unmarshal(req.AreaID, &areaID); err != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_AREA_ID", "area_id must be a room ID or null")
+			return
+		}
+		areaID = strings.TrimSpace(areaID)
+	}
+
+	if areaID != "" {
+		if h.areaRepo == nil {
+			writeError(w, http.StatusServiceUnavailable, "AREAS_UNAVAILABLE", "room validation service is unavailable")
+			return
+		}
+		if _, err := h.areaRepo.GetByID(r.Context(), areaID); err != nil {
+			if errors.Is(err, area.ErrAreaNotFound) {
+				writeError(w, http.StatusNotFound, "AREA_NOT_FOUND", "the selected room does not exist")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to validate the selected room")
+			return
+		}
+	}
+
+	dev, deviceErr := h.repo.GetByID(r.Context(), deviceID)
+	deviceExists := deviceErr == nil
+	if deviceErr != nil && !errors.Is(deviceErr, device.ErrDeviceNotFound) {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to load device")
+		return
+	}
+
+	var linkedEntities []*entity.Entity
+	if h.entityRepo != nil {
+		items, err := h.entityRepo.List(r.Context(), entity.ListFilter{DeviceID: deviceID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to load device entities")
+			return
+		}
+		linkedEntities = items
+	}
+	if !deviceExists && len(linkedEntities) == 0 {
+		writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
+		return
+	}
+
+	oldDeviceArea := ""
+	if deviceExists {
+		oldDeviceArea = dev.AreaID
+		dev.AreaID = areaID
+		dev.UpdatedAt = time.Now().UTC()
+		if err := h.repo.Update(r.Context(), dev); err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to assign device to the selected room")
+			return
+		}
+	}
+
+	updatedEntities := make([]*entity.Entity, 0, len(linkedEntities))
+	updatedEntityAreas := make(map[string]string, len(linkedEntities))
+	for _, linked := range linkedEntities {
+		oldArea := linked.AreaID
+		linked.AreaID = areaID
+		if err := h.entityRepo.Update(r.Context(), linked); err != nil {
+			// Best-effort compensation avoids leaving a half-moved device when
+			// one of its entity metadata updates fails.
+			for _, previous := range updatedEntities {
+				previous.AreaID = updatedEntityAreas[previous.ID]
+				_ = h.entityRepo.Update(r.Context(), previous)
+			}
+			if deviceExists {
+				dev.AreaID = oldDeviceArea
+				_ = h.repo.Update(r.Context(), dev)
+			}
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to update all entities for this device")
+			return
+		}
+		updatedEntities = append(updatedEntities, linked)
+		updatedEntityAreas[linked.ID] = oldArea
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"device_id": deviceID,
+		"area_id": areaID,
+		"device_updated": deviceExists,
+		"updated_entities": len(updatedEntities),
+	})
 }
 
 func (h *DeviceHandler) canViewDevice(r *http.Request, dev *device.Device) (bool, error) {
