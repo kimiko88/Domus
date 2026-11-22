@@ -200,10 +200,10 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 	if _, exists := attributeNumberForTuya(attributes, "current_humidity", "humidity", "va_humidity"); !exists {
 		attributes["current_humidity"] = humidity
 	}
-	if strings.TrimSpace(fmt.Sprint(attributes["device_class"])) == "" {
+	if value, ok := attributes["device_class"].(string); !ok || strings.TrimSpace(value) == "" {
 		attributes["device_class"] = "temperature"
 	}
-	if strings.TrimSpace(fmt.Sprint(attributes["unit_of_measurement"])) == "" {
+	if value, ok := attributes["unit_of_measurement"].(string); !ok || strings.TrimSpace(value) == "" {
 		attributes["unit_of_measurement"] = "°C"
 	}
 	attributes["tuya_climate_source"] = true
