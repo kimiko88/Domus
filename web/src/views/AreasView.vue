@@ -42,6 +42,7 @@ const managingArea = ref<Area | null>(null)
 const isDeviceManagerOpen = ref(false)
 const isSavingAreaDevices = ref(false)
 const selectedDeviceIds = ref<string[]>([])
+const isLoadingAssignableDevices = ref(false)
 
 interface ExternalTuyaDevice {
   id: string
@@ -58,16 +59,21 @@ const tuyaCloudDevices = ref<ExternalTuyaDevice[]>([])
 const tuyaOAuthDevices = ref<ExternalTuyaDevice[]>([])
 
 onMounted(async () => {
-  const results = await Promise.allSettled([
-    areasStore.fetchAreas(),
-    entitiesStore.fetchEntities(),
-    devicesStore.fetchDevices(),
-    loadTuyaCloudDevices(),
-    loadTuyaOAuthDevices()
-  ])
-  const failed = results.filter(result => result.status === 'rejected')
-  if (failed.length > 0) {
-    console.warn('AreasView data fetch warning:', failed.length, 'source(s) could not be loaded')
+  isLoadingAssignableDevices.value = true
+  try {
+    const results = await Promise.allSettled([
+      areasStore.fetchAreas(),
+      entitiesStore.fetchEntities(),
+      devicesStore.fetchDevices(),
+      loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices()
+    ])
+    const failed = results.filter(result => result.status === 'rejected')
+    if (failed.length > 0) {
+      console.warn('AreasView data fetch warning:', failed.length, 'source(s) could not be loaded')
+    }
+  } finally {
+    isLoadingAssignableDevices.value = false
   }
 })
 
@@ -274,7 +280,7 @@ async function saveAreaDevices() {
     )
     closeDeviceManager()
   } catch (err: any) {
-    await Promise.allSettled([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    await Promise.allSettled([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.error(
       t('areas.devicesSaveError'),
       err?.message || t('areas.devicesSaveError')
@@ -489,7 +495,10 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           </button>
         </header>
 
-        <p v-if="assignableDevices.length === 0" class="area-device-empty">
+        <p v-if="isLoadingAssignableDevices" class="area-device-empty" role="status">
+          {{ t('common.loading') }}
+        </p>
+        <p v-else-if="assignableDevices.length === 0" class="area-device-empty">
           {{ t('areas.noAssignableDevices') }}
         </p>
         <div v-else class="area-device-list">
@@ -514,7 +523,7 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           <button class="area-device-secondary-btn" type="button" :disabled="isSavingAreaDevices" @click="closeDeviceManager">
             {{ t('devices.view.close') }}
           </button>
-          <button class="area-device-primary-btn" type="button" :disabled="isSavingAreaDevices || assignableDevices.length === 0" @click="saveAreaDevices">
+          <button class="area-device-primary-btn" type="button" :disabled="isSavingAreaDevices || isLoadingAssignableDevices || assignableDevices.length === 0" @click="saveAreaDevices">
             {{ isSavingAreaDevices ? t('areas.savingDevices') : t('areas.saveDevices') }}
           </button>
         </footer>
