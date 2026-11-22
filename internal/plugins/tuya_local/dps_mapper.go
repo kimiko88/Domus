@@ -212,15 +212,14 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 		unit = "%"
 	}
 
+	// Once the DPS profile is recognized, the current local datapoints are
+	// authoritative. Replace previous values so repeated LAN updates do not
+	// leave Climate & History stuck on the first reading.
 	if hasTemperatureSource {
-		if _, exists := attributeNumberForTuya(attributes, "current_temperature", "temperature", "va_temperature"); !exists {
-			attributes["current_temperature"] = temperature
-		}
+		attributes["current_temperature"] = temperature
 	}
 	if hasHumiditySource {
-		if _, exists := attributeNumberForTuya(attributes, "current_humidity", "humidity", "va_humidity"); !exists {
-			attributes["current_humidity"] = humidity
-		}
+		attributes["current_humidity"] = humidity
 	}
 	if value, ok := attributes["device_class"].(string); !ok || strings.TrimSpace(value) == "" {
 		attributes["device_class"] = deviceClass
@@ -258,19 +257,6 @@ func normalizeTuyaHumidityDPS(value float64) (float64, bool, bool) {
 		}
 	}
 	return 0, false, false
-}
-
-// attributeNumberForTuya checks whether an existing telemetry field is already
-// populated without replacing provider-reported values with inferred DPS data.
-func attributeNumberForTuya(attributes map[string]any, keys ...string) (float64, bool) {
-	for _, key := range keys {
-		if value, exists := attributes[key]; exists {
-			if number, ok := toFloat(value); ok {
-				return number, true
-			}
-		}
-	}
-	return 0, false
 }
 
 // MapCommandToDPS converts a Domus entity command into a Tuya DPS payload.
