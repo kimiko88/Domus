@@ -54,7 +54,7 @@ function isClimateSourceEntity(entity: Entity): boolean {
   if (entity.domain !== 'sensor') return false
   const attributes = entity.attributes || {}
   const deviceClass = String(attributes.device_class || '').toLowerCase()
-  const unit = String(attributes.unit_of_measurement || '').toLowerCase()
+  const unit = String(entity.unit_of_measurement || attributes.unit_of_measurement || '').toLowerCase()
   const key = String(entity.entity_key || entity.id || '').toLowerCase()
   const name = String(entity.name || '').toLowerCase()
   return deviceClass === 'temperature' || deviceClass === 'humidity' ||
