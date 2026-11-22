@@ -207,6 +207,16 @@ async function refreshAllDevices() {
   }
 }
 
+function entityDeviceID(entity: Entity): string {
+  const direct = String(entity.device_id || '').trim()
+  if (direct) return direct
+  for (const candidate of [entity.entity_key || '', entity.id || '']) {
+    const suffix = candidate.split('.').pop() || ''
+    if (suffix.startsWith('tuya_') && suffix.length > 'tuya_'.length) return suffix
+  }
+  return ''
+}
+
 const allDevices = computed<UnifiedDevice[]>(() => {
   const merged: UnifiedDevice[] = (devicesStore.devices || []).map(device => ({
     ...device,
@@ -260,7 +270,7 @@ const allDevices = computed<UnifiedDevice[]>(() => {
 
   const entitiesByDevice = new Map<string, Entity[]>()
   for (const entity of entitiesStore.allEntities) {
-    const deviceId = String(entity.device_id || '').trim()
+    const deviceId = entityDeviceID(entity)
     if (!deviceId) continue
     const group = entitiesByDevice.get(deviceId) || []
     group.push(entity)
