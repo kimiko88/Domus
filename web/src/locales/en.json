@@ -402,7 +402,16 @@
       "garage": "Garage",
       "cinema": "Home cinema / TV",
       "other": "Other"
-    }
+    },
+    "manageDevices": "Manage devices",
+    "manageDevicesDescription": "Select the devices to assign to this area. A device already assigned to another room will be moved here.",
+    "noAssignableDevices": "No assignable devices are available yet. Refresh the devices and integrations list.",
+    "unassigned": "Unassigned",
+    "saveDevices": "Save assignments",
+    "savingDevices": "Saving…",
+    "devicesSaveSuccess": "Assignments updated",
+    "devicesSaveMessage": "Updated {count} assignments for {area}.",
+    "devicesSaveError": "Unable to update device assignments."
   },
   "devices": {
     "title": "Devices",
