@@ -486,7 +486,14 @@ Object.assign(ru.energy, {
 Object.assign(ru.floorplan.view.roomNames, {
   kitchenDining: 'Кухня и столовая', bedroom: 'Спальня', masterBathroom: 'Главная ванная'
 });
-Object.assign(ru.devices.view, { filteredCount: '{filtered} из {total} устройств' });
+Object.assign(ru.devices.view, {
+  filteredCount: '{filtered} из {total} устройств',
+  noRoom: 'Не назначено',
+  roomAssignedTitle: 'Комната обновлена',
+  roomAssignedMessage: '{device} назначено в комнату «{room}».',
+  roomAssignErrorTitle: 'Не удалось назначить комнату',
+  roomAssignErrorMessage: 'Не удалось изменить комнату устройства.'
+});
 Object.assign(ru.integrations.view, { ipLabel: 'IP', firmwareLabel: 'Прошивка' });
 Object.assign(ru.shopping.view, {
   itemsAdded: 'Новых товаров: {count}', itemsUpdated: 'Обновлено товаров: {count}',
