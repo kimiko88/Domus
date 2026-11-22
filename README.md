@@ -19,6 +19,7 @@ Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high
 - **High Availability (HA) Failover Dual-Hub**: Keepalived Virtual IP (VIP) failover with real-time SQLite WAL delta replication, sub-second peer heartbeat monitoring, and 1-click manual node promotion.
 - **Multi-Room Always-On Voice Satellites**: On-device "Ehi Domus" wake-word detection, local WebSocket audio streaming, room-aware contextual command resolution ("spegni la luce" acts on the room where the speaker is located), and hardware privacy mute.
 - **Zero-Cloud Brand Discovery & 1-Click LAN Pairing**: Native LAN mDNS/SSDP discovery and instant pairing for Philips Hue, Shelly Gen1/Gen2, TP-Link Kasa/Tapo, Nanoleaf, Yeelight, Tuya Local, and Zigbee2MQTT.
+- **Vendor Integrations with explicit privacy boundaries**: Xiaomi miIO token-based local LAN discovery/control plus optional Xiaomi Open Platform OAuth, and VeSync Cloud access for supported Levoit purifiers. The local and cloud paths are documented separately; cloud connectors are opt-in.
 - **Cloud Voice Assistants (Optional & Privacy-First)**: Lambda OAuth2 bridge for Amazon Alexa Smart Home (v3) and Smart Home Actions for Google Home (`action.devices.SYNC`, `QUERY`, `EXECUTE`) while guaranteeing 100% local privacy by default through bearer token endpoints.
 - **Time-Limited Shared Dashboards**: Cryptographically signed HMAC-SHA256 temporary tokens for sharing specific dashboards with guests or kiosk screens (`/share/:token`) without exposing admin credentials.
 - **Industrial Automation Protocol Bridges**: Native Modbus TCP adapter for commercial solar inverters and heat pumps (coils, registers, float32, scaling factors), alongside a pure Go KNXnet/IP tunneling client for European wired installations (DPT 1.001, 5.001, 9.001, 14.056).
@@ -320,6 +321,8 @@ cd web && npm run build
 - **[Manuale Utente](docs/USER-MANUAL.md)** — Guida completa dall'installazione all'uso quotidiano (IT)
 - **[Swagger UI](http://localhost:8080/docs)** — Documentazione API REST interattiva (quando il server è attivo)
 - **[OpenAPI YAML](docs/openapi/domus.yaml)** — Specifica OpenAPI 3.1 completa
+- **[Xiaomi Home & Imou Life](docs/integrations/xiaomi-home-imou-life.md)** — Guida a Xiaomi MiIO locale, token LAN, Xiaomi Open Platform OAuth e Imou Life.
+- **[VeSync Cloud](docs/integrations/vesync.md)** — Registrazione account, connessione Levoit, sessione cifrata, modelli supportati e troubleshooting.
 
 ---
 
