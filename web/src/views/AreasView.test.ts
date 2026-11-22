@@ -206,6 +206,8 @@ describe('AreasView.vue', () => {
     await tuyaCheckbox.setValue(false)
     await shellyCheckbox.setValue(true)
     await wrapper.find('.area-device-primary-btn').trigger('click')
+    await flushPromises()
+    await wrapper.vm.$nextTick()
 
     expect(updateAreaSpy).toHaveBeenCalledTimes(2)
     expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null, expect.objectContaining({ external_id: 'sensor_1', integration_id: 'tuya_local' }))
