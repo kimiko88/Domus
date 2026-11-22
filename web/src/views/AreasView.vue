@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAreasStore } from '../stores/areas'
 import { useEntitiesStore } from '../stores/entities'
+import { useDevicesStore } from '../stores/devices'
+import { useAuthStore } from '../stores/auth'
 import { useNotificationsStore } from '../stores/notifications'
-import type { Area } from '../api/types'
+import type { Area, Device, Entity } from '../api/types'
 import BaseButton from '../components/ui/BaseButton.vue'
 import AreaEditorModal from '../components/modals/AreaEditorModal.vue'
 import {
@@ -21,23 +23,31 @@ import {
   Trees,
   Sun,
   Car,
-  Tv
+  Tv,
+  Cpu
 } from '@lucide/vue'
 
 const { t } = useI18n()
 
 const areasStore = useAreasStore()
 const entitiesStore = useEntitiesStore()
+const devicesStore = useDevicesStore()
+const authStore = useAuthStore()
 const notificationsStore = useNotificationsStore()
 
 const isEditorOpen = ref(false)
 const editingArea = ref<Area | null>(null)
+const managingArea = ref<Area | null>(null)
+const isDeviceManagerOpen = ref(false)
+const isSavingAreaDevices = ref(false)
+const selectedDeviceIds = ref<string[]>([])
 
 onMounted(async () => {
   try {
     await Promise.all([
       areasStore.fetchAreas(),
-      entitiesStore.fetchEntities()
+      entitiesStore.fetchEntities(),
+      devicesStore.fetchDevices()
     ])
   } catch (err) {
     console.warn('AreasView data fetch warning:', err)
@@ -48,6 +58,124 @@ function getEntitiesForArea(areaId: string) {
   return entitiesStore.allEntities.filter(
     (e) => (e.attributes as any)?.area_id === areaId || (e as any).area_id === areaId
   )
+}
+
+function entityAreaId(entity: Entity): string {
+  return String(entity.area_id || entity.attributes?.area_id || '')
+}
+
+const assignableDevices = computed<Device[]>(() => {
+  const result = new Map<string, Device>()
+  for (const item of devicesStore.devices) {
+    result.set(item.id, { ...item })
+  }
+
+  const entitiesByDevice = new Map<string, Entity[]>()
+  for (const entity of entitiesStore.allEntities) {
+    const deviceId = String(entity.device_id || '').trim()
+    if (!deviceId) continue
+    const group = entitiesByDevice.get(deviceId) || []
+    group.push(entity)
+    entitiesByDevice.set(deviceId, group)
+  }
+
+  for (const [deviceId, linkedEntities] of entitiesByDevice) {
+    const matching = [...result.values()].find(device =>
+      device.id === deviceId ||
+      device.external_id === deviceId ||
+      device.id === `tuya_${deviceId}` ||
+      (device.id.startsWith('tuya_') && device.id.slice(5) === deviceId)
+    )
+    if (matching) {
+      if (!matching.area_id) {
+        matching.area_id = linkedEntities.map(entityAreaId).find(Boolean) || undefined
+      }
+      continue
+    }
+
+    const attributes = linkedEntities.reduce<Record<string, any>>((all, entity) => ({
+      ...all,
+      ...(entity.attributes || {})
+    }), {})
+    const isTuya = deviceId.startsWith('tuya_')
+    const status = linkedEntities.every(entity =>
+      ['unavailable', 'unknown'].includes(String(entity.state || '').toLowerCase())
+    ) ? 'offline' : 'online'
+    result.set(deviceId, {
+      id: deviceId,
+      external_id: String(attributes.external_id || (isTuya ? deviceId.slice(5) : deviceId)),
+      name: String(attributes.device_name || attributes.device_friendly_name ||
+        attributes.friendly_name || linkedEntities[0]?.name || deviceId),
+      integration_id: String(attributes.integration_id || attributes.integration ||
+        attributes.platform || (isTuya ? 'tuya_local' : 'integrated')),
+      manufacturer: attributes.manufacturer ? String(attributes.manufacturer) : undefined,
+      model: attributes.model ? String(attributes.model) : undefined,
+      area_id: linkedEntities.map(entityAreaId).find(Boolean) || undefined,
+      status,
+      created_at: '',
+      updated_at: ''
+    })
+  }
+
+  return [...result.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+function getDevicesForArea(areaId: string): Device[] {
+  return assignableDevices.value.filter(device => device.area_id === areaId)
+}
+
+function getAreaItemCount(areaId: string): number {
+  const deviceCount = getDevicesForArea(areaId).length
+  return deviceCount || getEntitiesForArea(areaId).length
+}
+
+function openDeviceManager(area: Area) {
+  managingArea.value = area
+  selectedDeviceIds.value = getDevicesForArea(area.id).map(device => device.id)
+  isDeviceManagerOpen.value = true
+}
+
+function closeDeviceManager() {
+  isDeviceManagerOpen.value = false
+  managingArea.value = null
+  selectedDeviceIds.value = []
+}
+
+function updateSelectedDevice(deviceId: string, event: Event) {
+  const checked = (event.target as HTMLInputElement | null)?.checked === true
+  selectedDeviceIds.value = checked
+    ? [...new Set([...selectedDeviceIds.value, deviceId])]
+    : selectedDeviceIds.value.filter(id => id !== deviceId)
+}
+
+async function saveAreaDevices() {
+  const area = managingArea.value
+  if (!area || isSavingAreaDevices.value) return
+
+  const selected = new Set(selectedDeviceIds.value)
+  const changes = assignableDevices.value.filter(device =>
+    selected.has(device.id) ? device.area_id !== area.id : device.area_id === area.id
+  )
+  isSavingAreaDevices.value = true
+  try {
+    for (const device of changes) {
+      await devicesStore.updateDeviceArea(device.id, selected.has(device.id) ? area.id : null)
+    }
+    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    notificationsStore.success(
+      t('areas.devicesSaveSuccess'),
+      t('areas.devicesSaveMessage', { count: changes.length, area: area.name })
+    )
+    closeDeviceManager()
+  } catch (err: any) {
+    await Promise.allSettled([devicesStore.fetchDevices(), entitiesStore.fetchEntities()])
+    notificationsStore.error(
+      t('areas.devicesSaveError'),
+      err?.message || t('areas.devicesSaveError')
+    )
+  } finally {
+    isSavingAreaDevices.value = false
+  }
 }
 
 function getAreaIcon(icon?: string) {
@@ -152,15 +280,24 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           <div class="area-info">
             <h3 class="area-name">{{ area.name }}</h3>
             <span class="area-count">
-              {{ getEntitiesForArea(area.id).length }} {{ t('areas.devicesCount') }}
+              {{ getAreaItemCount(area.id) }} {{ t('areas.devicesCount') }}
             </span>
           </div>
 
           <div class="card-actions">
             <button
+              v-if="authStore.isAdmin"
+              class="btn-card-action manage-devices-action"
+              :title="t('areas.manageDevices')"
+              :aria-label="t('areas.manageDevices')"
+              @click="openDeviceManager(area)"
+            >
+              <Cpu :size="15" />
+            </button>
+            <button
               class="btn-card-action"
-               :title="t('areas.editArea')"
-               :aria-label="t('areas.editArea')"
+              :title="t('areas.editArea')"
+              :aria-label="t('areas.editArea')"
               @click="openEditModal(area)"
             >
               <Pencil :size="15" />
@@ -176,7 +313,21 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
           </div>
         </div>
 
-        <div v-if="getEntitiesForArea(area.id).length > 0" class="area-entities-preview">
+        <div v-if="getDevicesForArea(area.id).length > 0" class="area-entities-preview">
+          <div
+            v-for="device in getDevicesForArea(area.id).slice(0, 4)"
+            :key="device.id"
+            class="entity-pill"
+            :title="`${device.name} · ${device.integration_id}`"
+          >
+            <span class="pill-dot" :class="{ 'is-on': device.status === 'online' }" />
+            <span class="pill-name">{{ device.name }}</span>
+          </div>
+          <span v-if="getDevicesForArea(area.id).length > 4" class="more-count">
+            +{{ getDevicesForArea(area.id).length - 4 }} {{ t('areas.moreEntities') }}
+          </span>
+        </div>
+        <div v-else-if="getEntitiesForArea(area.id).length > 0" class="area-entities-preview">
           <div
             v-for="entity in getEntitiesForArea(area.id).slice(0, 4)"
             :key="entity.id"
@@ -210,6 +361,59 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
       @close="isEditorOpen = false"
       @save="handleSaveArea"
     />
+
+    <div
+      v-if="isDeviceManagerOpen && managingArea"
+      class="modal-backdrop area-device-modal-backdrop"
+      @click.self="closeDeviceManager"
+    >
+      <section
+        class="area-device-modal glass-card"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`${t('areas.manageDevices')} — ${managingArea.name}`"
+      >
+        <header class="area-device-modal-header">
+          <div>
+            <h3>{{ t('areas.manageDevices') }} · {{ managingArea.name }}</h3>
+            <p>{{ t('areas.manageDevicesDescription') }}</p>
+          </div>
+          <button class="btn-card-action" type="button" :aria-label="t('devices.view.close')" @click="closeDeviceManager">
+            ×
+          </button>
+        </header>
+
+        <p v-if="assignableDevices.length === 0" class="area-device-empty">
+          {{ t('areas.noAssignableDevices') }}
+        </p>
+        <div v-else class="area-device-list">
+          <label v-for="device in assignableDevices" :key="device.id" class="area-device-option">
+            <input
+              type="checkbox"
+              :checked="selectedDeviceIds.includes(device.id)"
+              @change="updateSelectedDevice(device.id, $event)"
+            />
+            <span class="area-device-option-copy">
+              <strong>{{ device.name }}</strong>
+              <small>
+                {{ device.integration_id }}
+                ·
+                {{ device.area_id ? (areasStore.byId(device.area_id)?.name || device.area_id) : t('areas.unassigned') }}
+              </small>
+            </span>
+          </label>
+        </div>
+
+        <footer class="area-device-modal-footer">
+          <button class="area-device-secondary-btn" type="button" :disabled="isSavingAreaDevices" @click="closeDeviceManager">
+            {{ t('devices.view.close') }}
+          </button>
+          <button class="area-device-primary-btn" type="button" :disabled="isSavingAreaDevices || assignableDevices.length === 0" @click="saveAreaDevices">
+            {{ isSavingAreaDevices ? t('areas.savingDevices') : t('areas.saveDevices') }}
+          </button>
+        </footer>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -425,5 +629,134 @@ async function handleSaveArea(payload: { name: string; icon: string; sort_order:
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.manage-devices-action { color: var(--primary); }
+
+.area-device-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(2, 6, 23, .68);
+  backdrop-filter: blur(5px);
+}
+
+.area-device-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: min(100%, 560px);
+  max-height: min(82vh, 720px);
+  overflow: hidden;
+  padding: 1.25rem;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface, #111827);
+  box-shadow: var(--shadow-xl, 0 24px 70px rgba(0,0,0,.35));
+}
+
+.area-device-modal-header,
+.area-device-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.area-device-modal-header h3 {
+  color: var(--text-main);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.area-device-modal-header p,
+.area-device-empty {
+  color: var(--text-muted);
+  font-size: .85rem;
+  margin-top: .3rem;
+}
+
+.area-device-list {
+  display: grid;
+  gap: .55rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .1rem .15rem .1rem 0;
+}
+
+.area-device-option {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: 0;
+  padding: .75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-elevated, rgba(148,163,184,.06));
+  cursor: pointer;
+}
+
+.area-device-option input {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+}
+
+.area-device-option-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: .2rem;
+}
+
+.area-device-option-copy strong {
+  color: var(--text-main);
+  font-size: .9rem;
+  overflow-wrap: anywhere;
+}
+
+.area-device-option-copy small {
+  color: var(--text-muted);
+  font-size: .76rem;
+  overflow-wrap: anywhere;
+}
+
+.area-device-modal-footer { justify-content: flex-end; }
+
+.area-device-modal-footer button {
+  min-height: 40px;
+  padding: .55rem .9rem;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.area-device-secondary-btn {
+  color: var(--text-main);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+}
+
+.area-device-primary-btn {
+  color: white;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.area-device-modal-footer button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .area-device-modal { padding: 1rem; }
+  .areas-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
