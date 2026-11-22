@@ -268,3 +268,22 @@ func TestDPSMapper_RecognizesSingleHumiditySensorByName(t *testing.T) {
 		t.Fatalf("humidity-only source must not invent temperature: %#v", attributes)
 	}
 }
+
+
+func TestDPSMapper_RefreshesPreviouslyMappedSensorValues(t *testing.T) {
+	attributes := map[string]any{
+		"dp_1": 215, "dp_2": 48,
+		"current_temperature": 20.5,
+		"current_humidity": 45.0,
+		"tuya_climate_source": true,
+		"tuya_sensor_kind": "temperature_humidity",
+	}
+	// Simulate a new LocalTuya packet after the sensor has already been
+	// identified and the previous normalized values have been persisted.
+	attributes["dp_1"] = 222
+	attributes["dp_2"] = 51
+	enrichTuyaClimateSensorAttributes(attributes, "Tuya room sensor")
+	if attributes["current_temperature"] != 22.2 || attributes["current_humidity"] != float64(51) {
+		t.Fatalf("normalized sensor values were not refreshed from the latest DPS: %#v", attributes)
+	}
+}
