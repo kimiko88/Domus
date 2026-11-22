@@ -188,13 +188,18 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 		s.HVACAction = stringAttribute(attrs, "hvac_action", "action")
 	case "sensor":
 		if cfg.RecordTemperature && isTemperatureSensor(ent, attrs) {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); err == nil {
+			if v, ok := attributeNumber(attrs, "current_temperature", "measured_temperature", "temperature", "temp_current", "va_temperature"); ok {
+				v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
+				if plausibleTemperature(v) { s.Temperature = &v }
+			} else if v, err := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); err == nil {
 				v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
 				if plausibleTemperature(v) { s.Temperature = &v }
 			}
 		}
 		if cfg.RecordHumidity && isHumiditySensor(ent, attrs) {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); err == nil && plausibleHumidity(v) {
+			if v, ok := attributeNumber(attrs, "current_humidity", "humidity", "humidity_value", "va_humidity"); ok {
+				if plausibleHumidity(v) { s.Humidity = &v }
+			} else if v, err := strconv.ParseFloat(strings.TrimSpace(ent.State), 64); err == nil && plausibleHumidity(v) {
 				s.Humidity = &v
 			}
 		}
@@ -234,7 +239,8 @@ func isTemperatureSensor(ent *entity.Entity, attrs map[string]any) bool {
 		unit = strings.ToLower(fmt.Sprint(attrs["unit_of_measurement"]))
 	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
-	return class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
+	_, hasTelemetry := attributeNumber(attrs, "current_temperature", "measured_temperature", "temperature", "temp_current", "va_temperature")
+	return hasTelemetry || class == "temperature" || strings.Contains(unit, "°c") || strings.Contains(unit, "°f") ||
 		strings.Contains(unit, "celsius") || strings.Contains(unit, "fahrenheit") || unit == "c" || unit == "f" ||
 		strings.Contains(key, "temperature") || strings.Contains(key, "temperatura")
 }
@@ -246,7 +252,8 @@ func isHumiditySensor(ent *entity.Entity, attrs map[string]any) bool {
 		unit = fmt.Sprint(attrs["unit_of_measurement"])
 	}
 	key := strings.ToLower(ent.EntityKey + " " + ent.Name)
-	return class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
+	_, hasTelemetry := attributeNumber(attrs, "current_humidity", "humidity", "humidity_value", "va_humidity")
+	return hasTelemetry || class == "humidity" || strings.Contains(class, "humidity") || unit == "%" ||
 		strings.Contains(key, "humidity") || strings.Contains(key, "umid")
 }
 
