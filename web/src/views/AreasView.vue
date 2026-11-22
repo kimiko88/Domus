@@ -53,10 +53,14 @@ interface ExternalTuyaDevice {
   local_configured?: boolean
   local_active?: boolean
   local_ip?: string
+  device_id?: string
+  connected?: boolean
+  ip?: string
 }
 
 const tuyaCloudDevices = ref<ExternalTuyaDevice[]>([])
 const tuyaOAuthDevices = ref<ExternalTuyaDevice[]>([])
+const tuyaLocalDevices = ref<ExternalTuyaDevice[]>([])
 
 onMounted(async () => {
   isLoadingAssignableDevices.value = true
@@ -65,6 +69,7 @@ onMounted(async () => {
       areasStore.fetchAreas(),
       entitiesStore.fetchEntities(),
       devicesStore.fetchDevices(),
+      loadTuyaLocalDevices(),
       loadTuyaCloudDevices(),
       loadTuyaOAuthDevices()
     ])
@@ -76,6 +81,20 @@ onMounted(async () => {
     isLoadingAssignableDevices.value = false
   }
 })
+
+async function loadTuyaLocalDevices() {
+  if (!authStore.isAdmin) {
+    tuyaLocalDevices.value = []
+    return
+  }
+  try {
+    const result = await apiClient.get<{ devices?: ExternalTuyaDevice[] }>('/api/v1/integrations/tuya-local/devices')
+    tuyaLocalDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    // The local adapter may be disabled on installations using cloud-only Tuya.
+    tuyaLocalDevices.value = []
+  }
+}
 
 async function loadTuyaCloudDevices() {
   try {
@@ -143,16 +162,23 @@ const assignableDevices = computed<Device[]>(() => {
   // Include those same sources here even if the LocalTuya adapter has not yet
   // created a device/entity registry row (e.g. cloud-only devices without key).
   const externalTuyaDevices = [
+    ...tuyaLocalDevices.value.map(item => ({
+      ...item,
+      id: item.device_id || item.id,
+      online: item.connected === true || item.online === true,
+      local_configured: true,
+      source: 'tuya_local' as const
+    })),
     ...tuyaCloudDevices.value.map(item => ({ ...item, source: 'tuya_cloud' as const })),
     ...tuyaOAuthDevices.value.map(item => ({ ...item, source: 'tuya_oauth' as const }))
-  ]
+  ].filter(item => Boolean(item.id))
   for (const item of externalTuyaDevices) {
     const id = `tuya_${item.id}`
     const existing = result.get(id) || [...result.values()].find(device =>
       device.external_id === item.id || device.id === item.id
     )
     if (existing) {
-      existing.status = item.online ? 'online' : 'offline'
+      existing.status = existing.status === 'online' || item.online ? 'online' : 'offline'
       if (!existing.name || existing.name === existing.id) existing.name = item.name
       if (!existing.model) existing.model = item.product_name || item.category
       continue
@@ -273,7 +299,7 @@ async function saveAreaDevices() {
         await devicesStore.updateDeviceArea(device.id, nextAreaId)
       }
     }
-    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
+    await Promise.all([devicesStore.fetchDevices(), entitiesStore.fetchEntities(), loadTuyaLocalDevices(), loadTuyaCloudDevices(), loadTuyaOAuthDevices()])
     notificationsStore.success(
       t('areas.devicesSaveSuccess'),
       t('areas.devicesSaveMessage', { count: changes.length, area: area.name })
