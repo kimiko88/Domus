@@ -481,19 +481,50 @@ func (a *Adapter) connectDevice(cfg DeviceConfig) {
 
 func (a *Adapter) handleDeviceStatus(cfg DeviceConfig, dps map[string]any) {
 	parsed := a.mapper.MapDPSToEntity(cfg.Category, dps)
-	if a.bus == nil {
-		return
-	}
-
 	entityKey := cfg.EntityKey
 	if entityKey == "" {
 		entityKey = fmt.Sprintf("%s.tuya_%s", parsed.Domain, cfg.DeviceID)
 	}
 
+	now := time.Now().UTC()
+	if a.entRepo != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ent, err := a.entRepo.GetByKey(ctx, entityKey)
+		if err == nil && ent != nil {
+			// Keep provider-supplied telemetry that is not represented in local
+			// DPS mappings (for example Tuya cloud temperature/humidity fields),
+			// while refreshing every field the LocalTuya mapper understands.
+			attributes := make(map[string]any)
+			_ = json.Unmarshal([]byte(ent.Attributes), &attributes)
+			for key, value := range parsed.Attributes {
+				attributes[key] = value
+			}
+			attributesJSON, marshalErr := json.Marshal(attributes)
+
+			state := make(map[string]any)
+			_ = json.Unmarshal([]byte(ent.State), &state)
+			if parsed.State != "" {
+				state["state"] = parsed.State
+			}
+			stateJSON, stateErr := json.Marshal(state)
+			if marshalErr == nil && stateErr == nil {
+				if updateErr := a.entRepo.UpdateState(ctx, ent.ID, string(stateJSON), string(attributesJSON), true, now); updateErr != nil {
+					slog.Warn("tuya_local: failed to persist entity telemetry", "entity_key", entityKey, "error", updateErr)
+				}
+			}
+		} else if err != nil {
+			slog.Debug("tuya_local: state received for unregistered entity", "entity_key", entityKey, "error", err)
+		}
+		cancel()
+	}
+
+	if a.bus == nil {
+		return
+	}
 	_ = a.bus.Publish(context.Background(), events.Event{
 		ID:         uuid.NewString(),
 		Type:       events.EntityStateChanged,
-		OccurredAt: time.Now(),
+		OccurredAt: now,
 		Source:     a.id,
 		Payload: map[string]any{
 			"entity_key": entityKey,
