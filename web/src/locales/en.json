@@ -3528,6 +3528,21 @@
     "insightsTitle": "Comfort and anomalies",
     "insightsDescription": "Insights derived from history according to the enabled settings.",
     "unassigned": "Unassigned",
+    "sources": {
+      "title": "Integration devices",
+      "description": "Choose which connected integration devices provide measurements to the climate history collector.",
+      "allDevices": "Record all compatible climate devices",
+      "allHint": "Data will be collected from all {count} compatible devices.",
+      "selectedCount": "{count} devices selected for collection.",
+      "noneAvailable": "No integration devices with a linked temperature, humidity or thermostat entity were found. Connect an integration and make sure its entities are linked to a device.",
+      "unknownIntegration": "Unknown integration",
+      "deviceDetails": "{integration} · {status}",
+      "status": {
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Status unknown"
+      }
+    },
     "settings": {
       "title": "Collection and analysis settings",
       "description": "Collection runs in the backend even when the dashboard is closed. Recent samples are compacted into hourly and then daily averages/minima/maxima.",
