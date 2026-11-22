@@ -23,6 +23,7 @@ const filterIntegration = ref('all')
 const isRefreshing = ref(false)
 const tuyaCloudDevices = ref<TuyaCloudDeviceSummary[]>([])
 const tuyaOAuthDevices = ref<TuyaCloudDeviceSummary[]>([])
+const tuyaLocalDevices = ref<TuyaCloudDeviceSummary[]>([])
 const isScanning = ref(false)
 const discoveredHosts = ref<DiscoveredHost[]>([])
 const selectedHostForSetup = ref<DiscoveredHost | null>(null)
@@ -47,7 +48,10 @@ interface TuyaCloudDeviceSummary {
   local_configured?: boolean
   local_active?: boolean
   local_ip?: string
-  source?: 'tuya_cloud' | 'tuya_oauth'
+  source?: 'tuya_cloud' | 'tuya_oauth' | 'tuya_local'
+  device_id?: string
+  connected?: boolean
+  ip?: string
 }
 
 interface UnifiedDevice extends Device {
@@ -63,6 +67,7 @@ onMounted(async () => {
     entitiesStore.fetchEntities(),
     areasStore.fetchAreas(),
     loadDiscoveredHosts(),
+    loadTuyaLocalDevices(),
     loadTuyaCloudDevices(),
     loadTuyaOAuthDevices()
   ])
@@ -141,6 +146,20 @@ function closeMatterWizard() {
   isMatterWizardOpen.value = false
   matterCommissionStep.value = 1
   matterPairingCode.value = ''
+}
+
+async function loadTuyaLocalDevices() {
+  if (!authStore.isAdmin) {
+    tuyaLocalDevices.value = []
+    return
+  }
+  try {
+    const result = await apiClient.get<{ devices?: TuyaCloudDeviceSummary[] }>('/api/v1/integrations/tuya-local/devices')
+    tuyaLocalDevices.value = result?.devices || []
+  } catch {
+    // The adapter may be disabled on installations that use cloud-only Tuya.
+    tuyaLocalDevices.value = []
+  }
 }
 
 async function loadTuyaCloudDevices() {
@@ -226,6 +245,7 @@ async function refreshAllDevices() {
     const results = await Promise.allSettled([
       devicesStore.fetchDevices(),
       entitiesStore.fetchEntities(),
+      loadTuyaLocalDevices(),
       loadTuyaCloudDevices(),
       loadTuyaOAuthDevices(),
       loadDiscoveredHosts()
@@ -258,9 +278,18 @@ const allDevices = computed<UnifiedDevice[]>(() => {
   }))
 
   const externalTuyaDevices = [
+    ...tuyaLocalDevices.value.map(device => ({
+      ...device,
+      id: device.device_id || device.id,
+      online: device.connected === true || device.online === true,
+      local_configured: true,
+      local_active: device.connected === true,
+      local_ip: device.ip || device.local_ip,
+      source: 'tuya_local' as const
+    })),
     ...tuyaCloudDevices.value.map(device => ({ ...device, source: 'tuya_cloud' as const })),
     ...tuyaOAuthDevices.value.map(device => ({ ...device, source: 'tuya_oauth' as const }))
-  ]
+  ].filter(device => Boolean(device.id))
 
   for (const cloudDevice of externalTuyaDevices) {
     const existingIndex = merged.findIndex(device =>
@@ -276,9 +305,11 @@ const allDevices = computed<UnifiedDevice[]>(() => {
       local_configured: Boolean(cloudDevice.local_configured || existing?.integration_id === 'tuya_local'),
       local_active: Boolean(cloudDevice.local_active),
       local_ip: cloudDevice.local_ip,
-      source_label: cloudDevice.local_configured || existing?.integration_id === 'tuya_local'
-        ? 'Tuya Cloud · LocalTuya'
-        : cloudDevice.source === 'tuya_oauth' ? 'Smart Life · OAuth' : 'Tuya Cloud'
+      source_label: cloudDevice.source === 'tuya_local'
+        ? 'Tuya Local'
+        : cloudDevice.local_configured || existing?.integration_id === 'tuya_local'
+          ? 'Tuya Cloud · LocalTuya'
+          : cloudDevice.source === 'tuya_oauth' ? 'Smart Life · OAuth' : 'Tuya Cloud'
     }
     if (existingIndex >= 0) {
       merged[existingIndex] = { ...existing!, ...cloudFields }
