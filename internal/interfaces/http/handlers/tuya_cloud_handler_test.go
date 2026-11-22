@@ -321,3 +321,80 @@ func TestTuyaCloudHandler_UpperTemperatureRetainsCloudDatapoint(t *testing.T) {
 	}
 }
 
+
+func TestInferTuyaDeviceCategoryAndTelemetryRecognizesThermostatCategoryCodes(t *testing.T) {
+	device := tuya_cloud.Device{
+		ID: "thermostat-1", Name: "Smart Thermostat", Category: "wk",
+		Status: []tuya_cloud.Status{
+			{Code: "temp_current", Value: 215},
+			{Code: "temp_set", Value: 220},
+			{Code: "work_mode", Value: "auto"},
+		},
+	}
+
+	category, entityKey, state, rawAttributes := inferTuyaDeviceCategoryAndTelemetry(device)
+	if category != tuya_local.CategoryClimate {
+		t.Fatalf("category = %q, want climate", category)
+	}
+	if entityKey != "climate.tuya_thermostat-1" {
+		t.Fatalf("entity key = %q", entityKey)
+	}
+	if state != "auto" {
+		t.Fatalf("state = %q, want auto", state)
+	}
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(rawAttributes), &attributes); err != nil {
+		t.Fatalf("decode initial thermostat attributes: %v", err)
+	}
+	if got := attributes["current_temperature"]; got != 21.5 {
+		t.Fatalf("current_temperature = %#v, want 21.5", got)
+	}
+	if got := attributes["target_temperature"]; got != 22.0 {
+		t.Fatalf("target_temperature = %#v, want 22", got)
+	}
+}
+
+func TestInferTuyaDeviceCategoryAndTelemetryRecognizesTemperatureHumiditySensors(t *testing.T) {
+	device := tuya_cloud.Device{
+		ID: "sensor-1", Name: "Temperature and Humidity Sensor", Category: "wsdcg",
+		Status: []tuya_cloud.Status{
+			{Code: "va_temperature", Value: 217},
+			{Code: "va_humidity", Value: 48},
+		},
+	}
+
+	category, entityKey, state, rawAttributes := inferTuyaDeviceCategoryAndTelemetry(device)
+	if category != tuya_local.CategorySensor {
+		t.Fatalf("category = %q, want sensor", category)
+	}
+	if entityKey != "sensor.tuya_sensor-1" {
+		t.Fatalf("entity key = %q", entityKey)
+	}
+	if state != "active" {
+		t.Fatalf("state = %q, want active", state)
+	}
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(rawAttributes), &attributes); err != nil {
+		t.Fatalf("decode initial sensor attributes: %v", err)
+	}
+	if got := attributes["current_temperature"]; got != 21.7 {
+		t.Fatalf("current_temperature = %#v, want 21.7", got)
+	}
+	if got := attributes["current_humidity"]; got != float64(48) {
+		t.Fatalf("current_humidity = %#v, want 48", got)
+	}
+}
+
+func TestInferTuyaDeviceCategoryAndTelemetryDoesNotClassifyPlainSwitchAsClimate(t *testing.T) {
+	device := tuya_cloud.Device{
+		ID: "switch-1", Name: "Wall Switch", Category: "kg",
+		Status: []tuya_cloud.Status{{Code: "switch_1", Value: true}},
+	}
+	category, entityKey, _, _ := inferTuyaDeviceCategoryAndTelemetry(device)
+	if category != tuya_local.CategorySwitch {
+		t.Fatalf("category = %q, want switch", category)
+	}
+	if entityKey != "switch.tuya_switch-1" {
+		t.Fatalf("entity key = %q", entityKey)
+	}
+}
