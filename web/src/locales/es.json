@@ -402,7 +402,16 @@
       "garage": "Garaje",
       "cinema": "Cine / TV",
       "other": "Otro"
-    }
+    },
+    "manageDevices": "Gestionar dispositivos",
+    "manageDevicesDescription": "Selecciona los dispositivos que deseas asignar a esta zona. Un dispositivo asignado a otra habitación se trasladará aquí.",
+    "noAssignableDevices": "Aún no hay dispositivos disponibles para asignar. Actualiza la lista de dispositivos e integraciones.",
+    "unassigned": "Sin asignar",
+    "saveDevices": "Guardar asignaciones",
+    "savingDevices": "Guardando…",
+    "devicesSaveSuccess": "Asignaciones actualizadas",
+    "devicesSaveMessage": "Se actualizaron {count} asignaciones para {area}.",
+    "devicesSaveError": "No se pudieron actualizar las asignaciones de dispositivos."
   },
   "devices": {
     "title": "Dispositivos",
