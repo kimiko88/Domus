@@ -1073,18 +1073,31 @@ const tuyaOAuthLoading = ref(false)
 
 async function fetchTuyaConfig() {
   try {
-    const res = await apiClient.get<TuyaCloudConfig>('/api/v1/integrations/tuya-cloud/config')
+    const [res] = await Promise.all([
+      apiClient.get<TuyaCloudConfig>('/api/v1/integrations/tuya-cloud/config'),
+      fetchTuyaOAuthStatus()
+    ])
     if (res) {
       tuyaConfig.value = res
       if (res.configured) {
         tuyaConfigForm.client_id = res.client_id
         tuyaConfigForm.uid = res.uid
         tuyaConfigForm.endpoint = res.endpoint || 'https://openapi.tuyaeu.com'
-        await fetchTuyaCloudDevices()
       }
     }
+    // Prefer the explicitly linked Smart Life OAuth account when available.
+    // Fall back to Server-to-Server UID mode for legacy installations.
+    if (tuyaOAuthStatus.value.connected) {
+      await fetchTuyaOAuthDevices()
+    } else if (tuyaConfig.value.configured) {
+      await fetchTuyaCloudDevices()
+    } else {
+      tuyaCloudDevices.value = []
+      selectedTuyaDeviceIds.value = []
+      tuyaSelectionInitialized.value = false
+    }
   } catch (err: any) {
-    console.warn('Failed to load Tuya config:', err)
+    console.warn('Failed to load Tuya configuration:', err)
   }
 }
 
