@@ -50,7 +50,13 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
 	var req struct {
-		AreaID json.RawMessage `json:"area_id"`
+		AreaID       json.RawMessage `json:"area_id"`
+		ExternalID   string          `json:"external_id"`
+		Name         string          `json:"name"`
+		IntegrationID string         `json:"integration_id"`
+		Online       *bool           `json:"online"`
+		Manufacturer string          `json:"manufacturer"`
+		Model        string          `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid room assignment payload")
@@ -106,9 +112,43 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if !deviceExists && len(linkedEntities) == 0 {
-		writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
-		return
+	deviceCreated := false
+	if !deviceExists {
+		// Cloud-listed Tuya devices can be visible in the UI before the local
+		// adapter has provisioned a registry row (for example, devices without
+		// a Local Key). Accept only the canonical tuya_<external-id> identifier
+		// and an explicit, supported Tuya integration identity from an admin.
+		prefixOK := strings.HasPrefix(deviceID, "tuya_")
+		externalID := strings.TrimSpace(req.ExternalID)
+		integrationID := strings.TrimSpace(req.IntegrationID)
+		name := strings.TrimSpace(req.Name)
+		validIntegration := integrationID == "tuya_cloud" ||
+			integrationID == "tuya_oauth" || integrationID == "tuya_local"
+		validIdentity := prefixOK && externalID != "" &&
+			len(externalID) <= 128 && externalID == strings.TrimPrefix(deviceID, "tuya_") &&
+			!strings.ContainsAny(externalID, "/?#") && validIntegration &&
+			name != "" && len(name) <= 256
+		if validIdentity {
+			now := time.Now().UTC()
+			online := req.Online != nil && *req.Online
+			metadata := map[string]any{"protocol": integrationID, "cloud_managed": true}
+			metadataJSON, _ := json.Marshal(metadata)
+			dev = &device.Device{
+				ID: deviceID, IntegrationID: integrationID, ExternalID: externalID,
+				Name: name, Manufacturer: strings.TrimSpace(req.Manufacturer),
+				Model: strings.TrimSpace(req.Model), AreaID: areaID, Online: online,
+				Metadata: string(metadataJSON), CreatedAt: now, UpdatedAt: now,
+			}
+			if err := h.repo.Create(r.Context(), dev); err != nil {
+				writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to register cloud device for room assignment")
+				return
+			}
+			deviceExists = true
+			deviceCreated = true
+		} else if len(linkedEntities) == 0 {
+			writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
+			return
+		}
 	}
 
 	oldDeviceArea := ""
@@ -149,6 +189,7 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 		"device_id": deviceID,
 		"area_id": areaID,
 		"device_updated": deviceExists,
+		"device_created": deviceCreated,
 		"updated_entities": len(updatedEntities),
 	})
 }
