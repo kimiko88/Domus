@@ -1225,16 +1225,18 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
 async function syncTuyaCloudToLocal() {
   tuyaSyncing.value = true
   try {
+    const oauthMode = tuyaOAuthStatus.value.connected
+    const endpoint = oauthMode
+      ? '/api/v1/integrations/tuya-oauth/sync-local'
+      : '/api/v1/integrations/tuya-cloud/sync-local'
     const res = await apiClient.post<{
       success: boolean
       synced_count: number
       local_control_count?: number
       climate_sources_count?: number
       message: string
-    }>(
-      '/api/v1/integrations/tuya-cloud/sync-local',
-      { device_ids: selectedTuyaDeviceIds.value }
-    )
+    }>(endpoint, { device_ids: selectedTuyaDeviceIds.value })
+
     notificationsStore.success(
       t('integrations.view.messages.localSelectionUpdatedTitle'),
       t('integrations.view.messages.tuyaSyncCompletedDesc', {
@@ -1243,11 +1245,52 @@ async function syncTuyaCloudToLocal() {
         climate: res.climate_sources_count ?? 0
       })
     )
-    await fetchTuyaCloudDevices(true)
-  } catch (err: any) {
+    if (oauthMode) await fetchTuyaOAuthDevices(true)
+    else await fetchTuyaCloudDevices(true)
+  } catch {
     notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), t('integrations.view.messages.localSyncErrorDesc'))
   } finally {
     tuyaSyncing.value = false
+  }
+}
+
+async function refreshTuyaDevices() {
+  if (tuyaOAuthStatus.value.connected) await fetchTuyaOAuthDevices()
+  else await fetchTuyaCloudDevices()
+}
+
+async function connectTuyaAccount() {
+  tuyaOAuthLoading.value = true
+  try {
+    const result = await apiClient.post<{ authorization_url: string }>(
+      '/api/v1/integrations/tuya-oauth/authorize',
+      {}
+    )
+    if (!result.authorization_url) throw new Error('Tuya did not return an authorization URL')
+    const popup = window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+    if (!popup) window.location.assign(result.authorization_url)
+  } catch {
+    notificationsStore.error(t('integrations.view.messages.tuyaOAuthConnectErrorTitle'), t('integrations.view.messages.tuyaOAuthConnectErrorDesc'))
+  } finally {
+    tuyaOAuthLoading.value = false
+  }
+}
+
+async function disconnectTuyaAccount() {
+  tuyaOAuthLoading.value = true
+  try {
+    await apiClient.post('/api/v1/integrations/tuya-oauth/disconnect', {})
+    tuyaOAuthStatus.value = { connected: false }
+    tuyaOAuthDevices.value = []
+    tuyaSelectionInitialized.value = false
+    selectedTuyaDeviceIds.value = []
+    if (tuyaConfig.value.configured) await fetchTuyaCloudDevices(true)
+    else tuyaCloudDevices.value = []
+    notificationsStore.success(t('integrations.view.messages.integrationRemovedTitle'), t('integrations.view.messages.integrationRemovedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), t('integrations.view.messages.disconnectErrorDesc'))
+  } finally {
+    tuyaOAuthLoading.value = false
   }
 }
 
