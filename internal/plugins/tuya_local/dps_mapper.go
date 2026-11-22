@@ -172,17 +172,6 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 	if attributes == nil {
 		return
 	}
-	temperatureRaw, hasTemperature := toFloat(attributes["dp_1"])
-	humidityRaw, hasHumidity := toFloat(attributes["dp_2"])
-	if !hasTemperature || !hasHumidity {
-		return
-	}
-
-	temperature, temperatureScaled, temperatureOK := normalizeTuyaTemperatureDPS(temperatureRaw)
-	humidity, humidityScaled, humidityOK := normalizeTuyaHumidityDPS(humidityRaw)
-	if !temperatureOK || !humidityOK {
-		return
-	}
 
 	name := strings.ToLower(strings.TrimSpace(deviceName))
 	nameHint := strings.Contains(name, "temperature") || strings.Contains(name, "temperatur") ||
@@ -190,25 +179,57 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 		strings.Contains(name, "umid") || strings.Contains(name, "thermo") ||
 		strings.Contains(name, "termomet") || strings.Contains(name, "igromet")
 	alreadyMarked, _ := attributes["tuya_climate_source"].(bool)
-	if !nameHint && !temperatureScaled && !humidityScaled && !alreadyMarked {
+
+	temperatureRaw, hasTemperature := toFloat(attributes["dp_1"])
+	humidityRaw, hasHumidity := toFloat(attributes["dp_2"])
+	temperature, temperatureScaled, temperatureOK := normalizeTuyaTemperatureDPS(temperatureRaw)
+	humidity, humidityScaled, humidityOK := normalizeTuyaHumidityDPS(humidityRaw)
+
+	// Some Tuya products expose only one climate measurement. Recognize those
+	// when the configured name identifies the sensor or the raw value clearly
+	// uses Tuya's tenths/hundredths scaling; generic unscaled DP pairs are not
+	// enough evidence because motion/battery sensors can also expose numbers.
+	hasTemperatureSource := hasTemperature && temperatureOK &&
+		(nameHint || temperatureScaled || alreadyMarked)
+	hasHumiditySource := hasHumidity && humidityOK &&
+		(nameHint || humidityScaled || alreadyMarked)
+	if !hasTemperatureSource && !hasHumiditySource {
 		return
 	}
 
-	if _, exists := attributeNumberForTuya(attributes, "current_temperature", "temperature", "va_temperature"); !exists {
-		attributes["current_temperature"] = temperature
+	kind := "temperature_humidity"
+	deviceClass := "temperature"
+	unit := "°C"
+	if hasTemperatureSource && !hasHumiditySource {
+		kind = "temperature"
+	} else if hasHumiditySource && !hasTemperatureSource {
+		kind = "humidity"
+		deviceClass = "humidity"
+		unit = "%"
 	}
-	if _, exists := attributeNumberForTuya(attributes, "current_humidity", "humidity", "va_humidity"); !exists {
-		attributes["current_humidity"] = humidity
+
+	if hasTemperatureSource {
+		if _, exists := attributeNumberForTuya(attributes, "current_temperature", "temperature", "va_temperature"); !exists {
+			attributes["current_temperature"] = temperature
+		}
+	}
+	if hasHumiditySource {
+		if _, exists := attributeNumberForTuya(attributes, "current_humidity", "humidity", "va_humidity"); !exists {
+			attributes["current_humidity"] = humidity
+		}
 	}
 	if value, ok := attributes["device_class"].(string); !ok || strings.TrimSpace(value) == "" {
-		attributes["device_class"] = "temperature"
+		attributes["device_class"] = deviceClass
 	}
 	if value, ok := attributes["unit_of_measurement"].(string); !ok || strings.TrimSpace(value) == "" {
-		attributes["unit_of_measurement"] = "°C"
+		attributes["unit_of_measurement"] = unit
 	}
 	attributes["tuya_climate_source"] = true
-	attributes["tuya_sensor_kind"] = "temperature_humidity"
+	attributes["tuya_sensor_kind"] = kind
 }
+
+// normalizeTuyaTemperatureDPS converts a DP1 value to degrees Celsius where
+// possible. Values already in the plausible range are treated as unscaled.
 
 func normalizeTuyaTemperatureDPS(value float64) (float64, bool, bool) {
 	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= -50 && value <= 70 {
