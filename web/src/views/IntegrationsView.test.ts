@@ -288,10 +288,10 @@ describe('IntegrationsView.vue', () => {
     const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true, synced_count: 1 })
 
     const wrapper = mount(IntegrationsView)
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     const tabs = wrapper.findAll('.tab-btn')
     await tabs[4].trigger('click')
-    await wrapper.vm.$nextTick()
+    await flushPromises()
 
     // Find and click sync button
     const syncBtn = wrapper.findAll('button').find((button) => button.text().includes('Sincronizza selezionati'))
