@@ -427,7 +427,7 @@ describe('IntegrationsView.vue', () => {
 
     const checkbox = wrapper.find('.tuya-device-selection input[type="checkbox"]')
     await checkbox.setValue(true)
-    const syncButton = wrapper.findAll('button').find(button => button.text().includes('Applica selezione'))
+    const syncButton = wrapper.findAll('button').find(button => button.text().includes('Sincronizza selezionati'))
     expect(syncButton).toBeDefined()
     await syncButton!.trigger('click')
     expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/sync-local', { device_ids: ['tuya-online-1'] })
