@@ -1145,19 +1145,67 @@ async function disconnectTuyaConfig() {
 }
 
 async function fetchTuyaOAuthStatus() {
-  await fetchTuyaConfig()
+  try {
+    tuyaOAuthStatus.value = await apiClient.get<TuyaOAuthStatus>('/api/v1/integrations/tuya-oauth/status')
+  } catch {
+    // Older deployments may not have the separate OAuth handler configured.
+    tuyaOAuthStatus.value = { connected: false }
+  }
 }
-async function fetchTuyaOAuthDevices() {
-  await fetchTuyaCloudDevices()
+
+function setTuyaDeviceList(devices: TuyaCloudDevice[], reconcileSelection = false) {
+  tuyaCloudDevices.value = devices || []
+  if (!tuyaSelectionInitialized.value || reconcileSelection) {
+    // A climate source does not need a Local Key. Include recognized
+    // thermostats and thermo-hygrometers in the first synchronization selection.
+    selectedTuyaDeviceIds.value = tuyaCloudDevices.value
+      .filter(device => device.local_configured || isTuyaClimateSourceDevice(device))
+      .map(device => device.id)
+    tuyaSelectionInitialized.value = true
+  } else {
+    const knownIds = new Set(tuyaCloudDevices.value.map(device => device.id))
+    selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
+  }
 }
-async function syncTuyaOAuthToLocal() {
-  await syncTuyaCloudToLocal()
+
+async function prepareTuyaThermostatSetpoints() {
+  for (const device of tuyaCloudDevices.value) {
+    if (!isTuyaThermostatDevice(device)) continue
+    const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
+    const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
+    // The OAuth path does not expose the Server-to-Server functions endpoint.
+    const temperatureFunction = tuyaConfig.value.configured
+      ? await loadTuyaTemperatureFunction(device.id)
+      : undefined
+    const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
+    const normalizedRaw = Number.isFinite(raw) && target
+      ? raw > 60 ? raw / Math.pow(10, scale) : raw
+      : Number.NaN
+    const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
+
+    if (thermostatDegrees !== undefined) {
+      tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
+    } else if (tuyaTemperatureInputs[device.id] === undefined) {
+      tuyaTemperatureInputs[device.id] = ''
+    }
+  }
 }
-async function connectTuyaAccount() {
-  isEditingTuyaConfig.value = true
-}
-async function disconnectTuyaAccount() {
-  await disconnectTuyaConfig()
+
+async function fetchTuyaOAuthDevices(reconcileSelection = false) {
+  tuyaOAuthLoading.value = true
+  tuyaCloudLoading.value = true
+  tuyaCloudError.value = ''
+  try {
+    const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = result.devices || []
+    setTuyaDeviceList(tuyaOAuthDevices.value, reconcileSelection)
+    await prepareTuyaThermostatSetpoints()
+  } catch {
+    tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
+  } finally {
+    tuyaOAuthLoading.value = false
+    tuyaCloudLoading.value = false
+  }
 }
 
 async function fetchTuyaCloudDevices(reconcileSelection = false) {
@@ -1165,38 +1213,9 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
   tuyaCloudError.value = ''
   try {
     const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
-    tuyaCloudDevices.value = result.devices || []
-    // Keep unsaved checkbox changes while refreshing status. Reconcile from the
-    // server on the first load and immediately after applying the selection.
-    if (!tuyaSelectionInitialized.value || reconcileSelection) {
-      // Keep already paired LAN devices selected, and include all detected
-      // thermostats / thermo-hygrometers even when Tuya did not issue a Local Key.
-      selectedTuyaDeviceIds.value = tuyaCloudDevices.value
-        .filter(device => device.local_configured || isTuyaClimateSourceDevice(device))
-        .map(device => device.id)
-      tuyaSelectionInitialized.value = true
-    } else {
-      const knownIds = new Set(tuyaCloudDevices.value.map(device => device.id))
-      selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
-    }
-    for (const device of tuyaCloudDevices.value) {
-      if (!isTuyaThermostatDevice(device)) continue
-      const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
-      const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
-      const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
-      const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
-      const normalizedRaw = Number.isFinite(raw) && target
-        ? raw > 60 ? raw / Math.pow(10, scale) : raw
-        : Number.NaN
-      const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
-
-      if (thermostatDegrees !== undefined) {
-        tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
-      } else if (tuyaTemperatureInputs[device.id] === undefined) {
-        tuyaTemperatureInputs[device.id] = ''
-      }
-    }
-  } catch (err: any) {
+    setTuyaDeviceList(result.devices || [], reconcileSelection)
+    await prepareTuyaThermostatSetpoints()
+  } catch {
     tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
   } finally {
     tuyaCloudLoading.value = false
