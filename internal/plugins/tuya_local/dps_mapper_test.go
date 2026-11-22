@@ -235,7 +235,7 @@ func TestDPSMapper_DoesNotClassifyGenericNumericSensorAsClimate(t *testing.T) {
 func TestDPSMapper_RecognizesNamedUnscaledThermoHygrometer(t *testing.T) {
 	attributes := map[string]any{"dp_1": 19.5, "dp_2": 44}
 	enrichTuyaClimateSensorAttributes(attributes, "Sensore temperatura e umidità")
-	if attributes["current_temperature"] != 19.5 || attributes["current_humidity"] != 44 ||
+	if attributes["current_temperature"] != 19.5 || attributes["current_humidity"] != float64(44) ||
 		attributes["tuya_climate_source"] != true {
 		t.Fatalf("named unscaled thermo-hygrometer was not recognized: %#v", attributes)
 	}

@@ -204,6 +204,52 @@ describe('AreasView.vue', () => {
     expect(wrapper.find('.area-device-modal').exists()).toBe(false)
   })
 
+  it('finds and unassigns a legacy Tuya entity without device_id from its area', async () => {
+    areasStore.areas = [{ id: 'bedroom', name: 'Camera' }]
+    entitiesStore.entities['sensor.tuya_legacy_thermo'] = {
+      id: 'sensor.tuya_legacy_thermo',
+      entity_key: 'sensor.tuya_legacy_thermo',
+      domain: 'sensor',
+      name: 'Termoigrometro Tuya',
+      state: 'active',
+      area_id: 'bedroom',
+      attributes: { integration_id: 'tuya_local' },
+      last_changed: '',
+      last_updated: ''
+    }
+    authStore.user = {
+      id: 'admin-legacy',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue(Object.values(entitiesStore.entities))
+    const updateAreaSpy = vi.spyOn(devicesStore, 'updateDeviceArea').mockResolvedValue({
+      device_id: 'tuya_legacy_thermo',
+      area_id: '',
+      device_updated: false,
+      updated_entities: 1
+    })
+
+    const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('1 Dispositivi/Entità')
+
+    await wrapper.find('.manage-devices-action').trigger('click')
+    const legacyDevice = wrapper.findAll('.area-device-option').find(option =>
+      option.text().includes('Termoigrometro Tuya')
+    )
+    expect(legacyDevice).toBeDefined()
+    const checkbox = legacyDevice!.find('input')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+    await checkbox.setValue(false)
+    await wrapper.find('.area-device-primary-btn').trigger('click')
+
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_legacy_thermo', null)
+  })
+
   it('does not expose area-device assignment to non-admin users', async () => {
     areasStore.areas = [{ id: 'living-room', name: 'Soggiorno' }]
     vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)

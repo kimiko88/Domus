@@ -255,6 +255,50 @@ describe('DevicesView.vue', () => {
     })
   })
 
+  it('lets administrators assign a legacy LocalTuya entity to a room when device_id is absent', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'bedroom', name: 'Camera' }]
+    authStore.user = {
+      id: 'admin-legacy',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    entitiesStore.entities['sensor.tuya_legacy_thermo'] = {
+      id: 'sensor.tuya_legacy_thermo',
+      entity_key: 'sensor.tuya_legacy_thermo',
+      domain: 'sensor',
+      name: 'Termoigrometro Tuya',
+      state: 'active',
+      attributes: { integration_id: 'tuya_local' },
+      last_changed: '',
+      last_updated: ''
+    }
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'tuya_legacy_thermo',
+      area_id: 'bedroom',
+      device_updated: false,
+      updated_entities: 1
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await wrapper.vm.$nextTick()
+
+    const roomSelect = wrapper.find('#device-room-tuya_legacy_thermo')
+    expect(roomSelect.exists()).toBe(true)
+    await roomSelect.setValue('bedroom')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_legacy_thermo/area', {
+      area_id: 'bedroom'
+    })
+    expect(wrapper.text()).toContain('Termoigrometro Tuya')
+    expect((roomSelect.element as HTMLSelectElement).value).toBe('bedroom')
+  })
+
   it('does not expose room editing to non-administrator accounts', async () => {
     const authStore = useAuthStore()
     authStore.user = {
