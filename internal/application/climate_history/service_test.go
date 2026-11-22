@@ -67,6 +67,47 @@ func TestCollectNowRecordsTemperatureHumidityAndThermostatSetpoint(t *testing.T)
 	require.Equal(t, "auto", byKey["climate.living"].HVACMode)
 }
 
+func TestCollectNowHonorsSelectedIntegrationDevices(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.TrackedDeviceIDs = []string{"tuya-device-1"}
+	repo := &climateRepoStub{settings: settings}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{ID: "temperature-1", DeviceID: "tuya-device-1", EntityKey: "sensor.living_temperature", Domain: "sensor", Name: "Living temperature", UnitOfMeasurement: "°C", State: "21.5", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
+		{ID: "humidity-1", DeviceID: "tuya-device-1", EntityKey: "sensor.living_humidity", Domain: "sensor", Name: "Living humidity", UnitOfMeasurement: "%", State: "52", Attributes: "{\"device_class\":\"humidity\"}", Available: true},
+		{ID: "temperature-2", DeviceID: "mqtt-device-2", EntityKey: "sensor.office_temperature", Domain: "sensor", Name: "Office temperature", UnitOfMeasurement: "°C", State: "19.5", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
+	}}
+	service := NewService(repo, entities, testLogger())
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+	require.Len(t, repo.samples, 2)
+	for _, sample := range repo.samples {
+		require.Equal(t, "tuya-device-1", sample.DeviceID)
+	}
+
+	// An explicit empty selection is different from nil (legacy: collect all).
+	repo.settings.TrackedDeviceIDs = []string{}
+	count, err = service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func TestUpdateSettingsRejectsUnknownClimateSourceDevice(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	repo := &climateRepoStub{settings: settings}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{ID: "temp-1", DeviceID: "known-device", EntityKey: "sensor.room_temperature", Domain: "sensor", Name: "Room temperature", UnitOfMeasurement: "°C", State: "20", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
+	}}
+	service := NewService(repo, entities, testLogger())
+
+	settings.TrackedDeviceIDs = []string{"known-device"}
+	require.NoError(t, service.UpdateSettings(context.Background(), settings))
+	require.Equal(t, []string{"known-device"}, repo.settings.TrackedDeviceIDs)
+
+	settings.TrackedDeviceIDs = []string{"not-a-climate-device"}
+	require.ErrorIs(t, service.UpdateSettings(context.Background(), settings), domclimate.ErrInvalidSettings)
+}
+
 func TestCollectNowHonorsDisabledAndSamplingInterval(t *testing.T) {
 	settings := domclimate.DefaultSettings()
 	settings.Enabled = false
