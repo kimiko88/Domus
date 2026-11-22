@@ -193,3 +193,50 @@ func TestDPSMapper_MapClimateSetpointScale(t *testing.T) {
 		t.Fatal("unsupported temperature scales must be rejected")
 	}
 }
+
+
+func TestDPSMapper_MapTuyaTemperatureHumiditySensor(t *testing.T) {
+	mapped := NewDPSMapper().MapDPSToEntity(CategorySensor, map[string]any{
+		"1": 215,
+		"2": 48,
+		"3": 90,
+	})
+	if mapped.Domain != "sensor" || mapped.State != "active" {
+		t.Fatalf("sensor domain/state changed: %+v", mapped)
+	}
+	if mapped.Attributes["dp_1"] != 215 || mapped.Attributes["dp_2"] != 48 {
+		t.Fatalf("raw DPS values must be retained: %#v", mapped.Attributes)
+	}
+	if mapped.Attributes["current_temperature"] != 21.5 ||
+		mapped.Attributes["current_humidity"] != float64(48) {
+		t.Fatalf("expected DP1/DP2 to map to 21.5°C and 48%%, got %#v", mapped.Attributes)
+	}
+	if mapped.Attributes["tuya_climate_source"] != true ||
+		mapped.Attributes["tuya_sensor_kind"] != "temperature_humidity" ||
+		mapped.Attributes["device_class"] != "temperature" ||
+		mapped.Attributes["unit_of_measurement"] != "°C" {
+		t.Fatalf("climate source metadata missing: %#v", mapped.Attributes)
+	}
+}
+
+func TestDPSMapper_DoesNotClassifyGenericNumericSensorAsClimate(t *testing.T) {
+	mapped := NewDPSMapper().MapDPSToEntity(CategorySensor, map[string]any{
+		"1": 1,
+		"2": 90,
+	})
+	if mapped.Attributes["tuya_climate_source"] == true {
+		t.Fatalf("generic unscaled numeric sensor must not be classified as climate: %#v", mapped.Attributes)
+	}
+	if _, exists := mapped.Attributes["current_temperature"]; exists {
+		t.Fatalf("generic sensor must not receive inferred temperature: %#v", mapped.Attributes)
+	}
+}
+
+func TestDPSMapper_RecognizesNamedUnscaledThermoHygrometer(t *testing.T) {
+	attributes := map[string]any{"dp_1": 19.5, "dp_2": 44}
+	enrichTuyaClimateSensorAttributes(attributes, "Sensore temperatura e umidità")
+	if attributes["current_temperature"] != 19.5 || attributes["current_humidity"] != 44 ||
+		attributes["tuya_climate_source"] != true {
+		t.Fatalf("named unscaled thermo-hygrometer was not recognized: %#v", attributes)
+	}
+}
