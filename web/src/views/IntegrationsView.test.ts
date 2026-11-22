@@ -350,6 +350,56 @@ describe('IntegrationsView.vue', () => {
   })
 
 
+  it('loads and synchronizes devices from the real Smart Life OAuth connection', async () => {
+    const oauthDevices = [{
+      id: 'oauth-thermo-1',
+      name: 'Sensore bagno',
+      product_name: 'Temperature and Humidity Sensor',
+      category: 'wsdcg',
+      inferred_category: 'sensor',
+      entity_key: 'sensor.tuya_oauth-thermo-1',
+      climate_source: true,
+      online: true,
+      local_configured: false,
+      status: [{ code: 'va_temperature', value: 219 }, { code: 'va_humidity', value: 51 }]
+    }]
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') {
+        return { configured: false, client_id: '', uid: '', endpoint: 'https://openapi.tuyaeu.com' }
+      }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true, expires_at: '2026-11-23T00:00:00Z' }
+      if (url === '/api/v1/integrations/tuya-oauth/devices') return { devices: oauthDevices }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({
+      success: true,
+      synced_count: 1,
+      local_control_count: 0,
+      climate_sources_count: 1
+    })
+
+    const wrapper = mount(IntegrationsView)
+    await flushPromises()
+    await wrapper.findAll('.tab-btn')[4].trigger('click')
+    await flushPromises()
+
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-oauth/status')
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-oauth/devices')
+    expect(wrapper.text()).toContain('Sensore bagno')
+    expect(wrapper.text()).toContain('Account Smart Life collegato tramite OAuth')
+    expect(wrapper.text()).toContain('Selezionati per sincronizzazione: 1')
+
+    const syncButton = wrapper.findAll('button').find(button => button.text().includes('Sincronizza selezionati'))
+    expect(syncButton).toBeDefined()
+    await syncButton!.trigger('click')
+    await flushPromises()
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-oauth/sync-local', {
+      device_ids: ['oauth-thermo-1']
+    })
+    expect(getSpy).not.toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/devices')
+  })
+
   it('preselects cloud-only Tuya thermo-hygrometers for climate history synchronization', async () => {
     const cloudDevices = [{
       id: 'tuya-thermo-1',
