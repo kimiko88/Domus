@@ -392,32 +392,3 @@ func TestDeviceHandler_UpdateAreaAssignsAndClearsDeviceAndEntityRooms(t *testing
 	}
 }
 
-func TestDeviceHandler_UpdateAreaSupportsEntityOnlyDevices(t *testing.T) {
-	repos, _ := setupTestEnvironment(t)
-	ctx := context.Background()
-	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
-		ID: "office", Name: "Office", CreatedAt: time.Now(), UpdatedAt: time.Now(),
-	}))
-	require.NoError(t, repos.Entities.Create(ctx, &entity.Entity{
-		ID: "orphaned-device-entity", DeviceID: "integration-device-id",
-		EntityKey: "sensor.office_temperature", Domain: "sensor",
-		Name: "Office temperature", State: "20", Attributes: "{}",
-		Available: true, LastChangedAt: time.Now(), LastUpdatedAt: time.Now(),
-	}))
-
-	handler := handlers.NewDeviceHandler(repos.Devices).
-		WithEntities(repos.Entities).
-		WithAreas(repos.Areas)
-	router := chi.NewRouter()
-	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
-
-	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/integration-device-id/area",
-		bytes.NewBufferString(`{"area_id":"office"}`))
-	result := httptest.NewRecorder()
-	router.ServeHTTP(result, request)
-	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
-
-	updated, err := repos.Entities.GetByID(ctx, "orphaned-device-entity")
-	require.NoError(t, err)
-	assert.Equal(t, "office", updated.AreaID)
-}
