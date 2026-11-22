@@ -828,7 +828,9 @@
         "unsupportedTemperatureTitle": "Temperatura non supportata",
         "unsupportedTemperatureDesc": "Seleziona uno dei setpoint disponibili: 1, 1,5, 2, 7, 12, 17, 21 o 22 °C.",
         "manualIsolationReason": "Dispositivo isolato manualmente da Network Guardian.",
-        "tuyaSyncCompletedDesc": "Sincronizzati {count} dispositivi: {local} con controllo LAN, {climate} sorgenti climatiche."
+        "tuyaSyncCompletedDesc": "Sincronizzati {count} dispositivi: {local} con controllo LAN, {climate} sorgenti climatiche.",
+        "tuyaOAuthConnectErrorTitle": "Impossibile avviare l'autorizzazione Smart Life",
+        "tuyaOAuthConnectErrorDesc": "Verifica la configurazione OAuth di Tuya e riprova."
       },
       "devicesShown": "{count} visualizzati",
       "deviceOnline": "In linea",
@@ -854,7 +856,10 @@
       "tuyaProjectPath": "Cloud → Development → apri il progetto Domus",
       "selectedForSync": "Selezionati per sincronizzazione: {count}",
       "syncSelectedDevices": "Sincronizza selezionati ({count})",
-      "syncingDevices": "Sincronizzazione dispositivi…"
+      "syncingDevices": "Sincronizzazione dispositivi…",
+      "connectSmartLifeOAuth": "Collega Smart Life con OAuth",
+      "smartLifeOAuthConnected": "Account Smart Life collegato tramite OAuth",
+      "configureDirectTuya": "Configura anche l'accesso Server-to-Server"
     }
   },
   "history": {
