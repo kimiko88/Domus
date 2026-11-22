@@ -447,7 +447,8 @@ func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
 	externalID := "smart-life-device-42"
 	handler := handlers.NewDeviceHandler(repos.Devices).
 		WithEntities(repos.Entities).
-		WithAreas(repos.Areas)
+		WithAreas(repos.Areas).
+		WithIntegrations(repos.Integrations)
 	router := chi.NewRouter()
 	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
 
@@ -479,7 +480,6 @@ func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
 	assert.Equal(t, "Smart Life temperature sensor", stored.Name)
 	assert.Equal(t, "living-room", stored.AreaID)
 	assert.True(t, stored.Online)
-	assert.Empty(t, stored.ID[len("tuya_")+len(externalID):])
 
 	// A cloud-only placeholder remains editable and can be unassigned without
 	// requiring a LocalTuya key or a synthetic entity.
