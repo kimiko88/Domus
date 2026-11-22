@@ -187,12 +187,14 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 
 	// Some Tuya products expose only one climate measurement. Recognize those
 	// when the configured name identifies the sensor or the raw value clearly
-	// uses Tuya's tenths/hundredths scaling; generic unscaled DP pairs are not
-	// enough evidence because motion/battery sensors can also expose numbers.
+	// uses Tuya's tenths/hundredths scaling. A plausible DP1+DP2 pair is treated
+	// as a thermo-hygrometer when either value provides that evidence.
+	pairEvidence := hasTemperature && hasHumidity && temperatureOK && humidityOK &&
+		(nameHint || temperatureScaled || humidityScaled || alreadyMarked)
 	hasTemperatureSource := hasTemperature && temperatureOK &&
-		(nameHint || temperatureScaled || alreadyMarked)
+		(nameHint || temperatureScaled || alreadyMarked || pairEvidence)
 	hasHumiditySource := hasHumidity && humidityOK &&
-		(nameHint || humidityScaled || alreadyMarked)
+		(nameHint || humidityScaled || alreadyMarked || pairEvidence)
 	if !hasTemperatureSource && !hasHumiditySource {
 		return
 	}
