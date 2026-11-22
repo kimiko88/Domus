@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
 	_ "modernc.org/sqlite"
@@ -374,3 +375,91 @@ func TestAdapter_HandleDeviceStatusPreservesTuyaSensorCloudTelemetry(t *testing.
 		t.Fatalf("raw sensor DPS should also be retained, got %#v", attrs)
 	}
 }
+
+
+type memoryTuyaDeviceRepo struct {
+	devices map[string]*device.Device
+}
+
+func (r *memoryTuyaDeviceRepo) Create(_ context.Context, item *device.Device) error {
+	if r.devices == nil { r.devices = make(map[string]*device.Device) }
+	if _, exists := r.devices[item.ID]; exists { return errors.New("duplicate device") }
+	copy := *item
+	r.devices[item.ID] = &copy
+	return nil
+}
+func (r *memoryTuyaDeviceRepo) GetByID(_ context.Context, id string) (*device.Device, error) {
+	if item := r.devices[id]; item != nil { copy := *item; return &copy, nil }
+	return nil, device.ErrDeviceNotFound
+}
+func (r *memoryTuyaDeviceRepo) GetByExternalID(_ context.Context, integrationID, externalID string) (*device.Device, error) {
+	for _, item := range r.devices {
+		if item.IntegrationID == integrationID && item.ExternalID == externalID { copy := *item; return &copy, nil }
+	}
+	return nil, device.ErrDeviceNotFound
+}
+func (r *memoryTuyaDeviceRepo) List(context.Context, device.ListFilter) ([]*device.Device, error) {
+	items := make([]*device.Device, 0, len(r.devices))
+	for _, item := range r.devices { copy := *item; items = append(items, &copy) }
+	return items, nil
+}
+func (r *memoryTuyaDeviceRepo) Update(_ context.Context, item *device.Device) error {
+	if r.devices[item.ID] == nil { return device.ErrDeviceNotFound }
+	copy := *item
+	r.devices[item.ID] = &copy
+	return nil
+}
+func (r *memoryTuyaDeviceRepo) SetOnline(_ context.Context, id string, online bool) error {
+	item := r.devices[id]
+	if item == nil { return device.ErrDeviceNotFound }
+	item.Online = online
+	return nil
+}
+func (r *memoryTuyaDeviceRepo) Delete(_ context.Context, id string) error {
+	if r.devices[id] == nil { return device.ErrDeviceNotFound }
+	delete(r.devices, id)
+	return nil
+}
+
+func TestAdapter_ProvisionCloudDeviceWithoutLocalKeyCreatesReadOnlyClimateSource(t *testing.T) {
+	devices := &memoryTuyaDeviceRepo{devices: make(map[string]*device.Device)}
+	entities := &memoryTuyaEntityRepo{}
+	adapter := NewAdapter("tuya_local", &mockBus{}).WithRepositories(devices, entities)
+
+	cfg := DeviceConfig{
+		DeviceID: "thermo-hygrometer-1",
+		Name: "Tuya thermo-hygrometer",
+		Category: CategorySensor,
+		EntityKey: "sensor.tuya_thermo-hygrometer-1",
+		IntegrationID: "tuya_cloud",
+		Online: true,
+		InitialState: "active",
+		InitialAttributes: `{"device_class":"temperature","unit_of_measurement":"°C","current_temperature":21.8,"current_humidity":47,"tuya_climate_source":true,"tuya_sensor_kind":"temperature_humidity"}`,
+	}
+	if err := adapter.ProvisionCloudDevice(context.Background(), cfg, cfg.Name); err != nil {
+		t.Fatalf("ProvisionCloudDevice returned error: %v", err)
+	}
+	if adapter.IsDeviceConfigured(cfg.DeviceID) {
+		t.Fatal("cloud-only source must not be registered as a LocalTuya controllable device")
+	}
+
+	dev, err := devices.GetByID(context.Background(), "tuya_"+cfg.DeviceID)
+	if err != nil { t.Fatalf("cloud device was not persisted: %v", err) }
+	if dev.IntegrationID != "tuya_cloud" || dev.ExternalID != cfg.DeviceID || !dev.Online {
+		t.Fatalf("unexpected persisted device: %+v", dev)
+	}
+
+	if entities.entity == nil { t.Fatal("climate sensor entity was not created") }
+	if entities.entity.Domain != "sensor" || entities.entity.DeviceID != dev.ID || entities.entity.Writable {
+		t.Fatalf("cloud telemetry entity must be associated and read-only: %+v", entities.entity)
+	}
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(entities.entity.Attributes), &attributes); err != nil {
+		t.Fatalf("decode provisioned attributes: %v", err)
+	}
+	if attributes["current_temperature"] != 21.8 || attributes["current_humidity"] != float64(47) ||
+		attributes["tuya_climate_source"] != true {
+		t.Fatalf("climate telemetry not retained in provisioned entity: %#v", attributes)
+	}
+}
+
