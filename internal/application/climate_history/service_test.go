@@ -76,7 +76,7 @@ func TestCollectNowRecordsTuyaThermoHygrometerAttributes(t *testing.T) {
 			ID: "tuya-sensor-1",
 			EntityKey: "sensor.tuya_device_sensor_1", Domain: "sensor",
 			Name: "Tuya Temperature and Humidity Sensor", State: "active",
-			Attributes: "{\"current_temperature\":21.7,\"current_humidity\":48}",
+			Attributes: "{\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\",\"tuya_climate_source\":true,\"tuya_sensor_kind\":\"temperature_humidity\",\"current_temperature\":21.7,\"current_humidity\":48}",
 			Available: true,
 		},
 	}}
@@ -94,6 +94,26 @@ func TestCollectNowRecordsTuyaThermoHygrometerAttributes(t *testing.T) {
 	require.NotNil(t, repo.samples[0].Humidity)
 	require.InDelta(t, 21.7, *repo.samples[0].Temperature, 0.001)
 	require.InDelta(t, 48.0, *repo.samples[0].Humidity, 0.001)
+}
+
+func TestUpdateSettingsAllowsTuyaClimateSourceBeforeFirstReading(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.TrackedDeviceIDs = []string{"tuya_thermo_hygrometer"}
+	repo := &climateRepoStub{settings: domclimate.DefaultSettings()}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{
+			ID: "tuya-empty-sensor",
+			DeviceID: "tuya_thermo_hygrometer",
+			EntityKey: "sensor.tuya_thermo_hygrometer",
+			Domain: "sensor",
+			Name: "Tuya room sensor",
+			State: "active",
+			Attributes: "{\"tuya_climate_source\":true,\"tuya_sensor_kind\":\"temperature_humidity\",\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\"}",
+			Available: true,
+		},
+	}}
+	service := NewService(repo, entities, testLogger())
+	require.NoError(t, service.UpdateSettings(context.Background(), settings))
 }
 
 func TestCollectNowHonorsSelectedIntegrationDevices(t *testing.T) {
