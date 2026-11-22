@@ -118,6 +118,7 @@ func TestPredictiveClimate_EndToEnd(t *testing.T) {
 		serverpkg.WithRepositories(repos, bus),
 		serverpkg.WithAuth(authSvc, appauth.NewRateLimiter(100, time.Minute)),
 	)
+	defer shutdownServer(t, srv)
 
 	ts := httptest.NewServer(srv.Router())
 	defer ts.Close()
