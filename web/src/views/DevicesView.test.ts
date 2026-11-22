@@ -305,6 +305,66 @@ describe('DevicesView.vue', () => {
     expect((roomSelect.element as HTMLSelectElement).value).toBe('bedroom')
   })
 
+  it('allows administrators to assign Smart Life OAuth devices that are not yet in the registry', async () => {
+    const areasStore = useAreasStore()
+    const authStore = useAuthStore()
+    areasStore.areas = [{ id: 'living-room', name: 'Salotto' }]
+    authStore.user = {
+      id: 'admin-oauth',
+      username: 'admin',
+      role: 'admin',
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue(areasStore.areas)
+    vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: false }
+      if (url === '/api/v1/integrations/tuya-oauth/status') return { connected: true }
+      if (url === '/api/v1/integrations/tuya-oauth/devices') {
+        return {
+          devices: [{
+            id: 'oauth-sensor-1',
+            name: 'Sensore Smart Life',
+            product_name: 'Temperature sensor',
+            category: 'temperature_sensor',
+            online: true
+          }]
+        }
+      }
+      if (url === '/api/v1/network/discovered') return []
+      throw new Error(`Unexpected API GET: ${url}`)
+    })
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      device_id: 'tuya_oauth-sensor-1',
+      area_id: 'living-room',
+      device_updated: true,
+      device_created: true,
+      updated_entities: 0
+    })
+
+    const wrapper = mount(DevicesView, { global: { plugins: [i18n] } })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(wrapper.text()).toContain('Sensore Smart Life')
+    const roomSelect = wrapper.find('#device-room-tuya_oauth-sensor-1')
+    expect(roomSelect.exists()).toBe(true)
+    expect(roomSelect.findAll('option').map(option => option.text())).toContain('Salotto')
+
+    await roomSelect.setValue('living-room')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_oauth-sensor-1/area', {
+      area_id: 'living-room',
+      external_id: 'oauth-sensor-1',
+      name: 'Sensore Smart Life',
+      integration_id: 'tuya_oauth',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'Temperature sensor'
+    })
+  })
+
   it('does not expose room editing to non-administrator accounts', async () => {
     const authStore = useAuthStore()
     authStore.user = {
