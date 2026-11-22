@@ -112,7 +112,7 @@ describe('ClimateHistoryView.vue', () => {
     await flushPromises()
 
     expect(wrapper.findAll('.source-device')).toHaveLength(0)
-    expect(wrapper.find('.source-all-toggle input').element.checked).toBe(true)
+    expect((wrapper.find('.source-all-toggle input').element as HTMLInputElement).checked).toBe(true)
 
     await wrapper.find('.source-all-toggle input').setValue(false)
     const sourceInputs = wrapper.findAll('.source-device input')
