@@ -392,3 +392,45 @@ func TestDeviceHandler_UpdateAreaAssignsAndClearsDeviceAndEntityRooms(t *testing
 	}
 }
 
+
+
+func TestDeviceHandler_UpdateAreaMatchesLegacyTuyaEntityWithoutDeviceID(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	in := &integration.Integration{
+		ID: "legacy-tuya-area-integration", Type: "tuya_local", Name: "Tuya Local",
+		Status: "connected", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Integrations.Create(ctx, in))
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
+		ID: "bedroom", Name: "Bedroom", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+	dev := &device.Device{
+		ID: "tuya_legacy_sensor_1", IntegrationID: in.ID, ExternalID: "legacy_sensor_1",
+		Name: "Legacy Tuya thermo-hygrometer", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Devices.Create(ctx, dev))
+	legacyEntity := &entity.Entity{
+		ID: "legacy-temperature-entity", EntityKey: "sensor.tuya_legacy_sensor_1",
+		Domain: "sensor", Name: "Legacy Tuya temperature", State: "active",
+		Attributes: `{"tuya_climate_source":true,"tuya_sensor_kind":"temperature_humidity"}`,
+		Available: true, LastChangedAt: time.Now(), LastUpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Entities.Create(ctx, legacyEntity))
+
+	handler := handlers.NewDeviceHandler(repos.Devices).WithEntities(repos.Entities).WithAreas(repos.Areas)
+	router := chi.NewRouter()
+	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+dev.ID+"/area",
+		bytes.NewBufferString(`{"area_id":"bedroom"}`))
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, request)
+	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
+
+	storedEntity, err := repos.Entities.GetByID(ctx, legacyEntity.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "bedroom", storedEntity.AreaID)
+	storedDevice, err := repos.Devices.GetByID(ctx, dev.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "bedroom", storedDevice.AreaID)
+}
