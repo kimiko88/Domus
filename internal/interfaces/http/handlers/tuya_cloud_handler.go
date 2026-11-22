@@ -279,6 +279,41 @@ func containsAnyTuyaCode(codes []string, wanted ...string) bool {
 	return false
 }
 
+// isTuyaClimateSource reports whether a device classified as a sensor exposes
+// temperature/humidity telemetry or belongs to a known Tuya thermo-hygrometer
+// product category. Generic motion/contact/battery sensors are deliberately excluded.
+func isTuyaClimateSource(dev tuya_cloud.Device, category tuya_local.DeviceCategory) bool {
+	if category == tuya_local.CategoryClimate {
+		return true
+	}
+	if category != tuya_local.CategorySensor {
+		return false
+	}
+	rawCategory := strings.ToLower(strings.TrimSpace(dev.Category))
+	if rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+		rawCategory == "temperature_sensor" || rawCategory == "humidity_sensor" ||
+		rawCategory == "thermo_hygrometer" {
+		return true
+	}
+	name := strings.ToLower(dev.Name + " " + dev.ProductName)
+	if strings.Contains(name, "temperature") || strings.Contains(name, "temperatura") ||
+		strings.Contains(name, "humidity") || strings.Contains(name, "umid") ||
+		strings.Contains(name, "thermometer") || strings.Contains(name, "termometro") ||
+		strings.Contains(name, "hygrometer") || strings.Contains(name, "termoigrometro") ||
+		strings.Contains(name, "termo-igrometro") || strings.Contains(name, "thermo-hygrometer") {
+		return true
+	}
+	for _, status := range dev.Status {
+		code := strings.ToLower(strings.TrimSpace(status.Code))
+		if containsAnyTuyaCode([]string{code},
+			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature",
+			"va_humidity", "current_humidity", "humidity_value", "humidity") {
+			return true
+		}
+	}
+	return false
+}
+
 func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.DeviceCategory, string, string, string) {
 	statusCodes := make([]string, 0, len(dev.Status))
 	for _, st := range dev.Status {
@@ -362,14 +397,33 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 				attrs["humidity"] = value
 			}
 		}
-		if _, hasTemperature := attrs["current_temperature"]; hasTemperature {
-			if _, hasHumidity := attrs["current_humidity"]; !hasHumidity {
+		temperatureSensor := containsAnyTuyaCode(statusCodes,
+			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature") ||
+			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+			rawCategory == "temperature_sensor" || strings.Contains(name, "temperature") ||
+			strings.Contains(name, "temperatura") || strings.Contains(name, "termometro") ||
+			strings.Contains(name, "thermometer") || strings.Contains(name, "termoigrometro") ||
+			strings.Contains(name, "termo-igrometro") || strings.Contains(name, "thermo-hygrometer")
+		humiditySensor := containsAnyTuyaCode(statusCodes,
+			"va_humidity", "current_humidity", "humidity_value", "humidity") ||
+			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
+			rawCategory == "humidity_sensor" || strings.Contains(name, "humidity") ||
+			strings.Contains(name, "umid")
+		if temperatureSensor || humiditySensor {
+			attrs["tuya_climate_source"] = true
+			switch {
+			case temperatureSensor:
 				attrs["device_class"] = "temperature"
 				attrs["unit_of_measurement"] = "°C"
+				attrs["tuya_sensor_kind"] = "temperature"
+			case humiditySensor:
+				attrs["device_class"] = "humidity"
+				attrs["unit_of_measurement"] = "%"
+				attrs["tuya_sensor_kind"] = "humidity"
 			}
-		} else if _, hasHumidity := attrs["current_humidity"]; hasHumidity {
-			attrs["device_class"] = "humidity"
-			attrs["unit_of_measurement"] = "%"
+			if humiditySensor && temperatureSensor {
+				attrs["tuya_sensor_kind"] = "temperature_humidity"
+			}
 		}
 		attrsBytes, _ := json.Marshal(attrs)
 		return cat, entityKey, state, string(attrsBytes)
