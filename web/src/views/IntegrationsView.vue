@@ -2233,7 +2233,7 @@ onMounted(() => {
       <div v-if="tuyaOAuthStatus.connected" class="tuya-status-banner glass-card">
         <div class="tuya-status-left">
           <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>{{ t('integrations.view.smartLifeOAuthConnected') }}</span></div>
-          <span v-if="tuyaOAuthStatus.expires_at" class="meta-chip">{{ t('integrations.view.tokenExpires') }}: {{ formatVendorDate(tuyaOAuthStatus.expires_at) }}</span>
+          <span v-if="tuyaOAuthStatus.expires_at" class="meta-chip">{{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(tuyaOAuthStatus.expires_at) }}</span>
         </div>
       </div>
 
