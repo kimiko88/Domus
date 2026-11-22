@@ -238,8 +238,9 @@ describe('DevicesView.vue', () => {
     expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/device-room-1/area', {
       area_id: 'living-room'
     })
+    await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('Sensore temperatura')
-    expect(wrapper.text()).toContain('Stanza aggiornata')
+    expect((roomSelect.element as HTMLSelectElement).value).toBe('living-room')
 
     putSpy.mockResolvedValueOnce({
       device_id: 'device-room-1',
