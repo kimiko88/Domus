@@ -116,6 +116,9 @@ interface TuyaCloudDevice {
   local_configured?: boolean
   local_active?: boolean
   local_ip?: string
+  inferred_category?: string
+  entity_key?: string
+  climate_source?: boolean
 }
 
 interface TuyaDeviceFunction {
@@ -1008,11 +1011,26 @@ async function loadTuyaTemperatureFunction(deviceId: string): Promise<TuyaDevice
   }
 }
 
-function isTuyaClimateDevice(device: TuyaCloudDevice) {
+function isTuyaThermostatDevice(device: TuyaCloudDevice) {
   const category = (device.category || '').toLowerCase()
+  const inferred = (device.inferred_category || '').toLowerCase()
   const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
   return category === 'wk' || category.includes('climate') || category.includes('thermostat') ||
-    label.includes('thermostat') || label.includes('termostato')
+    inferred === 'climate' || label.includes('thermostat') || label.includes('termostato')
+}
+
+function isTuyaClimateSourceDevice(device: TuyaCloudDevice) {
+  if (device.climate_source === true || isTuyaThermostatDevice(device)) return true
+  const category = (device.category || '').toLowerCase()
+  const inferred = (device.inferred_category || '').toLowerCase()
+  const label = `${device.name} ${device.product_name || ''}`.toLowerCase()
+  const climateSensorCategories = ['wsdcg', 'wsdcgq', 'wsdcgq11lm', 'temperature_sensor', 'humidity_sensor', 'thermo_hygrometer']
+  if (inferred === 'sensor' && climateSensorCategories.includes(category)) return true
+  if (climateSensorCategories.includes(category)) return true
+  if (/temperature|temperatura|humidity|umid|thermometer|termometro|hygrometer|termoigrometro|thermo-hygrometer/.test(label)) return true
+  return (device.status || []).some(point =>
+    /^(va_temperature|current_temperature|temp_current|current_temp|temperature|va_humidity|current_humidity|humidity_value|humidity)$/i.test(point.code)
+  )
 }
 
 function canControlLocalTuya(device: TuyaCloudDevice) {
@@ -1055,18 +1073,31 @@ const tuyaOAuthLoading = ref(false)
 
 async function fetchTuyaConfig() {
   try {
-    const res = await apiClient.get<TuyaCloudConfig>('/api/v1/integrations/tuya-cloud/config')
+    const [res] = await Promise.all([
+      apiClient.get<TuyaCloudConfig>('/api/v1/integrations/tuya-cloud/config'),
+      fetchTuyaOAuthStatus()
+    ])
     if (res) {
       tuyaConfig.value = res
       if (res.configured) {
         tuyaConfigForm.client_id = res.client_id
         tuyaConfigForm.uid = res.uid
         tuyaConfigForm.endpoint = res.endpoint || 'https://openapi.tuyaeu.com'
-        await fetchTuyaCloudDevices()
       }
     }
+    // Prefer the explicitly linked Smart Life OAuth account when available.
+    // Fall back to Server-to-Server UID mode for legacy installations.
+    if (tuyaOAuthStatus.value.connected) {
+      await fetchTuyaOAuthDevices()
+    } else if (tuyaConfig.value.configured) {
+      await fetchTuyaCloudDevices()
+    } else {
+      tuyaCloudDevices.value = []
+      selectedTuyaDeviceIds.value = []
+      tuyaSelectionInitialized.value = false
+    }
   } catch (err: any) {
-    console.warn('Failed to load Tuya config:', err)
+    console.warn('Failed to load Tuya configuration:', err)
   }
 }
 
@@ -1114,19 +1145,67 @@ async function disconnectTuyaConfig() {
 }
 
 async function fetchTuyaOAuthStatus() {
-  await fetchTuyaConfig()
+  try {
+    tuyaOAuthStatus.value = await apiClient.get<TuyaOAuthStatus>('/api/v1/integrations/tuya-oauth/status')
+  } catch {
+    // Older deployments may not have the separate OAuth handler configured.
+    tuyaOAuthStatus.value = { connected: false }
+  }
 }
-async function fetchTuyaOAuthDevices() {
-  await fetchTuyaCloudDevices()
+
+function setTuyaDeviceList(devices: TuyaCloudDevice[], reconcileSelection = false) {
+  tuyaCloudDevices.value = devices || []
+  if (!tuyaSelectionInitialized.value || reconcileSelection) {
+    // A climate source does not need a Local Key. Include recognized
+    // thermostats and thermo-hygrometers in the first synchronization selection.
+    selectedTuyaDeviceIds.value = tuyaCloudDevices.value
+      .filter(device => device.local_configured || isTuyaClimateSourceDevice(device))
+      .map(device => device.id)
+    tuyaSelectionInitialized.value = true
+  } else {
+    const knownIds = new Set(tuyaCloudDevices.value.map(device => device.id))
+    selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
+  }
 }
-async function syncTuyaOAuthToLocal() {
-  await syncTuyaCloudToLocal()
+
+async function prepareTuyaThermostatSetpoints() {
+  for (const device of tuyaCloudDevices.value) {
+    if (!isTuyaThermostatDevice(device)) continue
+    const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
+    const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
+    // The OAuth path does not expose the Server-to-Server functions endpoint.
+    const temperatureFunction = tuyaConfig.value.configured
+      ? await loadTuyaTemperatureFunction(device.id)
+      : undefined
+    const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
+    const normalizedRaw = Number.isFinite(raw) && target
+      ? raw > 60 ? raw / Math.pow(10, scale) : raw
+      : Number.NaN
+    const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
+
+    if (thermostatDegrees !== undefined) {
+      tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
+    } else if (tuyaTemperatureInputs[device.id] === undefined) {
+      tuyaTemperatureInputs[device.id] = ''
+    }
+  }
 }
-async function connectTuyaAccount() {
-  isEditingTuyaConfig.value = true
-}
-async function disconnectTuyaAccount() {
-  await disconnectTuyaConfig()
+
+async function fetchTuyaOAuthDevices(reconcileSelection = false) {
+  tuyaOAuthLoading.value = true
+  tuyaCloudLoading.value = true
+  tuyaCloudError.value = ''
+  try {
+    const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = result.devices || []
+    setTuyaDeviceList(tuyaOAuthDevices.value, reconcileSelection)
+    await prepareTuyaThermostatSetpoints()
+  } catch {
+    tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
+  } finally {
+    tuyaOAuthLoading.value = false
+    tuyaCloudLoading.value = false
+  }
 }
 
 async function fetchTuyaCloudDevices(reconcileSelection = false) {
@@ -1134,36 +1213,9 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
   tuyaCloudError.value = ''
   try {
     const result = await apiClient.get<{ devices: TuyaCloudDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
-    tuyaCloudDevices.value = result.devices || []
-    // Keep unsaved checkbox changes while refreshing status. Reconcile from the
-    // server on the first load and immediately after applying the selection.
-    if (!tuyaSelectionInitialized.value || reconcileSelection) {
-      selectedTuyaDeviceIds.value = tuyaCloudDevices.value
-        .filter(device => device.local_configured)
-        .map(device => device.id)
-      tuyaSelectionInitialized.value = true
-    } else {
-      const knownIds = new Set(tuyaCloudDevices.value.map(device => device.id))
-      selectedTuyaDeviceIds.value = selectedTuyaDeviceIds.value.filter(id => knownIds.has(id))
-    }
-    for (const device of tuyaCloudDevices.value) {
-      if (!isTuyaClimateDevice(device)) continue
-      const target = (device.status || []).find(point => /temp.*(set|target)|target.*temp/i.test(point.code))
-      const raw = typeof target?.value === 'number' ? target.value : Number(target?.value)
-      const temperatureFunction = await loadTuyaTemperatureFunction(device.id)
-      const scale = temperatureFunction ? tuyaFunctionScale(temperatureFunction) : 1
-      const normalizedRaw = Number.isFinite(raw) && target
-        ? raw > 60 ? raw / Math.pow(10, scale) : raw
-        : Number.NaN
-      const thermostatDegrees = decodeTuyaThermostatSetpoint(normalizedRaw)
-
-      if (thermostatDegrees !== undefined) {
-        tuyaTemperatureInputs[device.id] = String(thermostatDegrees)
-      } else if (tuyaTemperatureInputs[device.id] === undefined) {
-        tuyaTemperatureInputs[device.id] = ''
-      }
-    }
-  } catch (err: any) {
+    setTuyaDeviceList(result.devices || [], reconcileSelection)
+    await prepareTuyaThermostatSetpoints()
+  } catch {
     tuyaCloudError.value = t('integrations.view.tuyaCloudUnavailable')
   } finally {
     tuyaCloudLoading.value = false
@@ -1173,16 +1225,72 @@ async function fetchTuyaCloudDevices(reconcileSelection = false) {
 async function syncTuyaCloudToLocal() {
   tuyaSyncing.value = true
   try {
-    const res = await apiClient.post<{ success: boolean; synced_count: number; message: string }>(
-      '/api/v1/integrations/tuya-cloud/sync-local',
-      { device_ids: selectedTuyaDeviceIds.value }
+    const oauthMode = tuyaOAuthStatus.value.connected
+    const endpoint = oauthMode
+      ? '/api/v1/integrations/tuya-oauth/sync-local'
+      : '/api/v1/integrations/tuya-cloud/sync-local'
+    const res = await apiClient.post<{
+      success: boolean
+      synced_count: number
+      local_control_count?: number
+      climate_sources_count?: number
+      message: string
+    }>(endpoint, { device_ids: selectedTuyaDeviceIds.value })
+
+    notificationsStore.success(
+      t('integrations.view.messages.localSelectionUpdatedTitle'),
+      t('integrations.view.messages.tuyaSyncCompletedDesc', {
+        count: res.synced_count,
+        local: res.local_control_count ?? 0,
+        climate: res.climate_sources_count ?? 0
+      })
     )
-    notificationsStore.success(t('integrations.view.messages.localSelectionUpdatedTitle'), t('integrations.view.messages.localSelectionUpdatedDesc', { count: res.synced_count }))
-    await fetchTuyaCloudDevices(true)
-  } catch (err: any) {
+    if (oauthMode) await fetchTuyaOAuthDevices(true)
+    else await fetchTuyaCloudDevices(true)
+  } catch {
     notificationsStore.error(t('integrations.view.messages.localSyncErrorTitle'), t('integrations.view.messages.localSyncErrorDesc'))
   } finally {
     tuyaSyncing.value = false
+  }
+}
+
+async function refreshTuyaDevices() {
+  if (tuyaOAuthStatus.value.connected) await fetchTuyaOAuthDevices()
+  else await fetchTuyaCloudDevices()
+}
+
+async function connectTuyaAccount() {
+  tuyaOAuthLoading.value = true
+  try {
+    const result = await apiClient.post<{ authorization_url: string }>(
+      '/api/v1/integrations/tuya-oauth/authorize',
+      {}
+    )
+    if (!result.authorization_url) throw new Error('Tuya did not return an authorization URL')
+    const popup = window.open(result.authorization_url, '_blank', 'noopener,noreferrer')
+    if (!popup) window.location.assign(result.authorization_url)
+  } catch {
+    notificationsStore.error(t('integrations.view.messages.tuyaOAuthConnectErrorTitle'), t('integrations.view.messages.tuyaOAuthConnectErrorDesc'))
+  } finally {
+    tuyaOAuthLoading.value = false
+  }
+}
+
+async function disconnectTuyaAccount() {
+  tuyaOAuthLoading.value = true
+  try {
+    await apiClient.post('/api/v1/integrations/tuya-oauth/disconnect', {})
+    tuyaOAuthStatus.value = { connected: false }
+    tuyaOAuthDevices.value = []
+    tuyaSelectionInitialized.value = false
+    selectedTuyaDeviceIds.value = []
+    if (tuyaConfig.value.configured) await fetchTuyaCloudDevices(true)
+    else tuyaCloudDevices.value = []
+    notificationsStore.success(t('integrations.view.messages.integrationRemovedTitle'), t('integrations.view.messages.integrationRemovedDesc'))
+  } catch {
+    notificationsStore.error(t('integrations.view.messages.disconnectErrorTitle'), t('integrations.view.messages.disconnectErrorDesc'))
+  } finally {
+    tuyaOAuthLoading.value = false
   }
 }
 
@@ -2099,22 +2207,33 @@ onMounted(() => {
           </div>
         </div>
         <div class="discovery-inputs">
-          <button class="btn-scan" :disabled="tuyaCloudLoading || !tuyaConfig.configured" @click="() => fetchTuyaCloudDevices()">
+          <button class="btn-action glass-panel" :disabled="tuyaOAuthLoading" @click="tuyaOAuthStatus.connected ? disconnectTuyaAccount() : connectTuyaAccount()">
+            <Key :size="15" />
+            <span>{{ tuyaOAuthStatus.connected ? t('integrations.view.disconnect') : t('integrations.view.connectSmartLifeOAuth') }}</span>
+          </button>
+          <button class="btn-scan" :disabled="tuyaCloudLoading || (!tuyaConfig.configured && !tuyaOAuthStatus.connected)" @click="refreshTuyaDevices">
             <RefreshCw :size="15" :class="{ 'animate-spin': tuyaCloudLoading }" />
             <span>{{ t('integrations.view.refreshDevices') }}</span>
           </button>
-          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || !tuyaConfig.configured" @click="syncTuyaCloudToLocal">
+          <button class="btn-action glass-panel" :disabled="tuyaSyncing || tuyaCloudLoading || (!tuyaConfig.configured && !tuyaOAuthStatus.connected)" @click="syncTuyaCloudToLocal">
             <Wifi :size="15" />
-            <span>{{ tuyaSyncing ? 'Aggiornamento LocalTuya…' : `Applica selezione LAN (${selectedTuyaDeviceIds.length})` }}</span>
+            <span>{{ tuyaSyncing ? t('integrations.view.syncingDevices') : t('integrations.view.syncSelectedDevices', { count: selectedTuyaDeviceIds.length }) }}</span>
           </button>
-          <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
+          <button v-if="tuyaConfig.configured || tuyaOAuthStatus.connected" class="btn-action glass-panel" @click="isEditingTuyaConfig = !isEditingTuyaConfig">
             <Key :size="15" />
-            <span>{{ isEditingTuyaConfig ? 'Chiudi Config' : 'Modifica Config' }}</span>
+            <span>{{ isEditingTuyaConfig ? t('common.cancel') : tuyaOAuthStatus.connected && !tuyaConfig.configured ? t('integrations.view.configureDirectTuya') : 'Modifica Config' }}</span>
           </button>
           <button v-if="tuyaConfig.configured" class="btn-action glass-panel" @click="disconnectTuyaConfig">
             <Unlock :size="15" />
-            <span>{{ t('integrations.view.disconnect') }}</span>
+            <span>{{ t('integrations.view.disconnect') }} · Server-to-Server</span>
           </button>
+        </div>
+      </div>
+
+      <div v-if="tuyaOAuthStatus.connected" class="tuya-status-banner glass-card">
+        <div class="tuya-status-left">
+          <div class="badge-direct-mode"><CheckCircle :size="15" /> <span>{{ t('integrations.view.smartLifeOAuthConnected') }}</span></div>
+          <span v-if="tuyaOAuthStatus.expires_at" class="meta-chip">{{ t('integrations.view.vendors.tokenExpires') }}: {{ formatVendorDate(tuyaOAuthStatus.expires_at) }}</span>
         </div>
       </div>
 
@@ -2131,7 +2250,7 @@ onMounted(() => {
       </div>
 
       <!-- SETUP GUIDE & CONFIG FORM (WHEN NOT CONFIGURED OR EDITING) -->
-      <div v-if="!tuyaConfig.configured || isEditingTuyaConfig" class="tuya-config-panel glass-card">
+      <div v-if="(!tuyaConfig.configured && !tuyaOAuthStatus.connected) || isEditingTuyaConfig" class="tuya-config-panel glass-card">
         <div class="tuya-guide-box">
           <h4 class="guide-title"><QrCode :size="18" /> {{ t('integrations.view.tuyaConnectTitle') }}</h4>
           <ol class="guide-steps">
@@ -2222,7 +2341,7 @@ onMounted(() => {
         </form>
       </div>
 
-      <div v-if="tuyaCloudError && tuyaConfig.configured" class="empty-guardian-state glass-card">
+      <div v-if="tuyaCloudError && (tuyaConfig.configured || tuyaOAuthStatus.connected)" class="empty-guardian-state glass-card">
         <AlertCircle :size="30" />
         <h4>{{ t('integrations.view.tuyaCloudUnavailable') }}</h4>
         <p>{{ tuyaCloudError }}</p>
@@ -2234,7 +2353,7 @@ onMounted(() => {
         <p>{{ t('integrations.view.loadingSmartLifeDevices') }}</p>
       </div>
 
-      <div v-else-if="tuyaConfig.configured && tuyaCloudDevices.length === 0" class="empty-guardian-state glass-card">
+      <div v-else-if="(tuyaConfig.configured || tuyaOAuthStatus.connected) && tuyaCloudDevices.length === 0 && !tuyaCloudLoading" class="empty-guardian-state glass-card">
         <Globe :size="32" />
         <h4>{{ t('integrations.view.noDevicesForUid') }}</h4>
         <p>{{ t('integrations.view.verifyUidInstruction') }}</p>
@@ -2246,7 +2365,7 @@ onMounted(() => {
             <strong>{{ t('integrations.view.smartLifeDevices') }}</strong>
             <span class="tuya-device-count">{{ tuyaCloudDevices.length }} totali · {{ tuyaOnlineCount }} online · {{ tuyaOfflineCount }} offline</span>
           </div>
-          <span class="tuya-device-count">{{ t('integrations.view.selectedForLocalTuya', { count: tuyaSelectedCount }) }}</span>
+          <span class="tuya-device-count">{{ t('integrations.view.selectedForSync', { count: tuyaSelectedCount }) }}</span>
         </div>
         <div class="tuya-device-filter-row">
           <label class="tuya-device-search">
