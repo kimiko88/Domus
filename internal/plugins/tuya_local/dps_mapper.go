@@ -232,7 +232,6 @@ func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName str
 
 // normalizeTuyaTemperatureDPS converts a DP1 value to degrees Celsius where
 // possible. Values already in the plausible range are treated as unscaled.
-
 func normalizeTuyaTemperatureDPS(value float64) (float64, bool, bool) {
 	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= -50 && value <= 70 {
 		return value, false, true
