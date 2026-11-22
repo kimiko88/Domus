@@ -15,7 +15,9 @@ import (
 )
 
 type mockBus struct {
-	published []events.Event
+	published    []events.Event
+	subscribed   int
+	unsubscribed int
 }
 
 func (m *mockBus) Publish(ctx context.Context, evt events.Event) error {
@@ -24,7 +26,8 @@ func (m *mockBus) Publish(ctx context.Context, evt events.Event) error {
 }
 
 func (m *mockBus) Subscribe(eventType events.EventType, handler events.Handler) func() {
-	return func() {}
+	m.subscribed++
+	return func() { m.unsubscribed++ }
 }
 
 func (m *mockBus) SubscribeAll(handler events.Handler) func() {
@@ -63,6 +66,9 @@ func TestAdapter_Lifecycle(t *testing.T) {
 
 	if err := adapter.Stop(ctx); err != nil {
 		t.Fatalf("stop failed: %v", err)
+	}
+	if bus.subscribed != 1 || bus.unsubscribed != 1 {
+		t.Fatalf("expected command subscription to be released on stop; subscribed=%d unsubscribed=%d", bus.subscribed, bus.unsubscribed)
 	}
 
 	if err := adapter.HealthCheck(ctx); err == nil {
@@ -464,3 +470,22 @@ func TestAdapter_ProvisionCloudDeviceWithoutLocalKeyCreatesReadOnlyClimateSource
 	}
 }
 
+
+func TestAdapter_HandleCommandEventIgnoresEntitiesOwnedByOtherIntegrations(t *testing.T) {
+	adapter := NewAdapter("tuya_test", &mockBus{})
+	evt := events.Event{
+		Type: events.CommandRequested,
+		Payload: map[string]any{
+			"entity_key": "light.living_room_bulb",
+			"command":    "turn_off",
+		},
+	}
+	if err := adapter.handleCommandEvent(context.Background(), evt); err != nil {
+		t.Fatalf("LocalTuya must ignore commands for entities it does not own: %v", err)
+	}
+
+	// Direct LocalTuya calls still report an unknown target to their caller.
+	if _, err := adapter.SendCommand(context.Background(), "light.living_room_bulb", "turn_off", nil); err == nil {
+		t.Fatal("direct SendCommand must still reject an unknown LocalTuya target")
+	}
+}
