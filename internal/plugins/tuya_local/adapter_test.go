@@ -91,6 +91,13 @@ func TestParseCategory(t *testing.T) {
 		{"dd", CategoryLight},
 		{"wk", CategoryClimate},
 		{"climate", CategoryClimate},
+		{"sensor", CategorySensor},
+		{"wsdcg", CategorySensor},
+		{"wsdcgq", CategorySensor},
+		{"wsdcgq11lm", CategorySensor},
+		{"temperature_sensor", CategorySensor},
+		{"humidity_sensor", CategorySensor},
+		{"thermo_hygrometer", CategorySensor},
 		{"unknown_xyz", CategorySwitch},
 	}
 
@@ -380,6 +387,35 @@ func TestAdapter_HandleDeviceStatusPreservesTuyaSensorCloudTelemetry(t *testing.
 	}
 	if attrs["dp_1"] != float64(42) {
 		t.Fatalf("raw sensor DPS should also be retained, got %#v", attrs)
+	}
+}
+
+func TestAdapter_HandleDeviceStatusPairsPartialTuyaClimateSensorDPS(t *testing.T) {
+	repo := &memoryTuyaEntityRepo{entity: &entity.Entity{
+		ID: "sensor-local-1", EntityKey: "sensor.tuya_local_thermo", Domain: "sensor",
+		State: `{"state":"active"}`,
+		Attributes: `{"dp_1":215}`,
+		Available: true,
+	}}
+	adapter := NewAdapter("tuya_test", &mockBus{}).WithRepositories(nil, repo)
+
+	// Humidity arrives in a later LAN status packet: the previous temperature
+	// datapoint must be retained and interpreted together with the new one.
+	adapter.handleDeviceStatus(DeviceConfig{
+		DeviceID: "local-thermo", Name: "Tuya room sensor",
+		Category: CategorySensor, EntityKey: "sensor.tuya_local_thermo",
+	}, map[string]any{"2": 48})
+
+	var attrs map[string]any
+	if err := json.Unmarshal([]byte(repo.entity.Attributes), &attrs); err != nil {
+		t.Fatalf("decode merged Tuya sensor attributes: %v", err)
+	}
+	if attrs["dp_1"] != float64(215) || attrs["dp_2"] != float64(48) {
+		t.Fatalf("both raw datapoints must survive partial updates: %#v", attrs)
+	}
+	if attrs["current_temperature"] != 21.5 || attrs["current_humidity"] != float64(48) ||
+		attrs["tuya_climate_source"] != true || attrs["tuya_sensor_kind"] != "temperature_humidity" {
+		t.Fatalf("merged DPS values were not exposed as climate telemetry: %#v", attrs)
 	}
 }
 

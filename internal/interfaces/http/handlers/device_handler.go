@@ -93,12 +93,18 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 
 	var linkedEntities []*entity.Entity
 	if h.entityRepo != nil {
-		items, err := h.entityRepo.List(r.Context(), entity.ListFilter{DeviceID: deviceID})
+		// Include legacy Tuya rows which predate device_id persistence but still
+		// carry the stable tuya_<external-id> suffix in their entity key.
+		items, err := h.entityRepo.List(r.Context(), entity.ListFilter{})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to load device entities")
 			return
 		}
-		linkedEntities = items
+		for _, item := range items {
+			if item != nil && entityDeviceIDForAreaAssignment(item) == deviceID {
+				linkedEntities = append(linkedEntities, item)
+			}
+		}
 	}
 	if !deviceExists && len(linkedEntities) == 0 {
 		writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "device not found")
@@ -145,6 +151,29 @@ func (h *DeviceHandler) UpdateArea(w http.ResponseWriter, r *http.Request) {
 		"device_updated": deviceExists,
 		"updated_entities": len(updatedEntities),
 	})
+}
+
+// entityDeviceIDForAreaAssignment resolves the device key stored on an entity.
+// Current entities use device_id; legacy Tuya entities can be linked by their
+// deterministic entity-key suffix until the next integration sync fills it in.
+func entityDeviceIDForAreaAssignment(item *entity.Entity) string {
+	if item == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(item.DeviceID); id != "" {
+		return id
+	}
+	for _, candidate := range []string{item.EntityKey, item.ID} {
+		parts := strings.Split(strings.TrimSpace(candidate), ".")
+		if len(parts) == 0 {
+			continue
+		}
+		last := parts[len(parts)-1]
+		if strings.HasPrefix(last, "tuya_") && len(last) > len("tuya_") {
+			return last
+		}
+	}
+	return ""
 }
 
 func (h *DeviceHandler) canViewDevice(r *http.Request, dev *device.Device) (bool, error) {

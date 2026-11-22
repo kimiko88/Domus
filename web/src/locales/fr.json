@@ -402,7 +402,16 @@
       "garage": "Garage",
       "cinema": "Cinéma / TV",
       "other": "Autre"
-    }
+    },
+    "manageDevices": "Gérer les appareils",
+    "manageDevicesDescription": "Sélectionnez les appareils à associer à cette zone. Un appareil déjà associé à une autre pièce sera déplacé ici.",
+    "noAssignableDevices": "Aucun appareil ne peut encore être associé. Actualisez la liste des appareils et des intégrations.",
+    "unassigned": "Non attribué",
+    "saveDevices": "Enregistrer les associations",
+    "savingDevices": "Enregistrement…",
+    "devicesSaveSuccess": "Associations mises à jour",
+    "devicesSaveMessage": "{count} associations mises à jour pour {area}.",
+    "devicesSaveError": "Impossible de mettre à jour les associations des appareils."
   },
   "devices": {
     "title": "Appareils",

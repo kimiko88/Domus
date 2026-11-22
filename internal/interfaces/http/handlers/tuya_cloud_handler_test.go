@@ -557,3 +557,39 @@ func TestTuyaCloudHandler_SyncLocalProvisionsClimateSensorWithoutLocalKey(t *tes
 		t.Fatalf("climate readings/marker missing from entity: %#v", attributes)
 	}
 }
+
+
+func TestInferTuyaDeviceCategoryAndTelemetryMarksThermoHygrometerWithoutInitialStatus(t *testing.T) {
+	device := tuya_cloud.Device{
+		ID: "thermo-generic-1",
+		Name: "TH01",
+		ProductName: "Smart home environment monitor",
+		Category: "thermo_hygrometer",
+		Status: nil,
+	}
+
+	category, entityKey, state, rawAttributes := inferTuyaDeviceCategoryAndTelemetry(device)
+	if category != tuya_local.CategorySensor {
+		t.Fatalf("category = %q, want sensor", category)
+	}
+	if entityKey != "sensor.tuya_thermo-generic-1" {
+		t.Fatalf("entity key = %q", entityKey)
+	}
+	if state != "active" {
+		t.Fatalf("state = %q, want active", state)
+	}
+	if !isTuyaClimateSource(device, category) {
+		t.Fatal("known thermo_hygrometer product category must be a climate history source")
+	}
+
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(rawAttributes), &attributes); err != nil {
+		t.Fatalf("decode initial sensor attributes: %v", err)
+	}
+	if attributes["tuya_climate_source"] != true ||
+		attributes["tuya_sensor_kind"] != "temperature_humidity" ||
+		attributes["device_class"] != "temperature" ||
+		attributes["unit_of_measurement"] != "°C" {
+		t.Fatalf("thermo-hygrometer climate metadata missing before first reading: %#v", attributes)
+	}
+}

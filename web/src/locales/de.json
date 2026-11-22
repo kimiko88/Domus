@@ -402,7 +402,16 @@
       "garage": "Garage",
       "cinema": "Heimkino / TV",
       "other": "Sonstiges"
-    }
+    },
+    "manageDevices": "Geräte verwalten",
+    "manageDevicesDescription": "Wählen Sie die Geräte aus, die diesem Bereich zugeordnet werden sollen. Ein bereits einem anderen Raum zugeordnetes Gerät wird hierher verschoben.",
+    "noAssignableDevices": "Es sind noch keine zuweisbaren Geräte verfügbar. Aktualisieren Sie die Geräte- und Integrationsliste.",
+    "unassigned": "Nicht zugewiesen",
+    "saveDevices": "Zuordnungen speichern",
+    "savingDevices": "Wird gespeichert…",
+    "devicesSaveSuccess": "Zuordnungen aktualisiert",
+    "devicesSaveMessage": "{count} Zuordnungen für {area} wurden aktualisiert.",
+    "devicesSaveError": "Gerätezuordnungen konnten nicht aktualisiert werden."
   },
   "devices": {
     "title": "Geräte",

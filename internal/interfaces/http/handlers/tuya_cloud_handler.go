@@ -400,15 +400,16 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 		temperatureSensor := containsAnyTuyaCode(statusCodes,
 			"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature") ||
 			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
-			rawCategory == "temperature_sensor" || strings.Contains(name, "temperature") ||
-			strings.Contains(name, "temperatura") || strings.Contains(name, "termometro") ||
-			strings.Contains(name, "thermometer") || strings.Contains(name, "termoigrometro") ||
-			strings.Contains(name, "termo-igrometro") || strings.Contains(name, "thermo-hygrometer")
+			rawCategory == "temperature_sensor" || rawCategory == "thermo_hygrometer" ||
+			strings.Contains(name, "temperature") || strings.Contains(name, "temperatura") ||
+			strings.Contains(name, "termometro") || strings.Contains(name, "thermometer") ||
+			strings.Contains(name, "termoigrometro") || strings.Contains(name, "termo-igrometro") ||
+			strings.Contains(name, "thermo-hygrometer")
 		humiditySensor := containsAnyTuyaCode(statusCodes,
 			"va_humidity", "current_humidity", "humidity_value", "humidity") ||
 			rawCategory == "wsdcg" || rawCategory == "wsdcgq" || rawCategory == "wsdcgq11lm" ||
-			rawCategory == "humidity_sensor" || strings.Contains(name, "humidity") ||
-			strings.Contains(name, "umid")
+			rawCategory == "humidity_sensor" || rawCategory == "thermo_hygrometer" ||
+			strings.Contains(name, "humidity") || strings.Contains(name, "umid")
 		if temperatureSensor || humiditySensor {
 			attrs["tuya_climate_source"] = true
 			switch {

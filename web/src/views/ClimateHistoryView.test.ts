@@ -149,6 +149,48 @@ describe('ClimateHistoryView.vue', () => {
     expect(devices.some(device => device.text().includes('tuya_local'))).toBe(true)
   })
 
+  it('lists Tuya Local sensors after their DPS telemetry is normalized as temperature and humidity', async () => {
+    const { wrapper } = setupView()
+    const entities = useEntitiesStore()
+    const devicesStore = useDevicesStore()
+    entities.entities['sensor.tuya_local_thermo'] = {
+      id: 'sensor.tuya_local_thermo',
+      entity_key: 'sensor.tuya_local_thermo',
+      device_id: 'tuya_local_thermo',
+      domain: 'sensor',
+      name: 'Sensore temperatura Tuya Local',
+      state: 'active',
+      unit_of_measurement: '°C',
+      attributes: {
+        dp_1: 215,
+        dp_2: 48,
+        current_temperature: 21.5,
+        current_humidity: 48,
+        device_class: 'temperature',
+        unit_of_measurement: '°C',
+        tuya_climate_source: true,
+        tuya_sensor_kind: 'temperature_humidity'
+      },
+      last_changed: '',
+      last_updated: ''
+    }
+    devicesStore.devices.push({
+      id: 'tuya_local_thermo',
+      external_id: 'local_thermo',
+      name: 'Sensore temperatura Tuya Local',
+      integration_id: 'tuya_local',
+      status: 'online',
+      created_at: '',
+      updated_at: ''
+    })
+    await flushPromises()
+
+    await wrapper.find('.source-all-toggle input').setValue(false)
+    const sourceDevices = wrapper.findAll('.source-device')
+    expect(sourceDevices).toHaveLength(4)
+    expect(sourceDevices.some(device => device.text().includes('Sensore temperatura Tuya Local'))).toBe(true)
+  })
+
   it('uses app-rendered dropdown menus instead of native dark popups', async () => {
     const { wrapper } = setupView()
     await flushPromises()

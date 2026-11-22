@@ -207,6 +207,16 @@ async function refreshAllDevices() {
   }
 }
 
+function entityDeviceID(entity: Entity): string {
+  const direct = String(entity.device_id || '').trim()
+  if (direct) return direct
+  for (const candidate of [entity.entity_key || '', entity.id || '']) {
+    const suffix = candidate.split('.').pop() || ''
+    if (suffix.startsWith('tuya_') && suffix.length > 'tuya_'.length) return suffix
+  }
+  return ''
+}
+
 const allDevices = computed<UnifiedDevice[]>(() => {
   const merged: UnifiedDevice[] = (devicesStore.devices || []).map(device => ({
     ...device,
@@ -260,11 +270,25 @@ const allDevices = computed<UnifiedDevice[]>(() => {
 
   const entitiesByDevice = new Map<string, Entity[]>()
   for (const entity of entitiesStore.allEntities) {
-    const deviceId = String(entity.device_id || '').trim()
+    const deviceId = entityDeviceID(entity)
     if (!deviceId) continue
     const group = entitiesByDevice.get(deviceId) || []
     group.push(entity)
     entitiesByDevice.set(deviceId, group)
+  }
+
+  // Prefer the persisted device area, but keep the entity association visible
+  // when an integration has only populated area_id on its entities.
+  for (const device of merged) {
+    if (device.area_id) continue
+    const linked = [...entitiesByDevice.entries()].find(([deviceId]) =>
+      deviceId === device.id || deviceId === device.external_id ||
+      (device.id.startsWith('tuya_') && device.id.slice(5) === deviceId) ||
+      (deviceId.startsWith('tuya_') && device.external_id === deviceId.slice(5))
+    )?.[1]
+    const linkedArea = linked?.find(entity => entity.area_id)?.area_id ||
+      linked?.find(entity => entity.attributes?.area_id)?.attributes?.area_id
+    if (linkedArea) device.area_id = String(linkedArea)
   }
 
   for (const [deviceId, relatedEntities] of entitiesByDevice) {

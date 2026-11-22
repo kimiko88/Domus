@@ -155,9 +155,108 @@ func (m *DPSMapper) MapDPSToEntity(category DeviceCategory, dps map[string]any) 
 		for k, v := range dps {
 			result.Attributes["dp_"+k] = v
 		}
+		// Common Tuya thermo-hygrometers (for example WSDCGQ profiles) expose
+		// temperature on DP1 and humidity on DP2. Keep the raw datapoints and
+		// only infer climate semantics when the values need Tuya scaling or the
+		// configured device name explicitly identifies a climate sensor.
+		enrichTuyaClimateSensorAttributes(result.Attributes, "")
 	}
 
 	return result
+}
+
+// enrichTuyaClimateSensorAttributes keeps generic Tuya sensors out of Climate
+// & History unless there is evidence that DP1/DP2 represent temperature and
+// humidity. Existing cloud telemetry is retained and takes precedence.
+func enrichTuyaClimateSensorAttributes(attributes map[string]any, deviceName string) {
+	if attributes == nil {
+		return
+	}
+
+	name := strings.ToLower(strings.TrimSpace(deviceName))
+	nameHint := strings.Contains(name, "temp") || strings.Contains(name, "humidity") ||
+		strings.Contains(name, "humedad") || strings.Contains(name, "humidité") ||
+		strings.Contains(name, "umid") || strings.Contains(name, "влаж") ||
+		strings.Contains(name, "feucht") || strings.Contains(name, "moisture") ||
+		strings.Contains(name, "thermo") || strings.Contains(name, "termomet") ||
+		strings.Contains(name, "igromet")
+	alreadyMarked, _ := attributes["tuya_climate_source"].(bool)
+
+	temperatureRaw, hasTemperature := toFloat(attributes["dp_1"])
+	humidityRaw, hasHumidity := toFloat(attributes["dp_2"])
+	temperature, temperatureScaled, temperatureOK := normalizeTuyaTemperatureDPS(temperatureRaw)
+	humidity, humidityScaled, humidityOK := normalizeTuyaHumidityDPS(humidityRaw)
+
+	// Some Tuya products expose only one climate measurement. Recognize those
+	// when the configured name identifies the sensor or the raw value clearly
+	// uses Tuya's tenths/hundredths scaling. A plausible DP1+DP2 pair is treated
+	// as a thermo-hygrometer when either value provides that evidence.
+	pairEvidence := hasTemperature && hasHumidity && temperatureOK && humidityOK &&
+		(nameHint || temperatureScaled || humidityScaled || alreadyMarked)
+	hasTemperatureSource := hasTemperature && temperatureOK &&
+		(nameHint || temperatureScaled || alreadyMarked || pairEvidence)
+	hasHumiditySource := hasHumidity && humidityOK &&
+		(nameHint || humidityScaled || alreadyMarked || pairEvidence)
+	if !hasTemperatureSource && !hasHumiditySource {
+		return
+	}
+
+	kind := "temperature_humidity"
+	deviceClass := "temperature"
+	unit := "°C"
+	if hasTemperatureSource && !hasHumiditySource {
+		kind = "temperature"
+	} else if hasHumiditySource && !hasTemperatureSource {
+		kind = "humidity"
+		deviceClass = "humidity"
+		unit = "%"
+	}
+
+	// Once the DPS profile is recognized, the current local datapoints are
+	// authoritative. Replace previous values so repeated LAN updates do not
+	// leave Climate & History stuck on the first reading.
+	if hasTemperatureSource {
+		attributes["current_temperature"] = temperature
+	}
+	if hasHumiditySource {
+		attributes["current_humidity"] = humidity
+	}
+	if value, ok := attributes["device_class"].(string); !ok || strings.TrimSpace(value) == "" {
+		attributes["device_class"] = deviceClass
+	}
+	if value, ok := attributes["unit_of_measurement"].(string); !ok || strings.TrimSpace(value) == "" {
+		attributes["unit_of_measurement"] = unit
+	}
+	attributes["tuya_climate_source"] = true
+	attributes["tuya_sensor_kind"] = kind
+}
+
+// normalizeTuyaTemperatureDPS converts a DP1 value to degrees Celsius where
+// possible. Values already in the plausible range are treated as unscaled.
+func normalizeTuyaTemperatureDPS(value float64) (float64, bool, bool) {
+	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= -50 && value <= 70 {
+		return value, false, true
+	}
+	for _, scale := range []float64{10, 100, 1000} {
+		normalized := value / scale
+		if !math.IsNaN(normalized) && !math.IsInf(normalized, 0) && normalized >= -50 && normalized <= 70 {
+			return normalized, true, true
+		}
+	}
+	return 0, false, false
+}
+
+func normalizeTuyaHumidityDPS(value float64) (float64, bool, bool) {
+	if !math.IsNaN(value) && !math.IsInf(value, 0) && value >= 0 && value <= 100 {
+		return value, false, true
+	}
+	for _, scale := range []float64{10, 100, 1000} {
+		normalized := value / scale
+		if !math.IsNaN(normalized) && !math.IsInf(normalized, 0) && normalized >= 0 && normalized <= 100 {
+			return normalized, true, true
+		}
+	}
+	return 0, false, false
 }
 
 // MapCommandToDPS converts a Domus entity command into a Tuya DPS payload.
