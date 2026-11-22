@@ -5,12 +5,14 @@ import Chart from 'chart.js/auto'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
-import type { ClimateHistoryPoint, ClimateHistorySettings } from '@/api/types'
+import { useDevicesStore } from '@/stores/devices'
+import type { ClimateHistoryPoint, ClimateHistorySettings, Device, Entity } from '@/api/types'
 
 const { t, locale } = useI18n()
 const store = useClimateHistoryStore()
 const entitiesStore = useEntitiesStore()
 const areasStore = useAreasStore()
+const devicesStore = useDevicesStore()
 
 type RangeKey = '24h' | '7d' | '30d' | 'custom'
 type MetricKey = 'temperature' | 'humidity' | 'target_temperature'
@@ -46,6 +48,50 @@ const availableSeries = computed(() => {
   })
   return [...map.entries()].map(([id, name]) => ({ id, name }))
 })
+
+function isClimateSourceEntity(entity: Entity): boolean {
+  if (entity.domain === 'climate') return true
+  if (entity.domain !== 'sensor') return false
+  const attributes = entity.attributes || {}
+  const deviceClass = String(attributes.device_class || '').toLowerCase()
+  const unit = String(attributes.unit_of_measurement || '').toLowerCase()
+  const key = String(entity.entity_key || entity.id || '').toLowerCase()
+  const name = String(entity.name || '').toLowerCase()
+  return deviceClass === 'temperature' || deviceClass === 'humidity' ||
+    ['°c', '°f', 'celsius', 'fahrenheit', 'c', 'f', '%'].includes(unit) ||
+    /temperature|temperatura|humidity|umid/.test(key + ' ' + name)
+}
+
+const availableClimateDevices = computed(() => {
+  const sourceDeviceIDs = new Set(
+    entitiesStore.allEntities
+      .filter(isClimateSourceEntity)
+      .map(entity => entity.device_id)
+      .filter((id): id is string => Boolean(id))
+  )
+  return devicesStore.devices
+    .filter(device => sourceDeviceIDs.has(device.id))
+    .sort((a, b) => a.name.localeCompare(b.name, locale.value))
+})
+
+const allClimateDevicesSelected = computed({
+  get: () => settingsForm.tracked_device_ids === null,
+  set: (all: boolean) => {
+    settingsForm.tracked_device_ids = all ? null : availableClimateDevices.value.map(device => device.id)
+  }
+})
+
+const selectedSourceDeviceCount = computed(() =>
+  settingsForm.tracked_device_ids === null
+    ? availableClimateDevices.value.length
+    : settingsForm.tracked_device_ids.length
+)
+
+function deviceIntegrationDetails(device: Device): string {
+  const integration = device.integration_id || t('climateHistory.sources.unknownIntegration')
+  const status = t('climateHistory.sources.status.' + device.status)
+  return t('climateHistory.sources.deviceDetails', { integration, status })
+}
 
 const filteredPoints = computed(() => store.points.filter(point => {
   const areaMatches = !selectedArea.value || (point.area_id || 'unassigned') === selectedArea.value
@@ -193,7 +239,12 @@ watch(selectedMetric, async () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([store.fetchSettings(), entitiesStore.fetchEntities(), areasStore.fetchAreas().catch(() => [])])
+    await Promise.all([
+      store.fetchSettings(),
+      entitiesStore.fetchEntities(),
+      devicesStore.fetchDevices().catch(() => []),
+      areasStore.fetchAreas().catch(() => [])
+    ])
     Object.assign(settingsForm, store.settings)
   } catch {
     loadError.value = store.error || t('climateHistory.errors.load')
@@ -263,6 +314,40 @@ onBeforeUnmount(() => {
         <option v-for="series in availableSeries" :key="series.id" :value="series.id">{{ series.name }}</option>
       </select>
       <small>{{ t('climateHistory.selectSeriesHint') }}</small>
+    </section>
+
+    <section class="panel sources-panel">
+      <div class="sources-heading">
+        <div>
+          <h2>{{ t('climateHistory.sources.title') }}</h2>
+          <p>{{ t('climateHistory.sources.description') }}</p>
+        </div>
+      </div>
+      <label class="switch-row source-all-toggle">
+        <input v-model="allClimateDevicesSelected" type="checkbox">
+        <span>{{ t('climateHistory.sources.allDevices') }}</span>
+      </label>
+      <div v-if="!allClimateDevicesSelected && availableClimateDevices.length" class="source-device-list">
+        <label v-for="device in availableClimateDevices" :key="device.id" class="source-device">
+          <input v-model="settingsForm.tracked_device_ids" type="checkbox" :value="device.id">
+          <span>
+            <strong>{{ device.name }}</strong>
+            <small>{{ deviceIntegrationDetails(device) }}</small>
+          </span>
+        </label>
+      </div>
+      <p v-if="!availableClimateDevices.length" class="source-hint">{{ t('climateHistory.sources.noneAvailable') }}</p>
+      <p v-else class="source-hint">
+        {{ allClimateDevicesSelected
+          ? t('climateHistory.sources.allHint', { count: availableClimateDevices.length })
+          : t('climateHistory.sources.selectedCount', { count: selectedSourceDeviceCount }) }}
+      </p>
+      <div class="settings-footer">
+        <span v-if="savingMessage" class="feedback" role="status">{{ savingMessage }}</span>
+        <button class="primary-btn" :disabled="store.saving" @click="saveSettings">
+          {{ store.saving ? t('climateHistory.settings.saving') : t('climateHistory.settings.save') }}
+        </button>
+      </div>
     </section>
 
     <section class="panel chart-panel">
@@ -399,6 +484,39 @@ button:disabled { opacity:.55; cursor:not-allowed; }
 .series-panel { display:grid; grid-template-columns:minmax(0,1fr); gap:.45rem; }
 .series-label { font-size:.85rem; font-weight:600; }
 .series-panel small { color:var(--text-muted,#94a3b8); }
+.sources-panel { display:flex; flex-direction:column; gap:.75rem; }
+.sources-heading p { color:var(--text-muted,#94a3b8); margin-top:.3rem; font-size:.85rem; }
+.source-all-toggle { align-self:flex-start; }
+.source-device-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr)); gap:.55rem; }
+.source-device { display:flex; align-items:center; gap:.65rem; min-width:0; padding:.65rem .75rem; border:1px solid var(--border-color,rgba(148,163,184,.25)); border-radius:.65rem; cursor:pointer; }
+.source-device input { width:1.1rem; height:1.1rem; flex:none; accent-color:var(--accent-color,#0ea5e9); }
+.source-device>span { display:flex; flex-direction:column; gap:.2rem; min-width:0; }
+.source-device strong { color:var(--text-primary,#0f172a); overflow-wrap:anywhere; font-size:.88rem; }
+.source-device small,.source-hint { color:var(--text-muted,#64748b); font-size:.78rem; overflow-wrap:anywhere; }
+.climate-history-view select option { color:var(--text-primary,#0f172a); background-color:var(--surface-card,#fff); }
+:global(:root[data-theme="light"]) .climate-history-view select,
+:global([data-theme="light"]) .climate-history-view select {
+  color-scheme:light;
+  color:#0f172a;
+  background-color:#fff;
+}
+:global(:root[data-theme="light"]) .climate-history-view select option,
+:global([data-theme="light"]) .climate-history-view select option {
+  color:#0f172a;
+  background-color:#fff;
+}
+:global(:root[data-theme="dark"]) .climate-history-view select,
+:global([data-theme="dark"]) .climate-history-view select {
+  color-scheme:dark;
+  color:#e2e8f0;
+  background-color:#111827;
+}
+:global(:root[data-theme="dark"]) .climate-history-view select option,
+:global([data-theme="dark"]) .climate-history-view select option {
+  color:#e2e8f0;
+  background-color:#111827;
+}
+
 .chart-panel { min-height:19rem; }
 .sample-count { white-space:nowrap; color:var(--text-muted,#94a3b8); font-size:.8rem; }
 .chart-wrap { height:18rem; position:relative; margin-top:1rem; }
