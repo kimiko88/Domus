@@ -88,6 +88,7 @@ export interface Entity {
   id: string
   entity_key?: string
   device_id?: string
+  unit_of_measurement?: string
   domain: EntityDomain
   name: string
   state: string
@@ -1289,6 +1290,8 @@ export interface StorePackage {
 export interface ClimateHistorySettings {
   enabled: boolean
   interval_minutes: number
+  // null means all compatible integration devices; [] means no devices.
+  tracked_device_ids: string[] | null
   record_temperature: boolean
   record_humidity: boolean
   record_thermostat: boolean

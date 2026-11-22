@@ -3528,6 +3528,21 @@
     "insightsTitle": "Comfort e anomalie",
     "insightsDescription": "Avvisi generati dallo storico in base alle impostazioni attive.",
     "unassigned": "Senza stanza",
+    "sources": {
+      "title": "Dispositivi delle integrazioni",
+      "description": "Scegli quali dispositivi collegati alle integrazioni devono fornire le misurazioni allo storico climatico.",
+      "allDevices": "Registra tutti i dispositivi climatici compatibili",
+      "allHint": "Verranno raccolti i dati di tutti i {count} dispositivi compatibili.",
+      "selectedCount": "{count} dispositivi selezionati per la raccolta.",
+      "noneAvailable": "Non sono stati trovati dispositivi con un'entità collegata di temperatura, umidità o termostato. Collega un'integrazione e verifica che le sue entità siano associate a un dispositivo.",
+      "unknownIntegration": "Integrazione sconosciuta",
+      "deviceDetails": "{integration} · {status}",
+      "status": {
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Stato sconosciuto"
+      }
+    },
     "settings": {
       "title": "Impostazioni della registrazione e delle analisi",
       "description": "La raccolta avviene sul backend anche quando la dashboard è chiusa. I campioni recenti vengono compattati in medie/minimi/massimi orari e poi giornalieri.",

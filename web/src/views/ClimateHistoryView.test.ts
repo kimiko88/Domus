@@ -5,6 +5,7 @@ import ClimateHistoryView from './ClimateHistoryView.vue'
 import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/climateHistory'
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
+import { useDevicesStore } from '@/stores/devices'
 import { i18n, setLanguage } from '@/locales'
 
 vi.mock('chart.js/auto', () => ({
@@ -24,6 +25,32 @@ describe('ClimateHistoryView.vue', () => {
     const store = useClimateHistoryStore()
     const entities = useEntitiesStore()
     const areas = useAreasStore()
+    const devices = useDevicesStore()
+    entities.entities = {
+      'sensor-bedroom': {
+        id: 'sensor-bedroom', entity_key: 'sensor.bedroom_temperature', device_id: 'device-bedroom',
+        domain: 'sensor', name: 'Bedroom temperature', state: '21.5', unit_of_measurement: '°C',
+        attributes: { device_class: 'temperature' },
+        last_changed: '', last_updated: ''
+      },
+      'sensor-office': {
+        id: 'sensor-office', entity_key: 'sensor.office_temperature', device_id: 'device-office',
+        domain: 'sensor', name: 'Office temperature', state: '19.5',
+        attributes: { device_class: 'temperature' },
+        last_changed: '', last_updated: ''
+      },
+      'switch-not-climate': {
+        id: 'switch-not-climate', entity_key: 'switch.office', device_id: 'device-switch',
+        domain: 'switch', name: 'Office switch', state: 'off',
+        attributes: {}, last_changed: '', last_updated: ''
+      }
+    }
+    devices.devices = [
+      { id: 'device-bedroom', name: 'Bedroom sensor', integration_id: 'tuya', status: 'online', created_at: '', updated_at: '' },
+      { id: 'device-office', name: 'Office sensor', integration_id: 'mqtt', status: 'offline', created_at: '', updated_at: '' },
+      { id: 'device-switch', name: 'Office switch', integration_id: 'mqtt', status: 'online', created_at: '', updated_at: '' }
+    ]
+    vi.spyOn(devices, 'fetchDevices').mockImplementation(async () => devices.devices)
     vi.spyOn(store, 'fetchSettings').mockImplementation(async () => {
       Object.assign(store.settings, defaultClimateHistorySettings)
       return store.settings
@@ -51,7 +78,7 @@ describe('ClimateHistoryView.vue', () => {
         sample_count: 1, from: '2026-11-21T00:00:00Z', to: '2026-11-21T23:59:59Z'
       }
     })
-    return { store, refresh, wrapper: mount(ClimateHistoryView, { global: { plugins: [i18n] } }) }
+    return { store, refresh, devices, wrapper: mount(ClimateHistoryView, { global: { plugins: [i18n] } }) }
   }
 
   it('renders multi-room climate history, range filters and measurements', async () => {
@@ -74,6 +101,31 @@ describe('ClimateHistoryView.vue', () => {
     await flushPromises()
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(refresh.mock.calls[0][0]).toHaveProperty('from')
+  })
+
+  it('selects climate-capable integration devices and persists an explicit source selection', async () => {
+    const { wrapper, store } = setupView()
+    const saveSpy = vi.spyOn(store, 'saveSettings').mockImplementation(async settings => {
+      Object.assign(store.settings, settings)
+      return store.settings
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.source-device')).toHaveLength(0)
+    expect((wrapper.find('.source-all-toggle input').element as HTMLInputElement).checked).toBe(true)
+
+    await wrapper.find('.source-all-toggle input').setValue(false)
+    const sourceInputs = wrapper.findAll('.source-device input')
+    expect(sourceInputs).toHaveLength(2)
+
+    const officeDevice = sourceInputs.find(input => (input.element as HTMLInputElement).value === 'device-office')
+    expect(officeDevice).toBeTruthy()
+    await officeDevice!.setValue(false)
+    await wrapper.find('.sources-panel .primary-btn').trigger('click')
+    await flushPromises()
+
+    expect(saveSpy).toHaveBeenCalledTimes(1)
+    expect(saveSpy.mock.calls[0][0].tracked_device_ids).toEqual(['device-bedroom'])
   })
 
   it('allows the user to disable optional climate analyses and persists settings', async () => {

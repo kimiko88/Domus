@@ -3528,6 +3528,21 @@
     "insightsTitle": "Komfort und Auffälligkeiten",
     "insightsDescription": "Aus dem Verlauf abgeleitete Hinweise gemäß den aktivierten Einstellungen.",
     "unassigned": "Kein Raum",
+    "sources": {
+      "title": "Integrationsgeräte",
+      "description": "Wählen Sie aus, welche verbundenen Integrationsgeräte Messwerte für den Raumklima-Verlauf liefern.",
+      "allDevices": "Alle kompatiblen Klimageräte aufzeichnen",
+      "allHint": "Daten werden von allen {count} kompatiblen Geräten erfasst.",
+      "selectedCount": "{count} Geräte für die Erfassung ausgewählt.",
+      "noneAvailable": "Keine Integrationsgeräte mit verknüpfter Temperatur-, Feuchtigkeits- oder Thermostat-Entität gefunden. Verbinden Sie eine Integration und ordnen Sie ihre Entitäten einem Gerät zu.",
+      "unknownIntegration": "Unbekannte Integration",
+      "deviceDetails": "{integration} · {status}",
+      "status": {
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Status unbekannt"
+      }
+    },
     "settings": {
       "title": "Einstellungen für Aufzeichnung und Analyse",
       "description": "Die Erfassung läuft im Backend auch bei geschlossenem Dashboard. Aktuelle Messwerte werden zu stündlichen und anschließend täglichen Mittel-/Minimal-/Maximalwerten verdichtet.",

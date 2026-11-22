@@ -4,6 +4,7 @@ package climate_history
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,9 @@ var ErrInvalidSettings = errors.New("climate history: invalid settings")
 type Settings struct {
 	Enabled                     bool    `json:"enabled"`
 	IntervalMinutes             int     `json:"interval_minutes"`
+	// TrackedDeviceIDs selects integration devices used by the collector. nil keeps
+	// the legacy "all compatible devices" behaviour; an empty slice records none.
+	TrackedDeviceIDs            []string `json:"tracked_device_ids"`
 	RecordTemperature           bool    `json:"record_temperature"`
 	RecordHumidity              bool    `json:"record_humidity"`
 	RecordThermostat             bool    `json:"record_thermostat"`
@@ -50,6 +54,19 @@ func DefaultSettings() Settings {
 }
 
 func (s Settings) Validate() error {
+	if len(s.TrackedDeviceIDs) > 512 {
+		return ErrInvalidSettings
+	}
+	seenDeviceIDs := make(map[string]struct{}, len(s.TrackedDeviceIDs))
+	for _, id := range s.TrackedDeviceIDs {
+		if id == "" || len(id) > 128 || strings.TrimSpace(id) != id {
+			return ErrInvalidSettings
+		}
+		if _, exists := seenDeviceIDs[id]; exists {
+			return ErrInvalidSettings
+		}
+		seenDeviceIDs[id] = struct{}{}
+	}
 	switch s.IntervalMinutes {
 	case 1, 2, 5, 10, 15, 30, 60:
 	default:

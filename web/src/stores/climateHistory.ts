@@ -20,6 +20,7 @@ export interface ClimateHistoryQuery {
 export const defaultClimateHistorySettings: ClimateHistorySettings = {
   enabled: true,
   interval_minutes: 10,
+  tracked_device_ids: null,
   record_temperature: true,
   record_humidity: true,
   record_thermostat: true,

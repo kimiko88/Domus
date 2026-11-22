@@ -3528,6 +3528,21 @@
     "insightsTitle": "Confort y anomalías",
     "insightsDescription": "Avisos generados a partir del historial según los ajustes activos.",
     "unassigned": "Sin habitación",
+    "sources": {
+      "title": "Dispositivos de integraciones",
+      "description": "Elige qué dispositivos conectados mediante integraciones proporcionan mediciones al historial climático.",
+      "allDevices": "Registrar todos los dispositivos climáticos compatibles",
+      "allHint": "Se recopilarán datos de los {count} dispositivos compatibles.",
+      "selectedCount": "{count} dispositivos seleccionados para la recopilación.",
+      "noneAvailable": "No se encontraron dispositivos de integración con una entidad vinculada de temperatura, humedad o termostato. Conecta una integración y comprueba que sus entidades estén asociadas a un dispositivo.",
+      "unknownIntegration": "Integración desconocida",
+      "deviceDetails": "{integration} · {status}",
+      "status": {
+        "online": "En línea",
+        "offline": "Desconectado",
+        "unknown": "Estado desconocido"
+      }
+    },
     "settings": {
       "title": "Ajustes de registro y análisis",
       "description": "La recopilación se ejecuta en el backend aunque el panel esté cerrado. Las muestras recientes se compactan en medias/mínimos/máximos horarios y después diarios.",

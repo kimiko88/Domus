@@ -3528,6 +3528,21 @@
     "insightsTitle": "Confort et anomalies",
     "insightsDescription": "Informations issues de l’historique selon les options activées.",
     "unassigned": "Sans pièce",
+    "sources": {
+      "title": "Appareils des intégrations",
+      "description": "Choisissez quels appareils connectés par les intégrations fournissent des mesures à l’historique climatique.",
+      "allDevices": "Enregistrer tous les appareils climatiques compatibles",
+      "allHint": "Les données seront collectées depuis les {count} appareils compatibles.",
+      "selectedCount": "{count} appareils sélectionnés pour la collecte.",
+      "noneAvailable": "Aucun appareil d’intégration avec une entité de température, d’humidité ou de thermostat associée n’a été trouvé. Connectez une intégration et associez ses entités à un appareil.",
+      "unknownIntegration": "Intégration inconnue",
+      "deviceDetails": "{integration} · {status}",
+      "status": {
+        "online": "En ligne",
+        "offline": "Hors ligne",
+        "unknown": "État inconnu"
+      }
+    },
     "settings": {
       "title": "Paramètres de collecte et d’analyse",
       "description": "La collecte fonctionne sur le serveur même lorsque le tableau de bord est fermé. Les données récentes sont compactées en moyennes/minima/maxima horaires puis journaliers.",

@@ -41,6 +41,28 @@ func (s *Service) UpdateSettings(ctx context.Context, settings domclimate.Settin
 	if err := settings.Validate(); err != nil {
 		return err
 	}
+	if settings.TrackedDeviceIDs != nil && len(settings.TrackedDeviceIDs) > 0 {
+		if s.entities == nil {
+			return domclimate.ErrInvalidSettings
+		}
+		items, err := s.entities.List(ctx, entity.ListFilter{})
+		if err != nil {
+			return fmt.Errorf("validate climate history device selection: %w", err)
+		}
+		compatible := make(map[string]struct{})
+		sourceSettings := domclimate.DefaultSettings()
+		for _, item := range items {
+			if item == nil || item.DeviceID == "" || !isTrackedClimateEntity(item, sourceSettings) {
+				continue
+			}
+			compatible[item.DeviceID] = struct{}{}
+		}
+		for _, deviceID := range settings.TrackedDeviceIDs {
+			if _, ok := compatible[deviceID]; !ok {
+				return domclimate.ErrInvalidSettings
+			}
+		}
+	}
 	return s.repo.SaveSettings(ctx, settings)
 }
 
@@ -74,6 +96,9 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, ent := range entities {
+		if settings.TrackedDeviceIDs != nil && (ent == nil || !containsEntity(settings.TrackedDeviceIDs, ent.DeviceID)) {
+			continue
+		}
 		if entityUnavailable(ent) {
 			continue
 		}
@@ -416,7 +441,8 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 				if filter.EntityIDs != nil && !containsEntity(filter.EntityIDs, liveEntity.ID) {
 					continue
 				}
-				if isTrackedClimateEntity(liveEntity, settings) {
+				if isTrackedClimateEntity(liveEntity, settings) &&
+					(settings.TrackedDeviceIDs == nil || containsEntity(settings.TrackedDeviceIDs, liveEntity.DeviceID)) {
 					area := liveEntity.AreaID
 					if area == "" {
 						area = "unassigned"
