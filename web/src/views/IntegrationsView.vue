@@ -2425,7 +2425,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
+          <div v-if="isTuyaThermostatDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
               <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }}</label>
               <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">
