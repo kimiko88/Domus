@@ -21,6 +21,8 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/interfaces/http/handlers"
+	"github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -463,6 +465,8 @@ func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
 	})
 	require.NoError(t, err)
 	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+deviceID+"/area", bytes.NewReader(body))
+	admin := &user.User{ID: "admin", Username: "admin", Role: user.RoleAdmin}
+	request = request.WithContext(middleware.WithUser(request.Context(), admin))
 	result := httptest.NewRecorder()
 	router.ServeHTTP(result, request)
 	require.Equal(t, http.StatusOK, result.Code, result.Body.String())
@@ -501,6 +505,32 @@ func TestDeviceHandler_UpdateAreaRegistersCloudOnlyTuyaDevice(t *testing.T) {
 	cleared, err := repos.Devices.GetByID(ctx, deviceID)
 	require.NoError(t, err)
 	assert.Empty(t, cleared.AreaID)
+}
+
+func TestDeviceHandler_UpdateAreaRejectsCloudOnlyRegistrationForOperators(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
+		ID: "office", Name: "Office", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+	handler := handlers.NewDeviceHandler(repos.Devices).
+		WithEntities(repos.Entities).
+		WithAreas(repos.Areas).
+		WithIntegrations(repos.Integrations)
+	router := chi.NewRouter()
+	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
+
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/devices/tuya_cloud-only/area",
+		bytes.NewBufferString(`{"area_id":"office","external_id":"cloud-only","name":"Cloud-only sensor","integration_id":"tuya_cloud","online":true}`))
+	operator := &user.User{ID: "operator", Username: "operator", Role: user.RoleOperator}
+	request = request.WithContext(middleware.WithUser(request.Context(), operator))
+	result := httptest.NewRecorder()
+	router.ServeHTTP(result, request)
+	require.Equal(t, http.StatusForbidden, result.Code, result.Body.String())
+	_, err := repos.Devices.GetByID(ctx, "tuya_cloud-only")
+	require.Error(t, err)
+	_, err = repos.Integrations.GetByID(ctx, "tuya_cloud")
+	require.Error(t, err)
 }
 
 func TestDeviceHandler_DoesNotCreateArbitraryMissingDeviceFromRoomPayload(t *testing.T) {
