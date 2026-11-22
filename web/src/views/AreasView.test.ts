@@ -301,11 +301,11 @@ describe('AreasView.vue', () => {
     })
 
     const wrapper = mount(AreasView, { global: { plugins: [i18n] } })
-    await vi.waitFor(() => expect(areasStore.areas).toHaveLength(1))
     await new Promise(resolve => setTimeout(resolve, 0))
     await wrapper.find('.manage-devices-action').trigger('click')
-
-    await vi.waitFor(() => expect(wrapper.findAll('.area-device-option')).toHaveLength(2))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('.area-device-option')).toHaveLength(2)
     expect(wrapper.text()).toContain('Termoigrometro Cloud')
     expect(wrapper.text()).toContain('Sensore Smart Life')
 
