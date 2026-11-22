@@ -285,6 +285,7 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 
 		existingEnt, _ := a.entRepo.GetByKey(ctx, cfg.EntityKey)
 		entDomain := a.mapper.MapDPSToEntity(cfg.Category, nil).Domain
+		hasInitialTelemetry := cfg.InitialState != "" || cfg.InitialAttributes != ""
 		initialState := cfg.InitialState
 		if initialState == "" {
 			initialState = `{"state":false}`
@@ -318,18 +319,22 @@ func (a *Adapter) RegisterAndPersistDevice(ctx context.Context, cfg DeviceConfig
 			existingEnt.Domain = entDomain
 			existingEnt.Name = cfg.Name
 			existingEnt.Writable = true
-			existingEnt.State = initialState
-			existingEnt.Attributes = initialAttributes
 			existingEnt.Available = true
 			existingEnt.LastUpdatedAt = now
+			if hasInitialTelemetry {
+				existingEnt.State = initialState
+				existingEnt.Attributes = initialAttributes
+			}
 			if err := a.entRepo.Update(ctx, existingEnt); err != nil {
 				slog.Warn("tuya_local: failed to refresh entity metadata", "entity_key", cfg.EntityKey, "error", err)
 			}
 			// EntityRepository.Update intentionally changes only metadata. Persist
-			// the refreshed initial state and cloud telemetry separately so a
-			// re-sync also updates existing climate/sensor entities.
-			if err := a.entRepo.UpdateState(ctx, existingEnt.ID, initialState, initialAttributes, true, now); err != nil {
-				slog.Warn("tuya_local: failed to refresh entity telemetry", "entity_key", cfg.EntityKey, "error", err)
+			// initial state only when Tuya returned telemetry: otherwise preserve the
+			// existing switch/light state instead of resetting it to a default.
+			if hasInitialTelemetry {
+				if err := a.entRepo.UpdateState(ctx, existingEnt.ID, initialState, initialAttributes, true, now); err != nil {
+					slog.Warn("tuya_local: failed to refresh entity telemetry", "entity_key", cfg.EntityKey, "error", err)
+				}
 			}
 		}
 	}
