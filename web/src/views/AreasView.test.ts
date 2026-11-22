@@ -264,6 +264,18 @@ describe('AreasView.vue', () => {
     vi.spyOn(entitiesStore, 'fetchEntities').mockResolvedValue([])
     vi.spyOn(devicesStore, 'fetchDevices').mockResolvedValue([])
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/tuya-local/devices') {
+        return {
+          devices: [{
+            device_id: 'local-only-sensor',
+            name: 'Sensore Tuya LAN',
+            category: 'sensor',
+            connected: true,
+            ip: '192.168.1.55',
+            entity_key: 'sensor.tuya_local-only-sensor'
+          }]
+        }
+      }
       if (url === '/api/v1/integrations/tuya-cloud/config') return { configured: true }
       if (url === '/api/v1/integrations/tuya-cloud/devices') {
         return {
@@ -305,7 +317,8 @@ describe('AreasView.vue', () => {
     await wrapper.find('.manage-devices-action').trigger('click')
     await new Promise(resolve => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
-    expect(wrapper.findAll('.area-device-option')).toHaveLength(2)
+    expect(wrapper.findAll('.area-device-option')).toHaveLength(3)
+    expect(wrapper.text()).toContain('Sensore Tuya LAN')
     expect(wrapper.text()).toContain('Termoigrometro Cloud')
     expect(wrapper.text()).toContain('Sensore Smart Life')
 
@@ -314,7 +327,16 @@ describe('AreasView.vue', () => {
     }
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
-    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_cloud-only-thermo/area', {
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_local-only-sensor/area', {
+      area_id: 'living-room',
+      external_id: 'local-only-sensor',
+      name: 'Sensore Tuya LAN',
+      integration_id: 'tuya_local',
+      online: true,
+      manufacturer: 'Tuya',
+      model: 'sensor'
+    })
+        expect(putSpy).toHaveBeenCalledWith('/api/v1/devices/tuya_cloud-only-thermo/area', {
       area_id: 'living-room',
       external_id: 'cloud-only-thermo',
       name: 'Termoigrometro Cloud',
