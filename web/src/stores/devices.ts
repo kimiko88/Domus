@@ -15,6 +15,31 @@ export const useDevicesStore = defineStore('devices', () => {
   const byId = (id: string): Device | undefined => (devices.value || []).find((d) => d.id === id)
   const byArea = (areaId: string): Device[] => (devices.value || []).filter((d) => d.area_id === areaId)
 
+  async function updateDeviceArea(deviceId: string, areaId: string | null): Promise<{
+    device_id: string
+    area_id: string
+    device_updated: boolean
+    updated_entities: number
+  }> {
+    try {
+      error.value = null
+      const result = await apiClient.put<{
+        device_id: string
+        area_id: string
+        device_updated: boolean
+        updated_entities: number
+      }>(`/api/v1/devices/${encodeURIComponent(deviceId)}/area`, {
+        area_id: areaId || null
+      })
+      const existing = devices.value.find((device) => device.id === deviceId)
+      if (existing) existing.area_id = result.area_id || undefined
+      return result
+    } catch (err: any) {
+      error.value = i18n.global.t('devices.view.roomAssignErrorMessage')
+      throw err
+    }
+  }
+
   async function fetchDevices(): Promise<Device[]> {
     try {
       loading.value = true
@@ -51,6 +76,7 @@ export const useDevicesStore = defineStore('devices', () => {
     error,
     byId,
     byArea,
-    fetchDevices
+    fetchDevices,
+    updateDeviceArea
   }
 })

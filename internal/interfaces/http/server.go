@@ -463,7 +463,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		// Domain repository routes (Areas, Devices, Entities)
 		if srv.repos != nil {
 			areaH := handlers.NewAreaHandler(srv.repos.Areas)
-			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).WithEntities(srv.repos.Entities)
+			deviceH := handlers.NewDeviceHandler(srv.repos.Devices).
+				WithEntities(srv.repos.Entities).
+				WithAreas(srv.repos.Areas)
 			entityH := handlers.NewEntityHandler(srv.repos.Entities, srv.bus).WithClimateEngine(srv.autoEngine)
 			if xiaomiCloudHandler != nil {
 				entityH.WithXiaomiCloud(xiaomiCloudHandler)
@@ -577,6 +579,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				domainRouter.Route("/devices", func(devRouter chi.Router) {
 					devRouter.Get("/", deviceH.List)
 					devRouter.Get("/{id}", deviceH.GetByID)
+					if srv.authService != nil {
+						devRouter.With(domusmw.RequireRole(user.RoleAdmin)).Put("/{id}/area", deviceH.UpdateArea)
+					} else {
+						devRouter.Put("/{id}/area", deviceH.UpdateArea)
+					}
 				})
 
 				if srv.climateHistory != nil {

@@ -1762,7 +1762,7 @@ onMounted(() => {
 
         <button
           :class="['tab-btn', { active: activeTab === 'cloud' }]"
-          @click="activeTab = 'cloud'; fetchTuyaConfig()"
+          @click="activeTab = 'cloud'"
         >
           <Globe :size="16" />
           <span>{{ t('integrations.view.smartLifeCloud') }}</span>
@@ -2425,7 +2425,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <div v-if="isTuyaClimateDevice(device)" class="tuya-climate-controls">
+          <div v-if="isTuyaThermostatDevice(device)" class="tuya-climate-controls">
             <div class="tuya-temperature-control">
               <label :for="`tuya-temp-${device.id}`">{{ t('integrations.view.targetTemperature') }}</label>
               <select :id="`tuya-temp-${device.id}`" v-model="tuyaTemperatureInputs[device.id]">

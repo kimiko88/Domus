@@ -465,7 +465,12 @@
       "devicesUpdatedMessage": "Elenco dispositivi e stato delle integrazioni aggiornati.",
       "refreshErrorTitle": "Aggiornamento non riuscito",
       "refreshErrorMessage": "Impossibile aggiornare i dispositivi.",
-      "filteredCount": "{filtered} di {total} dispositivi"
+      "filteredCount": "{filtered} di {total} dispositivi",
+      "noRoom": "Non assegnato",
+      "roomAssignedTitle": "Stanza aggiornata",
+      "roomAssignedMessage": "{device} è stato assegnato a {room}.",
+      "roomAssignErrorTitle": "Assegnazione stanza non riuscita",
+      "roomAssignErrorMessage": "Impossibile aggiornare la stanza del dispositivo."
     }
   },
   "integrations": {

@@ -465,7 +465,12 @@
       "devicesUpdatedMessage": "Geräteliste und Integrationsstatus wurden aktualisiert.",
       "refreshErrorTitle": "Aktualisierung fehlgeschlagen",
       "refreshErrorMessage": "Geräte konnten nicht aktualisiert werden.",
-      "filteredCount": "{filtered} von {total} Geräten"
+      "filteredCount": "{filtered} von {total} Geräten",
+      "noRoom": "Nicht zugewiesen",
+      "roomAssignedTitle": "Raum aktualisiert",
+      "roomAssignedMessage": "{device} wurde {room} zugewiesen.",
+      "roomAssignErrorTitle": "Raumzuweisung fehlgeschlagen",
+      "roomAssignErrorMessage": "Der Raum des Geräts konnte nicht aktualisiert werden."
     }
   },
   "integrations": {

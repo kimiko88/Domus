@@ -465,7 +465,12 @@
       "devicesUpdatedMessage": "Se han actualizado la lista de dispositivos y el estado de las integraciones.",
       "refreshErrorTitle": "Error al actualizar",
       "refreshErrorMessage": "No se pudieron actualizar los dispositivos.",
-      "filteredCount": "{filtered} de {total} dispositivos"
+      "filteredCount": "{filtered} de {total} dispositivos",
+      "noRoom": "Sin asignar",
+      "roomAssignedTitle": "Habitación actualizada",
+      "roomAssignedMessage": "{device} se ha asignado a {room}.",
+      "roomAssignErrorTitle": "No se pudo asignar la habitación",
+      "roomAssignErrorMessage": "No se pudo actualizar la habitación del dispositivo."
     }
   },
   "integrations": {
