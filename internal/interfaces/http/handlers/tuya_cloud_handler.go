@@ -815,6 +815,16 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		climateSource := isTuyaClimateSource(dev, cat)
 		localKey := strings.TrimSpace(dev.LocalKey)
+		if localKey == "" {
+			// Reuse a Local Key already stored by this Domus installation when
+			// Tuya omits it from a later account/device-list response.
+			for _, existing := range h.tuyaLocal.GetConfiguredDevices() {
+				if existing.DeviceID == dev.ID {
+					localKey = existing.LocalKey
+					break
+				}
+			}
+		}
 
 		// Tuya does not guarantee a Local Key for every product or account
 		// permission package. Temperature/humidity sensors and thermostats must
