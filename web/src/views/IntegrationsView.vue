@@ -1762,7 +1762,7 @@ onMounted(() => {
 
         <button
           :class="['tab-btn', { active: activeTab === 'cloud' }]"
-          @click="activeTab = 'cloud'; fetchTuyaConfig()"
+          @click="activeTab = 'cloud'"
         >
           <Globe :size="16" />
           <span>{{ t('integrations.view.smartLifeCloud') }}</span>
