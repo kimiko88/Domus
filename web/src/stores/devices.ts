@@ -15,10 +15,15 @@ export const useDevicesStore = defineStore('devices', () => {
   const byId = (id: string): Device | undefined => (devices.value || []).find((d) => d.id === id)
   const byArea = (areaId: string): Device[] => (devices.value || []).filter((d) => d.area_id === areaId)
 
-  async function updateDeviceArea(deviceId: string, areaId: string | null): Promise<{
+  async function updateDeviceArea(
+    deviceId: string,
+    areaId: string | null,
+    metadata?: Pick<Device, 'external_id' | 'name' | 'integration_id' | 'online' | 'manufacturer' | 'model'>
+  ): Promise<{
     device_id: string
     area_id: string
     device_updated: boolean
+    device_created?: boolean
     updated_entities: number
   }> {
     try {
@@ -27,9 +32,11 @@ export const useDevicesStore = defineStore('devices', () => {
         device_id: string
         area_id: string
         device_updated: boolean
+        device_created?: boolean
         updated_entities: number
       }>(`/api/v1/devices/${encodeURIComponent(deviceId)}/area`, {
-        area_id: areaId || null
+        area_id: areaId || null,
+        ...(metadata || {})
       })
       const existing = devices.value.find((device) => device.id === deviceId)
       if (existing) existing.area_id = result.area_id || undefined
