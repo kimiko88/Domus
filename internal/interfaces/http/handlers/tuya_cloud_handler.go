@@ -306,10 +306,12 @@ func inferTuyaDeviceCategoryAndTelemetry(dev tuya_cloud.Device) (tuya_local.Devi
 	hasSensorTelemetry := containsAnyTuyaCode(statusCodes,
 		"va_temperature", "current_temperature", "temp_current", "current_temp", "temperature",
 		"va_humidity", "current_humidity", "humidity_value", "humidity")
-	isThermostatName := strings.Contains(name, "thermostat") || strings.Contains(name, "climate") ||
-		strings.Contains(name, "radiator") || strings.Contains(name, "heater")
-	isClimateName := isThermostatName || strings.Contains(name, "thermostat valve")
+	isThermostatName := strings.Contains(name, "thermostat") || strings.Contains(name, "termostato") ||
+		strings.Contains(name, "climate") || strings.Contains(name, "radiator") || strings.Contains(name, "heater")
+	isClimateName := isThermostatName
 	isSensorName := strings.Contains(name, "temperature sensor") || strings.Contains(name, "humidity sensor") ||
+		strings.Contains(name, "sensore temperatura") || strings.Contains(name, "sensore umid") ||
+		strings.Contains(name, "termoigrometro") || strings.Contains(name, "termo-igrometro") ||
 		strings.Contains(name, "thermo-hygrometer") || strings.Contains(name, "thermometer") ||
 		strings.Contains(name, "hygrometer") || strings.Contains(name, "temperature and humidity")
 
