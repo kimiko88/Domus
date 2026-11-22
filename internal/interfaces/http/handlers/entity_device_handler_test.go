@@ -12,6 +12,7 @@ import (
 	"time"
 
 	appauto "github.com/domus-hub/domus/internal/application/automation"
+	"github.com/domus-hub/domus/internal/domain/area"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -304,3 +305,90 @@ func TestEntityHandler_ApplyClimateProfile(t *testing.T) {
 		t.Fatal("thermostat profile command by entity_key was not published")
 	}
 }
+
+
+func TestDeviceHandler_UpdateAreaAssignsAndClearsDeviceAndEntityRooms(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	integrationRecord := &integration.Integration{
+		ID: "room-assignment-integration", Type: "test", Name: "Test",
+		Status: "connected", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Integrations.Create(ctx, integrationRecord))
+	require.NoError(t, repos.Areas.Create(ctx, &area.Area{
+		ID: "living-room", Name: "Living room", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	dev := &device.Device{
+		ID: "room-device-1", IntegrationID: integrationRecord.ID,
+		ExternalID: "external-1", Name: "Temperature sensor",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, repos.Devices.Create(ctx, dev))
+	for _, ent := range []*entity.Entity{
+		{
+			ID: "room-sensor-temperature", DeviceID: dev.ID,
+			EntityKey: "sensor.room_temperature", Domain: "sensor",
+			Name: "Room temperature", State: "21.5", Attributes: "{}",
+			Available: true, LastChangedAt: time.Now(), LastUpdatedAt: time.Now(),
+		},
+		{
+			ID: "room-sensor-humidity", DeviceID: dev.ID,
+			EntityKey: "sensor.room_humidity", Domain: "sensor",
+			Name: "Room humidity", State: "45", Attributes: "{}",
+			Available: true, LastChangedAt: time.Now(), LastUpdatedAt: time.Now(),
+		},
+	} {
+		require.NoError(t, repos.Entities.Create(ctx, ent))
+	}
+
+	handler := handlers.NewDeviceHandler(repos.Devices).
+		WithEntities(repos.Entities).
+		WithAreas(repos.Areas)
+	router := chi.NewRouter()
+	router.Put("/api/v1/devices/{id}/area", handler.UpdateArea)
+
+	assign := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+dev.ID+"/area",
+		bytes.NewBufferString(`{"area_id":"living-room"}`))
+	assignResult := httptest.NewRecorder()
+	router.ServeHTTP(assignResult, assign)
+	require.Equal(t, http.StatusOK, assignResult.Code, assignResult.Body.String())
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(assignResult.Body.Bytes(), &response))
+	assert.Equal(t, dev.ID, response["device_id"])
+	assert.Equal(t, "living-room", response["area_id"])
+	assert.Equal(t, float64(2), response["updated_entities"])
+
+	updatedDevice, err := repos.Devices.GetByID(ctx, dev.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "living-room", updatedDevice.AreaID)
+	assignedEntities, err := repos.Entities.List(ctx, entity.ListFilter{DeviceID: dev.ID})
+	require.NoError(t, err)
+	require.Len(t, assignedEntities, 2)
+	for _, ent := range assignedEntities {
+		assert.Equal(t, "living-room", ent.AreaID)
+	}
+
+	invalid := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+dev.ID+"/area",
+		bytes.NewBufferString(`{"area_id":"missing-room"}`))
+	invalidResult := httptest.NewRecorder()
+	router.ServeHTTP(invalidResult, invalid)
+	assert.Equal(t, http.StatusNotFound, invalidResult.Code)
+
+	clear := httptest.NewRequest(http.MethodPut, "/api/v1/devices/"+dev.ID+"/area",
+		bytes.NewBufferString(`{"area_id":null}`))
+	clearResult := httptest.NewRecorder()
+	router.ServeHTTP(clearResult, clear)
+	require.Equal(t, http.StatusOK, clearResult.Code, clearResult.Body.String())
+
+	clearedDevice, err := repos.Devices.GetByID(ctx, dev.ID)
+	require.NoError(t, err)
+	assert.Empty(t, clearedDevice.AreaID)
+	clearedEntities, err := repos.Entities.List(ctx, entity.ListFilter{DeviceID: dev.ID})
+	require.NoError(t, err)
+	for _, ent := range clearedEntities {
+		assert.Empty(t, ent.AreaID)
+	}
+}
+

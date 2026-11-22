@@ -88,6 +88,7 @@ export interface Entity {
   id: string
   entity_key?: string
   device_id?: string
+  area_id?: string | null
   unit_of_measurement?: string
   domain: EntityDomain
   name: string

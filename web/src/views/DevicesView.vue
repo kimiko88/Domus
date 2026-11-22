@@ -5,6 +5,7 @@ import { useDevicesStore } from '../stores/devices'
 import { useEntitiesStore } from '../stores/entities'
 import { useAreasStore } from '../stores/areas'
 import { useNotificationsStore } from '../stores/notifications'
+import { useAuthStore } from '../stores/auth'
 import { apiClient } from '../api/client'
 import type { Device, DiscoveredHost, Entity } from '../api/types'
 import { Cpu, Wifi, WifiOff, RefreshCw, QrCode, Plus, Sparkles, Check, CheckCircle, ShieldCheck, X, Search } from '@lucide/vue'
@@ -14,6 +15,7 @@ const devicesStore = useDevicesStore()
 const entitiesStore = useEntitiesStore()
 const areasStore = useAreasStore()
 const notifStore = useNotificationsStore()
+const authStore = useAuthStore()
 
 const filterStatus = ref<'all' | 'online' | 'offline'>('all')
 const searchQuery = ref('')
@@ -28,6 +30,7 @@ const isMatterWizardOpen = ref(false)
 const newDeviceName = ref('')
 const selectedAreaId = ref('')
 const isAddingDevice = ref(false)
+const assigningRoomForDevice = ref<string | null>(null)
 
 // Matter Commissioning State
 const matterPairingCode = ref('')
@@ -152,6 +155,38 @@ async function loadTuyaCloudDevices() {
   }
 }
 
+async function assignDeviceToRoom(device: UnifiedDevice, event: Event) {
+  const select = event.target as HTMLSelectElement | null
+  if (!select) return
+  const nextAreaId = select.value || null
+  const previousAreaId = device.area_id || ''
+  if (nextAreaId === previousAreaId || (!nextAreaId && !previousAreaId)) return
+
+  assigningRoomForDevice.value = device.id
+  try {
+    await devicesStore.updateDeviceArea(device.id, nextAreaId)
+    await Promise.all([
+      devicesStore.fetchDevices(),
+      entitiesStore.fetchEntities()
+    ])
+    const roomName = nextAreaId
+      ? areasStore.byId(nextAreaId)?.name || nextAreaId
+      : t('devices.view.noRoom')
+    notifStore.success(
+      t('devices.view.roomAssignedTitle'),
+      t('devices.view.roomAssignedMessage', { device: device.name, room: roomName })
+    )
+  } catch {
+    select.value = previousAreaId
+    notifStore.error(
+      t('devices.view.roomAssignErrorTitle'),
+      t('devices.view.roomAssignErrorMessage')
+    )
+  } finally {
+    assigningRoomForDevice.value = null
+  }
+}
+
 async function refreshAllDevices() {
   isRefreshing.value = true
   try {
@@ -262,7 +297,8 @@ const allDevices = computed<UnifiedDevice[]>(() => {
       integration_id: integrationId,
       manufacturer: attributes.manufacturer ? String(attributes.manufacturer) : undefined,
       model: attributes.model ? String(attributes.model) : undefined,
-      area_id: attributes.area_id ? String(attributes.area_id) : undefined,
+      area_id: relatedEntities.find(entity => entity.area_id)?.area_id ||
+        (attributes.area_id ? String(attributes.area_id) : undefined),
       status: unavailable ? 'offline' : explicitlyOnline ? 'online' : 'unknown',
       local_ip: attributes.local_ip || attributes.ip_address || attributes.ip
         ? String(attributes.local_ip || attributes.ip_address || attributes.ip)
@@ -442,6 +478,27 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
               <span v-if="device.local_ip" class="meta-tag">{{ device.local_ip }}</span>
             </div>
           </div>
+        </div>
+
+        <div v-if="authStore.isAdmin && !device.id.startsWith('tuya-cloud:')" class="device-area-control">
+          <label :for="`device-room-${device.id}`">{{ t('devices.view.roomArea') }}</label>
+          <select
+            :id="`device-room-${device.id}`"
+            :value="device.area_id || ''"
+            :disabled="assigningRoomForDevice === device.id"
+            @change="assignDeviceToRoom(device, $event)"
+          >
+            <option value="">{{ t('devices.view.noRoom') }}</option>
+            <option v-for="area in areasStore.sortedAreas" :key="area.id" :value="area.id">
+              {{ area.name }}
+            </option>
+          </select>
+          <span v-if="assigningRoomForDevice === device.id" class="room-assignment-state">
+            {{ t('common.loading') }}
+          </span>
+        </div>
+        <div v-else-if="device.area_id" class="device-room-badge">
+          {{ areasStore.byId(device.area_id)?.name || t('devices.view.roomArea') }}
         </div>
 
         <div class="device-card-footer">
@@ -796,6 +853,62 @@ const offlineDevicesCount = computed(() => allDevices.value.filter(device => dev
   background: var(--bg-surface);
   color: var(--text-dim);
   border: 1px solid var(--border-card);
+}
+
+.device-area-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.device-area-control label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.device-area-control select {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass-card);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+}
+
+.device-area-control select:focus {
+  outline: 2px solid var(--primary-glow);
+  border-color: var(--primary);
+}
+
+.device-area-control select:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.room-assignment-state {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.device-room-badge {
+  align-self: flex-start;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .device-card-footer {
