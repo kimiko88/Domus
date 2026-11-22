@@ -8,7 +8,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/domus-hub/domus/internal/domain/device"
+	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
@@ -396,5 +399,161 @@ func TestInferTuyaDeviceCategoryAndTelemetryDoesNotClassifyPlainSwitchAsClimate(
 	}
 	if entityKey != "switch.tuya_switch-1" {
 		t.Fatalf("entity key = %q", entityKey)
+	}
+}
+
+
+type tuyaCloudTestDeviceRepo struct {
+	items map[string]*device.Device
+}
+
+func (r *tuyaCloudTestDeviceRepo) Create(_ context.Context, item *device.Device) error {
+	if r.items == nil { r.items = make(map[string]*device.Device) }
+	copy := *item
+	r.items[item.ID] = &copy
+	return nil
+}
+func (r *tuyaCloudTestDeviceRepo) GetByID(_ context.Context, id string) (*device.Device, error) {
+	if item := r.items[id]; item != nil { copy := *item; return &copy, nil }
+	return nil, device.ErrDeviceNotFound
+}
+func (r *tuyaCloudTestDeviceRepo) GetByExternalID(_ context.Context, integrationID, externalID string) (*device.Device, error) {
+	for _, item := range r.items {
+		if item.IntegrationID == integrationID && item.ExternalID == externalID { copy := *item; return &copy, nil }
+	}
+	return nil, device.ErrDeviceNotFound
+}
+func (r *tuyaCloudTestDeviceRepo) List(context.Context, device.ListFilter) ([]*device.Device, error) {
+	items := make([]*device.Device, 0, len(r.items))
+	for _, item := range r.items { copy := *item; items = append(items, &copy) }
+	return items, nil
+}
+func (r *tuyaCloudTestDeviceRepo) Update(_ context.Context, item *device.Device) error {
+	if r.items[item.ID] == nil { return device.ErrDeviceNotFound }
+	copy := *item
+	r.items[item.ID] = &copy
+	return nil
+}
+func (r *tuyaCloudTestDeviceRepo) SetOnline(_ context.Context, id string, online bool) error {
+	item := r.items[id]
+	if item == nil { return device.ErrDeviceNotFound }
+	item.Online = online
+	return nil
+}
+func (r *tuyaCloudTestDeviceRepo) Delete(_ context.Context, id string) error {
+	if r.items[id] == nil { return device.ErrDeviceNotFound }
+	delete(r.items, id)
+	return nil
+}
+
+type tuyaCloudTestEntityRepo struct {
+	items map[string]*entity.Entity
+}
+
+func (r *tuyaCloudTestEntityRepo) Create(_ context.Context, item *entity.Entity) error {
+	if r.items == nil { r.items = make(map[string]*entity.Entity) }
+	copy := *item
+	r.items[item.ID] = &copy
+	return nil
+}
+func (r *tuyaCloudTestEntityRepo) GetByID(_ context.Context, id string) (*entity.Entity, error) {
+	if item := r.items[id]; item != nil { copy := *item; return &copy, nil }
+	return nil, entity.ErrEntityNotFound
+}
+func (r *tuyaCloudTestEntityRepo) GetByKey(_ context.Context, key string) (*entity.Entity, error) {
+	for _, item := range r.items {
+		if item.EntityKey == key { copy := *item; return &copy, nil }
+	}
+	return nil, entity.ErrEntityNotFound
+}
+func (r *tuyaCloudTestEntityRepo) List(context.Context, entity.ListFilter) ([]*entity.Entity, error) {
+	items := make([]*entity.Entity, 0, len(r.items))
+	for _, item := range r.items { copy := *item; items = append(items, &copy) }
+	return items, nil
+}
+func (r *tuyaCloudTestEntityRepo) Update(_ context.Context, item *entity.Entity) error {
+	if r.items[item.ID] == nil { return entity.ErrEntityNotFound }
+	copy := *item
+	r.items[item.ID] = &copy
+	return nil
+}
+func (r *tuyaCloudTestEntityRepo) UpdateState(_ context.Context, id, stateJSON, attributesJSON string, available bool, at time.Time) error {
+	item := r.items[id]
+	if item == nil { return entity.ErrEntityNotFound }
+	item.State, item.Attributes, item.Available, item.LastUpdatedAt = stateJSON, attributesJSON, available, at
+	return nil
+}
+func (r *tuyaCloudTestEntityRepo) Delete(_ context.Context, id string) error {
+	if r.items[id] == nil { return entity.ErrEntityNotFound }
+	delete(r.items, id)
+	return nil
+}
+
+func TestTuyaCloudHandler_SyncLocalProvisionsClimateSensorWithoutLocalKey(t *testing.T) {
+	var detailRequests int
+	transport := tuyaOAuthTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"success":true,"result":{"access_token":"fake-token","expire_time":3600}}`
+		switch {
+		case r.URL.Path == "/v1.0/devices":
+			body = `{"success":true,"result":{"devices":[{"id":"thermo-1","name":"Sensore ambiente","product_name":"Temperature and Humidity Sensor","category":"wsdcg","online":true,"status":[{"code":"va_temperature","value":218},{"code":"va_humidity","value":47}] }]}}`
+		case r.URL.Path == "/v1.0/devices/thermo-1":
+			detailRequests++
+			body = `{"success":true,"result":{"id":"thermo-1","name":"Sensore ambiente","product_name":"Temperature and Humidity Sensor","category":"wsdcg","online":true,"status":[{"code":"va_temperature","value":218},{"code":"va_humidity","value":47}]}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: make(http.Header),
+			Body: io.NopCloser(strings.NewReader(body)),
+			Request: r,
+		}, nil
+	})
+	client, err := tuya_cloud.New(tuya_cloud.Config{
+		ClientID: "cid", Secret: "secret", BaseURL: "https://openapi.tuyaeu.com",
+		HTTPClient: &http.Client{Transport: transport},
+	})
+	if err != nil { t.Fatal(err) }
+
+	devices := &tuyaCloudTestDeviceRepo{items: make(map[string]*device.Device)}
+	entities := &tuyaCloudTestEntityRepo{items: make(map[string]*entity.Entity)}
+	adapter := tuya_local.NewAdapter("tuya_local", &mockBusForTest{}).WithRepositories(devices, entities)
+	handler := NewTuyaCloudHandler(client).WithLocalAdapter(adapter)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/sync-local", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("SyncLocal status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	var response struct {
+		Success bool `json:"success"`
+		SyncedCount int `json:"synced_count"`
+		LocalControlCount int `json:"local_control_count"`
+		ClimateSourcesCount int `json:"climate_sources_count"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil { t.Fatal(err) }
+	if !response.Success || response.SyncedCount != 1 || response.LocalControlCount != 0 || response.ClimateSourcesCount != 1 {
+		t.Fatalf("unexpected sync result: %+v body=%s", response, recorder.Body.String())
+	}
+	if detailRequests != 1 {
+		t.Fatalf("detail requests=%d, want 1 when the device list omitted a Local Key", detailRequests)
+	}
+
+	deviceRecord, err := devices.GetByID(context.Background(), "tuya_thermo-1")
+	if err != nil { t.Fatalf("cloud-only Tuya device was not persisted: %v", err) }
+	if deviceRecord.IntegrationID != "tuya_cloud" || !deviceRecord.Online {
+		t.Fatalf("unexpected device record: %+v", deviceRecord)
+	}
+	entityRecord, err := entities.GetByKey(context.Background(), "sensor.tuya_thermo-1")
+	if err != nil { t.Fatalf("climate sensor entity was not provisioned: %v", err) }
+	if entityRecord.Domain != "sensor" || entityRecord.DeviceID != deviceRecord.ID || entityRecord.Writable {
+		t.Fatalf("cloud sensor should be associated and read-only: %+v", entityRecord)
+	}
+	var attributes map[string]any
+	if err := json.Unmarshal([]byte(entityRecord.Attributes), &attributes); err != nil { t.Fatal(err) }
+	if attributes["current_temperature"] != 21.8 || attributes["current_humidity"] != float64(47) ||
+		attributes["tuya_climate_source"] != true {
+		t.Fatalf("climate readings/marker missing from entity: %#v", attributes)
 	}
 }
