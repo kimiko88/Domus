@@ -590,6 +590,12 @@ func (a *Adapter) handleDeviceStatus(cfg DeviceConfig, dps map[string]any) {
 			for key, value := range parsed.Attributes {
 				attributes[key] = value
 			}
+			// A LocalTuya device can report only one DPS in an update. Re-run
+			// inference against the merged attribute set so a previous DP1 reading
+			// is paired with a later DP2 reading (and vice versa).
+			if cfg.Category == CategorySensor {
+				enrichTuyaClimateSensorAttributes(attributes, cfg.Name)
+			}
 			attributesJSON, marshalErr := json.Marshal(attributes)
 
 			state := make(map[string]any)
