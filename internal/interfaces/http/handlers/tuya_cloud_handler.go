@@ -524,7 +524,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 
 	enriched := make([]enrichedDevice, 0, len(devices))
 	for _, dev := range devices {
-		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev)
+		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev, false)
 		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		ed := enrichedDevice{
 			Device:           dev,
@@ -573,8 +573,8 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 // fetchMissingTuyaDeviceDetails hydrates list responses that omit the product
 // category or current status datapoints. The cloud list and detail APIs expose
 // different subsets of the same device record.
-func fetchMissingTuyaDeviceDetails(ctx context.Context, client *tuya_cloud.Client, dev tuya_cloud.Device) tuya_cloud.Device {
-	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "") {
+func fetchMissingTuyaDeviceDetails(ctx context.Context, client *tuya_cloud.Client, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
+	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "" && (!needLocalKey || dev.LocalKey != "")) {
 		return dev
 	}
 	detailed, err := client.GetDevice(ctx, dev.ID)
@@ -811,7 +811,7 @@ func (h *TuyaCloudHandler) SyncLocal(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev)
+		dev = fetchMissingTuyaDeviceDetails(r.Context(), client, dev, true)
 		cat, entityKey, initState, initAttrs := inferTuyaDeviceCategoryAndTelemetry(dev)
 		climateSource := isTuyaClimateSource(dev, cat)
 		localKey := strings.TrimSpace(dev.LocalKey)
