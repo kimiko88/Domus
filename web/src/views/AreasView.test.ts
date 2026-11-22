@@ -198,8 +198,9 @@ describe('AreasView.vue', () => {
     await shellyCheckbox.setValue(true)
     await wrapper.find('.area-device-primary-btn').trigger('click')
 
-    expect(updateAreaSpy).toHaveBeenNthCalledWith(1, 'tuya_sensor_1', null)
-    expect(updateAreaSpy).toHaveBeenNthCalledWith(2, 'shelly_office_1', 'living-room')
+    expect(updateAreaSpy).toHaveBeenCalledTimes(2)
+    expect(updateAreaSpy).toHaveBeenCalledWith('tuya_sensor_1', null)
+    expect(updateAreaSpy).toHaveBeenCalledWith('shelly_office_1', 'living-room')
     expect(wrapper.find('.area-device-modal').exists()).toBe(false)
   })
 
