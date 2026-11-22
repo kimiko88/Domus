@@ -544,7 +544,16 @@ h3 { font-size:1rem; font-weight:650; }
 .toolbar { display:flex; gap:.8rem; flex-wrap:wrap; align-items:end; }
 .toolbar label,.settings-grid label { display:flex; flex-direction:column; gap:.35rem; min-width:9rem; flex:1; }
 .toolbar label span,.settings-grid label>span { color:var(--text-muted,#94a3b8); font-size:.78rem; }
-select,input[type="date"],input[type="number"] { width:100%; min-height:2.45rem; color:var(--text-primary,#e2e8f0); background:var(--surface-input,#111827); border:1px solid var(--border-color,rgba(148,163,184,.3)); border-radius:.55rem; padding:.45rem .6rem; }
+select,input[type="date"],input[type="number"] {
+  width:100%;
+  min-height:2.45rem;
+  color:var(--text-primary,var(--text-main,#e2e8f0));
+  background:var(--bg-surface,#111827);
+  border:1px solid var(--border-color,rgba(148,163,184,.3));
+  border-radius:.55rem;
+  padding:.45rem .6rem;
+  color-scheme:inherit;
+}
 select[multiple] { min-height:6rem; }
 .range-control { display:flex; flex-wrap:wrap; gap:.25rem; padding:.2rem; background:rgba(148,163,184,.1); border-radius:.65rem; }
 .range-btn,.secondary-btn,.primary-btn { border:1px solid var(--border-color,rgba(148,163,184,.25)); border-radius:.6rem; padding:.55rem .8rem; color:var(--text-primary,#e2e8f0); background:transparent; cursor:pointer; }
@@ -605,6 +614,40 @@ button:disabled { opacity:.55; cursor:not-allowed; }
   color:#e2e8f0;
   background-color:#111827;
   border-color:#475569;
+}
+/* Keep every editable field readable when the document switches to light mode.
+   The fallback surface token is deliberately theme-aware (bg-surface), not a
+   fixed dark input color that would pair dark backgrounds with dark text. */
+:global(html[data-theme="light"]) .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:global(html[data-theme="light"]) .climate-history-view textarea,
+:global(html[data-theme="light"]) .climate-history-view select {
+  color-scheme:light !important;
+  color:#0f172a !important;
+  background-color:#ffffff !important;
+  -webkit-text-fill-color:#0f172a;
+  border-color:#cbd5e1 !important;
+}
+:global(html[data-theme="light"]) .climate-history-view input::placeholder,
+:global(html[data-theme="light"]) .climate-history-view textarea::placeholder {
+  color:#64748b !important;
+  -webkit-text-fill-color:#64748b;
+}
+:global(html[data-theme="oled"]) .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:global(html[data-theme="oled"]) .climate-history-view textarea,
+:global(html[data-theme="oled"]) .climate-history-view select {
+  color-scheme:dark !important;
+  color:#f8fafc !important;
+  background-color:#0a0a0a !important;
+  -webkit-text-fill-color:#f8fafc;
+  border-color:#3f3f46 !important;
+}
+:global(html:not([data-theme="light"]):not([data-theme="oled"])) .climate-history-view input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+:global(html:not([data-theme="light"]):not([data-theme="oled"])) .climate-history-view textarea,
+:global(html:not([data-theme="light"]):not([data-theme="oled"])) .climate-history-view select {
+  color-scheme:dark;
+  color:#e2e8f0;
+  background-color:#111827;
+  -webkit-text-fill-color:#e2e8f0;
 }
 .climate-history-view select:focus-visible,
 .climate-history-view input[type="date"]:focus-visible,
