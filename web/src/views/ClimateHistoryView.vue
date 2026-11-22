@@ -103,37 +103,33 @@ function tuyaDeviceIDFromEntity(entity: Entity): string {
 
 const availableClimateDevices = computed(() => {
   const sourceEntities = entitiesStore.allEntities.filter(isClimateSourceEntity)
-  const sourceDeviceIDs = new Set<string>()
-  sourceEntities.forEach(entity => {
-    if (entity.device_id) sourceDeviceIDs.add(entity.device_id)
-    const tuyaID = tuyaDeviceIDFromEntity(entity)
-    if (tuyaID) {
-      sourceDeviceIDs.add(tuyaID)
-      sourceDeviceIDs.add(tuyaID.slice('tuya_'.length))
-    }
-  })
-
   const devicesByID = new Map<string, Device>()
-  devicesStore.devices.forEach(device => {
-    const normalizedID = device.id.startsWith('tuya_') ? device.id.slice('tuya_'.length) : device.id
-    const externalID = device.external_id || ''
-    if (sourceDeviceIDs.has(device.id) || sourceDeviceIDs.has(normalizedID) ||
-      (externalID !== '' && (sourceDeviceIDs.has(externalID) || sourceDeviceIDs.has('tuya_' + externalID)))) {
-      devicesByID.set(device.id, device)
-    }
-  })
 
-  // Some integration entities are persisted before their parent device appears
-  // in /devices (notably older Tuya sync records). Keep them selectable using
-  // the exact DeviceID stored on the entity, which is also what the collector filters.
   sourceEntities.forEach(entity => {
-    const deviceID = entity.device_id || tuyaDeviceIDFromEntity(entity)
-    if (!deviceID || devicesByID.has(deviceID)) return
-    const isTuya = deviceID.startsWith('tuya_') || (entity.entity_key || '').includes('.tuya_')
-    devicesByID.set(deviceID, {
-      id: deviceID,
-      external_id: isTuya ? deviceID.slice('tuya_'.length) : deviceID,
-      name: entity.name || deviceID,
+    // Keep the same ID the backend collector and settings validator use:
+    // entity.device_id, or the deterministic tuya_<id> suffix for legacy rows.
+    const sourceID = entity.device_id || tuyaDeviceIDFromEntity(entity)
+    if (!sourceID || devicesByID.has(sourceID)) return
+
+    const matchingDevice = devicesStore.devices.find(device => {
+      const normalizedID = device.id.startsWith('tuya_') ? device.id.slice('tuya_'.length) : device.id
+      const externalID = device.external_id || ''
+      return device.id === sourceID || normalizedID === sourceID ||
+        externalID === sourceID || (externalID !== '' && 'tuya_' + externalID === sourceID)
+    })
+
+    if (matchingDevice) {
+      devicesByID.set(sourceID, { ...matchingDevice, id: sourceID })
+      return
+    }
+
+    // Older integration entities can exist before a matching /devices record.
+    // The synthetic row still uses a backend-recognized stable device identifier.
+    const isTuya = sourceID.startsWith('tuya_') || (entity.entity_key || '').includes('.tuya_')
+    devicesByID.set(sourceID, {
+      id: sourceID,
+      external_id: isTuya ? sourceID.slice('tuya_'.length) : sourceID,
+      name: entity.name || sourceID,
       integration_id: isTuya ? 'tuya_local' : t('climateHistory.sources.unknownIntegration'),
       status: 'unknown',
       created_at: '',
