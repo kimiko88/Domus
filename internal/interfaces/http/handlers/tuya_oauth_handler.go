@@ -171,8 +171,6 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	}
 	devices, err := h.client.Devices(r.Context(), token)
 	if err != nil && isTuyaTokenRejection(err) {
-		// Tuya may invalidate an access token before its locally stored expiry.
-		// Refresh once, then retry the device request once; never loop.
 		if refreshed, refreshErr := h.refreshRejectedToken(r.Context(), u.ID, token); refreshErr == nil {
 			token = refreshed
 			devices, err = h.client.Devices(r.Context(), token)
@@ -189,23 +187,54 @@ func (h *TuyaOAuthHandler) Devices(w http.ResponseWriter, r *http.Request) {
 
 	type enrichedDevice struct {
 		tuya_cloud.Device
-		LocalConfigured bool   `json:"local_configured"`
-		LocalActive     bool   `json:"local_active"`
-		LocalIP         string `json:"local_ip,omitempty"`
+		InferredCategory string `json:"inferred_category"`
+		EntityKey        string `json:"entity_key"`
+		ClimateSource    bool   `json:"climate_source"`
+		LocalConfigured  bool   `json:"local_configured"`
+		LocalActive      bool   `json:"local_active"`
+		LocalIP          string `json:"local_ip,omitempty"`
 	}
-
 	enriched := make([]enrichedDevice, 0, len(devices))
 	for _, dev := range devices {
-		ed := enrichedDevice{Device: dev}
-		if h.tuyaLocal != nil {
-			ed.LocalConfigured = h.tuyaLocal.IsDeviceConfigured(dev.ID)
-			ed.LocalActive = h.tuyaLocal.IsDeviceConnected(dev.ID)
-			ed.LocalIP = h.tuyaLocal.GetDeviceIP(dev.ID)
+		dev = fetchMissingTuyaOAuthDeviceDetails(r.Context(), h.client, token, dev, false)
+		category, entityKey, _, _ := inferTuyaDeviceCategoryAndTelemetry(dev)
+		item := enrichedDevice{
+			Device: dev,
+			InferredCategory: string(category),
+			EntityKey: entityKey,
+			ClimateSource: isTuyaClimateSource(dev, category),
 		}
-		enriched = append(enriched, ed)
+		if h.tuyaLocal != nil {
+			item.LocalConfigured = h.tuyaLocal.IsDeviceConfigured(dev.ID)
+			item.LocalActive = h.tuyaLocal.IsDeviceConnected(dev.ID)
+			item.LocalIP = h.tuyaLocal.GetDeviceIP(dev.ID)
+		}
+		enriched = append(enriched, item)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"devices": enriched})
+}
+
+// fetchMissingTuyaOAuthDeviceDetails hydrates Smart Life device summaries that
+// omit category, product details, telemetry or a Local Key.
+func fetchMissingTuyaOAuthDeviceDetails(ctx context.Context, client *tuya_cloud.OAuthClient, token tuya_cloud.OAuthToken, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
+	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "" &&
+		(!needLocalKey || dev.LocalKey != "")) {
+		return dev
+	}
+	detailed, err := client.GetDevice(ctx, token, dev.ID)
+	if err != nil || detailed == nil {
+		return dev
+	}
+	if dev.Name == "" { dev.Name = detailed.Name }
+	if dev.LocalKey == "" { dev.LocalKey = detailed.LocalKey }
+	if dev.IP == "" { dev.IP = detailed.IP }
+	if dev.ProductID == "" { dev.ProductID = detailed.ProductID }
+	if dev.ProductName == "" { dev.ProductName = detailed.ProductName }
+	if dev.Category == "" { dev.Category = detailed.Category }
+	if len(dev.Status) == 0 { dev.Status = detailed.Status }
+	if !dev.Online && detailed.Online { dev.Online = true }
+	return dev
 }
 
 // SyncLocal fetches all Smart Life devices authorized by the user, retrieves their local_key,
