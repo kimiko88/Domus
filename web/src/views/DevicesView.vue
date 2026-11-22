@@ -267,6 +267,20 @@ const allDevices = computed<UnifiedDevice[]>(() => {
     entitiesByDevice.set(deviceId, group)
   }
 
+  // Prefer the persisted device area, but keep the entity association visible
+  // when an integration has only populated area_id on its entities.
+  for (const device of merged) {
+    if (device.area_id) continue
+    const linked = [...entitiesByDevice.entries()].find(([deviceId]) =>
+      deviceId === device.id || deviceId === device.external_id ||
+      (device.id.startsWith('tuya_') && device.id.slice(5) === deviceId) ||
+      (deviceId.startsWith('tuya_') && device.external_id === deviceId.slice(5))
+    )?.[1]
+    const linkedArea = linked?.find(entity => entity.area_id)?.area_id ||
+      linked?.find(entity => entity.attributes?.area_id)?.attributes?.area_id
+    if (linkedArea) device.area_id = String(linkedArea)
+  }
+
   for (const [deviceId, relatedEntities] of entitiesByDevice) {
     const normalizedId = deviceId.startsWith('tuya_') ? deviceId.slice(5) : deviceId
     if (knownDeviceKeys.has(deviceId) || knownDeviceKeys.has(normalizedId)) continue
