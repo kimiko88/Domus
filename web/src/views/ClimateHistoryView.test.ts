@@ -29,14 +29,14 @@ describe('ClimateHistoryView.vue', () => {
     entities.entities = {
       'sensor-bedroom': {
         id: 'sensor-bedroom', entity_key: 'sensor.bedroom_temperature', device_id: 'device-bedroom',
-        domain: 'sensor', name: 'Bedroom temperature', state: '21.5',
-        attributes: { device_class: 'temperature', unit_of_measurement: '°C' },
+        domain: 'sensor', name: 'Bedroom temperature', state: '21.5', unit_of_measurement: '°C',
+        attributes: { device_class: 'temperature' },
         last_changed: '', last_updated: ''
       },
       'sensor-office': {
         id: 'sensor-office', entity_key: 'sensor.office_temperature', device_id: 'device-office',
         domain: 'sensor', name: 'Office temperature', state: '19.5',
-        attributes: { device_class: 'temperature', unit_of_measurement: '°C' },
+        attributes: { device_class: 'temperature' },
         last_changed: '', last_updated: ''
       },
       'switch-not-climate': {
