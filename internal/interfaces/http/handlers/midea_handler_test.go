@@ -385,7 +385,7 @@ func (d *mideaTestDriver) Execute(_ context.Context, _ midea.Device, command mid
 }
 
 func TestMideaHandlerRoutesDomusHumidifierCommandsThroughEventBusContract(t *testing.T) {
-	handler, _, devices, entities := newMideaHandlerFixture(t)
+	handler, _, _, entities := newMideaHandlerFixture(t)
 	profile, ok := midea.NewRegistry().Resolve("A1")
 	if !ok { t.Fatal("A1 profile missing") }
 	model := midea.Device{
