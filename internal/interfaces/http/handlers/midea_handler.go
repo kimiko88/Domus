@@ -250,14 +250,14 @@ func (h *MideaHandler) ConfigureDevice(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	applianceID := req.ApplianceID
-	if applianceID == 0 {
-		parsed, err := strconv.ParseUint(req.ID, 10, 64)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "The Midea appliance ID must be numeric")
-			return
-		}
-		applianceID = parsed
+	applianceID, err := strconv.ParseUint(req.ID, 10, 64)
+	if err != nil || applianceID == 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "The discovered Midea appliance ID must be a non-zero numeric value")
+		return
+	}
+	if req.ApplianceID != 0 && req.ApplianceID != applianceID {
+		writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "The appliance ID must match the discovered device ID")
+		return
 	}
 	device := midea.Device{
 		ID: req.ID, Name: req.Name, Brand: req.Brand, Model: req.Model,
