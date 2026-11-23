@@ -12,6 +12,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/plugins/midea"
@@ -361,6 +362,104 @@ func TestMideaDeleteRemovesRuntimeAndRegistryRecords(t *testing.T) {
 	}
 	if _, err := integrations.GetByID(context.Background(), mideaIntegrationID); err != nil {
 		t.Fatalf("integration status record should remain for disconnected state: %v", err)
+	}
+}
+
+
+type mideaTestDriver struct {
+	state map[string]any
+	executeCalls int
+}
+
+func (d *mideaTestDriver) Protocol() midea.Protocol { return midea.ProtocolMSmartV2 }
+func (d *mideaTestDriver) Discover(context.Context) ([]midea.Device, error) { return nil, nil }
+func (d *mideaTestDriver) Read(context.Context, midea.Device) (map[string]any, error) {
+	result := make(map[string]any, len(d.state))
+	for key, value := range d.state { result[key] = value }
+	return result, nil
+}
+func (d *mideaTestDriver) Execute(_ context.Context, _ midea.Device, command midea.Command) error {
+	d.executeCalls++
+	for key, value := range command.Values { d.state[key] = value }
+	return nil
+}
+
+func TestMideaHandlerRoutesDomusHumidifierCommandsThroughEventBusContract(t *testing.T) {
+	handler, _, devices, entities := newMideaHandlerFixture(t)
+	profile, ok := midea.NewRegistry().Resolve("A1")
+	if !ok { t.Fatal("A1 profile missing") }
+	model := midea.Device{
+		ID: "123456789", Name: "Basement dehumidifier", TypeCode: "A1",
+		Kind: midea.KindDehumidifier, Protocol: midea.ProtocolMSmartV2,
+		Host: "192.168.1.50", Port: 6444,
+		Capabilities: profile.Capabilities, Writable: profile.Writable,
+		Modes: profile.Modes, FanSpeeds: profile.FanSpeeds, Actions: profile.Actions,
+		MinHumidity: profile.MinHumidity, MaxHumidity: profile.MaxHumidity,
+	}
+	config := midea.A1LANConfig{Device: model, ApplianceID: 123456789, MessageVersion: 3}
+	if _, err := handler.provisionDevice(context.Background(), config); err != nil {
+		t.Fatalf("provision device: %v", err)
+	}
+	driver := &mideaTestDriver{state: map[string]any{
+		"power": false, "mode": "manual", "fan_speed": "low",
+		"target_humidity": 50, "current_humidity": 58,
+		"current_temperature": 21.5, "tank_full": false,
+		"water_level_set": 50,
+	}}
+	handler.adapter = midea.NewAdapter(driver)
+	if err := handler.adapter.Register(model); err != nil {
+		t.Fatalf("register fake driver device: %v", err)
+	}
+
+	err := handler.handleCommandEvent(context.Background(), events.Event{
+		Type: events.CommandRequested,
+		Payload: map[string]any{
+			"entity_key": "humidifier.midea_123456789",
+			"service": "set_humidity",
+			"params": map[string]any{"humidity": float64(45)},
+		},
+	})
+	if err != nil {
+		t.Fatalf("handle Domus humidity command: %v", err)
+	}
+	if driver.executeCalls != 1 {
+		t.Fatalf("physical command calls = %d, want 1", driver.executeCalls)
+	}
+	if driver.state["target_humidity"] != float64(45) {
+		t.Fatalf("target humidity = %#v, want 45", driver.state["target_humidity"])
+	}
+	humidity, err := entities.GetByKey(context.Background(), "sensor.midea_123456789_humidity")
+	if err != nil { t.Fatal(err) }
+	if humidity.State != "58" || !humidity.Available {
+		t.Fatalf("humidity entity not synchronized after verified command: state=%s available=%v", humidity.State, humidity.Available)
+	}
+}
+
+func TestMideaHandlerIgnoresCommandsForOtherIntegrations(t *testing.T) {
+	handler, _, devices, entities := newMideaHandlerFixture(t)
+	otherDevice := &device.Device{
+		ID: "other-device", IntegrationID: "tuya_local", ExternalID: "external-1",
+		Name: "Tuya humidifier", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := devices.Create(context.Background(), otherDevice); err != nil { t.Fatal(err) }
+	otherEntity := &entity.Entity{
+		ID: "other-entity", DeviceID: otherDevice.ID,
+		EntityKey: "humidifier.tuya_external_1", Domain: "humidifier",
+		Name: "Tuya humidifier", Writable: true, State: "\"off\"", Attributes: "{}",
+	}
+	if err := entities.Create(context.Background(), otherEntity); err != nil { t.Fatal(err) }
+	driver := &mideaTestDriver{state: map[string]any{"power": false}}
+	handler.adapter = midea.NewAdapter(driver)
+	err := handler.handleCommandEvent(context.Background(), events.Event{
+		Type: events.CommandRequested,
+		Payload: map[string]any{
+			"entity_key": otherEntity.EntityKey,
+			"service": "turn_on",
+		},
+	})
+	if err != nil { t.Fatalf("foreign entity command should be ignored: %v", err) }
+	if driver.executeCalls != 0 {
+		t.Fatalf("Midea adapter received %d commands for a Tuya entity", driver.executeCalls)
 	}
 }
 
