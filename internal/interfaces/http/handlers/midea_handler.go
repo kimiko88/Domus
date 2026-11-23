@@ -34,6 +34,7 @@ type MideaHandler struct {
 	driverV3     *midea.A1LANDriver
 	mu           sync.Mutex
 	config       mideaStoredConfig
+	discovered   map[string]midea.DiscoveredAppliance
 	discover     func(context.Context) ([]midea.DiscoveredAppliance, error)
 }
 
@@ -86,6 +87,7 @@ func NewMideaHandler(
 		driverV2: driverV2,
 		driverV3: driverV3,
 		adapter: midea.NewAdapter(driverV2, driverV3),
+		discovered: make(map[string]midea.DiscoveredAppliance),
 		discover: midea.DiscoverLAN,
 	}
 	if err := handler.loadStoredConfig(context.Background()); err != nil {
@@ -111,7 +113,6 @@ func (h *MideaHandler) Status(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"configured": count > 0,
-		"connected": count > 0,
 		"mode": "local",
 		"device_count": count,
 		"supported_types": []string{"A1"},
@@ -131,8 +132,12 @@ func (h *MideaHandler) Scan(w http.ResponseWriter, r *http.Request) {
 	}
 	configured := make(map[string]struct{})
 	h.mu.Lock()
+	h.discovered = make(map[string]midea.DiscoveredAppliance, len(devices))
 	for _, item := range h.config.Devices {
 		configured[item.Device.ID] = struct{}{}
+	}
+	for _, item := range devices {
+		h.discovered[item.ID] = item
 	}
 	h.mu.Unlock()
 	for i := range devices {
@@ -186,12 +191,33 @@ func (h *MideaHandler) ConfigureDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_DEVICE", "A discovered device ID, name and type code are required")
 		return
 	}
+	h.mu.Lock()
+	discovered, wasDiscovered := h.discovered[req.ID]
+	h.mu.Unlock()
+	if !wasDiscovered {
+		writeError(w, http.StatusConflict, "DEVICE_NOT_DISCOVERED", "Run the local M-Smart discovery scan before registering this appliance")
+		return
+	}
+	if req.TypeCode == "" {
+		req.TypeCode = discovered.TypeCode
+	}
+	if req.Host == "" {
+		req.Host = discovered.Host
+	}
+	if req.Port == 0 {
+		req.Port = discovered.Port
+	}
+	if req.Protocol == "" {
+		req.Protocol = string(discovered.Protocol)
+	}
+	if discovered.TypeCode != req.TypeCode || discovered.Host != req.Host ||
+		discovered.Port != req.Port || discovered.Protocol != midea.Protocol(req.Protocol) {
+		writeError(w, http.StatusConflict, "DISCOVERY_MISMATCH", "The device ID, local address, port, model type and protocol must match the last local discovery result")
+		return
+	}
 	if req.TypeCode != "A1" {
 		writeError(w, http.StatusUnprocessableEntity, "UNSUPPORTED_DEVICE_TYPE", "This Domus release can control M-Smart A1 dehumidifiers. Other discovered models remain visible until their protocol driver is implemented.")
 		return
-	}
-	if req.Port == 0 {
-		req.Port = 6444
 	}
 	if req.Port < 1 || req.Port > 65535 || !isPrivateMideaHost(req.Host) {
 		writeError(w, http.StatusBadRequest, "INVALID_LAN_ENDPOINT", "A private local IP address and a valid TCP port are required")
@@ -350,13 +376,30 @@ func (h *MideaHandler) DeleteDevice(w http.ResponseWriter, r *http.Request) {
 		driver.Remove(id)
 	}
 	h.adapter.Unregister(id)
-	if domusDevice, err := h.devices.GetByExternalID(r.Context(), mideaIntegrationID, id); err == nil && domusDevice != nil {
+	domusDevice, lookupErr := h.devices.GetByExternalID(r.Context(), mideaIntegrationID, id)
+	if lookupErr != nil && !errors.Is(lookupErr, device.ErrDeviceNotFound) {
+		writeError(w, http.StatusInternalServerError, "DEVICE_LOOKUP_FAILED", "Could not locate the Domus device record for cleanup")
+		return
+	}
+	if domusDevice != nil {
 		for _, key := range mideaEntityKeys(id) {
-			if item, getErr := h.entities.GetByKey(r.Context(), key); getErr == nil && item != nil {
-				_ = h.entities.Delete(r.Context(), item.ID)
+			item, getErr := h.entities.GetByKey(r.Context(), key)
+			if errors.Is(getErr, entity.ErrEntityNotFound) {
+				continue
+			}
+			if getErr != nil {
+				writeError(w, http.StatusInternalServerError, "ENTITY_LOOKUP_FAILED", "Could not locate Midea entities for cleanup")
+				return
+			}
+			if err := h.entities.Delete(r.Context(), item.ID); err != nil {
+				writeError(w, http.StatusInternalServerError, "ENTITY_DELETE_FAILED", "Could not remove Midea entities from Domus")
+				return
 			}
 		}
-		_ = h.devices.Delete(r.Context(), domusDevice.ID)
+		if err := h.devices.Delete(r.Context(), domusDevice.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "DEVICE_DELETE_FAILED", "Could not remove the Midea device from the Domus registry")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "device_id": id})
 }
