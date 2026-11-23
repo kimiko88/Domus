@@ -99,6 +99,27 @@ func (r *Registry) Apply(device *Device) bool {
 	if !ok {
 		return false
 	}
+	applyProfile(device, profile)
+	return true
+}
+
+// ApplyReported applies a model profile but narrows its capabilities to the
+// features actually reported by the connected appliance. It never adds a
+// capability the device did not advertise.
+func (r *Registry) ApplyReported(device *Device, reported []Capability) bool {
+	if !r.Apply(device) {
+		return false
+	}
+	allowed := make(map[Capability]struct{}, len(reported))
+	for _, capability := range reported {
+		allowed[capability] = struct{}{}
+	}
+	device.Capabilities = intersectCapabilities(device.Capabilities, allowed)
+	device.Writable = intersectCapabilities(device.Writable, allowed)
+	return true
+}
+
+func applyProfile(device *Device, profile Profile) {
 	device.Kind = profile.Kind
 	device.Capabilities = append([]Capability(nil), profile.Capabilities...)
 	device.Writable = append([]Capability(nil), profile.Writable...)
@@ -111,7 +132,16 @@ func (r *Registry) Apply(device *Device) bool {
 	device.TemperatureStep = profile.TemperatureStep
 	device.MinHumidity = profile.MinHumidity
 	device.MaxHumidity = profile.MaxHumidity
-	return true
+}
+
+func intersectCapabilities(values []Capability, allowed map[Capability]struct{}) []Capability {
+	result := make([]Capability, 0, len(values))
+	for _, value := range values {
+		if _, ok := allowed[value]; ok {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func cloneProfile(profile Profile) Profile {
