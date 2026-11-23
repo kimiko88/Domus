@@ -257,6 +257,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		mideaHandler, handlerErr = handlers.NewMideaHandler(
 			srv.repos.Integrations, srv.repos.Cipher, srv.repos.Devices, srv.repos.Entities,
 		)
+		if handlerErr == nil {
+			mideaHandler.WithEventBus(srv.bus)
+		}
 		if handlerErr != nil {
 			slog.Error("Midea SmartHome integration disabled: handler initialization failed", "error", handlerErr)
 		}
