@@ -35,7 +35,7 @@ func ValidateCommand(device Device, command Command) error {
 
 func validateValue(device Device, capability Capability, value any) error {
 	switch capability {
-	case CapPower, CapSwing, CapChildLock:
+	case CapPower, CapSwing, CapChildLock, CapAnion, CapPump:
 		if _, ok := value.(bool); !ok {
 			return errors.New("must be boolean")
 		}
@@ -68,6 +68,32 @@ func validateValue(device Device, capability Capability, value any) error {
 		}
 		if device.MaxHumidity > 0 && (number < device.MinHumidity || number > device.MaxHumidity) {
 			return errors.New("outside device humidity limits")
+		}
+	case CapWaterLevelSet:
+		var level int
+		switch typed := value.(type) {
+		case string:
+			switch typed {
+			case "25":
+				level = 25
+			case "50":
+				level = 50
+			case "75":
+				level = 75
+			case "100":
+				level = 100
+			default:
+				return errors.New("must be one of 25, 50, 75 or 100")
+			}
+		default:
+			number, ok := numeric(value)
+			if !ok || math.IsNaN(number) || math.IsInf(number, 0) || math.Trunc(number) != number {
+				return errors.New("must be an integer water level")
+			}
+			level = int(number)
+		}
+		if level != 25 && level != 50 && level != 75 && level != 100 {
+			return errors.New("must be one of 25, 50, 75 or 100")
 		}
 	case CapCycleState:
 		program, ok := value.(string)
