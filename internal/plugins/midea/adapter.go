@@ -92,13 +92,26 @@ func (a *Adapter) Register(device Device) error {
 	if err := device.Validate(); err != nil {
 		return err
 	}
-	a.mu.RLock()
-	_, ok := a.drivers[device.Protocol]
-	a.mu.RUnlock()
-	if !ok {
+	a.mu.Lock()
+	if _, ok := a.drivers[device.Protocol]; !ok {
+		a.mu.Unlock()
 		return ErrNoDriver
 	}
+	lock := a.locks[device.ID]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		a.locks[device.ID] = lock
+	}
+	a.mu.Unlock()
+
+	// Keep registration changes ordered with commands and refreshes for this ID.
+	lock.Lock()
+	defer lock.Unlock()
 	a.mu.Lock()
+	if _, ok := a.drivers[device.Protocol]; !ok {
+		a.mu.Unlock()
+		return ErrNoDriver
+	}
 	a.devices[device.ID] = cloneDevice(device)
 	a.mu.Unlock()
 	return nil
@@ -242,7 +255,28 @@ func cloneState(state map[string]any) map[string]any {
 	}
 	clone := make(map[string]any, len(state))
 	for key, value := range state {
-		clone[key] = value
+		clone[key] = cloneJSONValue(value)
 	}
 	return clone
+}
+
+// cloneJSONValue defensively copies JSON-shaped state so callers cannot mutate
+// cached device state through nested maps or slices.
+func cloneJSONValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneState(typed)
+	case []any:
+		clone := make([]any, len(typed))
+		for i, value := range typed {
+			clone[i] = cloneJSONValue(value)
+		}
+		return clone
+	case []string:
+		return append([]string(nil), typed...)
+	case []byte:
+		return append([]byte(nil), typed...)
+	default:
+		return value
+	}
 }
