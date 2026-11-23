@@ -107,17 +107,17 @@ Il tipo Device contiene solo informazioni pubbliche del dispositivo e non token,
 
 ## 5. API amministrativa e flusso di configurazione
 
-Tutti gli endpoint sono sotto @@/api/v1/integrations/midea@@ e richiedono un utente amministratore.
+Tutti gli endpoint sono sotto `/api/v1/integrations/midea` e richiedono un utente amministratore.
 
 | Metodo | Endpoint | Scopo |
 |---|---|---|
-| GET | @@/status@@ | Stato configurazione, categorie gestite e numero di dispositivi |
-| POST | @@/discovery/scan@@ | Scansione locale UDP su porte 6445 e 20086 |
-| GET | @@/devices@@ | Inventario configurato, senza token/key |
-| POST | @@/devices@@ | Associazione di un dispositivo A1 rilevato |
-| POST | @@/devices/{id}/refresh@@ | Lettura dello stato e sincronizzazione delle entità |
-| POST | @@/devices/{id}/commands@@ | Comando con verifica indipendente read-back |
-| DELETE | @@/devices/{id}@@ | Rimozione credenziali, adapter ed entità Domus |
+| GET | `/status` | Stato configurazione, categorie gestite e numero di dispositivi |
+| POST | `/discovery/scan` | Scansione locale UDP su porte 6445 e 20086 |
+| GET | `/devices` | Inventario configurato, senza token/key |
+| POST | `/devices` | Associazione di un dispositivo A1 rilevato |
+| POST | `/devices/{id}/refresh` | Lettura dello stato e sincronizzazione delle entità |
+| POST | `/devices/{id}/commands` | Comando con verifica indipendente read-back |
+| DELETE | `/devices/{id}` | Rimozione credenziali, adapter ed entità Domus |
 
 Configurazione di un M-Smart V2:
 
@@ -134,7 +134,7 @@ Configurazione di un M-Smart V2:
 }
 ~~~
 
-Per M-Smart V3 aggiungere @@token@@ (128 caratteri esadecimali) e @@key@@ (64 caratteri esadecimali), specifici del singolo apparecchio. Il client UI non richiede la password dell'app SmartHome. Il server rifiuta la configurazione se ID, IP, porta, tipo e protocollo non corrispondono all'ultima discovery eseguita da Domus; questo vincolo evita di trasformare l'endpoint in un proxy generico per gli host privati.
+Per M-Smart V3 aggiungere `token` (128 caratteri esadecimali) e `key` (64 caratteri esadecimali), specifici del singolo apparecchio. Il client UI non richiede la password dell'app SmartHome. Il server rifiuta la configurazione se ID, IP, porta, tipo e protocollo non corrispondono all'ultima discovery eseguita da Domus; questo vincolo evita di trasformare l'endpoint in un proxy generico per gli host privati.
 
 Esempio comando:
 
@@ -149,16 +149,16 @@ Esempio comando:
 }
 ~~~
 
-Per il reset filtro usare l'azione @@reset_filter@@. I comandi ammessi sono verificati contro il profilo A1 e i limiti del dispositivo. L'adapter non ripete mai un comando fisico in caso di timeout: l'esito incerto viene restituito al chiamante.
+Per il reset filtro usare l'azione `reset_filter`. I comandi ammessi sono verificati contro il profilo A1 e i limiti del dispositivo. L'adapter non ripete mai un comando fisico in caso di timeout: l'esito incerto viene restituito al chiamante.
 
 ## 6. Entità Domus e funzionalità
 
-Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=@@midea_smarthome_local@@) e quattro entità:
+Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=`midea_smarthome_local`) e quattro entità:
 
-- @@humidifier.midea_<id>@@: potenza, modalità, velocità ventola, limiti e attributi.
-- @@sensor.midea_<id>_humidity@@: umidità rilevata in percentuale.
-- @@sensor.midea_<id>_temperature@@: temperatura ambiente in °C.
-- @@binary_sensor.midea_<id>_tank_full@@: stato serbatoio pieno.
+- `humidifier.midea_<id>`: potenza, modalità, velocità ventola, limiti e attributi.
+- `sensor.midea_<id>_humidity`: umidità rilevata in percentuale.
+- `sensor.midea_<id>_temperature`: temperatura ambiente in °C.
+- `binary_sensor.midea_<id>_tank_full`: stato serbatoio pieno.
 
 Le misurazioni di temperatura e umidità sono quindi utilizzabili dal sistema Clima & Storico, incluse le aggregazioni esistenti. Le entità sono collegate al device e possono essere assegnate alle Aree dalla normale sezione Dispositivi. Le variazioni pubblicano eventi sul bus Domus per automazioni e client collegati.
 
