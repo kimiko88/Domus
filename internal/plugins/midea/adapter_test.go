@@ -14,6 +14,7 @@ type fakeDriver struct {
 	executeErr   error
 	readErr      error
 	ignoreWrites bool
+	ignoreActions bool
 	executeCalls int
 	readCalls    int
 }
@@ -43,6 +44,9 @@ func (f *fakeDriver) Execute(_ context.Context, _ Device, command Command) error
 		}
 		for key, value := range command.Values {
 			f.state[key] = value
+		}
+		if command.Action == "reset_filter" && !f.ignoreActions {
+			f.state["filter_cleaning_reminder"] = false
 		}
 	}
 	return nil
@@ -241,6 +245,78 @@ func TestAdapterDistinguishesReadBackUnavailable(t *testing.T) {
 	}
 	if driver.executeCalls != 1 {
 		t.Fatalf("physical write calls = %d, want 1", driver.executeCalls)
+	}
+}
+
+func TestAdapterResetFilterVerifiesReminderCleared(t *testing.T) {
+	device := dehumidifierFixture()
+	driver := &fakeDriver{
+		protocol: ProtocolMSmartV2,
+		state: map[string]any{"power": true, "filter_cleaning_reminder": true},
+	}
+	adapter := NewAdapter(driver)
+	if err := adapter.Register(device); err != nil {
+		t.Fatal(err)
+	}
+	state, err := adapter.Command(context.Background(), device.ID, Command{Action: "reset_filter"})
+	if err != nil {
+		t.Fatalf("reset filter should succeed after read-back clears reminder: %v", err)
+	}
+	if state["filter_cleaning_reminder"] != false {
+		t.Fatalf("filter reminder state = %#v, want false", state["filter_cleaning_reminder"])
+	}
+	if driver.executeCalls != 1 || driver.readCalls != 1 {
+		t.Fatalf("write/read calls = %d/%d, want 1/1", driver.executeCalls, driver.readCalls)
+	}
+}
+
+func TestAdapterResetFilterFailsWhenReminderRemainsSet(t *testing.T) {
+	device := dehumidifierFixture()
+	driver := &fakeDriver{
+		protocol: ProtocolMSmartV2,
+		state: map[string]any{"filter_cleaning_reminder": true},
+		ignoreActions: true,
+	}
+	adapter := NewAdapter(driver)
+	if err := adapter.Register(device); err != nil {
+		t.Fatal(err)
+	}
+	_, err := adapter.Command(context.Background(), device.ID, Command{Action: "reset_filter"})
+	if !errors.Is(err, ErrReadBackMismatch) {
+		t.Fatalf("expected filter reset read-back mismatch, got %v", err)
+	}
+	if driver.executeCalls != 1 || driver.readCalls != 1 {
+		t.Fatalf("write/read calls = %d/%d, want 1/1", driver.executeCalls, driver.readCalls)
+	}
+}
+
+func TestA1ProfileDoesNotAdvertiseUnimplementedTelemetry(t *testing.T) {
+	profile, ok := NewRegistry().Resolve("A1")
+	if !ok {
+		t.Fatal("A1 profile not found")
+	}
+	for _, capability := range []Capability{
+		CapAnion, CapPump, CapWaterLevelSet, CapFilterReminder,
+		CapPower, CapMode, CapTargetHumidity, CapFanSpeed,
+	} {
+		if !containsCapability(profile.Capabilities, capability) {
+			t.Errorf("A1 profile missing verified capability %q", capability)
+		}
+	}
+	for _, capability := range []Capability{CapEnergy, CapErrorCode, CapFilterLife} {
+		if containsCapability(profile.Capabilities, capability) {
+			t.Errorf("A1 profile advertises unsupported telemetry %q", capability)
+		}
+	}
+	for _, capability := range []Capability{CapPower, CapMode, CapTargetHumidity, CapFanSpeed, CapAnion, CapPump, CapWaterLevelSet} {
+		if !containsCapability(profile.Writable, capability) {
+			t.Errorf("A1 profile missing verified write capability %q", capability)
+		}
+	}
+	for _, capability := range []Capability{CapFilterReminder, CapCurrentHumidity, CapCurrentTemperature, CapWaterTankFull} {
+		if containsCapability(profile.Writable, capability) {
+			t.Errorf("read-only A1 capability %q marked writable", capability)
+		}
 	}
 }
 
