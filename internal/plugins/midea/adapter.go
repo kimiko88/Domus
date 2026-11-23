@@ -80,11 +80,24 @@ func (a *Adapter) Discover(ctx context.Context) ([]Device, error) {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 
-	a.mu.Lock()
-	for id, device := range found {
-		a.devices[id] = cloneDevice(device)
+	// Apply discovery results under the same per-device locks used by reads,
+	// writes, registration and removal. This prevents discovery from replacing
+	// a device snapshot while an operation is in flight.
+	for _, device := range result {
+		a.mu.Lock()
+		lock := a.locks[device.ID]
+		if lock == nil {
+			lock = &sync.Mutex{}
+			a.locks[device.ID] = lock
+		}
+		a.mu.Unlock()
+
+		lock.Lock()
+		a.mu.Lock()
+		a.devices[device.ID] = cloneDevice(device)
+		a.mu.Unlock()
+		lock.Unlock()
 	}
-	a.mu.Unlock()
 	return result, nil
 }
 
