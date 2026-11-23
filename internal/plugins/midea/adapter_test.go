@@ -82,6 +82,26 @@ func TestDefaultRegistryIncludesDehumidifier(t *testing.T) {
 	}
 }
 
+func TestRegistryApplyReportedNarrowsDehumidifierCapabilities(t *testing.T) {
+	registry := NewRegistry()
+	device := dehumidifierFixture()
+	if !registry.ApplyReported(&device, []Capability{CapPower, CapCurrentHumidity, CapTargetHumidity}) {
+		t.Fatal("expected A1 profile to be applied")
+	}
+	if !containsCapability(device.Capabilities, CapTargetHumidity) {
+		t.Fatal("reported target humidity capability was lost")
+	}
+	if containsCapability(device.Capabilities, CapWaterTankFull) {
+		t.Fatal("unreported water tank capability must not be exposed")
+	}
+	if !containsCapability(device.Writable, CapTargetHumidity) {
+		t.Fatal("reported writable target humidity capability was lost")
+	}
+	if containsCapability(device.Writable, CapFanSpeed) {
+		t.Fatal("unreported fan speed must not remain writable")
+	}
+}
+
 func TestRegistryReturnsDefensiveCopies(t *testing.T) {
 	registry := NewRegistry()
 	profile, ok := registry.Resolve("A1")
@@ -229,6 +249,20 @@ func TestAdapterRejectsDeviceWithoutDriver(t *testing.T) {
 	err := adapter.Register(dehumidifierFixture())
 	if !errors.Is(err, ErrNoDriver) {
 		t.Fatalf("expected ErrNoDriver, got %v", err)
+	}
+}
+
+func TestAdapterRejectsConflictingProtocolDiscovery(t *testing.T) {
+	first := dehumidifierFixture()
+	second := dehumidifierFixture()
+	second.Protocol = ProtocolMSmartV3
+	second.Host = "192.168.1.41"
+	adapter := NewAdapter(
+		&fakeDriver{protocol: ProtocolMSmartV2, devices: []Device{first}},
+		&fakeDriver{protocol: ProtocolMSmartV3, devices: []Device{second}},
+	)
+	if _, err := adapter.Discover(context.Background()); err == nil {
+		t.Fatal("expected conflicting protocol discovery for the same device id to fail")
 	}
 }
 
