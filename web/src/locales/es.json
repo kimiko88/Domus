@@ -3560,6 +3560,7 @@
       "noneAvailable": "No se encontraron dispositivos de integración con una entidad vinculada de temperatura, humedad o termostato. Conecta una integración y comprueba que sus entidades estén asociadas a un dispositivo.",
       "unknownIntegration": "Integración desconocida",
       "deviceDetails": "{integration} · {status}",
+      "notSynced": "No sincronizado con Domus: sincroniza la integración para registrar mediciones.",
       "status": {
         "online": "En línea",
         "offline": "Desconectado",
