@@ -3,6 +3,9 @@ package midea
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -149,6 +152,153 @@ func TestParseA1DehumidifierStatus(t *testing.T) {
 		if got := state[key]; got != want {
 			t.Errorf("%s = %#v, want %#v", key, got, want)
 		}
+	}
+}
+
+func TestParseA1AcceptsNotify2A0AndModeEleven(t *testing.T) {
+	payload := a1FixturePayload()
+	payload[1] = 11 // some A1 units report auto as 11 while accepting code 3
+	payload[2] = 0  // invalid/low fan speed is normalized to the minimum code
+	frame, err := buildA1DataFrame(3, a1MessageNotify2, a1BodyNotify, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := parseA1Response(frame)
+	if err != nil {
+		t.Fatalf("parse unsolicited A0 notification: %v", err)
+	}
+	if state["mode"] != "auto" || state["mode_code"] != 11 {
+		t.Fatalf("mode 11 must map to auto: %#v", state)
+	}
+	if state["fan_speed"] != "lowest" || state["fan_speed_code"] != 1 {
+		t.Fatalf("low fan code must normalize to lowest: %#v", state)
+	}
+}
+
+func TestParseA1RejectsBadCRCWhenOuterChecksumIsValid(t *testing.T) {
+	frame, err := buildA1DataFrame(3, a1MessageQuery, a1BodyQuery, a1FixturePayload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame[len(frame)-2] ^= 0x01 // corrupt body CRC8
+	var sum byte
+	for _, value := range frame[1 : len(frame)-1] {
+		sum += value
+	}
+	frame[len(frame)-1] = -sum // retain a valid AA outer checksum
+	if err := validateA1FrameHeader(frame); err != nil {
+		t.Fatalf("outer AA checksum should remain valid: %v", err)
+	}
+	if _, err := parseA1Response(frame); !errors.Is(err, ErrMideaFrame) {
+		t.Fatalf("expected A1 body CRC rejection, got %v", err)
+	}
+}
+
+func TestMideaV3SecurityMatchesIndependentGoldenFrame(t *testing.T) {
+	security := newMideaV3Security()
+	security.tcpKey = bytes.Repeat([]byte{0x21}, 32)
+	frame, err := security.encode([]byte("0123456789ABCD"), 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "8370002e2006131de486c158cc68598a7cccbeaab6cc1206d2214ae06adec396fc8fa215cbce2da7b28e99eab7afc185dcd99a4bf7df"
+	if got := hex.EncodeToString(frame); got != want {
+		t.Fatalf("M-Smart V3 0x8370 frame mismatch\n got: %s\nwant: %s", got, want)
+	}
+
+	receiver := newMideaV3Security()
+	receiver.tcpKey = bytes.Repeat([]byte{0x21}, 32)
+	decoded, err := receiver.decode(frame)
+	if err != nil {
+		t.Fatalf("decode independent golden frame: %v", err)
+	}
+	if string(decoded) != "0123456789ABCD" {
+		t.Fatalf("decoded V3 payload = %q", decoded)
+	}
+	frame[len(frame)-1] ^= 0x01
+	if _, err := receiver.decode(frame); !errors.Is(err, ErrMideaAuth) {
+		t.Fatalf("tampered V3 SHA256 signature must fail authentication, got %v", err)
+	}
+}
+
+func TestMideaV3RequestCounterWrapsAtFFFF(t *testing.T) {
+	security := newMideaV3Security()
+	security.requestCount = 0xFFFE
+	first, err := security.encode([]byte("first"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := binary.BigEndian.Uint16(first[6:8]); got != 0xFFFE {
+		t.Fatalf("first request counter = %d, want 65534", got)
+	}
+	if security.requestCount != 0 {
+		t.Fatalf("counter after 0xFFFF should wrap to zero, got %d", security.requestCount)
+	}
+	second, err := security.encode([]byte("second"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := binary.BigEndian.Uint16(second[6:8]); got != 0 {
+		t.Fatalf("wrapped request counter = %d, want 0", got)
+	}
+}
+
+func TestA1V3AuthenticationHandshakeOverTCPPipe(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	token := bytes.Repeat([]byte{0x11}, 64)
+	deviceKey := bytes.Repeat([]byte{0x22}, 32)
+	deviceSecret := bytes.Repeat([]byte{0x33}, 32)
+	serverDone := make(chan error, 1)
+	go func() {
+		defer server.Close()
+		handshake, err := read8370Frame(server)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		serverSecurity := newMideaV3Security()
+		receivedToken, err := serverSecurity.decode(handshake)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		if !bytes.Equal(receivedToken, token) {
+			serverDone <- errors.New("client sent unexpected V3 token")
+			return
+		}
+		block, err := aes.NewCipher(deviceKey)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		ciphertext := make([]byte, len(deviceSecret))
+		cipher.NewCBCEncrypter(block, make([]byte, aes.BlockSize)).CryptBlocks(ciphertext, deviceSecret)
+		signature := sha256.Sum256(deviceSecret)
+		replyPayload := append(ciphertext, signature[:]...)
+		reply, err := serverSecurity.encode(replyPayload, 1)
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		serverDone <- writeAll(server, reply)
+	}()
+
+	session := &a1Session{conn: client, protocol: ProtocolMSmartV3, security: newMideaV3Security()}
+	if err := session.authenticate(context.Background(), token, deviceKey); err != nil {
+		t.Fatalf("V3 authentication failed: %v", err)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatalf("V3 simulator failed: %v", err)
+	}
+	expectedKey := make([]byte, 32)
+	for i := range expectedKey {
+		expectedKey[i] = deviceSecret[i] ^ deviceKey[i]
+	}
+	if !bytes.Equal(session.security.tcpKey, expectedKey) {
+		t.Fatalf("derived TCP key = %x, want %x", session.security.tcpKey, expectedKey)
 	}
 }
 
