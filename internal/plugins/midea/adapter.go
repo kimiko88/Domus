@@ -181,6 +181,12 @@ func (a *Adapter) Command(ctx context.Context, id string, command Command) (map[
 			return cloneState(state), fmt.Errorf("%w: %s", ErrReadBackMismatch, field)
 		}
 	}
+	if command.Action == "reset_filter" {
+		reminder, exists := state["filter_cleaning_reminder"]
+		if !exists || reminder != false {
+			return cloneState(state), fmt.Errorf("%w: filter_cleaning_reminder", ErrReadBackMismatch)
+		}
+	}
 
 	device.State = cloneState(state)
 	device.Online = true
