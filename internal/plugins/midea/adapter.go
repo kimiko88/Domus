@@ -108,9 +108,21 @@ func (a *Adapter) Register(device Device) error {
 // Callers should first remove the corresponding encrypted persisted config.
 func (a *Adapter) Unregister(id string) {
 	a.mu.Lock()
-	delete(a.devices, id)
-	delete(a.locks, id)
+	lock := a.locks[id]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		a.locks[id] = lock
+	}
 	a.mu.Unlock()
+
+	// Wait for any in-flight read/write before removing the registry entry.
+	// Keep the per-ID mutex so a concurrent re-register cannot create a second
+	// lock and race a command that is still unwinding.
+	lock.Lock()
+	a.mu.Lock()
+	delete(a.devices, id)
+	a.mu.Unlock()
+	lock.Unlock()
 }
 
 func (a *Adapter) ListDevices() []Device {
