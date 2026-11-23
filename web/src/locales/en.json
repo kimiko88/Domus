@@ -3560,6 +3560,7 @@
       "noneAvailable": "No integration devices with a linked temperature, humidity or thermostat entity were found. Connect an integration and make sure its entities are linked to a device.",
       "unknownIntegration": "Unknown integration",
       "deviceDetails": "{integration} · {status}",
+      "notSynced": "Not synchronized in Domus: sync the integration to record measurements.",
       "status": {
         "online": "Online",
         "offline": "Offline",

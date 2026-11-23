@@ -3560,6 +3560,7 @@
       "noneAvailable": "Keine Integrationsgeräte mit verknüpfter Temperatur-, Feuchtigkeits- oder Thermostat-Entität gefunden. Verbinden Sie eine Integration und ordnen Sie ihre Entitäten einem Gerät zu.",
       "unknownIntegration": "Unbekannte Integration",
       "deviceDetails": "{integration} · {status}",
+      "notSynced": "Nicht mit Domus synchronisiert: Synchronisieren Sie die Integration, um Messwerte aufzuzeichnen.",
       "status": {
         "online": "Online",
         "offline": "Offline",

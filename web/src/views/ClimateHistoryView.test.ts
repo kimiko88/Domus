@@ -6,6 +6,8 @@ import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
 import { useDevicesStore } from '@/stores/devices'
+import { useAuthStore } from '@/stores/auth'
+import { apiClient } from '@/api/client'
 import { i18n, setLanguage } from '@/locales'
 
 vi.mock('chart.js/auto', () => ({
@@ -26,6 +28,15 @@ describe('ClimateHistoryView.vue', () => {
     const entities = useEntitiesStore()
     const areas = useAreasStore()
     const devices = useDevicesStore()
+    const auth = useAuthStore()
+    auth.user = {
+      id: 'climate-admin', username: 'admin', role: 'admin',
+      created_at: '', updated_at: ''
+    }
+    const roomFixtures = [
+      { id: 'bedroom', name: 'Bedroom', icon: 'bed', sort_order: 1, created_at: '', updated_at: '' },
+      { id: 'office', name: 'Office', icon: 'laptop', sort_order: 2, created_at: '', updated_at: '' }
+    ]
     entities.entities = {
       'sensor-bedroom': {
         id: 'sensor-bedroom', entity_key: 'sensor.bedroom_temperature', device_id: 'device-bedroom',
@@ -61,12 +72,22 @@ describe('ClimateHistoryView.vue', () => {
       { id: 'tuya_device-tuya-climate', external_id: 'device-tuya-climate', name: 'Tuya thermo-hygrometer', integration_id: 'tuya_local', status: 'online', created_at: '', updated_at: '' }
     ]
     vi.spyOn(devices, 'fetchDevices').mockImplementation(async () => devices.devices)
+    vi.spyOn(apiClient, 'get').mockImplementation((async (path: string) => {
+      if (path.endsWith('/tuya-local/devices')) return { devices: [] }
+      if (path.endsWith('/tuya-cloud/config')) return { configured: false }
+      if (path.endsWith('/tuya-oauth/status')) return { connected: false }
+      throw new Error('Unexpected climate API request: ' + path)
+    }) as any)
     vi.spyOn(store, 'fetchSettings').mockImplementation(async () => {
       Object.assign(store.settings, defaultClimateHistorySettings)
       return store.settings
     })
     vi.spyOn(entities, 'fetchEntities').mockResolvedValue([])
-    vi.spyOn(areas, 'fetchAreas').mockResolvedValue([{ id: 'bedroom', name: 'Bedroom', icon: 'bed', sort_order: 1, created_at: '', updated_at: '' }])
+    areas.areas = roomFixtures
+    vi.spyOn(areas, 'fetchAreas').mockImplementation(async () => {
+      areas.areas = roomFixtures
+      return roomFixtures
+    })
     const refresh = vi.spyOn(store, 'refresh').mockImplementation(async () => {
       store.points = [{
         entity_id: 'sensor-bedroom', entity_key: 'sensor.bedroom_temperature',
@@ -113,6 +134,89 @@ describe('ClimateHistoryView.vue', () => {
     expect(refresh.mock.calls[0][0]).toHaveProperty('from')
   })
 
+
+  it('offers configured rooms even when they have no climate samples yet', async () => {
+    const { wrapper, refresh } = setupView()
+    await flushPromises()
+    refresh.mockClear()
+
+    await wrapper.find('#climate-room-select').trigger('click')
+    const roomOptions = wrapper.findAll('[role="option"]').map(option => option.text())
+    expect(roomOptions).toContain('Tutte le stanze')
+    expect(roomOptions).toContain('Bedroom')
+    expect(roomOptions).toContain('Office')
+
+    await wrapper.findAll('[role="option"]').find(option => option.text() === 'Office')!.trigger('click')
+    await flushPromises()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    const refreshQuery = refresh.mock.calls[0]?.[0]
+    expect(refreshQuery?.area_id).toBe('office')
+  })
+
+  it('merges Tuya Cloud, Smart Life and LocalTuya climate sources and flags unsynchronized devices', async () => {
+    const { wrapper } = setupView()
+    const entities = useEntitiesStore()
+    const getSpy = vi.mocked(apiClient.get)
+    entities.entities['climate.tuya_cloud-thermostat'] = {
+      id: 'climate.tuya_cloud-thermostat',
+      entity_key: 'climate.tuya_cloud-thermostat',
+      device_id: 'tuya_cloud-thermostat',
+      domain: 'climate',
+      name: 'Cloud thermostat entity',
+      state: 'heat',
+      attributes: { current_temperature: 21, target_temperature: 22 },
+      last_changed: '', last_updated: ''
+    }
+    entities.entities['sensor.tuya_local-climate-sensor'] = {
+      id: 'sensor.tuya_local-climate-sensor',
+      entity_key: 'sensor.tuya_local-climate-sensor',
+      device_id: 'local-climate-sensor',
+      domain: 'sensor',
+      name: 'Local temperature sensor',
+      state: '21',
+      unit_of_measurement: '°C',
+      attributes: { device_class: 'temperature', current_temperature: 21 },
+      last_changed: '', last_updated: ''
+    }
+    getSpy.mockImplementation((async (path: string) => {
+      if (path.endsWith('/tuya-local/devices')) {
+        return { devices: [{
+          device_id: 'local-climate-sensor', name: 'Local temperature sensor',
+          category: 'sensor', entity_key: 'sensor.tuya_local-climate-sensor', connected: true
+        }] }
+      }
+      if (path.endsWith('/tuya-cloud/config')) return { configured: true }
+      if (path.endsWith('/tuya-cloud/devices')) {
+        return { devices: [{
+          id: 'cloud-thermostat', name: 'Cloud thermostat', category: 'wk',
+          inferred_category: 'climate', climate_source: true, online: true
+        }] }
+      }
+      if (path.endsWith('/tuya-oauth/status')) return { connected: true }
+      if (path.endsWith('/tuya-oauth/devices')) {
+        return { devices: [{
+          id: 'oauth-thermometer', name: 'Smart Life thermometer',
+          category: 'thermo_hygrometer', climate_source: true, online: true
+        }] }
+      }
+      throw new Error('Unexpected climate API request: ' + path)
+    }) as any)
+
+    await wrapper.find('.header-actions button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.source-all-toggle input').setValue(false)
+
+    const rows = wrapper.findAll('.source-device')
+    expect(rows.some(row => row.text().includes('Cloud thermostat'))).toBe(true)
+    expect(rows.some(row => row.text().includes('Local temperature sensor'))).toBe(true)
+    expect(rows.some(row => row.text().includes('Smart Life thermometer'))).toBe(true)
+
+    const unsynchronized = rows.find(row => row.text().includes('Smart Life thermometer'))
+    expect(unsynchronized?.find('input').element.hasAttribute('disabled')).toBe(true)
+    const cloudThermostat = rows.find(row => row.text().includes('Cloud thermostat'))
+    expect(cloudThermostat?.find('input').element.hasAttribute('disabled')).toBe(false)
+  })
+
   it('selects climate-capable integration devices and persists an explicit source selection', async () => {
     const { wrapper, store } = setupView()
     const saveSpy = vi.spyOn(store, 'saveSettings').mockImplementation(async settings => {
@@ -121,7 +225,7 @@ describe('ClimateHistoryView.vue', () => {
     })
     await flushPromises()
 
-    expect(wrapper.findAll('.source-device')).toHaveLength(0)
+    expect(wrapper.findAll('.source-device')).toHaveLength(3)
     expect((wrapper.find('.source-all-toggle input').element as HTMLInputElement).checked).toBe(true)
 
     await wrapper.find('.source-all-toggle input').setValue(false)

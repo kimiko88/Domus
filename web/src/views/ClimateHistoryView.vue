@@ -7,6 +7,8 @@ import { useClimateHistoryStore, defaultClimateHistorySettings } from '@/stores/
 import { useEntitiesStore } from '@/stores/entities'
 import { useAreasStore } from '@/stores/areas'
 import { useDevicesStore } from '@/stores/devices'
+import { useAuthStore } from '@/stores/auth'
+import { apiClient } from '@/api/client'
 import type { ClimateHistoryPoint, ClimateHistorySettings, Device, Entity } from '@/api/types'
 
 const { t, locale } = useI18n()
@@ -14,6 +16,7 @@ const store = useClimateHistoryStore()
 const entitiesStore = useEntitiesStore()
 const areasStore = useAreasStore()
 const devicesStore = useDevicesStore()
+const authStore = useAuthStore()
 
 type RangeKey = '24h' | '7d' | '30d' | 'custom'
 type MetricKey = 'temperature' | 'humidity' | 'target_temperature'
@@ -31,8 +34,34 @@ const settingsForm = reactive<ClimateHistorySettings>({ ...defaultClimateHistory
 let chart: Chart | null = null
 let mounted = false
 
+interface ExternalClimateDevice {
+  id?: string
+  device_id?: string
+  name: string
+  product_name?: string
+  category?: string
+  inferred_category?: string
+  entity_key?: string
+  climate_source?: boolean
+  online?: boolean
+  connected?: boolean
+  local_configured?: boolean
+  local_active?: boolean
+  source?: 'tuya_local' | 'tuya_cloud' | 'tuya_oauth'
+}
+
+interface ClimateSourceDevice extends Device {
+  selectable: boolean
+}
+
+const tuyaLocalDevices = ref<ExternalClimateDevice[]>([])
+const tuyaCloudDevices = ref<ExternalClimateDevice[]>([])
+const tuyaOAuthDevices = ref<ExternalClimateDevice[]>([])
+
 const availableAreas = computed(() => {
   const values = new Map<string, string>()
+  areasStore.sortedAreas.forEach(area => values.set(area.id, area.name))
+  // Keep historic room IDs visible if an area was removed after samples were recorded.
   store.points.forEach(point => {
     const id = point.area_id || ''
     if (id && !values.has(id)) values.set(id, id)
@@ -103,57 +132,172 @@ function tuyaDeviceIDFromEntity(entity: Entity): string {
   return ''
 }
 
-const availableClimateDevices = computed(() => {
-  const sourceEntities = entitiesStore.allEntities.filter(isClimateSourceEntity)
-  const devicesByID = new Map<string, Device>()
+function externalTuyaDeviceID(device: ExternalClimateDevice): string {
+  return String(device.device_id || device.id || '').trim()
+}
 
-  sourceEntities.forEach(entity => {
-    // Keep the same ID the backend collector and settings validator use:
-    // entity.device_id, or the deterministic tuya_<id> suffix for legacy rows.
+function isExternalClimateSource(device: ExternalClimateDevice): boolean {
+  if (device.climate_source === true) return true
+  const category = String(device.inferred_category || device.category || '').toLowerCase()
+  if (category === 'climate') return true
+  const description = [device.entity_key, device.name, device.product_name, device.category]
+    .filter(Boolean).join(' ').toLowerCase()
+  return category === 'sensor' &&
+    /temperature|temperatura|thermo|termomet|humidity|umid|igrometr|clima/.test(description)
+}
+
+async function loadTuyaLocalDevices() {
+  if (!authStore.isAdmin) {
+    tuyaLocalDevices.value = []
+    return
+  }
+  try {
+    const result = await apiClient.get<{ devices?: ExternalClimateDevice[] }>('/api/v1/integrations/tuya-local/devices')
+    tuyaLocalDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    tuyaLocalDevices.value = []
+  }
+}
+
+async function loadTuyaCloudDevices() {
+  try {
+    const config = await apiClient.get<{ configured?: boolean }>('/api/v1/integrations/tuya-cloud/config')
+    if (!config?.configured) {
+      tuyaCloudDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalClimateDevice[] }>('/api/v1/integrations/tuya-cloud/devices')
+    tuyaCloudDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    tuyaCloudDevices.value = []
+  }
+}
+
+async function loadTuyaOAuthDevices() {
+  if (!authStore.isAdmin) {
+    tuyaOAuthDevices.value = []
+    return
+  }
+  try {
+    const status = await apiClient.get<{ connected?: boolean }>('/api/v1/integrations/tuya-oauth/status')
+    if (!status?.connected) {
+      tuyaOAuthDevices.value = []
+      return
+    }
+    const result = await apiClient.get<{ devices?: ExternalClimateDevice[] }>('/api/v1/integrations/tuya-oauth/devices')
+    tuyaOAuthDevices.value = Array.isArray(result?.devices) ? result.devices : []
+  } catch {
+    tuyaOAuthDevices.value = []
+  }
+}
+
+const availableClimateDevices = computed<ClimateSourceDevice[]>(() => {
+  const devicesByID = new Map<string, ClimateSourceDevice>()
+  const externalDevices = [
+    ...tuyaLocalDevices.value.map(device => ({
+      ...device,
+      id: externalTuyaDeviceID(device),
+      online: device.connected === true || device.online === true,
+      source: 'tuya_local' as const
+    })),
+    ...tuyaCloudDevices.value.map(device => ({ ...device, id: externalTuyaDeviceID(device), source: 'tuya_cloud' as const })),
+    ...tuyaOAuthDevices.value.map(device => ({ ...device, id: externalTuyaDeviceID(device), source: 'tuya_oauth' as const }))
+  ].filter(device => Boolean(device.id))
+
+  const climateEntities = entitiesStore.allEntities.filter(isClimateSourceEntity)
+  climateEntities.forEach(entity => {
+    // These IDs must match the backend collector and validator.
     const sourceID = entity.device_id || tuyaDeviceIDFromEntity(entity)
     if (!sourceID || devicesByID.has(sourceID)) return
 
+    const normalizedID = sourceID.startsWith('tuya_') ? sourceID.slice('tuya_'.length) : sourceID
     const matchingDevice = devicesStore.devices.find(device => {
-      const normalizedID = device.id.startsWith('tuya_') ? device.id.slice('tuya_'.length) : device.id
+      const normalizedDeviceID = device.id.startsWith('tuya_') ? device.id.slice('tuya_'.length) : device.id
       const externalID = device.external_id || ''
-      return device.id === sourceID || normalizedID === sourceID ||
+      return device.id === sourceID || normalizedDeviceID === sourceID ||
         externalID === sourceID || (externalID !== '' && 'tuya_' + externalID === sourceID)
     })
-
-    if (matchingDevice) {
-      devicesByID.set(sourceID, { ...matchingDevice, id: sourceID })
-      return
-    }
-
-    // Older integration entities can exist before a matching /devices record.
-    // The synthetic row still uses a backend-recognized stable device identifier.
-    const isTuya = sourceID.startsWith('tuya_') || (entity.entity_key || '').includes('.tuya_')
+    const external = externalDevices.find(device =>
+      device.id === sourceID || device.id === normalizedID ||
+      'tuya_' + device.id === sourceID || device.id === 'tuya_' + sourceID
+    )
+    const isTuya = Boolean(external) || sourceID.startsWith('tuya_') ||
+      (entity.entity_key || '').includes('.tuya_')
+    const integrationID = external?.source === 'tuya_local' || external?.local_configured
+      ? 'tuya_local'
+      : external?.source || matchingDevice?.integration_id ||
+        (isTuya ? 'tuya_local' : t('climateHistory.sources.unknownIntegration'))
     devicesByID.set(sourceID, {
+      ...(matchingDevice || {}),
       id: sourceID,
-      external_id: isTuya ? sourceID.slice('tuya_'.length) : sourceID,
-      name: entity.name || sourceID,
-      integration_id: isTuya ? 'tuya_local' : t('climateHistory.sources.unknownIntegration'),
-      status: 'unknown',
-      created_at: '',
-      updated_at: ''
+      external_id: matchingDevice?.external_id || (isTuya ? normalizedID : sourceID),
+      name: external?.name || matchingDevice?.name || entity.name || sourceID,
+      integration_id: integrationID,
+      manufacturer: matchingDevice?.manufacturer || (isTuya ? 'Tuya' : undefined),
+      model: matchingDevice?.model || external?.product_name || external?.category,
+      area_id: matchingDevice?.area_id || entity.area_id || undefined,
+      status: external
+        ? (external.online ? 'online' : 'offline')
+        : matchingDevice?.status || 'unknown',
+      created_at: matchingDevice?.created_at || '',
+      updated_at: matchingDevice?.updated_at || '',
+      selectable: true
+    })
+  })
+
+  // Show Tuya climate-capable devices even before their entity is synchronized.
+  // They remain read-only until Domus has an entity that its collector can record.
+  externalDevices.filter(isExternalClimateSource).forEach(device => {
+    const externalID = device.id
+    const canonicalID = 'tuya_' + externalID
+    if (!externalID || devicesByID.has(canonicalID) ||
+      [...devicesByID.values()].some(existing => existing.external_id === externalID)) return
+    const registryDevice = devicesStore.devices.find(item =>
+      item.id === canonicalID || item.external_id === externalID
+    )
+    devicesByID.set(canonicalID, {
+      ...(registryDevice || {}),
+      id: canonicalID,
+      external_id: externalID,
+      name: device.name || registryDevice?.name || canonicalID,
+      integration_id: device.source === 'tuya_local' || device.local_configured
+        ? 'tuya_local'
+        : device.source || registryDevice?.integration_id || 'tuya_cloud',
+      manufacturer: registryDevice?.manufacturer || 'Tuya',
+      model: registryDevice?.model || device.product_name || device.category || device.inferred_category,
+      area_id: registryDevice?.area_id || undefined,
+      status: device.online ? 'online' : 'offline',
+      created_at: registryDevice?.created_at || '',
+      updated_at: registryDevice?.updated_at || '',
+      selectable: false
     })
   })
 
   return [...devicesByID.values()].sort((a, b) => a.name.localeCompare(b.name, locale.value))
 })
 
+const trackableClimateDevices = computed(() => availableClimateDevices.value.filter(device => device.selectable))
+
 const allClimateDevicesSelected = computed({
   get: () => settingsForm.tracked_device_ids === null,
   set: (all: boolean) => {
-    settingsForm.tracked_device_ids = all ? null : availableClimateDevices.value.map(device => device.id)
+    settingsForm.tracked_device_ids = all ? null : trackableClimateDevices.value.map(device => device.id)
   }
 })
 
 const selectedSourceDeviceCount = computed(() =>
   settingsForm.tracked_device_ids === null
-    ? availableClimateDevices.value.length
+    ? trackableClimateDevices.value.length
     : settingsForm.tracked_device_ids.length
 )
+
+function updateTrackedDevice(deviceID: string, event: Event) {
+  const checked = (event.target as HTMLInputElement | null)?.checked === true
+  const current = new Set(settingsForm.tracked_device_ids || [])
+  if (checked) current.add(deviceID)
+  else current.delete(deviceID)
+  settingsForm.tracked_device_ids = [...current]
+}
 
 function deviceIntegrationDetails(device: Device): string {
   const integration = device.integration_id || t('climateHistory.sources.unknownIntegration')
@@ -218,6 +362,18 @@ function rangeQuery() {
     ? new Date(dateFrom.value + 'T00:00:00').toISOString()
     : new Date(Date.now() - (selectedRange.value === '7d' ? 7 : selectedRange.value === '30d' ? 30 : 1) * 86400000).toISOString()
   return { from, to, area_id: selectedArea.value || undefined, limit: 10000 }
+}
+
+async function refreshClimateView() {
+  await Promise.allSettled([
+    areasStore.fetchAreas(),
+    entitiesStore.fetchEntities(),
+    devicesStore.fetchDevices(),
+    loadTuyaLocalDevices(),
+    loadTuyaCloudDevices(),
+    loadTuyaOAuthDevices()
+  ])
+  await loadDashboard()
 }
 
 async function loadDashboard() {
@@ -311,7 +467,10 @@ onMounted(async () => {
       store.fetchSettings(),
       entitiesStore.fetchEntities(),
       devicesStore.fetchDevices().catch(() => []),
-      areasStore.fetchAreas().catch(() => [])
+      areasStore.fetchAreas().catch(() => []),
+      loadTuyaLocalDevices(),
+      loadTuyaCloudDevices(),
+      loadTuyaOAuthDevices()
     ])
     Object.assign(settingsForm, store.settings)
   } catch {
@@ -337,7 +496,7 @@ onBeforeUnmount(() => {
         <p>{{ t('climateHistory.subtitle') }}</p>
       </div>
       <div class="header-actions">
-        <button class="secondary-btn" :disabled="store.loading" @click="loadDashboard">{{ t('climateHistory.refresh') }}</button>
+        <button class="secondary-btn" :disabled="store.loading" @click="refreshClimateView">{{ t('climateHistory.refresh') }}</button>
         <button class="secondary-btn" :disabled="store.loading" @click="exportCSV">{{ t('climateHistory.exportCsv') }}</button>
       </div>
     </header>
@@ -398,19 +557,26 @@ onBeforeUnmount(() => {
         <input v-model="allClimateDevicesSelected" type="checkbox">
         <span>{{ t('climateHistory.sources.allDevices') }}</span>
       </label>
-      <div v-if="!allClimateDevicesSelected && availableClimateDevices.length" class="source-device-list">
+      <div v-if="availableClimateDevices.length" class="source-device-list">
         <label v-for="device in availableClimateDevices" :key="device.id" class="source-device">
-          <input v-model="settingsForm.tracked_device_ids" type="checkbox" :value="device.id">
+          <input
+            type="checkbox"
+            :value="device.id"
+            :checked="allClimateDevicesSelected || (settingsForm.tracked_device_ids || []).includes(device.id)"
+            :disabled="allClimateDevicesSelected || !device.selectable"
+            @change="updateTrackedDevice(device.id, $event)"
+          >
           <span>
             <strong>{{ device.name }}</strong>
             <small>{{ deviceIntegrationDetails(device) }}</small>
+            <small v-if="!device.selectable" class="source-device-note">{{ t('climateHistory.sources.notSynced') }}</small>
           </span>
         </label>
       </div>
       <p v-if="!availableClimateDevices.length" class="source-hint">{{ t('climateHistory.sources.noneAvailable') }}</p>
       <p v-else class="source-hint">
         {{ allClimateDevicesSelected
-          ? t('climateHistory.sources.allHint', { count: availableClimateDevices.length })
+          ? t('climateHistory.sources.allHint', { count: trackableClimateDevices.length })
           : t('climateHistory.sources.selectedCount', { count: selectedSourceDeviceCount }) }}
       </p>
       <div class="settings-footer">
