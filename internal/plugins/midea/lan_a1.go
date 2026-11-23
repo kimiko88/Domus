@@ -199,7 +199,7 @@ func (d *A1LANDriver) Execute(ctx context.Context, device Device, command Comman
 	if err := session.writePacket(ctx, packet); err != nil {
 		return fmt.Errorf("midea: A1 write delivery is uncertain: %w", err)
 	}
-	_ = session.readOptionalAck()
+	session.readOptionalAck()
 	return nil
 }
 
@@ -547,8 +547,8 @@ func parseA1Response(frame []byte) (map[string]any, error) {
 	}
 	currentHumidity := int(body[16])
 	currentTemperature := (float64(body[17]) - 50) / 2
-	mode, _ := a1ModeName(modeCode)
-	fanSpeed, _ := a1FanSpeedName(speedCode)
+	mode, _ := a1ModeName(int(modeCode))
+	fanSpeed, _ := a1FanSpeedName(int(speedCode))
 	return map[string]any{
 		"power": power,
 		"mode": mode,
