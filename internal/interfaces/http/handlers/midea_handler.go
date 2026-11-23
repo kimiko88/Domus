@@ -38,6 +38,7 @@ type MideaHandler struct {
 	config       mideaStoredConfig
 	discovered   map[string]midea.DiscoveredAppliance
 	discover     func(context.Context) ([]midea.DiscoveredAppliance, error)
+	unsubscribe  func()
 }
 
 type mideaStoredConfig struct {
@@ -100,8 +101,114 @@ func NewMideaHandler(
 
 // WithEventBus publishes verified device state to the shared automation and WebSocket event pipeline.
 func (h *MideaHandler) WithEventBus(bus events.Bus) *MideaHandler {
+	h.mu.Lock()
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 	h.bus = bus
+	if bus != nil {
+		h.unsubscribe = bus.Subscribe(events.CommandRequested, h.handleCommandEvent)
+	}
+	h.mu.Unlock()
 	return h
+}
+
+// handleCommandEvent routes standard Domus entity commands to the owned
+// dehumidifier entity. Other integrations and telemetry entities are ignored.
+func (h *MideaHandler) handleCommandEvent(ctx context.Context, event events.Event) error {
+	payload, err := json.Marshal(event.Payload)
+	if err != nil {
+		return nil
+	}
+	var request struct {
+		EntityID  string         `json:"entity_id"`
+		EntityKey string         `json:"entity_key"`
+		Service   string         `json:"service"`
+		Params    map[string]any `json:"params"`
+	}
+	if err := json.Unmarshal(payload, &request); err != nil {
+		return nil
+	}
+	if request.EntityKey == "" && request.EntityID != "" {
+		item, lookupErr := h.entities.GetByID(ctx, request.EntityID)
+		if lookupErr != nil || item == nil {
+			return nil
+		}
+		request.EntityKey = item.EntityKey
+	}
+	if request.EntityKey == "" {
+		return nil
+	}
+	entityItem, err := h.entities.GetByKey(ctx, request.EntityKey)
+	if err != nil || entityItem == nil || entityItem.Domain != "humidifier" || entityItem.DeviceID == "" {
+		return nil
+	}
+	ownedDevice, err := h.devices.GetByID(ctx, entityItem.DeviceID)
+	if err != nil || ownedDevice == nil || ownedDevice.IntegrationID != mideaIntegrationID {
+		return nil
+	}
+
+	params := request.Params
+	if params == nil {
+		params = make(map[string]any)
+	}
+	command := midea.Command{Values: make(map[string]any)}
+	switch request.Service {
+	case "turn_on":
+		command.Values["power"] = true
+	case "turn_off":
+		command.Values["power"] = false
+	case "set_humidity":
+		value, ok := params["humidity"]
+		if !ok { value = params["target_humidity"] }
+		if value == nil {
+			return errors.New("midea: set_humidity requires humidity or target_humidity")
+		}
+		command.Values["target_humidity"] = value
+	case "set_mode":
+		value, ok := params["mode"]
+		if !ok || value == nil {
+			return errors.New("midea: set_mode requires mode")
+		}
+		command.Values["mode"] = value
+	case "set_fan_mode", "set_fan_speed":
+		value, ok := params["fan_mode"]
+		if !ok { value = params["fan_speed"] }
+		if value == nil {
+			return errors.New("midea: set_fan_mode requires fan_mode or fan_speed")
+		}
+		command.Values["fan_speed"] = value
+	case "reset_filter":
+		command.Action = "reset_filter"
+	default:
+		return fmt.Errorf("midea: unsupported Domus humidifier service %q", request.Service)
+	}
+	if len(command.Values) == 0 && command.Action == "" {
+		return errors.New("midea: empty Domus command")
+	}
+	state, commandErr := h.adapter.Command(ctx, ownedDevice.ExternalID, command)
+	if commandErr != nil {
+		if h.bus != nil {
+			_ = h.bus.Publish(ctx, events.Event{
+				ID: uuid.NewString(), Type: events.CommandFailed, OccurredAt: time.Now().UTC(),
+				Source: "midea_smarthome",
+				Payload: map[string]any{"entity_key": request.EntityKey, "service": request.Service, "error": safeMideaError(commandErr)},
+			})
+		}
+		return commandErr
+	}
+	if err := h.syncEntities(ctx, ownedDevice.ExternalID, state); err != nil {
+		return err
+	}
+	if h.bus != nil {
+		_ = h.bus.Publish(ctx, events.Event{
+			ID: uuid.NewString(), Type: events.CommandSucceeded, OccurredAt: time.Now().UTC(),
+			Source: "midea_smarthome",
+			Payload: map[string]any{"entity_key": request.EntityKey, "service": request.Service},
+		})
+	}
+	return nil
 }
 
 func (h *MideaHandler) RegisterRoutes(r chi.Router) {
