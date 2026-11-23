@@ -5,6 +5,8 @@ import (
 	"crypto/aes"
 	"crypto/md5"
 	"encoding/binary"
+	"net"
+	"syscall"
 	"testing"
 )
 
@@ -44,6 +46,34 @@ func makeDiscoveryFixture(t *testing.T, deviceID uint64, protocol Protocol) []by
 		return wrapped
 	}
 	return packet
+}
+
+func TestDiscoverSocketEnablesIPv4Broadcast(t *testing.T) {
+	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := enableMideaBroadcast(conn); err != nil {
+		t.Fatalf("enable broadcast: %v", err)
+	}
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	var socketErr error
+	if err := raw.Control(func(fd uintptr) {
+		enabled, socketErr = syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if socketErr != nil {
+		t.Fatal(socketErr)
+	}
+	if enabled != 1 {
+		t.Fatalf("SO_BROADCAST = %d, want 1", enabled)
+	}
 }
 
 func TestParseMideaA1DiscoveryDatagram(t *testing.T) {
