@@ -123,7 +123,7 @@ type Device struct {
 }
 
 func (d Device) Validate() error {
-	if !deviceIDPattern.MatchString(strings.TrimSpace(d.ID)) {
+	if strings.TrimSpace(d.ID) != d.ID || !deviceIDPattern.MatchString(d.ID) {
 		return fmt.Errorf("%w: invalid device id", ErrInvalidDevice)
 	}
 	if d.Kind == "" {
