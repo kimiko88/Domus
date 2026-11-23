@@ -38,7 +38,11 @@ func NewRegistry() *Registry {
 			CapCurrentTemperature, CapFanSpeed, CapWaterTankFull,
 			CapFilterLife, CapEnergy, CapErrorCode,
 		},
-		Writable: []Capability{CapPower, CapMode, CapTargetHumidity, CapFanSpeed},
+		Writable: []Capability{CapPower, CapMode, CapTargetHumidity, CapFanSpeed, CapSwing, CapChildLock},
+		Modes: []string{"manual", "continuous", "auto", "clothes_dry", "shoes_dry", "silent"},
+		FanSpeeds: []string{"lowest", "low", "medium", "high", "auto", "off"},
+		Actions: []string{"reset_filter"},
+		MinHumidity: 35, MaxHumidity: 100,
 	})
 	_ = registry.Register("AC", Profile{
 		Kind: KindAirConditioner,
