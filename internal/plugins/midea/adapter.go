@@ -104,6 +104,15 @@ func (a *Adapter) Register(device Device) error {
 	return nil
 }
 
+// Unregister removes a device from the adapter's runtime registry.
+// Callers should first remove the corresponding encrypted persisted config.
+func (a *Adapter) Unregister(id string) {
+	a.mu.Lock()
+	delete(a.devices, id)
+	delete(a.locks, id)
+	a.mu.Unlock()
+}
+
 func (a *Adapter) ListDevices() []Device {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
