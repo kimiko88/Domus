@@ -860,6 +860,7 @@ Documentazione completa e interattiva: `http://domus.local/docs`
 | **Integrazioni & LAN** | `GET /api/v1/integrations` · `GET /api/v1/integrations/catalog` · `POST /api/v1/integrations/discovery/scan` · `POST /api/v1/integrations/discovery/pair` |
 | **Xiaomi MiIO locale** | `POST /api/v1/integrations/xiaomi-home/discovery` · `POST /api/v1/integrations/xiaomi-home/devices` · `POST /api/v1/integrations/xiaomi-home/devices/{id}/commands` |
 | **VeSync Cloud** | `GET /api/v1/integrations/vesync/status` · `PUT /api/v1/integrations/vesync/config` · `GET /api/v1/integrations/vesync/devices` · `POST /api/v1/integrations/vesync/devices/{id}/commands` · `POST /api/v1/integrations/vesync/disconnect` |
+| **Midea SmartHome locale** | `GET /api/v1/integrations/midea/status` · `POST /api/v1/integrations/midea/discovery/scan` · `GET /api/v1/integrations/midea/devices` · `POST /api/v1/integrations/midea/devices` · `POST /api/v1/integrations/midea/devices/{id}/refresh` · `POST /api/v1/integrations/midea/devices/{id}/commands` · `DELETE /api/v1/integrations/midea/devices/{id}` |
 | **Energia & Tariffe** | `GET /api/v1/energy/tariffs` · `GET /api/v1/energy/dynamic-tariffs` · `PUT /api/v1/energy/flexible-loads` · `POST /api/v1/energy/evaluate-tariffs` |
 | **Telecamere & NVR** | `GET /api/v1/cameras` · `GET /api/v1/cameras/nvr/status` · `POST /api/v1/cameras/{id}/webrtc` · `GET /api/v1/cameras/events` |
 | **Firmware & Flasher** | `GET /api/v1/ota/devices` · `GET /api/v1/ota/flasher/catalog` · `POST /api/v1/ota/flasher/provision` |
