@@ -72,7 +72,7 @@ func (r *Registry) Register(typeCode string, profile Profile) error {
 			return fmt.Errorf("midea: profile %q marks unadvertised capability %q writable", code, capability)
 		}
 	}
-	if profile.MinHumidity < 0 || profile.MaxHumidity > 100 ||
+	if profile.MinHumidity < 0 || profile.MaxHumidity < 0 || profile.MaxHumidity > 100 ||
 		(profile.MaxHumidity > 0 && profile.MinHumidity > profile.MaxHumidity) {
 		return fmt.Errorf("midea: profile %q has invalid humidity limits", code)
 	}
