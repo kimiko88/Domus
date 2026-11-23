@@ -903,5 +903,87 @@ describe('IntegrationsView.vue', () => {
     expect(deleteSpy).toHaveBeenCalledWith('/api/v1/integrations/broadlink-local/devices/broadlink_24dfa7112233')
   })
 
+
+  it('discovers, configures and controls an A1 Midea dehumidifier over the local API', async () => {
+    const discovered = [
+      {
+        id: '123456789', name: 'Midea dehumidifier', host: '192.168.1.50', port: 6444,
+        model: 'MDDF16WF', type_code: 'A1', protocol: 'midea_msmart_v2', supported: true
+      },
+      {
+        id: '987654321', name: 'Midea appliance', host: '192.168.1.51', port: 6444,
+        model: 'Unknown model', type_code: 'AC', protocol: 'midea_msmart_v2',
+        supported: false, reason: 'No driver registered'
+      }
+    ]
+    const configuredDevice = {
+      id: '123456789', name: 'Basement dehumidifier', brand: 'Midea', model: 'MDDF16WF',
+      type_code: 'A1', kind: 'dehumidifier', protocol: 'midea_msmart_v2',
+      host: '192.168.1.50', port: 6444,
+      modes: ['manual', 'continuous', 'auto'], fan_speeds: ['low', 'medium', 'high'],
+      min_humidity: 35, max_humidity: 100,
+      state: { power: true, target_humidity: 45, current_humidity: 52, current_temperature: 22, tank_full: false }
+    }
+    let configured = false
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations') return []
+      if (url === '/api/v1/integrations/catalog') return []
+      if (url === '/api/v1/integrations/discovery/devices') return []
+      if (url === '/api/v1/integrations/midea/status') return { configured, device_count: configured ? 1 : 0 }
+      if (url === '/api/v1/integrations/midea/devices') return { devices: configured ? [configuredDevice] : [], count: configured ? 1 : 0 }
+      return []
+    })
+    const postSpy = vi.spyOn(apiClient, 'post').mockImplementation(async (url: string) => {
+      if (url === '/api/v1/integrations/midea/discovery/scan') return { devices: discovered, count: 2, supported_count: 1 }
+      if (url === '/api/v1/integrations/midea/devices') {
+        configured = true
+        return { configured: true, device: configuredDevice }
+      }
+      if (url.endsWith('/123456789/commands')) {
+        return { verified: true, state: { ...configuredDevice.state, target_humidity: 48 } }
+      }
+      return {}
+    })
+
+    const wrapper = mount(IntegrationsView)
+    await flushPromises()
+    const tabs = wrapper.findAll('.tab-btn')
+    expect(tabs).toHaveLength(6)
+    await tabs[5].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Midea SmartHome')
+    const scanButton = wrapper.find('.midea-section .btn-scan')
+    await scanButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Midea dehumidifier')
+    expect(wrapper.text()).toContain('No driver registered')
+
+    await wrapper.find('.midea-section .vendor-device-row .btn-action').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.midea-section form').exists()).toBe(true)
+    await wrapper.find('.midea-section form').trigger('submit')
+    await flushPromises()
+
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/midea/devices', expect.objectContaining({
+      id: '123456789',
+      type_code: 'A1',
+      host: '192.168.1.50',
+      protocol: 'midea_msmart_v2'
+    }))
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/integrations/midea/devices')
+    expect(wrapper.text()).toContain('Basement dehumidifier')
+    expect(wrapper.text()).toContain('52%')
+
+    const setHumidity = wrapper.findAll('.midea-device-row button').find(button => button.text().includes('Imposta umidità'))
+    expect(setHumidity).toBeDefined()
+    await setHumidity!.trigger('click')
+    await flushPromises()
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/midea/devices/123456789/commands', {
+      values: { target_humidity: 45 },
+      action: undefined
+    })
+  })
+
 })
 
