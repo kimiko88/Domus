@@ -10,6 +10,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func a1FixturePayload() []byte {
@@ -26,6 +27,51 @@ func a1FixturePayload() []byte {
 	payload[16] = 94  // 22 C
 	payload[18] = 0x20 // swing
 	return payload
+}
+
+func TestMideaCRC8MatchesMideaLocalKnownVector(t *testing.T) {
+	input := []byte{0x5A, 0x82, 0x01, 0x11, 0xFF, 0x20}
+	if got := mideaCRC8(input); got != 0x65 {
+		t.Fatalf("CRC8 = 0x%02x, want 0x65", got)
+	}
+}
+
+func TestBuildMideaPacketMatchesIndependentGoldenFrame(t *testing.T) {
+	stamp := time.Date(2026, 11, 23, 12, 34, 56, 780000000, time.UTC)
+	packet, err := buildMideaPacketAt(0x123456789abc, []byte{0xAA, 0x01, 0x02, 0x03}, stamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "5a5a011148002000000000007856341223112620bc9a7856341200000000000000000000000000008f17c248417909866fa7c32614a66892a31a9b78cccde0d632d3d1c0e6b72c17"
+	if got := hex.EncodeToString(packet); got != want {
+		t.Fatalf("Midea V2 packet mismatch\n got: %s\nwant: %s", got, want)
+	}
+	decoded, err := decodeMideaPacket(packet)
+	if err != nil {
+		t.Fatalf("decode golden packet: %v", err)
+	}
+	if !bytes.Equal(decoded, []byte{0xAA, 0x01, 0x02, 0x03}) {
+		t.Fatalf("decoded payload = %x", decoded)
+	}
+}
+
+func TestA1FrameHasIncrementingMessageSerialAndValidBodyCRC(t *testing.T) {
+	first, err := buildA1QueryFrame(3)
+	if err != nil { t.Fatal(err) }
+	second, err := buildA1QueryFrame(3)
+	if err != nil { t.Fatal(err) }
+	if first[len(first)-2] == second[len(second)-2] {
+		t.Fatal("consecutive A1 messages reused the same message serial")
+	}
+	for _, frame := range [][]byte{first, second} {
+		body := frame[10 : len(frame)-1]
+		if got, want := body[len(body)-1], mideaCRC8(body[:len(body)-1]); got != want {
+			t.Fatalf("A1 body CRC8 = 0x%02x, want 0x%02x", got, want)
+		}
+		if err := validateA1FrameHeader(frame); err != nil {
+			t.Fatalf("invalid generated A1 frame: %v", err)
+		}
+	}
 }
 
 func TestBuildA1QueryFrame(t *testing.T) {
