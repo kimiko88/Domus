@@ -66,6 +66,48 @@ func dehumidifierFixture() Device {
 	}
 }
 
+func TestCloneStateDeepCopiesNestedJSONValues(t *testing.T) {
+	original := map[string]any{
+		"nested": map[string]any{"enabled": true},
+		"list": []any{map[string]any{"value": 1}, "x"},
+		"names": []string{"one", "two"},
+		"bytes": []byte{1, 2, 3},
+	}
+	cloned := cloneState(original)
+	cloned["nested"].(map[string]any)["enabled"] = false
+	cloned["list"].([]any)[0].(map[string]any)["value"] = 99
+	cloned["names"].([]string)[0] = "changed"
+	cloned["bytes"].([]byte)[0] = 9
+	if original["nested"].(map[string]any)["enabled"] != true {
+		t.Fatal("nested map mutation leaked into source")
+	}
+	if original["list"].([]any)[0].(map[string]any)["value"] != 1 {
+		t.Fatal("nested slice/map mutation leaked into source")
+	}
+	if original["names"].([]string)[0] != "one" || original["bytes"].([]byte)[0] != 1 {
+		t.Fatal("slice mutation leaked into source")
+	}
+}
+
+func TestRegisterReplacesDeviceStateSafely(t *testing.T) {
+	first := dehumidifierFixture()
+	driver := &fakeDriver{protocol: ProtocolMSmartV2}
+	adapter := NewAdapter(driver)
+	if err := adapter.Register(first); err != nil {
+		t.Fatal(err)
+	}
+	updated := first
+	updated.Name = "Updated dehumidifier"
+	updated.State = map[string]any{"power": true}
+	if err := adapter.Register(updated); err != nil {
+		t.Fatal(err)
+	}
+	devices := adapter.ListDevices()
+	if len(devices) != 1 || devices[0].Name != updated.Name || devices[0].State["power"] != true {
+		t.Fatalf("registration update was not applied atomically: %#v", devices)
+	}
+}
+
 func TestDefaultRegistryIncludesDehumidifier(t *testing.T) {
 	profile, ok := NewRegistry().Resolve("a1")
 	if !ok {
