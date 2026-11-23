@@ -297,6 +297,7 @@ func TestMideaConfigureRequiresValidV3Credentials(t *testing.T) {
 	discovered, err := handler.discover(context.Background())
 	if err != nil { t.Fatal(err) }
 	item := discovered[0]
+	item.Protocol = midea.ProtocolMSmartV3
 	handler.discovered = map[string]midea.DiscoveredAppliance{item.ID: item}
 	body := "{\"id\":\"123456789\",\"name\":\"Basement dehumidifier\",\"type_code\":\"A1\",\"host\":\"192.168.1.50\",\"port\":6444,\"protocol\":\"midea_msmart_v3\",\"token\":\"short\",\"key\":\"short\"}"
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/integrations/midea/devices", strings.NewReader(body))
