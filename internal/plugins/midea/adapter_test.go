@@ -108,6 +108,20 @@ func TestRegisterReplacesDeviceStateSafely(t *testing.T) {
 	}
 }
 
+func TestRegistryRejectsNegativeHumidityLimits(t *testing.T) {
+	registry := NewRegistry()
+	err := registry.Register("BAD", Profile{
+		Kind: KindDehumidifier,
+		Capabilities: []Capability{CapPower},
+		Writable: []Capability{CapPower},
+		MinHumidity: 10,
+		MaxHumidity: -1,
+	})
+	if err == nil {
+		t.Fatal("expected negative maximum humidity to be rejected")
+	}
+}
+
 func TestDefaultRegistryIncludesDehumidifier(t *testing.T) {
 	profile, ok := NewRegistry().Resolve("a1")
 	if !ok {
