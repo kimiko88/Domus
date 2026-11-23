@@ -671,7 +671,7 @@ func readMideaPacket(reader io.Reader) ([]byte, error) {
 	if _, err := io.ReadFull(reader, header); err != nil { return nil, err }
 	if header[0] != 0x5A || header[1] != 0x5A { return nil, ErrMideaFrame }
 	length := int(binary.LittleEndian.Uint16(header[4:6]))
-	if length < mideaHeaderLength+mideaDigestLength || length > 64*1024 {
+	if length < mideaHeaderLength+mideaDigestLength || length > 16*1024 {
 		return nil, ErrMideaFrame
 	}
 	packet := make([]byte, length)
@@ -779,7 +779,7 @@ func read8370Frame(reader io.Reader) ([]byte, error) {
 		return nil, ErrMideaFrame
 	}
 	length := int(binary.BigEndian.Uint16(header[2:4]))
-	if length > 64*1024 || length < 0 { return nil, ErrMideaFrame }
+	if length > 16*1024 { return nil, ErrMideaFrame }
 	frame := make([]byte, 8+length)
 	copy(frame, header)
 	if _, err := io.ReadFull(reader, frame[6:]); err != nil { return nil, err }
