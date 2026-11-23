@@ -35,8 +35,8 @@ func NewRegistry() *Registry {
 		Kind: KindDehumidifier,
 		Capabilities: []Capability{
 			CapPower, CapMode, CapTargetHumidity, CapCurrentHumidity,
-			CapCurrentTemperature, CapFanSpeed, CapWaterTankFull,
-			CapFilterLife, CapEnergy, CapErrorCode,
+			CapCurrentTemperature, CapFanSpeed, CapWaterTankFull, CapSwing,
+			CapChildLock, CapFilterLife, CapEnergy, CapErrorCode,
 		},
 		Writable: []Capability{CapPower, CapMode, CapTargetHumidity, CapFanSpeed, CapSwing, CapChildLock},
 		Modes: []string{"manual", "continuous", "auto", "clothes_dry", "shoes_dry", "silent"},
