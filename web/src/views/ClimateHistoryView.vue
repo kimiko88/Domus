@@ -561,6 +561,7 @@ onBeforeUnmount(() => {
         <label v-for="device in availableClimateDevices" :key="device.id" class="source-device">
           <input
             type="checkbox"
+            :value="device.id"
             :checked="allClimateDevicesSelected || (settingsForm.tracked_device_ids || []).includes(device.id)"
             :disabled="allClimateDevicesSelected || !device.selectable"
             @change="updateTrackedDevice(device.id, $event)"
