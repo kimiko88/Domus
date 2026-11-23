@@ -361,9 +361,6 @@ async function scanMideaLAN() {
   try {
     const result = await apiClient.post<{ devices: MideaDiscoveredDevice[] }>('/api/v1/integrations/midea/discovery/scan', {})
     mideaDiscoveredDevices.value = Array.isArray(result.devices) ? result.devices : []
-    if (!mideaDiscoveredDevices.value.length) {
-      notificationsStore.info(t('integrations.view.vendors.mideaScanEmpty'), t('integrations.view.vendors.mideaScanEmptyDesc'))
-    }
   } catch {
     mideaError.value = t('integrations.view.vendors.mideaScanError')
   } finally {
@@ -2908,7 +2905,7 @@ onMounted(() => {
             <div v-for="device in mideaDiscoveredDevices" :key="device.id" class="vendor-device-row">
               <div class="vendor-device-info">
                 <strong>{{ device.name }} · {{ device.type_code }}</strong>
-                <span>{{ device.model || t('integrations.view.vendors.modelUnknown') }} · {{ device.host }}:{{ device.port }} · {{ device.protocol }}</span>
+                <span>{{ device.model || t('integrations.view.vendors.mideaModelUnknown') }} · {{ device.host }}:{{ device.port }} · {{ device.protocol }}</span>
                 <small v-if="!device.supported" class="vendor-hint">{{ device.reason || t('integrations.view.vendors.mideaUnsupported') }}</small>
               </div>
               <button class="btn-action glass-panel" type="button" :disabled="!device.supported" @click="selectMideaDiscoveredDevice(device)">
@@ -2990,13 +2987,13 @@ onMounted(() => {
                 <select v-if="device.modes?.length" v-model="mideaModes[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.mideaMode')">
                   <option v-for="mode in device.modes" :key="mode" :value="mode">{{ mode }}</option>
                 </select>
-                <button v-if="device.modes?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { mode: mideaModes[device.id] })">
+                <button v-if="device.modes?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { mode: mideaModes[device.id] || 'manual' })">
                   {{ t('integrations.view.vendors.mideaApplyMode') }}
                 </button>
                 <select v-if="device.fan_speeds?.length" v-model="mideaFanSpeeds[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.mideaFanSpeed')">
                   <option v-for="speed in device.fan_speeds" :key="speed" :value="speed">{{ speed }}</option>
                 </select>
-                <button v-if="device.fan_speeds?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { fan_speed: mideaFanSpeeds[device.id] })">
+                <button v-if="device.fan_speeds?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { fan_speed: mideaFanSpeeds[device.id] || 'low' })">
                   {{ t('integrations.view.vendors.mideaApplyFanSpeed') }}
                 </button>
               </div>
