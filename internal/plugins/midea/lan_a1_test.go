@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"net"
 	"strings"
 	"testing"
 )
@@ -206,6 +207,67 @@ func TestA1LANDriverRequiresV3CredentialsAndPrivateLAN(t *testing.T) {
 	devices, err := driver.Discover(context.Background())
 	if err != nil || len(devices) != 1 {
 		t.Fatalf("configured device listing failed: count=%d err=%v", len(devices), err)
+	}
+}
+
+func TestA1LANWritePacketWrapsMideaOuterPacketForV2(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	session := &a1Session{conn: client, protocol: ProtocolMSmartV2, applianceID: 12345}
+	command, err := buildA1SetPacket(12345, 3, map[string]any{
+		"power": true, "target_humidity": 45, "water_level_set": 50,
+	}, false)
+	if err != nil { t.Fatal(err) }
+
+	writeDone := make(chan error, 1)
+	go func() { writeDone <- session.writePacket(context.Background(), command) }()
+	wire, err := readMideaPacket(server)
+	if err != nil { t.Fatalf("read outer packet: %v", err) }
+	if err := <-writeDone; err != nil { t.Fatalf("write packet: %v", err) }
+	decoded, err := decodeMideaPacket(wire)
+	if err != nil { t.Fatalf("decode outer packet: %v", err) }
+	if !bytes.Equal(decoded, command) {
+		t.Fatalf("decoded command differs from A1 frame: got %x want %x", decoded, command)
+	}
+	if binary.LittleEndian.Uint64(wire[20:28]) != 12345 {
+		t.Fatalf("outer packet device ID = %d, want 12345", binary.LittleEndian.Uint64(wire[20:28]))
+	}
+	if !bytes.Equal(wire[8:12], []byte{0, 0, 0, 0}) {
+		t.Fatalf("reserved/message-id header bytes changed: %x", wire[8:12])
+	}
+}
+
+func TestA1LANWritePacketWrapsMideaAnd8370ForV3(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	clientSecurity := newMideaV3Security()
+	serverSecurity := newMideaV3Security()
+	clientSecurity.tcpKey = bytes.Repeat([]byte{0x42}, 32)
+	serverSecurity.tcpKey = append([]byte(nil), clientSecurity.tcpKey...)
+	session := &a1Session{
+		conn: client, protocol: ProtocolMSmartV3, security: clientSecurity,
+		applianceID: 54321,
+	}
+	command, err := buildA1SetPacket(54321, 3, map[string]any{
+		"power": true, "target_humidity": 55, "water_level_set": 50,
+	}, false)
+	if err != nil { t.Fatal(err) }
+
+	writeDone := make(chan error, 1)
+	go func() { writeDone <- session.writePacket(context.Background(), command) }()
+	wire, err := read8370Frame(server)
+	if err != nil { t.Fatalf("read V3 frame: %v", err) }
+	if err := <-writeDone; err != nil { t.Fatalf("write V3 packet: %v", err) }
+	outer, err := serverSecurity.decode(wire)
+	if err != nil { t.Fatalf("decode V3 frame: %v", err) }
+	decoded, err := decodeMideaPacket(outer)
+	if err != nil { t.Fatalf("decode inner Midea packet: %v", err) }
+	if !bytes.Equal(decoded, command) {
+		t.Fatalf("decoded V3 command differs from A1 frame: got %x want %x", decoded, command)
 	}
 }
 
