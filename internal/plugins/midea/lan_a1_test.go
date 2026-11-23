@@ -3,6 +3,7 @@ package midea
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"math"
