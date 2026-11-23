@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -135,7 +136,18 @@ func valuesEqual(expected, actual any) bool {
 	if reflect.DeepEqual(expected, actual) {
 		return true
 	}
-	expectedNumber, expectedOK := numeric(expected)
-	actualNumber, actualOK := numeric(actual)
+	expectedNumber, expectedOK := comparableNumeric(expected)
+	actualNumber, actualOK := comparableNumeric(actual)
 	return expectedOK && actualOK && math.Abs(expectedNumber-actualNumber) < 0.000001
+}
+
+func comparableNumeric(value any) (float64, bool) {
+	if number, ok := numeric(value); ok {
+		return number, true
+	}
+	if text, ok := value.(string); ok {
+		number, err := strconv.ParseFloat(strings.TrimSpace(text), 64)
+		return number, err == nil && !math.IsNaN(number) && !math.IsInf(number, 0)
+	}
+	return 0, false
 }
