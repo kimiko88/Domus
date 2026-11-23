@@ -12,6 +12,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -46,6 +47,9 @@ func DiscoverLAN(ctx context.Context) ([]DiscoveredAppliance, error) {
 		return nil, fmt.Errorf("midea: open UDP discovery socket: %w", err)
 	}
 	defer conn.Close()
+	if err := enableMideaBroadcast(conn); err != nil {
+		return nil, fmt.Errorf("midea: enable IPv4 broadcast: %w", err)
+	}
 	if err := conn.SetReadBuffer(64 * 1024); err != nil {
 		return nil, err
 	}
@@ -102,6 +106,23 @@ func DiscoverLAN(ctx context.Context) ([]DiscoveredAppliance, error) {
 	return sortedDiscovery(found), nil
 }
 
+func enableMideaBroadcast(conn *net.UDPConn) error {
+	if conn == nil {
+		return errors.New("midea: nil discovery socket")
+	}
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var socketErr error
+	if err := raw.Control(func(fd uintptr) {
+		socketErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
+	}); err != nil {
+		return err
+	}
+	return socketErr
+}
+
 func localBroadcastAddresses() ([]net.IP, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -153,7 +174,7 @@ func isPrivateLANIP(ip net.IP) bool {
 
 func parseDiscoveryDatagram(raw []byte, host string) (DiscoveredAppliance, error) {
 	var empty DiscoveredAppliance
-	if len(raw) < 104 || !isPrivateLANIP(net.ParseIP(host)) {
+	if len(raw) < 104 || len(raw) > 2048 || !isPrivateLANIP(net.ParseIP(host)) {
 		return empty, ErrMideaFrame
 	}
 	protocol := ProtocolMSmartV2
