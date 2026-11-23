@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 )
 
