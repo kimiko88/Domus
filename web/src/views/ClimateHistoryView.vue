@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
       <p v-if="!availableClimateDevices.length" class="source-hint">{{ t('climateHistory.sources.noneAvailable') }}</p>
       <p v-else class="source-hint">
         {{ allClimateDevicesSelected
-          ? t('climateHistory.sources.allHint', { count: availableClimateDevices.length })
+          ? t('climateHistory.sources.allHint', { count: trackableClimateDevices.length })
           : t('climateHistory.sources.selectedCount', { count: selectedSourceDeviceCount }) }}
       </p>
       <div class="settings-footer">
