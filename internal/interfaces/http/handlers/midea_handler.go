@@ -15,6 +15,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
+	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/plugins/midea"
@@ -29,6 +30,7 @@ type MideaHandler struct {
 	cipher       *crypto.EnvelopeCipher
 	devices      device.Repository
 	entities     entity.Repository
+	bus          events.Bus
 	adapter      *midea.Adapter
 	driverV2     *midea.A1LANDriver
 	driverV3     *midea.A1LANDriver
@@ -94,6 +96,12 @@ func NewMideaHandler(
 		return nil, err
 	}
 	return handler, nil
+}
+
+// WithEventBus publishes verified device state to the shared automation and WebSocket event pipeline.
+func (h *MideaHandler) WithEventBus(bus events.Bus) *MideaHandler {
+	h.bus = bus
+	return h
 }
 
 func (h *MideaHandler) RegisterRoutes(r chi.Router) {
@@ -625,8 +633,25 @@ func (h *MideaHandler) syncEntities(ctx context.Context, externalID string, stat
 		if err := h.entities.UpdateState(ctx, item.ID, string(stateJSON), string(attributesJSON), true, now); err != nil {
 			return err
 		}
+		if h.bus != nil {
+			_ = h.bus.Publish(ctx, events.Event{
+				ID: uuid.NewString(), Type: events.EntityStateChanged, OccurredAt: now,
+				Source: "midea_smarthome",
+				Payload: map[string]any{"entity_key": key, "state": rawState, "attributes": attrs},
+			})
+		}
 	}
-	return h.devices.SetOnline(ctx, domusDevice.ID, true)
+	if err := h.devices.SetOnline(ctx, domusDevice.ID, true); err != nil {
+		return err
+	}
+	if h.bus != nil {
+		_ = h.bus.Publish(ctx, events.Event{
+			ID: uuid.NewString(), Type: events.DeviceOnline, OccurredAt: now,
+			Source: "midea_smarthome",
+			Payload: map[string]any{"device_id": domusDevice.ID, "external_id": externalID},
+		})
+	}
+	return nil
 }
 
 func cloneMideaState(state map[string]any) map[string]any {
