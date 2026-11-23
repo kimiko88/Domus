@@ -7,6 +7,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -18,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,18 +30,22 @@ const (
 	a1MessageAppliance = 0xA0
 	a1BodyQuery        = 0x41
 	a1BodySet          = 0x48
+	a1BodyNotify       = 0xA0
+	a1MessageNotify2   = 0x05
 
-	mideaHeaderLength = 40
-	mideaDigestLength = 16
-	mideaReadTimeout  = 5 * time.Second
-	mideaWriteTimeout = 2 * time.Second
+	mideaHeaderLength   = 40
+	mideaDigestLength   = 16
+	mideaMaxFrameLength = 16 * 1024
+	mideaReadTimeout    = 5 * time.Second
+	mideaWriteTimeout   = 2 * time.Second
 )
 
 var (
 	mideaLANKey, _ = hex.DecodeString("6a92ef406bad2f0359baad994171ea6d")
 	mideaLANSalt, _ = hex.DecodeString("78686469776a6e6368656b6434643531326368646a783564386534633339344432443753")
-	ErrMideaAuth = errors.New("midea: V3 local authentication failed")
+	ErrMideaAuth  = errors.New("midea: V3 local authentication failed")
 	ErrMideaFrame = errors.New("midea: invalid or unauthenticated LAN frame")
+	a1MessageSerial atomic.Uint32
 )
 
 // A1LANConfig contains the private connection material for one A1 dehumidifier.
@@ -269,7 +275,7 @@ func (s *a1Session) authenticate(ctx context.Context, token, key []byte) error {
 	if err := s.setDeadline(ctx, mideaReadTimeout); err != nil {
 		return err
 	}
-	if _, err := s.conn.Write(request); err != nil {
+	if err := writeAll(s.conn, request); err != nil {
 		return fmt.Errorf("%w: write handshake: %v", ErrMideaAuth, err)
 	}
 	response, err := read8370Frame(s.conn)
@@ -303,15 +309,12 @@ func (s *a1Session) queryMessageVersion(ctx context.Context, config A1LANConfig)
 	frame := buildA1ApplianceQuery(config.ApplianceID)
 	response, err := s.exchange(ctx, frame, mideaReadTimeout)
 	if err != nil {
-		if config.MessageVersion != 0 {
-			return config.MessageVersion, nil
-		}
 		return 0, fmt.Errorf("midea: appliance capability handshake failed: %w", err)
 	}
-	if len(response) < 11 || response[0] != 0xAA || response[9] != a1MessageAppliance {
-		if config.MessageVersion != 0 {
-			return config.MessageVersion, nil
-		}
+	if err := validateA1FrameHeader(response); err != nil {
+		return 0, err
+	}
+	if response[2] != a1DeviceType || response[9] != a1MessageAppliance {
 		return 0, fmt.Errorf("%w: unexpected appliance handshake response", ErrMideaFrame)
 	}
 	version := response[8]
@@ -416,6 +419,12 @@ func buildA1SetPacket(applianceID uint64, version uint8, values map[string]any, 
 		if raw, exists := values[key]; exists {
 			value, ok := numberAsInt(raw)
 			if !ok {
+				if text, isString := raw.(string); isString {
+					parsed, parseErr := strconv.Atoi(strings.TrimSpace(text))
+					if parseErr == nil {
+						return parsed, nil
+					}
+				}
 				return 0, fmt.Errorf("midea: A1 %s must be an integer", key)
 			}
 			return value, nil
@@ -423,7 +432,10 @@ func buildA1SetPacket(applianceID uint64, version uint8, values map[string]any, 
 		return fallback, nil
 	}
 	power := boolAt("power")
-	promptTone := boolAt("prompt_tone")
+	// A1 does not report prompt_tone in its general status body. The
+	// reference device model defaults this bit to enabled; preserve it rather
+	// than accidentally disabling it whenever another capability is changed.
+	promptTone := true
 	body[0] = 0x02
 	if power {
 		body[0] |= 0x01
@@ -498,7 +510,8 @@ func buildA1DataFrame(version, messageType, bodyType byte, payload []byte) ([]by
 	body := make([]byte, 0, len(payload)+3)
 	body = append(body, bodyType)
 	body = append(body, payload...)
-	body = append(body, 1)
+	serial := byte((a1MessageSerial.Add(1)-1)%255 + 1)
+	body = append(body, serial)
 	body = append(body, mideaCRC8(body))
 	return buildA1HeaderFrame(version, messageType, body), nil
 }
@@ -516,26 +529,33 @@ func buildA1HeaderFrame(version, messageType byte, body []byte) []byte {
 }
 
 func parseA1Response(frame []byte) (map[string]any, error) {
-	if len(frame) < 31 || frame[0] != 0xAA || frame[2] != a1DeviceType {
-		return nil, fmt.Errorf("%w: A1 response header or length is invalid", ErrMideaFrame)
+	if err := validateA1FrameHeader(frame); err != nil {
+		return nil, err
 	}
-	if frame[9] != a1MessageQuery && frame[9] != a1MessageSet && frame[9] != 0x04 && frame[9] != 0x05 {
+	if frame[2] != a1DeviceType {
+		return nil, fmt.Errorf("%w: response is not an A1 appliance", ErrMideaFrame)
+	}
+	if frame[9] != a1MessageQuery && frame[9] != a1MessageSet && frame[9] != 0x04 && frame[9] != a1MessageNotify2 {
 		return nil, fmt.Errorf("%w: unexpected A1 message type 0x%02x", ErrMideaFrame, frame[9])
 	}
-	var checksum byte
-	for _, b := range frame[1:] {
-		checksum += b
-	}
-	if checksum != 0 {
-		return nil, fmt.Errorf("%w: A1 message checksum mismatch", ErrMideaFrame)
-	}
 	body := frame[10 : len(frame)-1]
-	if len(body) < 20 || body[0] != a1BodyQuery {
-		return nil, fmt.Errorf("%w: A1 status body is missing or unsupported", ErrMideaFrame)
+	if len(body) < 23 {
+		return nil, fmt.Errorf("%w: A1 status body is truncated", ErrMideaFrame)
 	}
+	if body[0] != a1BodyQuery && !(frame[9] == a1MessageNotify2 && body[0] == a1BodyNotify) {
+		return nil, fmt.Errorf("%w: A1 status body type 0x%02x is unsupported", ErrMideaFrame, body[0])
+	}
+	if got, want := body[len(body)-1], mideaCRC8(body[:len(body)-1]); got != want {
+		return nil, fmt.Errorf("%w: A1 body CRC8 mismatch", ErrMideaFrame)
+	}
+	// The last two body bytes are the device message serial and CRC8.
+	body = body[:len(body)-2]
 	power := body[1]&0x01 != 0
 	modeCode := body[2] & 0x0F
 	speedCode := body[3] & 0x7F
+	if speedCode < 5 {
+		speedCode = 1
+	}
 	targetHumidity := int(body[7])
 	if targetHumidity < 35 {
 		targetHumidity = 35
@@ -551,6 +571,8 @@ func parseA1Response(frame []byte) (map[string]any, error) {
 	fanSpeed, _ := a1FanSpeedName(int(speedCode))
 	return map[string]any{
 		"power": power,
+		// A1 does not report prompt_tone. Its reference model defaults to true.
+		"prompt_tone": true,
 		"mode": mode,
 		"mode_code": int(modeCode),
 		"fan_speed": fanSpeed,
@@ -666,12 +688,26 @@ func decodeMideaPacket(packet []byte) ([]byte, error) {
 	return plain[:len(plain)-padding], nil
 }
 
+func validateA1FrameHeader(frame []byte) error {
+	if len(frame) < 11 || frame[0] != 0xAA || int(frame[1]) != len(frame)-1 {
+		return fmt.Errorf("%w: A1 frame header or declared length is invalid", ErrMideaFrame)
+	}
+	var checksum byte
+	for _, value := range frame[1:] {
+		checksum += value
+	}
+	if checksum != 0 {
+		return fmt.Errorf("%w: A1 frame checksum mismatch", ErrMideaFrame)
+	}
+	return nil
+}
+
 func readMideaPacket(reader io.Reader) ([]byte, error) {
 	header := make([]byte, mideaHeaderLength)
 	if _, err := io.ReadFull(reader, header); err != nil { return nil, err }
 	if header[0] != 0x5A || header[1] != 0x5A { return nil, ErrMideaFrame }
 	length := int(binary.LittleEndian.Uint16(header[4:6]))
-	if length < mideaHeaderLength+mideaDigestLength || length > 16*1024 {
+	if length < mideaHeaderLength+mideaDigestLength || length > mideaMaxFrameLength {
 		return nil, ErrMideaFrame
 	}
 	packet := make([]byte, length)
@@ -728,6 +764,9 @@ func (s *mideaV3Security) encode(payload []byte, msgType byte) ([]byte, error) {
 	binary.BigEndian.PutUint16(plain, s.requestCount)
 	plain = append(plain, data...)
 	s.requestCount++
+	if s.requestCount == ^uint16(0) {
+		s.requestCount = 0
+	}
 	if msgType == 3 || msgType == 6 {
 		block, err := aes.NewCipher(s.tcpKey)
 		if err != nil { return nil, err }
@@ -761,7 +800,7 @@ func (s *mideaV3Security) decode(frame []byte) ([]byte, error) {
 		cipher.NewCBCDecrypter(block, make([]byte, aes.BlockSize)).CryptBlocks(plain, ciphertext)
 		signatureInput := append(append([]byte(nil), frame[:6]...), plain...)
 		expected := sha256.Sum256(signatureInput)
-		if !bytes.Equal(expected[:], signature) { return nil, ErrMideaAuth }
+		if !hmac.Equal(expected[:], signature) { return nil, ErrMideaAuth }
 		if padding > 0 {
 			if padding > len(plain) { return nil, ErrMideaFrame }
 			plain = plain[:len(plain)-padding]
@@ -779,7 +818,7 @@ func read8370Frame(reader io.Reader) ([]byte, error) {
 		return nil, ErrMideaFrame
 	}
 	length := int(binary.BigEndian.Uint16(header[2:4]))
-	if length > 16*1024 { return nil, ErrMideaFrame }
+	if length > mideaMaxFrameLength { return nil, ErrMideaFrame }
 	frame := make([]byte, 8+length)
 	copy(frame, header)
 	if _, err := io.ReadFull(reader, frame[6:]); err != nil { return nil, err }
