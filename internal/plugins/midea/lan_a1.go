@@ -337,10 +337,14 @@ func (s *a1Session) writePacket(ctx context.Context, packet []byte) error {
 	if err := s.setDeadline(ctx, mideaWriteTimeout); err != nil {
 		return err
 	}
-	wire := packet
+	// Both V2 and V3 commands first use the same Midea 0x5A5A device packet.
+	// V3 then wraps that packet in the authenticated 0x8370 transport envelope.
+	wire, err := buildMideaPacket(s.applianceID, packet)
+	if err != nil {
+		return err
+	}
 	if s.protocol == ProtocolMSmartV3 {
-		var err error
-		wire, err = s.security.encode(packet, 6)
+		wire, err = s.security.encode(wire, 6)
 		if err != nil {
 			return err
 		}
@@ -616,7 +620,6 @@ func buildMideaPacket(deviceID uint64, message []byte) ([]byte, error) {
 	}
 	packet := make([]byte, mideaHeaderLength, mideaHeaderLength+len(encrypted)+mideaDigestLength)
 	packet[0], packet[1], packet[2], packet[3], packet[6] = 0x5A, 0x5A, 0x01, 0x11, 0x20
-	binary.LittleEndian.PutUint32(packet[8:12], uint32(time.Now().UnixNano()))
 	now := time.Now().UTC()
 	stamp := now.Format("20060102150405") + fmt.Sprintf("%02d", now.Nanosecond()/10_000_000)
 	for i := 0; i < 8; i++ {
