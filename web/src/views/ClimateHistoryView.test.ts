@@ -149,7 +149,8 @@ describe('ClimateHistoryView.vue', () => {
     await wrapper.findAll('[role="option"]').find(option => option.text() === 'Office')!.trigger('click')
     await flushPromises()
     expect(refresh).toHaveBeenCalledTimes(1)
-    expect(refresh.mock.calls[0][0].area_id).toBe('office')
+    const refreshQuery = refresh.mock.calls[0]?.[0]
+    expect(refreshQuery?.area_id).toBe('office')
   })
 
   it('merges Tuya Cloud, Smart Life and LocalTuya climate sources and flags unsynchronized devices', async () => {
