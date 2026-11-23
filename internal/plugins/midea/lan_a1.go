@@ -294,7 +294,7 @@ func (s *a1Session) authenticate(ctx context.Context, token, key []byte) error {
 	plain := make([]byte, 32)
 	cipher.NewCBCDecrypter(block, make([]byte, aes.BlockSize)).CryptBlocks(plain, ciphertext)
 	digest := sha256.Sum256(plain)
-	if !bytes.Equal(digest[:], signature) {
+	if !hmac.Equal(digest[:], signature) {
 		return ErrMideaAuth
 	}
 	s.security.tcpKey = make([]byte, 32)
@@ -629,11 +629,20 @@ func numberAsInt(value any) (int, bool) {
 }
 
 func buildMideaPacket(deviceID uint64, message []byte) ([]byte, error) {
+	return buildMideaPacketAt(deviceID, message, time.Now())
+}
+
+// buildMideaPacketAt takes an explicit clock so the complete packet can be
+// compared with independent protocol vectors rather than only round-tripping
+// through this package's own encoder and decoder.
+func buildMideaPacketAt(deviceID uint64, message []byte, timestamp time.Time) ([]byte, error) {
 	if len(message) == 0 || len(mideaLANKey) != 16 || len(mideaLANSalt) == 0 {
 		return nil, ErrMideaFrame
 	}
 	block, err := aes.NewCipher(mideaLANKey)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	padding := aes.BlockSize - len(message)%aes.BlockSize
 	plain := append(append([]byte(nil), message...), bytes.Repeat([]byte{byte(padding)}, padding)...)
 	encrypted := make([]byte, len(plain))
@@ -642,7 +651,7 @@ func buildMideaPacket(deviceID uint64, message []byte) ([]byte, error) {
 	}
 	packet := make([]byte, mideaHeaderLength, mideaHeaderLength+len(encrypted)+mideaDigestLength)
 	packet[0], packet[1], packet[2], packet[3], packet[6] = 0x5A, 0x5A, 0x01, 0x11, 0x20
-	now := time.Now().UTC()
+	now := timestamp.UTC()
 	stamp := now.Format("20060102150405") + fmt.Sprintf("%02d", now.Nanosecond()/10_000_000)
 	for i := 0; i < 8; i++ {
 		pair, _ := strconv.Atoi(stamp[i*2 : i*2+2])
