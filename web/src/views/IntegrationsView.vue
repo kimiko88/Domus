@@ -291,6 +291,178 @@ async function removeBroadlinkDevice(device: BroadlinkDevice) {
   }
 }
 
+// --- Midea SmartHome local integration ---
+interface MideaDiscoveredDevice {
+  id: string
+  name: string
+  host: string
+  port: number
+  model?: string
+  type_code: string
+  protocol: string
+  supported: boolean
+  reason?: string
+}
+interface MideaDevice {
+  id: string
+  name: string
+  brand?: string
+  model?: string
+  type_code: string
+  kind: string
+  protocol: string
+  host: string
+  port: number
+  modes?: string[]
+  fan_speeds?: string[]
+  min_humidity?: number
+  max_humidity?: number
+  state?: Record<string, unknown>
+}
+const mideaConfigured = ref(false)
+const mideaDevices = ref<MideaDevice[]>([])
+const mideaDiscoveredDevices = ref<MideaDiscoveredDevice[]>([])
+const mideaBusy = ref(false)
+const mideaScanning = ref(false)
+const mideaRefreshing = ref(false)
+const mideaError = ref('')
+const mideaCommandBusy = ref('')
+const mideaTargets = reactive<Record<string, number>>({})
+const mideaModes = reactive<Record<string, string>>({})
+const mideaFanSpeeds = reactive<Record<string, string>>({})
+const mideaForm = reactive({
+  id: '', name: '', brand: 'Midea', model: '', type_code: 'A1',
+  host: '', port: 6444, protocol: 'midea_msmart_v2', token: '', key: ''
+})
+
+async function loadMideaData() {
+  try {
+    const status = await apiClient.get<{ configured: boolean }>('/api/v1/integrations/midea/status')
+    mideaConfigured.value = status.configured
+    const result = await apiClient.get<{ devices: MideaDevice[] }>('/api/v1/integrations/midea/devices')
+    mideaDevices.value = Array.isArray(result.devices) ? result.devices : []
+    for (const device of mideaDevices.value) {
+      if (mideaTargets[device.id] === undefined) {
+        const value = device.state?.target_humidity
+        mideaTargets[device.id] = typeof value === 'number' ? value : 50
+      }
+      if (!mideaModes[device.id]) mideaModes[device.id] = device.modes?.[0] || 'manual'
+      if (!mideaFanSpeeds[device.id]) mideaFanSpeeds[device.id] = device.fan_speeds?.[0] || 'low'
+    }
+    mideaError.value = ''
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaLoadError')
+  }
+}
+
+async function scanMideaLAN() {
+  mideaScanning.value = true
+  mideaError.value = ''
+  try {
+    const result = await apiClient.post<{ devices: MideaDiscoveredDevice[] }>('/api/v1/integrations/midea/discovery/scan', {})
+    mideaDiscoveredDevices.value = Array.isArray(result.devices) ? result.devices : []
+    if (!mideaDiscoveredDevices.value.length) {
+      notificationsStore.info(t('integrations.view.vendors.mideaScanEmpty'), t('integrations.view.vendors.mideaScanEmptyDesc'))
+    }
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaScanError')
+  } finally {
+    mideaScanning.value = false
+  }
+}
+
+function selectMideaDiscoveredDevice(device: MideaDiscoveredDevice) {
+  if (!device.supported) return
+  Object.assign(mideaForm, {
+    id: device.id,
+    name: device.name,
+    brand: 'Midea',
+    model: device.model || '',
+    type_code: device.type_code,
+    host: device.host,
+    port: device.port,
+    protocol: device.protocol,
+    token: '',
+    key: ''
+  })
+}
+
+async function configureMideaDevice() {
+  if (!mideaForm.id || !mideaForm.host || !mideaForm.name) return
+  if (mideaForm.protocol === 'midea_msmart_v3' && (mideaForm.token.length !== 128 || mideaForm.key.length !== 64)) {
+    mideaError.value = t('integrations.view.vendors.mideaCredentialsHint')
+    return
+  }
+  mideaBusy.value = true
+  mideaError.value = ''
+  try {
+    await apiClient.post('/api/v1/integrations/midea/devices', {
+      ...mideaForm,
+      port: Number(mideaForm.port),
+      token: mideaForm.protocol === 'midea_msmart_v3' ? mideaForm.token : undefined,
+      key: mideaForm.protocol === 'midea_msmart_v3' ? mideaForm.key : undefined
+    })
+    mideaForm.token = ''
+    mideaForm.key = ''
+    mideaForm.id = ''
+    mideaForm.name = ''
+    mideaForm.host = ''
+    await loadMideaData()
+    notificationsStore.success(t('integrations.view.vendors.mideaConfigured'), t('integrations.view.vendors.mideaConfiguredDesc'))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaConfigureError')
+    notificationsStore.error(t('integrations.view.vendors.mideaConfigureError'), t('integrations.view.vendors.mideaConfigureErrorDesc'))
+  } finally {
+    mideaBusy.value = false
+  }
+}
+
+async function refreshMideaDevice(device: MideaDevice) {
+  const key = device.id + ':refresh'
+  mideaCommandBusy.value = key
+  try {
+    const result = await apiClient.post<{ state: Record<string, unknown> }>('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id) + '/refresh', {})
+    device.state = result.state
+    const target = result.state?.target_humidity
+    if (typeof target === 'number') mideaTargets[device.id] = target
+    mideaError.value = ''
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaRefreshError')
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
+async function sendMideaCommand(device: MideaDevice, values: Record<string, boolean | number | string>, action?: string) {
+  mideaCommandBusy.value = device.id
+  try {
+    const result = await apiClient.post<{ state: Record<string, unknown> }>('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id) + '/commands', { values, action })
+    device.state = result.state
+    const target = result.state?.target_humidity
+    if (typeof target === 'number') mideaTargets[device.id] = target
+    mideaError.value = ''
+    notificationsStore.success(t('integrations.view.vendors.mideaCommandSent'), t('integrations.view.vendors.mideaCommandSentDesc', { name: device.name }))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaCommandError')
+    notificationsStore.error(t('integrations.view.vendors.mideaCommandError'), t('integrations.view.vendors.mideaCommandErrorDesc'))
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
+async function removeMideaDevice(device: MideaDevice) {
+  mideaCommandBusy.value = device.id
+  try {
+    await apiClient.delete('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id))
+    await loadMideaData()
+    notificationsStore.success(t('integrations.view.vendors.mideaRemoved'), t('integrations.view.vendors.mideaRemovedDesc', { name: device.name }))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaRemoveError')
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
 // --- VeSync cloud integration ---
 interface VeSyncDevice {
   id: string; name: string; model: string; device_type: string; config_module?: string
@@ -1703,6 +1875,7 @@ onMounted(() => {
   fetchTuyaConfig()
   loadXiaomiVendorData()
   loadVeSyncData()
+  loadMideaData()
   loadImouVendorData()
   loadBroadlinkDevices()
 })
@@ -1770,7 +1943,7 @@ onMounted(() => {
         </button>
         <button
           :class="['tab-btn', { active: activeTab === 'vendors' }]"
-          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadVeSyncData(); loadImouVendorData()"
+          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadVeSyncData(); loadMideaData(); loadImouVendorData()"
         >
           <Activity :size="16" />
           <span>{{ t('integrations.view.vendors.title') }}</span>
