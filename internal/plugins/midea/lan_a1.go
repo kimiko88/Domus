@@ -393,7 +393,8 @@ func (s *a1Session) exchange(ctx context.Context, frame []byte, timeout time.Dur
 
 func buildA1ApplianceQuery(applianceID uint64) []byte {
 	body := make([]byte, 19)
-	return buildA1Frame(applianceID, 0, a1MessageAppliance, body)
+	_ = applianceID
+	return buildA1HeaderFrame(0, a1MessageAppliance, body)
 }
 
 func buildA1QueryFrame(version uint8) ([]byte, error) {
@@ -430,12 +431,11 @@ func buildA1SetPacket(applianceID uint64, version uint8, values map[string]any, 
 	if err != nil {
 		return nil, err
 	}
-	if mode == 1 {
-		if text, ok := values["mode"].(string); ok {
-			mode, ok = a1ModeCode(text)
-			if !ok {
-				return nil, fmt.Errorf("%w: unsupported A1 mode %q", ErrInvalidCommand, text)
-			}
+	if text, ok := values["mode"].(string); ok {
+		var found bool
+		mode, found = a1ModeCode(text)
+		if !found {
+			return nil, fmt.Errorf("%w: unsupported A1 mode %q", ErrInvalidCommand, text)
 		}
 	}
 	speed, err := intAt("fan_speed_code", 40)
@@ -618,8 +618,11 @@ func buildMideaPacket(deviceID uint64, message []byte) ([]byte, error) {
 	packet[0], packet[1], packet[2], packet[3], packet[6] = 0x5A, 0x5A, 0x01, 0x11, 0x20
 	binary.LittleEndian.PutUint32(packet[8:12], uint32(time.Now().UnixNano()))
 	now := time.Now().UTC()
-	pairs := []int{now.Year() % 100, int(now.Month()), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond() / 10_000_000, 0}
-	for i := 0; i < len(pairs); i++ { packet[19-i] = byte(pairs[i]) }
+	stamp := now.Format("20060102150405") + fmt.Sprintf("%02d", now.Nanosecond()/10_000_000)
+	for i := 0; i < 8; i++ {
+		pair, _ := strconv.Atoi(stamp[i*2 : i*2+2])
+		packet[19-i] = byte(pair)
+	}
 	binary.LittleEndian.PutUint64(packet[20:28], deviceID)
 	packet = append(packet, encrypted...)
 	binary.LittleEndian.PutUint16(packet[4:6], uint16(len(packet)+mideaDigestLength))
