@@ -24,15 +24,15 @@ var mideaDiscoveryPacket = func() []byte {
 
 // DiscoveredAppliance is a credential-free result of a local UDP discovery scan.
 type DiscoveredAppliance struct {
-	ID       string   `json:\"id\""
-	Name     string   `json:\"name\""
-	Host     string   `json:\"host\""
-	Port     int      `json:\"port\""
-	Model    string   `json:\"model,omitempty\""
-	TypeCode string   `json:\"type_code\""
-	Protocol Protocol `json:\"protocol\""
-	Supported bool    `json:\"supported\""
-	Reason   string   `json:\"reason,omitempty\""
+	ID       string   `json:"id""
+	Name     string   `json:"name""
+	Host     string   `json:"host""
+	Port     int      `json:"port""
+	Model    string   `json:"model,omitempty""
+	TypeCode string   `json:"type_code""
+	Protocol Protocol `json:"protocol""
+	Supported bool    `json:"supported""
+	Reason   string   `json:"reason,omitempty""
 }
 
 // DiscoverLAN scans only IPv4 broadcast addresses on active local interfaces.
