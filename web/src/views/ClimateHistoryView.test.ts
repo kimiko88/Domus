@@ -146,7 +146,7 @@ describe('ClimateHistoryView.vue', () => {
     expect(roomOptions).toContain('Bedroom')
     expect(roomOptions).toContain('Office')
 
-    await wrapper.findAll('[role="option]').find(option => option.text() === 'Office')!.trigger('click')
+    await wrapper.findAll('[role="option"]').find(option => option.text() === 'Office')!.trigger('click')
     await flushPromises()
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(refresh.mock.calls[0][0].area_id).toBe('office')
