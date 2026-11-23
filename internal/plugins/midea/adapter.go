@@ -39,14 +39,20 @@ func NewAdapter(drivers ...Driver) *Adapter {
 
 func (a *Adapter) Discover(ctx context.Context) ([]Device, error) {
 	a.mu.RLock()
-	drivers := make([]Driver, 0, len(a.drivers))
-	for _, driver := range a.drivers {
-		drivers = append(drivers, driver)
+	type driverEntry struct {
+		protocol Protocol
+		driver   Driver
+	}
+	drivers := make([]driverEntry, 0, len(a.drivers))
+	for protocol, driver := range a.drivers {
+		drivers = append(drivers, driverEntry{protocol: protocol, driver: driver})
 	}
 	a.mu.RUnlock()
+	sort.Slice(drivers, func(i, j int) bool { return drivers[i].protocol < drivers[j].protocol })
 
 	found := make(map[string]Device)
-	for _, driver := range drivers {
+	for _, entry := range drivers {
+		driver := entry.driver
 		devices, err := driver.Discover(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("midea: discovery via %s: %w", driver.Protocol(), err)
@@ -60,6 +66,9 @@ func (a *Adapter) Discover(ctx context.Context) ([]Device, error) {
 			}
 			if err := device.Validate(); err != nil {
 				return nil, fmt.Errorf("midea: rejected discovered device %q: %w", device.ID, err)
+			}
+			if previous, exists := found[device.ID]; exists && previous.Protocol != device.Protocol {
+				return nil, fmt.Errorf("midea: device id %q was discovered over conflicting protocols %s and %s", device.ID, previous.Protocol, device.Protocol)
 			}
 			found[device.ID] = cloneDevice(device)
 		}
@@ -162,15 +171,9 @@ func (a *Adapter) Command(ctx context.Context, id string, command Command) (map[
 
 func (a *Adapter) lockedDevice(id string) (func(), Device, Driver, error) {
 	a.mu.Lock()
-	device, ok := a.devices[id]
-	if !ok {
+	if _, ok := a.devices[id]; !ok {
 		a.mu.Unlock()
 		return nil, Device{}, nil, ErrDeviceNotFound
-	}
-	driver := a.drivers[device.Protocol]
-	if driver == nil {
-		a.mu.Unlock()
-		return nil, Device{}, nil, ErrNoDriver
 	}
 	lock := a.locks[id]
 	if lock == nil {
@@ -180,6 +183,18 @@ func (a *Adapter) lockedDevice(id string) (func(), Device, Driver, error) {
 	a.mu.Unlock()
 
 	lock.Lock()
+	a.mu.RLock()
+	device, ok := a.devices[id]
+	driver := a.drivers[device.Protocol]
+	a.mu.RUnlock()
+	if !ok {
+		lock.Unlock()
+		return nil, Device{}, nil, ErrDeviceNotFound
+	}
+	if driver == nil {
+		lock.Unlock()
+		return nil, Device{}, nil, ErrNoDriver
+	}
 	return lock.Unlock, cloneDevice(device), driver, nil
 }
 
