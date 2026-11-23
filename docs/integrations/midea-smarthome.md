@@ -105,17 +105,81 @@ Il tipo Device contiene solo informazioni pubbliche del dispositivo e non token,
 9. I log debug devono contenere protocollo, durata, classe di errore e identificativo Domus pseudonimizzato, mai credenziali, MAC, seriali o payload di autenticazione.
 10. I test con fixture protocollo devono usare catture sanitizzate; i test hardware devono essere separati dai test unitari.
 
-## 5. Stato del codice in questo branch
+## 5. API amministrativa e flusso di configurazione
 
-Questo branch aggiunge:
-- tassonomia multi-apparecchio e capacità generiche;
-- profili estendibili per codice prodotto, incluso il profilo iniziale deumidificatore A1;
-- validazione dei comandi e dei limiti specifici del dispositivo;
-- contratto multi-driver, discovery validata, registry in memoria e lock per dispositivo;
-- semantica write-once con verifica indipendente read-back;
-- test unitari che coprono deumidificatori, validazione capability, discovery, errori di rete, mancata applicazione dei comandi e assenza del driver.
+Tutti gli endpoint sono sotto @@/api/v1/integrations/midea@@ e richiedono un utente amministratore.
 
-**Non è ancora una integrazione end-to-end pronta da attivare dall'interfaccia.** Nel branch non sono inclusi i driver di trasporto M-Smart V1/V2/V3, il bootstrap account SmartHome, la persistenza cifrata delle credenziali, gli handler REST, l'auto-provisioning nel registry SQLite né la UI delle integrazioni. La presenza di una categoria nel modello non equivale alla disponibilità di un driver per quel prodotto.
+| Metodo | Endpoint | Scopo |
+|---|---|---|
+| GET | @@/status@@ | Stato configurazione, categorie gestite e numero di dispositivi |
+| POST | @@/discovery/scan@@ | Scansione locale UDP su porte 6445 e 20086 |
+| GET | @@/devices@@ | Inventario configurato, senza token/key |
+| POST | @@/devices@@ | Associazione di un dispositivo A1 rilevato |
+| POST | @@/devices/{id}/refresh@@ | Lettura dello stato e sincronizzazione delle entità |
+| POST | @@/devices/{id}/commands@@ | Comando con verifica indipendente read-back |
+| DELETE | @@/devices/{id}@@ | Rimozione credenziali, adapter ed entità Domus |
 
-La ragione è tecnica: le implementazioni complete e aggiornate per tutte le famiglie Midea individuate sono principalmente librerie community non Go; i client Go disponibili esaminati sono specifici per alcuni climatizzatori V3 e non possono essere riutilizzati onestamente per lavatrici, frigoriferi o deumidificatori senza una verifica. La fase successiva dovrà integrare un driver per ciascuna famiglia di protocollo, iniziare dal M-Smart V2/V3 e dalla famiglia A1 dei deumidificatori, aggiungere l'onboarding cifrato e collegare le entità create al sistema Domus già esistente.
+Configurazione di un M-Smart V2:
+
+~~~json
+{
+  "id": "123456789",
+  "name": "Deumidificatore cantina",
+  "brand": "Comfee",
+  "model": "MDDF16WF",
+  "type_code": "A1",
+  "host": "192.168.1.50",
+  "port": 6444,
+  "protocol": "midea_msmart_v2"
+}
 ~~~
+
+Per M-Smart V3 aggiungere @@token@@ (128 caratteri esadecimali) e @@key@@ (64 caratteri esadecimali), specifici del singolo apparecchio. Il client UI non richiede la password dell'app SmartHome. Il server rifiuta la configurazione se ID, IP, porta, tipo e protocollo non corrispondono all'ultima discovery eseguita da Domus; questo vincolo evita di trasformare l'endpoint in un proxy generico per gli host privati.
+
+Esempio comando:
+
+~~~json
+{
+  "values": {
+    "power": true,
+    "target_humidity": 45,
+    "mode": "continuous",
+    "fan_speed": "medium"
+  }
+}
+~~~
+
+Per il reset filtro usare l'azione @@reset_filter@@. I comandi ammessi sono verificati contro il profilo A1 e i limiti del dispositivo. L'adapter non ripete mai un comando fisico in caso di timeout: l'esito incerto viene restituito al chiamante.
+
+## 6. Entità Domus e funzionalità
+
+Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=@@midea_smarthome_local@@) e quattro entità:
+
+- @@humidifier.midea_<id>@@: potenza, modalità, velocità ventola, limiti e attributi.
+- @@sensor.midea_<id>_humidity@@: umidità rilevata in percentuale.
+- @@sensor.midea_<id>_temperature@@: temperatura ambiente in °C.
+- @@binary_sensor.midea_<id>_tank_full@@: stato serbatoio pieno.
+
+Le misurazioni di temperatura e umidità sono quindi utilizzabili dal sistema Clima & Storico, incluse le aggregazioni esistenti. Le entità sono collegate al device e possono essere assegnate alle Aree dalla normale sezione Dispositivi. Le variazioni pubblicano eventi sul bus Domus per automazioni e client collegati.
+
+## 7. Stato effettivo dei driver
+
+In questo branch è operativo il driver locale **M-Smart A1 per deumidificatori**, con trasporto V2 e V3, discovery LAN, gestione token/key V3, lettura, comandi e verifica read-back. La UI amministrativa consente scansione, associazione, configurazione, controllo e rimozione. Le credenziali V3 sono conservate nel campo cifrato della tabella integrazioni; non sono incluse nel registry device né nelle risposte API.
+
+La tassonomia Domus prevede molte altre categorie Midea (climatizzatori, purificatori, lavatrici, asciugatrici, lavastoviglie, frigoriferi, forni, umidificatori, ventilatori e apparecchi per acqua), ma **non significa che i relativi driver siano già implementati**. La discovery visualizza gli apparecchi riconosciuti e marca come non supportati quelli per cui manca un driver verificato. La presente versione associa e controlla solo il tipo A1. I prodotti Midea che usano firmware Tuya vanno invece collegati tramite gli adapter Tuya già presenti in Domus.
+
+Non è ancora implementato il bootstrap automatico di token/key tramite account consumer SmartHome, né il protocollo M-Smart V1 o i driver delle altre categorie. Per V3 l'utente deve fornire un token/key già ottenuto per quel dispositivo con un metodo affidabile. Le API ufficiali cloud Midea sono un percorso partner separato e non vengono simulate con credenziali consumer.
+
+## 8. Test e validazione hardware
+
+I test unitari coprono:
+- frame A1 query/set, checksum e CRC8;
+- decodifica dello stato di un deumidificatore, umidità, temperatura, ventola e serbatoio;
+- cifratura outer packet, digest MD5 e envelope 0x8370 V3;
+- discovery V2/V3, sorgenti LAN non private e datagrammi manomessi;
+- capability e limiti del deumidificatore;
+- comandi at-most-once e verifica read-back;
+- configurazione admin API, persistenza cifrata, ripristino al riavvio e provisioning di device/entità;
+- test UI su discovery, configurazione e comando dell'umidità.
+
+I test di protocollo usano fixture sintetiche/sanificate. **Non sostituiscono il test hardware**: prima di dichiarare compatibile un modello reale vanno verificati discovery, token V3, frame di stato e ciascun comando con quel modello/firmware, misurando gli effetti sul dispositivo e confrontando le letture di ritorno.
