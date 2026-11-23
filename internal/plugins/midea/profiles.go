@@ -36,9 +36,12 @@ func NewRegistry() *Registry {
 		Capabilities: []Capability{
 			CapPower, CapMode, CapTargetHumidity, CapCurrentHumidity,
 			CapCurrentTemperature, CapFanSpeed, CapWaterTankFull, CapSwing,
-			CapChildLock, CapFilterLife, CapEnergy, CapErrorCode,
+			CapChildLock, CapAnion, CapPump, CapWaterLevelSet, CapFilterReminder,
 		},
-		Writable: []Capability{CapPower, CapMode, CapTargetHumidity, CapFanSpeed, CapSwing, CapChildLock},
+		Writable: []Capability{
+			CapPower, CapMode, CapTargetHumidity, CapFanSpeed, CapSwing,
+			CapChildLock, CapAnion, CapPump, CapWaterLevelSet,
+		},
 		Modes: []string{"manual", "continuous", "auto", "clothes_dry", "shoes_dry", "silent"},
 		FanSpeeds: []string{"lowest", "low", "medium", "high", "auto", "off"},
 		Actions: []string{"reset_filter"},
