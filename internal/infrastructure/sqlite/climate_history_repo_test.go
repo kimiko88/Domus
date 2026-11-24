@@ -76,3 +76,34 @@ func TestClimateHistoryRepositorySettingsSamplesAndTieredAggregation(t *testing.
 	require.InDelta(t, 20.5, *points[0].TemperatureAverage, 0.001)
 	require.InDelta(t, 23.0, *points[1].TemperatureAverage, 0.001)
 }
+
+
+func TestClimateHistoryRepositoryDeletesOnlySelectedDeviceAcrossAllTiers(t *testing.T) {
+	ctx := context.Background()
+	db, err := sqlite.Open(config.DatabaseConfig{Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, sqlite.Migrate(ctx, db))
+	repo := sqlite.NewClimateHistoryRepository(db)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	old := now.Add(-10 * 24 * time.Hour)
+	one, two := 20.0, 22.0
+	require.NoError(t, repo.SaveSamples(ctx, []climate_history.Sample{
+		{EntityID: "entity-1", EntityKey: "sensor.one", EntityName: "One", DeviceID: "device-1", RecordedAt: old, Temperature: &one},
+		{EntityID: "entity-2", EntityKey: "sensor.two", EntityName: "Two", DeviceID: "device-2", RecordedAt: old, Temperature: &two},
+	}))
+	_, err = repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-90*24*time.Hour))
+	require.NoError(t, err)
+	_, err = repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-7*24*time.Hour))
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteDeviceHistory(ctx, "device-1")
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deleted) // raw, hourly and daily tiers (depending on current rollup contents)
+	points, err := repo.GetHistory(ctx, climate_history.Filter{Limit: 100})
+	require.NoError(t, err)
+	require.Len(t, points, 1)
+	require.Equal(t, "device-2", points[0].DeviceID)
+	require.InDelta(t, 22.0, *points[0].TemperatureAverage, 0.001)
+}

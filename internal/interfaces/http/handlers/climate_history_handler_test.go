@@ -153,3 +153,31 @@ func TestClimateHistoryHandlerSettingsHistoryAndExport(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, res.Code)
 	})
 }
+
+
+func TestClimateHistoryHandlerDeletesDeviceHistoryAndUntracksIt(t *testing.T) {
+	repos, _ := setupTestEnvironment(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	temp := 21.5
+	require.NoError(t, repos.ClimateHistory.SaveSamples(ctx, []domclimatehistory.Sample{
+		{EntityID: "sensor-one", EntityKey: "sensor.one", EntityName: "Room sensor", DeviceID: "device-one", RecordedAt: now, Temperature: &temp},
+	}))
+	service := appclimatehistory.NewService(repos.ClimateHistory, repos.Entities, nil)
+	handler := handlers.NewClimateHistoryHandler(service, repos.Entities)
+	router := chi.NewRouter()
+	router.Delete("/devices/{deviceID}", handler.DeleteDeviceHistory)
+
+	req := httptest.NewRequest(http.MethodDelete, "/devices/device-one", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Contains(t, res.Body.String(), "\"tracking_disabled\":true")
+	require.Contains(t, res.Body.String(), "\"deleted_rows\":1")
+	points, err := repos.ClimateHistory.GetHistory(ctx, domclimatehistory.Filter{Limit: 100})
+	require.NoError(t, err)
+	require.Empty(t, points)
+	settings, err := repos.ClimateHistory.GetSettings(ctx)
+	require.NoError(t, err)
+	require.Empty(t, settings.TrackedDeviceIDs)
+}
