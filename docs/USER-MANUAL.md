@@ -561,7 +561,7 @@ level = "info"            # debug | info | warn | error
 format = "json"           # json (produzione) | text (sviluppo)
 
 [auth]
-session_ttl = "24h"               # Durata sessione utente
+session_ttl = "2160h"             # Sessione rinnovata con 90 giorni di inattività
 rate_limit_login_per_min = 10     # Tentativi login max per minuto/IP
 argon2_time = 1                   # Parametro temporale Argon2id
 argon2_memory = 65536             # Memoria Argon2id (64 MiB)
@@ -722,7 +722,7 @@ Domus usa due **adattatori HTTP** locali (non il protocollo Wyoming grezzo):
 - Whisper: `POST {DOMUS_WHISPER_ENDPOINT}/transcribe`, corpo PCM binario; risposta JSON `{"text":"..."}`.
 - Piper: `POST {DOMUS_PIPER_ENDPOINT}/synthesize`, corpo JSON `{"text":"...","voice":"it_IT-paola-medium"}`; risposta audio WAV.
 
-Questi adattatori e i rispettivi motori **non sono installati automaticamente** con Domus. Un servizio Piper/Wyoming TCP sulla porta 10200 non soddisfa da solo l'API HTTP `/synthesize`: serve un adattatore HTTP che traduca le chiamate Domus nel motore STT/TTS scelto. Puoi eseguirli sul Pi o su un computer locale più potente e configurare `DOMUS_WHISPER_ENDPOINT` e `DOMUS_PIPER_ENDPOINT`. Nell'installazione nativa, gli indirizzi predefiniti sono `http://127.0.0.1:10300` e `http://127.0.0.1:10200`. Con Docker Compose, i default sono `http://host.docker.internal:10300` e `http://host.docker.internal:10301`, raggiungibili dal container grazie all'alias host; se usi container STT/TTS separati, sostituiscili con i rispettivi nomi DNS. Puoi impostare anche `DOMUS_VOICE_LANGUAGE=it` e `DOMUS_VOICE_MODEL=it_IT-paola-medium`.
+Questi adattatori e i rispettivi motori **non sono installati automaticamente** con Domus. Un servizio Piper/Wyoming TCP sulla porta 10200 non soddisfa da solo l'API HTTP `/synthesize`: serve un adattatore HTTP che traduca le chiamate Domus nel motore STT/TTS scelto. Puoi eseguirli sul Pi o su un computer locale più potente e configurare `DOMUS_WHISPER_ENDPOINT` e `DOMUS_PIPER_ENDPOINT`. Nell'installazione nativa, gli indirizzi predefiniti sono `http://127.0.0.1:10300` e `http://127.0.0.1:10301`. Con Docker Compose, i default sono `http://host.docker.internal:10300` e `http://host.docker.internal:10301`, raggiungibili dal container grazie all'alias host; se usi container STT/TTS separati, sostituiscili con i rispettivi nomi DNS. Puoi impostare anche `DOMUS_VOICE_LANGUAGE=it` e `DOMUS_VOICE_MODEL=it_IT-paola-medium`.
 
 > **Prestazioni:** un Raspberry Pi 4 può gestire Domus e l'acquisizione audio, ma Whisper e un LLM locale possono rendere la risposta vocale lenta se condividono CPU e RAM. Per una conversazione più fluida valuta un mini-PC locale per STT/LLM, mantenendo il Raspberry Pi come hub domotico.
 
