@@ -608,6 +608,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/climate/history", func(climateRouter chi.Router) {
 						climateRouter.Get("/settings", climateHistoryHandler.GetSettings)
 						climateRouter.With(domusmw.RequireSettingsPermission()).Put("/settings", climateHistoryHandler.UpdateSettings)
+						climateRouter.With(domusmw.RequireSettingsPermission()).Delete("/devices/{deviceID}", climateHistoryHandler.DeleteDeviceHistory)
 						climateRouter.Get("/history", climateHistoryHandler.GetHistory)
 						climateRouter.Get("/summary", climateHistoryHandler.GetSummary)
 						climateRouter.Get("/export.csv", climateHistoryHandler.ExportCSV)

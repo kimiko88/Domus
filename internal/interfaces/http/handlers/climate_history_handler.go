@@ -7,6 +7,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/domain/entity"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/go-chi/chi/v5"
 	"net/http"
 	"strconv"
 	"strings"
@@ -196,3 +197,23 @@ func formatOptionalFloat(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', 3, 64)
 }
 
+
+
+// DeleteDeviceHistory deletes stored climate measurements and disables future tracking.
+func (h *ClimateHistoryHandler) DeleteDeviceHistory(w http.ResponseWriter, r *http.Request) {
+	deviceID := strings.TrimSpace(chi.URLParam(r, "deviceID"))
+	if deviceID == "" || len(deviceID) > 128 {
+		writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "a valid device ID is required")
+		return
+	}
+	deleted, err := h.service.DeleteDeviceHistory(r.Context(), deviceID)
+	if err != nil {
+		if errors.Is(err, domclimatehistory.ErrInvalidSettings) {
+			writeError(w, http.StatusBadRequest, "INVALID_DEVICE_ID", "a valid device ID is required")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "CLIMATE_HISTORY_DELETE_FAILED", "failed to delete climate history for device")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"device_id": deviceID, "deleted_rows": deleted, "tracking_disabled": true})
+}
