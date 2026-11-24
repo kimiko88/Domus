@@ -291,6 +291,175 @@ async function removeBroadlinkDevice(device: BroadlinkDevice) {
   }
 }
 
+// --- Midea SmartHome local integration ---
+interface MideaDiscoveredDevice {
+  id: string
+  name: string
+  host: string
+  port: number
+  model?: string
+  type_code: string
+  protocol: string
+  supported: boolean
+  reason?: string
+}
+interface MideaDevice {
+  id: string
+  name: string
+  brand?: string
+  model?: string
+  type_code: string
+  kind: string
+  protocol: string
+  host: string
+  port: number
+  modes?: string[]
+  fan_speeds?: string[]
+  min_humidity?: number
+  max_humidity?: number
+  state?: Record<string, unknown>
+}
+const mideaConfigured = ref(false)
+const mideaDevices = ref<MideaDevice[]>([])
+const mideaDiscoveredDevices = ref<MideaDiscoveredDevice[]>([])
+const mideaBusy = ref(false)
+const mideaScanning = ref(false)
+const mideaRefreshing = ref(false)
+const mideaError = ref('')
+const mideaCommandBusy = ref('')
+const mideaTargets = reactive<Record<string, number>>({})
+const mideaModes = reactive<Record<string, string>>({})
+const mideaFanSpeeds = reactive<Record<string, string>>({})
+const mideaForm = reactive({
+  id: '', name: '', brand: 'Midea', model: '', type_code: 'A1',
+  host: '', port: 6444, protocol: 'midea_msmart_v2', token: '', key: ''
+})
+
+async function loadMideaData() {
+  try {
+    const status = await apiClient.get<{ configured: boolean }>('/api/v1/integrations/midea/status')
+    mideaConfigured.value = status.configured
+    const result = await apiClient.get<{ devices: MideaDevice[] }>('/api/v1/integrations/midea/devices')
+    mideaDevices.value = Array.isArray(result.devices) ? result.devices : []
+    for (const device of mideaDevices.value) {
+      if (mideaTargets[device.id] === undefined) {
+        const value = device.state?.target_humidity
+        mideaTargets[device.id] = typeof value === 'number' ? value : 50
+      }
+      if (!mideaModes[device.id]) mideaModes[device.id] = device.modes?.[0] || 'manual'
+      if (!mideaFanSpeeds[device.id]) mideaFanSpeeds[device.id] = device.fan_speeds?.[0] || 'low'
+    }
+    mideaError.value = ''
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaLoadError')
+  }
+}
+
+async function scanMideaLAN() {
+  mideaScanning.value = true
+  mideaError.value = ''
+  try {
+    const result = await apiClient.post<{ devices: MideaDiscoveredDevice[] }>('/api/v1/integrations/midea/discovery/scan', {})
+    mideaDiscoveredDevices.value = Array.isArray(result.devices) ? result.devices : []
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaScanError')
+  } finally {
+    mideaScanning.value = false
+  }
+}
+
+function selectMideaDiscoveredDevice(device: MideaDiscoveredDevice) {
+  if (!device.supported) return
+  Object.assign(mideaForm, {
+    id: device.id,
+    name: device.name,
+    brand: 'Midea',
+    model: device.model || '',
+    type_code: device.type_code,
+    host: device.host,
+    port: device.port,
+    protocol: device.protocol,
+    token: '',
+    key: ''
+  })
+}
+
+async function configureMideaDevice() {
+  if (!mideaForm.id || !mideaForm.host || !mideaForm.name) return
+  if (mideaForm.protocol === 'midea_msmart_v3' && (mideaForm.token.length !== 128 || mideaForm.key.length !== 64)) {
+    mideaError.value = t('integrations.view.vendors.mideaCredentialsHint')
+    return
+  }
+  mideaBusy.value = true
+  mideaError.value = ''
+  try {
+    await apiClient.post('/api/v1/integrations/midea/devices', {
+      ...mideaForm,
+      port: Number(mideaForm.port),
+      token: mideaForm.protocol === 'midea_msmart_v3' ? mideaForm.token : undefined,
+      key: mideaForm.protocol === 'midea_msmart_v3' ? mideaForm.key : undefined
+    })
+    mideaForm.token = ''
+    mideaForm.key = ''
+    mideaForm.id = ''
+    mideaForm.name = ''
+    mideaForm.host = ''
+    await loadMideaData()
+    notificationsStore.success(t('integrations.view.vendors.mideaConfigured'), t('integrations.view.vendors.mideaConfiguredDesc'))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaConfigureError')
+    notificationsStore.error(t('integrations.view.vendors.mideaConfigureError'), t('integrations.view.vendors.mideaConfigureErrorDesc'))
+  } finally {
+    mideaBusy.value = false
+  }
+}
+
+async function refreshMideaDevice(device: MideaDevice) {
+  const key = device.id + ':refresh'
+  mideaCommandBusy.value = key
+  try {
+    const result = await apiClient.post<{ state: Record<string, unknown> }>('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id) + '/refresh', {})
+    device.state = result.state
+    const target = result.state?.target_humidity
+    if (typeof target === 'number') mideaTargets[device.id] = target
+    mideaError.value = ''
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaRefreshError')
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
+async function sendMideaCommand(device: MideaDevice, values: Record<string, boolean | number | string>, action?: string) {
+  mideaCommandBusy.value = device.id
+  try {
+    const result = await apiClient.post<{ state: Record<string, unknown> }>('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id) + '/commands', { values, action })
+    device.state = result.state
+    const target = result.state?.target_humidity
+    if (typeof target === 'number') mideaTargets[device.id] = target
+    mideaError.value = ''
+    notificationsStore.success(t('integrations.view.vendors.mideaCommandSent'), t('integrations.view.vendors.mideaCommandSentDesc', { name: device.name }))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaCommandError')
+    notificationsStore.error(t('integrations.view.vendors.mideaCommandError'), t('integrations.view.vendors.mideaCommandErrorDesc'))
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
+async function removeMideaDevice(device: MideaDevice) {
+  mideaCommandBusy.value = device.id
+  try {
+    await apiClient.delete('/api/v1/integrations/midea/devices/' + encodeURIComponent(device.id))
+    await loadMideaData()
+    notificationsStore.success(t('integrations.view.vendors.mideaRemoved'), t('integrations.view.vendors.mideaRemovedDesc', { name: device.name }))
+  } catch {
+    mideaError.value = t('integrations.view.vendors.mideaRemoveError')
+  } finally {
+    mideaCommandBusy.value = ''
+  }
+}
+
 // --- VeSync cloud integration ---
 interface VeSyncDevice {
   id: string; name: string; model: string; device_type: string; config_module?: string
@@ -1703,6 +1872,7 @@ onMounted(() => {
   fetchTuyaConfig()
   loadXiaomiVendorData()
   loadVeSyncData()
+  loadMideaData()
   loadImouVendorData()
   loadBroadlinkDevices()
 })
@@ -1770,7 +1940,7 @@ onMounted(() => {
         </button>
         <button
           :class="['tab-btn', { active: activeTab === 'vendors' }]"
-          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadVeSyncData(); loadImouVendorData()"
+          @click="activeTab = 'vendors'; loadXiaomiVendorData(); loadVeSyncData(); loadMideaData(); loadImouVendorData()"
         >
           <Activity :size="16" />
           <span>{{ t('integrations.view.vendors.title') }}</span>
@@ -2713,6 +2883,128 @@ onMounted(() => {
         <div v-else class="vendor-empty">{{ t('integrations.view.vendors.noLocalDevices') }}</div>
       </section>
 
+
+      <section class="vendor-section glass-card midea-section">
+        <div class="vendor-section-heading">
+          <div>
+            <h3>{{ t('integrations.view.vendors.mideaTitle') }}</h3>
+            <p>{{ t('integrations.view.vendors.mideaDesc') }}</p>
+          </div>
+          <span :class="['status-badge', mideaConfigured ? 'status-online' : 'status-offline']">
+            {{ mideaConfigured ? t('integrations.view.vendors.mideaConfigured') : t('integrations.view.vendors.mideaNotConfigured') }}
+          </span>
+        </div>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.mideaLocalOnlyHint') }}</p>
+        <div class="vendor-discovery-block">
+          <button class="btn-scan" type="button" :disabled="mideaScanning" @click="scanMideaLAN">
+            <RefreshCw v-if="mideaScanning" :size="14" class="animate-spin" />
+            <Radio v-else :size="14" />
+            {{ mideaScanning ? t('integrations.view.vendors.mideaScanning') : t('integrations.view.vendors.mideaScan') }}
+          </button>
+          <div v-if="mideaDiscoveredDevices.length" class="vendor-device-list">
+            <div v-for="device in mideaDiscoveredDevices" :key="device.id" class="vendor-device-row">
+              <div class="vendor-device-info">
+                <strong>{{ device.name }} · {{ device.type_code }}</strong>
+                <span>{{ device.model || t('integrations.view.vendors.mideaModelUnknown') }} · {{ device.host }}:{{ device.port }} · {{ device.protocol }}</span>
+                <small v-if="!device.supported" class="vendor-hint">{{ device.reason || t('integrations.view.vendors.mideaUnsupported') }}</small>
+              </div>
+              <button class="btn-action glass-panel" type="button" :disabled="!device.supported" @click="selectMideaDiscoveredDevice(device)">
+                {{ t('integrations.view.vendors.mideaUseDevice') }}
+              </button>
+            </div>
+          </div>
+          <p v-else class="vendor-empty">{{ t('integrations.view.vendors.mideaScanPrompt') }}</p>
+        </div>
+        <form v-if="mideaForm.id" class="vendor-form-grid" @submit.prevent="configureMideaDevice">
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.mideaName') }}</span>
+            <input v-model="mideaForm.name" class="form-control glass-panel" required maxlength="80" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.mideaBrand') }}</span>
+            <input v-model="mideaForm.brand" class="form-control glass-panel" maxlength="60" />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.mideaHost') }}</span>
+            <input v-model="mideaForm.host" class="form-control glass-panel" required readonly />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.mideaPort') }}</span>
+            <input v-model.number="mideaForm.port" class="form-control glass-panel" type="number" min="1" max="65535" required readonly />
+          </label>
+          <label class="form-group">
+            <span>{{ t('integrations.view.vendors.mideaProtocol') }}</span>
+            <select v-model="mideaForm.protocol" class="form-control glass-panel">
+              <option value="midea_msmart_v2">{{ t('integrations.view.vendors.mideaV2') }}</option>
+              <option value="midea_msmart_v3">{{ t('integrations.view.vendors.mideaV3') }}</option>
+            </select>
+          </label>
+          <template v-if="mideaForm.protocol === 'midea_msmart_v3'">
+            <label class="form-group">
+              <span>{{ t('integrations.view.vendors.mideaToken') }}</span>
+              <input v-model="mideaForm.token" class="form-control glass-panel" type="password" autocomplete="off" maxlength="128" minlength="128" />
+            </label>
+            <label class="form-group">
+              <span>{{ t('integrations.view.vendors.mideaKey') }}</span>
+              <input v-model="mideaForm.key" class="form-control glass-panel" type="password" autocomplete="off" maxlength="64" minlength="64" />
+            </label>
+          </template>
+          <div class="vendor-form-actions">
+            <button class="btn-scan" type="submit" :disabled="mideaBusy || !mideaForm.name || (mideaForm.protocol === 'midea_msmart_v3' && (mideaForm.token.length !== 128 || mideaForm.key.length !== 64))">
+              <Plus v-if="!mideaBusy" :size="14" />
+              <RefreshCw v-else :size="14" class="animate-spin" />
+              {{ mideaBusy ? t('integrations.view.vendors.mideaConfiguring') : t('integrations.view.vendors.mideaConfigure') }}
+            </button>
+          </div>
+        </form>
+        <p class="vendor-hint">{{ t('integrations.view.vendors.mideaCredentialsHint') }}</p>
+        <p v-if="mideaError" class="vendor-error">{{ mideaError }}</p>
+        <div v-if="mideaDevices.length" class="vendor-device-list">
+          <article v-for="device in mideaDevices" :key="device.id" class="vendor-device-row midea-device-row">
+            <div class="vendor-device-info">
+              <strong>{{ device.name }}</strong>
+              <span>{{ device.model || device.type_code }} · {{ device.host }} · {{ device.protocol }}</span>
+              <small class="vendor-hint">
+                {{ t('integrations.view.vendors.mideaLiveHumidity') }}: {{ device.state?.current_humidity ?? '—' }}% ·
+                {{ t('integrations.view.vendors.mideaTargetHumidity') }}: {{ device.state?.target_humidity ?? '—' }}% ·
+                {{ t('integrations.view.vendors.mideaTemperature') }}: {{ device.state?.current_temperature ?? '—' }}°C
+              </small>
+              <small v-if="device.state?.tank_full === true" class="vendor-error">{{ t('integrations.view.vendors.mideaTankFull') }}</small>
+              <div class="vendor-device-controls">
+                <button class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id + ':refresh'" @click="refreshMideaDevice(device)">
+                  {{ mideaCommandBusy === device.id + ':refresh' ? t('integrations.view.vendors.mideaRefreshing') : t('integrations.view.vendors.mideaRefresh') }}
+                </button>
+                <button class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { power: device.state?.power !== true })">
+                  {{ device.state?.power === true ? t('integrations.view.vendors.mideaPowerOff') : t('integrations.view.vendors.mideaPowerOn') }}
+                </button>
+                <label class="form-group midea-inline-field">
+                  <span>{{ t('integrations.view.vendors.mideaTargetHumidity') }}</span>
+                  <input v-model.number="mideaTargets[device.id]" class="form-control glass-panel" type="number" min="35" max="100" step="1" />
+                </label>
+                <button class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { target_humidity: Number(mideaTargets[device.id]) })">
+                  {{ t('integrations.view.vendors.mideaSetHumidity') }}
+                </button>
+                <select v-if="device.modes?.length" v-model="mideaModes[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.mideaMode')">
+                  <option v-for="mode in device.modes" :key="mode" :value="mode">{{ mode }}</option>
+                </select>
+                <button v-if="device.modes?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { mode: mideaModes[device.id] || 'manual' })">
+                  {{ t('integrations.view.vendors.mideaApplyMode') }}
+                </button>
+                <select v-if="device.fan_speeds?.length" v-model="mideaFanSpeeds[device.id]" class="form-control glass-panel" :aria-label="t('integrations.view.vendors.mideaFanSpeed')">
+                  <option v-for="speed in device.fan_speeds" :key="speed" :value="speed">{{ speed }}</option>
+                </select>
+                <button v-if="device.fan_speeds?.length" class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="sendMideaCommand(device, { fan_speed: mideaFanSpeeds[device.id] || 'low' })">
+                  {{ t('integrations.view.vendors.mideaApplyFanSpeed') }}
+                </button>
+              </div>
+            </div>
+            <button class="btn-action glass-panel" type="button" :disabled="mideaCommandBusy === device.id" @click="removeMideaDevice(device)">
+              {{ t('integrations.view.vendors.remove') }}
+            </button>
+          </article>
+        </div>
+        <div v-else class="vendor-empty">{{ t('integrations.view.vendors.mideaNoDevices') }}</div>
+      </section>
 
       <section class="vendor-section glass-card vesync-section">
         <div class="vendor-section-heading">

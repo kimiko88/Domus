@@ -1316,6 +1316,157 @@ paths:
                   id: { type: string }
         "404":
           description: Device not found
+  /integrations/midea/status:
+    get:
+      summary: Get local Midea SmartHome integration status
+      description: Administrator-only. Reports driver coverage without returning device credentials.
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Midea local integration status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  mode: { type: string, enum: [local] }
+                  device_count: { type: integer }
+                  supported_types:
+                    type: array
+                    items: { type: string }
+                  pending_drivers:
+                    type: array
+                    items: { type: string }
+  /integrations/midea/discovery/scan:
+    post:
+      summary: Discover M-Smart appliances on the local LAN
+      description: Administrator-only. Broadcasts a bounded UDP discovery request and only accepts responses from private LAN source addresses. Devices without a registered driver are returned as unsupported.
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Local discovery results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        host: { type: string }
+                        port: { type: integer }
+                        model: { type: string }
+                        type_code: { type: string }
+                        protocol: { type: string, enum: [midea_msmart_v2, midea_msmart_v3] }
+                        supported: { type: boolean }
+                        reason: { type: string }
+                  count: { type: integer }
+                  supported_count: { type: integer }
+                  duration_ms: { type: integer }
+        "502":
+          description: LAN discovery failed
+  /integrations/midea/devices:
+    get:
+      summary: List configured Midea devices without secrets
+      tags: [Integrations]
+      responses:
+        "200":
+          description: Configured local Midea devices
+    post:
+      summary: Configure a discovered A1 dehumidifier
+      description: Administrator-only. Device ID, private LAN address, port, protocol and type code must match the most recent discovery result. M-Smart V3 token and key are encrypted at rest and are write-only.
+      tags: [Integrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name, type_code, host, protocol]
+              properties:
+                id: { type: string, maxLength: 128 }
+                name: { type: string, maxLength: 80 }
+                brand: { type: string, maxLength: 60 }
+                model: { type: string, maxLength: 100 }
+                type_code: { type: string, enum: [A1] }
+                host: { type: string, format: ipv4 }
+                port: { type: integer, minimum: 1, maximum: 65535, default: 6444 }
+                protocol: { type: string, enum: [midea_msmart_v2, midea_msmart_v3] }
+                message_version: { type: integer, minimum: 0, maximum: 255 }
+                appliance_id: { type: integer, format: int64 }
+                token: { type: string, minLength: 128, maxLength: 128, writeOnly: true }
+                key: { type: string, minLength: 64, maxLength: 64, writeOnly: true }
+      responses:
+        "201":
+          description: Device configured and provisioned in the Domus registry
+        "400":
+          description: Invalid credentials, protocol or LAN endpoint
+        "409":
+          description: Device was not discovered or does not match the latest LAN discovery
+        "422":
+          description: Midea device type has no registered driver
+  /integrations/midea/devices/{id}/refresh:
+    post:
+      summary: Read and synchronize a Midea device state
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Device state read and synchronized
+        "502":
+          description: Local device read failed
+  /integrations/midea/devices/{id}/commands:
+    post:
+      summary: Execute one capability-validated Midea command
+      description: Writes are sent once and then verified with an independent read-back. Uncertain writes are never automatically retried.
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                values:
+                  type: object
+                  additionalProperties: true
+                  description: Only writable capabilities advertised by the A1 dehumidifier are accepted.
+                action: { type: string, enum: [reset_filter] }
+      responses:
+        "200":
+          description: Command accepted and physical state verified
+        "404":
+          description: Device not found
+        "422":
+          description: Unsupported capability, invalid value or read-back mismatch
+  /integrations/midea/devices/{id}:
+    delete:
+      summary: Remove a configured Midea device
+      tags: [Integrations]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Encrypted credentials and Domus entities removed
+        "404":
+          description: Device not found
   /integrations/vesync/status:
     get:
       summary: Get VeSync Cloud connection status without returning secrets
