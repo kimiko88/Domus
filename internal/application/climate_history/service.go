@@ -67,6 +67,8 @@ func (s *Service) UpdateSettings(ctx context.Context, settings domclimate.Settin
 			if _, ok := compatible[deviceID]; !ok { return domclimate.ErrInvalidSettings }
 		}
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.repo.SaveSettings(ctx, settings)
 }
 

@@ -385,7 +385,7 @@ func TestDeleteDeviceHistoryUntracksAndRemovesDeviceMetrics(t *testing.T) {
 	repo := &climateRepoStub{settings: settings}
 	entities := &climateEntityRepoStub{entities: []*entity.Entity{
 		{ID: "sensor-1", DeviceID: "device-1", EntityKey: "sensor.one", Domain: "sensor", Name: "One", State: "20", UnitOfMeasurement: "°C", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
-		{ID: "sensor-2", DeviceID: "device-2", EntityKey: "sensor.two", Domain: "sensor", Name: "Two", State: "21", UnitOfMeasurement: "°C", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
+		{ID: "sensor-2", DeviceID: "device-2", EntityKey: "sensor.two", Domain: "sensor", Name: "Two", State: "55", UnitOfMeasurement: "%", Attributes: "{\"device_class\":\"humidity\"}", Available: true},
 	}}
 	service := NewService(repo, entities, testLogger())
 	deleted, err := service.DeleteDeviceHistory(context.Background(), "device-1")
@@ -395,4 +395,14 @@ func TestDeleteDeviceHistoryUntracksAndRemovesDeviceMetrics(t *testing.T) {
 	require.Equal(t, []string{"device-2"}, repo.settings.TrackedDeviceIDs)
 	require.NotContains(t, repo.settings.DeviceMetrics, "device-1")
 	require.Contains(t, repo.settings.DeviceMetrics, "device-2")
+
+	// A subsequent poll must continue recording the remaining device only.
+	repo.samples = nil
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Len(t, repo.samples, 1)
+	require.Equal(t, "device-2", repo.samples[0].DeviceID)
+	require.Nil(t, repo.samples[0].Temperature)
+	require.NotNil(t, repo.samples[0].Humidity)
 }
