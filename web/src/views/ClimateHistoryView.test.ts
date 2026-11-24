@@ -295,6 +295,43 @@ describe('ClimateHistoryView.vue', () => {
     expect(sourceDevices.some(device => device.text().includes('Sensore temperatura Tuya Local'))).toBe(true)
   })
 
+  it('saves metric choices independently for each climate device', async () => {
+    const { wrapper, store } = setupView()
+    const saveSpy = vi.spyOn(store, 'saveSettings').mockImplementation(async settings => {
+      Object.assign(store.settings, settings)
+      return store.settings
+    })
+    await flushPromises()
+    await wrapper.find('.source-all-toggle input').setValue(false)
+
+    const bedroom = wrapper.findAll('.source-device-entry').find(row => row.text().includes('Bedroom sensor'))
+    expect(bedroom).toBeTruthy()
+    expect(bedroom!.text()).toContain('Dati da salvare')
+    const temperature = bedroom!.findAll('.source-device-metric input')[0]
+    expect((temperature.element as HTMLInputElement).checked).toBe(true)
+    await temperature.setValue(false)
+    await wrapper.find('.sources-panel .primary-btn').trigger('click')
+    await flushPromises()
+
+    expect(saveSpy).toHaveBeenCalledTimes(1)
+    expect(saveSpy.mock.calls[0][0].device_metrics?.['device-bedroom']).toEqual([])
+  })
+
+  it('deletes history for a selected device after confirmation', async () => {
+    const { wrapper, store } = setupView()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const deleteSpy = vi.spyOn(store, 'deleteDeviceHistory').mockResolvedValue({
+      device_id: 'device-bedroom', deleted_rows: 12, tracking_disabled: true
+    })
+    await flushPromises()
+    const bedroom = wrapper.findAll('.source-device-entry').find(row => row.text().includes('Bedroom sensor'))
+    expect(bedroom).toBeTruthy()
+    await bedroom!.find('.source-device-delete').trigger('click')
+    await flushPromises()
+    expect(deleteSpy).toHaveBeenCalledWith('device-bedroom')
+    expect(wrapper.text()).toContain('Storico di Bedroom sensor eliminato: 12 record rimossi.')
+  })
+
   it('uses app-rendered dropdown menus instead of native dark popups', async () => {
     const { wrapper } = setupView()
     await flushPromises()

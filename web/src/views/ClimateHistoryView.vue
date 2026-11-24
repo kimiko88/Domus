@@ -319,7 +319,7 @@ function deviceMetricOptions(deviceID: string): Array<{ value: ClimateMetricKey;
       available.add('temperature')
       available.add('target_temperature')
       available.add('hvac_mode')
-      if (attributes.hvac_action !== undefined || attributes.action !== undefined) available.add('hvac_action')
+      available.add('hvac_action')
       if (hasNumericAttribute(attributes, 'current_humidity', 'humidity')) available.add('humidity')
       continue
     }
@@ -679,6 +679,7 @@ onBeforeUnmount(() => {
             </label>
           </div>
           <button
+            v-if="device.selectable"
             type="button"
             class="source-device-delete secondary-btn"
             :disabled="store.saving || deletingDeviceID !== ''"
