@@ -77,10 +77,13 @@ class ApiClient {
     }
 
     const config: RequestInit = {
+      ...customConfig,
       credentials: 'include',
+      // Merge caller-supplied headers before the security headers prepared above.
+      // Binary uploads pass a custom Content-Type; that must never replace the
+      // automatically injected X-CSRF-Token header.
       headers: requestHeaders,
-      signal: controller.signal,
-      ...customConfig
+      signal: controller.signal
     }
 
     try {
