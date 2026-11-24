@@ -28,7 +28,7 @@ type AudioProcessResult struct {
 // VoicePipelineConfig defines endpoints and parameters for local Whisper and Piper.
 type VoicePipelineConfig struct {
 	WhisperEndpoint string  `json:"whisper_endpoint"`  // e.g. "http://localhost:10300" (Faster-Whisper/Wyoming)
-	PiperEndpoint   string  `json:"piper_endpoint"`    // e.g. "http://localhost:10200" (Piper TTS/Wyoming)
+	PiperEndpoint   string  `json:"piper_endpoint"`    // e.g. "http://127.0.0.1:10301" (Domus HTTP adapter)
 	Language        string  `json:"language"`          // "it", "en", etc.
 	VoiceModel      string  `json:"voice_model"`       // e.g. "it_IT-paola-medium"
 	VADThresholdRMS float64 `json:"vad_threshold_rms"` // RMS energy threshold to consider speech (e.g. 0.015)
@@ -53,7 +53,7 @@ func NewVoicePipeline(cfg VoicePipelineConfig, assistantSvc *Service) *VoicePipe
 		cfg.WhisperEndpoint = "http://localhost:10300"
 	}
 	if cfg.PiperEndpoint == "" {
-		cfg.PiperEndpoint = "http://localhost:10200"
+		cfg.PiperEndpoint = "http://127.0.0.1:10301"
 	}
 	if cfg.Language == "" {
 		cfg.Language = "it"
@@ -144,17 +144,33 @@ func (p *VoicePipeline) ProcessBufferedSpeech(ctx context.Context, satelliteID s
 	transcription, err := p.TranscribeAudio(ctx, pcmBytes)
 	if err != nil { return nil, fmt.Errorf("voice_pipeline: transcription failed: %w", err) }
 	if strings.TrimSpace(transcription) == "" { return nil, fmt.Errorf("voice_pipeline: no speech recognized") }
-	return p.ProcessTextPrompt(ctx, transcription, time.Since(startTime))
+	return p.ProcessSatelliteTextPrompt(ctx, satelliteID, transcription, time.Since(startTime))
 }
 
 // ProcessTextPrompt sends a typed or transcribed prompt through Domus Assistant
 // and synthesizes a WAV reply when the configured Piper server is reachable.
 func (p *VoicePipeline) ProcessTextPrompt(ctx context.Context, prompt string, elapsed ...time.Duration) (*AudioProcessResult, error) {
+	return p.processTextPrompt(ctx, "", prompt, elapsed...)
+}
+
+// ProcessSatelliteTextPrompt applies the registered satellite's room context before
+// running the normal assistant intent resolver.
+func (p *VoicePipeline) ProcessSatelliteTextPrompt(ctx context.Context, satelliteID, prompt string, elapsed ...time.Duration) (*AudioProcessResult, error) {
+	return p.processTextPrompt(ctx, strings.TrimSpace(satelliteID), prompt, elapsed...)
+}
+
+func (p *VoicePipeline) processTextPrompt(ctx context.Context, satelliteID, prompt string, elapsed ...time.Duration) (*AudioProcessResult, error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" || len(prompt) > 4096 { return nil, fmt.Errorf("voice_pipeline: text prompt is empty or too long") }
 	if p.assistantSvc == nil { return nil, fmt.Errorf("voice_pipeline: assistant service is not configured") }
 	start := time.Now()
-	chatResp, err := p.assistantSvc.ProcessPrompt(ctx, prompt)
+	var chatResp *ChatResponse
+	var err error
+	if satelliteID != "" {
+		chatResp, err = p.assistantSvc.ProcessSatelliteVoice(ctx, satelliteID, prompt)
+	} else {
+		chatResp, err = p.assistantSvc.ProcessPrompt(ctx, prompt)
+	}
 	if err != nil { return nil, fmt.Errorf("voice_pipeline: assistant processing failed: %w", err) }
 	if chatResp == nil { return nil, fmt.Errorf("voice_pipeline: assistant returned an empty response") }
 	responseText := strings.TrimSpace(chatResp.ResponseText)

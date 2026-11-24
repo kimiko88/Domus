@@ -1078,7 +1078,7 @@ func (h *EcosystemHandler) ProcessVoiceSpeech(w http.ResponseWriter, r *http.Req
 		}
 		result, err = h.voicePipeline.ProcessBufferedSpeech(r.Context(), satelliteID)
 	} else if strings.TrimSpace(req.TextPrompt) != "" {
-		result, err = h.voicePipeline.ProcessTextPrompt(r.Context(), req.TextPrompt)
+		result, err = h.voicePipeline.ProcessSatelliteTextPrompt(r.Context(), satelliteID, req.TextPrompt)
 	} else {
 		writeError(w, http.StatusBadRequest, "VOICE_INPUT_REQUIRED", "provide audio_base64 or text_prompt")
 		return
