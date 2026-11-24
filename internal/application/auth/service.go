@@ -224,7 +224,9 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID string) (*user.
 	}
 	// Sliding idle expiration. Renew in the last half of the TTL to keep active
 	// sessions alive without writing to SQLite on every API request.
-	if sess.ExpiresAt.Sub(now) <= s.sessionTTL/2 {
+	renewAfter := s.sessionTTL - 24*time.Hour
+	if renewAfter <= 0 { renewAfter = s.sessionTTL/2 }
+	if sess.ExpiresAt.Sub(now) <= renewAfter {
 		if updater, ok := s.sessionRepo.(interface { UpdateExpiration(context.Context, string, time.Time) error }); ok {
 			newExpiry := now.Add(s.sessionTTL)
 			if err := updater.UpdateExpiration(ctx, sessionID, newExpiry); err != nil {

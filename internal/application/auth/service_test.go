@@ -184,3 +184,19 @@ func TestAuthServiceExtendsActiveSessionAfterRecentActivity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, renewed.ExpiresAt, stored.ExpiresAt, "renewed expiration must be persisted")
 }
+
+func TestAuthServiceRenewsLongLivedSessionOnAnyVisitAfterOneDay(t *testing.T) {
+	svc, repos := setupAuthService(t)
+	ctx := context.Background()
+	admin, err := svc.SetupInitialAdmin(ctx, "long-session", "LongSessionPass123!")
+	require.NoError(t, err)
+	longTTLService := auth.NewService(repos.Users, repos.Sessions, repos.Audit,
+		crypto.NewArgon2Hasher(crypto.Argon2Params{Memory: 32 * 1024, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}),
+		90*24*time.Hour)
+	now := time.Now().UTC()
+	session := &user.Session{ID: "active-long-session", UserID: admin.ID, CreatedAt: now.Add(-30*24*time.Hour), ExpiresAt: now.Add(60*24*time.Hour)}
+	require.NoError(t, repos.Sessions.Create(ctx, session))
+	_, renewed, err := longTTLService.ValidateSession(ctx, session.ID)
+	require.NoError(t, err)
+	require.True(t, renewed.ExpiresAt.After(now.Add(89*24*time.Hour)), "a visit after 30 days should refresh the 90-day idle window")
+}
