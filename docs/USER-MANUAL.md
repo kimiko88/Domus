@@ -695,9 +695,20 @@ Per installazioni critiche dove un blocco del server non è accettabile, Domus s
 ---
 
 
+## 26. Satelliti Vocali Always-On Multi-Stanza ("Ehi Domus")
+
+Domus espone l'API per ricevere audio da client/satelliti distribuiti nelle stanze (ad esempio Raspberry Pi Zero 2 W o ESP32-S3-BOX-3); il firmware di acquisizione/wake-word del satellite va predisposto separatamente:
+
+- **Wake-Word Locale "Ehi Domus"**: Il riconoscimento della parola chiave avviene interamente a bordo del satellite tramite modello locale ultra-leggero, senza inviare audio continuo sulla rete.
+- **Invio audio autenticato via HTTP**: Dopo la wake-word, il client satellite invia il campione PCM mono a 16 kHz al gateway `POST /api/v1/voice/process`; l'hub lo trascrive con Whisper e passa il testo all'assistente Domus.
+- **Risoluzione Spaziale del Contesto**: Se dici *"Accendi la luce"* al satellite situato in Cucina, Domus sa automaticamente da quale stanza proviene la richiesta e accende la luce della Cucina, senza dover specificare il nome della stanza.
+- **Pulsante Privacy Hardware**: I satelliti supportano un interruttore di disattivazione fisica del microfono con indicatore LED di stato rosso per garantire riservatezza assoluta.
+
+---
+
 ## 26.1 Hardware e collegamento dell'assistente vocale
 
-Per provare l'assistente in una sola stanza non serve un satellite aggiuntivo: collega direttamente all'hub Raspberry Pi un **microfono USB compatibile USB Audio Class** e una **cassa USB alimentata**. In alternativa puoi usare un microfono USB e l'uscita audio analogica del Raspberry Pi 4. Verifica i dispositivi ALSA con `arecord -l` e `aplay -l`.
+Per una prova in una sola stanza, la dotazione hardware più semplice è un **microfono USB compatibile USB Audio Class** e una **cassa USB alimentata** (oppure microfono USB + uscita audio del Raspberry Pi 4). Verifica i dispositivi ALSA con `arecord -l` e `aplay -l`. Attenzione: collegare fisicamente microfono e cassa non basta da solo. Il repository contiene l'endpoint HTTP e il motore di elaborazione, ma non include ancora un servizio ALSA always-on che acquisisca il microfono, rilevi la wake-word e invii autonomamente i campioni a Domus; serve un client/satellite che svolga questo compito.
 
 Per una casa multi-stanza puoi distribuire un satellite per stanza:
 - **ESP32-S3-BOX-3**: soluzione compatta con due microfoni digitali, altoparlante, pulsanti, display e USB-C. È una buona base hardware; per usarlo con Domus serve comunque il firmware client che rileva la wake-word e trasmette PCM all'hub.
@@ -707,24 +718,13 @@ Per una casa multi-stanza puoi distribuire un satellite per stanza:
 
 ### Motore STT/TTS sul Raspberry
 
-Domus usa due servizi HTTP locali:
+Domus usa due **adattatori HTTP** locali (non il protocollo Wyoming grezzo):
 - Whisper: `POST {DOMUS_WHISPER_ENDPOINT}/transcribe`, corpo PCM binario; risposta JSON `{"text":"..."}`.
 - Piper: `POST {DOMUS_PIPER_ENDPOINT}/synthesize`, corpo JSON `{"text":"...","voice":"it_IT-paola-medium"}`; risposta audio WAV.
 
-Questi motori **non sono installati automaticamente** con Domus. Puoi eseguirli sul Pi o su un computer locale più potente e configurare `DOMUS_WHISPER_ENDPOINT` e `DOMUS_PIPER_ENDPOINT`. Nell'installazione nativa, gli indirizzi predefiniti sono `http://127.0.0.1:10300` e `http://127.0.0.1:10200`. Con Docker Compose, i default sono `http://host.docker.internal:10300` e `http://host.docker.internal:10200`, raggiungibili dal container grazie all'alias host; se usi container STT/TTS separati, sostituiscili con i rispettivi nomi DNS. Puoi impostare anche `DOMUS_VOICE_LANGUAGE=it` e `DOMUS_VOICE_MODEL=it_IT-paola-medium`.
+Questi adattatori e i rispettivi motori **non sono installati automaticamente** con Domus. Un servizio Piper/Wyoming TCP sulla porta 10200 non soddisfa da solo l'API HTTP `/synthesize`: serve un adattatore HTTP che traduca le chiamate Domus nel motore STT/TTS scelto. Puoi eseguirli sul Pi o su un computer locale più potente e configurare `DOMUS_WHISPER_ENDPOINT` e `DOMUS_PIPER_ENDPOINT`. Nell'installazione nativa, gli indirizzi predefiniti sono `http://127.0.0.1:10300` e `http://127.0.0.1:10200`. Con Docker Compose, i default sono `http://host.docker.internal:10300` e `http://host.docker.internal:10301`, raggiungibili dal container grazie all'alias host; se usi container STT/TTS separati, sostituiscili con i rispettivi nomi DNS. Puoi impostare anche `DOMUS_VOICE_LANGUAGE=it` e `DOMUS_VOICE_MODEL=it_IT-paola-medium`.
 
 > **Prestazioni:** un Raspberry Pi 4 può gestire Domus e l'acquisizione audio, ma Whisper e un LLM locale possono rendere la risposta vocale lenta se condividono CPU e RAM. Per una conversazione più fluida valuta un mini-PC locale per STT/LLM, mantenendo il Raspberry Pi come hub domotico.
-
-## 26. Satelliti Vocali Always-On Multi-Stanza ("Ehi Domus")
-
-Domus supporta una rete di microfoni satelliti distribuiti nelle stanze della casa (es. basati su Raspberry Pi Zero 2W o ESP32-S3 Box):
-
-- **Wake-Word Locale "Ehi Domus"**: Il riconoscimento della parola chiave avviene interamente a bordo del satellite tramite modello locale ultra-leggero, senza inviare audio continuo sulla rete.
-- **Streaming Audio Protetto via WebSocket**: Solo dopo aver rilevato la wake-word, il satellite apre uno stream audio locale verso l'hub Domus, dove il motore locale (Whisper / Piper) elabora il comando.
-- **Risoluzione Spaziale del Contesto**: Se dici *"Accendi la luce"* al satellite situato in Cucina, Domus sa automaticamente da quale stanza proviene la richiesta e accende la luce della Cucina, senza dover specificare il nome della stanza.
-- **Pulsante Privacy Hardware**: I satelliti supportano un interruttore di disattivazione fisica del microfono con indicatore LED di stato rosso per garantire riservatezza assoluta.
-
----
 
 ## 27. Centrale Allarme Integrata (Alarm Control Panel)
 

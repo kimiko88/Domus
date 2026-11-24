@@ -19,7 +19,7 @@ services:
       - DOMUS_LOG_LEVEL=info
       - DOMUS_LOG_FORMAT=json
       - DOMUS_WHISPER_ENDPOINT=${DOMUS_WHISPER_ENDPOINT:-http://host.docker.internal:10300}
-      - DOMUS_PIPER_ENDPOINT=${DOMUS_PIPER_ENDPOINT:-http://host.docker.internal:10200}
+      - DOMUS_PIPER_ENDPOINT=${DOMUS_PIPER_ENDPOINT:-http://host.docker.internal:10301}
       - DOMUS_VOICE_LANGUAGE=${DOMUS_VOICE_LANGUAGE:-it}
       - DOMUS_VOICE_MODEL=${DOMUS_VOICE_MODEL:-it_IT-paola-medium}
       - TUYA_CLOUD_CLIENT_ID=${TUYA_CLOUD_CLIENT_ID:-}
