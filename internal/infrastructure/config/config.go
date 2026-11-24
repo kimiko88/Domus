@@ -158,7 +158,7 @@ func defaults() Config {
 			MaxOpenConns:  1,
 		},
 		Auth: AuthConfig{
-			SessionTTL:           Duration{24 * time.Hour},
+			SessionTTL:           Duration{90 * 24 * time.Hour},
 			RateLimitLoginPerMin: 10,
 			Argon2Time:           1,
 			Argon2Memory:         64 * 1024, // 64 MiB

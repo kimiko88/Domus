@@ -54,8 +54,9 @@ level = "info"
 format = "json"
 
 [auth]
-# Session cookie lifetime. Supports standard duration units (e.g., "24h", "7d", "168h").
-session_ttl = "24h"
+# Sliding session idle lifetime. Renewed while the user actively accesses Domus.
+# A user is asked to sign in again only after 90 days without activity.
+session_ttl = "90d"
 
 # Maximum login attempts allowed per minute per IP before throttling.
 rate_limit_login_per_min = 10

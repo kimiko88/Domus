@@ -3,10 +3,13 @@ package middleware
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/domus-hub/domus/internal/application/auth"
 	"github.com/domus-hub/domus/internal/domain/user"
@@ -56,14 +59,16 @@ func GetSession(ctx context.Context) *user.Session {
 }
 
 // Authenticate extracts and validates the session cookie or Bearer token, attaching User & Session to context.
-func Authenticate(authService *auth.Service) func(http.Handler) http.Handler {
+func Authenticate(authService *auth.Service, secureCookie ...bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := ""
+			cookieAuthenticated := false
 			if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
 				token = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 			} else if cookie, err := r.Cookie(SessionCookieName); err == nil && cookie.Value != "" {
 				token = cookie.Value
+				cookieAuthenticated = true
 			}
 
 			if token != "" {
@@ -72,6 +77,23 @@ func Authenticate(authService *auth.Service) func(http.Handler) http.Handler {
 					ctx := WithUser(r.Context(), u)
 					ctx = WithSession(ctx, sess)
 					r = r.WithContext(ctx)
+					if cookieAuthenticated {
+						maxAge := int(time.Until(sess.ExpiresAt).Seconds())
+						if maxAge < 1 { maxAge = 1 }
+						secure := len(secureCookie) > 0 && secureCookie[0]
+						secure = secure || r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+						expires := sess.ExpiresAt.UTC()
+						http.SetCookie(w, &http.Cookie{Name: SessionCookieName, Value: token, Path: "/", HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge, Expires: expires})
+						csrfValue := ""
+						if csrf, csrfErr := r.Cookie(CSRFCookieName); csrfErr == nil { csrfValue = csrf.Value }
+						if csrfValue == "" {
+							random := make([]byte, 32)
+							if _, randomErr := rand.Read(random); randomErr == nil { csrfValue = hex.EncodeToString(random) }
+						}
+						if csrfValue != "" {
+							http.SetCookie(w, &http.Cookie{Name: CSRFCookieName, Value: csrfValue, Path: "/", HttpOnly: false, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: maxAge, Expires: expires})
+						}
+					}
 				}
 			}
 			next.ServeHTTP(w, r)
