@@ -56,7 +56,7 @@ format = "json"
 [auth]
 # Sliding session idle lifetime. Renewed while the user actively accesses Domus.
 # A user is asked to sign in again only after 90 days without activity.
-session_ttl = "90d"
+session_ttl = "2160h"
 
 # Maximum login attempts allowed per minute per IP before throttling.
 rate_limit_login_per_min = 10
