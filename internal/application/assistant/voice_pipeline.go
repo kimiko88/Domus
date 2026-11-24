@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -34,7 +35,10 @@ type VoicePipelineConfig struct {
 	SampleRate      int     `json:"sample_rate"`       // 16000 Hz standard
 }
 
-// VoicePipeline manages streaming audio buffering, VAD, transcription, and speech synthesis.
+// VoicePipeline manages bounded PCM buffers, transcription and speech synthesis.
+const maxSatelliteAudioBytes = 2 << 20
+const maxVoiceResponseBytes = 2 << 20
+
 type VoicePipeline struct {
 	mu           sync.Mutex
 	cfg          VoicePipelineConfig
@@ -67,7 +71,7 @@ func NewVoicePipeline(cfg VoicePipelineConfig, assistantSvc *Service) *VoicePipe
 	return &VoicePipeline{
 		cfg:          cfg,
 		assistantSvc: assistantSvc,
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
+		httpClient:   &http.Client{Timeout: 30 * time.Second},
 		audioBuffers: make(map[string]*bytes.Buffer),
 	}
 }
@@ -91,17 +95,27 @@ func CalculateRMS(pcmData []byte) float64 {
 
 // AppendChunk buffers incoming audio chunks from a satellite.
 func (p *VoicePipeline) AppendChunk(satelliteID string, pcmChunk []byte) float64 {
+	level, _ := p.AppendChunkChecked(satelliteID, pcmChunk)
+	return level
+}
+
+// AppendChunkChecked appends signed 16-bit little-endian mono PCM with a per-satellite cap.
+func (p *VoicePipeline) AppendChunkChecked(satelliteID string, pcmChunk []byte) (float64, error) {
+	if strings.TrimSpace(satelliteID) == "" || len(pcmChunk) == 0 || len(pcmChunk)%2 != 0 {
+		return 0, fmt.Errorf("voice_pipeline: invalid satellite ID or PCM chunk")
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
 	buf, exists := p.audioBuffers[satelliteID]
 	if !exists {
-		buf = bytes.NewBuffer(make([]byte, 0, 16000*2*3)) // Preallocate 3 sec
+		buf = bytes.NewBuffer(make([]byte, 0, 16000*2*3))
 		p.audioBuffers[satelliteID] = buf
 	}
-
+	if len(pcmChunk) > maxSatelliteAudioBytes-buf.Len() {
+		return CalculateRMS(pcmChunk), fmt.Errorf("voice_pipeline: audio buffer limit exceeded")
+	}
 	buf.Write(pcmChunk)
-	return CalculateRMS(pcmChunk)
+	return CalculateRMS(pcmChunk), nil
 }
 
 // ClearBuffer clears the audio buffer for a given satellite.
@@ -126,34 +140,38 @@ func (p *VoicePipeline) ProcessBufferedSpeech(ctx context.Context, satelliteID s
 
 	startTime := time.Now()
 
-	// 1. Transcribe with Whisper (or local heuristic fallback)
+	// Do not execute a guessed command if speech recognition is unavailable.
 	transcription, err := p.TranscribeAudio(ctx, pcmBytes)
-	if err != nil || transcription == "" {
-		transcription = "accendi le luci in soggiorno" // Baseline fallback when audio engine is in offline test mode
-	}
+	if err != nil { return nil, fmt.Errorf("voice_pipeline: transcription failed: %w", err) }
+	if strings.TrimSpace(transcription) == "" { return nil, fmt.Errorf("voice_pipeline: no speech recognized") }
+	return p.ProcessTextPrompt(ctx, transcription, time.Since(startTime))
+}
 
-	// 2. Resolve intent using Domus Assistant
-	chatResp, err := p.assistantSvc.ProcessPrompt(ctx, transcription)
-	responseText := "Comando eseguito con successo."
-	if err == nil && chatResp.ResponseText != "" {
-		responseText = chatResp.ResponseText
-	}
-
-	// 3. Synthesize speech with Piper TTS
-	audioOut, err := p.SynthesizeSpeech(ctx, responseText)
-	if err != nil {
-		audioOut = p.generateBeepWAV(440, 200) // Fallback audio chime
-	}
-
-	duration := time.Since(startTime).Milliseconds()
-
+// ProcessTextPrompt sends a typed or transcribed prompt through Domus Assistant
+// and synthesizes a WAV reply when the configured Piper server is reachable.
+func (p *VoicePipeline) ProcessTextPrompt(ctx context.Context, prompt string, elapsed ...time.Duration) (*AudioProcessResult, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" || len(prompt) > 4096 { return nil, fmt.Errorf("voice_pipeline: text prompt is empty or too long") }
+	if p.assistantSvc == nil { return nil, fmt.Errorf("voice_pipeline: assistant service is not configured") }
+	start := time.Now()
+	chatResp, err := p.assistantSvc.ProcessPrompt(ctx, prompt)
+	if err != nil { return nil, fmt.Errorf("voice_pipeline: assistant processing failed: %w", err) }
+	if chatResp == nil { return nil, fmt.Errorf("voice_pipeline: assistant returned an empty response") }
+	responseText := strings.TrimSpace(chatResp.ResponseText)
+	if responseText == "" { responseText = "Non ho una risposta disponibile." }
+	audioOut, synthErr := p.SynthesizeSpeech(ctx, responseText)
+	if synthErr != nil { audioOut = nil }
+	duration := time.Since(start)
+	if len(elapsed) > 0 && elapsed[0] > duration { duration = elapsed[0] }
+	audioFormat := ""
+	if len(audioOut) > 0 { audioFormat = "audio/wav" }
 	return &AudioProcessResult{
-		TranscribedText: transcription,
-		ResponseText:    responseText,
-		AudioFormat:     "audio/wav",
-		AudioBytes:      audioOut,
-		ActionTaken:     len(chatResp.ActionsExecuted) > 0,
-		DurationMs:      duration,
+		TranscribedText: prompt,
+		ResponseText: responseText,
+		AudioFormat: audioFormat,
+		AudioBytes: audioOut,
+		ActionTaken: len(chatResp.ActionsExecuted) > 0,
+		DurationMs: duration.Milliseconds(),
 	}, nil
 }
 
@@ -208,8 +226,10 @@ func (p *VoicePipeline) SynthesizeSpeech(ctx context.Context, text string) ([]by
 	}
 
 	var buf bytes.Buffer
-	_, err = buf.ReadFrom(resp.Body)
-	return buf.Bytes(), err
+	_, err = io.Copy(&buf, io.LimitReader(resp.Body, maxVoiceResponseBytes+1))
+	if err != nil { return nil, err }
+	if buf.Len() > maxVoiceResponseBytes { return nil, fmt.Errorf("piper response exceeds %d bytes", maxVoiceResponseBytes) }
+	return buf.Bytes(), nil
 }
 
 // generateBeepWAV generates a small in-memory valid WAV sine wave for audio feedback.

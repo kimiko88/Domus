@@ -18,6 +18,10 @@ services:
       - DOMUS_DATABASE_PATH=/data/domus.db
       - DOMUS_LOG_LEVEL=info
       - DOMUS_LOG_FORMAT=json
+      - DOMUS_WHISPER_ENDPOINT=${DOMUS_WHISPER_ENDPOINT:-http://host.docker.internal:10300}
+      - DOMUS_PIPER_ENDPOINT=${DOMUS_PIPER_ENDPOINT:-http://host.docker.internal:10200}
+      - DOMUS_VOICE_LANGUAGE=${DOMUS_VOICE_LANGUAGE:-it}
+      - DOMUS_VOICE_MODEL=${DOMUS_VOICE_MODEL:-it_IT-paola-medium}
       - TUYA_CLOUD_CLIENT_ID=${TUYA_CLOUD_CLIENT_ID:-}
       - TUYA_CLOUD_CLIENT_SECRET=${TUYA_CLOUD_CLIENT_SECRET:-}
       - TUYA_CLOUD_BASE_URL=${TUYA_CLOUD_BASE_URL:-https://openapi.tuyaeu.com}
@@ -28,6 +32,8 @@ services:
       - TUYA_OAUTH_AUTHORIZE_URL=${TUYA_OAUTH_AUTHORIZE_URL:-}
       - TUYA_OAUTH_CALLBACK_URL=${TUYA_OAUTH_CALLBACK_URL:-}
       - TUYA_OAUTH_BASE_URL=${TUYA_OAUTH_BASE_URL:-https://openapi.tuyaeu.com}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - domus_data:/data
     depends_on:

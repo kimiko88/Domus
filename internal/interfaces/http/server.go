@@ -900,9 +900,18 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				storeSvc := appstore.NewService(storeRepo)
 
+				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
+				voicePipeline := appassistant.NewVoicePipeline(appassistant.VoicePipelineConfig{
+					WhisperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ENDPOINT")),
+					PiperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ENDPOINT")),
+					Language: strings.TrimSpace(os.Getenv("DOMUS_VOICE_LANGUAGE")),
+					VoiceModel: strings.TrimSpace(os.Getenv("DOMUS_VOICE_MODEL")),
+				}, assistantSvc)
+
 				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc).
 					WithLocalNVR(appcamera.NewLocalNVR(camSvc, srv.bus).WithRepository(srv.repos.NVR)).
 					WithBackupRepository(srv.repos.Backup).
+					WithVoicePipeline(voicePipeline).
 					WithBus(srv.bus)
 
 				domainRouter.Route("/intercom", func(iRouter chi.Router) {
@@ -1204,7 +1213,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 
 				// Local LLM & Voice Assistant
-				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
 				assistantH := handlers.NewAssistantHandler(assistantSvc)
 				assistantH.RegisterRoutes(domainRouter)
 

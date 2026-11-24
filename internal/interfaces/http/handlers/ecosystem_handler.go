@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -1043,34 +1044,51 @@ func (h *EcosystemHandler) ConnectTailscale(w http.ResponseWriter, r *http.Reque
 // --- Voice Pipeline Streaming & Processing ---
 func (h *EcosystemHandler) ProcessVoiceSpeech(w http.ResponseWriter, r *http.Request) {
 	if h.voicePipeline == nil {
-		h.voicePipeline = appAssistant.NewVoicePipeline(appAssistant.VoicePipelineConfig{}, nil)
+		writeError(w, http.StatusServiceUnavailable, "VOICE_PIPELINE_UNAVAILABLE", "voice processing is not configured on this Domus hub")
+		return
 	}
-
+	r.Body = http.MaxBytesReader(w, r.Body, 3<<20)
 	var req struct {
 		SatelliteID string `json:"satellite_id"`
 		AudioBase64 string `json:"audio_base64"`
 		TextPrompt  string `json:"text_prompt"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid voice request payload")
 		return
 	}
+	satelliteID := strings.TrimSpace(req.SatelliteID)
+	if satelliteID == "" { satelliteID = "mobile_client" }
 
-	if req.SatelliteID == "" {
-		req.SatelliteID = "mobile_client"
-	}
-
-	// If client passes prompt directly or buffered audio
-	result, err := h.voicePipeline.ProcessBufferedSpeech(r.Context(), req.SatelliteID)
-	if err != nil {
-		// If buffer was empty, synthesize speech for prompt or baseline
-		result = &appAssistant.AudioProcessResult{
-			TranscribedText: req.TextPrompt,
-			ResponseText:    "Comando vocale ricevuto ed eseguito.",
-			AudioFormat:     "audio/wav",
-			ActionTaken:     true,
-			DurationMs:      12,
+	var result *appAssistant.AudioProcessResult
+	var err error
+	if req.AudioBase64 != "" {
+		if len(req.AudioBase64) > 2<<20 {
+			writeError(w, http.StatusRequestEntityTooLarge, "VOICE_AUDIO_TOO_LARGE", "audio payload exceeds the 2 MiB encoded limit")
+			return
 		}
+		pcm, decodeErr := base64.StdEncoding.DecodeString(req.AudioBase64)
+		if decodeErr != nil || len(pcm) == 0 || len(pcm)%2 != 0 {
+			writeError(w, http.StatusBadRequest, "INVALID_VOICE_AUDIO", "audio must be base64-encoded 16-bit little-endian mono PCM")
+			return
+		}
+		if _, appendErr := h.voicePipeline.AppendChunkChecked(satelliteID, pcm); appendErr != nil {
+			writeError(w, http.StatusRequestEntityTooLarge, "VOICE_BUFFER_LIMIT", "satellite audio buffer is full or the PCM chunk is invalid")
+			return
+		}
+		result, err = h.voicePipeline.ProcessBufferedSpeech(r.Context(), satelliteID)
+	} else if strings.TrimSpace(req.TextPrompt) != "" {
+		result, err = h.voicePipeline.ProcessTextPrompt(r.Context(), req.TextPrompt)
+	} else {
+		writeError(w, http.StatusBadRequest, "VOICE_INPUT_REQUIRED", "provide audio_base64 or text_prompt")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "VOICE_PROCESSING_FAILED", "speech recognition or assistant processing failed")
+		return
+	}
+	if len(result.AudioBytes) > 0 {
+		result.AudioBase64 = base64.StdEncoding.EncodeToString(result.AudioBytes)
 	}
 	writeJSON(w, http.StatusOK, result)
 }
