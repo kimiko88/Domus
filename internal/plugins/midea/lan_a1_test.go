@@ -121,7 +121,7 @@ func TestBuildA1SetPacketEncodesDehumidifierControls(t *testing.T) {
 	if frame[9] != a1MessageSet || body[0] != a1BodySet {
 		t.Fatalf("unexpected set message header/body: %x", frame[:12])
 	}
-	if body[1] != 0x03 || body[2] != 2 || body[3] != 80 || body[7] != 48 {
+	if body[1] != 0x43 || body[2] != 2 || body[3] != 80 || body[7] != 48 {
 		t.Fatalf("unexpected power/mode/fan/humidity fields: %x", body)
 	}
 	if body[8]&0x80 == 0 || body[9]&0x90 != 0x90 || body[10] != 0x08 || body[13] != 75 {
