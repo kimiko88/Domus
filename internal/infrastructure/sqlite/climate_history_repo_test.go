@@ -87,20 +87,22 @@ func TestClimateHistoryRepositoryDeletesOnlySelectedDeviceAcrossAllTiers(t *test
 	repo := sqlite.NewClimateHistoryRepository(db)
 
 	now := time.Now().UTC().Truncate(time.Second)
-	old := now.Add(-10 * 24 * time.Hour)
+	recent, hourly, daily := now.Add(-24*time.Hour), now.Add(-8*24*time.Hour), now.Add(-100*24*time.Hour)
 	one, two := 20.0, 22.0
 	require.NoError(t, repo.SaveSamples(ctx, []climate_history.Sample{
-		{EntityID: "entity-1", EntityKey: "sensor.one", EntityName: "One", DeviceID: "device-1", RecordedAt: old, Temperature: &one},
-		{EntityID: "entity-2", EntityKey: "sensor.two", EntityName: "Two", DeviceID: "device-2", RecordedAt: old, Temperature: &two},
+		{EntityID: "entity-1", EntityKey: "sensor.one", EntityName: "One", DeviceID: "device-1", RecordedAt: recent, Temperature: &one},
+		{EntityID: "entity-1", EntityKey: "sensor.one", EntityName: "One", DeviceID: "device-1", RecordedAt: hourly, Temperature: &one},
+		{EntityID: "entity-1", EntityKey: "sensor.one", EntityName: "One", DeviceID: "device-1", RecordedAt: daily, Temperature: &one},
+		{EntityID: "entity-2", EntityKey: "sensor.two", EntityName: "Two", DeviceID: "device-2", RecordedAt: daily, Temperature: &two},
 	}))
 	_, err = repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-90*24*time.Hour))
 	require.NoError(t, err)
-	_, err = repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-7*24*time.Hour))
+	_, err = repo.AggregateAndPrune(ctx, now.Add(-7*24*time.Hour), now.Add(-90*24*time.Hour))
 	require.NoError(t, err)
 
 	deleted, err := repo.DeleteDeviceHistory(ctx, "device-1")
 	require.NoError(t, err)
-	require.EqualValues(t, 3, deleted) // raw, hourly and daily tiers (depending on current rollup contents)
+	require.EqualValues(t, 3, deleted) // one raw, one hourly and one daily row
 	points, err := repo.GetHistory(ctx, climate_history.Filter{Limit: 100})
 	require.NoError(t, err)
 	require.Len(t, points, 1)

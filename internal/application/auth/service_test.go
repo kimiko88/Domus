@@ -156,3 +156,31 @@ func TestAuthService_GuestAndPinLogin(t *testing.T) {
 	guest.GuestExpiresAt = &past
 	assert.True(t, guest.IsGuestExpired())
 }
+
+
+func TestAuthServiceExtendsActiveSessionAfterRecentActivity(t *testing.T) {
+	svc, repos := setupAuthService(t)
+	ctx := context.Background()
+	admin, err := svc.SetupInitialAdmin(ctx, "renew-user", "RenewSessionPass123!")
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	session := &user.Session{
+		ID: "session-near-idle-expiry",
+		UserID: admin.ID,
+		CreatedAt: now.Add(-23 * time.Hour),
+		ExpiresAt: now.Add(time.Hour),
+		IPAddress: "127.0.0.1",
+		UserAgent: "test-browser",
+	}
+	require.NoError(t, repos.Sessions.Create(ctx, session))
+
+	validatedUser, renewed, err := svc.ValidateSession(ctx, session.ID)
+	require.NoError(t, err)
+	require.Equal(t, admin.ID, validatedUser.ID)
+	require.True(t, renewed.ExpiresAt.After(now.Add(23*time.Hour)), "active session should receive a fresh 24-hour window")
+
+	stored, err := repos.Sessions.GetByID(ctx, session.ID)
+	require.NoError(t, err)
+	require.Equal(t, renewed.ExpiresAt, stored.ExpiresAt, "renewed expiration must be persisted")
+}
