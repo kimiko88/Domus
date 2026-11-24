@@ -655,7 +655,7 @@ func buildMideaPacketAt(deviceID uint64, message []byte, timestamp time.Time) ([
 	stamp := now.Format("20060102150405") + fmt.Sprintf("%02d", now.Nanosecond()/10_000_000)
 	for i := 0; i < 8; i++ {
 		pair, _ := strconv.Atoi(stamp[i*2 : i*2+2])
-		packet[19-i] = byte(pair)
+		packet[19-i] = byte(pair/10)<<4 | byte(pair%10)
 	}
 	binary.LittleEndian.PutUint64(packet[20:28], deviceID)
 	packet = append(packet, encrypted...)
