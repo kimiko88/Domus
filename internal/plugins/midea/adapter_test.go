@@ -59,7 +59,7 @@ func dehumidifierFixture() Device {
 		Brand: "Comfee", Model: "MDDF", TypeCode: "A1",
 		Kind: profile.Kind, Protocol: ProtocolMSmartV2,
 		Host: "192.168.1.40", Port: 6444,
-		Capabilities: profile.Capabilities, Writable: profile.Writable,
+		Capabilities: profile.Capabilities, Writable: profile.Writable, Actions: profile.Actions,
 		MinHumidity: 30, MaxHumidity: 80,
 		Modes: []string{"set", "continuous", "smart"},
 		FanSpeeds: []string{"low", "medium", "high"},
