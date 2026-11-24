@@ -3615,7 +3615,19 @@
         "online": "En línea",
         "offline": "Desconectado",
         "unknown": "Estado desconocido"
-      }
+      },
+      "saveMetrics": "Datos que guardar",
+      "metrics": {
+        "temperature": "Temperatura",
+        "humidity": "Humedad",
+        "targetTemperature": "Consigna",
+        "hvacMode": "Modo HVAC",
+        "hvacAction": "Acción HVAC"
+      },
+      "deleteHistory": "Eliminar historial",
+      "deletingHistory": "Eliminando…",
+      "confirmDeleteHistory": "¿Eliminar todo el historial de {name}? Se borrarán las muestras sin procesar y los agregados, y se desactivará la recopilación.",
+      "historyDeleted": "Historial de {name} eliminado: {count} registros borrados."
     },
     "settings": {
       "title": "Ajustes de registro y análisis",
@@ -3662,7 +3674,8 @@
     "errors": {
       "load": "No se pudo cargar el historial climático.",
       "save": "No se pudieron guardar los ajustes.",
-      "export": "No se pudieron exportar los datos climáticos."
+      "export": "No se pudieron exportar los datos climáticos.",
+      "delete": "No se pudo eliminar el historial del dispositivo."
     },
     "heatingRate": "Velocidad de calentamiento",
     "coolingRate": "Velocidad de enfriamiento"

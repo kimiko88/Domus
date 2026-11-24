@@ -319,7 +319,8 @@ describe('ClimateHistoryView.vue', () => {
 
   it('deletes history for a selected device after confirmation', async () => {
     const { wrapper, store } = setupView()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const confirmDescriptor = Object.getOwnPropertyDescriptor(window, 'confirm')
+    Object.defineProperty(window, 'confirm', { configurable: true, value: vi.fn().mockReturnValue(true) })
     const deleteSpy = vi.spyOn(store, 'deleteDeviceHistory').mockResolvedValue({
       device_id: 'device-bedroom', deleted_rows: 12, tracking_disabled: true
     })
@@ -330,6 +331,8 @@ describe('ClimateHistoryView.vue', () => {
     await flushPromises()
     expect(deleteSpy).toHaveBeenCalledWith('device-bedroom')
     expect(wrapper.text()).toContain('Storico di Bedroom sensor eliminato: 12 record rimossi.')
+    if (confirmDescriptor) Object.defineProperty(window, 'confirm', confirmDescriptor)
+    else delete (window as any).confirm
   })
 
   it('uses app-rendered dropdown menus instead of native dark popups', async () => {
