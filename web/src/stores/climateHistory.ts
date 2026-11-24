@@ -21,6 +21,7 @@ export const defaultClimateHistorySettings: ClimateHistorySettings = {
   enabled: true,
   interval_minutes: 10,
   tracked_device_ids: null,
+  device_metrics: {},
   record_temperature: true,
   record_humidity: true,
   record_thermostat: true,
@@ -64,6 +65,23 @@ export const useClimateHistoryStore = defineStore('climateHistory', () => {
       return settings.value
     } catch (err: any) {
       error.value = i18n.global.t('climateHistory.errors.save')
+      throw err
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function deleteDeviceHistory(deviceID: string): Promise<{ device_id: string; deleted_rows: number; tracking_disabled: boolean }> {
+    saving.value = true
+    error.value = null
+    try {
+      const result = await apiClient.delete<{ device_id: string; deleted_rows: number; tracking_disabled: boolean }>(
+        `/api/v1/climate/history/devices/${encodeURIComponent(deviceID)}`
+      )
+      await fetchSettings()
+      return result
+    } catch (err: any) {
+      error.value = i18n.global.t("climateHistory.errors.delete")
       throw err
     } finally {
       saving.value = false
@@ -114,6 +132,6 @@ export const useClimateHistoryStore = defineStore('climateHistory', () => {
 
   return {
     settings, points, summary, loading, saving, error,
-    fetchSettings, saveSettings, fetchHistory, fetchSummary, exportCSV, refresh
+    fetchSettings, saveSettings, deleteDeviceHistory, fetchHistory, fetchSummary, exportCSV, refresh
   }
 })

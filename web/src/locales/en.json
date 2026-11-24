@@ -3615,7 +3615,19 @@
         "online": "Online",
         "offline": "Offline",
         "unknown": "Status unknown"
-      }
+      },
+      "saveMetrics": "Data to record",
+      "metrics": {
+        "temperature": "Temperature",
+        "humidity": "Humidity",
+        "targetTemperature": "Setpoint",
+        "hvacMode": "HVAC mode",
+        "hvacAction": "HVAC action"
+      },
+      "deleteHistory": "Delete history",
+      "deletingHistory": "Deleting…",
+      "confirmDeleteHistory": "Delete all history for {name}? Raw samples and aggregates will be removed and collection will be disabled.",
+      "historyDeleted": "History for {name} deleted: {count} records removed."
     },
     "settings": {
       "title": "Collection and analysis settings",
@@ -3662,7 +3674,8 @@
     "errors": {
       "load": "Unable to load climate history.",
       "save": "Unable to save settings.",
-      "export": "Unable to export climate data."
+      "export": "Unable to export climate data.",
+      "delete": "Unable to delete this device's history."
     },
     "heatingRate": "Heating rate",
     "coolingRate": "Cooling rate"

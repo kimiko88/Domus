@@ -3615,7 +3615,19 @@
         "online": "Online",
         "offline": "Offline",
         "unknown": "Stato sconosciuto"
-      }
+      },
+      "saveMetrics": "Dati da salvare",
+      "metrics": {
+        "temperature": "Temperatura",
+        "humidity": "Umidità",
+        "targetTemperature": "Setpoint",
+        "hvacMode": "Modalità HVAC",
+        "hvacAction": "Azione HVAC"
+      },
+      "deleteHistory": "Elimina storico",
+      "deletingHistory": "Eliminazione…",
+      "confirmDeleteHistory": "Eliminare tutto lo storico di {name}? I dati grezzi e gli aggregati saranno rimossi e la raccolta verrà disattivata.",
+      "historyDeleted": "Storico di {name} eliminato: {count} record rimossi."
     },
     "settings": {
       "title": "Impostazioni della registrazione e delle analisi",
@@ -3662,7 +3674,8 @@
     "errors": {
       "load": "Impossibile caricare lo storico climatico.",
       "save": "Impossibile salvare le impostazioni.",
-      "export": "Impossibile esportare i dati."
+      "export": "Impossibile esportare i dati.",
+      "delete": "Impossibile eliminare lo storico del dispositivo."
     },
     "heatingRate": "Velocità di riscaldamento",
     "coolingRate": "Velocità di raffreddamento"

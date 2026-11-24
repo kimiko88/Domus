@@ -30,7 +30,8 @@ const dateTo = ref('')
 const canvas = ref<HTMLCanvasElement | null>(null)
 const savingMessage = ref('')
 const loadError = ref('')
-const settingsForm = reactive<ClimateHistorySettings>({ ...defaultClimateHistorySettings })
+const settingsForm = reactive<ClimateHistorySettings>({ ...defaultClimateHistorySettings, device_metrics: {} })
+const deletingDeviceID = ref("")
 let chart: Chart | null = null
 let mounted = false
 
@@ -299,6 +300,99 @@ function updateTrackedDevice(deviceID: string, event: Event) {
   settingsForm.tracked_device_ids = [...current]
 }
 
+type ClimateMetricKey = 'temperature' | 'humidity' | 'target_temperature' | 'hvac_mode' | 'hvac_action'
+
+function climateDeviceEntities(deviceID: string): Entity[] {
+  return entitiesStore.allEntities.filter(entity => {
+    const canonicalID = String(entity.device_id || tuyaDeviceIDFromEntity(entity)).trim()
+    return canonicalID === deviceID
+  })
+}
+
+function deviceMetricOptions(deviceID: string): Array<{ value: ClimateMetricKey; label: string }> {
+  const available = new Set<ClimateMetricKey>()
+  for (const entity of climateDeviceEntities(deviceID)) {
+    const attributes = entity.attributes || {}
+    if (entity.domain === 'climate') {
+      // Climate entities may expose each field dynamically, so show all
+      // thermostat metrics even before their first complete state update.
+      available.add('temperature')
+      available.add('target_temperature')
+      available.add('hvac_mode')
+      if (attributes.hvac_action !== undefined || attributes.action !== undefined) available.add('hvac_action')
+      if (hasNumericAttribute(attributes, 'current_humidity', 'humidity')) available.add('humidity')
+      continue
+    }
+    if (entity.domain !== 'sensor') continue
+    const unit = String(entity.unit_of_measurement || attributes.unit_of_measurement || '').toLowerCase()
+    const key = String(entity.entity_key || entity.id || '').toLowerCase()
+    const deviceClass = String(attributes.device_class || '').toLowerCase()
+    const tuyaKind = String(attributes.tuya_sensor_kind || '').toLowerCase()
+    const temperature = hasNumericAttribute(attributes, 'current_temperature', 'measured_temperature', 'temperature', 'temp_current', 'va_temperature') ||
+      deviceClass === 'temperature' || ['°c', '°f', 'celsius', 'fahrenheit', 'c', 'f'].includes(unit) ||
+      tuyaKind === 'temperature' || tuyaKind === 'temperature_humidity' || /temperature|temperatura|thermometer/.test(key)
+    const humidity = hasNumericAttribute(attributes, 'current_humidity', 'humidity', 'humidity_value', 'va_humidity') ||
+      deviceClass.includes('humidity') || unit === '%' || tuyaKind === 'humidity' ||
+      tuyaKind === 'temperature_humidity' || /humidity|umid|hygrometer/.test(key)
+    if (temperature) available.add('temperature')
+    if (humidity) available.add('humidity')
+  }
+  const labels: Record<ClimateMetricKey, string> = {
+    temperature: t('climateHistory.sources.metrics.temperature'),
+    humidity: t('climateHistory.sources.metrics.humidity'),
+    target_temperature: t('climateHistory.sources.metrics.targetTemperature'),
+    hvac_mode: t('climateHistory.sources.metrics.hvacMode'),
+    hvac_action: t('climateHistory.sources.metrics.hvacAction')
+  }
+  return (['temperature', 'humidity', 'target_temperature', 'hvac_mode', 'hvac_action'] as ClimateMetricKey[])
+    .filter(metric => available.has(metric))
+    .map(value => ({ value, label: labels[value] }))
+}
+
+function selectedDeviceMetrics(deviceID: string): ClimateMetricKey[] {
+  const configured = settingsForm.device_metrics?.[deviceID]
+  if (Array.isArray(configured)) return configured as ClimateMetricKey[]
+  return deviceMetricOptions(deviceID).map(option => option.value).filter(metric => {
+    if (metric === 'temperature') return settingsForm.record_temperature
+    if (metric === 'humidity') return settingsForm.record_humidity
+    return settingsForm.record_thermostat
+  })
+}
+
+function updateDeviceMetric(deviceID: string, metric: ClimateMetricKey, event: Event) {
+  const checked = (event.target as HTMLInputElement | null)?.checked === true
+  const selected = new Set(selectedDeviceMetrics(deviceID))
+  if (checked) selected.add(metric)
+  else selected.delete(metric)
+  settingsForm.device_metrics = {
+    ...(settingsForm.device_metrics || {}),
+    [deviceID]: [...selected]
+  }
+}
+
+async function deleteDeviceHistory(device: ClimateSourceDevice) {
+  const confirmed = window.confirm(t('climateHistory.sources.confirmDeleteHistory', { name: device.name }))
+  if (!confirmed) return
+  deletingDeviceID.value = device.id
+  savingMessage.value = ''
+  try {
+    const result = await store.deleteDeviceHistory(device.id)
+    Object.assign(settingsForm, store.settings, {
+      device_metrics: { ...(store.settings.device_metrics || {}) }
+    })
+    selectedEntities.value = []
+    savingMessage.value = t('climateHistory.sources.historyDeleted', {
+      name: device.name,
+      count: result.deleted_rows
+    })
+    await loadDashboard()
+  } catch {
+    savingMessage.value = store.error || t('climateHistory.errors.delete')
+  } finally {
+    deletingDeviceID.value = ''
+  }
+}
+
 function deviceIntegrationDetails(device: Device): string {
   const integration = device.integration_id || t('climateHistory.sources.unknownIntegration')
   const status = t('climateHistory.sources.status.' + device.status)
@@ -421,7 +515,7 @@ async function saveSettings() {
   savingMessage.value = ''
   try {
     const saved = await store.saveSettings({ ...settingsForm })
-    Object.assign(settingsForm, saved)
+    Object.assign(settingsForm, saved, { device_metrics: { ...(saved.device_metrics || {}) } })
     savingMessage.value = t('climateHistory.settings.saved')
     await loadDashboard()
   } catch {
@@ -472,7 +566,7 @@ onMounted(async () => {
       loadTuyaCloudDevices(),
       loadTuyaOAuthDevices()
     ])
-    Object.assign(settingsForm, store.settings)
+    Object.assign(settingsForm, store.settings, { device_metrics: { ...(store.settings.device_metrics || {}) } })
   } catch {
     loadError.value = store.error || t('climateHistory.errors.load')
   }
@@ -558,20 +652,41 @@ onBeforeUnmount(() => {
         <span>{{ t('climateHistory.sources.allDevices') }}</span>
       </label>
       <div v-if="availableClimateDevices.length" class="source-device-list">
-        <label v-for="device in availableClimateDevices" :key="device.id" class="source-device">
-          <input
-            type="checkbox"
-            :value="device.id"
-            :checked="allClimateDevicesSelected || (settingsForm.tracked_device_ids || []).includes(device.id)"
-            :disabled="allClimateDevicesSelected || !device.selectable"
-            @change="updateTrackedDevice(device.id, $event)"
+        <div v-for="device in availableClimateDevices" :key="device.id" class="source-device-entry">
+          <label class="source-device">
+            <input
+              type="checkbox"
+              :value="device.id"
+              :checked="allClimateDevicesSelected || (settingsForm.tracked_device_ids || []).includes(device.id)"
+              :disabled="allClimateDevicesSelected || !device.selectable"
+              @change="updateTrackedDevice(device.id, $event)"
+            >
+            <span>
+              <strong>{{ device.name }}</strong>
+              <small>{{ deviceIntegrationDetails(device) }}</small>
+              <small v-if="!device.selectable" class="source-device-note">{{ t('climateHistory.sources.notSynced') }}</small>
+            </span>
+          </label>
+          <div v-if="device.selectable && deviceMetricOptions(device.id).length" class="source-device-metrics">
+            <span class="source-device-metrics-title">{{ t('climateHistory.sources.saveMetrics') }}</span>
+            <label v-for="metric in deviceMetricOptions(device.id)" :key="metric.value" class="source-device-metric">
+              <input
+                type="checkbox"
+                :checked="selectedDeviceMetrics(device.id).includes(metric.value)"
+                @change="updateDeviceMetric(device.id, metric.value, $event)"
+              >
+              <span>{{ metric.label }}</span>
+            </label>
+          </div>
+          <button
+            type="button"
+            class="source-device-delete secondary-btn"
+            :disabled="store.saving || deletingDeviceID !== ''"
+            @click="deleteDeviceHistory(device)"
           >
-          <span>
-            <strong>{{ device.name }}</strong>
-            <small>{{ deviceIntegrationDetails(device) }}</small>
-            <small v-if="!device.selectable" class="source-device-note">{{ t('climateHistory.sources.notSynced') }}</small>
-          </span>
-        </label>
+            {{ deletingDeviceID === device.id ? t('climateHistory.sources.deletingHistory') : t('climateHistory.sources.deleteHistory') }}
+          </button>
+        </div>
       </div>
       <p v-if="!availableClimateDevices.length" class="source-hint">{{ t('climateHistory.sources.noneAvailable') }}</p>
       <p v-else class="source-hint">
@@ -737,9 +852,14 @@ button:disabled { opacity:.55; cursor:not-allowed; }
 .sources-heading p { color:var(--text-muted,#94a3b8); margin-top:.3rem; font-size:.85rem; }
 .source-all-toggle { align-self:flex-start; }
 .source-device-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr)); gap:.55rem; }
-.source-device { display:flex; align-items:center; gap:.65rem; min-width:0; padding:.65rem .75rem; border:1px solid var(--border-color,rgba(148,163,184,.25)); border-radius:.65rem; cursor:pointer; }
-.source-device input { width:1.1rem; height:1.1rem; flex:none; accent-color:var(--accent-color,#0ea5e9); }
+.source-device-entry { display:flex; flex-direction:column; gap:.45rem; min-width:0; padding:.65rem .75rem; border:1px solid var(--border-color,rgba(148,163,184,.25)); border-radius:.65rem; }
+.source-device { display:flex; align-items:center; gap:.65rem; min-width:0; cursor:pointer; }
+.source-device input,.source-device-metric input { width:1.1rem; height:1.1rem; flex:none; accent-color:var(--accent-color,#0ea5e9); }
 .source-device>span { display:flex; flex-direction:column; gap:.2rem; min-width:0; }
+.source-device-metrics { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem .75rem; padding-left:1.75rem; }
+.source-device-metrics-title { width:100%; color:var(--text-muted,#64748b); font-size:.73rem; }
+.source-device-metric { display:flex; align-items:center; gap:.35rem; color:var(--text-muted,#64748b); font-size:.75rem; cursor:pointer; }
+.source-device-delete { align-self:flex-start; min-height:2rem; padding:.3rem .55rem; font-size:.75rem; }
 .source-device strong { color:var(--text-primary,#0f172a); overflow-wrap:anywhere; font-size:.88rem; }
 .source-device small,.source-hint { color:var(--text-muted,#64748b); font-size:.78rem; overflow-wrap:anywhere; }
 .climate-history-view select option { color:var(--text-primary,#0f172a); background-color:var(--surface-card,#fff); }

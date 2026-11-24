@@ -1293,6 +1293,8 @@ export interface ClimateHistorySettings {
   interval_minutes: number
   // null means all compatible integration devices; [] means no devices.
   tracked_device_ids: string[] | null
+  // Per-device overrides. Omitted devices inherit the global recording switches.
+  device_metrics?: Record<string, Array<'temperature' | 'humidity' | 'target_temperature' | 'hvac_mode' | 'hvac_action'>>
   record_temperature: boolean
   record_humidity: boolean
   record_thermostat: boolean
