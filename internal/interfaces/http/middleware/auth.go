@@ -77,7 +77,9 @@ func Authenticate(authService *auth.Service, secureCookie ...bool) func(http.Han
 					ctx := WithUser(r.Context(), u)
 					ctx = WithSession(ctx, sess)
 					r = r.WithContext(ctx)
-					if cookieAuthenticated {
+					// Do not refresh cookies on the logout endpoint; it sends deletion
+					// cookies itself and must not emit an earlier replacement cookie.
+					if cookieAuthenticated && !strings.HasSuffix(r.URL.Path, "/auth/logout") {
 						maxAge := int(time.Until(sess.ExpiresAt).Seconds())
 						if maxAge < 1 { maxAge = 1 }
 						secure := len(secureCookie) > 0 && secureCookie[0]
