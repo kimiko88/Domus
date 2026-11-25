@@ -161,6 +161,50 @@ func (s *Supervisor) Stop(ctx context.Context) error {
 	return firstErr
 }
 
+// StartAdapter starts one registered adapter. It is used when an integration is
+// enabled after the supervisor tree is already running.
+func (s *Supervisor) StartAdapter(ctx context.Context, id string) error {
+	s.mu.Lock()
+	entry, ok := s.entries[id]
+	if !ok {
+		s.mu.Unlock()
+		return ErrAdapterNotFound
+	}
+	if entry.state == StateHealthy || entry.state == StateStarting {
+		s.mu.Unlock()
+		return nil
+	}
+	entry.state = StateStarting
+	// Keep the lock while mutating the entry so monitor probes cannot race a dynamic start.
+	s.safeStart(ctx, entry)
+	state, lastError := entry.state, entry.lastError
+	s.mu.Unlock()
+	if state != StateHealthy {
+		return fmt.Errorf("supervisor: adapter %s failed to start: %s", id, lastError)
+	}
+	s.publishStateChange(id, StateHealthy, "")
+	return nil
+}
+
+// Unregister stops and removes one adapter from the supervision tree.
+func (s *Supervisor) Unregister(ctx context.Context, id string) error {
+	s.mu.Lock()
+	entry, ok := s.entries[id]
+	if !ok {
+		s.mu.Unlock()
+		return ErrAdapterNotFound
+	}
+	delete(s.entries, id)
+	s.mu.Unlock()
+
+	if err := s.safeStop(ctx, entry); err != nil {
+		return err
+	}
+	entry.state = StateStopped
+	s.publishStateChange(id, StateStopped, "")
+	return nil
+}
+
 // GetStatus returns the current status of an adapter.
 func (s *Supervisor) GetStatus(id string) (AdapterStatus, bool) {
 	s.mu.RLock()

@@ -129,3 +129,14 @@ func (r *SessionRepository) DeleteExpired(ctx context.Context, before time.Time)
 	}
 	return nil
 }
+
+
+// UpdateExpiration extends the idle expiry of an active session.
+func (r *SessionRepository) UpdateExpiration(ctx context.Context, id string, expiresAt time.Time) error {
+	result, err := r.db.ExecContext(ctx, "UPDATE sessions SET expires_at = ? WHERE id = ?", expiresAt.UTC().Format(time.RFC3339Nano), id)
+	if err != nil { return fmt.Errorf("sqlite: failed to refresh session expiration: %w", err) }
+	rows, err := result.RowsAffected()
+	if err != nil { return fmt.Errorf("sqlite: inspect refreshed session rows: %w", err) }
+	if rows == 0 { return user.ErrSessionNotFound }
+	return nil
+}

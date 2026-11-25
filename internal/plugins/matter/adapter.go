@@ -11,16 +11,20 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/google/uuid"
 )
 
 // Adapter implements the local Matter & Thread controller plugin.
+var _ plugins.Adapter = (*Adapter)(nil)
+
 type Adapter struct {
 	id     string
 	bus    events.Bus
 	mu     sync.RWMutex
 	nodes  map[uint64]*MatterNode
 	active bool
+	unsubscribe func()
 }
 
 // NewAdapter constructs a new Matter controller adapter.
@@ -43,23 +47,50 @@ func (a *Adapter) Type() string {
 	return "matter"
 }
 
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if !a.active {
+		return errors.New("matter: adapter is not running")
+	}
+	return nil
+}
+
 func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Lock()
+	if a.active {
+		a.mu.Unlock()
+		return nil
+	}
 	a.active = true
 	a.mu.Unlock()
 
+	var unsubscribe func()
 	if a.bus != nil {
-		a.bus.Subscribe(events.CommandRequested, a.handleCommand)
+		unsubscribe = a.bus.Subscribe(events.CommandRequested, a.handleCommand)
 	}
-
+	a.mu.Lock()
+	if a.active && a.unsubscribe == nil {
+		a.unsubscribe = unsubscribe
+		unsubscribe = nil
+	}
+	a.mu.Unlock()
+	if unsubscribe != nil {
+		unsubscribe()
+	}
 	slog.Info("matter: local controller started", "adapter", a.id)
 	return nil
 }
 
 func (a *Adapter) Stop(ctx context.Context) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	a.active = false
+	unsubscribe := a.unsubscribe
+	a.unsubscribe = nil
+	a.mu.Unlock()
+	if unsubscribe != nil {
+		unsubscribe()
+	}
 	slog.Info("matter: local controller stopped")
 	return nil
 }

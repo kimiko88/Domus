@@ -1293,6 +1293,8 @@ export interface ClimateHistorySettings {
   interval_minutes: number
   // null means all compatible integration devices; [] means no devices.
   tracked_device_ids: string[] | null
+  // Per-device overrides. Omitted devices inherit the global recording switches.
+  device_metrics?: Record<string, Array<'temperature' | 'humidity' | 'target_temperature' | 'hvac_mode' | 'hvac_action'>>
   record_temperature: boolean
   record_humidity: boolean
   record_thermostat: boolean
@@ -1370,4 +1372,45 @@ export interface ClimateDashboardSummary {
 export interface ClimateHistoryResponse {
   points: ClimateHistoryPoint[]
   total: number
+}
+
+
+export interface MarketplaceSource {
+  id: string
+  url: string
+  name: string
+  owner?: string
+  description?: string
+  key_id?: string
+  trusted: boolean
+  enabled: boolean
+  index_sha256?: string
+  last_synced_at?: string
+  last_error?: string
+}
+
+export interface MarketplaceArtifact {
+  url: string
+  sha256: string
+  size: number
+}
+
+export interface MarketplacePackage {
+  id: string
+  repository_id: string
+  name: string
+  type: string
+  version: string
+  author: string
+  description: string
+  license: string
+  runtime: 'wasi' | 'data' | 'builtin'
+  min_domus_version?: string
+  max_domus_version?: string
+  capabilities?: string[]
+  artifact: MarketplaceArtifact
+  trusted: boolean
+  compatible: boolean
+  installed_path?: string
+  installed_at?: string
 }

@@ -1,0 +1,6 @@
+# OpenDisplay SDK requires Python >= 3.13 (verified against the upstream pyproject.toml).
+py-opendisplay==8.3.1
+aiohttp>=3.10,<4
+zeroconf>=0.132.0,<1
+
+odl-renderer==0.5.14

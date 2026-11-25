@@ -99,3 +99,19 @@ jobs:
             -scheme domus \
             -destination "generic/platform=iOS Simulator" \
             clean build CODE_SIGNING_ALLOWED=NO
+
+  opendisplay-bridge:
+    name: OpenDisplay companion tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: deployments/opendisplay-bridge/requirements.txt
+      - name: Install bridge dependencies
+        run: python -m pip install --disable-pip-version-check -r deployments/opendisplay-bridge/requirements.txt
+      - name: Run bridge tests
+        working-directory: deployments/opendisplay-bridge
+        run: python -m unittest discover -s . -p 'test_*.py' -v

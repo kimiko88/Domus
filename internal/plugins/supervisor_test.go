@@ -142,3 +142,23 @@ func TestSupervisor_PanicIsolation(t *testing.T) {
 	assert.Equal(t, plugins.StateDegraded, st.State)
 	assert.Contains(t, st.LastError, "panic in Start")
 }
+
+
+func TestSupervisorDynamicStartAndUnregister(t *testing.T) {
+	sup := plugins.NewSupervisor(nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	require.NoError(t, sup.Start(ctx))
+	defer sup.Stop(ctx)
+	adapter := &mockAdapter{id: "dynamic_matter", pType: "matter"}
+	require.NoError(t, sup.Register(adapter))
+	require.NoError(t, sup.StartAdapter(ctx, adapter.ID()))
+	status, ok := sup.GetStatus(adapter.ID())
+	require.True(t, ok)
+	require.Equal(t, plugins.StateHealthy, status.State)
+	require.NoError(t, sup.StartAdapter(ctx, adapter.ID()), "starting a healthy adapter must be idempotent")
+	require.NoError(t, sup.Unregister(ctx, adapter.ID()))
+	_, ok = sup.GetStatus(adapter.ID())
+	require.False(t, ok, "unregistered adapters must disappear from supervision status")
+	require.ErrorIs(t, sup.Unregister(ctx, adapter.ID()), plugins.ErrAdapterNotFound)
+}

@@ -158,7 +158,7 @@ func defaults() Config {
 			MaxOpenConns:  1,
 		},
 		Auth: AuthConfig{
-			SessionTTL:           Duration{24 * time.Hour},
+			SessionTTL:           Duration{90 * 24 * time.Hour},
 			RateLimitLoginPerMin: 10,
 			Argon2Time:           1,
 			Argon2Memory:         64 * 1024, // 64 MiB
@@ -272,6 +272,32 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("DOMUS_LOG_FORMAT"); v != "" {
 		cfg.Logging.Format = v
+	}
+
+	if v := os.Getenv("DOMUS_AUTH_SESSION_TTL"); v != "" {
+		if duration, err := time.ParseDuration(v); err == nil && duration > 0 {
+			cfg.Auth.SessionTTL = Duration{Duration: duration}
+		}
+	}
+	if v := os.Getenv("DOMUS_AUTH_RATE_LIMIT_LOGIN_PER_MIN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Auth.RateLimitLoginPerMin = n
+		}
+	}
+	if v := os.Getenv("DOMUS_RETENTION_STATE_HISTORY_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.Retention.StateHistoryDays = n
+		}
+	}
+	if v := os.Getenv("DOMUS_RETENTION_AUDIT_LOG_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.Retention.AuditLogDays = n
+		}
+	}
+	if v := os.Getenv("DOMUS_RETENTION_AUTOMATION_RUN_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.Retention.AutomationRunDays = n
+		}
 	}
 	if v := os.Getenv("DOMUS_PRESENCE_HOME_LATITUDE"); v != "" {
 		if n, err := strconv.ParseFloat(v, 64); err == nil {

@@ -293,3 +293,23 @@ func (r *ClimateHistoryRepository) AggregateAndPrune(ctx context.Context, rawCut
 }
 
 var _ domclimate.Repository = (*ClimateHistoryRepository)(nil)
+
+
+// DeleteDeviceHistory removes rows from all three climate history tiers atomically.
+func (r *ClimateHistoryRepository) DeleteDeviceHistory(ctx context.Context, deviceID string) (int64, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" || len(deviceID) > 128 { return 0, fmt.Errorf("sqlite: invalid climate history device ID") }
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil { return 0, fmt.Errorf("sqlite: begin climate history deletion: %w", err) }
+	defer tx.Rollback()
+	var deleted int64
+	for _, table := range []string{"climate_history_samples", "climate_history_hourly", "climate_history_daily"} {
+		result, execErr := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE device_id = ?", deviceID)
+		if execErr != nil { return 0, fmt.Errorf("sqlite: delete %s rows for device %s: %w", table, deviceID, execErr) }
+		count, countErr := result.RowsAffected()
+		if countErr != nil { return 0, fmt.Errorf("sqlite: count %s deleted rows: %w", table, countErr) }
+		deleted += count
+	}
+	if err := tx.Commit(); err != nil { return 0, fmt.Errorf("sqlite: commit climate history deletion: %w", err) }
+	return deleted, nil
+}

@@ -2211,6 +2211,37 @@
     "install": "Installa",
     "open": "Apri",
     "uninstall": "Disinstalla",
+    "marketplace": {
+      "title": "Repository plugin Domus",
+      "subtitle": "Aggiungi cataloghi di terze parti. I pacchetti vengono verificati e messi in staging senza eseguire codice non attendibile.",
+      "repositories": "repository",
+      "repositoryURL": "URL HTTPS del repository",
+      "addRepository": "Aggiungi repository",
+      "adding": "Aggiunta…",
+      "addFailed": "Impossibile aggiungere il repository.",
+      "loadFailed": "Impossibile caricare il catalogo plugin.",
+      "signedRepository": "Indice firmato e verificato",
+      "unsignedRepository": "Repository non verificato",
+      "lastSync": "Ultima sincronizzazione",
+      "refresh": "Sincronizza",
+      "syncing": "Sincronizzazione…",
+      "remove": "Rimuovi",
+      "confirmRemove": "Rimuovere {name} e i pacchetti installati da questo repository?",
+      "removeFailed": "Impossibile rimuovere il repository.",
+      "noRepositories": "Nessun repository aggiunto. Aggiungi un URL HTTPS per iniziare.",
+      "availablePackages": "Pacchetti dai repository",
+      "signedArtifact": "Indice firmato; artefatto verificato tramite SHA-256",
+      "unverifiedArtifact": "Repository non verificato; controlla il progetto prima dell'uso",
+      "incompatible": "Pacchetto non compatibile con questa versione di Domus.",
+      "stagedAt": "Artefatto salvato in",
+      "stageArtifact": "Verifica e installa",
+      "installing": "Verifica…",
+      "unstageArtifact": "Rimuovi artefatto",
+      "installFailed": "Installazione non riuscita.",
+      "uninstallFailed": "Rimozione non riuscita.",
+      "syncComplete": "Repository sincronizzato.",
+      "syncFailed": "Sincronizzazione non riuscita."
+    },
     "view": {
       "proposeCommunityPlugin": "Proponi un plugin della community",
       "searchPlaceholder": "Cerca per nome, autore, licenza o package ID…",
@@ -3615,7 +3646,19 @@
         "online": "Online",
         "offline": "Offline",
         "unknown": "Stato sconosciuto"
-      }
+      },
+      "saveMetrics": "Dati da salvare",
+      "metrics": {
+        "temperature": "Temperatura",
+        "humidity": "Umidità",
+        "targetTemperature": "Setpoint",
+        "hvacMode": "Modalità HVAC",
+        "hvacAction": "Azione HVAC"
+      },
+      "deleteHistory": "Elimina storico",
+      "deletingHistory": "Eliminazione…",
+      "confirmDeleteHistory": "Eliminare tutto lo storico di {name}? I dati grezzi e gli aggregati saranno rimossi e la raccolta verrà disattivata.",
+      "historyDeleted": "Storico di {name} eliminato: {count} record rimossi."
     },
     "settings": {
       "title": "Impostazioni della registrazione e delle analisi",
@@ -3662,7 +3705,8 @@
     "errors": {
       "load": "Impossibile caricare lo storico climatico.",
       "save": "Impossibile salvare le impostazioni.",
-      "export": "Impossibile esportare i dati."
+      "export": "Impossibile esportare i dati.",
+      "delete": "Impossibile eliminare lo storico del dispositivo."
     },
     "heatingRate": "Velocità di riscaldamento",
     "coolingRate": "Velocità di raffreddamento"

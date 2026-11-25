@@ -39,9 +39,7 @@ func NewService(
 	hasher *crypto.Argon2Hasher,
 	sessionTTL time.Duration,
 ) *Service {
-	if sessionTTL <= 0 {
-		sessionTTL = 24 * time.Hour
-	}
+	if sessionTTL <= 0 { sessionTTL = 90 * 24 * time.Hour }
 	return &Service{
 		userRepo:    userRepo,
 		sessionRepo: sessionRepo,
@@ -205,7 +203,8 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID string) (*user.
 		return nil, nil, err
 	}
 
-	if sess.IsExpired() {
+	now := time.Now().UTC()
+	if !sess.ExpiresAt.After(now) {
 		_ = s.sessionRepo.Delete(ctx, sessionID)
 		return nil, nil, user.ErrSessionExpired
 	}
@@ -223,7 +222,19 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID string) (*user.
 		_ = s.sessionRepo.Delete(ctx, sessionID)
 		return nil, nil, user.ErrGuestExpired
 	}
-
+	// Sliding idle expiration. Renew in the last half of the TTL to keep active
+	// sessions alive without writing to SQLite on every API request.
+	renewAfter := s.sessionTTL - 24*time.Hour
+	if renewAfter <= 0 { renewAfter = s.sessionTTL/2 }
+	if sess.ExpiresAt.Sub(now) <= renewAfter {
+		if updater, ok := s.sessionRepo.(interface { UpdateExpiration(context.Context, string, time.Time) error }); ok {
+			newExpiry := now.Add(s.sessionTTL)
+			if err := updater.UpdateExpiration(ctx, sessionID, newExpiry); err != nil {
+				return nil, nil, fmt.Errorf("auth service: renew session expiry: %w", err)
+			}
+			sess.ExpiresAt = newExpiry
+		}
+	}
 	return u, sess, nil
 }
 

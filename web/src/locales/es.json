@@ -2211,6 +2211,37 @@
     "install": "Instalar",
     "open": "Abrir",
     "uninstall": "Desinstalar",
+    "marketplace": {
+      "title": "Repositorios de plugins de Domus",
+      "subtitle": "Añade catálogos de terceros. Los paquetes se verifican y preparan sin ejecutar código no confiable.",
+      "repositories": "repositorios",
+      "repositoryURL": "URL HTTPS del repositorio",
+      "addRepository": "Añadir repositorio",
+      "adding": "Añadiendo…",
+      "addFailed": "No se pudo añadir el repositorio.",
+      "loadFailed": "No se pudo cargar el catálogo de plugins.",
+      "signedRepository": "Índice firmado y verificado",
+      "unsignedRepository": "Repositorio no verificado",
+      "lastSync": "Última sincronización",
+      "refresh": "Sincronizar",
+      "syncing": "Sincronizando…",
+      "remove": "Eliminar",
+      "confirmRemove": "¿Eliminar {name} y los paquetes instalados desde este repositorio?",
+      "removeFailed": "No se pudo eliminar el repositorio.",
+      "noRepositories": "No hay repositorios. Añade una URL HTTPS para empezar.",
+      "availablePackages": "Paquetes de los repositorios",
+      "signedArtifact": "Índice firmado; artefacto verificado con SHA-256",
+      "unverifiedArtifact": "Repositorio no verificado; revisa el proyecto antes de usarlo",
+      "incompatible": "El paquete no es compatible con esta versión de Domus.",
+      "stagedAt": "Artefacto preparado en",
+      "stageArtifact": "Verificar e instalar",
+      "installing": "Verificando…",
+      "unstageArtifact": "Eliminar artefacto",
+      "installFailed": "La instalación falló.",
+      "uninstallFailed": "La eliminación falló.",
+      "syncComplete": "Repositorio sincronizado.",
+      "syncFailed": "Falló la sincronización del repositorio."
+    },
     "view": {
       "proposeCommunityPlugin": "Proponer un plugin de la comunidad",
       "searchPlaceholder": "Buscar por nombre, autor, licencia o ID del paquete…",
@@ -3615,7 +3646,19 @@
         "online": "En línea",
         "offline": "Desconectado",
         "unknown": "Estado desconocido"
-      }
+      },
+      "saveMetrics": "Datos que guardar",
+      "metrics": {
+        "temperature": "Temperatura",
+        "humidity": "Humedad",
+        "targetTemperature": "Consigna",
+        "hvacMode": "Modo HVAC",
+        "hvacAction": "Acción HVAC"
+      },
+      "deleteHistory": "Eliminar historial",
+      "deletingHistory": "Eliminando…",
+      "confirmDeleteHistory": "¿Eliminar todo el historial de {name}? Se borrarán las muestras sin procesar y los agregados, y se desactivará la recopilación.",
+      "historyDeleted": "Historial de {name} eliminado: {count} registros borrados."
     },
     "settings": {
       "title": "Ajustes de registro y análisis",
@@ -3662,7 +3705,8 @@
     "errors": {
       "load": "No se pudo cargar el historial climático.",
       "save": "No se pudieron guardar los ajustes.",
-      "export": "No se pudieron exportar los datos climáticos."
+      "export": "No se pudieron exportar los datos climáticos.",
+      "delete": "No se pudo eliminar el historial del dispositivo."
     },
     "heatingRate": "Velocidad de calentamiento",
     "coolingRate": "Velocidad de enfriamiento"

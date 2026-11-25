@@ -15,7 +15,10 @@ type Settings struct {
 	IntervalMinutes             int     `json:"interval_minutes"`
 	// TrackedDeviceIDs selects integration devices used by the collector. nil keeps
 	// the legacy "all compatible devices" behaviour; an empty slice records none.
-	TrackedDeviceIDs            []string `json:"tracked_device_ids"`
+	TrackedDeviceIDs            []string            `json:"tracked_device_ids"`
+	// DeviceMetrics overrides global recording toggles for selected devices.
+	// Values: temperature, humidity, target_temperature, hvac_mode, hvac_action.
+	DeviceMetrics               map[string][]string `json:"device_metrics,omitempty"`
 	RecordTemperature           bool    `json:"record_temperature"`
 	RecordHumidity              bool    `json:"record_humidity"`
 	RecordThermostat             bool    `json:"record_thermostat"`
@@ -54,8 +57,16 @@ func DefaultSettings() Settings {
 }
 
 func (s Settings) Validate() error {
-	if len(s.TrackedDeviceIDs) > 512 {
-		return ErrInvalidSettings
+	if len(s.TrackedDeviceIDs) > 512 || len(s.DeviceMetrics) > 512 { return ErrInvalidSettings }
+	allowedMetrics := map[string]struct{}{"temperature": {}, "humidity": {}, "target_temperature": {}, "hvac_mode": {}, "hvac_action": {}}
+	for deviceID, metrics := range s.DeviceMetrics {
+		if deviceID == "" || len(deviceID) > 128 || strings.TrimSpace(deviceID) != deviceID || len(metrics) > len(allowedMetrics) { return ErrInvalidSettings }
+		seen := make(map[string]struct{}, len(metrics))
+		for _, metric := range metrics {
+			if _, ok := allowedMetrics[metric]; !ok { return ErrInvalidSettings }
+			if _, duplicate := seen[metric]; duplicate { return ErrInvalidSettings }
+			seen[metric] = struct{}{}
+		}
 	}
 	seenDeviceIDs := make(map[string]struct{}, len(s.TrackedDeviceIDs))
 	for _, id := range s.TrackedDeviceIDs {

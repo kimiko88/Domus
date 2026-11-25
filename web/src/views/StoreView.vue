@@ -29,7 +29,7 @@ import {
   Camera
 } from '@lucide/vue'
 import { apiClient } from '../api/client'
-import type { StorePackage } from '../api/types'
+import type { MarketplacePackage, MarketplaceSource, StorePackage } from '../api/types'
 
 const { t } = useI18n()
 
@@ -55,6 +55,115 @@ const submitError = ref('')
 const isSubmitting = ref(false)
 
 const packages = ref<StorePackage[]>([])
+
+const marketplaceSources = ref<MarketplaceSource[]>([])
+const marketplacePackages = ref<MarketplacePackage[]>([])
+const repositoryURL = ref('')
+const repositoryBusy = ref(false)
+const repositoryActionID = ref('')
+const marketplaceError = ref('')
+const marketplaceNotice = ref('')
+
+async function loadMarketplace() {
+  try {
+    const [sources, catalog] = await Promise.all([
+      apiClient.get<MarketplaceSource[]>('/api/v1/store/repositories'),
+      apiClient.get<MarketplacePackage[]>('/api/v1/store/catalog/packages')
+    ])
+    marketplaceSources.value = sources || []
+    marketplacePackages.value = catalog || []
+  } catch (err: any) {
+    marketplaceError.value = err?.message || t('store.marketplace.loadFailed')
+  }
+}
+
+async function addRepository() {
+  const url = repositoryURL.value.trim()
+  marketplaceError.value = ''
+  marketplaceNotice.value = ''
+  if (!url) return
+  repositoryBusy.value = true
+  try {
+    const source = await apiClient.post<MarketplaceSource>('/api/v1/store/repositories', { url })
+    repositoryURL.value = ''
+    if (source && !marketplaceSources.value.some(item => item.id === source.id)) {
+      marketplaceSources.value.push(source)
+    }
+    await syncRepository(source.id)
+  } catch (err: any) {
+    marketplaceError.value = err?.message || t('store.marketplace.addFailed')
+  } finally {
+    repositoryBusy.value = false
+  }
+}
+
+async function syncRepository(id: string) {
+  repositoryActionID.value = id
+  marketplaceError.value = ''
+  marketplaceNotice.value = ''
+  try {
+    const updated = await apiClient.post<MarketplaceSource>(`/api/v1/store/repositories/${encodeURIComponent(id)}/sync`, {})
+    const index = marketplaceSources.value.findIndex(item => item.id === id)
+    if (index >= 0) marketplaceSources.value[index] = updated
+    await loadMarketplacePackages()
+    marketplaceNotice.value = t('store.marketplace.syncComplete')
+  } catch (err: any) {
+    const source = marketplaceSources.value.find(item => item.id === id)
+    if (source) source.last_error = err?.message || t('store.marketplace.syncFailed')
+    marketplaceError.value = err?.message || t('store.marketplace.syncFailed')
+  } finally {
+    repositoryActionID.value = ''
+  }
+}
+
+async function loadMarketplacePackages() {
+  const catalog = await apiClient.get<MarketplacePackage[]>('/api/v1/store/catalog/packages')
+  marketplacePackages.value = catalog || []
+}
+
+async function removeRepository(source: MarketplaceSource) {
+  const confirmed = typeof window !== 'undefined' && window.confirm(t('store.marketplace.confirmRemove', { name: source.name || source.url }))
+  if (!confirmed) return
+  repositoryActionID.value = source.id
+  marketplaceError.value = ''
+  try {
+    await apiClient.delete(`/api/v1/store/repositories/${encodeURIComponent(source.id)}`)
+    marketplaceSources.value = marketplaceSources.value.filter(item => item.id !== source.id)
+    marketplacePackages.value = marketplacePackages.value.filter(item => item.repository_id !== source.id)
+  } catch (err: any) {
+    marketplaceError.value = err?.message || t('store.marketplace.removeFailed')
+  } finally {
+    repositoryActionID.value = ''
+  }
+}
+
+async function installCatalogPackage(pkg: MarketplacePackage) {
+  repositoryActionID.value = pkg.id
+  marketplaceError.value = ''
+  try {
+    const installed = await apiClient.post<MarketplacePackage>(`/api/v1/store/catalog/packages/${encodeURIComponent(pkg.id)}/install`, {})
+    const index = marketplacePackages.value.findIndex(item => item.id === pkg.id)
+    if (index >= 0) marketplacePackages.value[index] = installed
+  } catch (err: any) {
+    marketplaceError.value = err?.message || t('store.marketplace.installFailed')
+  } finally {
+    repositoryActionID.value = ''
+  }
+}
+
+async function uninstallCatalogPackage(pkg: MarketplacePackage) {
+  repositoryActionID.value = pkg.id
+  marketplaceError.value = ''
+  try {
+    const updated = await apiClient.post<MarketplacePackage>(`/api/v1/store/catalog/packages/${encodeURIComponent(pkg.id)}/uninstall`, {})
+    const index = marketplacePackages.value.findIndex(item => item.id === pkg.id)
+    if (index >= 0) marketplacePackages.value[index] = updated
+  } catch (err: any) {
+    marketplaceError.value = err?.message || t('store.marketplace.uninstallFailed')
+  } finally {
+    repositoryActionID.value = ''
+  }
+}
 
 const countByType = (type: string) => {
   if (!type) return packages.value.length
@@ -207,6 +316,7 @@ onMounted(async () => {
   } catch {
     packages.value = []
   }
+  await loadMarketplace()
 })
 </script>
 
@@ -339,6 +449,80 @@ onMounted(async () => {
         </div>
       </div>
     </header>
+
+    <section class="repository-manager glass-panel" aria-labelledby="repository-manager-title">
+      <div class="repository-manager-heading">
+        <div>
+          <h2 id="repository-manager-title">{{ t('store.marketplace.title') }}</h2>
+          <p>{{ t('store.marketplace.subtitle') }}</p>
+        </div>
+        <span class="repository-count">{{ marketplaceSources.length }} {{ t('store.marketplace.repositories') }}</span>
+      </div>
+
+      <form class="repository-add-row" @submit.prevent="addRepository">
+        <label class="sr-only" for="plugin-repository-url">{{ t('store.marketplace.repositoryURL') }}</label>
+        <input
+          id="plugin-repository-url"
+          v-model="repositoryURL"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          placeholder="https://example.org/domus-plugins"
+          required
+        />
+        <button type="submit" class="repository-action-btn" :disabled="repositoryBusy">
+          {{ repositoryBusy ? t('store.marketplace.adding') : t('store.marketplace.addRepository') }}
+        </button>
+      </form>
+
+      <p v-if="marketplaceError" class="marketplace-error" role="alert">{{ marketplaceError }}</p>
+      <p v-else-if="marketplaceNotice" class="marketplace-notice" role="status">{{ marketplaceNotice }}</p>
+
+      <div v-if="marketplaceSources.length" class="repository-list">
+        <article v-for="source in marketplaceSources" :key="source.id" class="repository-row">
+          <div class="repository-details">
+            <strong>{{ source.name || source.url }}</strong>
+            <a :href="source.url" target="_blank" rel="noopener noreferrer">{{ source.url }}</a>
+            <span :class="['repository-trust', source.trusted ? 'trusted' : 'untrusted']">
+              {{ source.trusted ? t('store.marketplace.signedRepository') : t('store.marketplace.unsignedRepository') }}
+            </span>
+            <small v-if="source.last_synced_at">{{ t('store.marketplace.lastSync') }}: {{ new Date(source.last_synced_at).toLocaleString() }}</small>
+            <small v-if="source.last_error" class="marketplace-error">{{ source.last_error }}</small>
+          </div>
+          <div class="repository-actions">
+            <button type="button" class="repository-action-btn secondary" :disabled="!!repositoryActionID" @click="syncRepository(source.id)">
+              {{ repositoryActionID === source.id ? t('store.marketplace.syncing') : t('store.marketplace.refresh') }}
+            </button>
+            <button type="button" class="repository-remove-btn" :disabled="!!repositoryActionID" @click="removeRepository(source)">
+              {{ t('store.marketplace.remove') }}
+            </button>
+          </div>
+        </article>
+      </div>
+      <p v-else class="repository-empty">{{ t('store.marketplace.noRepositories') }}</p>
+
+      <div v-if="marketplacePackages.length" class="catalog-packages">
+        <h3>{{ t('store.marketplace.availablePackages') }}</h3>
+        <article v-for="pkg in marketplacePackages" :key="pkg.id" class="catalog-package-row">
+          <div class="catalog-package-info">
+            <strong>{{ pkg.name }}</strong>
+            <span>{{ pkg.id }} · v{{ pkg.version }} · {{ pkg.runtime.toUpperCase() }}</span>
+            <p>{{ pkg.description }}</p>
+            <small>{{ pkg.trusted ? t('store.marketplace.signedArtifact') : t('store.marketplace.unverifiedArtifact') }} · SHA-256: {{ pkg.artifact.sha256.slice(0, 12) }}…</small>
+            <small v-if="!pkg.compatible" class="marketplace-error">{{ t('store.marketplace.incompatible') }}</small>
+            <small v-if="pkg.installed_path">{{ t('store.marketplace.stagedAt') }}: {{ pkg.installed_path }}</small>
+          </div>
+          <div class="catalog-package-actions">
+            <button v-if="!pkg.installed_path" type="button" class="repository-action-btn" :disabled="!!repositoryActionID || !pkg.compatible" @click="installCatalogPackage(pkg)">
+              {{ repositoryActionID === pkg.id ? t('store.marketplace.installing') : t('store.marketplace.stageArtifact') }}
+            </button>
+            <button v-else type="button" class="repository-remove-btn" :disabled="!!repositoryActionID" @click="uninstallCatalogPackage(pkg)">
+              {{ t('store.marketplace.unstageArtifact') }}
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
 
     <!-- Empty State -->
     <div v-if="filteredPackages.length === 0" class="empty-state glass-panel">
@@ -763,6 +947,99 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.repository-manager {
+  padding: 20px;
+  border: 1px solid var(--border-color, rgba(255,255,255,.1));
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.repository-manager-heading, .repository-row, .catalog-package-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.repository-manager-heading h2, .catalog-packages h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1rem;
+}
+.repository-manager-heading p, .repository-empty {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+.repository-count {
+  color: var(--text-muted);
+  font-size: .8rem;
+  white-space: nowrap;
+}
+.repository-add-row {
+  display: flex;
+  gap: 10px;
+}
+.repository-add-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--surface-input, transparent);
+}
+.repository-action-btn, .repository-remove-btn {
+  border: 1px solid var(--primary, #0ea5e9);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-main);
+  background: rgba(14,165,233,.12);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: .82rem;
+}
+.repository-action-btn.secondary { background: transparent; }
+.repository-remove-btn {
+  border-color: var(--border-color);
+  background: transparent;
+}
+.repository-action-btn:disabled, .repository-remove-btn:disabled { opacity: .5; cursor: wait; }
+.repository-list, .catalog-packages { display: flex; flex-direction: column; gap: 10px; }
+.catalog-packages { padding-top: 12px; border-top: 1px solid var(--border-color); }
+.repository-row, .catalog-package-row {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-card, rgba(19,28,46,.25));
+}
+.repository-details, .catalog-package-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.repository-details strong, .catalog-package-info strong { color: var(--text-main); font-size: .9rem; }
+.repository-details a, .catalog-package-info span, .catalog-package-info small, .repository-details small {
+  color: var(--text-muted);
+  font-size: .77rem;
+  overflow-wrap: anywhere;
+}
+.catalog-package-info p { margin: 3px 0; color: var(--text-muted); font-size: .83rem; }
+.repository-trust { font-size: .75rem; font-weight: 700; }
+.repository-trust.trusted { color: var(--success, #16a34a); }
+.repository-trust.untrusted, .marketplace-error { color: var(--danger, #dc2626); }
+.marketplace-notice { color: var(--success, #16a34a); font-size: .84rem; margin: 0; }
+.repository-actions, .catalog-package-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.catalog-package-actions { align-items: center; }
+@media (max-width: 700px) {
+  .repository-manager { padding: 14px; }
+  .repository-manager-heading, .repository-row, .catalog-package-row { flex-direction: column; }
+  .repository-actions, .catalog-package-actions { width: 100%; }
+  .repository-actions button, .catalog-package-actions button { flex: 1; }
+  .repository-add-row { flex-direction: column; }
 }
 
 .store-header {

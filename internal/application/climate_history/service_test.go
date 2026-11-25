@@ -17,6 +17,7 @@ type climateRepoStub struct {
 	settings domclimate.Settings
 	samples  []domclimate.Sample
 	points   []domclimate.Point
+	deletedDeviceIDs []string
 }
 func (r *climateRepoStub) GetSettings(context.Context) (domclimate.Settings, error) { return r.settings, nil }
 func (r *climateRepoStub) SaveSettings(_ context.Context, s domclimate.Settings) error { r.settings = s; return nil }
@@ -24,6 +25,10 @@ func (r *climateRepoStub) SaveSamples(_ context.Context, samples []domclimate.Sa
 func (r *climateRepoStub) GetHistory(context.Context, domclimate.Filter) ([]domclimate.Point, error) { return r.points, nil }
 func (r *climateRepoStub) AggregateAndPrune(context.Context, time.Time, time.Time) (*domclimate.RetentionSummary, error) {
 	return &domclimate.RetentionSummary{}, nil
+}
+func (r *climateRepoStub) DeleteDeviceHistory(_ context.Context, deviceID string) (int64, error) {
+	r.deletedDeviceIDs = append(r.deletedDeviceIDs, deviceID)
+	return 7, nil
 }
 
 type climateEntityRepoStub struct { entities []*entity.Entity }
@@ -338,4 +343,66 @@ func TestSettingsValidation(t *testing.T) {
 	require.NoError(t, settings.Validate())
 	settings.IntervalMinutes = 3
 	require.ErrorIs(t, settings.Validate(), domclimate.ErrInvalidSettings)
+}
+
+
+func TestCollectNowAppliesPerDeviceMetricSelection(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.TrackedDeviceIDs = []string{"sensor-device", "thermostat-device"}
+	settings.DeviceMetrics = map[string][]string{
+		"sensor-device": {"temperature"},
+		"thermostat-device": {"target_temperature", "hvac_mode"},
+	}
+	repo := &climateRepoStub{settings: settings}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{ID: "sensor-1", DeviceID: "sensor-device", EntityKey: "sensor.room", Domain: "sensor", Name: "Room sensor", State: "21.5", UnitOfMeasurement: "°C", Attributes: "{\"device_class\":\"temperature\",\"current_temperature\":21.5,\"humidity\":53}", Available: true},
+		{ID: "thermostat-1", DeviceID: "thermostat-device", EntityKey: "climate.room", Domain: "climate", Name: "Room thermostat", State: "heat", Attributes: "{\"current_temperature\":20.5,\"target_temperature\":22,\"hvac_mode\":\"heat\",\"hvac_action\":\"heating\"}", Available: true},
+	}}
+	service := NewService(repo, entities, testLogger())
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+	require.Len(t, repo.samples, 2)
+
+	byDevice := map[string]domclimate.Sample{}
+	for _, sample := range repo.samples { byDevice[sample.DeviceID] = sample }
+	require.NotNil(t, byDevice["sensor-device"].Temperature)
+	require.Nil(t, byDevice["sensor-device"].Humidity)
+	require.Nil(t, byDevice["sensor-device"].TargetTemperature)
+	require.NotNil(t, byDevice["thermostat-device"].TargetTemperature)
+	require.Equal(t, "heat", byDevice["thermostat-device"].HVACMode)
+	require.Empty(t, byDevice["thermostat-device"].HVACAction)
+	require.Nil(t, byDevice["thermostat-device"].Temperature)
+}
+
+func TestDeleteDeviceHistoryUntracksAndRemovesDeviceMetrics(t *testing.T) {
+	settings := domclimate.DefaultSettings()
+	settings.TrackedDeviceIDs = nil // legacy default: collect all compatible devices
+	settings.DeviceMetrics = map[string][]string{
+		"device-1": {"temperature"},
+		"device-2": {"humidity"},
+	}
+	repo := &climateRepoStub{settings: settings}
+	entities := &climateEntityRepoStub{entities: []*entity.Entity{
+		{ID: "sensor-1", DeviceID: "device-1", EntityKey: "sensor.one", Domain: "sensor", Name: "One", State: "20", UnitOfMeasurement: "°C", Attributes: "{\"device_class\":\"temperature\"}", Available: true},
+		{ID: "sensor-2", DeviceID: "device-2", EntityKey: "sensor.two", Domain: "sensor", Name: "Two", State: "55", UnitOfMeasurement: "%", Attributes: "{\"device_class\":\"humidity\"}", Available: true},
+	}}
+	service := NewService(repo, entities, testLogger())
+	deleted, err := service.DeleteDeviceHistory(context.Background(), "device-1")
+	require.NoError(t, err)
+	require.EqualValues(t, 7, deleted)
+	require.Equal(t, []string{"device-1"}, repo.deletedDeviceIDs)
+	require.Equal(t, []string{"device-2"}, repo.settings.TrackedDeviceIDs)
+	require.NotContains(t, repo.settings.DeviceMetrics, "device-1")
+	require.Contains(t, repo.settings.DeviceMetrics, "device-2")
+
+	// A subsequent poll must continue recording the remaining device only.
+	repo.samples = nil
+	count, err := service.CollectNow(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Len(t, repo.samples, 1)
+	require.Equal(t, "device-2", repo.samples[0].DeviceID)
+	require.Nil(t, repo.samples[0].Temperature)
+	require.NotNil(t, repo.samples[0].Humidity)
 }

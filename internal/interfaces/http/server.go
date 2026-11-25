@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,8 @@ import (
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
+	appmarketplace "github.com/domus-hub/domus/internal/application/marketplace"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	appmed "github.com/domus-hub/domus/internal/application/medicine"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
@@ -62,6 +66,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
+	"github.com/domus-hub/domus/internal/plugins/open_display"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -166,6 +171,8 @@ type Server struct {
 	broadlinkAdapter *broadlink.Adapter
 	predictiveClimate *appclimate.PredictiveService
 	climateHistory   *appclimatehistory.Service
+	openDisplayAdapter *open_display.Adapter
+	pluginRuntime *apppluginruntime.Manager
 	predictiveCancel context.CancelFunc
 	predictiveDone chan struct{}
 }
@@ -267,35 +274,96 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		slog.Warn("Xiaomi Home and Imou Life integrations disabled: encrypted integration storage is required")
 	}
 
-	// Initialize Tuya Local LAN adapter for direct local-first control via local_key
-	if srv.bus != nil {
-		srv.tuyaLocalAdapter = tuya_local.NewAdapter("tuya_local", srv.bus)
-		if srv.repos != nil {
+	// Protocol adapters share one Registry, persistence format and supervised lifecycle.
+	// The historical feature-specific HTTP handlers below remain stable while the
+	// underlying adapters are progressively moved behind this manager.
+	if srv.repos != nil && srv.bus != nil && srv.repos.Cipher != nil {
+		manager, managerErr := apppluginruntime.NewManager(srv.repos, srv.bus)
+		if managerErr != nil {
+			slog.Error("plugin runtime disabled: registry initialization failed", "error", managerErr)
+		} else {
+			srv.pluginRuntime = manager
 			if srv.repos.DB != nil {
-				srv.tuyaLocalAdapter.WithPersistence(srv.repos.DB, srv.repos.Cipher)
+				if adapter, err := manager.Prepare(context.Background(), "tuya_local", "tuya_local", json.RawMessage(`{}`)); err != nil {
+					slog.Error("Tuya Local plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*tuya_local.Adapter); ok {
+					srv.tuyaLocalAdapter = typed
+				}
+				if adapter, err := manager.Prepare(context.Background(), "broadlink_local", "broadlink_local", json.RawMessage(`{}`)); err != nil {
+					slog.Error("BroadLink plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*broadlink.Adapter); ok {
+					srv.broadlinkAdapter = typed
+				}
 			}
-			srv.tuyaLocalAdapter.WithRepositories(srv.repos.Devices, srv.repos.Entities)
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_ENABLED")), "true") {
+				bridgeURL := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BRIDGE_URL"))
+				bridgeToken := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BRIDGE_TOKEN"))
+				pollInterval := 60 * time.Second
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL")); raw != "" {
+					if parsed, err := time.ParseDuration(raw); err == nil {
+						pollInterval = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL", "error", err)
+					}
+				}
+				scanSeconds := 6
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS")); raw != "" {
+					if parsed, err := strconv.Atoi(raw); err == nil {
+						scanSeconds = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS", "error", err)
+					}
+				}
+				httpTimeout := 45 * time.Second
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_HTTP_TIMEOUT")); raw != "" {
+					if parsed, err := time.ParseDuration(raw); err == nil {
+						httpTimeout = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_HTTP_TIMEOUT", "error", err)
+					}
+				}
+				pluginConfig, err := json.Marshal(map[string]any{
+					"bridge_url": bridgeURL, "token": bridgeToken,
+					"poll_interval": pollInterval.String(), "scan_seconds": scanSeconds,
+					"http_timeout": httpTimeout.String(),
+				})
+				if err != nil {
+					slog.Error("OpenDisplay plugin configuration could not be encoded", "error", err)
+				} else if adapter, err := manager.Prepare(context.Background(), open_display.IntegrationID, open_display.IntegrationID, pluginConfig); err != nil {
+					slog.Error("OpenDisplay plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*open_display.Adapter); ok {
+					srv.openDisplayAdapter = typed
+				}
+			}
+			if err := manager.Start(context.Background()); err != nil {
+				slog.Error("plugin runtime failed to start", "error", err)
+			}
 		}
-		if err := srv.tuyaLocalAdapter.Start(context.Background()); err != nil {
-			slog.Warn("tuya_local: adapter background start failed", "error", err)
+	} else {
+		// Compatibility path for installations without the encrypted integration vault.
+		// Only Tuya Local's existing legacy device database can still be opened.
+		if srv.bus != nil {
+			srv.tuyaLocalAdapter = tuya_local.NewAdapter("tuya_local", srv.bus)
+			if srv.repos != nil {
+				if srv.repos.DB != nil { srv.tuyaLocalAdapter.WithPersistence(srv.repos.DB, srv.repos.Cipher) }
+				srv.tuyaLocalAdapter.WithRepositories(srv.repos.Devices, srv.repos.Entities)
+			}
+			if err := srv.tuyaLocalAdapter.Start(context.Background()); err != nil {
+				slog.Warn("tuya_local: adapter background start failed", "error", err)
+			}
+		}
+		if srv.bus != nil && srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
+			srv.broadlinkAdapter = broadlink.NewAdapter("broadlink_local", srv.bus).
+				WithPersistence(srv.repos.DB, srv.repos.Cipher).
+				WithRepositories(srv.repos.Devices, srv.repos.Entities)
+			if err := srv.broadlinkAdapter.Start(context.Background()); err != nil {
+				slog.Error("broadlink_local: adapter startup failed", "error", err)
+				srv.broadlinkAdapter = nil
+			}
 		}
 	}
 	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
 		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)
-	}
-
-	// BroadLink RM remotes are controlled directly over the local UDP protocol.
-	// Pairing is enabled only when the session key can be encrypted at rest.
-	if srv.bus != nil && srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
-		srv.broadlinkAdapter = broadlink.NewAdapter("broadlink_local", srv.bus).
-			WithPersistence(srv.repos.DB, srv.repos.Cipher).
-			WithRepositories(srv.repos.Devices, srv.repos.Entities)
-		if err := srv.broadlinkAdapter.Start(context.Background()); err != nil {
-			slog.Error("broadlink_local: adapter startup failed", "error", err)
-			srv.broadlinkAdapter = nil
-		}
-	} else {
-		slog.Warn("broadlink_local disabled: event bus, database and encrypted key storage are required")
 	}
 
 	r := chi.NewRouter()
@@ -321,7 +389,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// If auth service is present, extract sessions globally
 	if srv.authService != nil {
-		r.Use(domusmw.Authenticate(srv.authService))
+		r.Use(domusmw.Authenticate(srv.authService, srv.cfg.CookieSecure))
 	}
 	// Enforce double-submit CSRF tokens after session authentication has
 	// populated the request context. Bearer-token clients remain unaffected.
@@ -485,6 +553,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if srv.repos.Cipher != nil {
 				brandSvc.WithSecretCipher(srv.repos.Cipher)
 			}
+
+
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
 			var webhookH *handlers.WebhookHandler
@@ -511,6 +581,20 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					intRouter.Get("/{id}", integrationH.GetByID)
 					intRouter.With(domusmw.RequireSettingsPermission()).Post("/{id}/reconnect", integrationH.Reconnect)
 				})
+
+				if srv.pluginRuntime != nil {
+					pluginH := handlers.NewPluginRuntimeHandler(srv.pluginRuntime)
+					domainRouter.Route("/plugins", func(pluginRouter chi.Router) {
+						pluginRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						pluginRouter.Get("/types", pluginH.ListTypes)
+						pluginRouter.Get("/instances", pluginH.ListInstances)
+						pluginRouter.Post("/instances", pluginH.Create)
+						pluginRouter.Post("/instances/{id}/enable", pluginH.Enable)
+						pluginRouter.Post("/instances/{id}/disable", pluginH.Disable)
+						pluginRouter.Post("/instances/{id}/restart", pluginH.Restart)
+						pluginRouter.Delete("/instances/{id}", pluginH.Delete)
+					})
+				}
 				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
 				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
 					cloudH.WithStorage(srv.repos.DB, srv.repos.Cipher)
@@ -576,6 +660,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/midea", func(mideaRouter chi.Router) {
 						mideaRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						mideaHandler.RegisterRoutes(mideaRouter)
+					})
+				}
+
+				if srv.openDisplayAdapter != nil {
+					openDisplayH := handlers.NewOpenDisplayHandler(srv.openDisplayAdapter)
+					domainRouter.Route("/integrations/opendisplay", func(openRouter chi.Router) {
+						openRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						openRouter.Get("/devices", openDisplayH.ListDevices)
+						openRouter.Post("/devices/{address}/image", openDisplayH.UploadImage)
+                        openRouter.Post("/devices/{address}/actions/{action}", openDisplayH.Action)
 					})
 				}
 
@@ -900,9 +994,39 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				storeSvc := appstore.NewService(storeRepo)
 
+				var marketplaceH *handlers.MarketplaceHandler
+				if srv.repos.DB != nil {
+					marketplaceSvc, marketplaceErr := appmarketplace.NewService(
+						sqlite.NewMarketplaceRepository(srv.repos.DB),
+						appmarketplace.ConfigFromEnv(),
+					)
+					if marketplaceErr != nil {
+						slog.Error("plugin marketplace disabled: invalid configuration", "error", marketplaceErr)
+					} else {
+						marketplaceH = handlers.NewMarketplaceHandler(marketplaceSvc)
+					}
+				}
+
+				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
+				if rawSatellites := strings.TrimSpace(os.Getenv("DOMUS_VOICE_SATELLITES_JSON")); rawSatellites != "" {
+					if err := assistantSvc.ConfigureSatellitesJSON(rawSatellites); err != nil {
+						slog.Error("invalid DOMUS_VOICE_SATELLITES_JSON; additional voice satellites were not registered", "error", err)
+					}
+				}
+				voicePipeline := appassistant.NewVoicePipeline(appassistant.VoicePipelineConfig{
+                    // Native Wyoming TCP is preferred; HTTP endpoints remain an optional adapter fallback.
+                    WhisperAddress: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ADDR")),
+                    PiperAddress: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ADDR")),
+                    WhisperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ENDPOINT")),
+                    PiperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ENDPOINT")),
+                    Language: strings.TrimSpace(os.Getenv("DOMUS_VOICE_LANGUAGE")),
+                    VoiceModel: strings.TrimSpace(os.Getenv("DOMUS_VOICE_MODEL")),
+                }, assistantSvc)
+
 				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc).
 					WithLocalNVR(appcamera.NewLocalNVR(camSvc, srv.bus).WithRepository(srv.repos.NVR)).
 					WithBackupRepository(srv.repos.Backup).
+					WithVoicePipeline(voicePipeline).
 					WithBus(srv.bus)
 
 				domainRouter.Route("/intercom", func(iRouter chi.Router) {
@@ -1115,6 +1239,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					stRouter.Post("/community/submit", ecoH.SubmitCommunityPackage)
 					stRouter.Post("/community/{id}/approve", ecoH.ApproveCommunityPackage)
 					stRouter.Post("/community/{id}/reject", ecoH.RejectCommunityPackage)
+					if marketplaceH != nil {
+						stRouter.Get("/repositories", marketplaceH.ListRepositories)
+						stRouter.Post("/repositories", marketplaceH.AddRepository)
+						stRouter.Delete("/repositories/{id}", marketplaceH.RemoveRepository)
+						stRouter.Post("/repositories/{id}/sync", marketplaceH.SyncRepository)
+						stRouter.Get("/catalog/packages", marketplaceH.ListPackages)
+						stRouter.Post("/catalog/packages/{id}/install", marketplaceH.InstallPackage)
+						stRouter.Post("/catalog/packages/{id}/uninstall", marketplaceH.UninstallPackage)
+					}
 				})
 
 				// Shared Shopping List routes
@@ -1204,7 +1337,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 
 				// Local LLM & Voice Assistant
-				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
 				assistantH := handlers.NewAssistantHandler(assistantSvc)
 				assistantH.RegisterRoutes(domainRouter)
 
@@ -1419,11 +1551,18 @@ func (s *Server) stopPredictiveClimateScheduler(ctx context.Context) {
 // Shutdown gracefully stops the HTTP server without interrupting active connections.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.stopPredictiveClimateScheduler(ctx)
-	if s.tuyaLocalAdapter != nil {
-		_ = s.tuyaLocalAdapter.Stop(ctx)
-	}
-	if s.broadlinkAdapter != nil {
-		_ = s.broadlinkAdapter.Stop(ctx)
+	if s.pluginRuntime != nil {
+		if err := s.pluginRuntime.Stop(ctx); err != nil {
+			slog.WarnContext(ctx, "plugin runtime did not stop cleanly", "error", err)
+		}
+	} else {
+		if s.tuyaLocalAdapter != nil { _ = s.tuyaLocalAdapter.Stop(ctx) }
+		if s.broadlinkAdapter != nil { _ = s.broadlinkAdapter.Stop(ctx) }
+		if s.openDisplayAdapter != nil {
+			if err := s.openDisplayAdapter.Stop(ctx); err != nil {
+				slog.WarnContext(ctx, "OpenDisplay adapter did not stop cleanly", "error", err)
+			}
+		}
 	}
 	var shutdownErr error
 	if s.lanHTTPServer != nil {

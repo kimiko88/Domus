@@ -132,7 +132,7 @@ describe('StoreView.vue', () => {
       installed: false
     } as any)
 
-    await wrapper.find('form').trigger('submit.prevent')
+    await wrapper.find('.modal-card.modal-lg form').trigger('submit.prevent')
     await flushPromises()
 
     expect(apiClient.post).toHaveBeenCalledWith(

@@ -126,3 +126,36 @@ func TestAssistantService_ToolCalling(t *testing.T) {
 	capturedScene := <-cmdCh
 	assert.Equal(t, "scene.cinema", capturedScene["entity_key"])
 }
+
+
+func TestConfigureSatellitesJSONRegistersRoomContext(t *testing.T) {
+	svc := assistant.NewService(assistant.Config{}, nil, nil)
+	err := svc.ConfigureSatellitesJSON(`[{"id":"sat_kitchen","name":"Microfono cucina","area_name":"Cucina","wake_word":"hey_jarvis"}]`)
+	require.NoError(t, err)
+	var found *assistant.VoiceSatellite
+	for _, satellite := range svc.ListSatellites() {
+		if satellite.ID == "sat_kitchen" {
+			copy := satellite
+			found = &copy
+		}
+	}
+	require.NotNil(t, found)
+	require.Equal(t, "Cucina", found.AreaName)
+	require.Equal(t, "hey_jarvis", found.WakeWord)
+	require.Equal(t, "online", found.Status)
+}
+
+func TestConfigureSatellitesJSONRejectsUnsafeAndInvalidConfiguration(t *testing.T) {
+	svc := assistant.NewService(assistant.Config{}, nil, nil)
+	for _, raw := range []string{
+		`[{"id":"../admin","name":"bad","area_name":"Cucina"}]`,
+		`[{"id":"sat_x","name":"missing area","area_name":""}]`,
+		`[{"id":"sat_x","name":"one","area_name":"Cucina"},{"id":"sat_x","name":"two","area_name":"Bagno"}]`,
+		`[{"id":"sat_x","name":"unknown field","area_name":"Cucina","token":"secret"}]`,
+		`[] {}`,
+	} {
+		require.Error(t, svc.ConfigureSatellitesJSON(raw), "raw=%s", raw)
+	}
+	require.NoError(t, svc.ConfigureSatellitesJSON(""))
+	require.NoError(t, svc.ConfigureSatellitesJSON("[]"))
+}

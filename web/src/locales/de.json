@@ -2211,6 +2211,37 @@
     "install": "Installieren",
     "open": "Öffnen",
     "uninstall": "Deinstallieren",
+    "marketplace": {
+      "title": "Domus-Plugin-Repositories",
+      "subtitle": "Fügen Sie Kataloge von Drittanbietern hinzu. Pakete werden geprüft und bereitgestellt, ohne nicht vertrauenswürdigen Code auszuführen.",
+      "repositories": "Repositories",
+      "repositoryURL": "HTTPS-Repository-URL",
+      "addRepository": "Repository hinzufügen",
+      "adding": "Wird hinzugefügt…",
+      "addFailed": "Repository konnte nicht hinzugefügt werden.",
+      "loadFailed": "Plugin-Katalog konnte nicht geladen werden.",
+      "signedRepository": "Signierter und geprüfter Index",
+      "unsignedRepository": "Nicht verifiziertes Repository",
+      "lastSync": "Letzte Synchronisierung",
+      "refresh": "Synchronisieren",
+      "syncing": "Synchronisierung…",
+      "remove": "Entfernen",
+      "confirmRemove": "{name} und die aus diesem Repository installierten Pakete entfernen?",
+      "removeFailed": "Repository konnte nicht entfernt werden.",
+      "noRepositories": "Keine Repositories hinzugefügt. Fügen Sie eine HTTPS-URL hinzu.",
+      "availablePackages": "Pakete aus Repositories",
+      "signedArtifact": "Signierter Index; SHA-256 des Artefakts geprüft",
+      "unverifiedArtifact": "Nicht verifiziertes Repository; prüfen Sie das Projekt vor der Verwendung",
+      "incompatible": "Paket ist mit dieser Domus-Version nicht kompatibel.",
+      "stagedAt": "Artefakt bereitgestellt unter",
+      "stageArtifact": "Prüfen und installieren",
+      "installing": "Wird geprüft…",
+      "unstageArtifact": "Artefakt entfernen",
+      "installFailed": "Installation fehlgeschlagen.",
+      "uninstallFailed": "Entfernen fehlgeschlagen.",
+      "syncComplete": "Repository synchronisiert.",
+      "syncFailed": "Repository-Synchronisierung fehlgeschlagen."
+    },
     "view": {
       "proposeCommunityPlugin": "Community-Plugin vorschlagen",
       "searchPlaceholder": "Nach Name, Autor, Lizenz oder Paket-ID suchen…",
@@ -3615,7 +3646,19 @@
         "online": "Online",
         "offline": "Offline",
         "unknown": "Status unbekannt"
-      }
+      },
+      "saveMetrics": "Aufzuzeichnende Daten",
+      "metrics": {
+        "temperature": "Temperatur",
+        "humidity": "Luftfeuchtigkeit",
+        "targetTemperature": "Sollwert",
+        "hvacMode": "HVAC-Modus",
+        "hvacAction": "HVAC-Aktion"
+      },
+      "deleteHistory": "Verlauf löschen",
+      "deletingHistory": "Wird gelöscht…",
+      "confirmDeleteHistory": "Den gesamten Verlauf von {name} löschen? Rohdaten und Aggregate werden entfernt und die Aufzeichnung wird deaktiviert.",
+      "historyDeleted": "Verlauf von {name} gelöscht: {count} Datensätze entfernt."
     },
     "settings": {
       "title": "Einstellungen für Aufzeichnung und Analyse",
@@ -3662,7 +3705,8 @@
     "errors": {
       "load": "Raumklima-Verlauf konnte nicht geladen werden.",
       "save": "Einstellungen konnten nicht gespeichert werden.",
-      "export": "Klimadaten konnten nicht exportiert werden."
+      "export": "Klimadaten konnten nicht exportiert werden.",
+      "delete": "Der Geräteverlauf konnte nicht gelöscht werden."
     },
     "heatingRate": "Heizrate",
     "coolingRate": "Abkühlrate"

@@ -41,7 +41,7 @@ func (s *Service) UpdateSettings(ctx context.Context, settings domclimate.Settin
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-	if settings.TrackedDeviceIDs != nil && len(settings.TrackedDeviceIDs) > 0 {
+	if (settings.TrackedDeviceIDs != nil && len(settings.TrackedDeviceIDs) > 0) || len(settings.DeviceMetrics) > 0 {
 		if s.entities == nil {
 			return domclimate.ErrInvalidSettings
 		}
@@ -61,11 +61,14 @@ func (s *Service) UpdateSettings(ctx context.Context, settings domclimate.Settin
 			}
 		}
 		for _, deviceID := range settings.TrackedDeviceIDs {
-			if _, ok := compatible[deviceID]; !ok {
-				return domclimate.ErrInvalidSettings
-			}
+			if _, ok := compatible[deviceID]; !ok { return domclimate.ErrInvalidSettings }
+		}
+		for deviceID := range settings.DeviceMetrics {
+			if _, ok := compatible[deviceID]; !ok { return domclimate.ErrInvalidSettings }
 		}
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.repo.SaveSettings(ctx, settings)
 }
 
@@ -98,18 +101,31 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Re-read settings under the same lock used by device deletion. A poll
+	// started with stale settings must not recreate data after a device purge.
+	settings, err = s.repo.GetSettings(ctx)
+	if err != nil { return 0, fmt.Errorf("reload climate history settings: %w", err) }
+	if !settings.Enabled { return 0, nil }
+	interval = time.Duration(settings.IntervalMinutes) * time.Minute
 	for _, ent := range entities {
-		if settings.TrackedDeviceIDs != nil {
-			if ent == nil || !containsEntity(settings.TrackedDeviceIDs, climateEntityDeviceID(ent)) {
-				continue
-			}
-		}
+		if ent == nil { continue }
+		deviceID := climateEntityDeviceID(ent)
+		if settings.TrackedDeviceIDs != nil && !containsEntity(settings.TrackedDeviceIDs, deviceID) { continue }
 		if entityUnavailable(ent) {
 			continue
 		}
-		sample, ok := sampleEntity(ent, settings, now)
-		if !ok {
-			continue
+		entitySettings := settings
+		metrics, hasDeviceMetrics := settings.DeviceMetrics[deviceID]
+		if hasDeviceMetrics {
+			entitySettings.RecordTemperature = containsEntity(metrics, "temperature")
+			entitySettings.RecordHumidity = containsEntity(metrics, "humidity")
+			entitySettings.RecordThermostat = containsEntity(metrics, "target_temperature") || containsEntity(metrics, "hvac_mode") || containsEntity(metrics, "hvac_action")
+		}
+		sample, ok := sampleEntity(ent, entitySettings, now)
+		if !ok { continue }
+		if hasDeviceMetrics {
+			applyDeviceMetrics(&sample, metrics)
+			if sample.Temperature == nil && sample.Humidity == nil && sample.TargetTemperature == nil && sample.HVACMode == "" && sample.HVACAction == "" { continue }
 		}
 		previous, hasPrevious := s.last[ent.ID]
 		lastSaved := s.lastSaved[ent.ID]
@@ -133,6 +149,14 @@ func (s *Service) CollectNow(ctx context.Context) (int, error) {
 		s.lastSaved[sample.EntityID] = now
 	}
 	return len(batch), nil
+}
+
+func applyDeviceMetrics(sample *domclimate.Sample, metrics []string) {
+	if !containsEntity(metrics, "temperature") { sample.Temperature = nil }
+	if !containsEntity(metrics, "humidity") { sample.Humidity = nil }
+	if !containsEntity(metrics, "target_temperature") { sample.TargetTemperature = nil }
+	if !containsEntity(metrics, "hvac_mode") { sample.HVACMode = "" }
+	if !containsEntity(metrics, "hvac_action") { sample.HVACAction = "" }
 }
 
 func entityUnavailable(ent *entity.Entity) bool {
@@ -168,9 +192,7 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 	}
 	switch ent.Domain {
 	case "climate":
-		if !cfg.RecordThermostat {
-			return s, false
-		}
+		if !cfg.RecordThermostat && !cfg.RecordTemperature && !cfg.RecordHumidity { return s, false }
 		if cfg.RecordTemperature {
 			if v, ok := attributeNumber(attrs, "current_temperature", "current_temp", "measured_temperature"); ok {
 				v = normalizeTemperature(v, ent.UnitOfMeasurement, attrs)
@@ -211,7 +233,7 @@ func sampleEntity(ent *entity.Entity, cfg domclimate.Settings, at time.Time) (do
 	default:
 		return s, false
 	}
-	return s, s.Temperature != nil || s.Humidity != nil || s.TargetTemperature != nil
+	return s, s.Temperature != nil || s.Humidity != nil || s.TargetTemperature != nil || s.HVACMode != "" || s.HVACAction != ""
 }
 
 func attributeNumber(attrs map[string]any, keys ...string) (float64, bool) {
@@ -513,3 +535,45 @@ func (s *Service) Summarize(ctx context.Context, filter domclimate.Filter) (*dom
 }
 
 func floatPtr(v float64) *float64 { return &v }
+
+
+// DeleteDeviceHistory disables collection for the selected device and removes
+// its raw, hourly and daily climate history rows.
+func (s *Service) DeleteDeviceHistory(ctx context.Context, deviceID string) (int64, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" || len(deviceID) > 128 { return 0, domclimate.ErrInvalidSettings }
+	deleter, ok := s.repo.(interface { DeleteDeviceHistory(context.Context, string) (int64, error) })
+	if !ok { return 0, fmt.Errorf("climate history repository does not support device deletion") }
+
+	// Serialize purge and settings update against the collector.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	settings, err := s.repo.GetSettings(ctx)
+	if err != nil { return 0, fmt.Errorf("load climate history settings: %w", err) }
+	if settings.TrackedDeviceIDs == nil {
+		if s.entities == nil { return 0, fmt.Errorf("climate history device repository is unavailable") }
+		entities, listErr := s.entities.List(ctx, entity.ListFilter{})
+		if listErr != nil { return 0, fmt.Errorf("list climate devices: %w", listErr) }
+		remaining := make(map[string]struct{})
+		for _, item := range entities {
+			if item == nil || !isTrackedClimateEntity(item, domclimate.DefaultSettings()) { continue }
+			id := climateEntityDeviceID(item)
+			if id != "" && id != deviceID { remaining[id] = struct{}{} }
+		}
+		settings.TrackedDeviceIDs = make([]string, 0, len(remaining))
+		for id := range remaining { settings.TrackedDeviceIDs = append(settings.TrackedDeviceIDs, id) }
+		sort.Strings(settings.TrackedDeviceIDs)
+	} else {
+		remaining := make([]string, 0, len(settings.TrackedDeviceIDs))
+		for _, id := range settings.TrackedDeviceIDs { if id != deviceID { remaining = append(remaining, id) } }
+		settings.TrackedDeviceIDs = remaining
+	}
+	if settings.DeviceMetrics != nil { delete(settings.DeviceMetrics, deviceID) }
+	if err := s.repo.SaveSettings(ctx, settings); err != nil { return 0, fmt.Errorf("disable climate collection for device: %w", err) }
+	deleted, err := deleter.DeleteDeviceHistory(ctx, deviceID)
+	if err != nil { return 0, fmt.Errorf("delete climate history for device %s: %w", deviceID, err) }
+	for entityID, sample := range s.last {
+		if sample.DeviceID == deviceID { delete(s.last, entityID); delete(s.lastSaved, entityID) }
+	}
+	return deleted, nil
+}

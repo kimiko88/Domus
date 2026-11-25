@@ -290,7 +290,9 @@ func TestEcosystemHandler_ThreadAndRemoteAccessAndVoice(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	// 7. Voice Pipeline Process
+	// 7. Voice gateway must fail closed when no pipeline is attached. Production
+	// server wiring attaches a real Whisper/Assistant/Piper pipeline; tests that
+	// construct an unconfigured ecosystem handler must not get a fake success.
 	voiceBody, _ := json.Marshal(map[string]string{
 		"satellite_id": "sat_kitchen",
 		"text_prompt":  "spegni tutte le luci",
@@ -298,12 +300,10 @@ func TestEcosystemHandler_ThreadAndRemoteAccessAndVoice(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/voice/process", bytes.NewReader(voiceBody))
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	var voiceResp map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &voiceResp))
-	assert.Equal(t, "spegni tutte le luci", voiceResp["transcribed_text"])
-	assert.NotEmpty(t, voiceResp["response_text"])
+	assert.Equal(t, "VOICE_PIPELINE_UNAVAILABLE", voiceResp["code"])
 }
 
 

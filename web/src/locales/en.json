@@ -2211,6 +2211,37 @@
     "install": "Install",
     "open": "Open App",
     "uninstall": "Uninstall",
+    "marketplace": {
+      "title": "Domus plugin repositories",
+      "subtitle": "Add third-party catalogs. Packages are verified and staged without executing untrusted code.",
+      "repositories": "repositories",
+      "repositoryURL": "HTTPS repository URL",
+      "addRepository": "Add repository",
+      "adding": "Adding…",
+      "addFailed": "Could not add repository.",
+      "loadFailed": "Could not load the plugin catalog.",
+      "signedRepository": "Signed and verified index",
+      "unsignedRepository": "Unverified repository",
+      "lastSync": "Last sync",
+      "refresh": "Sync",
+      "syncing": "Syncing…",
+      "remove": "Remove",
+      "confirmRemove": "Remove {name} and packages installed from this repository?",
+      "removeFailed": "Could not remove repository.",
+      "noRepositories": "No repositories added. Add an HTTPS URL to get started.",
+      "availablePackages": "Packages from repositories",
+      "signedArtifact": "Signed index; artifact SHA-256 verified",
+      "unverifiedArtifact": "Unverified repository; review the project before use",
+      "incompatible": "Package is not compatible with this Domus version.",
+      "stagedAt": "Artifact staged at",
+      "stageArtifact": "Verify and install",
+      "installing": "Verifying…",
+      "unstageArtifact": "Remove artifact",
+      "installFailed": "Installation failed.",
+      "uninstallFailed": "Removal failed.",
+      "syncComplete": "Repository synchronized.",
+      "syncFailed": "Repository synchronization failed."
+    },
     "view": {
       "proposeCommunityPlugin": "Propose a community plugin",
       "searchPlaceholder": "Search by name, author, license or package ID…",
@@ -3615,7 +3646,19 @@
         "online": "Online",
         "offline": "Offline",
         "unknown": "Status unknown"
-      }
+      },
+      "saveMetrics": "Data to record",
+      "metrics": {
+        "temperature": "Temperature",
+        "humidity": "Humidity",
+        "targetTemperature": "Setpoint",
+        "hvacMode": "HVAC mode",
+        "hvacAction": "HVAC action"
+      },
+      "deleteHistory": "Delete history",
+      "deletingHistory": "Deleting…",
+      "confirmDeleteHistory": "Delete all history for {name}? Raw samples and aggregates will be removed and collection will be disabled.",
+      "historyDeleted": "History for {name} deleted: {count} records removed."
     },
     "settings": {
       "title": "Collection and analysis settings",
@@ -3662,7 +3705,8 @@
     "errors": {
       "load": "Unable to load climate history.",
       "save": "Unable to save settings.",
-      "export": "Unable to export climate data."
+      "export": "Unable to export climate data.",
+      "delete": "Unable to delete this device's history."
     },
     "heatingRate": "Heating rate",
     "coolingRate": "Cooling rate"

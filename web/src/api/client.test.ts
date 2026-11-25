@@ -88,4 +88,41 @@ describe('ApiClient', () => {
       })
     )
   })
+  it('keeps the CSRF header when a binary upload supplies its own Content-Type', async () => {
+    const csrfToken = '0123456789abcdef0123456789abcdef'
+    const originalCookie = document.cookie
+    Object.defineProperty(document, 'cookie', {
+      configurable: true,
+      value: `domus_csrf=${csrfToken}`
+    })
+    const upload = new Blob(['receipt image'], { type: 'image/jpeg' })
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ store_name: 'Coop', items: [], total_amount: 0 })
+    })
+
+    try {
+      await apiClient.request('/api/v1/receipts/parse-image', {
+        method: 'POST',
+        body: upload,
+        headers: { 'Content-Type': 'image/jpeg' },
+        timeoutMs: 0
+      })
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/v1/receipts/parse-image',
+        expect.objectContaining({
+          body: upload,
+          headers: expect.objectContaining({
+            'Content-Type': 'image/jpeg',
+            'X-CSRF-Token': csrfToken
+          })
+        })
+      )
+    } finally {
+      Object.defineProperty(document, 'cookie', { configurable: true, value: originalCookie })
+    }
+  })
+
 })

@@ -68,3 +68,17 @@ func TestBLEProxyAdapter_Ingestion(t *testing.T) {
 	err := adapter.IngestAdvertisement(ctx, adv)
 	require.NoError(t, err)
 }
+
+func TestBLEProxyAdapterHealthLifecycle(t *testing.T) {
+	adapter := NewAdapter("ble_lifecycle", nil)
+	ctx := context.Background()
+	require.Error(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Start(ctx))
+	require.NoError(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Start(ctx))
+	require.NoError(t, adapter.Stop(ctx))
+	require.Error(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Start(ctx))
+	require.NoError(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Stop(ctx))
+}
