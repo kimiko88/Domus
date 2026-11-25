@@ -189,7 +189,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	}
 
 	// Tuya Cloud & Smart Life direct integration (grant_type=1 + QR Code UID Link)
-	var tuyaCloudClient *tuya_cloud.Client
+	var tuyaCloudClient tuya_cloud.Provider
 	clientID := os.Getenv("TUYA_CLIENT_ID")
 	if clientID == "" { clientID = os.Getenv("TUYA_CLOUD_CLIENT_ID") }
 	secret := os.Getenv("TUYA_CLIENT_SECRET")
@@ -200,20 +200,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	uid := os.Getenv("TUYA_UID")
 	if uid == "" { uid = os.Getenv("TUYA_CLOUD_UID") }
 
-	if clientID != "" && secret != "" {
-		cloudClient, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID,
-			Secret:   secret,
-			BaseURL:  baseURL,
-			UID:      uid,
-			Schema:   os.Getenv("TUYA_CLOUD_SCHEMA"),
-		})
-		if err != nil {
-			slog.Error("tuya cloud integration disabled: invalid configuration", "error", err)
-		} else {
-			tuyaCloudClient = cloudClient
-		}
-	}
 
 	// End-user Smart Life OAuth uses a separate Tuya App Authorization key pair.
 	var tuyaOAuthHandler *handlers.TuyaOAuthHandler
@@ -335,9 +321,28 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					srv.openDisplayAdapter = typed
 				}
 			}
+			if clientID != "" && secret != "" {
+				pluginConfig, err := json.Marshal(map[string]any{
+					"client_id": clientID, "secret": secret, "base_url": baseURL,
+					"uid": uid, "schema": os.Getenv("TUYA_CLOUD_SCHEMA"),
+				})
+				if err != nil {
+					slog.Error("Tuya Cloud plugin config encoding failed", "error", err)
+				} else if adapter, err := manager.Prepare(context.Background(), tuya_cloud.PluginType, tuya_cloud.PluginType, pluginConfig); err != nil {
+					slog.Error("Tuya Cloud plugin preparation failed", "error", err)
+				} else if provider, ok := adapter.(tuya_cloud.Provider); ok {
+					tuyaCloudClient = provider
+				}
+			}
 			if err := manager.Start(context.Background()); err != nil {
 				slog.Error("plugin runtime failed to start", "error", err)
 			}
+		}
+		if tuyaCloudClient == nil && clientID != "" && secret != "" {
+			legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
+				ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
+			})
+			if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = legacyClient }
 		}
 	} else {
 		// Compatibility path for installations without the encrypted integration vault.
@@ -595,7 +600,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						pluginRouter.Delete("/instances/{id}", pluginH.Delete)
 					})
 				}
-				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
+				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient, srv.pluginRuntime)
 				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
 					cloudH.WithStorage(srv.repos.DB, srv.repos.Cipher)
 				}

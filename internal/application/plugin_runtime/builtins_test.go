@@ -20,9 +20,9 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	for _, manifest := range manifests { ids[manifest.ID] = true; require.Equal(t, plugins.ManifestAPIVersion, manifest.APIVersion); require.NotEmpty(t, manifest.Capabilities) }
 	multi := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
-	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "zwave_js", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
-	for _, want := range []string{"matter", "open_display"} { require.False(t, multi[want], "%s must remain single-instance", want) }
+	for _, want := range []string{"matter", "open_display", "tuya_cloud"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
@@ -46,6 +46,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"matter", "matter_controller", `{}`},
 		{"zwave_js", "zwave_upstairs", `{"ws_url":"ws://127.0.0.1:3000","auth_token":"zwave-test-secret"}`},
 		{"weather_openmeteo", "weather_forecast", `{}`},
+		{"tuya_cloud", "tuya_cloud", `{"client_id":"test-client","secret":"test-secret","base_url":"https://openapi.tuyaeu.com","uid":"test-user"}`},
 		{"ble_proxy", "ble_proxy_hall", `{}`},
 		{"tuya_local", "tuya_local_flat", `{}`},
 		{"broadlink_local", "broadlink_living_room", `{}`},

@@ -24,6 +24,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/mqtt_generic"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
+	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/zwave_js"
 	"github.com/domus-hub/domus/internal/plugins/voice_satellite"
 	"github.com/domus-hub/domus/internal/plugins/zigbee2mqtt"
@@ -212,6 +213,32 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
 		return weather_openmeteo.NewAdapter(instanceID), nil
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: tuya_cloud.PluginType, Name: "Tuya Cloud OpenAPI",
+		Version: "1.0.0", Description: "Tuya regional OpenAPI provider for account-linked device discovery and commands.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilitySecretsRead},
+		Config: []plugins.ConfigField{
+			{Name: "client_id", Type: "string", Required: true, Description: "Tuya IoT application client ID"},
+			{Name: "secret", Type: "string", Required: true, Secret: true, Description: "Tuya IoT application secret"},
+			{Name: "base_url", Type: "url", Required: true, Description: "Allowed Tuya regional HTTPS endpoint"},
+			{Name: "uid", Type: "string", Description: "Optional linked Smart Life user UID"},
+			{Name: "schema", Type: "string", Description: "Optional Tuya project schema"},
+		},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct {
+			ClientID string `json:"client_id"`
+			Secret string `json:"secret"`
+			BaseURL string `json:"base_url"`
+			UID string `json:"uid"`
+			Schema string `json:"schema"`
+		}](raw)
+		if err != nil { return nil, err }
+		return tuya_cloud.NewAdapter(instanceID, tuya_cloud.Config{
+			ClientID: wire.ClientID, Secret: wire.Secret, BaseURL: wire.BaseURL,
+			UID: wire.UID, Schema: wire.Schema,
+		})
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{

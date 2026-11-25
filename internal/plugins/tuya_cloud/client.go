@@ -30,6 +30,17 @@ type Config struct {
 	Schema     string
 	HTTPClient *http.Client
 }
+// Provider is the typed cloud service contract consumed by Domus handlers.
+// The protocol client and its supervised plugin adapter both implement it.
+type Provider interface {
+	Config() Config
+	SetCredentials(clientID, secret, baseURL, uid string)
+	Devices(ctx context.Context) ([]Device, error)
+	GetDevice(ctx context.Context, deviceID string) (*Device, error)
+	Functions(ctx context.Context, deviceID string) ([]Function, error)
+	SendCommands(ctx context.Context, deviceID string, commands []Command) error
+}
+
 type Client struct {
 	cfg         Config
 	http        *http.Client

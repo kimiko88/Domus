@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/user"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
@@ -23,7 +24,8 @@ import (
 // TuyaCloudHandler exposes server-side Tuya OpenAPI integration, device discovery,
 // and automatic provisioning into the local-first LAN adapter.
 type TuyaCloudHandler struct {
-	client    *tuya_cloud.Client
+	client    tuya_cloud.Provider
+	pluginManager *apppluginruntime.Manager
 	tuyaLocal *tuya_local.Adapter
 	db        *sql.DB
 	cipher    *crypto.EnvelopeCipher
@@ -31,8 +33,10 @@ type TuyaCloudHandler struct {
 }
 
 // NewTuyaCloudHandler creates a new TuyaCloudHandler instance.
-func NewTuyaCloudHandler(client *tuya_cloud.Client) *TuyaCloudHandler {
-	return &TuyaCloudHandler{client: client}
+func NewTuyaCloudHandler(client tuya_cloud.Provider, managers ...*apppluginruntime.Manager) *TuyaCloudHandler {
+	h := &TuyaCloudHandler{client: client}
+	if len(managers) > 0 { h.pluginManager = managers[0] }
+	return h
 }
 
 // WithLocalAdapter attaches the local LAN adapter for zero-cloud device handover.
@@ -260,7 +264,7 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *TuyaCloudHandler) getClient() *tuya_cloud.Client {
+func (h *TuyaCloudHandler) getClient() tuya_cloud.Provider {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.client
@@ -574,7 +578,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 // fetchMissingTuyaDeviceDetails hydrates list responses that omit the product
 // category or current status datapoints. The cloud list and detail APIs expose
 // different subsets of the same device record.
-func fetchMissingTuyaDeviceDetails(ctx context.Context, client *tuya_cloud.Client, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
+func fetchMissingTuyaDeviceDetails(ctx context.Context, client tuya_cloud.Provider, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
 	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "" && (!needLocalKey || dev.LocalKey != "")) {
 		return dev
 	}
