@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/integration"
@@ -100,5 +99,3 @@ func TestPluginRuntimeHandlerWithoutManagerReturnsUnavailable(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, response.Code)
 }
 
-// Ensure the helper repository remains safe when the test runner reuses handlers.
-var _ = time.Second
