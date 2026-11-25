@@ -13,6 +13,11 @@ import (
 
 	"github.com/domus-hub/domus/internal/infrastructure/mqtt"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	"github.com/domus-hub/domus/internal/plugins/weather_openmeteo"
+	"github.com/domus-hub/domus/internal/plugins/midea"
+	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
+	"github.com/domus-hub/domus/internal/plugins/vesync"
+	"github.com/domus-hub/domus/internal/plugins/imou_life"
 	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/domus-hub/domus/internal/plugins/ble_proxy"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
@@ -23,6 +28,8 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/mqtt_generic"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
+	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
+	"github.com/domus-hub/domus/internal/plugins/zwave_js"
 	"github.com/domus-hub/domus/internal/plugins/voice_satellite"
 	"github.com/domus-hub/domus/internal/plugins/zigbee2mqtt"
 )
@@ -176,6 +183,69 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "zwave_js", Name: "Z-Wave JS UI",
+		Version: "1.0.0", Description: "Connect a Z-Wave JS UI gateway over authenticated WebSocket.",
+		MultiInstance: true,
+		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
+		Config: []plugins.ConfigField{
+			{Name: "ws_url", Type: "url", Required: true, Description: "Z-Wave JS UI WebSocket URL (ws:// or wss://)"},
+			{Name: "auth_token", Type: "string", Secret: true, Description: "Optional Bearer token for the WebSocket bridge"},
+			{Name: "reconnect_interval", Type: "duration", Description: "Reconnect delay, default 5s"},
+		},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct {
+			WSURL string `json:"ws_url"`
+			AuthToken string `json:"auth_token"`
+			ReconnectInterval string `json:"reconnect_interval"`
+		}](raw)
+		if err != nil { return nil, err }
+		interval := 5 * time.Second
+		if wire.ReconnectInterval != "" {
+			interval, err = time.ParseDuration(wire.ReconnectInterval)
+			if err != nil { return nil, fmt.Errorf("zwave_js: invalid reconnect_interval: %w", err) }
+		}
+		return zwave_js.NewAdapterWithConfig(zwave_js.Config{
+			ID: instanceID, WebSocketURL: wire.WSURL, AuthToken: wire.AuthToken,
+			ReconnectInterval: interval, Logger: deps.Logger,
+		}, deps.Bus)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "weather_openmeteo", Name: "Open-Meteo Forecast",
+		Version: "1.0.0", Description: "Forecast provider for current conditions, hourly temperature, rain probability and solar radiation.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
+		return weather_openmeteo.NewAdapter(instanceID), nil
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: tuya_cloud.PluginType, Name: "Tuya Cloud OpenAPI",
+		Version: "1.0.0", Description: "Tuya regional OpenAPI provider for account-linked device discovery and commands.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilitySecretsRead},
+		Config: []plugins.ConfigField{
+			{Name: "client_id", Type: "string", Required: true, Description: "Tuya IoT application client ID"},
+			{Name: "secret", Type: "string", Required: true, Secret: true, Description: "Tuya IoT application secret"},
+			{Name: "base_url", Type: "url", Required: true, Description: "Allowed Tuya regional HTTPS endpoint"},
+			{Name: "uid", Type: "string", Description: "Optional linked Smart Life user UID"},
+			{Name: "schema", Type: "string", Description: "Optional Tuya project schema"},
+		},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct {
+			ClientID string `json:"client_id"`
+			Secret string `json:"secret"`
+			BaseURL string `json:"base_url"`
+			UID string `json:"uid"`
+			Schema string `json:"schema"`
+		}](raw)
+		if err != nil { return nil, err }
+		return tuya_cloud.NewAdapter(instanceID, tuya_cloud.Config{
+			ClientID: wire.ClientID, Secret: wire.Secret, BaseURL: wire.BaseURL,
+			UID: wire.UID, Schema: wire.Schema,
+		})
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "matter", Name: "Matter / Thread",
 		Version: "1.0.0", Description: "Matter controller adapter and commissioning workflow (controller transport remains experimental).",
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
@@ -269,6 +339,74 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			SpeechThreshold: wire.SpeechThreshold, SilenceDuration: silence,
 			MaxCommandDuration: maxCommand, HTTPTimeout: httpTimeout,
 		}, deps.Logger)
+	}); err != nil { return err }
+
+
+	// Cloud vendor clients use the same supervised runtime as LAN protocol
+	// adapters. Account OAuth/session material remains in the encrypted
+	// integration configuration owned by each feature handler.
+	timeoutField := []plugins.ConfigField{
+		{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
+	}
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "imou_life", Name: "Imou Life Cloud",
+		Version: "1.0.0", Description: "Imou OpenAPI, OAuth and event transport.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 12 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("imou_life: invalid http_timeout: %w", err) } }
+		return imou_life.NewAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "vesync_cloud", Name: "VeSync Cloud",
+		Version: "1.0.0", Description: "VeSync account sessions and device commands.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 8 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("vesync: invalid http_timeout: %w", err) } }
+		return vesync.NewAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_local", Name: "Xiaomi Home Local (miIO)",
+		Version: "1.0.0", Description: "Local miIO discovery and authenticated LAN control.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 2 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_local: invalid timeout: %w", err) } }
+		return xiaomi_home.NewLocalAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_cloud", Name: "Xiaomi Home Cloud",
+		Version: "1.0.0", Description: "Xiaomi Open Platform OAuth and MIoT cloud operations.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 12 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_cloud: invalid http_timeout: %w", err) } }
+		return xiaomi_home.NewCloudAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "midea_smarthome", Name: "Midea SmartHome (M-Smart A1)",
+		Version: "1.0.0", Description: "Local M-Smart V2/V3 protocol for supported A1 dehumidifiers.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
+		return midea.NewRuntimeAdapter(instanceID)
 	}); err != nil { return err }
 
 	if err := open_display.RegisterPlugin(registry); err != nil { return err }

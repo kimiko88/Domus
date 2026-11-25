@@ -64,6 +64,16 @@ func NewManager(repos *sqlite.Repositories, bus events.Bus) (*Manager, error) {
 
 func (m *Manager) Registry() *plugins.Registry { return m.registry }
 
+// GetAdapter returns a prepared adapter by instance ID. The returned value is
+// owned by the manager; callers may use its typed provider contract but must
+// not call Start or Stop directly.
+func (m *Manager) GetAdapter(instanceID string) (plugins.Adapter, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	adapter, ok := m.prepared[instanceID]
+	return adapter, ok
+}
+
 // ListTypes returns the manifests for every built-in adapter factory.
 func (m *Manager) ListTypes() []plugins.Manifest { return m.registry.List() }
 
@@ -88,7 +98,19 @@ func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, ra
 	}
 	m.mu.Lock()
 	m.prepared[instanceID] = adapter
+	started := m.started
 	m.mu.Unlock()
+	if started {
+		if err := m.supervisor.StartAdapter(ctx, instanceID); err != nil {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = m.supervisor.Unregister(stopCtx, instanceID)
+			cancel()
+			m.mu.Lock()
+			delete(m.prepared, instanceID)
+			m.mu.Unlock()
+			return nil, err
+		}
+	}
 	return adapter, nil
 }
 

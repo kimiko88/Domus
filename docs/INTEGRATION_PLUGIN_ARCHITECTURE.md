@@ -45,7 +45,7 @@ Modbus/Z-Wave  media providers  scanners        integrations
 | `AutomationActionProvider` | Espone azioni tipizzate per l'editor automazioni | BroadLink learn/send, OCPP charge profile |
 | `PanelExtension` | Aggiunge pagine/card UI dichiarative, senza eseguire script nel browser principale | dashboard add-on |
 
-Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le altre interfacce sono evoluzione intenzionale, non sono ancora implementate dal runtime corrente.
+Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone porte applicative tipizzate (per esempio `weather.ForecastProvider`): i provider implementano il contratto e il motore clima non dipende dall’SDK o dal vendor concreto. Le porte per voice, camera/NVR, media e geocoding restano da estrarre con lo stesso modello.
 
 ## Stato effettivo della migrazione
 
@@ -54,6 +54,9 @@ Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le al
 | Tipo | Funzione | Note |
 |---|---|---|
 | `mqtt_generic` | MQTT generico | Più istanze, broker e topic indipendenti |
+| `zwave_js` | Z-Wave JS UI | WebSocket autenticato, reconnect cancellabile, namespace entità per istanza |
+| `weather_openmeteo` | Forecast provider | Contratto `weather.ForecastProvider`, provider predefinito sostituibile dal core clima |
+| `tuya_cloud` | Tuya Cloud OpenAPI | Provider tipizzato e supervisionato; impostazioni account conservano compatibilità con il vault legacy cifrato |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -65,16 +68,16 @@ Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le al
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, KNX, Modbus TCP e BLE Proxy. Matter e OpenDisplay restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter e OpenDisplay restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
 | Integrazione | Codice attuale | Lavoro per renderla plugin |
 |---|---|---|
-| Z-Wave JS UI | `internal/plugins/zwave_js` | Completare lifecycle cancellabile, health/reconnect, unsubscribe e factory |
-| HomeKit Bridge | `internal/plugins/homekit` | Health check, unsubscribe e gestione di pairing/configurazione come istanza |
-| Voice Satellite | `internal/plugins/voice_satellite` | Factory/manifest, validazione ALSA/Wake Word, gestione segreti e lifecycle |
-| Tuya Cloud / Smart Life OAuth | `internal/plugins/tuya_cloud`, handler dedicati | Separare provider e account OAuth; mantenere il callback HTTP nel core ma delegare il client al plugin |
+
+| HomeKit Bridge | `internal/plugins/homekit` | Prima di registrarlo completare HAP server reale/advertising, pairing persistente, unsubscribe e protezione setup code; il bridge attuale non è ancora un servizio HAP completo |
+| Smart Life OAuth | `internal/plugins/tuya_cloud/oauth.go`, handler dedicati | Il client OpenAPI è già nel plugin; resta da integrare l’account linking OAuth, il callback e i token nel flusso di istanze cifrate |
+| Tuya Cloud option flow | `TuyaCloudHandler` + tabella legacy `tuya_cloud_config` | Il provider OpenAPI è registrato e viene creato dal runtime; completare la migrazione definitiva della configurazione account dal vault legacy allo storage comune del Plugin Manager |
 | Xiaomi Home locale/cloud | `internal/plugins/xiaomi_home`, handler dedicati | Adapter locale e provider cloud con credenziali cifrate per account/istanza |
 | Imou Life | `internal/plugins/imou_life`, handler | Adapter cloud con refresh token e callback eventi |
 | VeSync | `internal/plugins/vesync`, handler | Adapter cloud con sessione, refresh e sincronizzazione dispositivi |
@@ -89,7 +92,7 @@ Il catalogo brand attuale include driver/probe per Philips Hue, Shelly, TP-Link 
 
 ### Altri provider di servizio candidati
 
-- Meteo: `internal/application/weather/openmeteo.go` diventa un `ServiceProvider` sostituibile; il calcolo previsionale resta nel core clima.
+- Meteo: `weather_openmeteo` implementa `weather.ForecastProvider`; il calcolo previsionale resta nel core clima e altri provider potranno implementare lo stesso contratto.
 - STT/TTS: Wyoming/Whisper/Piper diventano provider vocali; la pipeline di intenti, contesto stanza e autorizzazioni rimane nel core assistant.
 - Telecamere/NVR: ONVIF/RTSP/vendor API sono provider plugin; registrazione, timeline, utenti e policy restano servizi core.
 - Media multi-room: driver AirPlay/Cast/DLNA sono provider plugin, mentre playlist, gruppi e scheduler restano nel core media.
@@ -145,8 +148,8 @@ Content-Type: application/json
 ## Roadmap consigliata
 
 1. **Chiudere il runtime adapter**: test contratto, stato health, lifecycle concorrente, installazione/disabilitazione atomica, isolamento storage per istanza, diagnostica e API config update.
-2. **Migrare Z-Wave, HomeKit e Voice Satellite**: sono già moduli quasi adapter e permettono di validare il contratto su WebSocket, bridge locale e processi ALSA.
-3. **Migrare vendor cloud**: Tuya Cloud/OAuth, Xiaomi, Imou, VeSync e Midea, con account multipli e secret store.
+2. **Completare i contratti già avviati**: Z-Wave JS e Voice Satellite sono già adapter registrati; completare HomeKit solo dopo il server HAP reale, pairing e advertising.
+3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI è già un provider registrato; restano Smart Life OAuth, Xiaomi, Imou, VeSync e Midea, con account e segreti per istanza.
 4. **Estrarre i driver brand**: Hue, Shelly, Kasa/Tapo, Nanoleaf, Yeelight dalla scansione brand monolitica a provider installabili.
 5. **Separare plugin di servizio**: meteo, voce, media, NVR e firewall con contratti specifici.
 6. **UI Store/Integrations unificata**: browse, install, option-flow, pairing, status, log e restart; mantenere redirect/API di compatibilità durante la migrazione.
@@ -164,7 +167,8 @@ Content-Type: application/json
 
 ## Stato test introdotti in questa tranche
 
-- Test dei manifest built-in e presenza dei protocolli registrati.
+- Test dei manifest built-in e presenza dei protocolli registrati, inclusa la factory Z-Wave JS UI.
+- Test Z-Wave su connessione WebSocket, comandi, namespace per istanza e ripristino della connessione dopo uno stop/riavvio.
 - Test di creazione typed per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, KNX, Modbus TCP, Matter sperimentale, BLE Proxy, Tuya Local, BroadLink e OpenDisplay.
 - Test con due istanze MQTT separate e test di rifiuto configurazioni errate.
 - Test Manager per configurazione cifrata, restore dopo riavvio, restart, enable/disable/delete e secret masking.

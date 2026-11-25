@@ -189,7 +189,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	}
 
 	// Tuya Cloud & Smart Life direct integration (grant_type=1 + QR Code UID Link)
-	var tuyaCloudClient *tuya_cloud.Client
+	var tuyaCloudClient tuya_cloud.Provider
 	clientID := os.Getenv("TUYA_CLIENT_ID")
 	if clientID == "" { clientID = os.Getenv("TUYA_CLOUD_CLIENT_ID") }
 	secret := os.Getenv("TUYA_CLIENT_SECRET")
@@ -200,20 +200,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 	uid := os.Getenv("TUYA_UID")
 	if uid == "" { uid = os.Getenv("TUYA_CLOUD_UID") }
 
-	if clientID != "" && secret != "" {
-		cloudClient, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID,
-			Secret:   secret,
-			BaseURL:  baseURL,
-			UID:      uid,
-			Schema:   os.Getenv("TUYA_CLOUD_SCHEMA"),
-		})
-		if err != nil {
-			slog.Error("tuya cloud integration disabled: invalid configuration", "error", err)
-		} else {
-			tuyaCloudClient = cloudClient
-		}
-	}
 
 	// End-user Smart Life OAuth uses a separate Tuya App Authorization key pair.
 	var tuyaOAuthHandler *handlers.TuyaOAuthHandler
@@ -335,8 +321,50 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					srv.openDisplayAdapter = typed
 				}
 			}
+			tuyaCloudInstanceID := ""
+			if instances, err := manager.ListInstances(context.Background()); err != nil {
+				slog.Warn("could not inspect saved plugin instances", "error", err)
+			} else {
+				for _, instance := range instances {
+					if instance.Type == tuya_cloud.PluginType {
+						if instance.Enabled { tuyaCloudInstanceID = instance.ID }
+						break
+					}
+				}
+			}
+			if tuyaCloudInstanceID == "" && clientID != "" && secret != "" {
+				pluginConfig, err := json.Marshal(map[string]any{
+					"client_id": clientID, "secret": secret, "base_url": baseURL,
+					"uid": uid, "schema": os.Getenv("TUYA_CLOUD_SCHEMA"),
+				})
+				if err != nil {
+					slog.Error("Tuya Cloud plugin config encoding failed", "error", err)
+				} else if adapter, err := manager.Prepare(context.Background(), tuya_cloud.PluginType, tuya_cloud.PluginType, pluginConfig); err != nil {
+					slog.Error("Tuya Cloud plugin preparation failed", "error", err)
+				} else {
+					tuyaCloudInstanceID = adapter.ID()
+				}
+			}
 			if err := manager.Start(context.Background()); err != nil {
 				slog.Error("plugin runtime failed to start", "error", err)
+			}
+			if tuyaCloudInstanceID != "" {
+				if adapter, ok := manager.GetAdapter(tuyaCloudInstanceID); ok {
+					if provider, ok := adapter.(tuya_cloud.Provider); ok { tuyaCloudClient = provider }
+				}
+			}
+			// A saved plugin instance may use a non-default instance ID (the
+			// protocol is single-instance, but IDs are user-defined in the manager UI).
+			if tuyaCloudClient == nil {
+				if instances, err := manager.ListInstances(context.Background()); err == nil {
+					for _, instance := range instances {
+						if instance.Type != tuya_cloud.PluginType || !instance.Enabled { continue }
+						if adapter, ok := manager.GetAdapter(instance.ID); ok {
+							if provider, ok := adapter.(tuya_cloud.Provider); ok { tuyaCloudClient = provider }
+						}
+						break
+					}
+				}
 			}
 		}
 	} else {
@@ -361,6 +389,22 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				srv.broadlinkAdapter = nil
 			}
 		}
+	}
+	if tuyaCloudClient == nil && clientID != "" && secret != "" {
+		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
+			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
+		})
+		if err != nil {
+			slog.Error("tuya cloud integration disabled: invalid configuration", "error", err)
+		} else {
+			tuyaCloudClient = legacyClient
+		}
+	}
+	if srv.pluginRuntime == nil && tuyaCloudClient == nil && clientID != "" && secret != "" {
+		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
+			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
+		})
+		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = legacyClient }
 	}
 	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
 		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)
@@ -595,7 +639,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						pluginRouter.Delete("/instances/{id}", pluginH.Delete)
 					})
 				}
-				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient)
+				cloudH := handlers.NewTuyaCloudHandler(tuyaCloudClient, srv.pluginRuntime)
 				if srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
 					cloudH.WithStorage(srv.repos.DB, srv.repos.Cipher)
 				}
@@ -978,7 +1022,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				mediaSvc := appmedia.NewService(mediaRepo, srv.bus)
 
-				weatherCli := appweather.NewClient()
+				var weatherCli appweather.ForecastProvider
+				if srv.pluginRuntime != nil {
+					if adapter, err := srv.pluginRuntime.Prepare(context.Background(), "weather_openmeteo", "weather_forecast", json.RawMessage(`{}`)); err != nil {
+						slog.Warn("Open-Meteo provider plugin unavailable; using application fallback client", "error", err)
+					} else if provider, ok := adapter.(appweather.ForecastProvider); ok {
+						weatherCli = provider
+					}
+				}
+				if weatherCli == nil {
+					weatherCli = appweather.NewClient()
+				}
 				meshSvc := appmesh.NewService(srv.repos.Devices)
 
 				var otaRepo appota.Repository = appota.NewMemoryRepository()

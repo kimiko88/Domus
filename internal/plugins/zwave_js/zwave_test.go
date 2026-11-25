@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func TestZWaveClientAndAdapter(t *testing.T) {
 		OccurredAt: time.Now(),
 		Source:     "user",
 		Payload: map[string]any{
-			"entity_key": "switch.zwave_node_12",
+			"entity_key": "switch.zwave_zwave_test_node_12",
 			"command":    "turn_on",
 		},
 	})
@@ -132,5 +133,90 @@ func TestZWaveClientAndAdapter(t *testing.T) {
 
 	if !foundSetVal {
 		t.Errorf("expected node.set_value command to be sent over websocket")
+	}
+}
+
+
+func TestZWaveAdapterReconnectsAfterGatewayDisconnect(t *testing.T) {
+	var connections atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer zwave-test-token" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil { return }
+		defer conn.Close()
+		attempt := connections.Add(1)
+		var start map[string]any
+		if err := conn.ReadJSON(&start); err != nil { return }
+		if start["command"] != "start_listening" { return }
+		if attempt == 1 {
+			// Simulate a bridge restart after the initial WebSocket handshake.
+			_ = conn.Close()
+			return
+		}
+		for {
+			var msg map[string]any
+			if err := conn.ReadJSON(&msg); err != nil { return }
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	adapter, err := zwave_js.NewAdapterWithConfig(zwave_js.Config{
+		ID: "zwave_reconnect_test", WebSocketURL: wsURL, AuthToken: "zwave-test-token",
+		ReconnectInterval: time.Second,
+	}, nil)
+	if err != nil { t.Fatalf("create adapter: %v", err) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := adapter.Start(ctx); err != nil { t.Fatalf("start adapter: %v", err) }
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) && connections.Load() < 2 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := connections.Load(); got < 2 {
+		t.Fatalf("expected automatic reconnect after the first connection dropped; got %d sessions", got)
+	}
+	if err := adapter.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("adapter should be healthy after reconnect: %v", err)
+	}
+	cancel()
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer stopCancel()
+	if err := adapter.Stop(stopCtx); err != nil {
+		t.Fatalf("stop adapter: %v", err)
+	}
+	if err := adapter.HealthCheck(context.Background()); err == nil {
+		t.Fatal("stopped adapter must not report healthy")
+	}
+}
+
+func TestZWaveInstancesUseDifferentEntityNamespaces(t *testing.T) {
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	keys := make(chan string, 2)
+	bus.Subscribe(events.EntityStateChanged, func(ctx context.Context, e events.Event) error {
+		payload, _ := e.Payload.(map[string]any)
+		key, _ := payload["entity_key"].(string)
+		keys <- key
+		return nil
+	})
+	first := zwave_js.NewAdapter("zwave_first_floor", "ws://127.0.0.1:3000", bus)
+	second := zwave_js.NewAdapter("zwave_second_floor", "ws://127.0.0.1:3001", bus)
+	first.ProcessValueUpdate(context.Background(), 4, zwave_js.CCBinarySwitch, "currentValue", true)
+	second.ProcessValueUpdate(context.Background(), 4, zwave_js.CCBinarySwitch, "currentValue", true)
+	got := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		select {
+		case key := <-keys:
+			got[key] = true
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for namespaced entity updates")
+		}
+	}
+	if !got["switch.zwave_zwave_first_floor_node_4"] || !got["switch.zwave_zwave_second_floor_node_4"] {
+		t.Fatalf("different Z-Wave instances must publish separate entity keys; got %#v", got)
 	}
 }

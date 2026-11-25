@@ -48,7 +48,7 @@ type EcosystemHandler struct {
 	notifMgr        *appNotif.Manager
 	calSvc          *appCal.Service
 	mediaSvc        *appMedia.Service
-	weatherCli      *appWeather.Client
+	weatherCli      appWeather.ForecastProvider
 	meshSvc         *appMesh.Service
 	otaSvc          *appOTA.Service
 	storeSvc        *appStore.Service
@@ -66,7 +66,7 @@ func NewEcosystemHandler(
 	notifMgr *appNotif.Manager,
 	calSvc *appCal.Service,
 	mediaSvc *appMedia.Service,
-	weatherCli *appWeather.Client,
+	weatherCli appWeather.ForecastProvider,
 	meshSvc *appMesh.Service,
 	otaSvc *appOTA.Service,
 	storeSvc *appStore.Service,

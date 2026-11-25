@@ -25,6 +25,12 @@ type WeatherReport struct {
 	FetchedAt          time.Time        `json:"fetched_at"`
 }
 
+// ForecastProvider is the narrow contract consumed by climate services.
+// Concrete HTTP clients and plugins can implement it interchangeably.
+type ForecastProvider interface {
+	FetchForecast(ctx context.Context, lat, lon float64) (*WeatherReport, error)
+}
+
 type Client struct {
 	httpClient *http.Client
 }

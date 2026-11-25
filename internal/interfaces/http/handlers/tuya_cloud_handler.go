@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/user"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
@@ -23,7 +24,8 @@ import (
 // TuyaCloudHandler exposes server-side Tuya OpenAPI integration, device discovery,
 // and automatic provisioning into the local-first LAN adapter.
 type TuyaCloudHandler struct {
-	client    *tuya_cloud.Client
+	client    tuya_cloud.Provider
+	pluginManager *apppluginruntime.Manager
 	tuyaLocal *tuya_local.Adapter
 	db        *sql.DB
 	cipher    *crypto.EnvelopeCipher
@@ -31,8 +33,10 @@ type TuyaCloudHandler struct {
 }
 
 // NewTuyaCloudHandler creates a new TuyaCloudHandler instance.
-func NewTuyaCloudHandler(client *tuya_cloud.Client) *TuyaCloudHandler {
-	return &TuyaCloudHandler{client: client}
+func NewTuyaCloudHandler(client tuya_cloud.Provider, managers ...*apppluginruntime.Manager) *TuyaCloudHandler {
+	h := &TuyaCloudHandler{client: client}
+	if len(managers) > 0 { h.pluginManager = managers[0] }
+	return h
 }
 
 // WithLocalAdapter attaches the local LAN adapter for zero-cloud device handover.
@@ -77,23 +81,76 @@ func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 		return fmt.Errorf("decrypt secret: %w", err)
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.client == nil {
-		c, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID,
-			Secret:   secret,
-			BaseURL:  endpoint,
-			UID:      uid,
-		})
-		if err != nil {
-			return err
-		}
-		h.client = c
-	} else {
-		h.client.SetCredentials(clientID, secret, endpoint, uid)
+	cfg := tuya_cloud.Config{ClientID: clientID, Secret: secret, BaseURL: endpoint, UID: uid}
+	h.mu.RLock()
+	current := h.client
+	h.mu.RUnlock()
+	if current != nil {
+		current.SetCredentials(clientID, secret, endpoint, uid)
+		return nil
 	}
+	provider, err := h.providerForConfig(ctx, cfg)
+	if err != nil { return err }
+	h.mu.Lock()
+	if h.client == nil { h.client = provider } else { h.client.SetCredentials(clientID, secret, endpoint, uid) }
+	h.mu.Unlock()
 	return nil
+}
+
+
+func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud.Config) (tuya_cloud.Provider, error) {
+	if h.pluginManager == nil {
+		return tuya_cloud.New(cfg)
+	}
+
+	// Do not reuse the short-declaration identifiers between sibling if-init
+	// statements: both initializers live in the containing pluginManager block.
+	if registeredAdapter, foundByDefaultID := h.pluginManager.GetAdapter(tuya_cloud.PluginType); foundByDefaultID {
+		registeredProvider, implementsProvider := registeredAdapter.(tuya_cloud.Provider)
+		if !implementsProvider {
+			return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+		}
+		registeredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+		return registeredProvider, nil
+	}
+
+	instances, err := h.pluginManager.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range instances {
+		if instance.Type != tuya_cloud.PluginType {
+			continue
+		}
+		if !instance.Enabled {
+			return nil, errors.New("tuya cloud: plugin instance is disabled")
+		}
+		if configuredAdapter, foundConfiguredInstance := h.pluginManager.GetAdapter(instance.ID); foundConfiguredInstance {
+			configuredProvider, implementsConfiguredProvider := configuredAdapter.(tuya_cloud.Provider)
+			if !implementsConfiguredProvider {
+				return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+			}
+			configuredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+			return configuredProvider, nil
+		}
+	}
+
+	raw, err := json.Marshal(map[string]any{
+		"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
+		"uid": cfg.UID, "schema": cfg.Schema,
+	})
+	if err != nil {
+		return nil, err
+	}
+	preparedAdapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
+	if err != nil {
+		return nil, err
+	}
+	preparedProvider, implementsPreparedProvider := preparedAdapter.(tuya_cloud.Provider)
+	if !implementsPreparedProvider {
+		return nil, errors.New("tuya cloud: plugin factory returned an incompatible provider")
+	}
+	return preparedProvider, nil
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
@@ -225,13 +282,21 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.mu.Lock()
-	if h.client == nil {
-		h.client = testClient
+	h.mu.RLock()
+	current := h.client
+	h.mu.RUnlock()
+	if current == nil {
+		provider, err := h.providerForConfig(r.Context(), testClient.Config())
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud provider could not be started")
+			return
+		}
+		h.mu.Lock()
+		if h.client == nil { h.client = provider } else { h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID) }
+		h.mu.Unlock()
 	} else {
-		h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
+		current.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
 	}
-	h.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
@@ -252,7 +317,18 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	if h.client != nil {
 		h.client.SetCredentials("", "", "", "")
 	}
+	h.client = nil
 	h.mu.Unlock()
+	if h.pluginManager != nil {
+		if instances, err := h.pluginManager.ListInstances(r.Context()); err == nil {
+			for _, instance := range instances {
+				if instance.Type == tuya_cloud.PluginType {
+					_ = h.pluginManager.Delete(r.Context(), instance.ID)
+					break
+				}
+			}
+		}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
@@ -260,7 +336,7 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *TuyaCloudHandler) getClient() *tuya_cloud.Client {
+func (h *TuyaCloudHandler) getClient() tuya_cloud.Provider {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.client
@@ -574,7 +650,7 @@ func (h *TuyaCloudHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 // fetchMissingTuyaDeviceDetails hydrates list responses that omit the product
 // category or current status datapoints. The cloud list and detail APIs expose
 // different subsets of the same device record.
-func fetchMissingTuyaDeviceDetails(ctx context.Context, client *tuya_cloud.Client, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
+func fetchMissingTuyaDeviceDetails(ctx context.Context, client tuya_cloud.Provider, dev tuya_cloud.Device, needLocalKey bool) tuya_cloud.Device {
 	if client == nil || (dev.Category != "" && len(dev.Status) > 0 && dev.ProductName != "" && (!needLocalKey || dev.LocalKey != "")) {
 		return dev
 	}
