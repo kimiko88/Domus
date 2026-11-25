@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/domus-hub/domus/internal/plugins/wyoming"
 )
 
 // AudioProcessResult contains the outcome of speech processing.
@@ -27,8 +29,10 @@ type AudioProcessResult struct {
 
 // VoicePipelineConfig defines endpoints and parameters for local Whisper and Piper.
 type VoicePipelineConfig struct {
-	WhisperEndpoint string  `json:"whisper_endpoint"`  // e.g. "http://localhost:10300" (Faster-Whisper/Wyoming)
-	PiperEndpoint   string  `json:"piper_endpoint"`    // e.g. "http://127.0.0.1:10301" (Domus HTTP adapter)
+	WhisperAddress  string  `json:"whisper_address,omitempty"` // Native Wyoming TCP address, e.g. 127.0.0.1:10300
+	PiperAddress    string  `json:"piper_address,omitempty"`   // Native Wyoming TCP address, e.g. 127.0.0.1:10200
+	WhisperEndpoint string  `json:"whisper_endpoint,omitempty"` // Optional HTTP adapter fallback
+	PiperEndpoint   string  `json:"piper_endpoint,omitempty"`   // Optional HTTP adapter fallback
 	Language        string  `json:"language"`          // "it", "en", etc.
 	VoiceModel      string  `json:"voice_model"`       // e.g. "it_IT-paola-medium"
 	VADThresholdRMS float64 `json:"vad_threshold_rms"` // RMS energy threshold to consider speech (e.g. 0.015)
@@ -44,6 +48,7 @@ type VoicePipeline struct {
 	cfg          VoicePipelineConfig
 	assistantSvc *Service
 	httpClient   *http.Client
+	wyomingClient *wyoming.Client
 	audioBuffers map[string]*bytes.Buffer // satelliteID -> accumulated PCM
 }
 
@@ -69,9 +74,14 @@ func NewVoicePipeline(cfg VoicePipelineConfig, assistantSvc *Service) *VoicePipe
 	}
 
 	return &VoicePipeline{
-		cfg:          cfg,
+		cfg: cfg,
 		assistantSvc: assistantSvc,
-		httpClient:   &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		wyomingClient: wyoming.NewClient(wyoming.Config{
+			WhisperAddr: strings.TrimSpace(cfg.WhisperAddress),
+			PiperAddr: strings.TrimSpace(cfg.PiperAddress),
+			Timeout: 30 * time.Second,
+		}),
 		audioBuffers: make(map[string]*bytes.Buffer),
 	}
 }
@@ -193,6 +203,9 @@ func (p *VoicePipeline) processTextPrompt(ctx context.Context, satelliteID, prom
 
 // TranscribeAudio calls local Whisper server or decodes speech.
 func (p *VoicePipeline) TranscribeAudio(ctx context.Context, pcmData []byte) (string, error) {
+	if strings.TrimSpace(p.cfg.WhisperAddress) != "" {
+		return p.wyomingClient.Transcribe(ctx, pcmData)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.WhisperEndpoint+"/transcribe", bytes.NewReader(pcmData))
 	if err != nil {
 		return "", err
@@ -220,6 +233,11 @@ func (p *VoicePipeline) TranscribeAudio(ctx context.Context, pcmData []byte) (st
 
 // SynthesizeSpeech calls local Piper TTS server to generate WAV audio for the response.
 func (p *VoicePipeline) SynthesizeSpeech(ctx context.Context, text string) ([]byte, error) {
+	if strings.TrimSpace(p.cfg.PiperAddress) != "" {
+		pcm, format, err := p.wyomingClient.SynthesizeWithFormat(ctx, text, p.cfg.VoiceModel)
+		if err != nil { return nil, err }
+		return encodePCMAsWAV(pcm, format)
+	}
 	payload, _ := json.Marshal(map[string]string{
 		"text":  text,
 		"voice": p.cfg.VoiceModel,
@@ -276,4 +294,34 @@ func (p *VoicePipeline) generateBeepWAV(freqHz float64, durationMs int) []byte {
 	binary.LittleEndian.PutUint32(wavHeader[40:44], uint32(len(pcmData)))
 
 	return append(wavHeader, pcmData...)
+}
+
+
+// encodePCMAsWAV wraps Wyoming PCM audio using its negotiated sample format.
+func encodePCMAsWAV(pcm []byte, format wyoming.AudioFormat) ([]byte, error) {
+	if len(pcm) == 0 || len(pcm) > maxVoiceResponseBytes ||
+		format.SampleRate < 8000 || format.SampleRate > 96000 ||
+		format.SampleWidth != 2 || format.Channels < 1 || format.Channels > 2 {
+		return nil, fmt.Errorf("voice_pipeline: unsupported or invalid Wyoming PCM format")
+	}
+	blockAlign := format.SampleWidth * format.Channels
+	if len(pcm)%blockAlign != 0 {
+		return nil, fmt.Errorf("voice_pipeline: PCM byte count is not frame-aligned")
+	}
+	wav := make([]byte, 44+len(pcm))
+	copy(wav[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(wav[4:8], uint32(36+len(pcm)))
+	copy(wav[8:12], "WAVE")
+	copy(wav[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:20], 16)
+	binary.LittleEndian.PutUint16(wav[20:22], 1)
+	binary.LittleEndian.PutUint16(wav[22:24], uint16(format.Channels))
+	binary.LittleEndian.PutUint32(wav[24:28], uint32(format.SampleRate))
+	binary.LittleEndian.PutUint32(wav[28:32], uint32(format.SampleRate*blockAlign))
+	binary.LittleEndian.PutUint16(wav[32:34], uint16(blockAlign))
+	binary.LittleEndian.PutUint16(wav[34:36], 16)
+	copy(wav[36:40], "data")
+	binary.LittleEndian.PutUint32(wav[40:44], uint32(len(pcm)))
+	copy(wav[44:], pcm)
+	return wav, nil
 }
