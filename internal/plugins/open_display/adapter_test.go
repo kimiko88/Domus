@@ -73,8 +73,9 @@ func TestCallActionRejectsUnknownOfflineAndReservedTransport(t *testing.T) {
 	if err := adapter.CallAction(context.Background(), "AA:BB:CC:DD:EE:01", "led", json.RawMessage(`not-json`)); err == nil {
 		t.Fatal("expected malformed JSON to be rejected")
 	}
-	if err := adapter.CallAction(context.Background(), "AA:BB:CC:DD:EE:01", "led", json.RawMessage(`[]`)); err == nil || !strings.Contains(err.Error(), "JSON object") {
-		t.Fatalf("expected JSON object validation error, got %v", err)
+	adapter.known["AA:BB:CC:DD:EE:02"] = DeviceInfo{Address: "AA:BB:CC:DD:EE:02", Transport: "ble", Online: true}
+	if err := adapter.CallAction(context.Background(), "AA:BB:CC:DD:EE:02", "led", json.RawMessage(`[]`)); err == nil || !strings.Contains(err.Error(), "JSON object") {
+		t.Fatalf("expected JSON object validation error for online device, got %v", err)
 	}
 }
 

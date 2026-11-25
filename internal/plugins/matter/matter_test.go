@@ -87,3 +87,18 @@ func TestMatter_AdapterLifecycleAndCommissioning(t *testing.T) {
 	assert.Equal(t, uint8(200), node.Level)
 	assert.True(t, node.OnOff)
 }
+
+func TestMatterAdapterSupervisorLifecycle(t *testing.T) {
+	adapter := NewAdapter("matter_lifecycle", nil)
+	ctx := context.Background()
+	require.Error(t, adapter.HealthCheck(ctx), "health check must fail before Start")
+	require.NoError(t, adapter.Start(ctx))
+	require.NoError(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Start(ctx), "Start should be idempotent")
+	require.NoError(t, adapter.Stop(ctx))
+	require.Error(t, adapter.HealthCheck(ctx), "health check must fail after Stop")
+	require.NoError(t, adapter.Stop(ctx), "Stop should be idempotent")
+	require.NoError(t, adapter.Start(ctx), "adapter must be startable after Stop")
+	require.NoError(t, adapter.HealthCheck(ctx))
+	require.NoError(t, adapter.Stop(ctx))
+}
