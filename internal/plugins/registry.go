@@ -62,6 +62,7 @@ var knownCapabilities = map[Capability]struct{}{
 	CapabilityNetworkLAN: {}, CapabilityNetworkCloud: {},
 	CapabilitySecretsRead: {}, CapabilitySecretsWrite: {},
 	CapabilityStorageRead: {}, CapabilityStorageWrite: {},
+	CapabilityAudioCapture: {},
 }
 
 // ConfigField documents and validates one plugin setting. Supported types are
