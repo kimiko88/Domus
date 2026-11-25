@@ -125,3 +125,14 @@ func TestManagerStartsPluginsPreparedAfterRuntimeStartup(t *testing.T) {
 	require.Equal(t, "weather_forecast", adapter.ID())
 	require.NoError(t, adapter.HealthCheck(ctx))
 }
+
+
+func TestManagerFindsPreparedAdapterByTypeWithCustomInstanceID(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	adapter, err := manager.Prepare(context.Background(), "tuya_cloud", "tuya_cloud_custom", json.RawMessage(`{"client_id":"test-client","secret":"test-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-test-user"}`))
+	require.NoError(t, err)
+	got, ok := manager.GetAdapterByType("tuya_cloud")
+	require.True(t, ok)
+	require.Same(t, adapter, got)
+	require.Equal(t, "tuya_cloud_custom", got.ID())
+}
