@@ -73,6 +73,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "mqtt_generic", Name: "MQTT Generic",
 		Version: "1.0.0", Description: "Generic MQTT state and command topics.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: append(append([]plugins.ConfigField{}, mqttFields...),
 			plugins.ConfigField{Name: "state_topic_pattern", Type: "string", Description: "State subscription pattern; defaults to domus/+/state"},
@@ -90,6 +91,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "zigbee2mqtt", Name: "Zigbee2MQTT",
 		Version: "1.0.0", Description: "Connect a Zigbee2MQTT bridge over MQTT.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: append(append([]plugins.ConfigField{}, mqttFields...), plugins.ConfigField{Name: "base_topic", Type: "string", Description: "Zigbee2MQTT base topic; defaults to zigbee2mqtt"}),
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
@@ -104,6 +106,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "esphome_mqtt", Name: "ESPHome MQTT",
 		Version: "1.0.0", Description: "Connect ESPHome nodes via their MQTT API.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: append(append([]plugins.ConfigField{}, mqttFields...), plugins.ConfigField{Name: "topic_prefix", Type: "string", Description: "Optional ESPHome MQTT topic prefix"}),
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
@@ -118,6 +121,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "knx", Name: "KNXnet/IP",
 		Version: "1.0.0", Description: "Connect a KNX/IP router and map group addresses to Domus entities.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: []plugins.ConfigField{
 			{Name: "gateway_addr", Type: "string", Required: true, Description: "KNX/IP gateway host:port"},
@@ -136,6 +140,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "modbus_tcp", Name: "Modbus TCP",
 		Version: "1.0.0", Description: "Poll Modbus TCP registers and expose mapped values as Domus entities.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: []plugins.ConfigField{
 			{Name: "host", Type: "string", Required: true}, {Name: "port", Type: "integer", Description: "Default 502"},
@@ -181,6 +186,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "ble_proxy", Name: "ESPHome BLE Proxy",
 		Version: "1.0.0", Description: "Decode forwarded BLE advertisements (BTHome v2 and iBeacon) from LAN proxies.",
+		MultiInstance: true,
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }

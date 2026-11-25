@@ -19,6 +19,8 @@ import (
 	"github.com/domus-hub/domus/internal/plugins"
 )
 
+var ErrSingleInstance = errors.New("plugin_runtime: this plugin type supports only one instance")
+
 var integrationIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 type Manager struct {
@@ -28,6 +30,7 @@ type Manager struct {
 	supervisor *plugins.Supervisor
 	deps plugins.Dependencies
 	mu sync.Mutex
+	instanceMu sync.Mutex
 	prepared map[string]plugins.Adapter
 	started bool
 }
@@ -65,6 +68,8 @@ func (m *Manager) Registry() *plugins.Registry { return m.registry }
 func (m *Manager) ListTypes() []plugins.Manifest { return m.registry.List() }
 
 func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, raw json.RawMessage) (plugins.Adapter, error) {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
 	if !integrationIDPattern.MatchString(instanceID) {
 		return nil, errors.New("plugin_runtime: invalid integration instance ID")
 	}
@@ -74,6 +79,7 @@ func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, ra
 		return nil, plugins.ErrAdapterExists
 	}
 	m.mu.Unlock()
+	if err := m.validateInstanceMultiplicity(ctx, pluginType, instanceID); err != nil { return nil, err }
 	adapter, err := m.registry.Create(ctx, pluginType, instanceID, raw, m.deps)
 	if err != nil { return nil, err }
 	if err := m.supervisor.Register(adapter); err != nil {
@@ -125,6 +131,38 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
+func (m *Manager) validateInstanceMultiplicity(ctx context.Context, pluginType, instanceID string) error {
+	var multiInstance bool
+	foundType := false
+	for _, manifest := range m.registry.List() {
+		if manifest.ID == pluginType {
+			foundType = true
+			multiInstance = manifest.MultiInstance
+			break
+		}
+	}
+	if !foundType || multiInstance {
+		return nil
+	}
+	records, err := m.repo.List(ctx)
+	if err != nil {
+		return fmt.Errorf("plugin_runtime: check existing plugin instances: %w", err)
+	}
+	for _, record := range records {
+		if record != nil && record.Type == pluginType && record.ID != instanceID {
+			return ErrSingleInstance
+		}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, adapter := range m.prepared {
+		if id != instanceID && adapter != nil && adapter.Type() == pluginType {
+			return ErrSingleInstance
+		}
+	}
+	return nil
+}
+
 func (m *Manager) hasType(id string) bool {
 	for _, manifest := range m.registry.List() {
 		if manifest.ID == id { return true }
@@ -141,11 +179,14 @@ func (m *Manager) decryptConfig(raw []byte) (json.RawMessage, error) {
 }
 
 func (m *Manager) Create(ctx context.Context, id, pluginType, name string, config json.RawMessage, enabled bool) (Instance, error) {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
 	id, name = strings.TrimSpace(id), strings.TrimSpace(name)
 	if !integrationIDPattern.MatchString(id) || name == "" || len(name) > 128 {
 		return Instance{}, errors.New("plugin_runtime: integration ID or name is invalid")
 	}
 	if len(config) == 0 { config = json.RawMessage(`{}`) }
+	if err := m.validateInstanceMultiplicity(ctx, pluginType, id); err != nil { return Instance{}, err }
 	adapter, err := m.registry.Create(ctx, pluginType, id, config, m.deps)
 	if err != nil { return Instance{}, err }
 	encrypted, err := m.cipher.Encrypt(string(config))
