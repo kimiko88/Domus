@@ -179,24 +179,117 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
   })
 }
 
-async function loadBrowserImage(file: File): Promise<{ image: HTMLImageElement; objectURL: string }> {
+type LoadedReceiptImage = {
+  source: CanvasImageSource
+  width: number
+  height: number
+  dispose: () => void
+}
+
+function hasHeicHint(file: File): boolean {
+  return /\\.(heic|heif)$/i.test(file.name) ||
+    ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'].includes(file.type.toLowerCase())
+}
+
+async function loadHeicImage(file: File): Promise<LoadedReceiptImage | null> {
+  // Load the decoder only for files that need it; normal JPEG/PNG uploads do
+  // not pay the WASM download or initialization cost.
+  const { heicTo, isHeic } = await import('heic-to/csp')
+  if (!(await isHeic(file))) return null
+
+  const bitmap = await heicTo({
+    blob: file,
+    type: 'bitmap',
+    options: { imageOrientation: 'from-image' }
+  })
+  if (!bitmap.width || !bitmap.height) {
+    bitmap.close()
+    throw new Error('HEIC image has invalid dimensions')
+  }
+
+  return {
+    source: bitmap,
+    width: bitmap.width,
+    height: bitmap.height,
+    dispose: () => bitmap.close()
+  }
+}
+
+async function waitForBrowserImage(image: HTMLImageElement): Promise<void> {
+  if (image.complete) {
+    if (image.naturalWidth > 0 && image.naturalHeight > 0) return
+    throw new Error('Unsupported or damaged image format')
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    image.addEventListener('load', () => resolve(), { once: true })
+    image.addEventListener('error', () => reject(new Error('Unsupported or damaged image format')), { once: true })
+  })
+
+  if (!image.naturalWidth || !image.naturalHeight) {
+    throw new Error('Unsupported or damaged image format')
+  }
+}
+
+async function loadBrowserImage(file: File): Promise<LoadedReceiptImage> {
+  // iOS Photos commonly supplies HEIC/HEIF files. Safari's HTMLImageElement
+  // decoder does not handle every such file, so use the local libheif/WASM
+  // decoder before falling back to the browser's native image pipeline.
+  if (hasHeicHint(file)) {
+    try {
+      const heicImage = await loadHeicImage(file)
+      if (heicImage) return heicImage
+    } catch {
+      // Some iOS providers use a generic MIME type or a renamed file. Try
+      // the normal browser decoder below before reporting a useful error.
+    }
+  }
+
   const objectURL = URL.createObjectURL(file)
   try {
     const image = new Image()
     image.decoding = 'async'
     image.src = objectURL
     if (typeof image.decode === 'function') {
-      await image.decode()
+      try {
+        await image.decode()
+      } catch (decodeError) {
+        // Safari can reject decode() even when the image's load event succeeds.
+        // Fall back to the actual load state before treating it as unreadable.
+        try {
+          await waitForBrowserImage(image)
+        } catch {
+          throw decodeError
+        }
+      }
     } else {
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve()
-        image.onerror = () => reject(new Error('Unsupported image format'))
-      })
+      await waitForBrowserImage(image)
     }
-    return { image, objectURL }
-  } catch (error) {
+
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new Error('Unsupported or damaged image format')
+    }
+
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      dispose: () => URL.revokeObjectURL(objectURL)
+    }
+  } catch (browserError) {
     URL.revokeObjectURL(objectURL)
-    throw error
+
+    // Last-chance signature detection handles HEIC files returned by iOS
+    // without a useful filename extension or MIME type.
+    if (!hasHeicHint(file)) {
+      try {
+        const heicImage = await loadHeicImage(file)
+        if (heicImage) return heicImage
+      } catch {
+        // Preserve the original browser error for unsupported non-HEIC files.
+      }
+    }
+    throw browserError
   }
 }
 
@@ -206,10 +299,9 @@ async function normalizeReceiptImage(file: File, rotation = 0): Promise<File> {
   }
 
   const loaded = await loadBrowserImage(file)
-  const image = loaded.image
   try {
-  const sourceWidth = image.naturalWidth
-  const sourceHeight = image.naturalHeight
+  const sourceWidth = loaded.width
+  const sourceHeight = loaded.height
   if (!sourceWidth || !sourceHeight || sourceWidth * sourceHeight > 60_000_000) {
     throw new Error(t('shopping.view.receiptScanner.imageDimensionsTooLarge'))
   }
@@ -234,7 +326,7 @@ async function normalizeReceiptImage(file: File, rotation = 0): Promise<File> {
     context.translate(canvas.width / 2, canvas.height / 2)
     context.rotate(angle * Math.PI / 180)
     context.drawImage(
-      image,
+      loaded.source,
       -drawWidth * factor / 2,
       -drawHeight * factor / 2,
       drawWidth * factor,
@@ -253,7 +345,7 @@ async function normalizeReceiptImage(file: File, rotation = 0): Promise<File> {
 
   throw new Error(t('shopping.view.receiptScanner.imageStillTooLarge'))
   } finally {
-    URL.revokeObjectURL(loaded.objectURL)
+    loaded.dispose()
   }
 }
 
