@@ -54,6 +54,7 @@ Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le al
 | Tipo | Funzione | Note |
 |---|---|---|
 | `mqtt_generic` | MQTT generico | Più istanze, broker e topic indipendenti |
+| `zwave_js` | Z-Wave JS UI | WebSocket autenticato, reconnect cancellabile, namespace entità per istanza |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -65,13 +66,13 @@ Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le al
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, KNX, Modbus TCP e BLE Proxy. Matter e OpenDisplay restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter e OpenDisplay restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
 | Integrazione | Codice attuale | Lavoro per renderla plugin |
 |---|---|---|
-| Z-Wave JS UI | `internal/plugins/zwave_js` | Completare lifecycle cancellabile, health/reconnect, unsubscribe e factory |
+
 | HomeKit Bridge | `internal/plugins/homekit` | Health check, unsubscribe e gestione di pairing/configurazione come istanza |
 | Voice Satellite | `internal/plugins/voice_satellite` | Factory/manifest, validazione ALSA/Wake Word, gestione segreti e lifecycle |
 | Tuya Cloud / Smart Life OAuth | `internal/plugins/tuya_cloud`, handler dedicati | Separare provider e account OAuth; mantenere il callback HTTP nel core ma delegare il client al plugin |
@@ -164,7 +165,8 @@ Content-Type: application/json
 
 ## Stato test introdotti in questa tranche
 
-- Test dei manifest built-in e presenza dei protocolli registrati.
+- Test dei manifest built-in e presenza dei protocolli registrati, inclusa la factory Z-Wave JS UI.
+- Test Z-Wave su connessione WebSocket, comandi, namespace per istanza e ripristino della connessione dopo uno stop/riavvio.
 - Test di creazione typed per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, KNX, Modbus TCP, Matter sperimentale, BLE Proxy, Tuya Local, BroadLink e OpenDisplay.
 - Test con due istanze MQTT separate e test di rifiuto configurazioni errate.
 - Test Manager per configurazione cifrata, restore dopo riavvio, restart, enable/disable/delete e secret masking.

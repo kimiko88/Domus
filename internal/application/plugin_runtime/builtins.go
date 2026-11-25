@@ -23,6 +23,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/mqtt_generic"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
+	"github.com/domus-hub/domus/internal/plugins/zwave_js"
 	"github.com/domus-hub/domus/internal/plugins/voice_satellite"
 	"github.com/domus-hub/domus/internal/plugins/zigbee2mqtt"
 )
@@ -173,6 +174,34 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		if port < 1 || port > 65535 { return nil, errors.New("modbus_tcp: port must be 1..65535") }
 		client := modbus_tcp.NewTCPClient(net.JoinHostPort(wire.Host, strconv.Itoa(port)), 5*time.Second)
 		return modbus_tcp.NewAdapter(modbus_tcp.Config{IntegrationID: instanceID, Host: wire.Host, Port: port, UnitID: uint8(wire.UnitID), PollInterval: interval, Registers: wire.Registers}, client, deps.Entities, deps.Bus, deps.Logger), nil
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "zwave_js", Name: "Z-Wave JS UI",
+		Version: "1.0.0", Description: "Connect a Z-Wave JS UI gateway over authenticated WebSocket.",
+		MultiInstance: true,
+		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
+		Config: []plugins.ConfigField{
+			{Name: "ws_url", Type: "url", Required: true, Description: "Z-Wave JS UI WebSocket URL (ws:// or wss://)"},
+			{Name: "auth_token", Type: "string", Secret: true, Description: "Optional Bearer token for the WebSocket bridge"},
+			{Name: "reconnect_interval", Type: "duration", Description: "Reconnect delay, default 5s"},
+		},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct {
+			WSURL string `json:"ws_url"`
+			AuthToken string `json:"auth_token"`
+			ReconnectInterval string `json:"reconnect_interval"`
+		}](raw)
+		if err != nil { return nil, err }
+		interval := 5 * time.Second
+		if wire.ReconnectInterval != "" {
+			interval, err = time.ParseDuration(wire.ReconnectInterval)
+			if err != nil { return nil, fmt.Errorf("zwave_js: invalid reconnect_interval: %w", err) }
+		}
+		return zwave_js.NewAdapterWithConfig(zwave_js.Config{
+			ID: instanceID, WebSocketURL: wire.WSURL, AuthToken: wire.AuthToken,
+			ReconnectInterval: interval, Logger: deps.Logger,
+		}, deps.Bus)
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{

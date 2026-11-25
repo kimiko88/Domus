@@ -110,7 +110,7 @@ func TestZWaveClientAndAdapter(t *testing.T) {
 		OccurredAt: time.Now(),
 		Source:     "user",
 		Payload: map[string]any{
-			"entity_key": "switch.zwave_node_12",
+			"entity_key": "switch.zwave_zwave_test_node_12",
 			"command":    "turn_on",
 		},
 	})
