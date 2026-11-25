@@ -34,6 +34,7 @@ import (
 	apphist "github.com/domus-hub/domus/internal/application/history"
 	applogbook "github.com/domus-hub/domus/internal/application/logbook"
 	appmedia "github.com/domus-hub/domus/internal/application/media"
+	appmarketplace "github.com/domus-hub/domus/internal/application/marketplace"
 	appmed "github.com/domus-hub/domus/internal/application/medicine"
 	appmesh "github.com/domus-hub/domus/internal/application/mesh"
 	appnotif "github.com/domus-hub/domus/internal/application/notification"
@@ -954,6 +955,19 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				storeSvc := appstore.NewService(storeRepo)
 
+				var marketplaceH *handlers.MarketplaceHandler
+				if srv.repos.DB != nil {
+					marketplaceSvc, marketplaceErr := appmarketplace.NewService(
+						sqlite.NewMarketplaceRepository(srv.repos.DB),
+						appmarketplace.ConfigFromEnv(),
+					)
+					if marketplaceErr != nil {
+						slog.Error("plugin marketplace disabled: invalid configuration", "error", marketplaceErr)
+					} else {
+						marketplaceH = handlers.NewMarketplaceHandler(marketplaceSvc)
+					}
+				}
+
 				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
 				if rawSatellites := strings.TrimSpace(os.Getenv("DOMUS_VOICE_SATELLITES_JSON")); rawSatellites != "" {
 					if err := assistantSvc.ConfigureSatellitesJSON(rawSatellites); err != nil {
@@ -1183,6 +1197,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					stRouter.Post("/community/submit", ecoH.SubmitCommunityPackage)
 					stRouter.Post("/community/{id}/approve", ecoH.ApproveCommunityPackage)
 					stRouter.Post("/community/{id}/reject", ecoH.RejectCommunityPackage)
+					if marketplaceH != nil {
+						stRouter.Get("/repositories", marketplaceH.ListRepositories)
+						stRouter.Post("/repositories", marketplaceH.AddRepository)
+						stRouter.Delete("/repositories/{id}", marketplaceH.RemoveRepository)
+						stRouter.Post("/repositories/{id}/sync", marketplaceH.SyncRepository)
+						stRouter.Get("/catalog/packages", marketplaceH.ListPackages)
+						stRouter.Post("/catalog/packages/{id}/install", marketplaceH.InstallPackage)
+						stRouter.Post("/catalog/packages/{id}/uninstall", marketplaceH.UninstallPackage)
+					}
 				})
 
 				// Shared Shopping List routes

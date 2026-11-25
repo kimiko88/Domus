@@ -15,6 +15,8 @@ import (
     "net/http"
     "net/url"
     "os"
+    "strconv"
+    "os"
     "path/filepath"
     "regexp"
     "strings"
@@ -429,4 +431,29 @@ func (s *Service) UninstallArtifact(ctx context.Context, packageID string) (*Pac
     pkg.UpdatedAt = time.Now().UTC()
     if err := s.repo.SavePackage(ctx, pkg); err != nil { return nil, err }
     return pkg, nil
+}
+
+
+// ConfigFromEnv reads marketplace trust and staging settings. Only public signing
+// keys are accepted here; private signing keys belong in the repository CI system.
+func ConfigFromEnv() Config {
+    maxBytes := int64(16 << 20)
+    if raw := strings.TrimSpace(os.Getenv("DOMUS_STORE_MAX_ARTIFACT_BYTES")); raw != "" {
+        if value, err := strconv.ParseInt(raw, 10, 64); err == nil && value > 0 {
+            maxBytes = value
+        }
+    }
+    allowUntrusted := false
+    if raw := strings.TrimSpace(os.Getenv("DOMUS_STORE_ALLOW_UNTRUSTED_REPOSITORIES")); raw != "" {
+        allowUntrusted, _ = strconv.ParseBool(raw)
+    }
+    root := strings.TrimSpace(os.Getenv("DOMUS_STORE_INSTALL_ROOT"))
+    if root == "" { root = "./data/marketplace" }
+    return Config{
+        TrustedKeysJSON: strings.TrimSpace(os.Getenv("DOMUS_STORE_TRUSTED_KEYS_JSON")),
+        AllowUntrustedRepositories: allowUntrusted,
+        InstallRoot: root,
+        MaxArtifactBytes: maxBytes,
+        DomusVersion: strings.TrimSpace(os.Getenv("DOMUS_VERSION")),
+    }
 }
