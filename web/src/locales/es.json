@@ -1502,6 +1502,8 @@
     "gasMeter": "Contador de Gas Natural",
     "powerWheelTitle": "Flujos de energía en tiempo real",
     "powerWheelSubtitle": "Visualización dinámica de los vectores energéticos con partículas animadas.",
+    "tariffEstimateWarning": "Curva de demostración: los precios mostrados son estimaciones, no cotizaciones de mercado verificadas. La optimización automática no controlará las cargas hasta que haya una tarifa fiable.",
+    "loadPowerRequired": "Configura la potencia media de la carga (kW) para calcular costes y ahorros.",
     "inverter": "Inversor",
     "inverterStatus": "Estado del inversor",
     "arbitrageSavingsToday": "Ahorro por arbitraje hoy",

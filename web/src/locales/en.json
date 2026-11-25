@@ -1502,6 +1502,8 @@
     "gasMeter": "Natural Gas Meter",
     "powerWheelTitle": "Real-time energy flows",
     "powerWheelSubtitle": "Dynamic visualization of energy flows with animated particles.",
+    "tariffEstimateWarning": "Preview curve: displayed prices are estimates, not verified market quotes. Automatic optimization will not control loads until a trusted tariff is available.",
+    "loadPowerRequired": "Configure the load's average power (kW) to calculate costs and savings.",
     "inverter": "Inverter",
     "inverterStatus": "Inverter status",
     "arbitrageSavingsToday": "Arbitrage savings today",

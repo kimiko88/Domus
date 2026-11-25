@@ -1502,6 +1502,8 @@
     "gasMeter": "Contatore Gas Metano",
     "powerWheelTitle": "Flussi energetici in tempo reale",
     "powerWheelSubtitle": "Visualizzazione dinamica dei vettori energetici con particelle animate.",
+    "tariffEstimateWarning": "Curva dimostrativa: i prezzi mostrati sono stime, non quotazioni di mercato verificate. L’ottimizzazione automatica non comanda i carichi finché non è disponibile una tariffa verificata.",
+    "loadPowerRequired": "Configura la potenza media (kW) del carico per calcolare costi e risparmi.",
     "inverter": "Inverter",
     "inverterStatus": "Stato inverter",
     "arbitrageSavingsToday": "Risparmio da arbitraggio oggi",

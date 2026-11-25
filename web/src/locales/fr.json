@@ -1502,6 +1502,8 @@
     "gasMeter": "Compteur de Gaz Naturel",
     "powerWheelTitle": "Flux énergétiques en temps réel",
     "powerWheelSubtitle": "Visualisation dynamique des flux énergétiques avec des particules animées.",
+    "tariffEstimateWarning": "Courbe de démonstration : les prix affichés sont des estimations et non des cotations de marché vérifiées. L’optimisation automatique ne commande aucun appareil tant qu’un tarif fiable n’est pas disponible.",
+    "loadPowerRequired": "Configurez la puissance moyenne de l’appareil (kW) pour calculer les coûts et les économies.",
     "inverter": "Onduleur",
     "inverterStatus": "État de l’onduleur",
     "arbitrageSavingsToday": "Économies d’arbitrage aujourd’hui",
