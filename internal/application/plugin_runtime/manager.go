@@ -61,6 +61,9 @@ func NewManager(repos *sqlite.Repositories, bus events.Bus) (*Manager, error) {
 
 func (m *Manager) Registry() *plugins.Registry { return m.registry }
 
+// ListTypes returns the manifests for every built-in adapter factory.
+func (m *Manager) ListTypes() []plugins.Manifest { return m.registry.List() }
+
 func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, raw json.RawMessage) (plugins.Adapter, error) {
 	if !integrationIDPattern.MatchString(instanceID) {
 		return nil, errors.New("plugin_runtime: invalid integration instance ID")
@@ -297,5 +300,5 @@ func safeError(err error) string {
 	message := strings.TrimSpace(err.Error())
 	if len(message) > 240 { message = message[:240] }
 	// Do not persist full remote response bodies, URLs with credentials or plugin config.
-	return "plugin startup/configuration failed: " + message
+	return "plugin startup/configuration failed; inspect the local Domus logs"
 }
