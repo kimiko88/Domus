@@ -12,6 +12,10 @@ export default defineConfig({
         importScripts: ['/push-worker.js'],
         // The current application bundle is slightly larger than Workbox's
         // 2 MiB default. Keep it precached for reliable offline/PWA updates.
+        // The optional HEIC decoder is a ~3.2 MiB lazy-loaded WASM chunk. It is
+        // fetched only when a user selects HEIC, so do not force every PWA
+        // install/update to download and precache it.
+        globIgnores: ['**/assets/heic-to-*.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
       },
       includeAssets: [
