@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/google/uuid"
 )
 
@@ -24,6 +25,8 @@ type BLEAdvertisement struct {
 }
 
 // Adapter processes forwarded BLE packets and publishes Domus sensor telemetry and presence updates.
+var _ plugins.Adapter = (*Adapter)(nil)
+
 type Adapter struct {
 	id     string
 	bus    events.Bus
@@ -56,6 +59,15 @@ func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Unlock()
 
 	slog.Info("ble_proxy: adapter started", "id", a.id)
+	return nil
+}
+
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if !a.active {
+		return fmt.Errorf("ble_proxy: adapter is not running")
+	}
 	return nil
 }
 
