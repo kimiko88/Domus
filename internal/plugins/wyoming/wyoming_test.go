@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/domus-hub/domus/internal/plugins/wyoming"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWyomingFraming(t *testing.T) {
@@ -130,4 +132,67 @@ func TestWhisperAndPiperClients(t *testing.T) {
 	if !bytes.Equal(audio, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
 		t.Errorf("unexpected audio synthesized: got %v", audio)
 	}
+}
+
+
+func TestWyomingWakeSessionStreamsPCMAndReceivesDetection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	serverDone := make(chan error, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil { serverDone <- acceptErr; return }
+		defer conn.Close()
+		reader := bufio.NewReader(conn)
+		msg, readErr := wyoming.ReadMessage(reader)
+		if readErr != nil { serverDone <- readErr; return }
+		if msg.Type != wyoming.EventDetect {
+			serverDone <- fmt.Errorf("unexpected detect request: %#v", msg)
+			return
+		}
+		names, ok := msg.Data["names"].([]any)
+		if !ok || len(names) != 1 || names[0] != "hey_jarvis" {
+			serverDone <- fmt.Errorf("unexpected wake names: %#v", msg.Data)
+			return
+		}
+		msg, readErr = wyoming.ReadMessage(reader)
+		if readErr != nil || msg.Type != wyoming.EventAudioStart {
+			serverDone <- fmt.Errorf("missing audio-start: %v %#v", readErr, msg)
+			return
+		}
+		msg, readErr = wyoming.ReadMessage(reader)
+		if readErr != nil || msg.Type != wyoming.EventAudioChunk || len(msg.Payload) != 3200 {
+			serverDone <- fmt.Errorf("missing audio chunk: %v %#v", readErr, msg)
+			return
+		}
+		if err := wyoming.WriteMessage(conn, wyoming.Message{
+			Type: wyoming.EventDetection,
+			Data: map[string]any{"name": "hey_jarvis", "timestamp": float64(100)},
+		}); err != nil { serverDone <- err; return }
+		msg, readErr = wyoming.ReadMessage(reader)
+		if readErr != nil || msg.Type != wyoming.EventAudioStop {
+			serverDone <- fmt.Errorf("missing audio-stop: %v %#v", readErr, msg)
+			return
+		}
+		serverDone <- nil
+	}()
+
+	client := wyoming.NewClient(wyoming.Config{WakeAddr: listener.Addr().String(), Timeout: time.Second})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	session, err := client.StartWakeSession(ctx, []string{"hey_jarvis"}, 16000)
+	require.NoError(t, err)
+	require.NoError(t, session.WriteAudioChunk(make([]byte, 3200), 100))
+	select {
+	case event := <-session.Events():
+		require.NoError(t, event.Err)
+		require.Equal(t, "hey_jarvis", event.Name)
+		require.EqualValues(t, 100, event.TimestampMS)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for wake detection")
+	}
+	require.NoError(t, session.Close())
+	require.NoError(t, <-serverDone)
 }

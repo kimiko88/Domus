@@ -18,6 +18,8 @@ const (
 	EventTranscript = "transcript"
 	EventSynthesize = "synthesize"
 	EventDetection  = "detection"
+	EventDetect     = "detect"
+	EventNotDetected = "not-detected"
 )
 
 // Header represents the JSON line prefix of every Wyoming frame.
