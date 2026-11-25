@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -293,28 +294,29 @@ func (a *VoiceSatelliteAdapter) listen(ctx context.Context, audio io.Reader) err
 		}
 		a.setError(nil)
 		detected := false
-		for !detected && ctx.Err() == nil {
+		sessionFailed := false
+		for !detected && !sessionFailed && ctx.Err() == nil {
 			if _, err := io.ReadFull(audio, frame); err != nil {
 				_ = session.Close()
 				return fmt.Errorf("read microphone PCM: %w", err)
 			}
 			if err := session.WriteAudioChunk(frame, timestampMS); err != nil {
-				_ = session.Close()
-				break
+				sessionFailed = true
+				continue
 			}
 			timestampMS += a.cfg.FrameDuration.Milliseconds()
 			select {
 			case event, ok := <-session.Events():
 				if !ok {
-					_ = session.Close()
-					break
+					sessionFailed = true
+					continue
 				}
 				if event.Err != nil {
 					if !errors.Is(event.Err, wyoming.ErrWakeNotDetected) {
 						a.logger.Warn("wake-word service stream error", "error", event.Err)
 					}
-					_ = session.Close()
-					break
+					sessionFailed = true
+					continue
 				}
 				if event.Name != "" {
 					detected = true
@@ -322,12 +324,14 @@ func (a *VoiceSatelliteAdapter) listen(ctx context.Context, audio io.Reader) err
 				}
 			default:
 			}
-			if !detected {
-				continue
-			}
 		}
 		_ = session.Close()
 		if ctx.Err() != nil { return ctx.Err() }
+		if sessionFailed {
+			a.setError(errors.New("wake-word stream disconnected"))
+			if !sleepContext(ctx, time.Second) { return ctx.Err() }
+			continue
+		}
 		if !detected { continue }
 
 		pcm, speech, err := a.captureCommand(ctx, audio, frameBytes)
@@ -380,7 +384,8 @@ func (a *VoiceSatelliteAdapter) captureCommand(ctx context.Context, audio io.Rea
 			return nil, false, nil
 		}
 	}
-	return buffer.Bytes(), speechDetected, nil
+	if !speechDetected { return nil, false, nil }
+	return buffer.Bytes(), true, nil
 }
 
 func (a *VoiceSatelliteAdapter) processCommand(ctx context.Context, pcm []byte) error {
