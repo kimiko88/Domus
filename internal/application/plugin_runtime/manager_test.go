@@ -72,3 +72,21 @@ func TestManagerRejectsDuplicateAndUnknownPluginInstances(t *testing.T) {
 	_, err = manager.Create(ctx, "matter_one", "matter", "Matter One", json.RawMessage(`{}`), false); require.NoError(t, err)
 	_, err = manager.Create(ctx, "matter_one", "matter", "Duplicate", json.RawMessage(`{}`), false); require.Error(t, err)
 }
+
+func TestManagerEnforcesDeclaredInstanceMultiplicity(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	ctx := context.Background()
+	_, err := manager.Create(ctx, "matter_primary", "matter", "Matter Primary", json.RawMessage(`{}`), false)
+	require.NoError(t, err)
+	_, err = manager.Create(ctx, "matter_secondary", "matter", "Matter Secondary", json.RawMessage(`{}`), false)
+	require.ErrorIs(t, err, ErrSingleInstance)
+	knxA := json.RawMessage(`{"gateway_addr":"192.168.1.10:3671","entities":[]}`)
+	knxB := json.RawMessage(`{"gateway_addr":"192.168.1.11:3671","entities":[]}`)
+	_, err = manager.Create(ctx, "knx_first_floor", "knx", "KNX First Floor", knxA, false)
+	require.NoError(t, err)
+	_, err = manager.Create(ctx, "knx_second_floor", "knx", "KNX Second Floor", knxB, false)
+	require.NoError(t, err)
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Len(t, instances, 3)
+}

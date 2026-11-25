@@ -18,7 +18,11 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	manifests := registry.List()
 	ids := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { ids[manifest.ID] = true; require.Equal(t, plugins.ManifestAPIVersion, manifest.APIVersion); require.NotEmpty(t, manifest.Capabilities) }
+	multi := make(map[string]bool, len(manifests))
+	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "ble_proxy"} { require.True(t, multi[want], "%s must support multiple instances", want) }
+	for _, want := range []string{"matter", "open_display"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
