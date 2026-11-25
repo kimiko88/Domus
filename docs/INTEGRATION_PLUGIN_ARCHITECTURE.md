@@ -56,6 +56,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `mqtt_generic` | MQTT generico | Più istanze, broker e topic indipendenti |
 | `zwave_js` | Z-Wave JS UI | WebSocket autenticato, reconnect cancellabile, namespace entità per istanza |
 | `weather_openmeteo` | Forecast provider | Contratto `weather.ForecastProvider`, provider predefinito sostituibile dal core clima |
+| `tuya_cloud` | Tuya Cloud OpenAPI | Provider tipizzato e supervisionato; impostazioni account conservano compatibilità con il vault legacy cifrato |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -75,7 +76,8 @@ Il campo `multi_instance` del manifest abilita le istanze multiple solo quando i
 |---|---|---|
 
 | HomeKit Bridge | `internal/plugins/homekit` | Prima di registrarlo completare HAP server reale/advertising, pairing persistente, unsubscribe e protezione setup code; il bridge attuale non è ancora un servizio HAP completo |
-| Tuya Cloud / Smart Life OAuth | `internal/plugins/tuya_cloud`, handler dedicati | Separare provider e account OAuth; mantenere il callback HTTP nel core ma delegare il client al plugin |
+| Smart Life OAuth | `internal/plugins/tuya_cloud/oauth.go`, handler dedicati | Il client OpenAPI è già nel plugin; resta da integrare l’account linking OAuth, il callback e i token nel flusso di istanze cifrate |
+| Tuya Cloud option flow | `TuyaCloudHandler` + tabella legacy `tuya_cloud_config` | Il provider OpenAPI è registrato e viene creato dal runtime; completare la migrazione definitiva della configurazione account dal vault legacy allo storage comune del Plugin Manager |
 | Xiaomi Home locale/cloud | `internal/plugins/xiaomi_home`, handler dedicati | Adapter locale e provider cloud con credenziali cifrate per account/istanza |
 | Imou Life | `internal/plugins/imou_life`, handler | Adapter cloud con refresh token e callback eventi |
 | VeSync | `internal/plugins/vesync`, handler | Adapter cloud con sessione, refresh e sincronizzazione dispositivi |
@@ -146,8 +148,8 @@ Content-Type: application/json
 ## Roadmap consigliata
 
 1. **Chiudere il runtime adapter**: test contratto, stato health, lifecycle concorrente, installazione/disabilitazione atomica, isolamento storage per istanza, diagnostica e API config update.
-2. **Migrare Z-Wave, HomeKit e Voice Satellite**: sono già moduli quasi adapter e permettono di validare il contratto su WebSocket, bridge locale e processi ALSA.
-3. **Migrare vendor cloud**: Tuya Cloud/OAuth, Xiaomi, Imou, VeSync e Midea, con account multipli e secret store.
+2. **Completare i contratti già avviati**: Z-Wave JS e Voice Satellite sono già adapter registrati; completare HomeKit solo dopo il server HAP reale, pairing e advertising.
+3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI è già un provider registrato; restano Smart Life OAuth, Xiaomi, Imou, VeSync e Midea, con account e segreti per istanza.
 4. **Estrarre i driver brand**: Hue, Shelly, Kasa/Tapo, Nanoleaf, Yeelight dalla scansione brand monolitica a provider installabili.
 5. **Separare plugin di servizio**: meteo, voce, media, NVR e firewall con contratti specifici.
 6. **UI Store/Integrations unificata**: browse, install, option-flow, pairing, status, log e restart; mantenere redirect/API di compatibilità durante la migrazione.
