@@ -631,6 +631,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						openRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						openRouter.Get("/devices", openDisplayH.ListDevices)
 						openRouter.Post("/devices/{address}/image", openDisplayH.UploadImage)
+                        openRouter.Post("/devices/{address}/actions/{action}", openDisplayH.Action)
 					})
 				}
 

@@ -81,3 +81,59 @@ func (h *OpenDisplayHandler) UploadImage(w http.ResponseWriter, r *http.Request)
     }
     writeJSON(w, http.StatusOK, map[string]any{"ok": true, "address": address})
 }
+
+
+// Action executes one supported OpenDisplay operation (LED, buzzer, melody,
+// NFC or drawcustom) through the isolated companion.
+func (h *OpenDisplayHandler) Action(w http.ResponseWriter, r *http.Request) {
+    if h.adapter == nil {
+        writeError(w, http.StatusServiceUnavailable, "OPENDISPLAY_DISABLED", "OpenDisplay integration is not enabled")
+        return
+    }
+    action := strings.TrimSpace(chi.URLParam(r, "action"))
+    switch action {
+    case "led", "buzzer", "melody", "nfc", "drawcustom":
+    default:
+        writeError(w, http.StatusNotFound, "UNKNOWN_ACTION", "unsupported OpenDisplay action")
+        return
+    }
+    r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+    decoder := json.NewDecoder(r.Body)
+    var payload map[string]json.RawMessage
+    if err := decoder.Decode(&payload); err != nil || payload == nil {
+        writeError(w, http.StatusBadRequest, "INVALID_ACTION", "action body must be a JSON object")
+        return
+    }
+    var trailing any
+    if err := decoder.Decode(&trailing); err != io.EOF {
+        writeError(w, http.StatusBadRequest, "INVALID_ACTION", "unexpected trailing JSON content")
+        return
+    }
+    address := strings.TrimSpace(chi.URLParam(r, "address"))
+    if address == "" {
+        writeError(w, http.StatusBadRequest, "INVALID_DEVICE", "device address is required")
+        return
+    }
+    raw, err := json.Marshal(payload)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "INVALID_ACTION", "invalid action payload")
+        return
+    }
+    if err := h.adapter.CallAction(r.Context(), address, action, raw); err != nil {
+        if strings.Contains(err.Error(), "not currently discovered") {
+            writeError(w, http.StatusNotFound, "DEVICE_NOT_FOUND", "OpenDisplay device is not currently discovered")
+            return
+        }
+        if strings.Contains(err.Error(), "unsupported action") {
+            writeError(w, http.StatusNotFound, "UNKNOWN_ACTION", "unsupported OpenDisplay action")
+            return
+        }
+        if errors.Is(err, context.Canceled) {
+            writeError(w, http.StatusRequestTimeout, "REQUEST_CANCELLED", "OpenDisplay action was cancelled")
+            return
+        }
+        writeError(w, http.StatusBadGateway, "ACTION_FAILED", "OpenDisplay action failed")
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]any{"ok": true, "address": address, "action": action})
+}

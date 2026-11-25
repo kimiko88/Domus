@@ -16,6 +16,7 @@ func TestOpenDisplayRoutesReturnServiceUnavailableWhenDisabled(t *testing.T) {
     r := chi.NewRouter()
     r.Get("/devices", h.ListDevices)
     r.Post("/devices/{address}/image", h.UploadImage)
+    r.Post("/devices/{address}/actions/{action}", h.Action)
 
     get := httptest.NewRecorder()
     r.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/devices", nil))
@@ -28,5 +29,11 @@ func TestOpenDisplayRoutesReturnServiceUnavailableWhenDisabled(t *testing.T) {
     r.ServeHTTP(post, httptest.NewRequest(http.MethodPost, "/devices/AA:BB:CC:DD:EE:FF/image", strings.NewReader(body)))
     if post.Code != http.StatusServiceUnavailable {
         t.Fatalf("POST status=%d, want 503", post.Code)
+    }
+
+    action := httptest.NewRecorder()
+    r.ServeHTTP(action, httptest.NewRequest(http.MethodPost, "/devices/AA:BB:CC:DD:EE:FF/actions/led", strings.NewReader(`{"brightness":8}`)))
+    if action.Code != http.StatusServiceUnavailable {
+        t.Fatalf("Action status=%d, want 503", action.Code)
     }
 }

@@ -64,6 +64,7 @@ type DeviceInfo struct {
 
 type uploadPayload struct {
     ImageBase64 string `json:"image_base64"`
+    MAC         string `json:"mac,omitempty"`
     Transport   string `json:"transport"`
     Host        string `json:"host,omitempty"`
     Port        int    `json:"port,omitempty"`
@@ -495,7 +496,7 @@ func (a *Adapter) UploadImage(ctx context.Context, address string, image []byte,
         return errors.New("open_display: invalid refresh mode")
     }
     payload := uploadPayload{
-        ImageBase64: base64.StdEncoding.EncodeToString(image),
+        ImageBase64: base64.StdEncoding.EncodeToString(image), MAC: info.MAC,
         Transport: info.Transport, Host: info.Host, Port: info.Port, TLS: info.TLS,
         Fit: fit, RefreshMode: refreshMode,
     }
@@ -508,6 +509,57 @@ func (a *Adapter) UploadImage(ctx context.Context, address string, image []byte,
     if err != nil {
         return fmt.Errorf("open_display: upload failed: %w", err)
     }
+    defer resp.Body.Close()
+    return nil
+}
+
+
+
+// CallAction forwards one allowlisted high-level action to the isolated companion.
+// The bridge re-validates each action schema before invoking py-opendisplay.
+func (a *Adapter) CallAction(ctx context.Context, address, action string, raw json.RawMessage) error {
+    switch action {
+    case "led", "buzzer", "melody", "nfc", "drawcustom":
+    default:
+        return fmt.Errorf("open_display: unsupported action %q", action)
+    }
+    if len(raw) == 0 || len(raw) > 64<<10 {
+        return errors.New("open_display: action payload must be a JSON object up to 64 KiB")
+    }
+    info, ok := a.Device(address)
+    if !ok || !info.Online {
+        return fmt.Errorf("open_display: device is not currently discovered")
+    }
+    var payload map[string]json.RawMessage
+    decoder := json.NewDecoder(bytes.NewReader(raw))
+    decoder.DisallowUnknownFields()
+    if err := decoder.Decode(&payload); err != nil || payload == nil {
+        return errors.New("open_display: action payload must be a JSON object")
+    }
+    var trailing any
+    if err := decoder.Decode(&trailing); err != io.EOF {
+        return errors.New("open_display: action payload contains trailing JSON")
+    }
+    for _, reserved := range []string{"transport", "host", "port", "tls", "mac"} {
+        if _, exists := payload[reserved]; exists {
+            return fmt.Errorf("open_display: action payload cannot override device transport field %q", reserved)
+        }
+    }
+    var normalized map[string]any
+    if err := json.Unmarshal(raw, &normalized); err != nil {
+        return errors.New("open_display: action payload must be a JSON object")
+    }
+    normalized["transport"] = info.Transport
+    if info.Host != "" { normalized["host"] = info.Host }
+    if info.Port > 0 { normalized["port"] = info.Port }
+    normalized["tls"] = info.TLS
+    if info.MAC != "" { normalized["mac"] = info.MAC } else if info.Transport == "ble" { normalized["mac"] = info.Address }
+
+    body, err := json.Marshal(normalized)
+    if err != nil { return err }
+    path := "/api/v1/devices/" + url.PathEscape(address) + "/actions/" + url.PathEscape(action)
+    resp, err := a.request(ctx, http.MethodPost, path, body)
+    if err != nil { return fmt.Errorf("open_display: %s action failed: %w", action, err) }
     defer resp.Body.Close()
     return nil
 }
