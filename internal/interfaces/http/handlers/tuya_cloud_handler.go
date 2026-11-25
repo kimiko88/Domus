@@ -99,53 +99,58 @@ func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 
 
 func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud.Config) (tuya_cloud.Provider, error) {
-	if h.pluginManager != nil {
-		if existing, ok := h.pluginManager.GetAdapter(tuya_cloud.PluginType); ok {
-			provider, ok := existing.(tuya_cloud.Provider)
-			if !ok {
+	if h.pluginManager == nil {
+		return tuya_cloud.New(cfg)
+	}
+
+	// Do not reuse the short-declaration identifiers between sibling if-init
+	// statements: both initializers live in the containing pluginManager block.
+	if registeredAdapter, foundByDefaultID := h.pluginManager.GetAdapter(tuya_cloud.PluginType); foundByDefaultID {
+		registeredProvider, implementsProvider := registeredAdapter.(tuya_cloud.Provider)
+		if !implementsProvider {
+			return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+		}
+		registeredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+		return registeredProvider, nil
+	}
+
+	instances, err := h.pluginManager.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range instances {
+		if instance.Type != tuya_cloud.PluginType {
+			continue
+		}
+		if !instance.Enabled {
+			return nil, errors.New("tuya cloud: plugin instance is disabled")
+		}
+		if configuredAdapter, foundConfiguredInstance := h.pluginManager.GetAdapter(instance.ID); foundConfiguredInstance {
+			configuredProvider, implementsConfiguredProvider := configuredAdapter.(tuya_cloud.Provider)
+			if !implementsConfiguredProvider {
 				return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
 			}
-			provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-			return provider, nil
+			configuredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+			return configuredProvider, nil
 		}
-		instances, err := h.pluginManager.ListInstances(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, instance := range instances {
-			if instance.Type != tuya_cloud.PluginType {
-				continue
-			}
-			if !instance.Enabled {
-				return nil, errors.New("tuya cloud: plugin instance is disabled")
-			}
-			if existing, ok := h.pluginManager.GetAdapter(instance.ID); ok {
-				provider, ok := existing.(tuya_cloud.Provider)
-				if !ok {
-					return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
-				}
-				provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-				return provider, nil
-			}
-		}
-		raw, err := json.Marshal(map[string]any{
-			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
-			"uid": cfg.UID, "schema": cfg.Schema,
-		})
-		if err != nil {
-			return nil, err
-		}
-		adapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
-		if err != nil {
-			return nil, err
-		}
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return nil, errors.New("tuya cloud: plugin factory returned an incompatible provider")
-		}
-		return provider, nil
 	}
-	return tuya_cloud.New(cfg)
+
+	raw, err := json.Marshal(map[string]any{
+		"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
+		"uid": cfg.UID, "schema": cfg.Schema,
+	})
+	if err != nil {
+		return nil, err
+	}
+	preparedAdapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
+	if err != nil {
+		return nil, err
+	}
+	preparedProvider, implementsPreparedProvider := preparedAdapter.(tuya_cloud.Provider)
+	if !implementsPreparedProvider {
+		return nil, errors.New("tuya cloud: plugin factory returned an incompatible provider")
+	}
+	return preparedProvider, nil
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
