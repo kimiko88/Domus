@@ -179,6 +179,10 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 				_ = m.repo.SetStatus(ctx, id, "connected", "")
 			}
 		}
+	} else {
+		// Validation and construction are performed for disabled instances too;
+		// release any factory-owned resources without starting background work.
+		_ = adapter.Stop(context.Background())
 	}
 	return m.toInstance(ctx, record)
 }
@@ -211,7 +215,7 @@ func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error
 		_ = m.repo.SetStatus(ctx, id, "error", safeError(err))
 		return err
 	}
-	if err := m.supervisor.Register(adapter); err != nil { return err }
+	if err := m.supervisor.Register(adapter); err != nil { _ = adapter.Stop(context.Background()); return err }
 	m.mu.Lock()
 	m.prepared[id] = adapter
 	started := m.started
