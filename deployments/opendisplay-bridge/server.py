@@ -11,6 +11,7 @@ import hmac
 import logging
 import os
 import re
+import warnings
 from dataclasses import asdict
 from io import BytesIO
 from typing import Any
@@ -24,6 +25,7 @@ _LOG = logging.getLogger("opendisplay.bridge")
 _MAC_RE = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
 _MAX_BASE64_CHARS = ((_MAX_IMAGE_BYTES + 2) // 3) * 4
+Image.MAX_IMAGE_PIXELS = 20_000_000
 _ALLOWED_FITS = {"contain", "cover", "stretch", "crop"}
 _ALLOWED_REFRESH = {"full", "fast"}
 
@@ -117,22 +119,27 @@ def _decode_image(value: Any) -> Image.Image:
     if not raw or len(raw) > _MAX_IMAGE_BYTES:
         raise web.HTTPRequestEntityTooLarge(max_size=_MAX_IMAGE_BYTES, actual_size=len(raw))
     try:
-        with Image.open(BytesIO(raw)) as source:
-            if source.format not in {"PNG", "JPEG", "WEBP", "BMP"}:
-                raise web.HTTPUnsupportedMediaType(text="only PNG, JPEG, WEBP and BMP images are supported")
-            source.verify()
-        with Image.open(BytesIO(raw)) as source:
-            source.load()
-            return source.convert("RGB")
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(raw)) as source:
+                if source.format not in {"PNG", "JPEG", "WEBP", "BMP"}:
+                    raise web.HTTPUnsupportedMediaType(text="only PNG, JPEG, WEBP and BMP images are supported")
+                source.verify()
+            with Image.open(BytesIO(raw)) as source:
+                source.load()
+                return source.convert("RGB")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
         raise web.HTTPBadRequest(text="invalid or unsafe image") from exc
 
 
 async def upload_image(request: web.Request) -> web.Response:
     try:
-        payload = await request.json(loads=None)
+        payload = await request.json()
     except Exception as exc:
         raise web.HTTPBadRequest(text="invalid JSON body") from exc
+
+    if not isinstance(payload, dict):
+        raise web.HTTPBadRequest(text="JSON body must be an object")
 
     transport = payload.get("transport", "ble")
     address = request.match_info["address"]
@@ -167,6 +174,8 @@ async def upload_image(request: web.Request) -> web.Response:
             raise web.HTTPBadRequest(text="Wi-Fi port is invalid")
         if not isinstance(tls, bool):
             raise web.HTTPBadRequest(text="Wi-Fi TLS flag is invalid")
+        if tls:
+            raise web.HTTPNotImplemented(text="TLS-PSK requires per-device credentials and is not enabled yet")
         # The SDK's LAN transport derives the device identity and uses the same
         # upload protocol. No arbitrary URL or remote image fetch is accepted.
         try:

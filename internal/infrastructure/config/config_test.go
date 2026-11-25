@@ -244,3 +244,20 @@ func TestLoad_RejectsInvalidConfiguredGeofence(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid presence home coordinates")
 }
+
+
+func TestLoad_AuthAndRetentionEnvironmentOverrides(t *testing.T) {
+	t.Setenv("DOMUS_AUTH_SESSION_TTL", "2160h")
+	t.Setenv("DOMUS_AUTH_RATE_LIMIT_LOGIN_PER_MIN", "12")
+	t.Setenv("DOMUS_RETENTION_STATE_HISTORY_DAYS", "45")
+	t.Setenv("DOMUS_RETENTION_AUDIT_LOG_DAYS", "120")
+	t.Setenv("DOMUS_RETENTION_AUTOMATION_RUN_DAYS", "60")
+
+	cfg, err := config.Load("")
+	require.NoError(t, err)
+	assert.Equal(t, 2160*time.Hour, cfg.Auth.SessionTTL.Duration)
+	assert.Equal(t, 12, cfg.Auth.RateLimitLoginPerMin)
+	assert.Equal(t, 45, cfg.Retention.StateHistoryDays)
+	assert.Equal(t, 120, cfg.Retention.AuditLogDays)
+	assert.Equal(t, 60, cfg.Retention.AutomationRunDays)
+}

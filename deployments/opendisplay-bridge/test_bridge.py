@@ -66,3 +66,33 @@ class BridgeTests(AioHTTPTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    @unittest_run_loop
+    async def test_json_scalar_is_rejected(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/image",
+            data='"not-an-object"',
+            headers={
+                "Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"],
+                "Content-Type": "application/json",
+            },
+        )
+        self.assertEqual(response.status, 400)
+
+    @unittest_run_loop
+    async def test_tls_psk_is_rejected_until_device_credentials_exist(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/image",
+            json={
+                "transport": "wifi",
+                "host": "192.0.2.10",
+                "port": 2446,
+                "tls": True,
+                "image_base64": png_b64(),
+            },
+            headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+        )
+        self.assertEqual(response.status, 501)
