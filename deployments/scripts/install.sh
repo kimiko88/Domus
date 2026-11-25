@@ -8,7 +8,8 @@
 #
 # What it does:
 #   1. Gets the binaries:  prebuilt (./domus, ./domus-cli)  ->  or builds them
-#   2. Gets the frontend:  prebuilt (./web/dist)            ->  or builds it
+#   2. Builds the frontend from source by default. Set DOMUS_USE_PREBUILT_WEB=1
+#      only when intentionally installing a frontend prebuilt on another machine.
 #      Go / Node toolchains and Go / npm download caches are kept between runs
 #      under /opt/domus-toolchains and /var/cache/domus/build by default.
 #   3. Installs binaries, web assets, config, systemd unit; starts the service.
@@ -17,7 +18,8 @@
 #   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o domus ./cmd/domus
 #   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o domus-cli ./cmd/domus-cli
 #   (cd web && npm ci && npm run build)
-# then run this script on the Pi: it will just install what it finds.
+# then run this script on the Pi, explicitly selecting the prepared frontend:
+#   sudo DOMUS_USE_PREBUILT_WEB=1 ./deployments/scripts/install.sh
 #
 # Environment overrides:
 #   DOMUS_VERSION, DOMUS_HOST, DOMUS_PORT, DOMUS_COOKIE_SECURE, DOMUS_VAPID_SUBJECT, DOMUS_USER, DOMUS_GROUP
@@ -26,6 +28,7 @@
 #   DOMUS_DATA_DIR (/var/lib/domus)      DOMUS_WEB_DIR (/usr/local/share/domus/web)
 #   GO_VERSION (default: read from go.mod)   GO_INSTALL_DIR (/opt/domus-toolchains)   NODE_MAJOR (default: 22)
 #   DOMUS_BUILD_CACHE_DIR (/var/cache/domus/build)   persistent Go and npm caches
+#   DOMUS_USE_PREBUILT_WEB=1   install ./web/dist without rebuilding (explicit opt-in)
 #   INSTALL_MOSQUITTO=1   install the Mosquitto MQTT broker via apt
 # ==============================================================================
 set -euo pipefail
@@ -55,6 +58,11 @@ NODE_MAJOR="${NODE_MAJOR:-22}"
 INSTALL_MOSQUITTO="${INSTALL_MOSQUITTO:-0}"
 GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
 DOMUS_BUILD_CACHE_DIR="${DOMUS_BUILD_CACHE_DIR:-/var/cache/domus/build}"
+DOMUS_USE_PREBUILT_WEB="${DOMUS_USE_PREBUILT_WEB:-0}"
+if [[ "${DOMUS_USE_PREBUILT_WEB}" != "0" && "${DOMUS_USE_PREBUILT_WEB}" != "1" ]]; then
+    printf '%s\n' 'DOMUS_USE_PREBUILT_WEB must be 0 or 1' >&2
+    exit 1
+fi
 
 BOLD=$'\033[1m'; GREEN=$'\033[0;32m'; CYAN=$'\033[0;36m'
 YELLOW=$'\033[1;33m'; RED=$'\033[0;31m'; NC=$'\033[0m'
@@ -323,10 +331,17 @@ fi
 
 # ── 4. Frontend ────────────────────────────────────────────────────────────────
 STAGE_WEB=""
-if [[ -f "${PROJECT_ROOT}/web/dist/index.html" ]]; then
-    log_info "Using prebuilt frontend from web/dist"
+if [[ "${DOMUS_USE_PREBUILT_WEB}" == "1" ]]; then
+    if [[ ! -f "${PROJECT_ROOT}/web/dist/index.html" ]]; then
+        log_error "DOMUS_USE_PREBUILT_WEB=1 was requested, but web/dist/index.html does not exist."
+        exit 1
+    fi
+    log_info "Using explicitly requested prebuilt frontend from web/dist"
     STAGE_WEB="${PROJECT_ROOT}/web/dist"
 else
+    if [[ -f "${PROJECT_ROOT}/web/dist/index.html" ]]; then
+        log_warn "Ignoring existing web/dist and rebuilding from current source to avoid installing stale frontend assets."
+    fi
     ensure_workdir
     node_ok=0
     if command -v node >/dev/null 2>&1; then
