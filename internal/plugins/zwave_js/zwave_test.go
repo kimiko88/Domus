@@ -194,12 +194,29 @@ func TestZWaveAdapterReconnectsAfterGatewayDisconnect(t *testing.T) {
 }
 
 func TestZWaveInstancesUseDifferentEntityNamespaces(t *testing.T) {
-	first := zwave_js.NewAdapter("zwave_first_floor", "ws://127.0.0.1:3000", nil)
-	second := zwave_js.NewAdapter("zwave_second_floor", "ws://127.0.0.1:3001", nil)
-	if first.entityPrefix() == second.entityPrefix() {
-		t.Fatal("different Z-Wave instances must not share entity namespaces")
+	bus := eventbus.NewMemoryBus(eventbus.Config{BufferSize: 16, Workers: 1})
+	defer bus.Close()
+	keys := make(chan string, 2)
+	bus.Subscribe(events.EntityStateChanged, func(ctx context.Context, e events.Event) error {
+		payload, _ := e.Payload.(map[string]any)
+		key, _ := payload["entity_key"].(string)
+		keys <- key
+		return nil
+	})
+	first := zwave_js.NewAdapter("zwave_first_floor", "ws://127.0.0.1:3000", bus)
+	second := zwave_js.NewAdapter("zwave_second_floor", "ws://127.0.0.1:3001", bus)
+	first.ProcessValueUpdate(context.Background(), 4, zwave_js.CCBinarySwitch, "currentValue", true)
+	second.ProcessValueUpdate(context.Background(), 4, zwave_js.CCBinarySwitch, "currentValue", true)
+	got := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		select {
+		case key := <-keys:
+			got[key] = true
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for namespaced entity updates")
+		}
 	}
-	if first.entityPrefix() != "zwave_zwave_first_floor" || second.entityPrefix() != "zwave_zwave_second_floor" {
-		t.Fatalf("unexpected instance namespaces: %q / %q", first.entityPrefix(), second.entityPrefix())
+	if !got["switch.zwave_zwave_first_floor_node_4"] || !got["switch.zwave_zwave_second_floor_node_4"] {
+		t.Fatalf("different Z-Wave instances must publish separate entity keys; got %#v", got)
 	}
 }
