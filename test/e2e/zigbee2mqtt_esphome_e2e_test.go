@@ -177,6 +177,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 	wsConn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer wsConn.Close()
+	wsEvents := newWSEventReader(wsConn)
 
 	// Initial system.connected frame
 	var initMsg wsinfra.Message
@@ -234,7 +235,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		mockMQTT.SimulateIncoming("zigbee2mqtt/living_room_bulb", []byte(`{"state":"ON","brightness":220}`))
 
 		// WebSocket should receive state change
-		wsFrame := readWSEvent(t, wsConn, string(events.EntityStateChanged), 3*time.Second)
+		wsFrame := wsEvents.Read(t, string(events.EntityStateChanged), 3*time.Second)
 		payloadMap := wsFrame.Payload.(map[string]any)
 		assert.Equal(t, "light.living_room_bulb", payloadMap["entity_key"])
 		assert.Contains(t, payloadMap["state"], `"state":"ON"`)
@@ -293,7 +294,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		assert.Equal(t, `{"value":48.5}`, sensorEnt.State)
 
 		// WebSocket receives state change
-		wsFrame := readWSEvent(t, wsConn, string(events.EntityStateChanged), 3*time.Second)
+		wsFrame := wsEvents.Read(t, string(events.EntityStateChanged), 3*time.Second)
 		payloadMap := wsFrame.Payload.(map[string]any)
 		assert.Equal(t, "sensor.garden_node_soil_moisture", payloadMap["entity_key"])
 		assert.Equal(t, `{"value":48.5}`, payloadMap["state"])
@@ -308,7 +309,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		assert.True(t, switchEnt.Writable)
 
 		// Read websocket frame for switch state
-		_ = readWSEvent(t, wsConn, string(events.EntityStateChanged), 3*time.Second)
+		_ = wsEvents.Read(t, string(events.EntityStateChanged), 3*time.Second)
 
 		// 3. Send REST command to turn on irrigation
 		cmdURL := fmt.Sprintf("http://127.0.0.1:8901/api/v1/entities/%s/command", switchEnt.ID)
@@ -375,7 +376,7 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 		assert.Less(t, elapsed, 10*time.Millisecond, "Open circuit breaker must fail fast immediately")
 
 		// Read websocket frame for integration degraded state
-		wsFrame := readWSEvent(t, wsConn, string(events.IntegrationStateChanged), 3*time.Second)
+		wsFrame := wsEvents.Read(t, string(events.IntegrationStateChanged), 3*time.Second)
 		payloadMap := wsFrame.Payload.(map[string]any)
 		assert.Equal(t, "cloud_e2e", payloadMap["integration_id"])
 		assert.Equal(t, "degraded", payloadMap["status"])
@@ -383,16 +384,3 @@ func TestZigbee2MQTT_ESPHome_Cloud_EndToEnd(t *testing.T) {
 
 }
 
-func readWSEvent(t *testing.T, wsConn *gorilla.Conn, eventType string, timeout time.Duration) wsinfra.Message {
-	_ = wsConn.SetReadDeadline(time.Now().Add(timeout))
-	for {
-		var msg wsinfra.Message
-		err := wsConn.ReadJSON(&msg)
-		if err != nil {
-			t.Fatalf("failed reading ws event (waiting for %s): %v", eventType, err)
-		}
-		if msg.Type == eventType {
-			return msg
-		}
-	}
-}
