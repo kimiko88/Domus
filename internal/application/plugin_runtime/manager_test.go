@@ -111,3 +111,17 @@ func TestManagerEnforcesDeclaredInstanceMultiplicity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, instances, 5)
 }
+
+
+func TestManagerStartsPluginsPreparedAfterRuntimeStartup(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, manager.Start(ctx))
+	defer manager.Stop(context.Background())
+
+	adapter, err := manager.Prepare(ctx, "weather_openmeteo", "weather_forecast", json.RawMessage(`{}`))
+	require.NoError(t, err)
+	require.Equal(t, "weather_forecast", adapter.ID())
+	require.NoError(t, adapter.HealthCheck(ctx))
+}

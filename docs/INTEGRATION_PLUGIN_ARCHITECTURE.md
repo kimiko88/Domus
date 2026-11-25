@@ -45,7 +45,7 @@ Modbus/Z-Wave  media providers  scanners        integrations
 | `AutomationActionProvider` | Espone azioni tipizzate per l'editor automazioni | BroadLink learn/send, OCPP charge profile |
 | `PanelExtension` | Aggiunge pagine/card UI dichiarative, senza eseguire script nel browser principale | dashboard add-on |
 
-Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le altre interfacce sono evoluzione intenzionale, non sono ancora implementate dal runtime corrente.
+Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone porte applicative tipizzate (per esempio `weather.ForecastProvider`): i provider implementano il contratto e il motore clima non dipende dall’SDK o dal vendor concreto. Le porte per voice, camera/NVR, media e geocoding restano da estrarre con lo stesso modello.
 
 ## Stato effettivo della migrazione
 
@@ -55,6 +55,7 @@ Per la prima tranche è stato riutilizzato il contratto `plugins.Adapter`. Le al
 |---|---|---|
 | `mqtt_generic` | MQTT generico | Più istanze, broker e topic indipendenti |
 | `zwave_js` | Z-Wave JS UI | WebSocket autenticato, reconnect cancellabile, namespace entità per istanza |
+| `weather_openmeteo` | Forecast provider | Contratto `weather.ForecastProvider`, provider predefinito sostituibile dal core clima |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -90,7 +91,7 @@ Il catalogo brand attuale include driver/probe per Philips Hue, Shelly, TP-Link 
 
 ### Altri provider di servizio candidati
 
-- Meteo: `internal/application/weather/openmeteo.go` diventa un `ServiceProvider` sostituibile; il calcolo previsionale resta nel core clima.
+- Meteo: `weather_openmeteo` implementa `weather.ForecastProvider`; il calcolo previsionale resta nel core clima e altri provider potranno implementare lo stesso contratto.
 - STT/TTS: Wyoming/Whisper/Piper diventano provider vocali; la pipeline di intenti, contesto stanza e autorizzazioni rimane nel core assistant.
 - Telecamere/NVR: ONVIF/RTSP/vendor API sono provider plugin; registrazione, timeline, utenti e policy restano servizi core.
 - Media multi-room: driver AirPlay/Cast/DLNA sono provider plugin, mentre playlist, gruppi e scheduler restano nel core media.
