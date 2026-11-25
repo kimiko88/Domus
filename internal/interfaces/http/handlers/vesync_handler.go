@@ -52,14 +52,13 @@ func NewVeSyncHandler(repo integration.Repository, cipher *crypto.EnvelopeCipher
 
 
  // WithPluginAdapter binds VeSync's API client to the supervised provider.
-func (h *VeSyncHandler) WithPluginAdapter(adapter *vesync.Adapter) *VeSyncHandler {
-	if adapter != nil {
-		if client, err := adapter.Client(); err == nil {
-			h.client = client
-			h.provider = adapter
-		}
-	}
-	return h
+func (h *VeSyncHandler) WithPluginAdapter(adapter *vesync.Adapter) error {
+	if adapter == nil { return errors.New("vesync: plugin runtime adapter is required") }
+	client, err := adapter.Client()
+	if err != nil { return err }
+	h.client = client
+	h.provider = adapter
+	return nil
 }
 
 func (h *VeSyncHandler) RegisterRoutes(r chi.Router) {

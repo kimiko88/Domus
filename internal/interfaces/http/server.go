@@ -399,16 +399,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 
 			if imouLifeHandler != nil && imouRuntime != nil {
-				imouLifeHandler.WithPluginAdapter(imouRuntime)
+				if err := imouLifeHandler.WithPluginAdapter(imouRuntime); err != nil { slog.Error("Imou handler could not bind plugin runtime", "error", err) }
 			}
 			if vesyncHandler != nil && vesyncRuntime != nil {
-				vesyncHandler.WithPluginAdapter(vesyncRuntime)
+				if err := vesyncHandler.WithPluginAdapter(vesyncRuntime); err != nil { slog.Error("VeSync handler could not bind plugin runtime", "error", err) }
 			}
 			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
-				xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime)
+				if err := xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime); err != nil { slog.Error("Xiaomi Home local handler could not bind plugin runtime", "error", err) }
 			}
 			if xiaomiCloudHandler != nil && xiaomiCloudRuntime != nil {
-				xiaomiCloudHandler.WithPluginAdapter(xiaomiCloudRuntime)
+				if err := xiaomiCloudHandler.WithPluginAdapter(xiaomiCloudRuntime); err != nil { slog.Error("Xiaomi Home Cloud handler could not bind plugin runtime", "error", err) }
 			}
 			if mideaHandler != nil && mideaRuntime != nil {
 				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {

@@ -80,9 +80,11 @@ func NewXiaomiCloudHandler(integrations integration.Repository, devices device.R
 
 
  // WithPluginAdapter binds the Xiaomi Open Platform transport to the plugin runtime.
-func (h *XiaomiCloudHandler) WithPluginAdapter(adapter *xiaomi_home.CloudAdapter) *XiaomiCloudHandler {
+func (h *XiaomiCloudHandler) WithPluginAdapter(adapter *xiaomi_home.CloudAdapter) error {
+	if adapter == nil { return errors.New("xiaomi: cloud plugin runtime adapter is required") }
+	if err := adapter.HealthCheck(context.Background()); err != nil { return err }
 	h.provider = adapter
-	return h
+	return nil
 }
 
 func (h *XiaomiCloudHandler) RegisterCallback(r chi.Router) {

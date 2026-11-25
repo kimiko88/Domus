@@ -127,9 +127,11 @@ func NewImouLifeHandler(repo integration.Repository, cipher *crypto.EnvelopeCiph
 // WithEventBus connects provider notifications to Domus automations and notifications.
 
  // WithPluginAdapter injects the runtime-owned HTTP provider during server composition.
-func (h *ImouLifeHandler) WithPluginAdapter(adapter *imou_life.Adapter) *ImouLifeHandler {
+func (h *ImouLifeHandler) WithPluginAdapter(adapter *imou_life.Adapter) error {
+	if adapter == nil { return errors.New("imou: plugin runtime adapter is required") }
+	if err := adapter.HealthCheck(context.Background()); err != nil { return err }
 	h.provider = adapter
-	return h
+	return nil
 }
 
 func (h *ImouLifeHandler) newClient(cfg imou_life.Config) (*imou_life.Client, error) {
@@ -177,13 +179,12 @@ func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
 
 
  // WithPluginAdapter binds local discovery to the supervised miIO provider.
-func (h *XiaomiHomeHandler) WithPluginAdapter(adapter *xiaomi_home.LocalAdapter) *XiaomiHomeHandler {
-	if adapter != nil {
-		if client, err := adapter.Client(); err == nil {
-			h.client = client
-		}
-	}
-	return h
+func (h *XiaomiHomeHandler) WithPluginAdapter(adapter *xiaomi_home.LocalAdapter) error {
+	if adapter == nil { return errors.New("xiaomi: local plugin runtime adapter is required") }
+	client, err := adapter.Client()
+	if err != nil { return err }
+	h.client = client
+	return nil
 }
 
 func (h *XiaomiHomeHandler) RegisterRoutes(r chi.Router) {
