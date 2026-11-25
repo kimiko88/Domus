@@ -60,7 +60,7 @@ GO_INSTALL_DIR="${GO_INSTALL_DIR:-/opt/domus-toolchains}"
 DOMUS_BUILD_CACHE_DIR="${DOMUS_BUILD_CACHE_DIR:-/var/cache/domus/build}"
 DOMUS_USE_PREBUILT_WEB="${DOMUS_USE_PREBUILT_WEB:-0}"
 if [[ "${DOMUS_USE_PREBUILT_WEB}" != "0" && "${DOMUS_USE_PREBUILT_WEB}" != "1" ]]; then
-    printf '%s\\n' 'DOMUS_USE_PREBUILT_WEB must be 0 or 1' >&2
+    printf '%s\n' 'DOMUS_USE_PREBUILT_WEB must be 0 or 1' >&2
     exit 1
 fi
 
