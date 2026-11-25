@@ -22,6 +22,7 @@ import (
     "github.com/domus-hub/domus/internal/domain/device"
     "github.com/domus-hub/domus/internal/domain/entity"
     "github.com/domus-hub/domus/internal/domain/events"
+    "github.com/domus-hub/domus/internal/plugins"
     "github.com/google/uuid"
 )
 

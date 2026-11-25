@@ -129,10 +129,10 @@ func TestAssistantService_ToolCalling(t *testing.T) {
 
 
 func TestConfigureSatellitesJSONRegistersRoomContext(t *testing.T) {
-	svc := NewService(Config{}, nil, nil)
+	svc := assistant.NewService(assistant.Config{}, nil, nil)
 	err := svc.ConfigureSatellitesJSON(`[{"id":"sat_kitchen","name":"Microfono cucina","area_name":"Cucina","wake_word":"hey_jarvis"}]`)
 	require.NoError(t, err)
-	var found *VoiceSatellite
+	var found *assistant.VoiceSatellite
 	for _, satellite := range svc.ListSatellites() {
 		if satellite.ID == "sat_kitchen" {
 			copy := satellite
@@ -146,7 +146,7 @@ func TestConfigureSatellitesJSONRegistersRoomContext(t *testing.T) {
 }
 
 func TestConfigureSatellitesJSONRejectsUnsafeAndInvalidConfiguration(t *testing.T) {
-	svc := NewService(Config{}, nil, nil)
+	svc := assistant.NewService(assistant.Config{}, nil, nil)
 	for _, raw := range []string{
 		`[{"id":"../admin","name":"bad","area_name":"Cucina"}]`,
 		`[{"id":"sat_x","name":"missing area","area_name":""}]`,

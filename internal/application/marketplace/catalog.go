@@ -252,7 +252,10 @@ func (s *Service) SyncRepository(ctx context.Context, id string) (*Source, error
 
     now := time.Now().UTC()
     existingPackages, err := s.repo.ListPackages(ctx, id)
-    if err != nil { return nil, s.saveSyncFailure(ctx, source, err) }
+    if err != nil {
+        _, syncErr := s.saveSyncFailure(ctx, source, err)
+        return nil, syncErr
+    }
     validated := make([]*Package, 0, len(index.Packages))
     packageIDs := make(map[string]struct{}, len(index.Packages))
     for _, entry := range index.Packages {
