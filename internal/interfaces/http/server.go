@@ -978,7 +978,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 				mediaSvc := appmedia.NewService(mediaRepo, srv.bus)
 
-				weatherCli := appweather.NewClient()
+				var weatherCli appweather.ForecastProvider
+				if srv.pluginRuntime != nil {
+					if adapter, err := srv.pluginRuntime.Prepare(context.Background(), "weather_openmeteo", "weather_forecast", json.RawMessage(`{}`)); err != nil {
+						slog.Warn("Open-Meteo provider plugin unavailable; using application fallback client", "error", err)
+					} else if provider, ok := adapter.(appweather.ForecastProvider); ok {
+						weatherCli = provider
+					}
+				}
+				if weatherCli == nil {
+					weatherCli = appweather.NewClient()
+				}
 				meshSvc := appmesh.NewService(srv.repos.Devices)
 
 				var otaRepo appota.Repository = appota.NewMemoryRepository()

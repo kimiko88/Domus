@@ -13,6 +13,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/infrastructure/mqtt"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	"github.com/domus-hub/domus/internal/plugins/weather_openmeteo"
 	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/domus-hub/domus/internal/plugins/ble_proxy"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
@@ -202,6 +203,15 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			ID: instanceID, WebSocketURL: wire.WSURL, AuthToken: wire.AuthToken,
 			ReconnectInterval: interval, Logger: deps.Logger,
 		}, deps.Bus)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "weather_openmeteo", Name: "Open-Meteo Forecast",
+		Version: "1.0.0", Description: "Forecast provider for current conditions, hourly temperature, rain probability and solar radiation.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
+		return weather_openmeteo.NewAdapter(instanceID), nil
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{

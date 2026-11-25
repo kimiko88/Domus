@@ -88,7 +88,19 @@ func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, ra
 	}
 	m.mu.Lock()
 	m.prepared[instanceID] = adapter
+	started := m.started
 	m.mu.Unlock()
+	if started {
+		if err := m.supervisor.StartAdapter(ctx, instanceID); err != nil {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = m.supervisor.Unregister(stopCtx, instanceID)
+			cancel()
+			m.mu.Lock()
+			delete(m.prepared, instanceID)
+			m.mu.Unlock()
+			return nil, err
+		}
+	}
 	return adapter, nil
 }
 
