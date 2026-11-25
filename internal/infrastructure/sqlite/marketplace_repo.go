@@ -137,14 +137,8 @@ func (r *MarketplaceRepository) SavePackage(ctx context.Context, pkg *marketplac
             artifact_size = excluded.artifact_size,
             trusted = excluded.trusted,
             compatible = excluded.compatible,
-            installed_path = CASE
-                WHEN marketplace_packages.version = excluded.version
-                 AND marketplace_packages.artifact_sha256 = excluded.artifact_sha256
-                THEN marketplace_packages.installed_path ELSE '' END,
-            installed_at = CASE
-                WHEN marketplace_packages.version = excluded.version
-                 AND marketplace_packages.artifact_sha256 = excluded.artifact_sha256
-                THEN marketplace_packages.installed_at ELSE NULL END,
+            installed_path = excluded.installed_path,
+            installed_at = excluded.installed_at,
             updated_at = excluded.updated_at
     `, pkg.ID, pkg.RepositoryID, pkg.Name, pkg.Type, pkg.Version, pkg.Author, pkg.Description,
         pkg.License, pkg.Runtime, pkg.MinDomusVersion, pkg.MaxDomusVersion, string(capabilities),
@@ -220,16 +214,17 @@ func scanMarketplacePackage(row marketplaceScanner) (*marketplace.Package, error
     var pkg marketplace.Package
     var capabilities string
     var trusted, compatible int
-    var installedAt sql.NullString
+    var installedAt, updatedAt sql.NullString
     if err := row.Scan(
         &pkg.ID, &pkg.RepositoryID, &pkg.Name, &pkg.Type, &pkg.Version, &pkg.Author,
         &pkg.Description, &pkg.License, &pkg.Runtime, &pkg.MinDomusVersion, &pkg.MaxDomusVersion,
         &capabilities, &pkg.Artifact.URL, &pkg.Artifact.SHA256, &pkg.Artifact.Size,
-        &trusted, &compatible, &pkg.InstalledPath, &installedAt, &pkg.UpdatedAt,
+        &trusted, &compatible, &pkg.InstalledPath, &installedAt, &updatedAt,
     ); err != nil { return nil, err }
     pkg.Trusted, pkg.Compatible = trusted == 1, compatible == 1
     if err := json.Unmarshal([]byte(capabilities), &pkg.Capabilities); err != nil { pkg.Capabilities = []string{} }
     if installedAt.Valid { if value, err := time.Parse(time.RFC3339Nano, installedAt.String); err == nil { pkg.InstalledAt = &value } }
+    if updatedAt.Valid { if value, err := time.Parse(time.RFC3339Nano, updatedAt.String); err == nil { pkg.UpdatedAt = value } }
     if pkg.UpdatedAt.IsZero() { pkg.UpdatedAt = time.Now().UTC() }
     return &pkg, nil
 }
