@@ -105,3 +105,10 @@ func TestRegistryFactoryErrorIsWrapped(t *testing.T) {
 	_, err := registry.Create(context.Background(), "sample_bridge", "instance_1", json.RawMessage(`{"host":"192.0.2.10","port":502}`), plugins.Dependencies{})
 	require.ErrorIs(t, err, factoryErr)
 }
+
+
+func TestManifestSupportsAudioCaptureCapability(t *testing.T) {
+	manifest := testManifest()
+	manifest.Capabilities = append(manifest.Capabilities, plugins.CapabilityAudioCapture)
+	require.NoError(t, manifest.Validate())
+}
