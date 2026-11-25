@@ -110,6 +110,18 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 		if err != nil { return nil, err }
 		for _, instance := range instances {
 			if instance.Type != tuya_cloud.PluginType { continue }
+			if !instance.Enabled { return nil, errors.New("tuya cloud: plugin instance is disabled") }
+			if existing, ok := h.pluginManager.GetAdapter(instance.ID); ok {
+				provider, ok := existing.(tuya_cloud.Provider)
+				if !ok { return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract") }
+				provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+				return provider, nil
+			}
+		}
+		instances, err := h.pluginManager.ListInstances(ctx)
+		if err != nil { return nil, err }
+		for _, instance := range instances {
+			if instance.Type != tuya_cloud.PluginType { continue }
 			if !instance.Enabled {
 				return nil, errors.New("tuya cloud: plugin instance is disabled")
 			}

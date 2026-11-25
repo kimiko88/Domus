@@ -353,6 +353,19 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					if provider, ok := adapter.(tuya_cloud.Provider); ok { tuyaCloudClient = provider }
 				}
 			}
+			// A saved plugin instance may use a non-default instance ID (the
+			// protocol is single-instance, but IDs are user-defined in the manager UI).
+			if tuyaCloudClient == nil {
+				if instances, err := manager.ListInstances(context.Background()); err == nil {
+					for _, instance := range instances {
+						if instance.Type != tuya_cloud.PluginType || !instance.Enabled { continue }
+						if adapter, ok := manager.GetAdapter(instance.ID); ok {
+							if provider, ok := adapter.(tuya_cloud.Provider); ok { tuyaCloudClient = provider }
+						}
+						break
+					}
+				}
+			}
 		}
 	} else {
 		// Compatibility path for installations without the encrypted integration vault.
