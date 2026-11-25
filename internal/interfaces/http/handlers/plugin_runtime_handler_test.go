@@ -81,6 +81,12 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	createResponse := httptest.NewRecorder()
 	router.ServeHTTP(createResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(requestBody)))
 	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
+
+	internalResponse := httptest.NewRecorder()
+	internalBody := `{"id":"imou_transport","type":"imou_life_transport","name":"hidden transport","config":{}}`
+	router.ServeHTTP(internalResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(internalBody)))
+	require.Equal(t, http.StatusBadRequest, internalResponse.Code)
+	require.Contains(t, internalResponse.Body.String(), "PLUGIN_CREATE_FAILED")
 	require.NotContains(t, createResponse.Body.String(), secret)
 	require.NotContains(t, createResponse.Body.String(), `"config"`)
 

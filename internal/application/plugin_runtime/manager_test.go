@@ -143,3 +143,20 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		require.ErrorIs(t, err, ErrInternalPlugin)
 	}
 }
+
+
+func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, manager.Start(ctx))
+	defer manager.Stop(context.Background())
+
+	adapter, err := manager.Prepare(ctx, "imou_life_transport", "imou_life_transport", json.RawMessage(`{}`))
+	require.NoError(t, err)
+	require.Equal(t, "imou_life_transport", adapter.Type())
+	require.NoError(t, adapter.HealthCheck(ctx))
+	visible := make(map[string]bool)
+	for _, manifest := range manager.ListTypes() { visible[manifest.ID] = true }
+	require.False(t, visible["imou_life_transport"])
+}

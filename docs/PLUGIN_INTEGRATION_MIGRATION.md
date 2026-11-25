@@ -12,6 +12,8 @@ Il core continua a gestire:
 - API REST/WebSocket, UI, notifiche, scheduling e regole di sicurezza;
 - servizi applicativi che coordinano più integrazioni.
 
+I manifest possono dichiarare `internal: true` per gli adapter tecnici usati da altri plugin o da handler legacy. Questi tipi restano nel Registry e possono essere preparati dal runtime, ma `Manager.ListTypes()` li esclude dal catalogo utente e `Manager.Create()` ne rifiuta la creazione manuale.
+
 Un plugin gestisce:
 - discovery/pairing e connessione al dispositivo o al cloud;
 - framing, autenticazione specifica, retry e riconnessione;
