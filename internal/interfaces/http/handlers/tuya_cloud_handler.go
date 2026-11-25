@@ -106,6 +106,20 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 			provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
 			return provider, nil
 		}
+		instances, err := h.pluginManager.ListInstances(ctx)
+		if err != nil { return nil, err }
+		for _, instance := range instances {
+			if instance.Type != tuya_cloud.PluginType { continue }
+			if !instance.Enabled {
+				return nil, errors.New("tuya cloud: plugin instance is disabled")
+			}
+			if existing, ok := h.pluginManager.GetAdapter(instance.ID); ok {
+				provider, ok := existing.(tuya_cloud.Provider)
+				if !ok { return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract") }
+				provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+				return provider, nil
+			}
+		}
 		raw, err := json.Marshal(map[string]any{
 			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
 			"uid": cfg.UID, "schema": cfg.Schema,
@@ -284,7 +298,18 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	if h.client != nil {
 		h.client.SetCredentials("", "", "", "")
 	}
+	h.client = nil
 	h.mu.Unlock()
+	if h.pluginManager != nil {
+		if instances, err := h.pluginManager.ListInstances(r.Context()); err == nil {
+			for _, instance := range instances {
+				if instance.Type == tuya_cloud.PluginType {
+					_ = h.pluginManager.Delete(r.Context(), instance.ID)
+					break
+				}
+			}
+		}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
