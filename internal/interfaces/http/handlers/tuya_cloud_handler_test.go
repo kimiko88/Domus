@@ -665,7 +665,11 @@ func TestTuyaCloudProviderReusesPreparedCustomInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("providerForConfig: %v", err)
 	}
-	if provider != adapter {
+	expectedProvider, ok := adapter.(tuya_cloud.Provider)
+	if !ok {
+		t.Fatalf("prepared adapter does not implement tuya_cloud.Provider: %T", adapter)
+	}
+	if provider != expectedProvider {
 		t.Fatalf("expected existing custom-ID adapter to be reused, got %T", provider)
 	}
 	if got := provider.Config(); got.ClientID != "new-client" || got.UID != "eu-new-user" {
