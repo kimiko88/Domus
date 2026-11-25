@@ -1,0 +1,26 @@
+[Unit]
+Description=Domus voice satellite (ALSA + Wyoming wake word)
+Wants=network-online.target
+After=network-online.target sound.target
+
+[Service]
+Type=simple
+User=domus-voice
+SupplementaryGroups=audio
+EnvironmentFile=/etc/domus/voice-satellite.env
+ExecStart=/usr/local/bin/domus-voice-satellite
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
