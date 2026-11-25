@@ -60,7 +60,7 @@ type SystemPredictiveStatus struct {
 func NewPredictiveService(
 	repo domclimate.PredictiveRepository,
 	entityRepo entity.Repository,
-	weatherCli *appweather.Client,
+	weatherCli appweather.ForecastProvider,
 	bus events.Bus,
 	logger *slog.Logger,
 ) *PredictiveService {

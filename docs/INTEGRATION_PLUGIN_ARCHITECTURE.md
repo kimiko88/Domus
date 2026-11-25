@@ -74,8 +74,7 @@ Il campo `multi_instance` del manifest abilita le istanze multiple solo quando i
 | Integrazione | Codice attuale | Lavoro per renderla plugin |
 |---|---|---|
 
-| HomeKit Bridge | `internal/plugins/homekit` | Health check, unsubscribe e gestione di pairing/configurazione come istanza |
-| Voice Satellite | `internal/plugins/voice_satellite` | Factory/manifest, validazione ALSA/Wake Word, gestione segreti e lifecycle |
+| HomeKit Bridge | `internal/plugins/homekit` | Prima di registrarlo completare HAP server reale/advertising, pairing persistente, unsubscribe e protezione setup code; il bridge attuale non è ancora un servizio HAP completo |
 | Tuya Cloud / Smart Life OAuth | `internal/plugins/tuya_cloud`, handler dedicati | Separare provider e account OAuth; mantenere il callback HTTP nel core ma delegare il client al plugin |
 | Xiaomi Home locale/cloud | `internal/plugins/xiaomi_home`, handler dedicati | Adapter locale e provider cloud con credenziali cifrate per account/istanza |
 | Imou Life | `internal/plugins/imou_life`, handler | Adapter cloud con refresh token e callback eventi |

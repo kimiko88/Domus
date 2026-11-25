@@ -181,7 +181,11 @@ func (a *Adapter) ProcessValueUpdate(ctx context.Context, nodeID int, cc int, pr
 }
 
 func (a *Adapter) entityPrefix() string {
-	if a.id == "zwave_js" || a.id == "zwave" { return "zwave" }
+	// Preserve the historical default instance ID, but never alias a second
+	// instance named "zwave" to the same entity namespace.
+	if a.id == "zwave_js" {
+		return "zwave"
+	}
 	return "zwave_" + a.id
 }
 
