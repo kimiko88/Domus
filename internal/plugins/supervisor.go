@@ -175,12 +175,10 @@ func (s *Supervisor) StartAdapter(ctx context.Context, id string) error {
 		return nil
 	}
 	entry.state = StateStarting
-	s.mu.Unlock()
-
+	// Keep the lock while mutating the entry so monitor probes cannot race a dynamic start.
 	s.safeStart(ctx, entry)
-	s.mu.RLock()
 	state, lastError := entry.state, entry.lastError
-	s.mu.RUnlock()
+	s.mu.Unlock()
 	if state != StateHealthy {
 		return fmt.Errorf("supervisor: adapter %s failed to start: %s", id, lastError)
 	}

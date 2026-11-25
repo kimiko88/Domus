@@ -115,7 +115,7 @@ func (m Manifest) Validate() error {
 			return fmt.Errorf("%w: invalid config field name %q", ErrInvalidManifest, field.Name)
 		}
 		switch field.Type {
-		case "string", "boolean", "integer", "number", "duration", "url":
+		case "string", "boolean", "integer", "number", "duration", "url", "json":
 		default:
 			return fmt.Errorf("%w: config field %q has unsupported type %q", ErrInvalidManifest, field.Name, field.Type)
 		}
@@ -298,6 +298,8 @@ func validateConfig(fields []ConfigField, raw json.RawMessage) error {
 				}
 				if !allowed { return fmt.Errorf("%w: field %q has an unsupported value", ErrInvalidPluginConfig, name) }
 			}
+		case "json":
+			// Any valid JSON value is allowed; the plugin factory performs typed validation.
 		case "boolean":
 			if _, ok := value.(bool); !ok { return fmt.Errorf("%w: field %q must be a boolean", ErrInvalidPluginConfig, name) }
 		case "integer":

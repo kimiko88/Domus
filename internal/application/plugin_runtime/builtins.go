@@ -81,8 +81,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			plugins.ConfigField{Name: "command_topic_template", Type: "string", Description: "Command topic template; defaults to domus/%s/set"},
 		),
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		var wire mqttWireConfig
-		if err := plugins.DecodeConfig(raw, &wire); err != nil { return nil, err }
+		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
+		if err != nil { return nil, err }
 		_, client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
 		var topics struct { State string `json:"state_topic_pattern"`; Command string `json:"command_topic_template"` }
@@ -97,8 +97,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: append(append([]plugins.ConfigField{}, mqttFields...), plugins.ConfigField{Name: "base_topic", Type: "string", Description: "Zigbee2MQTT base topic; defaults to zigbee2mqtt"}),
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		var wire mqttWireConfig
-		if err := plugins.DecodeConfig(raw, &wire); err != nil { return nil, err }
+		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
+		if err != nil { return nil, err }
 		_, client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
 		var topic struct { Base string `json:"base_topic"` }
@@ -113,8 +113,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: append(append([]plugins.ConfigField{}, mqttFields...), plugins.ConfigField{Name: "topic_prefix", Type: "string", Description: "Optional ESPHome MQTT topic prefix"}),
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		var wire mqttWireConfig
-		if err := plugins.DecodeConfig(raw, &wire); err != nil { return nil, err }
+		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
+		if err != nil { return nil, err }
 		_, client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
 		var topic struct { Prefix string `json:"topic_prefix"` }
@@ -129,14 +129,14 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN},
 		Config: []plugins.ConfigField{
 			{Name: "gateway_addr", Type: "string", Required: true, Description: "KNX/IP gateway host:port"},
-			{Name: "entities", Type: "string", Required: true, Description: "JSON array of KNX entity mappings encoded as a string"},
+			{Name: "entities", Type: "json", Required: true, Description: "Array of KNX entity mappings"},
 		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		var wire struct {
+		wire, err := plugins.DecodeConfig[struct {
 			GatewayAddr string `json:"gateway_addr"`
 			Entities []knx.EntityMapping `json:"entities"`
-		}
-		if err := plugins.DecodeConfig(raw, &wire); err != nil { return nil, err }
+		}](raw)
+		if err != nil { return nil, err }
 		if _, _, err := net.SplitHostPort(wire.GatewayAddr); err != nil { return nil, fmt.Errorf("knx: gateway_addr must be host:port") }
 		return knx.NewAdapter(knx.Config{IntegrationID: instanceID, GatewayAddr: wire.GatewayAddr, Entities: wire.Entities}, knx.NewUDPClient(wire.GatewayAddr, deps.Logger), deps.Entities, deps.Bus, deps.Logger)
 	}); err != nil { return err }
@@ -149,17 +149,17 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			{Name: "host", Type: "string", Required: true}, {Name: "port", Type: "integer", Description: "Default 502"},
 			{Name: "unit_id", Type: "integer", Description: "Modbus unit ID; default 1"},
 			{Name: "poll_interval", Type: "duration", Description: "Default 5s"},
-			{Name: "registers", Type: "string", Required: true, Description: "JSON array of register mappings encoded as a string"},
+			{Name: "registers", Type: "json", Required: true, Description: "Array of Modbus register mappings"},
 		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		var wire struct {
+		wire, err := plugins.DecodeConfig[struct {
 			Host string `json:"host"`
 			Port int `json:"port"`
 			UnitID int `json:"unit_id"`
 			PollInterval string `json:"poll_interval"`
 			Registers []modbus_tcp.RegisterMapping `json:"registers"`
-		}
-		if err := plugins.DecodeConfig(raw, &wire); err != nil { return nil, err }
+		}](raw)
+		if err != nil { return nil, err }
 		if net.ParseIP(wire.Host) == nil && (strings.ContainsAny(wire.Host, " /\\") || strings.TrimSpace(wire.Host) == "") {
 			return nil, errors.New("modbus_tcp: host must be an IP address or hostname")
 		}

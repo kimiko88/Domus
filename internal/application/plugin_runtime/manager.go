@@ -248,7 +248,9 @@ func (m *Manager) ListInstances(ctx context.Context) ([]Instance, error) {
 	out := make([]Instance, 0, len(records))
 	for _, record := range records {
 		if record == nil { continue }
-		out = append(out, m.toInstance(ctx, record))
+		instance, convertErr := m.toInstance(ctx, record)
+		if convertErr != nil { return nil, convertErr }
+		out = append(out, instance)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
