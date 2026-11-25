@@ -95,6 +95,41 @@ func TestEvaluator_Triggers(t *testing.T) {
 	})
 }
 
+func TestEvaluator_StateTriggerRequiresRealTransition(t *testing.T) {
+	evaluator := appauto.NewEvaluator()
+	trigger := automation.Trigger{
+		Platform: "state",
+		EntityKey: "switch.kitchen",
+		To: "on",
+	}
+	sameState := events.Event{
+		Type: events.EntityStateChanged,
+		Payload: map[string]any{
+			"entity_key": "switch.kitchen",
+			"old_state": "on",
+			"state": "on",
+		},
+	}
+	assert.False(t, evaluator.EvaluateTrigger(trigger, sameState),
+		"attribute-only updates must not retrigger a target-state automation")
+
+	transition := events.Event{
+		Type: events.EntityStateChanged,
+		Payload: map[string]any{
+			"entity_key": "switch.kitchen",
+			"old_state": "off",
+			"state": "on",
+		},
+	}
+	assert.True(t, evaluator.EvaluateTrigger(trigger, transition))
+
+	fromTo := automation.Trigger{
+		Platform: "state", EntityKey: "switch.kitchen", From: "on", To: "on",
+	}
+	assert.False(t, evaluator.EvaluateTrigger(fromTo, sameState),
+		"from/to filters must describe an actual transition")
+}
+
 func TestEvaluator_Conditions(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "eval_cond_test.db")

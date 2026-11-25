@@ -43,16 +43,23 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 
 		stateRaw := payloadMap["state"]
 		currVal := extractStateString(stateRaw)
+		oldRaw, hasOldState := payloadMap["old_state"]
+		oldVal := extractStateString(oldRaw)
 		if trig.From != "" {
-			oldRaw, exists := payloadMap["old_state"]
-			if !exists || !strings.EqualFold(extractStateString(oldRaw), trig.From) {
+			if !hasOldState || !strings.EqualFold(oldVal, trig.From) {
 				return false
 			}
 		}
 		if trig.To == "" {
-			return true
+			// An explicit from filter is meaningful only for a real transition.
+			return trig.From == "" || !strings.EqualFold(oldVal, currVal)
 		}
-		return strings.EqualFold(currVal, trig.To)
+		if !strings.EqualFold(currVal, trig.To) {
+			return false
+		}
+		// State triggers with a target fire on entry, not on attribute-only
+		// updates that repeat the same state.
+		return !hasOldState || !strings.EqualFold(oldVal, currVal)
 
 	case "numeric_state":
 		if evt.Type != events.EntityStateChanged {
