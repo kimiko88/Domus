@@ -716,13 +716,19 @@ Per una casa multi-stanza puoi distribuire un satellite per stanza:
 
 **Formato richiesto da Domus:** audio mono PCM signed 16-bit little-endian a 16 kHz. Dopo la wake-word, il satellite invia il comando a `POST /api/v1/voice/process` con `satellite_id` e `audio_base64`. In alternativa la stessa API accetta `text_prompt`. La risposta contiene la trascrizione, il testo dell'assistente e, se Piper è disponibile, `audio_base64` in formato WAV. L'endpoint è autenticato e richiede l'autorizzazione al controllo dei dispositivi: non esporlo direttamente su Internet.
 
-### Motore STT/TTS sul Raspberry
+### Motore STT/TTS e configurazione vocale
 
-Domus usa due **adattatori HTTP** locali (non il protocollo Wyoming grezzo):
-- Whisper: `POST {DOMUS_WHISPER_ENDPOINT}/transcribe`, corpo PCM binario; risposta JSON `{"text":"..."}`.
-- Piper: `POST {DOMUS_PIPER_ENDPOINT}/synthesize`, corpo JSON `{"text":"...","voice":"it_IT-paola-medium"}`; risposta audio WAV.
+Domus usa direttamente il **protocollo Wyoming su TCP** quando gli indirizzi sono configurati:
+- Whisper STT: `DOMUS_WHISPER_ADDR=127.0.0.1:10300`
+- Piper TTS: `DOMUS_PIPER_ADDR=127.0.0.1:10200`
+- Lingua: `DOMUS_VOICE_LANGUAGE=it`
+- Modello Piper: `DOMUS_VOICE_MODEL=it_IT-paola-medium`
 
-Questi adattatori e i rispettivi motori **non sono installati automaticamente** con Domus. Un servizio Piper/Wyoming TCP sulla porta 10200 non soddisfa da solo l'API HTTP `/synthesize`: serve un adattatore HTTP che traduca le chiamate Domus nel motore STT/TTS scelto. Puoi eseguirli sul Pi o su un computer locale più potente e configurare `DOMUS_WHISPER_ENDPOINT` e `DOMUS_PIPER_ENDPOINT`. Nell'installazione nativa, gli indirizzi predefiniti sono `http://127.0.0.1:10300` e `http://127.0.0.1:10301`. Con Docker Compose, i default sono `http://host.docker.internal:10300` e `http://host.docker.internal:10301`, raggiungibili dal container grazie all'alias host; se usi container STT/TTS separati, sostituiscili con i rispettivi nomi DNS. Puoi impostare anche `DOMUS_VOICE_LANGUAGE=it` e `DOMUS_VOICE_MODEL=it_IT-paola-medium`.
+Whisper e Piper devono essere già installati e avviati: Domus non scarica né installa i modelli vocali. Con Docker Compose, usa i nomi dei container sulla rete Docker oppure un IP host raggiungibile dal container. Il protocollo Wyoming TCP non è un endpoint REST.
+
+Per compatibilità sono mantenuti gli adapter HTTP opzionali: `POST {DOMUS_WHISPER_ENDPOINT}/transcribe` riceve PCM binario e restituisce `{"text":"..." }`; `POST {DOMUS_PIPER_ENDPOINT}/synthesize` riceve `{"text":"...","voice":"it_IT-paola-medium"}` e restituisce WAV. Questi endpoint vengono usati solo quando il rispettivo indirizzo Wyoming non è configurato.
+
+Il satellite Linux richiede `arecord` e `aplay` (pacchetto `alsa-utils`), un servizio Wyoming wake-word configurato su `DOMUS_VOICE_SATELLITE_WAKE_ADDR` e un token Bearer per chiamare Domus. L'audio viene inviato solo dopo la wake-word. Registra il suo ID in `DOMUS_VOICE_SATELLITES_JSON` per associare i comandi alla stanza.
 
 > **Prestazioni:** un Raspberry Pi 4 può gestire Domus e l'acquisizione audio, ma Whisper e un LLM locale possono rendere la risposta vocale lenta se condividono CPU e RAM. Per una conversazione più fluida valuta un mini-PC locale per STT/LLM, mantenendo il Raspberry Pi come hub domotico.
 

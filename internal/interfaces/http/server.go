@@ -975,11 +975,14 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					}
 				}
 				voicePipeline := appassistant.NewVoicePipeline(appassistant.VoicePipelineConfig{
-					WhisperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ENDPOINT")),
-					PiperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ENDPOINT")),
-					Language: strings.TrimSpace(os.Getenv("DOMUS_VOICE_LANGUAGE")),
-					VoiceModel: strings.TrimSpace(os.Getenv("DOMUS_VOICE_MODEL")),
-				}, assistantSvc)
+                    // Native Wyoming TCP is preferred; HTTP endpoints remain an optional adapter fallback.
+                    WhisperAddress: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ADDR")),
+                    PiperAddress: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ADDR")),
+                    WhisperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ENDPOINT")),
+                    PiperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ENDPOINT")),
+                    Language: strings.TrimSpace(os.Getenv("DOMUS_VOICE_LANGUAGE")),
+                    VoiceModel: strings.TrimSpace(os.Getenv("DOMUS_VOICE_MODEL")),
+                }, assistantSvc)
 
 				ecoH := handlers.NewEcosystemHandler(camSvc, tagSvc, notifMgr, calSvc, mediaSvc, weatherCli, meshSvc, otaSvc, storeSvc).
 					WithLocalNVR(appcamera.NewLocalNVR(camSvc, srv.bus).WithRepository(srv.repos.NVR)).
