@@ -67,7 +67,7 @@ func TestManagerPersistsEncryptedConfigAndManagesPluginLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{}`, plain)
 
-	require.NoError(t, manager.Restart(ctx, "matter_main"))
+	require.Error(t, manager.Restart(ctx, "matter_main"), "restart must surface the experimental controller's startup failure")
 	require.NoError(t, manager.SetEnabled(ctx, "matter_main", false))
 	instances, err := manager.ListInstances(ctx)
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestManagerPersistsEncryptedConfigAndManagesPluginLifecycle(t *testing.T) {
 	require.False(t, instances[0].Enabled)
 	require.Equal(t, "disconnected", instances[0].Status)
 
-	require.NoError(t, manager.SetEnabled(ctx, "matter_main", true))
+	require.Error(t, manager.SetEnabled(ctx, "matter_main", true), "reenabling an unavailable adapter must not be reported as success")
 	instances, err = manager.ListInstances(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "error", instances[0].Status)

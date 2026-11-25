@@ -258,15 +258,22 @@ func (s *Supervisor) Restart(ctx context.Context, id string) error {
 	}
 	s.mu.Unlock()
 
-	_ = s.safeStop(ctx, entry)
+	if err := s.safeStop(ctx, entry); err != nil {
+		return fmt.Errorf("supervisor: adapter %s failed to stop before restart: %w", id, err)
+	}
 
 	s.mu.Lock()
 	entry.state = StateStarting
 	entry.failCount = 0
 	entry.lastError = ""
 	s.safeStart(ctx, entry)
+	state, lastError := entry.state, entry.lastError
 	s.mu.Unlock()
 
+	if state != StateHealthy {
+		return fmt.Errorf("supervisor: adapter %s failed to restart: %s", id, lastError)
+	}
+	s.publishStateChange(id, StateHealthy, "")
 	return nil
 }
 
