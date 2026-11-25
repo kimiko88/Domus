@@ -23,6 +23,12 @@ services:
       - DOMUS_VOICE_LANGUAGE=${DOMUS_VOICE_LANGUAGE:-it}
       - DOMUS_VOICE_MODEL=${DOMUS_VOICE_MODEL:-it_IT-paola-medium}
       - DOMUS_VOICE_SATELLITES_JSON=${DOMUS_VOICE_SATELLITES_JSON:-[]}
+      - DOMUS_OPENDISPLAY_ENABLED=${DOMUS_OPENDISPLAY_ENABLED:-false}
+      - DOMUS_OPENDISPLAY_BRIDGE_URL=${DOMUS_OPENDISPLAY_BRIDGE_URL:-http://host.docker.internal:10320}
+      - DOMUS_OPENDISPLAY_BRIDGE_TOKEN=${DOMUS_OPENDISPLAY_BRIDGE_TOKEN:-}
+      - DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL=${DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL:-60s}
+      - DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS=${DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS:-6}
+      - DOMUS_OPENDISPLAY_HTTP_TIMEOUT=${DOMUS_OPENDISPLAY_HTTP_TIMEOUT:-45s}
       - TUYA_CLOUD_CLIENT_ID=${TUYA_CLOUD_CLIENT_ID:-}
       - TUYA_CLOUD_CLIENT_SECRET=${TUYA_CLOUD_CLIENT_SECRET:-}
       - TUYA_CLOUD_BASE_URL=${TUYA_CLOUD_BASE_URL:-https://openapi.tuyaeu.com}
@@ -47,6 +53,29 @@ services:
       start_period: 5s
     networks:
       - domus_net
+
+  opendisplay-bridge:
+    profiles: ["opendisplay"]
+    build:
+      context: ../../deployments/opendisplay-bridge
+      dockerfile: Dockerfile
+    container_name: domus-opendisplay-bridge
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - OPENDISPLAY_BRIDGE_BIND=${OPENDISPLAY_BRIDGE_BIND:-0.0.0.0}
+      - OPENDISPLAY_BRIDGE_PORT=${OPENDISPLAY_BRIDGE_PORT:-10320}
+      - OPENDISPLAY_BRIDGE_TOKEN=${DOMUS_OPENDISPLAY_BRIDGE_TOKEN:-}
+      - OPENDISPLAY_BRIDGE_BLE_SCAN_SECONDS=${OPENDISPLAY_BRIDGE_BLE_SCAN_SECONDS:-6}
+      - OPENDISPLAY_BRIDGE_ENABLE_WIFI=${OPENDISPLAY_BRIDGE_ENABLE_WIFI:-true}
+    volumes:
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10320/health', timeout=2).read()"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   mosquitto:
     image: eclipse-mosquitto:2.0

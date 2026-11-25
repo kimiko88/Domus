@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +63,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
+	"github.com/domus-hub/domus/internal/plugins/open_display"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -166,6 +168,7 @@ type Server struct {
 	broadlinkAdapter *broadlink.Adapter
 	predictiveClimate *appclimate.PredictiveService
 	climateHistory   *appclimatehistory.Service
+	openDisplayAdapter *open_display.Adapter
 	predictiveCancel context.CancelFunc
 	predictiveDone chan struct{}
 }
@@ -485,6 +488,48 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if srv.repos.Cipher != nil {
 				brandSvc.WithSecretCipher(srv.repos.Cipher)
 			}
+
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_ENABLED")), "true") {
+				bridgeURL := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BRIDGE_URL"))
+				bridgeToken := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BRIDGE_TOKEN"))
+				pollInterval := 60 * time.Second
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL")); raw != "" {
+					if parsed, err := time.ParseDuration(raw); err == nil {
+						pollInterval = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_DISCOVERY_INTERVAL", "error", err)
+					}
+				}
+				scanSeconds := 6
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS")); raw != "" {
+					if parsed, err := strconv.Atoi(raw); err == nil {
+						scanSeconds = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_BLE_SCAN_SECONDS", "error", err)
+					}
+				}
+				httpTimeout := 45 * time.Second
+				if raw := strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_HTTP_TIMEOUT")); raw != "" {
+					if parsed, err := time.ParseDuration(raw); err == nil {
+						httpTimeout = parsed
+					} else {
+						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_HTTP_TIMEOUT", "error", err)
+					}
+				}
+				adapter, err := open_display.NewAdapter(open_display.Config{
+					BridgeURL: bridgeURL, Token: bridgeToken, PollInterval: pollInterval,
+					ScanSeconds: scanSeconds, HTTPTimeout: httpTimeout,
+				}, srv.repos.Devices, srv.repos.Entities, srv.bus, slog.Default())
+				if err != nil {
+					slog.Error("OpenDisplay integration disabled: invalid bridge configuration", "error", err)
+				} else {
+					if err := adapter.Start(context.Background()); err != nil {
+						slog.Error("OpenDisplay integration failed to start", "error", err)
+					} else {
+						srv.openDisplayAdapter = adapter
+					}
+				}
+			}
 			integrationH := handlers.NewIntegrationHandler(srv.repos.Integrations, srv.bus).WithBrandService(brandSvc)
 
 			var webhookH *handlers.WebhookHandler
@@ -576,6 +621,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					domainRouter.Route("/integrations/midea", func(mideaRouter chi.Router) {
 						mideaRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						mideaHandler.RegisterRoutes(mideaRouter)
+					})
+				}
+
+				if srv.openDisplayAdapter != nil {
+					openDisplayH := handlers.NewOpenDisplayHandler(srv.openDisplayAdapter)
+					domainRouter.Route("/integrations/opendisplay", func(openRouter chi.Router) {
+						openRouter.Use(domusmw.RequireRole(user.RoleAdmin))
+						openRouter.Get("/devices", openDisplayH.ListDevices)
+						openRouter.Post("/devices/{address}/image", openDisplayH.UploadImage)
 					})
 				}
 
@@ -1437,6 +1491,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.broadlinkAdapter != nil {
 		_ = s.broadlinkAdapter.Stop(ctx)
+	}
+	if s.openDisplayAdapter != nil {
+		if err := s.openDisplayAdapter.Stop(ctx); err != nil {
+			slog.WarnContext(ctx, "OpenDisplay adapter did not stop cleanly", "error", err)
+		}
 	}
 	var shutdownErr error
 	if s.lanHTTPServer != nil {
