@@ -2,6 +2,7 @@ package energy
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -95,4 +96,45 @@ func TestTariffOptimizer_RejectsEstimatedOrIncompleteSchedules(t *testing.T) {
 		Currency: "EUR", HourlyPrices: []HourlyTariff{{Hour: 0, PricePerKWh: 0.1}},
 	}
 	require.Error(t, opt.SetTariffSchedule(invalid))
+}
+
+func TestTariffOptimizer_ZeroMaximumPriceIsEnforced(t *testing.T) {
+	opt := NewTariffOptimizer(MarketCustomSlots, nil)
+	now := time.Now()
+	prices := make([]HourlyTariff, 24)
+	for hour := range prices {
+		prices[hour] = HourlyTariff{Hour: hour, PricePerKWh: 0.15}
+	}
+	require.NoError(t, opt.SetTariffSchedule(&DailyTariffSchedule{
+		Date: now.Format("2006-01-02"), Market: MarketCustomSlots,
+		Currency: "EUR", Source: "test-provider", HourlyPrices: prices,
+	}))
+	rule := FlexibleLoadRule{
+		EntityKey: "switch.zero_price_only", Name: "Free-only load",
+		RequiredHours: 24, MaxPriceKWh: 0, PowerKW: 1, AutoSchedule: true,
+	}
+	opt.SetFlexibleLoad(rule)
+	decisions := opt.EvaluateCurrentHour(context.Background())
+	require.False(t, decisions[rule.EntityKey], "a zero price ceiling must not be treated as disabled")
+	for _, item := range opt.GetFlexibleLoads() {
+		if item.EntityKey == rule.EntityKey {
+			require.Empty(t, item.ScheduledHours)
+		}
+	}
+}
+
+func TestTariffOptimizer_InvalidLoadConfigurationFailsSafe(t *testing.T) {
+	opt := NewTariffOptimizer(MarketCustomSlots, nil)
+	opt.SetFlexibleLoad(FlexibleLoadRule{
+		EntityKey: "switch.invalid_limit", Name: "Invalid limit",
+		RequiredHours: 24, MaxPriceKWh: math.NaN(), PowerKW: math.Inf(1), AutoSchedule: true,
+	})
+	for _, item := range opt.GetFlexibleLoads() {
+		if item.EntityKey == "switch.invalid_limit" {
+			require.Zero(t, item.MaxPriceKWh)
+			require.Zero(t, item.PowerKW)
+			require.Empty(t, item.ScheduledHours)
+			require.Zero(t, item.EstimatedCostEUR)
+		}
+	}
 }

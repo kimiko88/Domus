@@ -54,7 +54,7 @@ type FlexibleLoadRule struct {
 	EntityKey        string  `json:"entity_key"`      // e.g. "switch.ev_charger", "switch.water_heater"
 	Name             string  `json:"name"`            // Friendly name
 	RequiredHours    int     `json:"required_hours"`  // Number of hours needed per day (e.g. 3)
-	MaxPriceKWh      float64 `json:"max_price_kwh"`   // Hard limit above which load is not turned on
+	MaxPriceKWh      float64 `json:"max_price_kwh"`   // Maximum price; use -1 to disable, zero means free-only
 	PowerKW          float64 `json:"power_kw,omitempty"` // Configured average load power for cost estimation
 	ActiveNow        bool    `json:"active_now"`      // Whether load is currently turned on by optimizer
 	AutoSchedule     bool    `json:"auto_schedule"`   // True if Domus should toggle automatically
@@ -87,7 +87,7 @@ func NewTariffOptimizer(market MarketType, bus events.Bus) *TariffOptimizer {
 	}
 
 	// Generate baseline schedule for today
-	opt.schedule = opt.GenerateDailySchedule(time.Now().UTC())
+	opt.schedule = opt.GenerateDailySchedule(time.Now())
 
 	// Default smart loads
 	opt.loads["switch.ev_charger"] = &FlexibleLoadRule{
@@ -291,7 +291,7 @@ func (o *TariffOptimizer) recalculateLoadPlansLocked() {
 		chosen := make([]int, 0, reqH)
 		var costSum float64
 		for i := 0; i < len(sorted) && len(chosen) < reqH; i++ {
-			if rule.MaxPriceKWh > 0 && sorted[i].price > rule.MaxPriceKWh { continue }
+			if rule.MaxPriceKWh >= 0 && sorted[i].price > rule.MaxPriceKWh { continue }
 			chosen = append(chosen, sorted[i].hour)
 			costSum += sorted[i].price
 		}
@@ -350,6 +350,15 @@ func (o *TariffOptimizer) SetFlexibleLoad(rule FlexibleLoadRule) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
+	// Normalize invalid configuration to a safe zero-price ceiling and no
+	// cost estimate. Negative values other than -1 are not "unlimited".
+	if math.IsNaN(rule.MaxPriceKWh) || math.IsInf(rule.MaxPriceKWh, 0) ||
+		(rule.MaxPriceKWh < 0 && rule.MaxPriceKWh != -1) {
+		rule.MaxPriceKWh = 0
+	}
+	if math.IsNaN(rule.PowerKW) || math.IsInf(rule.PowerKW, 0) || rule.PowerKW <= 0 {
+		rule.PowerKW = 0
+	}
 	o.loads[rule.EntityKey] = &rule
 	o.recalculateLoadPlansLocked()
 }
@@ -373,7 +382,7 @@ func (o *TariffOptimizer) EvaluateCurrentHour(ctx context.Context) map[string]bo
 				if h == nowH { shouldBeActive = true; break }
 			}
 			currentPrice := o.schedule.HourlyPrices[nowH].PricePerKWh
-			if rule.MaxPriceKWh > 0 && currentPrice > rule.MaxPriceKWh { shouldBeActive = false }
+			if rule.MaxPriceKWh >= 0 && currentPrice > rule.MaxPriceKWh { shouldBeActive = false }
 		}
 		previouslyActive := rule.ActiveNow
 		if previouslyActive != shouldBeActive {
