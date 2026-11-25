@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,9 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 	registry := plugins.NewRegistry()
-	repos := &sqlite.Repositories{DB: &sql.DB{}} // Factories only attach the DB; no SQL is executed here.
+	cipher, err := crypto.NewEnvelopeCipher([]byte("factory-test-key"))
+	require.NoError(t, err)
+	repos := &sqlite.Repositories{DB: &sql.DB{}, Cipher: cipher} // Factories attach the DB; no SQL is executed here.
 	require.NoError(t, registerBuiltins(registry, builtinHost{repos: repos}))
 	cases := []struct { typeID, instanceID, config string }{
 		{"mqtt_generic", "mqtt_kitchen", `{"broker_url":"tcp://127.0.0.1:1883","state_topic_pattern":"domus/+/state","command_topic_template":"domus/%s/set"}`},

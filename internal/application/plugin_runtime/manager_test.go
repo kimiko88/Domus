@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -44,7 +46,19 @@ func TestManagerPersistsEncryptedConfigAndManagesPluginLifecycle(t *testing.T) {
 func TestManagerRestoresEnabledInstancesAfterRestartWithoutExposingSecrets(t *testing.T) {
 	manager, repo, cipher := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second); defer cancel()
-	secretConfig := `{"bridge_url":"http://127.0.0.1:10320","token":"top-secret-plugin-token"}`
+	bridge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/api/v1/devices":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"devices":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer bridge.Close()
+	secretConfig := `{"bridge_url":"` + bridge.URL + `","token":"top-secret-plugin-token","poll_interval":"60s"}`
 	encrypted, err := cipher.Encrypt(secretConfig); require.NoError(t, err)
 	require.NoError(t, repo.Create(ctx, &integration.Integration{ID:"open_display", Type:"open_display", Name:"OpenDisplay", Enabled:true, ConfigEncrypted:[]byte(encrypted), Status:"disconnected", CreatedAt:time.Now().UTC(), UpdatedAt:time.Now().UTC()}))
 	require.NoError(t, manager.Start(ctx)); defer manager.Stop(context.Background())
