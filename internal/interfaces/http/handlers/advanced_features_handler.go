@@ -293,17 +293,9 @@ func (h *AdvancedFeaturesHandler) GetTariffs(w http.ResponseWriter, r *http.Requ
 
 // GetHomeKitPairing handles GET /api/v1/hardware/homekit.
 func (h *AdvancedFeaturesHandler) GetHomeKitPairing(w http.ResponseWriter, r *http.Request) {
-	passcode := "031-45-154"
-	setupID := "DOMU"
-	uri := homekit.GenerateSetupURI(passcode, setupID, 2)
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"bridge_name": "Domus Bridge",
-		"setup_code":  passcode,
-		"setup_id":    setupID,
-		"setup_uri":   uri,
-		"paired":      false,
-	})
+	// Do not expose setup credentials or claim pairing information until an
+	// actual HAP transport, mDNS advertisement and persistent pairing store exist.
+	writeError(w, http.StatusServiceUnavailable, "HOMEKIT_UNAVAILABLE", homekit.ErrHomeKitTransportUnavailable.Error())
 }
 
 // CommissionMatterRequest defines body for Matter commissioning.
@@ -333,6 +325,10 @@ func (h *AdvancedFeaturesHandler) CommissionMatter(w http.ResponseWriter, r *htt
 	}
 
 	if err != nil {
+		if errors.Is(err, matter.ErrMatterStackUnavailable) {
+			writeError(w, http.StatusServiceUnavailable, "MATTER_UNAVAILABLE", err.Error())
+			return
+		}
 		writeError(w, http.StatusBadRequest, "INVALID_CODE", err.Error())
 		return
 	}
