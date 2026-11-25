@@ -34,6 +34,7 @@ const (
 )
 
 type ImouLifeHandler struct {
+	provider *imou_life.Adapter
 	repo integration.Repository
 	cipher *crypto.EnvelopeCipher
 	bus events.Bus
@@ -124,6 +125,20 @@ func NewImouLifeHandler(repo integration.Repository, cipher *crypto.EnvelopeCiph
 }
 
 // WithEventBus connects provider notifications to Domus automations and notifications.
+
+ // WithPluginAdapter injects the runtime-owned HTTP provider during server composition.
+func (h *ImouLifeHandler) WithPluginAdapter(adapter *imou_life.Adapter) *ImouLifeHandler {
+	h.provider = adapter
+	return h
+}
+
+func (h *ImouLifeHandler) newClient(cfg imou_life.Config) (*imou_life.Client, error) {
+	if h.provider != nil {
+		return h.provider.NewClient(cfg)
+	}
+	return imou_life.NewClient(cfg, nil)
+}
+
 func (h *ImouLifeHandler) WithEventBus(bus events.Bus) *ImouLifeHandler {
 	h.bus = bus
 	return h
@@ -160,6 +175,17 @@ func (h *ImouLifeHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/disconnect", h.Disconnect)
 }
 
+
+ // WithPluginAdapter binds local discovery to the supervised miIO provider.
+func (h *XiaomiHomeHandler) WithPluginAdapter(adapter *xiaomi_home.LocalAdapter) *XiaomiHomeHandler {
+	if adapter != nil {
+		if client, err := adapter.Client(); err == nil {
+			h.client = client
+		}
+	}
+	return h
+}
+
 func (h *XiaomiHomeHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/status", h.Status)
 	r.Get("/devices", h.ListDevices)
@@ -186,7 +212,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Imou project access key and secret are required")
 		return
 	}
-	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:req.AccessKey, SecretKey:req.SecretKey, DataCenter:req.DataCenter}, nil); err != nil {
+	if _, err := h.newClient(imou_life.Config{AccessKey:req.AccessKey, SecretKey:req.SecretKey, DataCenter:req.DataCenter}); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou project credentials or data centre")
 		return
 	}
@@ -217,7 +243,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		CallbackSecret:hex.EncodeToString(callbackSecret[:]),
 		EventSecret:hex.EncodeToString(eventSecret[:]),
 	}
-	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}, nil); err != nil {
+	if _, err := h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou API configuration")
 		return
 	}
@@ -306,7 +332,7 @@ func (h *ImouLifeHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid Imou authorization callback", http.StatusNotFound)
 		return
 	}
-	client, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}, nil)
+	client, err := h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter})
 	if err != nil {
 		http.Error(w, "Imou integration is not configured correctly", http.StatusServiceUnavailable)
 		return
@@ -982,7 +1008,7 @@ func (h *ImouLifeHandler) ensureFreshToken(r *http.Request) (*imouStoredConfig, 
 	defer h.mu.Unlock()
 	config, err := h.loadConfig(r)
 	if err != nil { return nil, nil, err }
-	client, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey,SecretKey:config.SecretKey,DataCenter:config.DataCenter}, nil)
+	client, err := h.newClient(imou_life.Config{AccessKey:config.AccessKey,SecretKey:config.SecretKey,DataCenter:config.DataCenter})
 	if err != nil { return nil, nil, err }
 	if config.AccessToken == "" || config.RefreshToken == "" { return nil,nil,errors.New("imou: no delegated account token") }
 	if time.Until(config.ExpiresAt) < 2*time.Minute {

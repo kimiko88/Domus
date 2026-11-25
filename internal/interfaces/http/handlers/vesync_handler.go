@@ -20,6 +20,7 @@ import (
 const vesyncIntegrationID = "integration_vesync_cloud"
 
 type VeSyncHandler struct {
+	provider *vesync.Adapter
 	repo integration.Repository
 	cipher *crypto.EnvelopeCipher
 	client *vesync.Client
@@ -47,6 +48,18 @@ func NewVeSyncHandler(repo integration.Repository, cipher *crypto.EnvelopeCipher
 		return nil, errors.New("vesync: integration repository and encryption are required")
 	}
 	return &VeSyncHandler{repo: repo, cipher: cipher, client: vesync.NewClient(8*time.Second)}, nil
+}
+
+
+ // WithPluginAdapter binds VeSync's API client to the supervised provider.
+func (h *VeSyncHandler) WithPluginAdapter(adapter *vesync.Adapter) *VeSyncHandler {
+	if adapter != nil {
+		if client, err := adapter.Client(); err == nil {
+			h.client = client
+			h.provider = adapter
+		}
+	}
+	return h
 }
 
 func (h *VeSyncHandler) RegisterRoutes(r chi.Router) {
