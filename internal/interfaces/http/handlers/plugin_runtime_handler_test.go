@@ -11,6 +11,7 @@ import (
 
 	"github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/go-chi/chi/v5"
@@ -41,10 +42,23 @@ func (r *pluginHandlerIntegrationRepo) Delete(ctx context.Context, id string) er
 	r.mu.Lock(); defer r.mu.Unlock(); if _, ok := r.items[id]; !ok { return integration.ErrIntegrationNotFound }; delete(r.items, id); return nil
 }
 
+func newPluginRuntimeHandlerManager(t *testing.T, repo *pluginHandlerIntegrationRepo, cipher *crypto.EnvelopeCipher) *plugin_runtime.Manager {
+	t.Helper()
+	db, err := sqlite.Open(config.DatabaseConfig{Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, sqlite.Migrate(context.Background(), db))
+	repos := sqlite.NewRepositories(db)
+	repos.Integrations = repo
+	repos.Cipher = cipher
+	manager, err := plugin_runtime.NewManager(repos, nil)
+	require.NoError(t, err)
+	return manager
+}
 func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	repo := newPluginHandlerIntegrationRepo()
 	cipher, err := crypto.NewEnvelopeCipher([]byte("plugin-handler-test-key")); require.NoError(t, err)
-	manager, err := plugin_runtime.NewManager(&sqlite.Repositories{Integrations: repo, Cipher: cipher}, nil); require.NoError(t, err)
+	manager := newPluginRuntimeHandlerManager(t, repo, cipher)
 	handler := NewPluginRuntimeHandler(manager)
 	router := chi.NewRouter()
 	router.Get("/types", handler.ListTypes)
@@ -81,7 +95,7 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 func TestPluginRuntimeHandlerRejectsInvalidJSONAndUnknownPlugin(t *testing.T) {
 	repo := newPluginHandlerIntegrationRepo()
 	cipher, err := crypto.NewEnvelopeCipher([]byte("plugin-handler-test-key")); require.NoError(t, err)
-	manager, err := plugin_runtime.NewManager(&sqlite.Repositories{Integrations: repo, Cipher: cipher}, nil); require.NoError(t, err)
+	manager := newPluginRuntimeHandlerManager(t, repo, cipher)
 	handler := NewPluginRuntimeHandler(manager)
 	router := chi.NewRouter(); router.Post("/instances", handler.Create)
 	invalid := httptest.NewRecorder()

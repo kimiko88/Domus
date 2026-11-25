@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,22 @@ func (r *memoryIntegrationRepository) Update(ctx context.Context, in *integratio
 func (r *memoryIntegrationRepository) SetStatus(ctx context.Context, id, status, lastError string) error { r.mu.Lock(); defer r.mu.Unlock(); in, ok := r.items[id]; if !ok { return integration.ErrIntegrationNotFound }; in.Status, in.LastError = status, lastError; return nil }
 func (r *memoryIntegrationRepository) Delete(ctx context.Context, id string) error { r.mu.Lock(); defer r.mu.Unlock(); if _, ok := r.items[id]; !ok { return integration.ErrIntegrationNotFound }; delete(r.items, id); return nil }
 
-func newTestManager(t *testing.T) (*Manager, *memoryIntegrationRepository, *crypto.EnvelopeCipher) { t.Helper(); repo := newMemoryIntegrationRepository(); cipher, err := crypto.NewEnvelopeCipher([]byte("plugin-runtime-test-key")); require.NoError(t, err); manager, err := NewManager(&sqlite.Repositories{Integrations: repo, Cipher: cipher}, nil); require.NoError(t, err); return manager, repo, cipher }
+func newTestManager(t *testing.T) (*Manager, *memoryIntegrationRepository, *crypto.EnvelopeCipher) {
+	t.Helper()
+	repo := newMemoryIntegrationRepository()
+	cipher, err := crypto.NewEnvelopeCipher([]byte("plugin-runtime-test-key"))
+	require.NoError(t, err)
+	db, err := sqlite.Open(config.DatabaseConfig{Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, sqlite.Migrate(context.Background(), db))
+	repos := sqlite.NewRepositories(db)
+	repos.Integrations = repo
+	repos.Cipher = cipher
+	manager, err := NewManager(repos, nil)
+	require.NoError(t, err)
+	return manager, repo, cipher
+}
 
 func TestManagerPersistsEncryptedConfigAndManagesPluginLifecycle(t *testing.T) {
 	manager, repo, cipher := newTestManager(t)
