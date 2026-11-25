@@ -15,7 +15,8 @@ This document records the production-safety gates introduced by the Phase 0 reli
 - The generated sample curve is marked `Source=synthetic_estimate` and `IsEstimate=true`.
 - Estimated or stale schedules never turn loads on.
 - Automatic control accepts only a current, complete 24-hour schedule with an explicit source.
-- `MaxPriceKWh` is enforced when creating the schedule and again at actuation time.
+- `MaxPriceKWh` is enforced when creating the schedule and again at actuation time. Zero is a valid free-only ceiling; `-1` explicitly disables the ceiling. Non-finite values and other negative values normalize to zero.
+- The built-in preview curve uses the system's local timezone for Italian F1/F2/F3 bands.
 - Cost and savings estimates require a configured `PowerKW`; without it, the amounts remain zero rather than assuming an arbitrary 1 kW load.
 - When a previously optimizer-activated load loses its trusted schedule, Domus attempts to turn it off. If event dispatch fails, the internal active state is retained so the next evaluation retries.
 
@@ -27,8 +28,8 @@ A real provider for GME/PUN, Nord Pool or Octopus still needs to be implemented 
 - Inference methods return `ErrInferenceModelNotConfigured`; NVR consumers must treat this as unavailable, not as a negative detection.
 
 ## Matter and HomeKit
-- Matter QR/manual-code paths no longer return fabricated commissioning payloads or synthetic nodes. The adapter refuses to start/commission until a real controller, secure sessions, fabric persistence and cluster transport are connected.
-- HomeKit no longer claims to start a bridge without an HAP server, mDNS advertising and persistent pairing store. Its default setup code is generated instead of using a repository-wide static PIN.
+- Matter QR/manual-code paths no longer return fabricated commissioning payloads or synthetic nodes. The adapter refuses to start/commission until a real controller, secure sessions, fabric persistence and cluster transport are connected. The HTTP commissioning endpoint returns `503` for valid codes while the controller is unavailable.
+- HomeKit no longer claims to start a bridge without an HAP server, mDNS advertising and persistent pairing store. Its default setup code is generated instead of using a repository-wide static PIN. The HTTP pairing endpoint returns `503` and does not disclose setup credentials until the bridge is implemented.
 - Entity mapping helpers remain testable, but neither integration should be described as production-ready.
 
 ## Scripts and scenes

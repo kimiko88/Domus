@@ -624,7 +624,7 @@ Domus include companion app **100% native** per iOS e Android, progettate con ar
 
 Domus contiene un modello per visualizzare una curva oraria e pianificare carichi flessibili. **La curva generata localmente è una stima dimostrativa, non una quotazione PUN, Nord Pool o Octopus.** È contrassegnata come `synthetic_estimate` e non può comandare dispositivi.
 
-Per abilitare l'attuazione automatica serve un provider che consegni un calendario completo di 24 prezzi orari con data e sorgente verificabili. Le regole di carico possono inoltre specificare `max_price_kwh`; per stimare il costo in euro deve essere configurata anche la potenza media del carico (`power_kw`). Senza quest'ultimo dato Domus non mostra stime di costo o risparmio fuorvianti.
+Per abilitare l'attuazione automatica serve un provider che consegni un calendario completo di 24 prezzi orari con data e sorgente verificabili. Le regole di carico possono inoltre specificare `max_price_kwh`: `0` è un limite valido (energia gratuita soltanto), mentre `-1` disabilita esplicitamente il limite. Un valore non finito o un negativo diverso da `-1` viene normalizzato al limite più sicuro (`0`). Per stimare il costo in euro deve essere configurata anche la potenza media del carico (`power_kw`). Senza quest'ultimo dato Domus non mostra stime di costo o risparmio fuorvianti.
 
 La scadenza di una tariffa verificata provoca il tentativo di spegnimento dei carichi che l'ottimizzatore aveva acceso. In caso di errore di pubblicazione il sistema conserva lo stato necessario a ritentare al ciclo successivo.
 
