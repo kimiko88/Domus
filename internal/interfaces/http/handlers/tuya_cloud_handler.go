@@ -111,22 +111,14 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 	// The legacy Tuya settings page predates persisted plugin instance IDs.
 	// Prefer any already-prepared singleton provider, including one created
 	// with a custom instance ID from the Plugin Manager UI.
-	useAdapter := func(adapter interface {
-		ID() string
-		Type() string
-		Config() tuya_cloud.Config
-		SetCredentials(string, string, string, string)
-		Devices(context.Context) ([]tuya_cloud.Device, error)
-		GetDevice(context.Context, string) (*tuya_cloud.Device, error)
-		Functions(context.Context, string) ([]tuya_cloud.Function, error)
-		SendCommands(context.Context, string, []tuya_cloud.Command) error
-	}) (tuya_cloud.Provider, error) {
-		if adapter == nil || adapter.Type() != tuya_cloud.PluginType {
-			return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+	useAdapter := func(provider tuya_cloud.Provider) (tuya_cloud.Provider, error) {
+		if provider == nil {
+			return nil, errors.New("tuya cloud: prepared plugin returned a nil provider")
 		}
-		adapter.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-		return adapter, nil
+		provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+		return provider, nil
 	}
+
 	fallback := func(cause error) (tuya_cloud.Provider, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -347,6 +339,7 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	if current == nil {
 		provider, err := h.providerForConfig(r.Context(), testClient.Config())
 		if err != nil {
+			slog.Error("tuya cloud: provider initialization failed", "error", err)
 			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud provider could not be started")
 			return
 		}
