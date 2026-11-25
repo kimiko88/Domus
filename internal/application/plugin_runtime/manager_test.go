@@ -58,12 +58,12 @@ func TestManagerRestoresEnabledInstancesAfterRestartWithoutExposingSecrets(t *te
 		}
 	}))
 	defer bridge.Close()
-	secretConfig := `{"bridge_url":"` + bridge.URL + `","token":"top-secret-plugin-token","poll_interval":"60s"}`
+	secretConfig := `{"bridge_url":"` + bridge.URL + `","token":"top-secret-plugin-token-0123456789abcdef","poll_interval":"60s"}`
 	encrypted, err := cipher.Encrypt(secretConfig); require.NoError(t, err)
 	require.NoError(t, repo.Create(ctx, &integration.Integration{ID:"open_display", Type:"open_display", Name:"OpenDisplay", Enabled:true, ConfigEncrypted:[]byte(encrypted), Status:"disconnected", CreatedAt:time.Now().UTC(), UpdatedAt:time.Now().UTC()}))
 	require.NoError(t, manager.Start(ctx)); defer manager.Stop(context.Background())
 	instances, err := manager.ListInstances(ctx); require.NoError(t, err); require.Len(t, instances, 1); require.Equal(t, "connected", instances[0].Status)
-	encoded, err := json.Marshal(instances); require.NoError(t, err); require.NotContains(t, string(encoded), "top-secret-plugin-token"); require.NotContains(t, string(encoded), "token")
+	encoded, err := json.Marshal(instances); require.NoError(t, err); require.NotContains(t, string(encoded), "top-secret-plugin-token-0123456789abcdef"); require.NotContains(t, string(encoded), "token")
 }
 
 func TestManagerRejectsDuplicateAndUnknownPluginInstances(t *testing.T) {

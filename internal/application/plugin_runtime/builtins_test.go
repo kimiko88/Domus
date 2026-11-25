@@ -37,7 +37,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"ble_proxy", "ble_proxy_hall", `{}`},
 		{"tuya_local", "tuya_local_flat", `{}`},
 		{"broadlink_local", "broadlink_living_room", `{}`},
-		{"open_display", "open_display", `{"bridge_url":"http://127.0.0.1:10320","token":"test-bridge-token"}`},
+		{"open_display", "open_display", `{"bridge_url":"http://127.0.0.1:10320","token":"test-bridge-token-0123456789abcdef0123456789"}`},
 	}
 	for _, tc := range cases { t.Run(tc.typeID+"/"+tc.instanceID, func(t *testing.T) { adapter, err := registry.Create(context.Background(), tc.typeID, tc.instanceID, json.RawMessage(tc.config), plugins.Dependencies{}); require.NoError(t, err); require.Equal(t, tc.instanceID, adapter.ID()); require.Equal(t, tc.typeID, adapter.Type()) }) }
 }
