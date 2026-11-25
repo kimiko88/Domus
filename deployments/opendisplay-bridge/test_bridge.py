@@ -64,9 +64,6 @@ class BridgeTests(AioHTTPTestCase):
         self.assertEqual(response.status, 400)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
     @unittest_run_loop
     async def test_json_scalar_is_rejected(self):
@@ -96,3 +93,87 @@ if __name__ == "__main__":
             headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
         )
         self.assertEqual(response.status, 501)
+
+
+    @unittest_run_loop
+    async def test_json_scalar_is_rejected(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/image",
+            data='"not-an-object"',
+            headers={
+                "Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"],
+                "Content-Type": "application/json",
+            },
+        )
+        self.assertEqual(response.status, 400)
+
+    @unittest_run_loop
+    async def test_tls_psk_is_rejected_until_wifi_credentials_are_supported(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/image",
+            json={
+                "transport": "wifi",
+                "host": "192.0.2.10",
+                "port": 2446,
+                "tls": True,
+                "image_base64": png_b64(),
+            },
+            headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+        )
+        self.assertEqual(response.status, 501)
+
+    @unittest_run_loop
+    async def test_unknown_action_is_rejected(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/actions/shell",
+            json={},
+            headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+        )
+        self.assertEqual(response.status, 404)
+
+    @unittest_run_loop
+    async def test_action_requires_object_body(self):
+        response = await self.client.request(
+            "POST",
+            "/api/v1/devices/AA:BB:CC:DD:EE:FF/actions/led",
+            data='"not-an-object"',
+            headers={
+                "Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"],
+                "Content-Type": "application/json",
+            },
+        )
+        self.assertEqual(response.status, 400)
+
+    @unittest_run_loop
+    async def test_drawcustom_rejects_remote_image_elements(self):
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def fake_open(*args, **kwargs):
+            class Config:
+                displays = []
+            class Device:
+                config = Config()
+            yield Device()
+
+        with patch.object(server, "_open_device", new=fake_open):
+            response = await self.client.request(
+                "POST",
+                "/api/v1/devices/AA:BB:CC:DD:EE:FF/actions/drawcustom",
+                json={"elements": [{"type": "dlimg", "url": "http://127.0.0.1:1/secret"}]},
+                headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+            )
+        self.assertEqual(response.status, 400)
+
+    @unittest_run_loop
+    async def test_invalid_device_key_map_is_rejected(self):
+        with patch.dict(os.environ, {"OPENDISPLAY_BRIDGE_DEVICE_KEYS_JSON": '{"AA:BB:CC:DD:EE:FF":"short"}'}):
+            with self.assertRaises(RuntimeError):
+                server._load_device_keys()
+
+
+if __name__ == "__main__":
+    unittest.main()

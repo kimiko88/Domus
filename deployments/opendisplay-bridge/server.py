@@ -400,7 +400,14 @@ async def device_action(request: web.Request) -> web.Response:
 
 
 async def upload_image(request: web.Request) -> web.Response:
-    payload = await _read_action_payload(request)
+    if request.content_length is not None and request.content_length > 12 * 1024 * 1024:
+        raise web.HTTPRequestEntityTooLarge(max_size=12 * 1024 * 1024, actual_size=request.content_length)
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise web.HTTPBadRequest(text="invalid JSON body") from exc
+    if not isinstance(payload, dict):
+        raise web.HTTPBadRequest(text="JSON body must be an object")
     _allowed_fields(payload, {"image_base64", "fit", "refresh_mode", "transport", "host", "port", "tls", "mac"})
     address = request.match_info["address"]
     fit = str(payload.get("fit", "contain")).lower()
