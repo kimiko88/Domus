@@ -29,7 +29,7 @@ func NewAdapter(id string, timeout time.Duration) (*Adapter,error) {
 	return &Adapter{id:id,client:NewClient(timeout)},nil
 }
 func (a *Adapter) ID() string{return a.id}
-func (a *Adapter) Type() string{return "vesync_cloud"}
+func (a *Adapter) Type() string{return "vesync_transport"}
 func (a *Adapter) Start(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.Lock();a.active=true;a.mu.Unlock();return nil}
 func (a *Adapter) Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.Unlock();return nil}
 func (a *Adapter) HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("vesync: provider is stopped")};return nil}
