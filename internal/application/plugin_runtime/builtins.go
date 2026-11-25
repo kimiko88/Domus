@@ -14,6 +14,10 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/mqtt"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins/weather_openmeteo"
+	"github.com/domus-hub/domus/internal/plugins/midea"
+	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
+	"github.com/domus-hub/domus/internal/plugins/vesync"
+	"github.com/domus-hub/domus/internal/plugins/imou_life"
 	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/domus-hub/domus/internal/plugins/ble_proxy"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
@@ -335,6 +339,74 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			SpeechThreshold: wire.SpeechThreshold, SilenceDuration: silence,
 			MaxCommandDuration: maxCommand, HTTPTimeout: httpTimeout,
 		}, deps.Logger)
+	}); err != nil { return err }
+
+
+	// Cloud vendor clients use the same supervised runtime as LAN protocol
+	// adapters. Account OAuth/session material remains in the encrypted
+	// integration configuration owned by each feature handler.
+	timeoutField := []plugins.ConfigField{
+		{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
+	}
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "imou_life", Name: "Imou Life Cloud",
+		Version: "1.0.0", Description: "Imou OpenAPI, OAuth and event transport.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 12 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("imou_life: invalid http_timeout: %w", err) } }
+		return imou_life.NewAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "vesync_cloud", Name: "VeSync Cloud",
+		Version: "1.0.0", Description: "VeSync account sessions and device commands.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 8 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("vesync: invalid http_timeout: %w", err) } }
+		return vesync.NewAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_local", Name: "Xiaomi Home Local (miIO)",
+		Version: "1.0.0", Description: "Local miIO discovery and authenticated LAN control.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 2 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_local: invalid timeout: %w", err) } }
+		return xiaomi_home.NewLocalAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_cloud", Name: "Xiaomi Home Cloud",
+		Version: "1.0.0", Description: "Xiaomi Open Platform OAuth and MIoT cloud operations.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsWrite},
+		Config: timeoutField,
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		if err != nil { return nil, err }
+		timeout := 12 * time.Second
+		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_cloud: invalid http_timeout: %w", err) } }
+		return xiaomi_home.NewCloudAdapter(instanceID, timeout)
+	}); err != nil { return err }
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "midea_smarthome", Name: "Midea SmartHome (M-Smart A1)",
+		Version: "1.0.0", Description: "Local M-Smart V2/V3 protocol for supported A1 dehumidifiers.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
+		return midea.NewRuntimeAdapter(instanceID)
 	}); err != nil { return err }
 
 	if err := open_display.RegisterPlugin(registry); err != nil { return err }
