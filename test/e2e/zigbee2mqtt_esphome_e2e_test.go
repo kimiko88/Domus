@@ -20,6 +20,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
 	"github.com/domus-hub/domus/internal/infrastructure/mqtt"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	wsinfra "github.com/domus-hub/domus/internal/infrastructure/websocket"
 	serverpkg "github.com/domus-hub/domus/internal/interfaces/http"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/plugins/cloud"
