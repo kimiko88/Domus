@@ -591,3 +591,72 @@ func TestEngine_ClimateProfileAppliesAndRestoresTemporarySetpoint(t *testing.T) 
 }
 
 func ptrFloat(v float64) *float64 { return &v }
+
+
+func TestEngine_ForSecondsRequiresStableStateAndFromTransition(t *testing.T) {
+	repos, bus, engine, cleanup := setupEngineTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+
+	fired := make(chan struct{}, 2)
+	unsub := bus.Subscribe("test.stable_state_fired", func(_ context.Context, _ events.Event) error {
+		select {
+		case fired <- struct{}{}:
+		default:
+		}
+		return nil
+	})
+	defer unsub()
+
+	auto := &automation.Automation{
+		ID: "stable-state-trigger",
+		Name: "Stable state trigger",
+		Enabled: true,
+		Triggers: []automation.Trigger{{
+			ID: "door-open",
+			Platform: "state",
+			EntityKey: "binary_sensor.front_door",
+			From: "off",
+			To: "on",
+			ForSeconds: 1,
+		}},
+		Actions: []automation.Action{{Type: "event", EventType: "test.stable_state_fired"}},
+		ExecutionMode: "single",
+	}
+	require.NoError(t, repos.Automations.Create(ctx, auto))
+	require.NoError(t, engine.Start(ctx))
+
+	publish := func(state string) {
+		t.Helper()
+		require.NoError(t, bus.Publish(ctx, events.Event{
+			ID: uuid.NewString(),
+			Type: events.EntityStateChanged,
+			OccurredAt: time.Now().UTC(),
+			Payload: map[string]any{
+				"entity_key": "binary_sensor.front_door",
+				"state": state,
+			},
+		}))
+	}
+
+	publish("off")
+	time.Sleep(100 * time.Millisecond)
+	publish("on")
+	time.Sleep(250 * time.Millisecond)
+	publish("off") // Returning to the prior state must cancel the pending run.
+	time.Sleep(1100 * time.Millisecond)
+	select {
+	case <-fired:
+		t.Fatal("automation fired although the target state did not remain stable")
+	default:
+	}
+
+	publish("on")
+	select {
+	case <-fired:
+	case <-ctx.Done():
+		t.Fatal("automation did not fire after the state remained stable for for_seconds")
+	}
+}
