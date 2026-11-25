@@ -27,6 +27,8 @@ func TestSecurityHeaders_SetsExpectedHeaders(t *testing.T) {
 	csp := rr.Header().Get("Content-Security-Policy")
 	assert.NotEmpty(t, csp, "CSP header must be set")
 	assert.Contains(t, csp, "default-src")
+	assert.Contains(t, csp, "img-src 'self' data: blob:")
+	assert.Contains(t, csp, "worker-src 'self' blob:")
 
 	// X-Frame-Options
 	assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"))

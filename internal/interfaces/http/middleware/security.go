@@ -20,7 +20,8 @@ func SecurityHeaders() func(http.Handler) http.Handler {
 					"script-src 'self' 'unsafe-inline'; "+ // Vue needs inline scripts for hydration
 					"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "+
 					"font-src 'self' https://fonts.gstatic.com; "+
-					"img-src 'self' data:; "+
+					"img-src 'self' data: blob:; "+
+					"worker-src 'self' blob:; "+
 					"connect-src 'self' ws: wss:; "+
 					"frame-ancestors 'none';",
 			)
