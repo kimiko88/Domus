@@ -3,55 +3,79 @@ package energy
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTariffOptimizer_ScheduleGeneration(t *testing.T) {
 	bus := &mockBus{}
 	opt := NewTariffOptimizer(MarketPUN, bus)
-
 	schedule := opt.GetSchedule()
-	if schedule == nil {
-		t.Fatalf("expected non-nil schedule")
-	}
-
-	if len(schedule.HourlyPrices) != 24 {
-		t.Errorf("expected 24 hourly prices, got %d", len(schedule.HourlyPrices))
-	}
-
-	if schedule.MinPrice >= schedule.MaxPrice {
-		t.Errorf("expected min price (%f) < max price (%f)", schedule.MinPrice, schedule.MaxPrice)
-	}
-
-	if len(schedule.CheapestHours) != 4 {
-		t.Errorf("expected 4 cheapest hours, got %d", len(schedule.CheapestHours))
-	}
+	require.NotNil(t, schedule)
+	require.Len(t, schedule.HourlyPrices, 24)
+	require.Less(t, schedule.MinPrice, schedule.MaxPrice)
+	require.Len(t, schedule.CheapestHours, 4)
+	require.True(t, schedule.IsEstimate)
+	require.Equal(t, "synthetic_estimate", schedule.Source)
 }
 
 func TestTariffOptimizer_FlexibleLoadsCalculation(t *testing.T) {
-	bus := &mockBus{}
-	opt := NewTariffOptimizer(MarketPUN, bus)
-
+	opt := NewTariffOptimizer(MarketPUN, &mockBus{})
 	loads := opt.GetFlexibleLoads()
-	if len(loads) < 2 {
-		t.Fatalf("expected at least 2 default flexible loads, got %d", len(loads))
-	}
-
-	for _, l := range loads {
-		if len(l.ScheduledHours) != l.RequiredHours {
-			t.Errorf("load %s: expected %d scheduled hours, got %d", l.Name, l.RequiredHours, len(l.ScheduledHours))
-		}
-		if l.SavingsPercent <= 0 {
-			t.Errorf("load %s: expected positive savings percentage, got %f", l.Name, l.SavingsPercent)
-		}
+	require.GreaterOrEqual(t, len(loads), 2)
+	for _, load := range loads {
+		require.Len(t, load.ScheduledHours, load.RequiredHours)
+		require.Greater(t, load.SavingsPercent, 0.0)
 	}
 }
 
-func TestTariffOptimizer_Evaluation(t *testing.T) {
+func TestTariffOptimizer_EstimatedScheduleNeverControlsLoads(t *testing.T) {
 	bus := &mockBus{}
 	opt := NewTariffOptimizer(MarketPUN, bus)
-
 	decisions := opt.EvaluateCurrentHour(context.Background())
-	if len(decisions) == 0 {
-		t.Errorf("expected load decisions for current hour")
+	require.NotEmpty(t, decisions)
+	for key, active := range decisions {
+		require.False(t, active, "estimated tariffs must not activate %s", key)
 	}
+	require.Empty(t, bus.events)
+}
+
+func TestTariffOptimizer_SetScheduleAndEnforceMaximumPrice(t *testing.T) {
+	bus := &mockBus{}
+	opt := NewTariffOptimizer(MarketCustomSlots, bus)
+	now := time.Now()
+	makeSchedule := func(currentPrice float64) *DailyTariffSchedule {
+		prices := make([]HourlyTariff, 24)
+		for hour := range prices {
+			price := 0.10
+			if hour == now.Hour() { price = currentPrice }
+			prices[hour] = HourlyTariff{Hour: hour, PricePerKWh: price}
+		}
+		return &DailyTariffSchedule{
+			Date: now.Format("2006-01-02"), Market: MarketCustomSlots,
+			Currency: "EUR", Source: "test-provider", HourlyPrices: prices,
+		}
+	}
+	rule := FlexibleLoadRule{
+		EntityKey: "switch.phase0_test_load", Name: "Phase 0 test load",
+		RequiredHours: 24, MaxPriceKWh: 0.20, AutoSchedule: true,
+	}
+	opt.SetFlexibleLoad(rule)
+	require.NoError(t, opt.SetTariffSchedule(makeSchedule(0.25)))
+	decisions := opt.EvaluateCurrentHour(context.Background())
+	require.False(t, decisions[rule.EntityKey])
+	require.NoError(t, opt.SetTariffSchedule(makeSchedule(0.15)))
+	decisions = opt.EvaluateCurrentHour(context.Background())
+	require.True(t, decisions[rule.EntityKey])
+}
+
+func TestTariffOptimizer_RejectsEstimatedOrIncompleteSchedules(t *testing.T) {
+	opt := NewTariffOptimizer(MarketPUN, nil)
+	require.Error(t, opt.SetTariffSchedule(opt.GenerateDailySchedule(time.Now())))
+	invalid := &DailyTariffSchedule{
+		Date: time.Now().Format("2006-01-02"), Source: "test-provider",
+		Currency: "EUR", HourlyPrices: []HourlyTariff{{Hour: 0, PricePerKWh: 0.1}},
+	}
+	require.Error(t, opt.SetTariffSchedule(invalid))
 }

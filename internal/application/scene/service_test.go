@@ -3,6 +3,7 @@ package scene_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -105,4 +106,33 @@ func TestSceneService_ApplyScene(t *testing.T) {
 	// Non-existent scene returns error
 	err = service.ApplyScene(ctx, "non-existent")
 	assert.ErrorIs(t, err, scene.ErrSceneNotFound)
+}
+
+type sceneFailureBus struct { failType events.EventType }
+func (b *sceneFailureBus) Publish(_ context.Context, evt events.Event) error {
+	if evt.Type == b.failType { return errors.New("injected publish failure") }
+	return nil
+}
+func (b *sceneFailureBus) Subscribe(events.EventType, events.Handler) func() { return func() {} }
+func (b *sceneFailureBus) SubscribeAll(events.Handler) func() { return func() {} }
+func (b *sceneFailureBus) Close() error { return nil }
+
+func TestSceneService_DoesNotReportActivationWhenDispatchFails(t *testing.T) {
+	tempDir := t.TempDir()
+	db, err := sqlite.Open(config.DatabaseConfig{
+		Path: filepath.Join(tempDir, "scene_failure_test.db"),
+		WALMode: true, BusyTimeoutMs: 5000, MaxOpenConns: 1,
+	})
+	require.NoError(t, err)
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, sqlite.Migrate(ctx, db))
+	repos := sqlite.NewRepositories(db)
+	sc := &scene.Scene{ID: uuid.NewString(), Name: "Failure scene", Actions: []scene.Action{
+		{EntityKey: "switch.test", Service: "turn_on"},
+	}}
+	require.NoError(t, repos.Scenes.Create(ctx, sc))
+	service := appscene.NewService(repos.Scenes, &sceneFailureBus{failType: events.CommandRequested})
+	require.Error(t, service.ApplyScene(ctx, sc.ID))
 }

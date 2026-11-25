@@ -2,9 +2,11 @@ package energy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,14 +36,16 @@ type HourlyTariff struct {
 
 // DailyTariffSchedule holds the 24-hour price curve for a specific day.
 type DailyTariffSchedule struct {
-	Date          string         `json:"date"` // YYYY-MM-DD
+	Date          string         `json:"date"`
 	Market        MarketType     `json:"market"`
 	Currency      string         `json:"currency"`
+	Source        string         `json:"source"`
+	IsEstimate    bool           `json:"is_estimate"`
 	HourlyPrices  []HourlyTariff `json:"hourly_prices"`
 	AveragePrice  float64        `json:"average_price"`
 	MinPrice      float64        `json:"min_price"`
 	MaxPrice      float64        `json:"max_price"`
-	CheapestHours []int          `json:"cheapest_hours"` // Top 4 cheapest hours
+	CheapestHours []int          `json:"cheapest_hours"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
@@ -189,12 +193,73 @@ func (o *TariffOptimizer) GenerateDailySchedule(t time.Time) *DailyTariffSchedul
 		MinPrice:      minP,
 		MaxPrice:      maxP,
 		CheapestHours: cheapestHours,
-		UpdatedAt:     time.Now().UTC(),
+		Source: "synthetic_estimate",
+		IsEstimate: true,
+		UpdatedAt: time.Now().UTC(),
 	}
+}
+
+// SetTariffSchedule accepts a complete, externally sourced daily tariff.
+// Synthetic or incomplete data is never sufficient to control physical loads.
+func (o *TariffOptimizer) SetTariffSchedule(schedule *DailyTariffSchedule) error {
+	if schedule == nil || schedule.IsEstimate || strings.TrimSpace(schedule.Source) == "" {
+		return errors.New("energy: a non-estimated tariff schedule with a source is required")
+	}
+	if _, err := time.ParseInLocation("2006-01-02", schedule.Date, time.Local); err != nil {
+		return errors.New("energy: tariff date must use YYYY-MM-DD")
+	}
+	if len(schedule.HourlyPrices) != 24 {
+		return errors.New("energy: tariff schedule must contain exactly 24 hourly prices")
+	}
+	seen := make(map[int]bool, 24)
+	for _, hour := range schedule.HourlyPrices {
+		if hour.Hour < 0 || hour.Hour > 23 || seen[hour.Hour] ||
+			math.IsNaN(hour.PricePerKWh) || math.IsInf(hour.PricePerKWh, 0) {
+			return errors.New("energy: tariff schedule contains an invalid hour or price")
+		}
+		seen[hour.Hour] = true
+	}
+	copySchedule := *schedule
+	copySchedule.HourlyPrices = append([]HourlyTariff(nil), schedule.HourlyPrices...)
+	sort.Slice(copySchedule.HourlyPrices, func(i, j int) bool {
+		return copySchedule.HourlyPrices[i].Hour < copySchedule.HourlyPrices[j].Hour
+	})
+	copySchedule.CheapestHours = nil
+	type pricePoint struct { hour int; price float64 }
+	points := make([]pricePoint, 0, 24)
+	var sum float64
+	copySchedule.MinPrice, copySchedule.MaxPrice = math.Inf(1), math.Inf(-1)
+	for i := range copySchedule.HourlyPrices {
+		hour := &copySchedule.HourlyPrices[i]
+		sum += hour.PricePerKWh
+		if hour.PricePerKWh < copySchedule.MinPrice { copySchedule.MinPrice = hour.PricePerKWh }
+		if hour.PricePerKWh > copySchedule.MaxPrice { copySchedule.MaxPrice = hour.PricePerKWh }
+		hour.IsNegative = hour.PricePerKWh <= 0
+		hour.IsCheapest, hour.IsExpensive = false, false
+		points = append(points, pricePoint{hour: hour.Hour, price: hour.PricePerKWh})
+	}
+	copySchedule.AveragePrice = sum / 24
+	sort.Slice(points, func(i, j int) bool { return points[i].price < points[j].price })
+	for i := 0; i < 4; i++ { copySchedule.CheapestHours = append(copySchedule.CheapestHours, points[i].hour) }
+	sort.Ints(copySchedule.CheapestHours)
+	for i := 0; i < 6; i++ { copySchedule.HourlyPrices[points[i].hour].IsCheapest = true }
+	for i := 18; i < 24; i++ { copySchedule.HourlyPrices[points[i].hour].IsExpensive = true }
+	if copySchedule.UpdatedAt.IsZero() { copySchedule.UpdatedAt = time.Now().UTC() }
+	o.mu.Lock()
+	o.schedule = &copySchedule
+	o.recalculateLoadPlansLocked()
+	o.mu.Unlock()
+	return nil
 }
 
 // RecalculateLoadPlans determines optimal hours for each configured flexible load.
 func (o *TariffOptimizer) RecalculateLoadPlans() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.recalculateLoadPlansLocked()
+}
+
+func (o *TariffOptimizer) recalculateLoadPlansLocked() {
 	if o.schedule == nil || len(o.schedule.HourlyPrices) != 24 {
 		return
 	}
@@ -224,7 +289,8 @@ func (o *TariffOptimizer) RecalculateLoadPlans() {
 
 		chosen := make([]int, 0, reqH)
 		var costSum float64
-		for i := 0; i < reqH && i < len(sorted); i++ {
+		for i := 0; i < len(sorted) && len(chosen) < reqH; i++ {
+			if rule.MaxPriceKWh > 0 && sorted[i].price > rule.MaxPriceKWh { continue }
 			chosen = append(chosen, sorted[i].hour)
 			costSum += sorted[i].price
 		}
@@ -233,8 +299,9 @@ func (o *TariffOptimizer) RecalculateLoadPlans() {
 		rule.ScheduledHours = chosen
 		rule.EstimatedCostEUR = math.Round(costSum*100) / 100
 
-		worstCost := peakPrice * float64(reqH)
-		if worstCost > 0 {
+		worstCost := peakPrice * float64(len(chosen))
+		rule.SavingsPercent = 0
+		if worstCost > 0 && len(chosen) > 0 {
 			savings := ((worstCost - costSum) / worstCost) * 100.0
 			rule.SavingsPercent = math.Round(savings*10) / 10
 		}
@@ -278,7 +345,7 @@ func (o *TariffOptimizer) SetFlexibleLoad(rule FlexibleLoadRule) {
 	defer o.mu.Unlock()
 
 	o.loads[rule.EntityKey] = &rule
-	o.RecalculateLoadPlans()
+	o.recalculateLoadPlansLocked()
 }
 
 // EvaluateCurrentHour checks if scheduled loads should be activated or turned off.
@@ -286,27 +353,28 @@ func (o *TariffOptimizer) EvaluateCurrentHour(ctx context.Context) map[string]bo
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	nowH := time.Now().Hour()
+	now := time.Now()
+	nowH := now.Hour()
 	decisions := make(map[string]bool)
+	scheduleTrusted := o.schedule != nil && !o.schedule.IsEstimate &&
+		o.schedule.Date == now.Format("2006-01-02") && len(o.schedule.HourlyPrices) == 24
 
 	for _, rule := range o.loads {
-		if !rule.AutoSchedule {
-			continue
-		}
-
+		if !rule.AutoSchedule { continue }
 		shouldBeActive := false
-		for _, h := range rule.ScheduledHours {
-			if h == nowH {
-				shouldBeActive = true
-				break
+		if scheduleTrusted {
+			for _, h := range rule.ScheduledHours {
+				if h == nowH { shouldBeActive = true; break }
 			}
+			currentPrice := o.schedule.HourlyPrices[nowH].PricePerKWh
+			if rule.MaxPriceKWh > 0 && currentPrice > rule.MaxPriceKWh { shouldBeActive = false }
 		}
-
+		previouslyActive := rule.ActiveNow
 		rule.ActiveNow = shouldBeActive
 		decisions[rule.EntityKey] = shouldBeActive
 
-		// Emit event for automation engine or actuators
-		if o.bus != nil {
+		// Emit only on state transitions and only from a current trusted schedule.
+		if o.bus != nil && scheduleTrusted && previouslyActive != shouldBeActive {
 			service := "turn_off"
 			if shouldBeActive {
 				service = "turn_on"

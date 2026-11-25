@@ -65,7 +65,7 @@ type BridgeConfig struct {
 
 // DefaultBridgeConfig constructs a standard HomeKit Bridge configuration.
 func DefaultBridgeConfig() BridgeConfig {
-	pin := "031-45-154"
+	pin := RandomPairingCode()
 	setupID := "DOMU"
 	return BridgeConfig{
 		Name:      "Domus Home Bridge",
