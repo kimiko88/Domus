@@ -85,6 +85,18 @@ Il manager:
 
 Gli handler di compatibilità possono usare `Prepare` per ottenere un provider condiviso durante la migrazione; le nuove integrazioni dovrebbero usare `Create` e il flusso di configurazione standard della UI.
 
+## Verifica dei candidati non ancora pronti
+
+Il repository contiene anche pacchetti che sembrano integrazioni ma non vanno ancora pubblicati come plugin di prodotto:
+
+- **HomeKit** (`internal/plugins/homekit`): oggi mappa entità Domus in accessori e inoltra eventi, ma non espone ancora un listener HAP completo, pairing persistente e gestione sicura delle sessioni. Prima di attivarlo dal Plugin Store servono il vero server HAP, storage delle coppie/chiavi, reset e test con Apple Home.
+- **Firewall** (`internal/plugins/firewall`): ha client per UniFi, OPNsense e MikroTik, ma non è collegato al flusso Safety/Quarantine né a route di configurazione. È un ottimo plugin futuro, da attivare soltanto dopo aver definito un contratto di isolamento, audit, verifica dello stato e rollback fail-safe.
+- **OCPP** (`internal/plugins/ocpp`): il controller presente calcola la corrente in base a surplus FV e potenza contrattuale ed è usato dall'handler delle funzionalità avanzate. Questa policy deve restare nel core energia. La connessione a charge point/stazioni OCPP (WebSocket, autenticazione, BootNotification, Heartbeat, MeterValues, SetChargingProfile) deve invece essere un plugin di trasporto separato, con istanze per stazione.
+- **Cloud generico** (`internal/plugins/cloud`): le implementazioni correnti sono provider semplificati e non sostituiscono i client vendor completi. Non vanno usati come scorciatoia per bypassare OAuth, firma, refresh token e gestione credenziali già presenti nei plugin specifici.
+- **Camera/NVR**: il servizio camera, i permessi, le registrazioni, la timeline e gli eventi rimangono core. In futuro ONVIF, RTSP, vendor cloud e NVR esterni possono essere adapter separati che espongono stream e capability normalizzati. Non spostare il motore delle registrazioni nel plugin.
+
+Questa distinzione è essenziale: un adapter che compila o ha qualche test unitario non equivale a un'integrazione end-to-end pronta per gli utenti.
+
 ## Roadmap per ridurre davvero il core
 
 1. **Completare questa tranche**: tutti i provider legacy passano dal runtime, con test per factory/lifecycle e nessuna regressione delle API.
