@@ -17,6 +17,7 @@ import {
   ScanLine
 } from '@lucide/vue'
 import type { Receipt, ReceiptItem, PantryCategory, PantryUnit } from '../../api/types'
+import { decodeHeicBitmap } from '../../utils/heic'
 
 interface Props {
   parsedReceipt: Receipt | null
@@ -194,14 +195,8 @@ function hasHeicHint(file: File): boolean {
 async function loadHeicImage(file: File): Promise<LoadedReceiptImage | null> {
   // Load the decoder only for files that need it; normal JPEG/PNG uploads do
   // not pay the WASM download or initialization cost.
-  const { heicTo, isHeic } = await import('heic-to/csp')
-  if (!(await isHeic(file))) return null
-
-  const bitmap = await heicTo({
-    blob: file,
-    type: 'bitmap',
-    options: { imageOrientation: 'from-image' }
-  })
+  const bitmap = await decodeHeicBitmap(file)
+  if (!bitmap) return null
   if (!bitmap.width || !bitmap.height) {
     bitmap.close()
     throw new Error('HEIC image has invalid dimensions')
