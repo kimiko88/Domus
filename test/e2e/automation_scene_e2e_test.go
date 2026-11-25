@@ -163,6 +163,7 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 	wsConn, _, err := gorilla.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer wsConn.Close()
+	wsEvents := newWSEventReader(wsConn)
 
 	// Initial connected frame
 	var initMsg wsinfra.Message
@@ -270,12 +271,12 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		mockMQTT.SimulateIncoming("domus/binary_sensor.hallway_pir/state", []byte(`{"state":true}`))
 
 		// WebSocket receives automation.triggered
-		wsTrig := readWSEvent(t, wsConn, string(events.AutomationTriggered), 10*time.Second)
+		wsTrig := wsEvents.Read(t, string(events.AutomationTriggered), 10*time.Second)
 		trigPayload := wsTrig.Payload.(map[string]any)
 		assert.Equal(t, autoRule.ID, trigPayload["automation_id"])
 
 		// WebSocket receives automation.run_completed
-		wsCompleted := readWSEvent(t, wsConn, string(events.AutomationRunCompleted), 10*time.Second)
+		wsCompleted := wsEvents.Read(t, string(events.AutomationRunCompleted), 10*time.Second)
 		compPayload := wsCompleted.Payload.(map[string]any)
 		assert.Equal(t, autoRule.ID, compPayload["automation_id"])
 		assert.Equal(t, "completed", compPayload["status"])
@@ -350,7 +351,7 @@ func TestAutomation_And_Scene_EndToEnd(t *testing.T) {
 		assert.Equal(t, http.StatusOK, applyResp.StatusCode)
 
 		// 3. WebSocket receives scene.activated
-		wsScene := readWSEvent(t, wsConn, string(events.SceneActivated), 10*time.Second)
+		wsScene := wsEvents.Read(t, string(events.SceneActivated), 10*time.Second)
 		scenePayload := wsScene.Payload.(map[string]any)
 		assert.Equal(t, createdScene.ID, scenePayload["scene_id"])
 		assert.Equal(t, "Sleep Mode", scenePayload["name"])
