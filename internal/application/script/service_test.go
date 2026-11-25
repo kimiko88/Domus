@@ -3,7 +3,6 @@ package script_test
 import (
 	"context"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"

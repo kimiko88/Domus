@@ -45,18 +45,44 @@ func newTestManager(t *testing.T) (*Manager, *memoryIntegrationRepository, *cryp
 
 func TestManagerPersistsEncryptedConfigAndManagesPluginLifecycle(t *testing.T) {
 	manager, repo, cipher := newTestManager(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second); defer cancel()
-	require.NoError(t, manager.Start(ctx)); defer manager.Stop(context.Background())
-	instance, err := manager.Create(ctx, "matter_main", "matter", "Matter Controller", json.RawMessage(`{}`), true); require.NoError(t, err)
-	require.Equal(t, "matter_main", instance.ID); require.True(t, instance.Enabled); require.Equal(t, "connected", instance.Status)
-	stored, err := repo.GetByID(ctx, "matter_main"); require.NoError(t, err); require.NotContains(t, string(stored.ConfigEncrypted), "device_secret")
-	plain, err := cipher.Decrypt(string(stored.ConfigEncrypted)); require.NoError(t, err); require.JSONEq(t, `{}`, plain)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	require.NoError(t, manager.Start(ctx))
+	defer manager.Stop(context.Background())
+
+	// The Matter scaffold is intentionally unavailable until a real controller
+	// is integrated. The manager must persist the encrypted configuration but
+	// report the adapter's degraded/error state rather than "connected".
+	instance, err := manager.Create(ctx, "matter_main", "matter", "Matter Controller", json.RawMessage(`{}`), true)
+	require.NoError(t, err)
+	require.Equal(t, "matter_main", instance.ID)
+	require.True(t, instance.Enabled)
+	require.Equal(t, "error", instance.Status)
+	require.NotEmpty(t, instance.LastError)
+
+	stored, err := repo.GetByID(ctx, "matter_main")
+	require.NoError(t, err)
+	require.NotContains(t, string(stored.ConfigEncrypted), "device_secret")
+	plain, err := cipher.Decrypt(string(stored.ConfigEncrypted))
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, plain)
+
 	require.NoError(t, manager.Restart(ctx, "matter_main"))
 	require.NoError(t, manager.SetEnabled(ctx, "matter_main", false))
-	instances, err := manager.ListInstances(ctx); require.NoError(t, err); require.Len(t, instances, 1); require.False(t, instances[0].Enabled); require.Equal(t, "disconnected", instances[0].Status)
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+	require.False(t, instances[0].Enabled)
+	require.Equal(t, "disconnected", instances[0].Status)
+
 	require.NoError(t, manager.SetEnabled(ctx, "matter_main", true))
-	instances, err = manager.ListInstances(ctx); require.NoError(t, err); require.Equal(t, "connected", instances[0].Status)
-	require.NoError(t, manager.Delete(ctx, "matter_main")); _, err = repo.GetByID(ctx, "matter_main"); require.ErrorIs(t, err, integration.ErrIntegrationNotFound)
+	instances, err = manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "error", instances[0].Status)
+
+	require.NoError(t, manager.Delete(ctx, "matter_main"))
+	_, err = repo.GetByID(ctx, "matter_main")
+	require.ErrorIs(t, err, integration.ErrIntegrationNotFound)
 }
 
 func TestManagerRestoresEnabledInstancesAfterRestartWithoutExposingSecrets(t *testing.T) {
