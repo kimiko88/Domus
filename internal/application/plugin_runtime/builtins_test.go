@@ -2,10 +2,10 @@ package plugin_runtime
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 
+	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins"
@@ -27,9 +27,15 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 	registry := plugins.NewRegistry()
+	ctx := context.Background()
+	db, err := sqlite.Open(config.DatabaseConfig{Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, sqlite.Migrate(ctx, db))
 	cipher, err := crypto.NewEnvelopeCipher([]byte("factory-test-key"))
 	require.NoError(t, err)
-	repos := &sqlite.Repositories{DB: &sql.DB{}, Cipher: cipher} // Factories attach the DB; no SQL is executed here.
+	repos := sqlite.NewRepositories(db)
+	repos.Cipher = cipher
 	require.NoError(t, registerBuiltins(registry, builtinHost{repos: repos}))
 	cases := []struct { typeID, instanceID, config string }{
 		{"mqtt_generic", "mqtt_kitchen", `{"broker_url":"tcp://127.0.0.1:1883","state_topic_pattern":"domus/+/state","command_topic_template":"domus/%s/set"}`},
