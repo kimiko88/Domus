@@ -70,6 +70,11 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusOK, typesResponse.Code)
 	require.Contains(t, typesResponse.Body.String(), `"mqtt_generic"`)
 	require.Contains(t, typesResponse.Body.String(), `"multi_instance":true`)
+	require.NotContains(t, typesResponse.Body.String(), `"imou_life_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"vesync_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_miio_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_open_platform_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"midea_a1_protocol"`)
 
 	const secret = "open-display-secret-token-0123456789abcdef"
 	requestBody := `{"id":"open_display","type":"open_display","name":"Display","enabled":false,"config":{"bridge_url":"http://127.0.0.1:10320","token":"` + secret + `"}}`

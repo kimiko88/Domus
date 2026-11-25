@@ -21,6 +21,14 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	multi := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "xiaomi_open_platform_transport", "midea_a1_protocol"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	internalTypes := make(map[string]bool, len(manifests))
+	for _, manifest := range manifests { internalTypes[manifest.ID] = manifest.Internal }
+	for _, want := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "xiaomi_open_platform_transport", "midea_a1_protocol"} {
+		require.True(t, internalTypes[want], "%s must be an internal runtime transport", want)
+	}
+	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud"} {
+		require.False(t, internalTypes[want], "%s must remain user-configurable", want)
+	}
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "zwave_js", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
 	for _, want := range []string{"matter", "open_display", "tuya_cloud"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
