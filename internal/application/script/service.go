@@ -3,6 +3,7 @@ package script
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -225,8 +226,13 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 			params[k] = v
 		}
 
-		if s.bus != nil {
-			return s.bus.Publish(ctx, events.Event{
+		if s.bus == nil {
+			return errors.New("script: event bus is not configured")
+		}
+		if act.Service == "" || targetKey == "" {
+			return errors.New("script: service action requires service and target_entity_key")
+		}
+		return s.bus.Publish(ctx, events.Event{
 				ID:         uuid.NewString(),
 				Type:       events.CommandRequested,
 				OccurredAt: time.Now().UTC(),
@@ -236,8 +242,7 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 					"service":    act.Service,
 					"params":     params,
 				},
-			})
-		}
+		})
 
 	case "delay":
 		select {
@@ -268,6 +273,9 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 		if parallelErr != nil {
 			return parallelErr
 		}
+
+	default:
+		return fmt.Errorf("script: unsupported action type %q", act.Type)
 	}
 
 	return nil

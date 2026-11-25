@@ -2,6 +2,7 @@ package homekit
 
 import (
 	"context"
+	"regexp"
 	"testing"
 	"time"
 
@@ -14,7 +15,24 @@ import (
 func TestHomeKit_SetupURIUsesRandomPairingCode(t *testing.T) {
 	cfg := DefaultBridgeConfig()
 	assert.Len(t, cfg.SetupCode, 10)
-	assert.NotEqual(t, "031-45-154", cfg.SetupCode)
+	assert.Regexp(t, regexp.MustCompile(`^[0-9]{3}-[0-9]{2}-[0-9]{3}package homekit
+
+import (
+	"context"
+	"regexp"
+	"testing"
+	"time"
+
+	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/domus-hub/domus/internal/infrastructure/eventbus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestHomeKit_SetupURIUsesRandomPairingCode(t *testing.T) {
+	cfg := DefaultBridgeConfig()
+	assert.Len(t, cfg.SetupCode, 10)
+), cfg.SetupCode)
 	assert.Contains(t, cfg.SetupURI, "X-HM://")
 }
 

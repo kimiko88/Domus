@@ -12,8 +12,8 @@ Domus is built in modern idiomatic Go and Vue 3 + TypeScript, designed as a high
 - **Ultra-Low Resource Footprint**: Written in pure Go with zero CGO dependencies; runs comfortably in ~20-30 MB RAM on Raspberry Pi 4 ARM64.
 - **Embedded SQLite in WAL Mode**: Fast concurrent telemetry reads and atomic writes with foreign key safety and zero external database services.
 - **In-Memory Event Bus**: Decoupled, typed domain events dispatched asynchronously through bounded worker pools with handler isolation.
-- **Dynamic Energy Tariffs & Load Optimization**: Native ingestion of daily PUN (Italy), Nord Pool, and Octopus dynamic hourly prices with automated scheduling of flexible, power-hungry loads (heat pumps, EV charging, boilers) at lowest or negative cost hours.
-- **Local AI Computer Vision NVR**: Zero-cloud RTSP/WebRTC camera streaming with real-time motion zones and lightweight local ONNX object detection (people, vehicles, packages) generating instant animated snapshots on push notifications.
+- **Energy Tariff Planning**: 24-hour tariff preview and flexible-load scheduling model. Synthetic prices are labelled as estimates and cannot actuate devices; automatic control requires a current source-backed schedule and configured load power for cost estimates.
+- **Local NVR Pipeline**: Zero-cloud camera streaming, motion zones, clips and notifications. Object/face/license-plate inference remains unavailable until a real ONNX/Coral/Hailo model runtime is configured; synthetic detections are disabled.
 - **In-Browser USB WebSerial Firmware Flasher**: One-click firmware flashing directly from the browser (Chrome, Edge) with automatic baud rate negotiation and Wi-Fi provisioning for ESP32, ESP8266, Tasmota, WLED, Sonoff, and ESPHome.
 - **Visual Flowchart Automation Designer**: Interactive Node-RED-style SVG flowchart canvas for designing, inspecting, and dry-run simulating multi-branch automation pipelines.
 - **High Availability (HA) Failover Dual-Hub**: Keepalived Virtual IP (VIP) failover with real-time SQLite WAL delta replication, sub-second peer heartbeat monitoring, and 1-click manual node promotion.
@@ -106,9 +106,9 @@ domus/
 │       ├── ble_proxy/      # Bluetooth Low Energy proxy & beacon tracker
 │       ├── cloud/          # Circuit breaker and cloud provider stubs
 │       ├── esphome_mqtt/   # ESPHome telemetry and command mapper
-│       ├── homekit/        # Native Apple HomeKit accessory bridge
+│       ├── homekit/        # HomeKit entity mapping; HAP transport is experimental/unavailable
 │       ├── knx/            # European wired KNXnet/IP UDP tunneling client & DPT codec
-│       ├── matter/         # Matter/Thread cluster commissioner & node manager
+│       ├── matter/         # Matter protocol scaffold; real controller/commissioning is experimental
 │       ├── modbus_tcp/     # Industrial Modbus TCP adapter (inverters, heat pumps, energy meters)
 │       ├── mqtt_generic/   # Topic-to-entity MQTT generic adapter
 │       ├── tuya_local/     # Local LAN protocol for Tuya devices (zero cloud)
@@ -300,7 +300,7 @@ cd web && npm run build
 
 ---
 
-## 🗺️ Roadmap & Milestones (100% Completed)
+## 🗺️ Roadmap & Milestones
 
 - [x] **MS-01: Foundation & Skeleton** — Pure Go SQLite in WAL mode, bounded in-memory event bus, TOML loader, HTTP server, E2E suite, Docker/Systemd.
 - [x] **MS-02: Auth, RBAC & First API** — Argon2id hashing, session cookies, CSRF protection, admin onboarding wizard, audit repository.
@@ -313,7 +313,7 @@ cd web && npm run build
 - [x] **MS-09: Hardening & Backup/Restore** — Security headers (HSTS, CSP, XSS), CORS, audit log viewer, AES-256-GCM encrypted backup/restore CLI.
 - [x] **MS-10: Final ARM64 Packaging & Release** — Multi-stage ARM64 Dockerfile, non-interactive installation scripts, embedded OpenAPI/Swagger UI, complete ADRs, 5-language localization.
 - [x] **MS-11: Multi-Client Family & Granular RBAC** — Concurrent multi-client sessions, creator-defined roles (admin, operator, viewer), secure invite links (`/register?token=...`), and family member governance.
-- [x] **MS-12: Advanced Native Ecosystem & Strategic Innovations** — Dynamic Energy Tariffs (PUN / Nord Pool / Octopus) & Flexible Loads Scheduler, Local AI Computer Vision NVR with ONNX pipeline, In-Browser USB WebSerial Firmware Flasher, Visual Flowchart Automation Designer, Dual-Hub High Availability Failover, Multi-Room Voice Satellites ("Ehi Domus"), Zero-Cloud 1-Click Brand Discovery (Hue, Shelly, Tapo, Kasa, Nanoleaf, Yeelight, Tuya), Security Alarm Control Panel, Zigbee Direct Mesh Binding, Shared Family Shopping List, and complete 5-language localization parity across 100% of views.
+- [~] **MS-12: Advanced Native Ecosystem & Strategic Innovations** — Foundations are present, but selected subsystems remain experimental or gated: real Matter commissioning, HomeKit HAP transport, production AI inference and source-backed dynamic tariff actuation. See [Phase 0 reliability status](docs/operations/phase-0-reliability.md).
 
 ---
 

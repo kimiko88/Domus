@@ -217,11 +217,9 @@ func (e *Engine) isSolarTriggerDue(trigger domauto.Trigger, now time.Time) bool 
 	}
 	position := sun.Calculate(now)
 	var eventTime time.Time
-	sunrise := false
 	switch strings.ToLower(strings.TrimSpace(trigger.EventType)) {
 	case "sunrise":
 		eventTime = position.Sunrise
-		sunrise = true
 	case "sunset":
 		eventTime = position.Sunset
 	default:

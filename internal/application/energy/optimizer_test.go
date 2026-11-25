@@ -26,7 +26,9 @@ func TestTariffOptimizer_FlexibleLoadsCalculation(t *testing.T) {
 	require.GreaterOrEqual(t, len(loads), 2)
 	for _, load := range loads {
 		require.Len(t, load.ScheduledHours, load.RequiredHours)
-		require.Greater(t, load.SavingsPercent, 0.0)
+		require.Zero(t, load.PowerKW)
+		require.Zero(t, load.EstimatedCostEUR, "cost is unknown without configured power")
+		require.Zero(t, load.SavingsPercent, "savings is unknown without configured power")
 	}
 }
 
@@ -68,6 +70,21 @@ func TestTariffOptimizer_SetScheduleAndEnforceMaximumPrice(t *testing.T) {
 	require.NoError(t, opt.SetTariffSchedule(makeSchedule(0.15)))
 	decisions = opt.EvaluateCurrentHour(context.Background())
 	require.True(t, decisions[rule.EntityKey])
+	for _, load := range opt.GetFlexibleLoads() {
+		if load.EntityKey == rule.EntityKey {
+			require.True(t, load.ActiveNow)
+		}
+	}
+	// An expired trusted schedule must shut down a load that the optimizer
+	// previously enabled, rather than leaving it on indefinitely.
+	stale := makeSchedule(0.15)
+	stale.Date = now.AddDate(0, 0, -1).Format("2006-01-02")
+	require.NoError(t, opt.SetTariffSchedule(stale))
+	decisions = opt.EvaluateCurrentHour(context.Background())
+	require.False(t, decisions[rule.EntityKey])
+	require.Len(t, bus.events, 2)
+	last := bus.events[len(bus.events)-1].Payload.(map[string]any)
+	require.Equal(t, "turn_off", last["service"])
 }
 
 func TestTariffOptimizer_RejectsEstimatedOrIncompleteSchedules(t *testing.T) {

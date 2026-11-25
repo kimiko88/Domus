@@ -115,9 +115,9 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 		state, _ := geoPayload["state"].(string)
 		switch strings.ToLower(strings.TrimSpace(trig.EventType)) {
 		case "enter_home":
-			return state == "just_arrived" || state == "home"
+			return state == "just_arrived"
 		case "leave_home":
-			return state == "just_left" || state == "away"
+			return state == "just_left"
 		default:
 			return false
 		}

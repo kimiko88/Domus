@@ -55,6 +55,7 @@ type FlexibleLoadRule struct {
 	Name             string  `json:"name"`            // Friendly name
 	RequiredHours    int     `json:"required_hours"`  // Number of hours needed per day (e.g. 3)
 	MaxPriceKWh      float64 `json:"max_price_kwh"`   // Hard limit above which load is not turned on
+	PowerKW          float64 `json:"power_kw,omitempty"` // Configured average load power for cost estimation
 	ActiveNow        bool    `json:"active_now"`      // Whether load is currently turned on by optimizer
 	AutoSchedule     bool    `json:"auto_schedule"`   // True if Domus should toggle automatically
 	ScheduledHours   []int   `json:"scheduled_hours"` // Best hours chosen for today
@@ -297,13 +298,18 @@ func (o *TariffOptimizer) recalculateLoadPlansLocked() {
 		sort.Ints(chosen)
 
 		rule.ScheduledHours = chosen
-		rule.EstimatedCostEUR = math.Round(costSum*100) / 100
-
-		worstCost := peakPrice * float64(len(chosen))
+		// EUR/kWh multiplied by a duration in hours is not a cost unless
+		// the device's average power is known. Never assume an arbitrary 1 kW.
+		rule.EstimatedCostEUR = 0
 		rule.SavingsPercent = 0
-		if worstCost > 0 && len(chosen) > 0 {
-			savings := ((worstCost - costSum) / worstCost) * 100.0
-			rule.SavingsPercent = math.Round(savings*10) / 10
+		if rule.PowerKW > 0 && !math.IsNaN(rule.PowerKW) && !math.IsInf(rule.PowerKW, 0) {
+			estimatedCost := costSum * rule.PowerKW
+			rule.EstimatedCostEUR = math.Round(estimatedCost*100) / 100
+			worstCost := peakPrice * float64(len(chosen)) * rule.PowerKW
+			if worstCost > 0 && len(chosen) > 0 {
+				savings := ((worstCost - estimatedCost) / worstCost) * 100.0
+				rule.SavingsPercent = math.Round(savings*10) / 10
+			}
 		}
 	}
 }
@@ -370,29 +376,35 @@ func (o *TariffOptimizer) EvaluateCurrentHour(ctx context.Context) map[string]bo
 			if rule.MaxPriceKWh > 0 && currentPrice > rule.MaxPriceKWh { shouldBeActive = false }
 		}
 		previouslyActive := rule.ActiveNow
-		rule.ActiveNow = shouldBeActive
-		decisions[rule.EntityKey] = shouldBeActive
-
-		// Emit only on state transitions and only from a current trusted schedule.
-		if o.bus != nil && scheduleTrusted && previouslyActive != shouldBeActive {
-			service := "turn_off"
-			if shouldBeActive {
-				service = "turn_on"
+		if previouslyActive != shouldBeActive {
+			// Estimated/stale schedules never turn loads on. When a trusted
+			// schedule expires, try to turn off loads previously activated by
+			// this optimizer. Failed dispatches retain the old state for retry.
+			mayDispatch := o.bus != nil && (scheduleTrusted || (previouslyActive && !shouldBeActive))
+			if !mayDispatch {
+				decisions[rule.EntityKey] = previouslyActive
+				continue
 			}
-			_ = o.bus.Publish(ctx, events.Event{
-				ID:         uuid.NewString(),
-				Type:       events.CommandRequested,
+			service := "turn_off"
+			if shouldBeActive { service = "turn_on" }
+			err := o.bus.Publish(ctx, events.Event{
+				ID: uuid.NewString(),
+				Type: events.CommandRequested,
 				OccurredAt: time.Now().UTC(),
-				Source:     "energy.tariff_optimizer",
+				Source: "energy.tariff_optimizer",
 				Payload: map[string]any{
 					"entity_key": rule.EntityKey,
-					"service":    service,
-					"params": map[string]any{
-						"reason": fmt.Sprintf("dynamic_tariff_hour_%d", nowH),
-					},
+					"service": service,
+					"params": map[string]any{"reason": fmt.Sprintf("dynamic_tariff_hour_%d", nowH)},
 				},
 			})
+			if err != nil {
+				decisions[rule.EntityKey] = previouslyActive
+				continue
+			}
 		}
+		rule.ActiveNow = shouldBeActive
+		decisions[rule.EntityKey] = shouldBeActive
 	}
 
 	return decisions
