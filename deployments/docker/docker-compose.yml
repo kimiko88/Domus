@@ -20,6 +20,8 @@ services:
       - DOMUS_LOG_FORMAT=json
       - DOMUS_WHISPER_ENDPOINT=${DOMUS_WHISPER_ENDPOINT:-http://host.docker.internal:10300}
       - DOMUS_PIPER_ENDPOINT=${DOMUS_PIPER_ENDPOINT:-http://host.docker.internal:10301}
+      - DOMUS_WHISPER_ADDR=${DOMUS_WHISPER_ADDR:-host.docker.internal:10300}
+      - DOMUS_PIPER_ADDR=${DOMUS_PIPER_ADDR:-host.docker.internal:10200}
       - DOMUS_VOICE_LANGUAGE=${DOMUS_VOICE_LANGUAGE:-it}
       - DOMUS_VOICE_MODEL=${DOMUS_VOICE_MODEL:-it_IT-paola-medium}
       - DOMUS_VOICE_SATELLITES_JSON=${DOMUS_VOICE_SATELLITES_JSON:-[]}

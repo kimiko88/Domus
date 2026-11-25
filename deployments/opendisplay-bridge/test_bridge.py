@@ -146,5 +146,56 @@ class BridgeTests(AioHTTPTestCase):
                 server._load_device_keys()
 
 
+    @unittest_run_loop
+    async def test_led_action_calls_typed_sdk_operation(self):
+        from contextlib import asynccontextmanager
+
+        class FakeDevice:
+            def __init__(self):
+                self.activate_led = AsyncMock()
+
+        fake = FakeDevice()
+
+        @asynccontextmanager
+        async def fake_open(*args, **kwargs):
+            yield fake
+
+        with patch.object(server, "_open_device", new=fake_open):
+            response = await self.client.request(
+                "POST",
+                "/api/v1/devices/AA:BB:CC:DD:EE:FF/actions/led",
+                json={"instance": 0, "brightness": 8, "color": [255, 0, 0], "flash_count": 2},
+                headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+            )
+        self.assertEqual(response.status, 200)
+        fake.activate_led.assert_awaited_once()
+
+    @unittest_run_loop
+    async def test_nfc_home_assistant_tag_uses_encoded_tag_url(self):
+        from contextlib import asynccontextmanager
+
+        class FakeDevice:
+            def __init__(self):
+                self.write_nfc_url = AsyncMock()
+
+        fake = FakeDevice()
+
+        @asynccontextmanager
+        async def fake_open(*args, **kwargs):
+            yield fake
+
+        with patch.object(server, "_open_device", new=fake_open):
+            response = await self.client.request(
+                "POST",
+                "/api/v1/devices/AA:BB:CC:DD:EE:FF/actions/nfc",
+                json={"record_type": "ha_tag", "content": "kitchen door #1"},
+                headers={"Authorization": "Bearer " + os.environ["OPENDISPLAY_BRIDGE_TOKEN"]},
+            )
+        self.assertEqual(response.status, 200)
+        fake.write_nfc_url.assert_awaited_once_with(
+            "https://www.home-assistant.io/tag/kitchen%20door%20%231"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

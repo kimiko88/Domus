@@ -41,7 +41,7 @@ OPENDISPLAY_BRIDGE_BLE_SCAN_SECONDS=6
 OPENDISPLAY_BRIDGE_ENABLE_WIFI=true
 ```
 
-Con Compose, il bridge è un servizio del profilo opzionale:
+Con Compose, il bridge è un servizio del profilo opzionale. Il servizio Domus raggiunge il companion all'indirizzo `host.docker.internal:10320`; nel run nativo usa `127.0.0.1:10320`:
 
 ```bash
 docker compose --env-file .env -f deployments/docker/docker-compose.yml --profile opendisplay up -d
