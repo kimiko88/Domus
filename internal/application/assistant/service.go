@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -652,6 +653,49 @@ func (s *Service) RegisterSatellite(sat VoiceSatellite) VoiceSatellite {
 	sat.LastHeardAt = time.Now().UTC()
 	s.satellites[sat.ID] = &sat
 	return sat
+}
+
+
+
+// VoiceSatelliteConfig is the small, non-secret portion of a room satellite
+// that can be provisioned through DOMUS_VOICE_SATELLITES_JSON.
+type VoiceSatelliteConfig struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	AreaName string `json:"area_name"`
+	WakeWord string `json:"wake_word,omitempty"`
+}
+
+// ConfigureSatellitesJSON loads up to 32 statically provisioned satellites.
+// Configuration is kept in the service process and is reloaded on restart.
+func (s *Service) ConfigureSatellitesJSON(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" { return nil }
+	if len(raw) > 16<<10 { return fmt.Errorf("assistant: voice satellite configuration exceeds 16 KiB") }
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var configs []VoiceSatelliteConfig
+	if err := decoder.Decode(&configs); err != nil { return fmt.Errorf("assistant: parse voice satellite configuration: %w", err) }
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF { return fmt.Errorf("assistant: voice satellite configuration has trailing JSON data") }
+	if len(configs) > 32 { return fmt.Errorf("assistant: at most 32 voice satellites can be configured") }
+
+	idPattern := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
+	seen := make(map[string]struct{}, len(configs))
+	for _, cfg := range configs {
+		if !idPattern.MatchString(cfg.ID) { return fmt.Errorf("assistant: invalid voice satellite ID %q", cfg.ID) }
+		if strings.TrimSpace(cfg.Name) == "" || len(cfg.Name) > 128 { return fmt.Errorf("assistant: satellite %q requires a name up to 128 bytes", cfg.ID) }
+		if strings.TrimSpace(cfg.AreaName) == "" || len(cfg.AreaName) > 128 { return fmt.Errorf("assistant: satellite %q requires an area_name up to 128 bytes", cfg.ID) }
+		if _, duplicate := seen[cfg.ID]; duplicate { return fmt.Errorf("assistant: duplicate voice satellite ID %q", cfg.ID) }
+		seen[cfg.ID] = struct{}{}
+	}
+	for _, cfg := range configs {
+		s.RegisterSatellite(VoiceSatellite{
+			ID: cfg.ID, Name: strings.TrimSpace(cfg.Name), AreaName: strings.TrimSpace(cfg.AreaName),
+			WakeWord: strings.TrimSpace(cfg.WakeWord), Status: "online",
+		})
+	}
+	return nil
 }
 
 // ListSatellites returns all registered room microphones and smart display satellites.

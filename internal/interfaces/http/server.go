@@ -901,6 +901,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				storeSvc := appstore.NewService(storeRepo)
 
 				assistantSvc := appassistant.NewService(appassistant.Config{Enabled: true}, srv.bus, srv.repos.Entities)
+				if rawSatellites := strings.TrimSpace(os.Getenv("DOMUS_VOICE_SATELLITES_JSON")); rawSatellites != "" {
+					if err := assistantSvc.ConfigureSatellitesJSON(rawSatellites); err != nil {
+						slog.Error("invalid DOMUS_VOICE_SATELLITES_JSON; additional voice satellites were not registered", "error", err)
+					}
+				}
 				voicePipeline := appassistant.NewVoicePipeline(appassistant.VoicePipelineConfig{
 					WhisperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_WHISPER_ENDPOINT")),
 					PiperEndpoint: strings.TrimSpace(os.Getenv("DOMUS_PIPER_ENDPOINT")),
