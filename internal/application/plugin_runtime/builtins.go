@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"strconv"
 	"strings"
@@ -43,10 +42,10 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		{Name: "keep_alive", Type: "duration", Description: "MQTT keep-alive duration"},
 		{Name: "clean_session", Type: "boolean", Description: "Start with a clean MQTT session"},
 	}
-	mqttClient := func(instanceID string, wire mqttWireConfig) (*managedMQTTAdapter, mqtt.Client, error) {
+	mqttClient := func(instanceID string, wire mqttWireConfig) (mqtt.Client, error) {
 		brokerURL := strings.TrimSpace(wire.BrokerURL)
 		if brokerURL == "" {
-			return nil, nil, errors.New("mqtt: broker_url is required")
+			return nil, errors.New("mqtt: broker_url is required")
 		}
 		clientID := strings.TrimSpace(wire.ClientID)
 		if clientID == "" {
@@ -60,7 +59,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		if wire.KeepAlive != "" {
 			parsed, err := time.ParseDuration(wire.KeepAlive)
 			if err != nil || parsed < 5*time.Second || parsed > 10*time.Minute {
-				return nil, nil, errors.New("mqtt: keep_alive must be between 5s and 10m")
+				return nil, errors.New("mqtt: keep_alive must be between 5s and 10m")
 			}
 			keepAlive = parsed
 		}
@@ -68,9 +67,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			BrokerURL: brokerURL, ClientID: clientID, Username: wire.Username,
 			Password: wire.Password, CleanSession: cleanSession, KeepAlive: keepAlive,
 		})
-		return nil, client, nil
+		return client, nil
 	}
-	_ = mqttClient
 
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "mqtt_generic", Name: "MQTT Generic",
@@ -83,11 +81,9 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
 		if err != nil { return nil, err }
-		_, client, err := mqttClient(instanceID, wire)
+		client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
-		var topics struct { State string `json:"state_topic_pattern"`; Command string `json:"command_topic_template"` }
-		_ = json.Unmarshal(raw, &topics)
-		adapter := mqtt_generic.NewAdapter(mqtt_generic.Config{IntegrationID: instanceID, StateTopicPattern: topics.State, CommandTopicTemplate: topics.Command}, client, deps.Entities, deps.Devices, deps.Bus)
+		adapter := mqtt_generic.NewAdapter(mqtt_generic.Config{IntegrationID: instanceID, StateTopicPattern: wire.StateTopicPattern, CommandTopicTemplate: wire.CommandTopicTemplate}, client, deps.Entities, deps.Devices, deps.Bus)
 		return &managedMQTTAdapter{inner: adapter, client: client}, nil
 	}); err != nil { return err }
 
@@ -99,11 +95,9 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
 		if err != nil { return nil, err }
-		_, client, err := mqttClient(instanceID, wire)
+		client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
-		var topic struct { Base string `json:"base_topic"` }
-		_ = json.Unmarshal(raw, &topic)
-		adapter := zigbee2mqtt.NewAdapter(zigbee2mqtt.Config{IntegrationID: instanceID, BaseTopic: topic.Base}, client, deps.Devices, deps.Entities, deps.Bus)
+		adapter := zigbee2mqtt.NewAdapter(zigbee2mqtt.Config{IntegrationID: instanceID, BaseTopic: wire.BaseTopic}, client, deps.Devices, deps.Entities, deps.Bus)
 		return &managedMQTTAdapter{inner: adapter, client: client}, nil
 	}); err != nil { return err }
 
@@ -115,11 +109,9 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		wire, err := plugins.DecodeConfig[mqttWireConfig](raw)
 		if err != nil { return nil, err }
-		_, client, err := mqttClient(instanceID, wire)
+		client, err := mqttClient(instanceID, wire)
 		if err != nil { return nil, err }
-		var topic struct { Prefix string `json:"topic_prefix"` }
-		_ = json.Unmarshal(raw, &topic)
-		adapter := esphome_mqtt.NewAdapter(esphome_mqtt.Config{IntegrationID: instanceID, TopicPrefix: topic.Prefix}, client, deps.Devices, deps.Entities, deps.Bus)
+		adapter := esphome_mqtt.NewAdapter(esphome_mqtt.Config{IntegrationID: instanceID, TopicPrefix: wire.TopicPrefix}, client, deps.Devices, deps.Entities, deps.Bus)
 		return &managedMQTTAdapter{inner: adapter, client: client}, nil
 	}); err != nil { return err }
 
@@ -229,6 +221,10 @@ type mqttWireConfig struct {
 	Password string `json:"password,omitempty"`
 	KeepAlive string `json:"keep_alive,omitempty"`
 	CleanSession *bool `json:"clean_session,omitempty"`
+	StateTopicPattern string `json:"state_topic_pattern,omitempty"`
+	CommandTopicTemplate string `json:"command_topic_template,omitempty"`
+	BaseTopic string `json:"base_topic,omitempty"`
+	TopicPrefix string `json:"topic_prefix,omitempty"`
 }
 
 type managedMQTTAdapter struct {
