@@ -99,6 +99,30 @@ func NewMideaHandler(
 	return handler, nil
 }
 
+
+ // WithRuntimeAdapter replaces the handler's private protocol engine with the
+ // manager-owned plugin engine and restores the decrypted device configuration.
+func (h *MideaHandler) WithRuntimeAdapter(runtime *midea.RuntimeAdapter) error {
+	if runtime == nil { return errors.New("midea: plugin runtime adapter is required") }
+	core, err := runtime.Core()
+	if err != nil { return err }
+	driverV2, driverV3 := runtime.Drivers()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, stored := range h.config.Devices {
+		var driver *midea.A1LANDriver
+		switch stored.Device.Protocol {
+		case midea.ProtocolMSmartV2: driver = driverV2
+		case midea.ProtocolMSmartV3: driver = driverV3
+		default: return fmt.Errorf("midea: unsupported stored protocol %q", stored.Device.Protocol)
+		}
+		if err := driver.Register(stored); err != nil { return fmt.Errorf("midea: restore plugin device %q: %w", stored.Device.ID, err) }
+		if err := core.Register(stored.Device); err != nil { return fmt.Errorf("midea: restore plugin adapter device %q: %w", stored.Device.ID, err) }
+	}
+	h.adapter, h.driverV2, h.driverV3 = core, driverV2, driverV3
+	return nil
+}
+
 // WithEventBus publishes verified device state to the shared automation and WebSocket event pipeline.
 func (h *MideaHandler) WithEventBus(bus events.Bus) *MideaHandler {
 	h.mu.Lock()

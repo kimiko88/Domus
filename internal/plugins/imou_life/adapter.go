@@ -31,7 +31,7 @@ func NewAdapter(id string, timeout time.Duration) (*Adapter, error) {
 }
 
 func (a *Adapter) ID() string { return a.id }
-func (a *Adapter) Type() string { return "imou_life" }
+func (a *Adapter) Type() string { return "imou_life_transport" }
 func (a *Adapter) Start(ctx context.Context) error {
 	if err:=ctx.Err(); err!=nil{return err}
 	a.mu.Lock();a.active=true;a.mu.Unlock();return nil

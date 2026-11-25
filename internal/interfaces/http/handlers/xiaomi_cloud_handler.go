@@ -30,6 +30,7 @@ import (
 const xiaomiCloudIntegrationID = "integration_xiaomi_home_cloud"
 
 type XiaomiCloudHandler struct {
+	provider *xiaomi_home.CloudAdapter
 	integrations integration.Repository
 	devices device.Repository
 	entities entity.Repository
@@ -75,6 +76,15 @@ func NewXiaomiCloudHandler(integrations integration.Repository, devices device.R
 		return nil, errors.New("xiaomi: repositories and encryption are required")
 	}
 	return &XiaomiCloudHandler{integrations: integrations, devices: devices, entities: entities, cipher: cipher, bus: bus, seenEvents: make(map[string]time.Time)}, nil
+}
+
+
+ // WithPluginAdapter binds the Xiaomi Open Platform transport to the plugin runtime.
+func (h *XiaomiCloudHandler) WithPluginAdapter(adapter *xiaomi_home.CloudAdapter) error {
+	if adapter == nil { return errors.New("xiaomi: cloud plugin runtime adapter is required") }
+	if err := adapter.HealthCheck(context.Background()); err != nil { return err }
+	h.provider = adapter
+	return nil
 }
 
 func (h *XiaomiCloudHandler) RegisterCallback(r chi.Router) {
@@ -789,10 +799,14 @@ func (h *XiaomiCloudHandler) loadClient(ctx context.Context) (*xiaomiCloudConfig
 }
 
 func (h *XiaomiCloudHandler) newClient(config *xiaomiCloudConfig) (*xiaomi_home.CloudClient, error) {
-	return xiaomi_home.NewCloudClient(xiaomi_home.CloudConfig{
+	wire := xiaomi_home.CloudConfig{
 		ClientID: config.ClientID, ClientSecret: config.ClientSecret,
 		RedirectURL: config.RedirectURL, Region: config.Region,
-	}, nil)
+	}
+	if h.provider != nil {
+		return h.provider.NewClient(wire)
+	}
+	return xiaomi_home.NewCloudClient(wire, nil)
 }
 
 func (h *XiaomiCloudHandler) loadConfig(ctx context.Context) (*xiaomiCloudConfig, error) {
