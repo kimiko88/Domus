@@ -145,6 +145,29 @@ function toggleAutoSchedule(load: FlexibleLoad) {
   load.auto_schedule = !load.auto_schedule
 }
 
+async function updateLoadPower(load: FlexibleLoad, event: Event) {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) return
+  const value = target.value.trim() === '' ? 0 : Number(target.value)
+  if (!Number.isFinite(value) || value < 0) {
+    await fetchDynamicTariffs()
+    return
+  }
+
+  const updated = { ...load, power_kw: value }
+  load.power_kw = value
+  try {
+    const response = await apiClient.put<{ status: string; flexible_loads: FlexibleLoad[] }>(
+      '/api/v1/energy/flexible-loads',
+      updated
+    )
+    if (response?.flexible_loads) flexibleLoads.value = response.flexible_loads
+    else await fetchDynamicTariffs()
+  } catch {
+    await fetchDynamicTariffs()
+  }
+}
+
 async function fetchDynamicTariffs() {
   try {
     const res = await apiClient.get<any>('/api/v1/energy/dynamic-tariffs')
@@ -833,7 +856,21 @@ async function handleOptimizeBESS() {
               </div>
               <div class="meta-item">
                 <span class="lbl">{{ t('energy.maxPriceThreshold') }}:</span>
-                <span class="val">&le; {{ load.max_price_kwh }} €/kWh</span>
+                <span class="val">{{ load.max_price_kwh < 0 ? t('energy.noPriceLimit') : '≤ ' + load.max_price_kwh + ' €/kWh' }}</span>
+              </div>
+              <div class="meta-item">
+                <label class="lbl" :for="'load-power-' + load.entity_key">{{ t('energy.loadPowerLabel') }}</label>
+                <input
+                  :id="'load-power-' + load.entity_key"
+                  class="load-power-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  :value="load.power_kw ?? ''"
+                  :aria-label="t('energy.loadPowerLabel')"
+                  @change="updateLoadPower(load, $event)"
+                />
               </div>
             </div>
 
@@ -1805,6 +1842,17 @@ async function handleOptimizeBESS() {
 .scheduled-badge {
   color: #10b981 !important;
   font-weight: 700 !important;
+}
+
+.load-power-input {
+  width: 5.5rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface-2);
+  font: inherit;
 }
 
 .load-card-footer {
