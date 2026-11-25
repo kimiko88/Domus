@@ -120,6 +120,17 @@ func (a *Automation) Validate() error {
 	if a.CooldownSeconds < 0 {
 		a.CooldownSeconds = 0
 	}
+	for _, trigger := range a.Triggers {
+		if trigger.ForSeconds < 0 || trigger.ForSeconds > 24*60*60 {
+			return errors.New("automation: trigger for_seconds must be between 0 and 86400")
+		}
+		if trigger.Platform == "state" && strings.TrimSpace(trigger.EntityKey) == "" {
+			return errors.New("automation: state trigger requires entity_key")
+		}
+		if trigger.Platform == "numeric_state" && strings.TrimSpace(trigger.EntityKey) == "" {
+			return errors.New("automation: numeric_state trigger requires entity_key")
+		}
+	}
 	return nil
 }
 

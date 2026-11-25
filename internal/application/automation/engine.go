@@ -30,6 +30,15 @@ type climateOverride struct {
 	previousSetpoint float64
 }
 
+type pendingAutomationTrigger struct {
+	cancel context.CancelFunc
+	entityKey string
+	trigger automation.Trigger
+	rule *automation.Automation
+	triggerID string
+	event events.Event
+}
+
 // Engine evaluates incoming events against registered automation rules and executes actions.
 type Engine struct {
 	autoRepo   automation.Repository
@@ -51,6 +60,10 @@ type Engine struct {
 	overrideMu       sync.Mutex
 	climateOverrides map[string]*climateOverride
 
+	triggerMu       sync.Mutex
+	entityEvents    map[string]events.Event
+	pendingTriggers map[string]*pendingAutomationTrigger
+	sunEngine       *SunEngine
 }
 
 // NewEngine creates an automation Engine instance.
@@ -65,7 +78,17 @@ func NewEngine(
 		bus:        bus,
 		evaluator:      NewEvaluator(),
 		scheduledDates: make(map[string]string),
+		entityEvents: make(map[string]events.Event),
+		pendingTriggers: make(map[string]*pendingAutomationTrigger),
 	}
+}
+
+// SetSunEngine configures location-aware sunrise/sunset triggers. Passing nil
+// disables solar triggers until the home coordinates are configured.
+func (e *Engine) SetSunEngine(sun *SunEngine) {
+	e.mu.Lock()
+	e.sunEngine = sun
+	e.mu.Unlock()
 }
 
 // Start registers subscriptions on the event bus to listen for triggers.
@@ -77,6 +100,13 @@ func (e *Engine) Start(ctx context.Context) error {
 		return nil
 	}
 
+	if e.entityEvents == nil {
+		e.entityEvents = make(map[string]events.Event)
+	}
+	if e.pendingTriggers == nil {
+		e.pendingTriggers = make(map[string]*pendingAutomationTrigger)
+	}
+	e.seedEntityObservations(ctx)
 	u := e.bus.SubscribeAll(e.handleEvent)
 	e.unsubs = append(e.unsubs, u)
 
@@ -124,6 +154,7 @@ func (e *Engine) Stop(ctx context.Context) error {
 	if executionCancel != nil {
 		executionCancel()
 	}
+	e.cancelPendingAutomationTriggers()
 	var restoreOverrides []*climateOverride
 	e.overrideMu.Lock()
 	for key, override := range e.climateOverrides {
@@ -200,7 +231,14 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 	e.scheduleMu.Unlock()
 	for _, rule := range rules {
 		for index, trigger := range rule.Triggers {
-			if !e.evaluator.EvaluateTimeTrigger(trigger, localNow) {
+			matched := false
+			switch trigger.Platform {
+			case "time":
+				matched = e.evaluator.EvaluateTimeTrigger(trigger, localNow)
+			case "sun":
+				matched = e.isSolarTriggerDue(trigger, localNow)
+			}
+			if !matched {
 				continue
 			}
 			triggerID := trigger.ID
@@ -234,6 +272,9 @@ func (e *Engine) processTimeTriggers(ctx context.Context, now time.Time) {
 }
 
 func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
+	if evt.Type == events.EntityStateChanged {
+		evt = e.trackEntityStateEvent(evt)
+	}
 	// Skip automation internal event loops to prevent infinite cycles
 	if evt.Type == events.AutomationTriggered ||
 		evt.Type == events.AutomationRunCompleted ||
@@ -248,7 +289,7 @@ func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
 	}
 
 	for _, rule := range rules {
-		for _, trig := range rule.Triggers {
+		for index, trig := range rule.Triggers {
 			if e.evaluator.EvaluateTrigger(trig, evt) {
 				// Check cooldown
 				if rule.CooldownSeconds > 0 && rule.LastRunAt != nil {
@@ -259,12 +300,16 @@ func (e *Engine) handleEvent(ctx context.Context, evt events.Event) error {
 					}
 				}
 
-				// Execute asynchronously in background
-				triggerContextBytes, _ := json.Marshal(map[string]any{
-					"trigger": trig,
-					"event":   evt,
-				})
-				go e.launchRuleExecution(e.executionContext(ctx), rule, trig.ID, string(triggerContextBytes))
+				triggerID := triggerIdentifier(trig, index)
+				if trig.ForSeconds > 0 && evt.Type == events.EntityStateChanged {
+					e.scheduleDelayedAutomationTrigger(ctx, rule, trig, triggerID, evt)
+				} else {
+					triggerContextBytes, _ := json.Marshal(map[string]any{
+						"trigger": trig,
+						"event":   evt,
+					})
+					go e.launchRuleExecution(e.executionContext(ctx), rule, triggerID, string(triggerContextBytes))
+				}
 				break
 			}
 		}

@@ -41,12 +41,17 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 			return false
 		}
 
-		if trig.To == "" {
-			return true // Fires on any change if 'To' not specified
-		}
-
 		stateRaw := payloadMap["state"]
 		currVal := extractStateString(stateRaw)
+		if trig.From != "" {
+			oldRaw, exists := payloadMap["old_state"]
+			if !exists || !strings.EqualFold(extractStateString(oldRaw), trig.From) {
+				return false
+			}
+		}
+		if trig.To == "" {
+			return true
+		}
 		return strings.EqualFold(currVal, trig.To)
 
 	case "numeric_state":
@@ -64,7 +69,7 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 
 		value := payloadMap["state"]
 		if trig.Attribute != "" {
-			attributes, _ := payloadMap["attributes"].(map[string]any)
+			attributes := decodeAttributes(payloadMap["attributes"])
 			var found bool
 			value, found = attributes[trig.Attribute]
 			if !found {
@@ -82,7 +87,40 @@ func (e *Evaluator) EvaluateTrigger(trig automation.Trigger, evt events.Event) b
 		if trig.Below != nil && val >= *trig.Below {
 			return false
 		}
+		// Numeric-state triggers fire on entry into the configured range.
+		if oldRaw, exists := payloadMap["old_state"]; exists {
+			oldValue := oldRaw
+			if trig.Attribute != "" {
+				oldAttributes := decodeAttributes(payloadMap["old_attributes"])
+				var found bool
+				oldValue, found = oldAttributes[trig.Attribute]
+				if !found {
+					oldValue = nil
+				}
+			}
+			if oldVal, ok := extractNumericValue(oldValue); ok && numericValueMatchesTrigger(oldVal, trig) {
+				return false
+			}
+		}
 		return true
+
+	case "geofence":
+		if string(evt.Type) != "presence.state_changed" {
+			return false
+		}
+		geoPayload, ok := evt.Payload.(map[string]any)
+		if !ok {
+			return false
+		}
+		state, _ := geoPayload["state"].(string)
+		switch strings.ToLower(strings.TrimSpace(trig.EventType)) {
+		case "enter_home":
+			return state == "just_arrived" || state == "home"
+		case "leave_home":
+			return state == "just_left" || state == "away"
+		default:
+			return false
+		}
 
 	case "time":
 		return e.EvaluateTimeTrigger(trig, time.Now())
@@ -303,6 +341,29 @@ func extractEntityNumericValue(ent *entity.Entity, attribute string) (float64, b
 		return 0, false
 	}
 	return extractNumericValue(ent.State)
+}
+
+func decodeAttributes(value any) map[string]any {
+	switch raw := value.(type) {
+	case map[string]any:
+		return raw
+	case string:
+		var attrs map[string]any
+		_ = json.Unmarshal([]byte(raw), &attrs)
+		return attrs
+	default:
+		return nil
+	}
+}
+
+func numericValueMatchesTrigger(value float64, trig automation.Trigger) bool {
+	if trig.Above != nil && value <= *trig.Above {
+		return false
+	}
+	if trig.Below != nil && value >= *trig.Below {
+		return false
+	}
+	return true
 }
 
 func extractNumericValue(v any) (float64, bool) {

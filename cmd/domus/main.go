@@ -268,6 +268,7 @@ func run() int {
 	} else {
 		slog.Warn("home coordinates are not configured; GPS geofencing, commute tracking and solar position are disabled")
 	}
+	autoEngine.SetSunEngine(sunEngine)
 
 	// 11. Telemetry Downsampler (Nightly compaction of telemetry > 30 days old into hourly buckets)
 	downsampler := apphistory.NewDownsampler(db)
