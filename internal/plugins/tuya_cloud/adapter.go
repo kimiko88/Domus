@@ -51,10 +51,6 @@ func (a *Adapter) HealthCheck(ctx context.Context) error {
 	active := a.active
 	a.mu.RUnlock()
 	if !active { return errors.New("tuya cloud: provider is stopped") }
-	cfg := a.client.Config()
-	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.Secret) == "" {
-		return errors.New("tuya cloud: application credentials are not configured")
-	}
 	return nil
 }
 

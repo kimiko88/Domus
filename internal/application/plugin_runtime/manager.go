@@ -64,6 +64,16 @@ func NewManager(repos *sqlite.Repositories, bus events.Bus) (*Manager, error) {
 
 func (m *Manager) Registry() *plugins.Registry { return m.registry }
 
+// GetAdapter returns a prepared adapter by instance ID. The returned value is
+// owned by the manager; callers may use its typed provider contract but must
+// not call Start or Stop directly.
+func (m *Manager) GetAdapter(instanceID string) (plugins.Adapter, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	adapter, ok := m.prepared[instanceID]
+	return adapter, ok
+}
+
 // ListTypes returns the manifests for every built-in adapter factory.
 func (m *Manager) ListTypes() []plugins.Manifest { return m.registry.List() }
 

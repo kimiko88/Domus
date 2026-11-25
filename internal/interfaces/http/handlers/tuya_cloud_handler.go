@@ -81,23 +81,43 @@ func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 		return fmt.Errorf("decrypt secret: %w", err)
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.client == nil {
-		c, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID,
-			Secret:   secret,
-			BaseURL:  endpoint,
-			UID:      uid,
-		})
-		if err != nil {
-			return err
-		}
-		h.client = c
-	} else {
-		h.client.SetCredentials(clientID, secret, endpoint, uid)
+	cfg := tuya_cloud.Config{ClientID: clientID, Secret: secret, BaseURL: endpoint, UID: uid}
+	h.mu.RLock()
+	current := h.client
+	h.mu.RUnlock()
+	if current != nil {
+		current.SetCredentials(clientID, secret, endpoint, uid)
+		return nil
 	}
+	provider, err := h.providerForConfig(ctx, cfg)
+	if err != nil { return err }
+	h.mu.Lock()
+	if h.client == nil { h.client = provider } else { h.client.SetCredentials(clientID, secret, endpoint, uid) }
+	h.mu.Unlock()
 	return nil
+}
+
+
+func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud.Config) (tuya_cloud.Provider, error) {
+	if h.pluginManager != nil {
+		if existing, ok := h.pluginManager.GetAdapter(tuya_cloud.PluginType); ok {
+			provider, ok := existing.(tuya_cloud.Provider)
+			if !ok { return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract") }
+			provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+			return provider, nil
+		}
+		raw, err := json.Marshal(map[string]any{
+			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
+			"uid": cfg.UID, "schema": cfg.Schema,
+		})
+		if err != nil { return nil, err }
+		adapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
+		if err != nil { return nil, err }
+		provider, ok := adapter.(tuya_cloud.Provider)
+		if !ok { return nil, errors.New("tuya cloud: plugin factory returned an incompatible provider") }
+		return provider, nil
+	}
+	return tuya_cloud.New(cfg)
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
@@ -229,13 +249,21 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.mu.Lock()
-	if h.client == nil {
-		h.client = testClient
+	h.mu.RLock()
+	current := h.client
+	h.mu.RUnlock()
+	if current == nil {
+		provider, err := h.providerForConfig(r.Context(), testClient.Config())
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud provider could not be started")
+			return
+		}
+		h.mu.Lock()
+		if h.client == nil { h.client = provider } else { h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID) }
+		h.mu.Unlock()
 	} else {
-		h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
+		current.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
 	}
-	h.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,

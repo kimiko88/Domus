@@ -367,6 +367,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 		}
 	}
+	if tuyaCloudClient == nil && clientID != "" && secret != "" {
+		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
+			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
+		})
+		if err != nil {
+			slog.Error("tuya cloud integration disabled: invalid configuration", "error", err)
+		} else {
+			tuyaCloudClient = legacyClient
+		}
+	}
 	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
 		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)
 	}
