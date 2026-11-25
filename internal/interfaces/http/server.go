@@ -67,6 +67,10 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
+	"github.com/domus-hub/domus/internal/plugins/imou_life"
+	"github.com/domus-hub/domus/internal/plugins/vesync"
+	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
+	"github.com/domus-hub/domus/internal/plugins/midea"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -269,6 +273,51 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			slog.Error("plugin runtime disabled: registry initialization failed", "error", managerErr)
 		} else {
 			srv.pluginRuntime = manager
+
+			// These protocol transports are managed by the shared plugin runtime,
+			// while their existing HTTP handlers continue to own the encrypted
+			// user/account configuration and public API compatibility.
+			var imouRuntime *imou_life.Adapter
+			var vesyncRuntime *vesync.Adapter
+			var xiaomiLocalRuntime *xiaomi_home.LocalAdapter
+			var xiaomiCloudRuntime *xiaomi_home.CloudAdapter
+			var mideaRuntime *midea.RuntimeAdapter
+
+			if imouLifeHandler != nil {
+				if adapter, err := manager.Prepare(context.Background(), "imou_life_transport", "imou_life_transport", json.RawMessage(`{}`)); err != nil {
+					slog.Error("Imou Life plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*imou_life.Adapter); ok {
+					imouRuntime = typed
+				}
+			}
+			if vesyncHandler != nil {
+				if adapter, err := manager.Prepare(context.Background(), "vesync_transport", "vesync_transport", json.RawMessage(`{}`)); err != nil {
+					slog.Error("VeSync plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*vesync.Adapter); ok {
+					vesyncRuntime = typed
+				}
+			}
+			if xiaomiHomeHandler != nil {
+				if adapter, err := manager.Prepare(context.Background(), "xiaomi_miio_transport", "xiaomi_miio_transport", json.RawMessage(`{}`)); err != nil {
+					slog.Error("Xiaomi Home local plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*xiaomi_home.LocalAdapter); ok {
+					xiaomiLocalRuntime = typed
+				}
+			}
+			if xiaomiCloudHandler != nil {
+				if adapter, err := manager.Prepare(context.Background(), "xiaomi_open_platform_transport", "xiaomi_open_platform_transport", json.RawMessage(`{}`)); err != nil {
+					slog.Error("Xiaomi Home Cloud plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*xiaomi_home.CloudAdapter); ok {
+					xiaomiCloudRuntime = typed
+				}
+			}
+			if mideaHandler != nil {
+				if adapter, err := manager.Prepare(context.Background(), "midea_a1_protocol", "midea_a1_protocol", json.RawMessage(`{}`)); err != nil {
+					slog.Error("Midea SmartHome plugin preparation failed", "error", err)
+				} else if typed, ok := adapter.(*midea.RuntimeAdapter); ok {
+					mideaRuntime = typed
+				}
+			}
 			if srv.repos.DB != nil {
 				if adapter, err := manager.Prepare(context.Background(), "tuya_local", "tuya_local", json.RawMessage(`{}`)); err != nil {
 					slog.Error("Tuya Local plugin preparation failed", "error", err)
@@ -347,6 +396,24 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 			if err := manager.Start(context.Background()); err != nil {
 				slog.Error("plugin runtime failed to start", "error", err)
+			}
+
+			if imouLifeHandler != nil && imouRuntime != nil {
+				imouLifeHandler.WithPluginAdapter(imouRuntime)
+			}
+			if vesyncHandler != nil && vesyncRuntime != nil {
+				vesyncHandler.WithPluginAdapter(vesyncRuntime)
+			}
+			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
+				xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime)
+			}
+			if xiaomiCloudHandler != nil && xiaomiCloudRuntime != nil {
+				xiaomiCloudHandler.WithPluginAdapter(xiaomiCloudRuntime)
+			}
+			if mideaHandler != nil && mideaRuntime != nil {
+				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {
+					slog.Error("Midea handler could not bind its managed protocol engine", "error", err)
+				}
 			}
 			if tuyaCloudInstanceID != "" {
 				if adapter, ok := manager.GetAdapter(tuyaCloudInstanceID); ok {
