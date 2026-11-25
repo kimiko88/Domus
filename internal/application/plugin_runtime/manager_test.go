@@ -102,7 +102,12 @@ func TestManagerEnforcesDeclaredInstanceMultiplicity(t *testing.T) {
 	require.NoError(t, err)
 	_, err = manager.Create(ctx, "knx_second_floor", "knx", "KNX Second Floor", knxB, false)
 	require.NoError(t, err)
+	voiceConfig := json.RawMessage(`{"server_url":"http://127.0.0.1:8080","bearer_token":"voice-satellite-test-token-0123456789abcdef","wake_address":"127.0.0.1:10400","wake_words":["hey_jarvis"]}`)
+	_, err = manager.Create(ctx, "voice_kitchen", "voice_satellite", "Voice Kitchen", voiceConfig, false)
+	require.NoError(t, err)
+	_, err = manager.Create(ctx, "voice_bedroom", "voice_satellite", "Voice Bedroom", voiceConfig, false)
+	require.NoError(t, err)
 	instances, err := manager.ListInstances(ctx)
 	require.NoError(t, err)
-	require.Len(t, instances, 3)
+	require.Len(t, instances, 5)
 }

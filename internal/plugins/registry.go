@@ -53,6 +53,7 @@ const (
 	CapabilitySecretsWrite Capability = "secrets:write"
 	CapabilityStorageRead  Capability = "storage:read"
 	CapabilityStorageWrite Capability = "storage:write"
+	CapabilityAudioCapture Capability = "audio:capture"
 )
 
 var knownCapabilities = map[Capability]struct{}{

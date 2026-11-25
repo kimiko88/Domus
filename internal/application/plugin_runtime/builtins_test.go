@@ -20,8 +20,8 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	for _, manifest := range manifests { ids[manifest.ID] = true; require.Equal(t, plugins.ManifestAPIVersion, manifest.APIVersion); require.NotEmpty(t, manifest.Capabilities) }
 	multi := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
-	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
-	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "ble_proxy"} { require.True(t, multi[want], "%s must support multiple instances", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
 	for _, want := range []string{"matter", "open_display"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
@@ -48,6 +48,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"tuya_local", "tuya_local_flat", `{}`},
 		{"broadlink_local", "broadlink_living_room", `{}`},
 		{"open_display", "open_display", `{"bridge_url":"http://127.0.0.1:10320","token":"test-bridge-token-0123456789abcdef0123456789"}`},
+		{"voice_satellite", "voice_kitchen", `{"server_url":"http://127.0.0.1:8080","bearer_token":"voice-satellite-test-token-0123456789abcdef","wake_address":"127.0.0.1:10400","wake_words":["hey_jarvis"]}`},
 	}
 	deps := plugins.Dependencies{Devices: repos.Devices, Entities: repos.Entities}
 	for _, tc := range cases { t.Run(tc.typeID+"/"+tc.instanceID, func(t *testing.T) { adapter, err := registry.Create(context.Background(), tc.typeID, tc.instanceID, json.RawMessage(tc.config), deps); require.NoError(t, err); require.Equal(t, tc.instanceID, adapter.ID()); require.Equal(t, tc.typeID, adapter.Type()) }) }

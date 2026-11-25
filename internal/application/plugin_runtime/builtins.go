@@ -23,6 +23,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/mqtt_generic"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
+	"github.com/domus-hub/domus/internal/plugins/voice_satellite"
 	"github.com/domus-hub/domus/internal/plugins/zigbee2mqtt"
 )
 
@@ -215,6 +216,60 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 				WithRepositories(deps.Devices, deps.Entities), nil
 		}); err != nil { return err }
 	}
+
+	if err := register(plugins.Manifest{
+		APIVersion: plugins.ManifestAPIVersion, ID: "voice_satellite", Name: "Domus Voice Satellite",
+		Version: "1.0.0", Description: "Linux microphone/speaker satellite with local Wyoming wake-word detection.",
+		MultiInstance: true,
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilityAudioCapture},
+		Config: []plugins.ConfigField{
+			{Name: "server_url", Type: "url", Required: true, Description: "Domus local HTTP(S) base URL"},
+			{Name: "bearer_token", Type: "string", Required: true, Secret: true, Description: "Dedicated token for this voice satellite"},
+			{Name: "wake_address", Type: "string", Required: true, Description: "Wyoming wake-word service host:port"},
+			{Name: "wake_words", Type: "json", Description: "One to eight Wyoming wake-word model names"},
+			{Name: "audio_device", Type: "string", Description: "ALSA capture device; defaults to default"},
+			{Name: "speaker_device", Type: "string", Description: "ALSA playback device"},
+			{Name: "sample_rate", Type: "integer", Description: "Only 16000 Hz is supported"},
+			{Name: "frame_duration", Type: "duration"},
+			{Name: "speech_threshold", Type: "number"},
+			{Name: "silence_duration", Type: "duration"},
+			{Name: "max_command_duration", Type: "duration"},
+			{Name: "http_timeout", Type: "duration"},
+		},
+	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
+		wire, err := plugins.DecodeConfig[struct {
+			ServerURL string `json:"server_url"`
+			BearerToken string `json:"bearer_token"`
+			WakeAddress string `json:"wake_address"`
+			WakeWords []string `json:"wake_words"`
+			AudioDevice string `json:"audio_device"`
+			SpeakerDevice string `json:"speaker_device"`
+			SampleRate int `json:"sample_rate"`
+			FrameDuration string `json:"frame_duration"`
+			SpeechThreshold float64 `json:"speech_threshold"`
+			SilenceDuration string `json:"silence_duration"`
+			MaxCommandDuration string `json:"max_command_duration"`
+			HTTPTimeout string `json:"http_timeout"`
+		}](raw)
+		if err != nil { return nil, err }
+		parseDuration := func(name, raw string) (time.Duration, error) {
+			if raw == "" { return 0, nil }
+			value, err := time.ParseDuration(raw)
+			if err != nil { return 0, fmt.Errorf("voice_satellite: invalid %s: %w", name, err) }
+			return value, nil
+		}
+		frame, err := parseDuration("frame_duration", wire.FrameDuration); if err != nil { return nil, err }
+		silence, err := parseDuration("silence_duration", wire.SilenceDuration); if err != nil { return nil, err }
+		maxCommand, err := parseDuration("max_command_duration", wire.MaxCommandDuration); if err != nil { return nil, err }
+		httpTimeout, err := parseDuration("http_timeout", wire.HTTPTimeout); if err != nil { return nil, err }
+		return voice_satellite.NewAdapter(voice_satellite.Config{
+			SatelliteID: instanceID, ServerURL: wire.ServerURL, BearerToken: wire.BearerToken,
+			WakeAddress: wire.WakeAddress, WakeWords: wire.WakeWords, AudioDevice: wire.AudioDevice,
+			SpeakerDevice: wire.SpeakerDevice, SampleRate: wire.SampleRate, FrameDuration: frame,
+			SpeechThreshold: wire.SpeechThreshold, SilenceDuration: silence,
+			MaxCommandDuration: maxCommand, HTTPTimeout: httpTimeout,
+		}, deps.Logger)
+	}); err != nil { return err }
 
 	if err := open_display.RegisterPlugin(registry); err != nil { return err }
 	return nil
