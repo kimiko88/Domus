@@ -407,21 +407,20 @@ func (a *Adapter) upsertEntity(ctx context.Context, next *entity.Entity) error {
         }
         return a.publishState(ctx, next)
     }
-    existing.Attributes = next.Attributes
-    existing.Available = next.Available
-    existing.Name = next.Name
-    existing.Icon = next.Icon
-    existing.UnitOfMeasurement = next.UnitOfMeasurement
+    if existing.State == next.State && existing.Attributes == next.Attributes && existing.Available == next.Available {
+        return nil
+    }
+    previousState := existing.State
     if err := a.entities.UpdateState(ctx, existing.ID, next.State, next.Attributes, next.Available, now); err != nil {
         return err
     }
-    if existing.State != next.State {
-        a.logger.Debug("OpenDisplay entity state changed", "entity_key", next.EntityKey, "from", existing.State, "to", next.State)
-    }
     existing.State = next.State
+    existing.Attributes = next.Attributes
+    existing.Available = next.Available
     existing.LastUpdatedAt = now
-    if existing.State != next.State {
+    if previousState != next.State {
         existing.LastChangedAt = now
+        a.logger.Debug("OpenDisplay entity state changed", "entity_key", next.EntityKey, "from", previousState, "to", next.State)
     }
     return a.publishState(ctx, existing)
 }
@@ -527,14 +526,31 @@ func RegisterPlugin(registry interface {
             {Name: "token", Type: "string", Required: true, Secret: true, Description: "Bearer token for the bridge"},
             {Name: "poll_interval", Type: "duration", Description: "Discovery interval"},
             {Name: "scan_seconds", Type: "integer", Description: "BLE scan duration in seconds"},
+            {Name: "http_timeout", Type: "duration", Description: "Bridge request timeout"},
         },
     }, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-        cfg, err := plugins.DecodeConfig[Config](raw)
+        type registryConfig struct {
+            BridgeURL string `json:"bridge_url"`
+            Token string `json:"token"`
+            PollInterval string `json:"poll_interval"`
+            ScanSeconds int `json:"scan_seconds"`
+            HTTPTimeout string `json:"http_timeout"`
+        }
+        wire, err := plugins.DecodeConfig[registryConfig](raw)
         if err != nil {
             return nil, err
         }
         if instanceID != IntegrationID {
             return nil, fmt.Errorf("open_display: instance ID must be %q", IntegrationID)
+        }
+        cfg := Config{BridgeURL: wire.BridgeURL, Token: wire.Token, ScanSeconds: wire.ScanSeconds}
+        if wire.PollInterval != "" {
+            cfg.PollInterval, err = time.ParseDuration(wire.PollInterval)
+            if err != nil { return nil, fmt.Errorf("open_display: invalid poll_interval: %w", err) }
+        }
+        if wire.HTTPTimeout != "" {
+            cfg.HTTPTimeout, err = time.ParseDuration(wire.HTTPTimeout)
+            if err != nil { return nil, fmt.Errorf("open_display: invalid http_timeout: %w", err) }
         }
         return NewAdapter(cfg, deps.Devices, deps.Entities, deps.Bus, deps.Logger)
     })

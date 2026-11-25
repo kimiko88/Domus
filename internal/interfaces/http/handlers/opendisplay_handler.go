@@ -1,6 +1,7 @@
 package handlers
 
 import (
+    "context"
     "encoding/base64"
     "encoding/json"
     "errors"
