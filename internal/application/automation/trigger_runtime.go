@@ -225,7 +225,10 @@ func (e *Engine) isSolarTriggerDue(trigger domauto.Trigger, now time.Time) bool 
 	default:
 		return false
 	}
-	if eventTime.IsZero() || (sunrise && position.Sunrise.Equal(position.Sunset)) {
+	dayLength := position.Sunset.Sub(position.Sunrise)
+	if eventTime.IsZero() || dayLength <= 0 || dayLength >= 24*time.Hour {
+		// SunEngine returns an empty or full-day interval when there is no
+		// distinct sunrise/sunset (polar night/day). Do not fire fake events.
 		return false
 	}
 	if len(trigger.Days) > 0 {
