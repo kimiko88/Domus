@@ -349,7 +349,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
 	}
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "imou_life", Name: "Imou Life Cloud",
+		APIVersion: plugins.ManifestAPIVersion, ID: "imou_life_transport", Name: "Imou Life Cloud",
+		Internal: true,
 		Version: "1.0.0", Description: "Imou OpenAPI, OAuth and event transport.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead},
 		Config: timeoutField,
@@ -362,7 +363,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "vesync_cloud", Name: "VeSync Cloud",
+		APIVersion: plugins.ManifestAPIVersion, ID: "vesync_transport", Name: "VeSync Cloud",
+		Internal: true,
 		Version: "1.0.0", Description: "VeSync account sessions and device commands.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
 		Config: timeoutField,
@@ -375,7 +377,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_local", Name: "Xiaomi Home Local (miIO)",
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_miio_transport", Name: "Xiaomi Home Local (miIO)",
+		Internal: true,
 		Version: "1.0.0", Description: "Local miIO discovery and authenticated LAN control.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
 		Config: timeoutField,
@@ -388,7 +391,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_home_cloud", Name: "Xiaomi Home Cloud",
+		APIVersion: plugins.ManifestAPIVersion, ID: "xiaomi_open_platform_transport", Name: "Xiaomi Home Cloud",
+		Internal: true,
 		Version: "1.0.0", Description: "Xiaomi Open Platform OAuth and MIoT cloud operations.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsWrite},
 		Config: timeoutField,
@@ -401,7 +405,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "midea_smarthome", Name: "Midea SmartHome (M-Smart A1)",
+		APIVersion: plugins.ManifestAPIVersion, ID: "midea_a1_protocol", Name: "Midea SmartHome (M-Smart A1)",
+		Internal: true,
 		Version: "1.0.0", Description: "Local M-Smart V2/V3 protocol for supported A1 dehumidifiers.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {

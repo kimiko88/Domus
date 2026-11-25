@@ -85,6 +85,7 @@ type Manifest struct {
 	Description  string        `json:"description,omitempty"`
 	Author       string        `json:"author,omitempty"`
 	MultiInstance bool         `json:"multi_instance,omitempty"`
+	Internal      bool         `json:"internal,omitempty"`
 	Capabilities []Capability  `json:"capabilities,omitempty"`
 	Config       []ConfigField `json:"config,omitempty"`
 }

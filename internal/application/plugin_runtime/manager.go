@@ -19,7 +19,10 @@ import (
 	"github.com/domus-hub/domus/internal/plugins"
 )
 
-var ErrSingleInstance = errors.New("plugin_runtime: this plugin type supports only one instance")
+var (
+	ErrSingleInstance = errors.New("plugin_runtime: this plugin type supports only one instance")
+	ErrInternalPlugin = errors.New("plugin_runtime: internal transport plugins cannot be configured as user instances")
+)
 
 var integrationIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
@@ -74,8 +77,28 @@ func (m *Manager) GetAdapter(instanceID string) (plugins.Adapter, bool) {
 	return adapter, ok
 }
 
-// ListTypes returns the manifests for every built-in adapter factory.
-func (m *Manager) ListTypes() []plugins.Manifest { return m.registry.List() }
+// ListTypes returns only user-configurable plugin types. Internal transport
+// providers remain registered for Prepare and Manager.Start, but are hidden
+// from the user-facing integration catalog.
+func (m *Manager) ListTypes() []plugins.Manifest {
+	all := m.registry.List()
+	visible := make([]plugins.Manifest, 0, len(all))
+	for _, manifest := range all {
+		if !manifest.Internal {
+			visible = append(visible, manifest)
+		}
+	}
+	return visible
+}
+
+func (m *Manager) isInternalType(pluginType string) bool {
+	for _, manifest := range m.registry.List() {
+		if manifest.ID == pluginType {
+			return manifest.Internal
+		}
+	}
+	return false
+}
 
 func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, raw json.RawMessage) (plugins.Adapter, error) {
 	m.instanceMu.Lock()
@@ -208,6 +231,9 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 		return Instance{}, errors.New("plugin_runtime: integration ID or name is invalid")
 	}
 	if len(config) == 0 { config = json.RawMessage(`{}`) }
+	if m.isInternalType(pluginType) {
+		return Instance{}, ErrInternalPlugin
+	}
 	if err := m.validateInstanceMultiplicity(ctx, pluginType, id); err != nil { return Instance{}, err }
 	adapter, err := m.registry.Create(ctx, pluginType, id, config, m.deps)
 	if err != nil { return Instance{}, err }

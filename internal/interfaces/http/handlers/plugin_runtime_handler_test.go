@@ -70,12 +70,23 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusOK, typesResponse.Code)
 	require.Contains(t, typesResponse.Body.String(), `"mqtt_generic"`)
 	require.Contains(t, typesResponse.Body.String(), `"multi_instance":true`)
+	require.NotContains(t, typesResponse.Body.String(), `"imou_life_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"vesync_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_miio_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_open_platform_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"midea_a1_protocol"`)
 
 	const secret = "open-display-secret-token-0123456789abcdef"
 	requestBody := `{"id":"open_display","type":"open_display","name":"Display","enabled":false,"config":{"bridge_url":"http://127.0.0.1:10320","token":"` + secret + `"}}`
 	createResponse := httptest.NewRecorder()
 	router.ServeHTTP(createResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(requestBody)))
 	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
+
+	internalResponse := httptest.NewRecorder()
+	internalBody := `{"id":"imou_transport","type":"imou_life_transport","name":"hidden transport","config":{}}`
+	router.ServeHTTP(internalResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(internalBody)))
+	require.Equal(t, http.StatusBadRequest, internalResponse.Code)
+	require.Contains(t, internalResponse.Body.String(), "PLUGIN_CREATE_FAILED")
 	require.NotContains(t, createResponse.Body.String(), secret)
 	require.NotContains(t, createResponse.Body.String(), `"config"`)
 

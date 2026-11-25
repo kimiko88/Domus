@@ -30,7 +30,7 @@ func NewRuntimeAdapter(id string)(*RuntimeAdapter,error){
 	return &RuntimeAdapter{id:id,core:NewAdapter(v2,v3),v2:v2,v3:v3},nil
 }
 func(a *RuntimeAdapter)ID()string{return a.id}
-func(a *RuntimeAdapter)Type()string{return "midea_smarthome"}
+func(a *RuntimeAdapter)Type()string{return "midea_a1_protocol"}
 func(a *RuntimeAdapter)Start(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.Lock();a.active=true;a.mu.Unlock();return nil}
 func(a *RuntimeAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.Unlock();return nil}
 func(a *RuntimeAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("midea: protocol provider is stopped")};return nil}
