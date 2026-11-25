@@ -188,7 +188,7 @@ type LoadedReceiptImage = {
 }
 
 function hasHeicHint(file: File): boolean {
-  return /\\.(heic|heif)$/i.test(file.name) ||
+  return /\.(heic|heif)$/i.test(file.name) ||
     ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'].includes(file.type.toLowerCase())
 }
 
