@@ -77,6 +77,21 @@ func (m *Manager) GetAdapter(instanceID string) (plugins.Adapter, bool) {
 	return adapter, ok
 }
 
+// GetAdapterByType returns a prepared adapter by its plugin type. This is useful
+// for compatibility handlers whose legacy configuration does not persist the
+// runtime instance ID. It is intended for singleton provider types such as
+// Tuya Cloud; callers must not use it to select among multi-instance adapters.
+func (m *Manager) GetAdapterByType(pluginType string) (plugins.Adapter, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, adapter := range m.prepared {
+		if adapter != nil && adapter.Type() == pluginType {
+			return adapter, true
+		}
+	}
+	return nil, false
+}
+
 // ListTypes returns only user-configurable plugin types. Internal transport
 // providers remain registered for Prepare and Manager.Start, but are hidden
 // from the user-facing integration catalog.

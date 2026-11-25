@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strings"
@@ -58,7 +59,11 @@ func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher
 			endpoint TEXT NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`)
-		_ = h.loadStoredConfig(context.Background())
+		if err := h.loadStoredConfig(context.Background()); err != nil {
+			// Keep the HTTP handler alive: an administrator can replace a legacy
+			// secret through SaveConfig. Do not silently discard vault failures.
+			slog.Error("tuya cloud: could not restore the encrypted legacy configuration", "error", err)
+		}
 	}
 	return h
 }
@@ -103,36 +108,82 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 		return tuya_cloud.New(cfg)
 	}
 
-	// Do not reuse the short-declaration identifiers between sibling if-init
-	// statements: both initializers live in the containing pluginManager block.
-	if registeredAdapter, foundByDefaultID := h.pluginManager.GetAdapter(tuya_cloud.PluginType); foundByDefaultID {
-		registeredProvider, implementsProvider := registeredAdapter.(tuya_cloud.Provider)
-		if !implementsProvider {
-			return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+	// The legacy Tuya settings page predates persisted plugin instance IDs.
+	// Prefer any already-prepared singleton provider, including one created
+	// with a custom instance ID from the Plugin Manager UI.
+	useAdapter := func(provider tuya_cloud.Provider) (tuya_cloud.Provider, error) {
+		if provider == nil {
+			return nil, errors.New("tuya cloud: prepared plugin returned a nil provider")
 		}
-		registeredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-		return registeredProvider, nil
+		provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
+		return provider, nil
+	}
+
+	fallback := func(cause error) (tuya_cloud.Provider, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		client, err := tuya_cloud.New(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("tuya cloud: supervised provider failed (%v) and direct client initialization failed: %w", cause, err)
+		}
+		slog.Warn("tuya cloud: supervised plugin unavailable; using the validated direct OpenAPI client", "error", cause)
+		return client, nil
+	}
+
+	if adapter, found := h.pluginManager.GetAdapter(tuya_cloud.PluginType); found {
+		provider, ok := adapter.(tuya_cloud.Provider)
+		if !ok {
+			return fallback(errors.New("default plugin instance does not implement the Tuya provider contract"))
+		}
+		return useAdapter(provider)
+	}
+	if adapter, found := h.pluginManager.GetAdapterByType(tuya_cloud.PluginType); found {
+		provider, ok := adapter.(tuya_cloud.Provider)
+		if !ok {
+			return fallback(errors.New("prepared plugin instance does not implement the Tuya provider contract"))
+		}
+		return useAdapter(provider)
 	}
 
 	instances, err := h.pluginManager.ListInstances(ctx)
 	if err != nil {
-		return nil, err
+		return fallback(fmt.Errorf("inspect saved plugin instances: %w", err))
 	}
+
+	// A saved singleton may have a custom ID. Re-prepare that exact ID if its
+	// startup restore failed, rather than trying to register a second instance.
 	for _, instance := range instances {
 		if instance.Type != tuya_cloud.PluginType {
 			continue
 		}
 		if !instance.Enabled {
-			return nil, errors.New("tuya cloud: plugin instance is disabled")
+			return nil, errors.New("tuya cloud: plugin instance is disabled; enable it in the Plugin Manager")
 		}
-		if configuredAdapter, foundConfiguredInstance := h.pluginManager.GetAdapter(instance.ID); foundConfiguredInstance {
-			configuredProvider, implementsConfiguredProvider := configuredAdapter.(tuya_cloud.Provider)
-			if !implementsConfiguredProvider {
-				return nil, errors.New("tuya cloud: registered plugin does not implement the provider contract")
+		if adapter, found := h.pluginManager.GetAdapter(instance.ID); found {
+			provider, ok := adapter.(tuya_cloud.Provider)
+			if !ok {
+				return fallback(errors.New("saved plugin instance does not implement the Tuya provider contract"))
 			}
-			configuredProvider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-			return configuredProvider, nil
+			return useAdapter(provider)
 		}
+
+		raw, marshalErr := json.Marshal(map[string]any{
+			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
+			"uid": cfg.UID, "schema": cfg.Schema,
+		})
+		if marshalErr != nil {
+			return fallback(fmt.Errorf("encode Tuya plugin configuration: %w", marshalErr))
+		}
+		adapter, prepareErr := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, instance.ID, raw)
+		if prepareErr != nil {
+			return fallback(fmt.Errorf("prepare saved instance %q: %w", instance.ID, prepareErr))
+		}
+		provider, ok := adapter.(tuya_cloud.Provider)
+		if !ok {
+			return fallback(errors.New("prepared saved instance does not implement the Tuya provider contract"))
+		}
+		return provider, nil
 	}
 
 	raw, err := json.Marshal(map[string]any{
@@ -140,17 +191,17 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 		"uid": cfg.UID, "schema": cfg.Schema,
 	})
 	if err != nil {
-		return nil, err
+		return fallback(fmt.Errorf("encode Tuya plugin configuration: %w", err))
 	}
-	preparedAdapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
+	adapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
 	if err != nil {
-		return nil, err
+		return fallback(fmt.Errorf("prepare default Tuya instance: %w", err))
 	}
-	preparedProvider, implementsPreparedProvider := preparedAdapter.(tuya_cloud.Provider)
-	if !implementsPreparedProvider {
-		return nil, errors.New("tuya cloud: plugin factory returned an incompatible provider")
+	provider, ok := adapter.(tuya_cloud.Provider)
+	if !ok {
+		return fallback(errors.New("Tuya plugin factory returned an incompatible provider"))
 	}
-	return preparedProvider, nil
+	return provider, nil
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
@@ -288,6 +339,7 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	if current == nil {
 		provider, err := h.providerForConfig(r.Context(), testClient.Config())
 		if err != nil {
+			slog.Error("tuya cloud: provider initialization failed", "error", err)
 			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud provider could not be started")
 			return
 		}

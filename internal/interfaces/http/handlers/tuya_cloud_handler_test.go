@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,6 +14,11 @@ import (
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
+	"github.com/domus-hub/domus/internal/domain/integration"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
+	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
+	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/go-chi/chi/v5"
@@ -591,5 +597,82 @@ func TestInferTuyaDeviceCategoryAndTelemetryMarksThermoHygrometerWithoutInitialS
 		attributes["device_class"] != "temperature" ||
 		attributes["unit_of_measurement"] != "°C" {
 		t.Fatalf("thermo-hygrometer climate metadata missing before first reading: %#v", attributes)
+	}
+}
+
+
+type tuyaFailingListRepository struct {
+	integration.Repository
+}
+
+func (r tuyaFailingListRepository) List(context.Context) ([]*integration.Integration, error) {
+	return nil, errors.New("synthetic integration repository failure")
+}
+
+func TestTuyaCloudProviderFallsBackWhenPluginRegistryCannotInspectInstances(t *testing.T) {
+	db, err := sqlite.Open(config.DatabaseConfig{
+		Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1,
+	})
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := sqlite.Migrate(context.Background(), db); err != nil {
+		t.Fatalf("migrate test database: %v", err)
+	}
+	cipher, err := crypto.NewEnvelopeCipher([]byte("tuya-provider-fallback-test-key"))
+	if err != nil {
+		t.Fatalf("create test cipher: %v", err)
+	}
+	repos := sqlite.NewRepositories(db)
+	repos.Cipher = cipher
+	repos.Integrations = tuyaFailingListRepository{Repository: newPluginHandlerIntegrationRepo()}
+	manager, err := apppluginruntime.NewManager(repos, nil)
+	if err != nil {
+		t.Fatalf("create plugin manager: %v", err)
+	}
+
+	handler := NewTuyaCloudHandler(nil, manager)
+	provider, err := handler.providerForConfig(context.Background(), tuya_cloud.Config{
+		ClientID: "test-client", Secret: "test-secret",
+		BaseURL: "https://openapi.tuyaeu.com", UID: "eu-test-user",
+	})
+	if err != nil {
+		t.Fatalf("providerForConfig should preserve Tuya Cloud availability: %v", err)
+	}
+	if _, ok := provider.(*tuya_cloud.Client); !ok {
+		t.Fatalf("expected direct compatibility client fallback, got %T", provider)
+	}
+}
+
+func TestTuyaCloudProviderReusesPreparedCustomInstanceID(t *testing.T) {
+	repo := newPluginHandlerIntegrationRepo()
+	cipher, err := crypto.NewEnvelopeCipher([]byte("tuya-provider-custom-id-test-key"))
+	if err != nil {
+		t.Fatalf("create test cipher: %v", err)
+	}
+	manager := newPluginRuntimeHandlerManager(t, repo, cipher)
+	adapter, err := manager.Prepare(context.Background(), tuya_cloud.PluginType, "tuya_cloud_custom", []byte(`{"client_id":"old-client","secret":"old-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-old-user"}`))
+	if err != nil {
+		t.Fatalf("prepare custom Tuya instance: %v", err)
+	}
+
+	handler := NewTuyaCloudHandler(nil, manager)
+	provider, err := handler.providerForConfig(context.Background(), tuya_cloud.Config{
+		ClientID: "new-client", Secret: "new-secret",
+		BaseURL: "https://openapi.tuyaeu.com", UID: "eu-new-user",
+	})
+	if err != nil {
+		t.Fatalf("providerForConfig: %v", err)
+	}
+	expectedProvider, ok := adapter.(tuya_cloud.Provider)
+	if !ok {
+		t.Fatalf("prepared adapter does not implement tuya_cloud.Provider: %T", adapter)
+	}
+	if provider != expectedProvider {
+		t.Fatalf("expected existing custom-ID adapter to be reused, got %T", provider)
+	}
+	if got := provider.Config(); got.ClientID != "new-client" || got.UID != "eu-new-user" {
+		t.Fatalf("provider credentials were not refreshed: client_id=%q uid=%q", got.ClientID, got.UID)
 	}
 }
