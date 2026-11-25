@@ -732,7 +732,9 @@ Il satellite Linux richiede `arecord` e `aplay` (pacchetto `alsa-utils`), un ser
 
 > **Prestazioni:** un Raspberry Pi 4 può gestire Domus e l'acquisizione audio, ma Whisper e un LLM locale possono rendere la risposta vocale lenta se condividono CPU e RAM. Per una conversazione più fluida valuta un mini-PC locale per STT/LLM, mantenendo il Raspberry Pi come hub domotico.
 
-## 27. Centrale Allarme Integrata (Alarm Control Panel)
+## 26.2 OpenDisplay e-paper
+
+La configurazione, i comandi disponibili e i limiti correnti del bridge OpenDisplay sono descritti in [`docs/integrations/opendisplay.md`](integrations/opendisplay.md).## 27. Centrale Allarme Integrata (Alarm Control Panel)
 
 Domus trasforma i sensori della casa in un sistema di sicurezza professionale:
 

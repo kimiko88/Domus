@@ -36,6 +36,11 @@ func TestSyncVerifiesEd25519IndexAndInstallVerifiesArtifactHash(t *testing.T) {
     artifact := []byte("domus-wasm-module-fixture")
     artifactHash := sha256.Sum256(artifact)
 
+    mux := http.NewServeMux()
+    server := httptest.NewTLSServer(mux)
+    defer server.Close()
+    artifactURL := server.URL + "/artifacts/door.wasm"
+
     index := RepositoryIndex{
         SchemaVersion: 1,
         Repository: IndexRepository{ID: "acme-home", Name: "Acme Home", Owner: "acme", KeyID: "acme-key"},
@@ -50,13 +55,9 @@ func TestSyncVerifiesEd25519IndexAndInstallVerifiesArtifactHash(t *testing.T) {
     require.NoError(t, err)
     signature := ed25519.Sign(privateKey, indexBody)
 
-    mux := http.NewServeMux()
     mux.HandleFunc("/repository/index.json", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(indexBody) })
     mux.HandleFunc("/repository/index.sig", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(base64.StdEncoding.EncodeToString(signature))) })
     mux.HandleFunc("/artifacts/door.wasm", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(artifact) })
-    server := httptest.NewTLSServer(mux)
-    defer server.Close()
-    artifactURL := server.URL + "/artifacts/door.wasm"
     trusted := map[string]string{"acme-key": base64.StdEncoding.EncodeToString(publicKey)}
     keysJSON, _ := json.Marshal(trusted)
 

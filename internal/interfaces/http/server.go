@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -65,6 +66,7 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
+	pluginruntime "github.com/domus-hub/domus/internal/plugins"
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
 	"github.com/domus-hub/domus/internal/interfaces/http/swagger"
 	wstransport "github.com/domus-hub/domus/internal/interfaces/websocket"
@@ -517,17 +519,35 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						slog.Error("OpenDisplay disabled: invalid DOMUS_OPENDISPLAY_HTTP_TIMEOUT", "error", err)
 					}
 				}
-				adapter, err := open_display.NewAdapter(open_display.Config{
-					BridgeURL: bridgeURL, Token: bridgeToken, PollInterval: pollInterval,
-					ScanSeconds: scanSeconds, HTTPTimeout: httpTimeout,
-				}, srv.repos.Devices, srv.repos.Entities, srv.bus, slog.Default())
-				if err != nil {
-					slog.Error("OpenDisplay integration disabled: invalid bridge configuration", "error", err)
+
+				// Built-in integrations are registered through the same manifest/factory
+				// contract used by future Domus plugins; untrusted packages are not Go-loaded.
+				registry := pluginruntime.NewRegistry()
+				if err := open_display.RegisterPlugin(registry); err != nil {
+					slog.Error("OpenDisplay plugin registration failed", "error", err)
 				} else {
-					if err := adapter.Start(context.Background()); err != nil {
-						slog.Error("OpenDisplay integration failed to start", "error", err)
+					pluginConfig, marshalErr := json.Marshal(map[string]any{
+						"bridge_url": bridgeURL,
+						"token": bridgeToken,
+						"poll_interval": pollInterval.String(),
+						"scan_seconds": scanSeconds,
+						"http_timeout": httpTimeout.String(),
+					})
+					if marshalErr != nil {
+						slog.Error("OpenDisplay plugin configuration could not be encoded", "error", marshalErr)
 					} else {
-						srv.openDisplayAdapter = adapter
+						created, createErr := registry.Create(context.Background(), open_display.IntegrationID, open_display.IntegrationID, pluginConfig, pluginruntime.Dependencies{
+							Bus: srv.bus, Entities: srv.repos.Entities, Devices: srv.repos.Devices, Logger: slog.Default(),
+						})
+						if createErr != nil {
+							slog.Error("OpenDisplay integration disabled: invalid plugin configuration", "error", createErr)
+						} else if adapter, ok := created.(*open_display.Adapter); !ok {
+							slog.Error("OpenDisplay plugin factory returned an unexpected adapter type")
+						} else if err := adapter.Start(context.Background()); err != nil {
+							slog.Error("OpenDisplay integration failed to start", "error", err)
+						} else {
+							srv.openDisplayAdapter = adapter
+					}
 					}
 				}
 			}
