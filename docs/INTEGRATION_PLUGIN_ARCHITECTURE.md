@@ -68,7 +68,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter e OpenDisplay restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay e Tuya Cloud restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
