@@ -15,8 +15,11 @@ import (
     "net/http"
     "net/url"
     "os"
+    "path/filepath"
+    "regexp"
     "strconv"
-    "os"
+    "strings"
+    "time"
     "path/filepath"
     "regexp"
     "strings"
@@ -210,6 +213,15 @@ func (s *Service) ListRepositories(ctx context.Context) ([]*Source, error) {
 
 func (s *Service) RemoveRepository(ctx context.Context, id string) error {
     if _, err := s.repo.GetSource(ctx, id); err != nil { return err }
+    packages, err := s.repo.ListPackages(ctx, id)
+    if err != nil { return err }
+    for _, pkg := range packages {
+        if pkg.InstalledPath != "" {
+            if _, err := s.UninstallArtifact(ctx, pkg.ID); err != nil {
+                return fmt.Errorf("marketplace: cannot remove installed package %s: %w", pkg.ID, err)
+            }
+        }
+    }
     return s.repo.DeleteSource(ctx, id)
 }
 

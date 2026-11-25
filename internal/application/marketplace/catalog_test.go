@@ -13,6 +13,7 @@ import (
     "os"
     "path/filepath"
     "testing"
+    "time"
 
     "github.com/stretchr/testify/require"
 )
@@ -34,7 +35,6 @@ func TestSyncVerifiesEd25519IndexAndInstallVerifiesArtifactHash(t *testing.T) {
     require.NoError(t, err)
     artifact := []byte("domus-wasm-module-fixture")
     artifactHash := sha256.Sum256(artifact)
-    artifactURL := "https://plugins.example/artifacts/door.wasm"
 
     index := RepositoryIndex{
         SchemaVersion: 1,
@@ -56,6 +56,7 @@ func TestSyncVerifiesEd25519IndexAndInstallVerifiesArtifactHash(t *testing.T) {
     mux.HandleFunc("/artifacts/door.wasm", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(artifact) })
     server := httptest.NewTLSServer(mux)
     defer server.Close()
+    artifactURL := server.URL + "/artifacts/door.wasm"
     trusted := map[string]string{"acme-key": base64.StdEncoding.EncodeToString(publicKey)}
     keysJSON, _ := json.Marshal(trusted)
 
