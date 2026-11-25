@@ -251,17 +251,43 @@ func (s *Service) SyncRepository(ctx context.Context, id string) (*Source, error
     }
 
     now := time.Now().UTC()
+    existingPackages, err := s.repo.ListPackages(ctx, id)
+    if err != nil { return nil, s.saveSyncFailure(ctx, source, err) }
+    validated := make([]*Package, 0, len(index.Packages))
+    packageIDs := make(map[string]struct{}, len(index.Packages))
     for _, entry := range index.Packages {
+        if _, duplicate := packageIDs[entry.ID]; duplicate {
+            return s.saveSyncFailure(ctx, source, fmt.Errorf("duplicate package ID %q in index", entry.ID))
+        }
         pkg, err := s.validatePackage(source, index.Repository, entry, trusted, now)
         if err != nil { return s.saveSyncFailure(ctx, source, err) }
-        current, getErr := s.repo.GetPackage(ctx, pkg.ID)
-        if getErr == nil {
-            pkg.InstalledPath = current.InstalledPath
-            pkg.InstalledAt = current.InstalledAt
+        packageIDs[pkg.ID] = struct{}{}
+        if current, getErr := s.repo.GetPackage(ctx, pkg.ID); getErr == nil {
+            if current.Version == pkg.Version && strings.EqualFold(current.Artifact.SHA256, pkg.Artifact.SHA256) {
+                pkg.InstalledPath = current.InstalledPath
+                pkg.InstalledAt = current.InstalledAt
+            }
         } else if !errors.Is(getErr, ErrNotFound) {
             return s.saveSyncFailure(ctx, source, getErr)
         }
+        validated = append(validated, pkg)
+    }
+    for _, pkg := range validated {
         if err := s.repo.SavePackage(ctx, pkg); err != nil { return s.saveSyncFailure(ctx, source, err) }
+    }
+    // Remove entries withdrawn from the index, including staged copies, so a
+    // repository refresh cannot leave orphaned or silently stale extensions.
+    for _, old := range existingPackages {
+        if _, stillPublished := packageIDs[old.ID]; !stillPublished {
+            if old.InstalledPath != "" {
+                if _, err := s.UninstallArtifact(ctx, old.ID); err != nil {
+                    return s.saveSyncFailure(ctx, source, fmt.Errorf("remove withdrawn package %s: %w", old.ID, err))
+                }
+            }
+            if err := s.repo.DeletePackage(ctx, old.ID); err != nil {
+                return s.saveSyncFailure(ctx, source, err)
+            }
+        }
     }
 
     hash := sha256.Sum256(body)
