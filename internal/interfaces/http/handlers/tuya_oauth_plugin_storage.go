@@ -187,6 +187,8 @@ func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, userID string,
 }
 
 func (h *TuyaOAuthHandler) loadManagedToken(ctx context.Context, userID string) (tuya_cloud.OAuthToken, int64, error) {
+	h.configMu.Lock()
+	defer h.configMu.Unlock()
 	_, config, err := h.managedPluginConfig(ctx, false)
 	if err != nil && !errors.Is(err, errTuyaPluginInstanceMissing) {
 		return tuya_cloud.OAuthToken{}, 0, err
@@ -255,6 +257,8 @@ func (h *TuyaOAuthHandler) loadLegacyToken(ctx context.Context, userID string) (
 }
 
 func (h *TuyaOAuthHandler) clearManagedToken(ctx context.Context, userID string) error {
+	h.configMu.Lock()
+	defer h.configMu.Unlock()
 	instanceID, config, err := h.managedPluginConfig(ctx, false)
 	if err == nil {
 		var accounts map[string]json.RawMessage
