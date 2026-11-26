@@ -23,9 +23,9 @@ func TestLocalAdapterLifecycle(t *testing.T) {
 }
 
 func TestCloudAdapterLifecycleAndClientValidation(t *testing.T) {
-	adapter, err := NewCloudAdapter("xiaomi_cloud_transport", 12*time.Second)
+	adapter, err := NewCloudAdapter("integration_xiaomi_home_cloud", 12*time.Second)
 	require.NoError(t, err)
-	require.Equal(t, "xiaomi_open_platform_transport", adapter.Type())
+	require.Equal(t, CloudPluginType, adapter.Type())
 	require.NoError(t, adapter.Start(context.Background()))
 	client, err := adapter.NewClient(CloudConfig{
 		ClientID: "123456789012",
