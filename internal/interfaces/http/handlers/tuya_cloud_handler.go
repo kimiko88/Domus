@@ -212,40 +212,48 @@ func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
-	h.mu.RLock()
-	client := h.client
-	h.mu.RUnlock()
-
 	configured := false
-	clientID := ""
-	uid := ""
-	endpoint := "https://openapi.tuyaeu.com"
-	source := "none"
+	clientID, uid := "", ""
+	endpoint, source := "https://openapi.tuyaeu.com", "none"
 
-	if client != nil {
-		cfg := client.Config()
-		if cfg.ClientID != "" && cfg.Secret != "" {
-			configured = true
-			clientID = cfg.ClientID
-			uid = cfg.UID
-			if cfg.BaseURL != "" {
-				endpoint = cfg.BaseURL
-			}
-			source = "environment"
+	if h.pluginManager != nil {
+		cfg, exists, _, err := h.readManagedOpenAPIConfig(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not read encrypted Tuya configuration")
+			return
 		}
-	}
-
-	if h.db != nil {
-		var dbClientID, dbUID, dbEndpoint string
-		err := h.db.QueryRowContext(r.Context(), `SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id = 'default'`).Scan(&dbClientID, &dbUID, &dbEndpoint)
-		if err == nil && dbClientID != "" {
-			configured = true
-			clientID = dbClientID
-			uid = dbUID
-			if dbEndpoint != "" {
-				endpoint = dbEndpoint
+		if exists {
+			clientID, uid = cfg.ClientID, cfg.UID
+			if cfg.Endpoint != "" {
+				endpoint = cfg.Endpoint
 			}
-			source = "database"
+			configured = cfg.ClientID != "" && cfg.Secret != ""
+			if configured {
+				source = "plugin_manager"
+			}
+		}
+	} else {
+		h.mu.RLock()
+		client := h.client
+		h.mu.RUnlock()
+		if client != nil {
+			cfg := client.Config()
+			if cfg.ClientID != "" && cfg.Secret != "" {
+				configured, clientID, uid, source = true, cfg.ClientID, cfg.UID, "environment"
+				if cfg.BaseURL != "" {
+					endpoint = cfg.BaseURL
+				}
+			}
+		}
+		if h.db != nil {
+			var dbClientID, dbUID, dbEndpoint string
+			err := h.db.QueryRowContext(r.Context(), `SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id = 'default'`).Scan(&dbClientID, &dbUID, &dbEndpoint)
+			if err == nil && dbClientID != "" {
+				configured, clientID, uid, source = true, dbClientID, dbUID, "database"
+				if dbEndpoint != "" {
+					endpoint = dbEndpoint
+				}
+			}
 		}
 	}
 
@@ -253,14 +261,13 @@ func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if len(clientID) > 8 {
 		maskedClientID = clientID[:4] + "••••••••" + clientID[len(clientID)-4:]
 	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
-		"configured":       configured,
-		"client_id":        clientID,
+		"configured": configured,
+		"client_id": clientID,
 		"client_id_masked": maskedClientID,
-		"uid":              uid,
-		"endpoint":         endpoint,
-		"source":           source,
+		"uid": uid,
+		"endpoint": endpoint,
+		"source": source,
 	})
 }
 
