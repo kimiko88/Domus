@@ -35,6 +35,7 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 	if err != nil {
 		return "", fmt.Errorf("tuya oauth: list plugin instances: %w", err)
 	}
+	cfg := h.client.Config()
 	for _, instance := range instances {
 		if instance.Type != tuya_cloud.PluginType {
 			continue
@@ -42,10 +43,30 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		if !instance.Enabled {
 			return "", errors.New("tuya oauth: Tuya Cloud plugin instance is disabled")
 		}
+		raw, err := h.pluginManager.GetConfig(ctx, instance.ID)
+		if err != nil {
+			return "", err
+		}
+		var stored map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &stored); err != nil {
+			return "", fmt.Errorf("tuya oauth: decode existing provider configuration: %w", err)
+		}
+		changed := setTuyaRawConfigValue(stored, "oauth_client_id", cfg.ClientID) |
+			setTuyaRawConfigValue(stored, "oauth_secret", cfg.Secret) |
+			setTuyaRawConfigValue(stored, "oauth_identifier", cfg.Identifier)
+		if changed {
+			updated, err := json.Marshal(stored)
+			if err != nil {
+				return "", err
+			}
+			if _, err := h.pluginManager.UpdateConfig(ctx, instance.ID, updated); err != nil {
+				return "", fmt.Errorf("tuya oauth: persist App Authorization settings: %w", err)
+			}
+		}
 		return instance.ID, nil
 	}
 
-	cfg := h.client.Config()
+
 	initial := map[string]any{
 		"client_id": cfg.ClientID,
 		"secret": cfg.Secret,
@@ -65,6 +86,15 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		return "", fmt.Errorf("tuya oauth: create encrypted Tuya Cloud instance: %w", err)
 	}
 	return created.ID, nil
+}
+
+func setTuyaRawConfigValue(config map[string]json.RawMessage, key string, value string) bool {
+	encoded, _ := json.Marshal(value)
+	if string(config[key]) == string(encoded) {
+		return false
+	}
+	config[key] = encoded
+	return true
 }
 
 func (h *TuyaOAuthHandler) managedPluginConfig(ctx context.Context, create bool) (string, map[string]json.RawMessage, error) {
