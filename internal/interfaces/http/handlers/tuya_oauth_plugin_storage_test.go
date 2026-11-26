@@ -146,3 +146,35 @@ func TestTuyaOAuthManagedTokensAreIsolatedPerAdminAndDisconnectPreservesOthers(t
 	require.Contains(t, string(instance), "admin-two")
 	require.NotContains(t, string(instance), "admin-one")
 }
+
+
+func TestTuyaOAuthConcurrentAccountWritesDoNotLoseEntries(t *testing.T) {
+	handler, manager, _, _ := newManagedTuyaOAuthTestHandler(t)
+	ctx := context.Background()
+	tokens := map[string]tuya_cloud.OAuthToken{
+		"admin-concurrent-a": {UID: "uid-a", AccessToken: "access-a", RefreshToken: "refresh-a", ExpireTime: 3600},
+		"admin-concurrent-b": {UID: "uid-b", AccessToken: "access-b", RefreshToken: "refresh-b", ExpireTime: 3600},
+	}
+	errs := make(chan error, len(tokens))
+	for userID, token := range tokens {
+		go func(userID string, token tuya_cloud.OAuthToken) {
+			errs <- handler.storeToken(ctx, userID, token)
+		}(userID, token)
+	}
+	for range tokens {
+		require.NoError(t, <-errs)
+	}
+	for userID, expected := range tokens {
+		got, _, err := handler.loadManagedToken(ctx, userID)
+		require.NoError(t, err)
+		require.Equal(t, expected.AccessToken, got.AccessToken)
+	}
+
+	config, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
+	require.NoError(t, err)
+	var document map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(config, &document))
+	var accounts map[string]storedSmartLifeOAuth
+	require.NoError(t, json.Unmarshal(document[smartLifeOAuthConfigKey], &accounts))
+	require.Len(t, accounts, 2)
+}
