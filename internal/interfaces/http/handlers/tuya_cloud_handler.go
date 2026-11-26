@@ -338,6 +338,9 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	enabled := true
 	if h.pluginManager != nil {
 		enabled, err = h.saveManagedOpenAPIConfig(r.Context(), testClient.Config())
+		if err == nil {
+			err = h.deleteLegacyConfigRow(r.Context())
+		}
 		if err != nil {
 			slog.Error("tuya cloud: encrypted plugin configuration update failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration in Plugin Manager")
@@ -383,6 +386,11 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 		if err := h.deleteManagedOpenAPIConfig(r.Context()); err != nil {
 			slog.Error("tuya cloud: could not remove OpenAPI plugin configuration", "error", err)
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove Tuya OpenAPI configuration")
+			return
+		}
+		if err := h.deleteLegacyConfigRow(r.Context()); err != nil {
+			slog.Error("tuya cloud: could not remove superseded legacy OpenAPI configuration", "error", err)
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove legacy Tuya configuration")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
