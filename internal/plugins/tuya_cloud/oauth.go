@@ -56,6 +56,14 @@ type OAuthClient struct {
 	http *http.Client
 }
 
+// Config returns the OAuth client settings for trusted host-side setup.
+// The HTTP transport is intentionally omitted from the returned value.
+func (c *OAuthClient) Config() OAuthConfig {
+	cfg := c.cfg
+	cfg.HTTPClient = nil
+	return cfg
+}
+
 func NewOAuthClient(cfg OAuthConfig) (*OAuthClient, error) {
 	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.Secret) == "" || strings.TrimSpace(cfg.Identifier) == "" {
 		return nil, errors.New("tuya oauth: app authorization client ID, secret and identifier are required")
