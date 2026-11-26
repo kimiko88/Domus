@@ -153,7 +153,7 @@ Per il reset filtro usare l'azione `reset_filter`. I comandi ammessi sono verifi
 
 ## 6. Entità Domus e funzionalità
 
-Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=`midea_smarthome_local`) e quattro entità:
+Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=`integration_midea_smarthome`) e quattro entità:
 
 - `humidifier.midea_<id>`: potenza, modalità, velocità ventola, limiti e attributi.
 - `sensor.midea_<id>_humidity`: umidità rilevata in percentuale.
