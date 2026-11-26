@@ -20,6 +20,14 @@ Support is detected from the BroadLink device type reported by UDP discovery. Sm
 
 Local discovery sends UDP broadcast packets to port 80. Control and learning use encrypted BroadLink UDP command packets to port 80. The AES session key returned by device authentication is encrypted at rest using Domus' configured envelope cipher.
 
+## Plugin Manager e persistenza
+
+BroadLink è registrato come tipo singleton `broadlink_local`. Nelle installazioni precedenti, Domus adotta automaticamente i telecomandi già accoppiati creando l'istanza persistente con l'ID storico `broadlink_local`. Un'installazione nuova non riceve un'istanza vuota automaticamente: l'amministratore può crearla dal Plugin Manager.
+
+Il Plugin Manager governa avvio, arresto, riavvio e stato abilitato/disabilitato. Le route HTTP storiche risolvono l'adapter gestito a ogni richiesta; quando l'istanza è disabilitata o non è disponibile, le richieste restituiscono HTTP 503. Non viene usato un puntatore legacy come fallback.
+
+Le tabelle `broadlink_devices` e `broadlink_commands` sono mantenute per compatibilità dei dati. Le chiavi AES di sessione continuano a essere cifrate con l'Envelope Cipher Domus; i codici IR/RF sono conservati nel database locale. BroadLink resta single-instance finché queste tabelle non saranno separate per integration ID.
+
 ## API
 
 All management routes require an authenticated administrator:

@@ -66,13 +66,13 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
 | `modbus_tcp` | Modbus TCP | Un'istanza per gateway e tabella registri |
 | `tuya_local` | Controllo LAN Tuya | Il runtime crea l'adapter, ma storage legacy dei dispositivi va ancora isolato per istanza |
-| `broadlink_local` | IR/RF BroadLink | Il runtime crea l'adapter, ma la tabella dispositivi/comandi legacy è condivisa: mantenere una sola istanza fino alla migrazione storage |
+| `broadlink_local` | IR/RF BroadLink | Istanza persistente del Plugin Manager; adozione automatica dei device legacy, chiavi AES e comandi IR/RF restano cifrati nelle tabelle dedicate; una sola istanza |
 | `open_display` | Display e-paper | Un companion per istanza Domus; può gestire molti display fisici |
 | `ble_proxy` | Advertisement BLE/BTHome/iBeacon | L'ingresso dei pacchetti deve essere collegato al trasporto proxy scelto |
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay, Tuya Cloud, Xiaomi Home Cloud, Imou Life, VeSync Cloud e Midea / Comfee restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay, Tuya Cloud, Xiaomi Home Cloud, Imou Life, VeSync Cloud, Midea / Comfee e BroadLink restano singola istanza. BroadLink mantiene le tabelle device/comandi storiche condivise e cifrate; Tuya Local conserva ancora il proprio storage legacy da isolare per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
