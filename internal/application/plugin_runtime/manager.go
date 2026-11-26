@@ -448,7 +448,8 @@ func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error
 		record.UpdatedAt = time.Now().UTC()
 		if err := m.repo.Update(ctx, record); err != nil {
 			if oldAdapter != nil {
-				if restoreErr := m.supervisor.Register(oldAdapter); restoreErr == nil && started {
+				restoreErr := m.supervisor.Register(oldAdapter)
+				if restoreErr == nil && started {
 					restoreErr = m.supervisor.StartAdapter(ctx, id)
 				}
 				if restoreErr != nil {
