@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const xiaomiCloudIntegrationID = "integration_xiaomi_home_cloud"
+const xiaomiCloudIntegrationID = xiaomi_home.CloudIntegrationID
 
 type XiaomiCloudHandler struct {
 	provider *xiaomi_home.CloudAdapter
