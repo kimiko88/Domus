@@ -139,7 +139,9 @@ func TestVeSyncManagedSessionCreateDisconnectAndReconnect(t *testing.T) {
 	// replaced through the account-linking flow.
 	_, err = f.manager.UpdateConfig(context.Background(), vesync.IntegrationID, json.RawMessage(`{"http_timeout":"12s"}`))
 	require.NoError(t, err)
-	require.NoError(t, f.handler.saveConfig(context.Background(), vesyncStoredConfig{Session: session}, "connected"))
+	rotatedSession := session
+	rotatedSession.Token = "private-vesync-rotated-session-token"
+	require.NoError(t, f.handler.saveConfig(context.Background(), vesyncStoredConfig{Session: rotatedSession}, "connected"))
 	managedConfig, err := f.manager.GetConfig(context.Background(), vesync.IntegrationID)
 	require.NoError(t, err)
 	var managedValues map[string]json.RawMessage
