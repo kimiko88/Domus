@@ -232,6 +232,25 @@ func (h *TuyaCloudHandler) migrateLegacyConfig(ctx context.Context) error {
 	return h.refreshManagedProvider(ctx, instance)
 }
 
+func (h *TuyaCloudHandler) deleteLegacyConfigRow(ctx context.Context) error {
+	if h.db == nil {
+		return nil
+	}
+	var tableExists int
+	if err := h.db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&tableExists); err != nil {
+		return fmt.Errorf("tuya cloud: inspect legacy configuration table: %w", err)
+	}
+	if tableExists == 0 {
+		return nil
+	}
+	if _, err := h.db.ExecContext(ctx, "DELETE FROM tuya_cloud_config WHERE id='default'"); err != nil {
+		return fmt.Errorf("tuya cloud: delete superseded legacy configuration: %w", err)
+	}
+	return nil
+}
+
 func readTuyaConfigString(config map[string]json.RawMessage, key string) (string, error) {
 	raw := config[key]
 	if len(raw) == 0 {
