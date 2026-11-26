@@ -41,6 +41,7 @@ func newXiaomiCloudPluginFixture(t *testing.T) *xiaomiCloudPluginFixture {
 	repos.Cipher = cipher
 	manager, err := apppluginruntime.NewManager(repos, nil)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
 	handler, err := NewXiaomiCloudHandler(repos.Integrations, repos.Devices, repos.Entities, cipher, nil)
 	require.NoError(t, err)
 	handler.WithPluginManager(manager)
@@ -112,6 +113,13 @@ func TestXiaomiCloudManagerRestoresLegacyEncryptedIntegrationRecord(t *testing.T
 	client, err := f.handler.newClient(got)
 	require.NoError(t, err)
 	require.NotNil(t, client)
+
+	status := httptest.NewRecorder()
+	f.handler.Status(status, httptest.NewRequest(http.MethodGet, "/status", nil))
+	require.Equal(t, http.StatusOK, status.Code)
+	require.NotContains(t, status.Body.String(), expected.ClientSecret)
+	require.NotContains(t, status.Body.String(), expected.AccessToken)
+	require.NotContains(t, status.Body.String(), expected.RefreshToken)
 }
 
 func TestXiaomiCloudConfigureCreatesEncryptedManagerInstance(t *testing.T) {
