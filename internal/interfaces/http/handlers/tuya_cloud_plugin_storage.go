@@ -317,6 +317,17 @@ func (h *TuyaCloudHandler) migrateLegacyTuyaCloudConfig(ctx context.Context) err
 	return nil
 }
 
+func (h *TuyaCloudHandler) dropLegacyOpenAPIConfigTable(ctx context.Context) error {
+	exists, err := h.legacyOpenAPIConfigTableExists(ctx)
+	if err != nil || !exists {
+		return err
+	}
+	if _, err := h.db.ExecContext(ctx, "DROP TABLE tuya_cloud_config"); err != nil {
+		return fmt.Errorf("tuya cloud: remove retired legacy config table: %w", err)
+	}
+	return nil
+}
+
 func (h *TuyaCloudHandler) legacyOpenAPIConfigTableExists(ctx context.Context) (bool, error) {
 	if h.db == nil {
 		return false, nil
