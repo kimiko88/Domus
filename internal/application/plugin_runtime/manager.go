@@ -368,12 +368,19 @@ func (m *Manager) UpdateConfigMutate(ctx context.Context, id string, mutate func
 	if config == nil {
 		config = make(map[string]json.RawMessage)
 	}
+	before, err := json.Marshal(config)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode current integration config: %w", err)
+	}
 	if err := mutate(config); err != nil {
 		return Instance{}, err
 	}
 	updated, err := json.Marshal(config)
 	if err != nil {
 		return Instance{}, fmt.Errorf("plugin_runtime: encode mutated integration config: %w", err)
+	}
+	if string(before) == string(updated) {
+		return m.toInstance(ctx, record)
 	}
 	return m.updateConfigLocked(ctx, id, updated)
 }
