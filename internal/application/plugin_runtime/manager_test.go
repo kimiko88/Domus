@@ -172,10 +172,10 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		visible[manifest.ID] = true
 		require.False(t, manifest.Internal, "internal transport %s must not be visible", manifest.ID)
 	}
-	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter"} {
+	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud"} {
 		require.True(t, visible[publicType], "public integration type %s should be visible", publicType)
 	}
-	for _, internalType := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "xiaomi_open_platform_transport", "midea_a1_protocol"} {
+	for _, internalType := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.False(t, visible[internalType], "internal transport %s must be hidden", internalType)
 		_, err := manager.Create(context.Background(), "internal_"+internalType, internalType, "hidden", json.RawMessage(`{}`), false)
 		require.ErrorIs(t, err, ErrInternalPlugin)
