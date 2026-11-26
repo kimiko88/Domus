@@ -113,7 +113,7 @@ func TestTuyaCloudOptionFlowMigratesLegacyConfigAndPreservesOAuthState(t *testin
 	require.NotContains(t, string(encrypted), "oauth-access")
 
 	get := httptest.NewRecorder()
-	router.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/config", nil))
+	handler.GetConfig(get, httptest.NewRequest(http.MethodGet, "/config", nil))
 	require.Equal(t, http.StatusOK, get.Code)
 	require.Contains(t, get.Body.String(), `"source":"plugin_manager"`)
 	require.Contains(t, get.Body.String(), "legacy-openapi-client")
