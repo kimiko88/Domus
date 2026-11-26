@@ -43,32 +43,18 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		if !instance.Enabled {
 			return "", errors.New("tuya oauth: Tuya Cloud plugin instance is disabled")
 		}
-		raw, err := h.pluginManager.GetConfig(ctx, instance.ID)
+		_, err := h.pluginManager.UpdateConfigMutate(ctx, instance.ID, func(stored map[string]json.RawMessage) error {
+			for key, value := range map[string]string{
+				"oauth_client_id": cfg.ClientID,
+				"oauth_secret": cfg.Secret,
+				"oauth_identifier": cfg.Identifier,
+			} {
+				setTuyaRawConfigValue(stored, key, value)
+			}
+			return nil
+		})
 		if err != nil {
-			return "", err
-		}
-		var stored map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &stored); err != nil {
-			return "", fmt.Errorf("tuya oauth: decode existing provider configuration: %w", err)
-		}
-		changed := false
-		for key, value := range map[string]string{
-			"oauth_client_id": cfg.ClientID,
-			"oauth_secret": cfg.Secret,
-			"oauth_identifier": cfg.Identifier,
-		} {
-			if setTuyaRawConfigValue(stored, key, value) {
-				changed = true
-			}
-		}
-		if changed {
-			updated, err := json.Marshal(stored)
-			if err != nil {
-				return "", err
-			}
-			if _, err := h.pluginManager.UpdateConfig(ctx, instance.ID, updated); err != nil {
-				return "", fmt.Errorf("tuya oauth: persist App Authorization settings: %w", err)
-			}
+			return "", fmt.Errorf("tuya oauth: persist App Authorization settings: %w", err)
 		}
 		return instance.ID, nil
 	}
@@ -157,26 +143,24 @@ func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, userID string,
 	if err != nil {
 		return fmt.Errorf("tuya oauth: encode Smart Life token: %w", err)
 	}
-	var accounts map[string]json.RawMessage
-	if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
-		if err := json.Unmarshal(raw, &accounts); err != nil {
-			return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+	if _, err := h.pluginManager.UpdateConfigMutate(ctx, instanceID, func(config map[string]json.RawMessage) error {
+		var accounts map[string]json.RawMessage
+		if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
+			if err := json.Unmarshal(raw, &accounts); err != nil {
+				return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+			}
 		}
-	}
-	if accounts == nil {
-		accounts = make(map[string]json.RawMessage)
-	}
-	accounts[userID] = encoded
-	accountConfig, err := json.Marshal(accounts)
-	if err != nil {
-		return fmt.Errorf("tuya oauth: encode Smart Life account map: %w", err)
-	}
-	config[smartLifeOAuthConfigKey] = accountConfig
-	updated, err := json.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("tuya oauth: encode Tuya plugin configuration: %w", err)
-	}
-	if _, err := h.pluginManager.UpdateConfig(ctx, instanceID, updated); err != nil {
+		if accounts == nil {
+			accounts = make(map[string]json.RawMessage)
+		}
+		accounts[userID] = encoded
+		accountConfig, err := json.Marshal(accounts)
+		if err != nil {
+			return fmt.Errorf("tuya oauth: encode Smart Life account map: %w", err)
+		}
+		config[smartLifeOAuthConfigKey] = accountConfig
+		return nil
+	}); err != nil {
 		return fmt.Errorf("tuya oauth: persist Smart Life token in encrypted plugin config: %w", err)
 	}
 	return nil
@@ -257,28 +241,26 @@ func (h *TuyaOAuthHandler) clearManagedToken(ctx context.Context, userID string)
 	defer h.configMu.Unlock()
 	instanceID, config, err := h.managedPluginConfig(ctx, false)
 	if err == nil {
-		var accounts map[string]json.RawMessage
-		if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
-			if err := json.Unmarshal(raw, &accounts); err != nil {
-				return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+		if _, err := h.pluginManager.UpdateConfigMutate(ctx, instanceID, func(config map[string]json.RawMessage) error {
+			var accounts map[string]json.RawMessage
+			if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
+				if err := json.Unmarshal(raw, &accounts); err != nil {
+					return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+				}
 			}
-		}
-		delete(accounts, userID)
-		if len(accounts) == 0 {
-			delete(config, smartLifeOAuthConfigKey)
-		} else {
-			encoded, marshalErr := json.Marshal(accounts)
-			if marshalErr != nil {
-				return marshalErr
+			delete(accounts, userID)
+			if len(accounts) == 0 {
+				delete(config, smartLifeOAuthConfigKey)
+			} else {
+				encoded, err := json.Marshal(accounts)
+				if err != nil {
+					return err
+				}
+				config[smartLifeOAuthConfigKey] = encoded
 			}
-			config[smartLifeOAuthConfigKey] = encoded
-		}
-		updated, marshalErr := json.Marshal(config)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		if _, updateErr := h.pluginManager.UpdateConfig(ctx, instanceID, updated); updateErr != nil {
-			return updateErr
+			return nil
+		}); err != nil {
+			return err
 		}
 	} else if !errors.Is(err, errTuyaPluginInstanceMissing) {
 		return err
