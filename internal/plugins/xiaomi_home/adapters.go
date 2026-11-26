@@ -11,6 +11,9 @@ import (
 	"github.com/domus-hub/domus/internal/plugins"
 )
 
+const CloudPluginType = "xiaomi_home_cloud"
+const CloudIntegrationID = "integration_xiaomi_home_cloud"
+
 // LocalAdapter is the supervised miIO LAN transport provider.
 type LocalAdapter struct {
 	id string
@@ -43,12 +46,12 @@ type CloudAdapter struct {
 }
 var _ plugins.Adapter = (*CloudAdapter)(nil)
 func NewCloudAdapter(id string,timeout time.Duration)(*CloudAdapter,error){
-	id=strings.TrimSpace(id);if id==""{return nil,errors.New("xiaomi: cloud plugin instance ID is required")}
+	id=strings.TrimSpace(id);if id != CloudIntegrationID{return nil,errors.New("xiaomi: cloud plugin requires the stable integration instance ID")}
 	if timeout<=0{timeout=12*time.Second};if timeout>20*time.Second{return nil,errors.New("xiaomi: cloud HTTP timeout cannot exceed 20s")}
 	return &CloudAdapter{id:id,http:&http.Client{Timeout:timeout}},nil
 }
 func(a *CloudAdapter)ID()string{return a.id}
-func(a *CloudAdapter)Type()string{return "xiaomi_open_platform_transport"}
+func(a *CloudAdapter)Type()string{return CloudPluginType}
 func(a *CloudAdapter)Start(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.Lock();a.active=true;a.mu.Unlock();return nil}
 func(a *CloudAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.Unlock();return nil}
 func(a *CloudAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("xiaomi: cloud provider is stopped")};return nil}

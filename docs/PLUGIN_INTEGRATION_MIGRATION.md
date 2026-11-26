@@ -42,12 +42,12 @@ Non creare un plugin per ogni funzione del core, né un plugin diverso per ogni 
 | Imou Life transport | `imou_life_transport` | No | Trasporto HTTP per API e OAuth |
 | VeSync transport | `vesync_transport` | No | Client cloud |
 | Xiaomi miIO local | `xiaomi_miio_transport` | No | Trasporto UDP LAN |
-| Xiaomi Open Platform | `xiaomi_open_platform_transport` | No | OAuth e MIoT cloud |
+| Xiaomi Home Cloud | `xiaomi_home_cloud` | No | Account Open Platform OAuth, token cifrati per istanza e controllo MIoT cloud |
 | Midea M-Smart | `midea_a1_protocol` | No | Driver LAN V2/V3 per A1 |
 
-Gli ultimi cinque provider sono stati collegati al manager come adapter di trasporto/protocollo. I loro handler HTTP mantengono temporaneamente la responsabilità dei flussi di configurazione e dei record legacy cifrati, ma ricevono il client/engine dal runtime supervisionato.
+Imou, VeSync, Xiaomi miIO locale e Midea usano ancora adapter di trasporto/protocollo interni: gli handler HTTP mantengono temporaneamente la responsabilità dei flussi di configurazione e dei record legacy cifrati, ma ricevono il client/engine dal runtime supervisionato. Xiaomi Home Cloud è invece promosso a plugin configurabile `xiaomi_home_cloud`: il record cifrato storico `integration_xiaomi_home_cloud` ha già uno schema compatibile, quindi il Manager lo ripristina direttamente senza copiare i token o cambiare l’ID usato da dispositivi ed eventi.
 
-Gli ID con suffisso `_transport` o `_protocol` sono intenzionali: i record legacy hanno già tipi come `imou_life`, `vesync_cloud` e `xiaomi_home_local`, con JSON cifrato non compatibile con lo schema di configurazione runtime. Non si deve far decifrare quel JSON dal factory di un provider.
+Gli ID con suffisso `_transport` o `_protocol` restano intenzionali per i componenti tecnici. I record legacy di Imou, VeSync e Xiaomi locale hanno tipi come `imou_life`, `vesync_cloud` e `xiaomi_home_local`, con JSON cifrato non compatibile con lo schema dei rispettivi trasporti: non si deve far decifrare quel JSON dal factory di un provider.
 
 ## Altri candidati, e cosa non spostare
 
@@ -102,7 +102,7 @@ Questa distinzione è essenziale: un adapter che compila o ha qualche test unita
 ## Roadmap per ridurre davvero il core
 
 1. **Completare questa tranche**: tutti i provider legacy passano dal runtime, con test per factory/lifecycle e nessuna regressione delle API.
-2. **Unificare la configurazione**: migrare i record legacy nel modello di istanza del plugin con migrazioni versionate e rollback; segreti sempre nel vault cifrato.
+2. **Unificare la configurazione**: Tuya e Xiaomi Home Cloud usano già istanze cifrate del Plugin Manager; migrare i record Imou, VeSync e Midea con migrazioni versionate e rollback.
 3. **Option flow**: ogni manifest dichiara pagine di setup, validazione remota, pairing, selezione device e reconfigure; il frontend genera wizard da uno schema versionato.
 4. **Eventi e comandi uniformi**: capability esplicite, state schema, device discovery e command request tipizzati. Gli handler specifici restano sottili o diventano facade del runtime.
 5. **Community runtime**: plugin WASI in processo separato con host-call allowlist effettiva, limiti CPU/memoria/fuel, rete consentita per capability e file system effimero. Le capability del manifest da sole non sono un sandbox.
