@@ -338,8 +338,48 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()
+	return m.updateConfigLocked(ctx, id, config)
+}
 
+// UpdateConfigMutate atomically reads, mutates and replaces one encrypted
+// plugin configuration under the same instance lifecycle lock. It prevents
+// OAuth account updates from overwriting concurrent administrator edits.
+func (m *Manager) UpdateConfigMutate(ctx context.Context, id string, mutate func(map[string]json.RawMessage) error) (Instance, error) {
+	if mutate == nil {
+		return Instance{}, errors.New("plugin_runtime: config mutator is required")
+	}
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+	if !integrationIDPattern.MatchString(id) {
+		return Instance{}, errors.New("plugin_runtime: invalid integration instance ID")
+	}
 	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	raw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decrypt integration config: %w", err)
+	}
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decode integration config: %w", err)
+	}
+	if config == nil {
+		config = make(map[string]json.RawMessage)
+	}
+	if err := mutate(config); err != nil {
+		return Instance{}, err
+	}
+	updated, err := json.Marshal(config)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode mutated integration config: %w", err)
+	}
+	return m.updateConfigLocked(ctx, id, updated)
+}
+
+func (m *Manager) updateConfigLocked(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
+record, err := m.repo.GetByID(ctx, id)
 	if err != nil {
 		return Instance{}, err
 	}
@@ -444,7 +484,6 @@ func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMe
 	}
 	return m.toInstance(ctx, record)
 }
-
 func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()
