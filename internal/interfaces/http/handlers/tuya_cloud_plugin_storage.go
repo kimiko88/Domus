@@ -167,8 +167,14 @@ func (h *TuyaCloudHandler) removeManagedOpenAPIConfig(ctx context.Context) error
 		return nil
 	}
 	instance, exists, err := h.managedTuyaInstance(ctx)
-	if err != nil || !exists {
+	if err != nil {
 		return err
+	}
+	if !exists {
+		h.mu.Lock()
+		h.client = nil
+		h.mu.Unlock()
+		return nil
 	}
 	_, err = h.pluginManager.UpdateConfigMutate(ctx, instance.ID, func(config map[string]json.RawMessage) error {
 		delete(config, "client_id")
@@ -181,6 +187,12 @@ func (h *TuyaCloudHandler) removeManagedOpenAPIConfig(ctx context.Context) error
 	})
 	if err != nil {
 		return fmt.Errorf("tuya cloud: remove OpenAPI settings: %w", err)
+	}
+	if !instance.Enabled {
+		h.mu.Lock()
+		h.client = nil
+		h.mu.Unlock()
+		return nil
 	}
 	adapter, ok := h.pluginManager.GetAdapter(instance.ID)
 	if !ok {
@@ -285,8 +297,10 @@ func (h *TuyaCloudHandler) migrateLegacyTuyaCloudConfig(ctx context.Context) err
 			if _, err := h.persistManagedOpenAPIConfig(ctx, legacy); err != nil {
 				return err
 			}
-		} else if err := h.bindManagedProvider(instance.ID); err != nil {
-			return err
+		} else if instance.Enabled {
+			if err := h.bindManagedProvider(instance.ID); err != nil {
+				return err
+			}
 		}
 	} else {
 		if _, err := h.persistManagedOpenAPIConfig(ctx, legacy); err != nil {
@@ -316,8 +330,18 @@ func (h *TuyaCloudHandler) legacyOpenAPIConfigTableExists(ctx context.Context) (
 }
 
 func (h *TuyaCloudHandler) syncClientFromManagedConfig(ctx context.Context) error {
-	cfg, exists, id, err := h.readManagedOpenAPIConfig(ctx)
-	if err != nil || !exists {
+	instance, exists, err := h.managedTuyaInstance(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists || !instance.Enabled {
+		h.mu.Lock()
+		h.client = nil
+		h.mu.Unlock()
+		return nil
+	}
+	cfg, _, id, err := h.readManagedOpenAPIConfig(ctx)
+	if err != nil {
 		return err
 	}
 	if cfg.ClientID == "" || cfg.Secret == "" {
