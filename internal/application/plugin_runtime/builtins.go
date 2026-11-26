@@ -237,6 +237,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			BaseURL string `json:"base_url"`
 			UID string `json:"uid"`
 			Schema string `json:"schema"`
+			OAuthIdentifier string `json:"oauth_identifier"`
+			SmartLifeOAuth json.RawMessage `json:"smart_life_oauth"`
 		}](raw)
 		if err != nil { return nil, err }
 		return tuya_cloud.NewAdapter(instanceID, tuya_cloud.Config{
