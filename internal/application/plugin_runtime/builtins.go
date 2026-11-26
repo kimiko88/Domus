@@ -421,7 +421,28 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
 		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		// Decode the complete persisted option flow, not only transport settings.
+		// Registry validation has already checked the schema; accepting these
+		// fields here ensures OAuth credentials and refreshed tokens survive the
+		// adapter's atomic replacement lifecycle.
+		wire, err := plugins.DecodeConfig[struct {
+			ClientID string `json:"client_id"`
+			ClientSecret string `json:"client_secret"`
+			Region string `json:"region"`
+			PublicBaseURL string `json:"public_base_url"`
+			RedirectURL string `json:"redirect_url"`
+			CallbackSecret string `json:"callback_secret"`
+			EventSecret string `json:"event_secret"`
+			OAuthState string `json:"oauth_state"`
+			AccessToken string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			MacKey string `json:"mac_key"`
+			MacAlgorithm string `json:"mac_algorithm"`
+			ExpiresAt string `json:"expires_at"`
+			UserID string `json:"user_id"`
+			Nickname string `json:"nickname"`
+			HTTPTimeout string `json:"http_timeout"`
+		}](raw)
 		if err != nil { return nil, err }
 		timeout := 12 * time.Second
 		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_cloud: invalid http_timeout: %w", err) } }
