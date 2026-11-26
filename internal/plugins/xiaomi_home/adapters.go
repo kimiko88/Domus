@@ -33,8 +33,11 @@ func(a *LocalAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.
 func(a *LocalAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("xiaomi: local provider is stopped")};return nil}
 func(a *LocalAdapter)Client()(*Client,error){a.mu.RLock();defer a.mu.RUnlock();if !a.active{return nil,errors.New("xiaomi: local provider is stopped")};return a.client,nil}
 
+const CloudPluginType = "xiaomi_home_cloud"
+const CloudIntegrationID = "integration_xiaomi_home_cloud"
+
 // CloudAdapter owns the bounded HTTP transport for Xiaomi Open Platform.
-// OAuth tokens and app secrets remain under the encrypted integration config.
+// App credentials and OAuth account state are stored by the Plugin Manager.
 type CloudAdapter struct {
 	id string
 	http *http.Client
@@ -43,12 +46,12 @@ type CloudAdapter struct {
 }
 var _ plugins.Adapter = (*CloudAdapter)(nil)
 func NewCloudAdapter(id string,timeout time.Duration)(*CloudAdapter,error){
-	id=strings.TrimSpace(id);if id==""{return nil,errors.New("xiaomi: cloud plugin instance ID is required")}
+	id=strings.TrimSpace(id);if id != CloudIntegrationID{return nil,errors.New("xiaomi: cloud plugin requires the stable integration instance ID")}
 	if timeout<=0{timeout=12*time.Second};if timeout>20*time.Second{return nil,errors.New("xiaomi: cloud HTTP timeout cannot exceed 20s")}
 	return &CloudAdapter{id:id,http:&http.Client{Timeout:timeout}},nil
 }
 func(a *CloudAdapter)ID()string{return a.id}
-func(a *CloudAdapter)Type()string{return "xiaomi_open_platform_transport"}
+func(a *CloudAdapter)Type()string{return CloudPluginType}
 func(a *CloudAdapter)Start(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.Lock();a.active=true;a.mu.Unlock();return nil}
 func(a *CloudAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.Unlock();return nil}
 func(a *CloudAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("xiaomi: cloud provider is stopped")};return nil}
