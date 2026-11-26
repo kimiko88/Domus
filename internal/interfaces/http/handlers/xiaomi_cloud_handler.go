@@ -17,11 +17,11 @@ import (
 	"sync"
 	"time"
 
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/integration"
-	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
 	"github.com/go-chi/chi/v5"
