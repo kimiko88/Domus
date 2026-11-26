@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
 )
@@ -96,4 +95,3 @@ func (h *XiaomiCloudHandler) saveManagedConfig(ctx context.Context, config xiaom
 	return nil
 }
 
-var _ = (*apppluginruntime.Manager)(nil)
