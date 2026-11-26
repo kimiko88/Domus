@@ -141,6 +141,10 @@ func TestTuyaOAuthManagedTokensAreIsolatedPerAdminAndDisconnectPreservesOthers(t
 	require.NoError(t, err)
 	require.Equal(t, second.AccessToken, stillConnected.AccessToken)
 
+	// A normal configuration edit through the public Manager API must retain
+	// hidden OAuth credentials and account tokens that are not in the public form.
+	_, err = manager.UpdateConfig(ctx, tuya_cloud.PluginType, json.RawMessage(`{"base_url":"https://openapi.tuyaeu.com"}`))
+	require.NoError(t, err)
 	instance, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
 	require.NoError(t, err)
 	require.Contains(t, string(instance), "admin-two")
