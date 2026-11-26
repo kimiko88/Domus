@@ -338,7 +338,55 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()
-	return m.updateConfigLocked(ctx, id, config)
+	return m.updatePublicConfigLocked(ctx, id, config)
+}
+
+// updatePublicConfigLocked retains every hidden internal field from the saved
+// encrypted configuration. Public configuration forms cannot erase or replace
+// internal OAuth tokens, provider cursors or other host-managed state.
+func (m *Manager) updatePublicConfigLocked(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
+	if !integrationIDPattern.MatchString(id) {
+		return Instance{}, errors.New("plugin_runtime: invalid integration instance ID")
+	}
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	previousRaw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decrypt existing integration config: %w", err)
+	}
+	if len(config) == 0 {
+		config = json.RawMessage(`{}`)
+	}
+	var previous, submitted map[string]json.RawMessage
+	if err := json.Unmarshal(previousRaw, &previous); err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decode existing integration config: %w", err)
+	}
+	if err := json.Unmarshal(config, &submitted); err != nil || submitted == nil {
+		return Instance{}, errors.New("plugin_runtime: public plugin config must be a JSON object")
+	}
+	for _, manifest := range m.registry.List() {
+		if manifest.ID != record.Type {
+			continue
+		}
+		for _, field := range manifest.Config {
+			if !field.Internal {
+				continue
+			}
+			if existing, ok := previous[field.Name]; ok {
+				submitted[field.Name] = append(json.RawMessage(nil), existing...)
+			} else {
+				delete(submitted, field.Name)
+			}
+		}
+		break
+	}
+	merged, err := json.Marshal(submitted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode public plugin config: %w", err)
+	}
+	return m.updateConfigLocked(ctx, id, merged)
 }
 
 // UpdateConfigMutate atomically reads, mutates and replaces one encrypted
