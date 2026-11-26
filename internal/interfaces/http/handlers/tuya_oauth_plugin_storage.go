@@ -78,8 +78,6 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		"client_id": cfg.ClientID,
 		"secret": cfg.Secret,
 		"base_url": cfg.BaseURL,
-		"uid": "",
-		"schema": "",
 		"oauth_client_id": cfg.ClientID,
 		"oauth_secret": cfg.Secret,
 		"oauth_identifier": cfg.Identifier,
