@@ -207,36 +207,66 @@ func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
-	h.mu.RLock()
-	client := h.client
-	h.mu.RUnlock()
-
 	configured := false
-	clientID := ""
-	uid := ""
+	clientID, uid := "", ""
 	endpoint := "https://openapi.tuyaeu.com"
 	source := "none"
 
-	if client != nil {
-		cfg := client.Config()
-		if cfg.ClientID != "" && cfg.Secret != "" {
-			configured = true
-			clientID = cfg.ClientID
-			uid = cfg.UID
-			if cfg.BaseURL != "" {
-				endpoint = cfg.BaseURL
+	if h.pluginManager != nil {
+		_, config, err := h.managedTuyaInstance(r.Context())
+		if err == nil {
+			var decodeErr error
+			if clientID, decodeErr = readTuyaConfigString(config, "client_id"); decodeErr != nil {
+				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+				return
 			}
-			source = "environment"
+			secret, secretErr := readTuyaConfigString(config, "secret")
+			if secretErr != nil {
+				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+				return
+			}
+			if uid, decodeErr = readTuyaConfigString(config, "uid"); decodeErr != nil {
+				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+				return
+			}
+			savedEndpoint, endpointErr := readTuyaConfigString(config, "base_url")
+			if endpointErr != nil {
+				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+				return
+			}
+			if savedEndpoint != "" {
+				endpoint = savedEndpoint
+			}
+			configured = clientID != "" && secret != ""
+			source = "plugin_manager"
+		} else if !errors.Is(err, errTuyaCloudPluginInstanceMissing) {
+			writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+			return
+		}
+	} else {
+		h.mu.RLock()
+		client := h.client
+		h.mu.RUnlock()
+		if client != nil {
+			cfg := client.Config()
+			if cfg.ClientID != "" && cfg.Secret != "" {
+				configured = true
+				clientID, uid = cfg.ClientID, cfg.UID
+				if cfg.BaseURL != "" {
+					endpoint = cfg.BaseURL
+				}
+				source = "environment"
+			}
 		}
 	}
 
-	if h.db != nil {
+	// Read-only compatibility fallback for an unmigrated legacy row.
+	if !configured && h.db != nil {
 		var dbClientID, dbUID, dbEndpoint string
-		err := h.db.QueryRowContext(r.Context(), `SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id = 'default'`).Scan(&dbClientID, &dbUID, &dbEndpoint)
+		err := h.db.QueryRowContext(r.Context(), "SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id='default'").Scan(&dbClientID, &dbUID, &dbEndpoint)
 		if err == nil && dbClientID != "" {
 			configured = true
-			clientID = dbClientID
-			uid = dbUID
+			clientID, uid = dbClientID, dbUID
 			if dbEndpoint != "" {
 				endpoint = dbEndpoint
 			}
@@ -248,17 +278,15 @@ func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	if len(clientID) > 8 {
 		maskedClientID = clientID[:4] + "••••••••" + clientID[len(clientID)-4:]
 	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
-		"configured":       configured,
-		"client_id":        clientID,
+		"configured": configured,
+		"client_id": clientID,
 		"client_id_masked": maskedClientID,
-		"uid":              uid,
-		"endpoint":         endpoint,
-		"source":           source,
+		"uid": uid,
+		"endpoint": endpoint,
+		"source": source,
 	})
 }
-
 func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil || u.Role != user.RoleAdmin {
