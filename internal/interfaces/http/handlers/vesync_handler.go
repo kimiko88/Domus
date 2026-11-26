@@ -58,24 +58,35 @@ func (h *VeSyncHandler) WithPluginManager(manager *apppluginruntime.Manager) {
 	h.pluginManager = manager
 }
 
-func (h *VeSyncHandler) clientForRequest(allowBootstrap bool) (*vesync.Client, error) {
+func (h *VeSyncHandler) clientForRequest(ctx context.Context, allowBootstrap bool) (*vesync.Client, error) {
 	if h.pluginManager == nil {
 		return h.client, nil
 	}
 	adapter, ok := h.pluginManager.GetAdapter(vesyncIntegrationID)
-	if !ok {
-		if allowBootstrap {
-			// Authentication is the only operation allowed before the persisted
-			// plugin exists (or while an administrator has disabled it).
-			return vesync.NewClient(8 * time.Second), nil
+	if ok {
+		typed, ok := adapter.(*vesync.Adapter)
+		if !ok {
+			return nil, errors.New("vesync: managed cloud adapter has an unexpected type")
 		}
+		return typed.Client()
+	}
+	if !allowBootstrap {
 		return nil, errors.New("vesync: managed cloud adapter is unavailable")
 	}
-	typed, ok := adapter.(*vesync.Adapter)
-	if !ok {
-		return nil, errors.New("vesync: managed cloud adapter has an unexpected type")
+
+	// A temporary client is allowed only for a first login or an explicitly
+	// disabled instance. Never bypass a persisted, enabled instance whose
+	// adapter failed to restore or start.
+	instances, err := h.pluginManager.ListInstances(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("vesync: inspect managed instance before login: %w", err)
 	}
-	return typed.Client()
+	for _, instance := range instances {
+		if instance.ID == vesyncIntegrationID && instance.Enabled {
+			return nil, errors.New("vesync: enabled managed cloud adapter is unavailable")
+		}
+	}
+	return vesync.NewClient(8 * time.Second), nil
 }
 
 func (h *VeSyncHandler) RegisterRoutes(r chi.Router) {
@@ -109,7 +120,7 @@ func (h *VeSyncHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_TIME_ZONE", "A valid IANA time zone is required")
 		return
 	}
-	client, err := h.clientForRequest(true)
+	client, err := h.clientForRequest(r.Context(), true)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
 		return
@@ -173,7 +184,7 @@ func (h *VeSyncHandler) Devices(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "VESYNC_NOT_CONNECTED", "Configure VeSync cloud credentials before listing devices")
 		return
 	}
-	client, err := h.clientForRequest(false)
+	client, err := h.clientForRequest(r.Context(), false)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
 		return
