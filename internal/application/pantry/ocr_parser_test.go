@@ -193,7 +193,7 @@ func TestReceiptParserDoesNotUseProductLineAsMerchantFallback(t *testing.T) {
 	if receipt.StoreName != "Supermercato" {
 		t.Fatalf("expected fallback merchant when header is missing, got %q", receipt.StoreName)
 	}
-	if len(receipt.Items) != 1 || receipt.Items[0].Name != "Pasta Fresca" {
+	if len(receipt.Items) != 1 || receipt.Items[0].Name != "Pasta Fresca 500g" {
 		t.Fatalf("expected product line to remain an item, got %#v", receipt.Items)
 	}
 	if receipt.TotalAmount != 3.49 { t.Fatalf("expected total 3.49, got %.2f", receipt.TotalAmount) }
