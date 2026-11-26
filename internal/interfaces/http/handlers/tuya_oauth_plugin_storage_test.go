@@ -145,6 +145,15 @@ func TestTuyaOAuthManagedTokensAreIsolatedPerAdminAndDisconnectPreservesOthers(t
 	require.NoError(t, err)
 	require.Contains(t, string(instance), "admin-two")
 	require.NotContains(t, string(instance), "admin-one")
+	var pluginConfig map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(instance, &pluginConfig))
+	require.Empty(t, pluginConfig["client_id"], "OAuth app credentials must not be copied into OpenAPI client_id")
+	require.Empty(t, pluginConfig["secret"], "OAuth app secret must not be copied into OpenAPI secret")
+	var oauthClientID, oauthSecret string
+	require.NoError(t, json.Unmarshal(pluginConfig["oauth_client_id"], &oauthClientID))
+	require.NoError(t, json.Unmarshal(pluginConfig["oauth_secret"], &oauthSecret))
+	require.Equal(t, "oauth-app-client", oauthClientID)
+	require.Equal(t, "oauth-app-secret", oauthSecret)
 }
 
 
