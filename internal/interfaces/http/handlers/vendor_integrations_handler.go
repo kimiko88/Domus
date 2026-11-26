@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -29,12 +30,13 @@ import (
 )
 
 const (
-	imouIntegrationID = "integration_imou_life"
+	imouIntegrationID = imou_life.IntegrationID
 	xiaomiIntegrationID = "integration_xiaomi_home_local"
 )
 
 type ImouLifeHandler struct {
 	provider *imou_life.Adapter
+	pluginManager *apppluginruntime.Manager
 	repo integration.Repository
 	cipher *crypto.EnvelopeCipher
 	bus events.Bus
@@ -134,7 +136,25 @@ func (h *ImouLifeHandler) WithPluginAdapter(adapter *imou_life.Adapter) error {
 	return nil
 }
 
+// WithPluginManager makes the persisted plugin instance the source of truth
+// for project credentials, callback capabilities and OAuth/session tokens.
+func (h *ImouLifeHandler) WithPluginManager(manager *apppluginruntime.Manager) *ImouLifeHandler {
+	h.pluginManager = manager
+	return h
+}
+
 func (h *ImouLifeHandler) newClient(cfg imou_life.Config) (*imou_life.Client, error) {
+	if h.pluginManager != nil {
+		adapter, ok := h.pluginManager.GetAdapter(imouIntegrationID)
+		if !ok {
+			return nil, errors.New("imou: managed plugin instance is not enabled or prepared")
+		}
+		provider, ok := adapter.(*imou_life.Adapter)
+		if !ok {
+			return nil, errors.New("imou: managed plugin instance has an unexpected adapter type")
+		}
+		return provider.NewClient(cfg)
+	}
 	if h.provider != nil {
 		return h.provider.NewClient(cfg)
 	}
@@ -375,6 +395,13 @@ func (h *ImouLifeHandler) ConfigureEvents(w http.ResponseWriter, r *http.Request
 	adminToken, err := h.ensureAdminToken(r, config, client)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "IMOU_ADMIN_TOKEN_ERROR", "Could not obtain an Imou project token for event registration")
+		return
+	}
+	// A token save can replace the supervised adapter; acquire a client from
+	// the currently prepared instance before issuing the callback registration.
+	client, err = h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Imou plugin runtime is unavailable")
 		return
 	}
 	if err := client.ConfigureMessageCallback(r.Context(), adminToken, callbackURL, req.Enabled, req.Flags); err != nil {
@@ -1022,11 +1049,18 @@ func (h *ImouLifeHandler) ensureFreshToken(r *http.Request) (*imouStoredConfig, 
 		config.RefreshToken = token.RefreshToken
 		config.ExpiresAt = token.ExpiresAt
 		if err := h.saveConfig(r.Context(), *config, "connected"); err != nil { return nil,nil,err }
+		// Updating OAuth state replaces the managed adapter. Rebind the client
+		// so subsequent calls use the current supervised transport.
+		client, err = h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter})
+		if err != nil { return nil,nil,err }
 	}
 	return config, client, nil
 }
 
 func (h *ImouLifeHandler) loadConfig(r *http.Request) (*imouStoredConfig, error) {
+	if h.pluginManager != nil {
+		return h.loadManagedConfig(r.Context())
+	}
 	record, err := h.repo.GetByID(r.Context(), imouIntegrationID)
 	if err != nil { return nil, err }
 	plain, err := h.cipher.Decrypt(string(record.ConfigEncrypted))
@@ -1037,6 +1071,9 @@ func (h *ImouLifeHandler) loadConfig(r *http.Request) (*imouStoredConfig, error)
 }
 
 func (h *ImouLifeHandler) saveConfig(ctx context.Context, config imouStoredConfig, status string) error {
+	if h.pluginManager != nil {
+		return h.saveManagedConfig(ctx, config, status)
+	}
 	encoded, err := json.Marshal(config)
 	if err != nil { return err }
 	encrypted, err := h.cipher.Encrypt(string(encoded))
