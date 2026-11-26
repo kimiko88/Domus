@@ -224,8 +224,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		Version: "1.0.0", Description: "Tuya regional OpenAPI provider for account-linked device discovery and commands.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilitySecretsRead},
 		Config: []plugins.ConfigField{
-			{Name: "client_id", Type: "string", Required: true, Description: "Tuya IoT application client ID"},
-			{Name: "secret", Type: "string", Required: true, Secret: true, Description: "Tuya IoT application secret"},
+			{Name: "client_id", Type: "string", Description: "Optional Tuya IoT OpenAPI application client ID; not the Smart Life App Authorization ID"},
+			{Name: "secret", Type: "string", Secret: true, Description: "Optional Tuya IoT OpenAPI application secret; not the Smart Life App Authorization secret"},
 			{Name: "base_url", Type: "url", Required: true, Description: "Allowed Tuya regional HTTPS endpoint"},
 			{Name: "uid", Type: "string", Description: "Optional linked Smart Life user UID"},
 			{Name: "schema", Type: "string", Description: "Optional Tuya project schema"},
