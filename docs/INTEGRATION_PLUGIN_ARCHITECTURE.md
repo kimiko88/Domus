@@ -57,6 +57,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `zwave_js` | Z-Wave JS UI | WebSocket autenticato, reconnect cancellabile, namespace entità per istanza |
 | `weather_openmeteo` | Forecast provider | Contratto `weather.ForecastProvider`, provider predefinito sostituibile dal core clima |
 | `tuya_cloud` | Tuya Cloud OpenAPI | Provider tipizzato e supervisionato; le credenziali App Authorization e i token Smart Life OAuth risiedono nella configurazione cifrata dell'istanza, separati per amministratore |
+| `xiaomi_home_cloud` | Xiaomi Open Platform / MIoT Cloud | Istanza singola con ID stabile `integration_xiaomi_home_cloud`; App Secret, callback e token OAuth sono cifrati nel Plugin Manager e i campi interni non sono esposti nel catalogo |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -68,7 +69,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay e Tuya Cloud restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay, Tuya Cloud e Xiaomi Home Cloud restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
@@ -78,7 +79,7 @@ Il campo `multi_instance` del manifest abilita le istanze multiple solo quando i
 | HomeKit Bridge | `internal/plugins/homekit` | Prima di registrarlo completare HAP server reale/advertising, pairing persistente, unsubscribe e protezione setup code; il bridge attuale non è ancora un servizio HAP completo |
 | Smart Life OAuth | `internal/plugins/tuya_cloud/oauth.go`, `TuyaOAuthHandler` | Account linking, callback e refresh sono mantenuti dal handler; token access/refresh migrati al campo interno cifrato `smart_life_oauth` dell'istanza Tuya, con separazione per amministratore. La tabella legacy viene usata solo per migrazione al primo accesso; lo state OAuth resta nel DB per CSRF |
 | Tuya Cloud option flow | `TuyaCloudHandler` + Plugin Manager | GET/PUT/DELETE ora leggono e aggiornano la configurazione cifrata dell'istanza; POST resta alias per il frontend legacy. `tuya_cloud_config` viene migrata una tantum e rimossa solo dopo persistenza riuscita. DELETE rimuove solo le credenziali OpenAPI e preserva l'istanza OAuth e i token Smart Life |
-| Xiaomi Home locale/cloud | `internal/plugins/xiaomi_home`, handler dedicati | Adapter locale e provider cloud con credenziali cifrate per account/istanza |
+| Xiaomi Home locale (miIO) | `internal/plugins/xiaomi_home` + handler locale | Adapter di trasporto già supervisionato; storage legacy dei device/token ancora da isolare per istanza. La parte Open Platform Cloud è invece migrata in `xiaomi_home_cloud` |
 | Imou Life | `internal/plugins/imou_life`, handler | Adapter cloud con refresh token e callback eventi |
 | VeSync | `internal/plugins/vesync`, handler | Adapter cloud con sessione, refresh e sincronizzazione dispositivi |
 | Midea/Comfee | `internal/plugins/midea`, handler e driver V2/V3 | Wrapper `Adapter`, mapping di discovery, comandi e health per ogni protocollo |
@@ -150,7 +151,7 @@ Content-Type: application/json
 
 1. **Chiudere il runtime adapter**: test contratto, stato health, lifecycle concorrente, installazione/disabilitazione atomica, isolamento storage per istanza, diagnostica e API config update.
 2. **Completare i contratti già avviati**: Z-Wave JS e Voice Satellite sono già adapter registrati; completare HomeKit solo dopo il server HAP reale, pairing e advertising.
-3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI e Smart Life OAuth sono ora gestiti dal config cifrato dell'istanza, con migrazione delle tabelle legacy dei token/config; restano i provider Xiaomi Home Cloud, Imou Life, VeSync e Midea, con account, refresh e segreti per istanza.
+3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI/Smart Life OAuth e Xiaomi Home Cloud sono ora gestiti da istanze Plugin Manager con configurazioni cifrate e campi interni protetti. Restano Imou Life, VeSync e Midea, con account, refresh e segreti per istanza.
 4. **Estrarre i driver brand**: Hue, Shelly, Kasa/Tapo, Nanoleaf, Yeelight dalla scansione brand monolitica a provider installabili.
 5. **Separare plugin di servizio**: meteo, voce, media, NVR e firewall con contratti specifici.
 6. **UI Store/Integrations unificata**: browse, install, option-flow, pairing, status, log e restart; mantenere redirect/API di compatibilità durante la migrazione.
