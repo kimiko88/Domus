@@ -9,6 +9,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins"
+	"github.com/domus-hub/domus/internal/plugins/midea"
 	"github.com/stretchr/testify/require"
  )
 
@@ -20,17 +21,17 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	for _, manifest := range manifests { ids[manifest.ID] = true; require.Equal(t, plugins.ManifestAPIVersion, manifest.APIVersion); require.NotEmpty(t, manifest.Capabilities) }
 	multi := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
-	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life", "vesync_cloud", "xiaomi_miio_transport", "xiaomi_home_cloud", "midea_a1_protocol"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life", "vesync_cloud", "xiaomi_miio_transport", "xiaomi_home_cloud", "midea_smarthome_local"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
 	internalTypes := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { internalTypes[manifest.ID] = manifest.Internal }
 	for _, want := range []string{"xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.True(t, internalTypes[want], "%s must be an internal runtime transport", want)
 	}
-	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud", "xiaomi_home_cloud", "imou_life", "vesync_cloud"} {
+	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud", "xiaomi_home_cloud", "imou_life", "vesync_cloud", "midea_smarthome_local"} {
 		require.False(t, internalTypes[want], "%s must remain user-configurable", want)
 	}
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "zwave_js", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
-	for _, want := range []string{"matter", "open_display", "tuya_cloud", "xiaomi_home_cloud", "imou_life", "vesync_cloud"} { require.False(t, multi[want], "%s must remain single-instance", want) }
+	for _, want := range []string{"matter", "open_display", "tuya_cloud", "xiaomi_home_cloud", "imou_life", "vesync_cloud", "midea_smarthome_local"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
@@ -64,10 +65,38 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"vesync_cloud", "integration_vesync_cloud", `{"session":{"account_id":"ve-account","token":"ve-private-token","country_code":"IT","region":"EU","time_zone":"Europe/Rome"}}`},
 		{"xiaomi_miio_transport", "xiaomi_miio_transport", `{}`},
 		{"xiaomi_home_cloud", "integration_xiaomi_home_cloud", `{"client_id":"123456789012","client_secret":"test-secret","region":"eu","public_base_url":"https://domus.example"}`},
-		{"midea_a1_protocol", "midea_a1_protocol", `{}`},
+		{"midea_smarthome_local", "integration_midea_smarthome", `{"devices":[]}`},
 	}
 	deps := plugins.Dependencies{Devices: repos.Devices, Entities: repos.Entities}
 	for _, tc := range cases { t.Run(tc.typeID+"/"+tc.instanceID, func(t *testing.T) { adapter, err := registry.Create(context.Background(), tc.typeID, tc.instanceID, json.RawMessage(tc.config), deps); require.NoError(t, err); require.Equal(t, tc.instanceID, adapter.ID()); require.Equal(t, tc.typeID, adapter.Type()) }) }
+}
+
+func TestMideaManifestKeepsDeviceCredentialsInternal(t *testing.T) {
+	registry := plugins.NewRegistry()
+	require.NoError(t, registerBuiltins(registry, builtinHost{}))
+	var manifest *plugins.Manifest
+	for _, item := range registry.List() {
+		if item.ID == midea.PluginType {
+			copy := item
+			manifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, manifest)
+	require.False(t, manifest.Internal)
+	require.False(t, manifest.MultiInstance)
+	require.Len(t, manifest.Config, 1)
+	require.Equal(t, "devices", manifest.Config[0].Name)
+	require.Equal(t, "json", manifest.Config[0].Type)
+	require.True(t, manifest.Config[0].Secret)
+	require.True(t, manifest.Config[0].Internal)
+
+	adapter, err := registry.Create(context.Background(), midea.PluginType, midea.IntegrationID, json.RawMessage(`{"devices":[]}`), plugins.Dependencies{})
+	require.NoError(t, err)
+	require.Equal(t, midea.IntegrationID, adapter.ID())
+	require.Equal(t, midea.PluginType, adapter.Type())
+	_, err = registry.Create(context.Background(), midea.PluginType, "another_midea_instance", json.RawMessage(`{"devices":[]}`), plugins.Dependencies{})
+	require.ErrorContains(t, err, "stable integration instance ID")
 }
 
 func TestBuiltinsAllowIndependentInstancesOfSameProtocol(t *testing.T) {
