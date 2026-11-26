@@ -150,3 +150,30 @@ func TestReceiptParserKeepsHighValueInvoiceLines(t *testing.T) {
 	if receipt.Items[0].TotalPrice != 1299.00 { t.Fatalf("expected item price 1299.00, got %.2f", receipt.Items[0].TotalPrice) }
 	if receipt.TotalAmount != 1299.00 { t.Fatalf("expected invoice total 1299.00, got %.2f", receipt.TotalAmount) }
 }
+
+func TestReceiptParserDetectsIndependentMerchant(t *testing.T) {
+	raw := "FARMACIA SAN LUCA S.R.L.\nVIA ROMA 12\nPARACETAMOLO 4,50\nTOTALE 4,50"
+	receipt, err := appPantry.NewReceiptParser().ParseText(raw)
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if receipt.StoreName != "FARMACIA SAN LUCA" {
+		t.Fatalf("expected independent merchant name without legal suffix, got %q", receipt.StoreName)
+	}
+}
+
+func TestReceiptParserDetectsAdditionalItalianStoreChains(t *testing.T) {
+	for _, test := range []struct { raw string; want string }{
+		{raw: "IPERCOOP\nPASTA 1,20\nTOTALE 1,20", want: "Ipercoop"},
+		{raw: "DPIU\nPASTA 1,20\nTOTALE 1,20", want: "Dpiù"},
+		{raw: "FAMILA\nPASTA 1,20\nTOTALE 1,20", want: "Famila"},
+	} {
+		receipt, err := appPantry.NewReceiptParser().ParseText(test.raw)
+		if err != nil { t.Fatalf("unexpected parse error for %q: %v", test.raw, err) }
+		if receipt.StoreName != test.want { t.Errorf("expected store %q, got %q", test.want, receipt.StoreName) }
+	}
+}
+
+func TestReceiptParserDoesNotTreatInvoiceHeadingAsStore(t *testing.T) {
+	receipt, err := appPantry.NewReceiptParser().ParseText("FATTURA\nNOTEBOOK 1.299,00\nTOTALE FATTURA 1.299,00")
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if receipt.StoreName == "FATTURA" { t.Fatal("document type heading was misidentified as merchant") }
+}

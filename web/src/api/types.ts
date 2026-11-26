@@ -960,15 +960,23 @@ export interface ReceiptItem {
 }
 
 export interface Receipt {
+  id?: string
   store_name: string
   date: string // YYYY-MM-DD
+  document_type?: 'receipt' | 'invoice'
   items: ReceiptItem[]
   total_amount: number
   raw_text?: string
   confidence: number
+  expense_id?: string
+  auto_add_to_finance?: boolean
+  auto_update_pantry?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ReceiptImportResult {
+  receipt_id?: string
   items_added: number
   items_updated: number
   expense_id?: string

@@ -8,7 +8,7 @@
 4. Le immagini inviate direttamente all'API devono essere JPEG o PNG, al massimo 4 MiB e 24 megapixel.
 5. Tesseract usa i dati lingua italiani e inglesi, una sola scansione OCR alla volta, timeout di 20 secondi e output testuale massimo di 64 KiB.
 6. Il testo è analizzato dal parser euristico condiviso da scontrini e fatture. L'utente può correggere i dati prima dell'import.
-7. L'import può aggiornare la dispensa e/o registrare la spesa in Home Finance. Le fatture non aggiornano automaticamente le quantità della dispensa.
+7. Ogni documento confermato viene salvato nello storico acquisti (negozio, data, tipo, totale, righe e prezzi); l'utente può scegliere separatamente se aggiornare la dispensa e/o registrare la spesa in Home Finance. Le fatture non aggiornano automaticamente le quantità della dispensa.
 
 ## Difetti corretti in questo audit
 
@@ -32,9 +32,9 @@ L'immagine Docker installa poppler-utils, tesseract-ocr e i dati lingua italiani
 - Il parser non usa un catalogo prodotti o un modello AI: estrae righe con euristiche su nomi, quantità e prezzi. Le descrizioni abbreviate dei registratori di cassa, prezzi collocati su righe separate e impaginazioni insolite possono ancora produrre risultati errati. L'anteprima va sempre verificata prima della conferma.
 - L'OCR usa Tesseract con segmentazione automatica a blocco singolo (--psm 6); non esegue correzione prospettica, rilevamento del documento o deskew avanzato. Foto sfocate, riflessi, caratteri termici molto chiari e scontrini piegati possono degradare i risultati.
 - La cache HTTP d'idempotenza è in memoria e ha la finestra predefinita di 60 secondi. La chiave protegge il retry immediato, ma non è un archivio persistente degli import e non sopravvive al riavvio del server.
-- Non viene conservata una copia del documento o un registro storico completo dello scontrino. Il testo OCR è restituito nella risposta di parsing, ma non è archiviato come documento consultabile.
+- Domus conserva ora uno storico strutturato degli acquisti confermati, inclusi negozio, data, prodotti, quantità, prezzi, totale e collegamento all'eventuale movimento finanziario. Non conserva il file originale né il testo OCR grezzo, che potrebbe contenere identificativi fiscali, indirizzi e dettagli del pagamento.
 - I test automatici coprono parser, validazioni, rollback compensativo, limiti e rifiuto dei formati non supportati. Non sostituiscono una prova end-to-end con scontrini reali di Esselunga, Coop, Conad, Lidl e altri punti vendita, né un collaudo con fotografie reali scattate da iPhone/Android in condizioni di luce diverse.
 
 ## Collaudo consigliato prima del rilascio
 
-Usare almeno: scontrino termico fotografato, PDF con testo incorporato, PDF scansionato, scontrino lungo con totale sopra 999,99 €, righe duplicate dello stesso prodotto, prodotti non alimentari con parola carta, sconti/depositi e articolo con unità incompatibile rispetto alla dispensa. Controllare nome, quantità, unità, prezzo riga, totale e saldo della dispensa/Finance dopo la conferma.
+Usare almeno: scontrino termico fotografato, PDF con testo incorporato, PDF scansionato, scontrino lungo con totale sopra 999,99 €, righe duplicate dello stesso prodotto, prodotti non alimentari con parola carta, sconti/depositi e articolo con unità incompatibile rispetto alla dispensa. Controllare negozio, nome, quantità, unità, prezzo riga, totale, modifica successiva dello storico e saldo della dispensa/Finance dopo la conferma.

@@ -26,6 +26,7 @@ import { apiClient } from '../api/client'
 import { usePantryStore } from '../stores/pantry'
 import TransferShoppingModal, { type ShoppingItemForTransfer } from '../components/pantry/TransferShoppingModal.vue'
 import PantryReceiptScannerTab from '../components/pantry/PantryReceiptScannerTab.vue'
+import ReceiptHistoryPanel from '../components/pantry/ReceiptHistoryPanel.vue'
 import type { Receipt as ReceiptData } from '../api/types'
 
 const { t } = useI18n()
@@ -367,18 +368,18 @@ async function handleImportShoppingReceipt(data: {
   auto_add_to_finance: boolean
   auto_update_pantry: boolean
 }) {
-  // Persist the receipt first; never mark items purchased if import failed.
-  if (data.auto_add_to_finance || data.auto_update_pantry) {
-    try {
-      await pantryStore.importReceipt({
-        ...data,
-        date: data.date || new Date().toISOString().slice(0, 10)
-      })
-    } catch (err) {
-      console.error('Errore import scontrino:', err)
-      transferFeedback.value = { message: 'Importazione non riuscita: gli articoli della lista non sono stati modificati.', type: 'error' }
-      return
-    }
+  // Every confirmed document is saved, even when pantry and finance side effects
+  // are disabled. The history is independent from the optional stock/finance updates.
+  try {
+    await pantryStore.importReceipt({
+      ...data,
+      confidence: pantryStore.parsedReceipt?.confidence ?? 0,
+      date: data.date || new Date().toISOString().slice(0, 10)
+    })
+  } catch (err) {
+    console.error('Errore import scontrino:', err)
+    transferFeedback.value = { message: 'Salvataggio non riuscito: gli articoli della lista non sono stati modificati.', type: 'error' }
+    return
   }
 
   let count = 0
@@ -461,6 +462,8 @@ onMounted(async () => {
         </button>
       </div>
     </header>
+
+    <ReceiptHistoryPanel />
 
     <!-- Quick Add Bar -->
     <div class="add-bar-panel glass-panel">

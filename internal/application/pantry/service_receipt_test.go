@@ -15,8 +15,9 @@ import (
 )
 
 type receiptFinanceRecorder struct {
-	err   error
-	calls int
+	err     error
+	calls   int
+	expense *domainFinance.Expense
 }
 
 func (f *receiptFinanceRecorder) RecordExpense(
@@ -33,7 +34,28 @@ func (f *receiptFinanceRecorder) RecordExpense(
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &domainFinance.Expense{ID: "receipt-expense-test"}, nil
+	f.expense = &domainFinance.Expense{ID: "receipt-expense-test", Title: title, Amount: amount, Category: category, Subcategory: subcategory, ExpenseDate: date, IsFixed: isFixed, Notes: notes}
+	copy := *f.expense
+	return &copy, nil
+}
+
+func (f *receiptFinanceRecorder) GetExpenseByID(ctx context.Context, id string) (*domainFinance.Expense, error) {
+	if f.expense == nil || f.expense.ID != id { return nil, errors.New("expense not found") }
+	copy := *f.expense
+	return &copy, nil
+}
+
+func (f *receiptFinanceRecorder) UpdateExpense(ctx context.Context, expense *domainFinance.Expense) error {
+	if f.expense == nil || expense.ID != f.expense.ID { return errors.New("expense not found") }
+	copy := *expense
+	f.expense = &copy
+	return nil
+}
+
+func (f *receiptFinanceRecorder) DeleteExpense(ctx context.Context, id string) error {
+	if f.expense == nil || f.expense.ID != id { return errors.New("expense not found") }
+	f.expense = nil
+	return nil
 }
 
 func newReceiptImportService(t *testing.T, finance appPantry.FinanceRecorder) (*appPantry.Service, *sqlite.PantryRepository) {
@@ -141,4 +163,65 @@ func TestImportReceiptRejectsInvalidUnitsBeforeWriting(t *testing.T) {
 	require.ErrorIs(t, err, appPantry.ErrInvalidReceiptImport)
 	_, err = repo.GetPantryItemByName(context.Background(), "Pasta")
 	require.ErrorIs(t, err, domainPantry.ErrItemNotFound)
+}
+
+func TestImportReceiptAlwaysStoresPurchaseHistory(t *testing.T) {
+	service, repo := newReceiptImportService(t, nil)
+	result, err := service.ImportReceipt(context.Background(), appPantry.ImportReceiptRequest{
+		StoreName: "Market Rossi", Date: "2026-11-26", TotalAmount: 3.25, Confidence: 0.8,
+		AutoAddToFinance: false, AutoUpdatePantry: false,
+		Items: []domainPantry.ReceiptItem{{Name: "Pasta", Quantity: 1, Unit: domainPantry.UnitPiece, UnitPrice: 3.25, TotalPrice: 3.25, Category: domainPantry.CategoryPantry}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.ReceiptID)
+	receipt, err := repo.GetReceipt(context.Background(), *result.ReceiptID)
+	require.NoError(t, err)
+	require.Equal(t, "Market Rossi", receipt.StoreName)
+	require.Equal(t, 0.8, receipt.Confidence)
+	require.False(t, receipt.AutoAddToFinance)
+	require.False(t, receipt.AutoUpdatePantry)
+	require.Len(t, receipt.Items, 1)
+}
+
+func TestUpdateReceiptUpdatesLinkedFinanceButDoesNotReplayPantryStock(t *testing.T) {
+	finance := &receiptFinanceRecorder{}
+	service, repo := newReceiptImportService(t, finance)
+	ctx := context.Background()
+	result, err := service.ImportReceipt(ctx, appPantry.ImportReceiptRequest{
+		StoreName: "Esselunga", Date: "2026-11-26", TotalAmount: 10,
+		AutoAddToFinance: true, AutoUpdatePantry: true,
+		Items: []domainPantry.ReceiptItem{{Name: "Pasta", Quantity: 500, Unit: domainPantry.UnitGram, UnitPrice: 0.02, TotalPrice: 10, Category: domainPantry.CategoryPantry}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.ReceiptID)
+	stockBefore, err := repo.GetPantryItemByName(ctx, "Pasta")
+	require.NoError(t, err)
+	require.Equal(t, 500.0, stockBefore.Quantity)
+	receipt, err := service.UpdateReceipt(ctx, *result.ReceiptID, appPantry.UpdateReceiptRequest{
+		DocumentType: "receipt", StoreName: "Coop", Date: "2026-11-27", TotalAmount: 12,
+		Items: []domainPantry.ReceiptItem{{Name: "Pasta integrale", Quantity: 250, Unit: domainPantry.UnitGram, UnitPrice: 0.048, TotalPrice: 12, Category: domainPantry.CategoryPantry}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Coop", receipt.StoreName)
+	require.Equal(t, 12.0, receipt.TotalAmount)
+	require.Equal(t, "Pasta integrale", receipt.Items[0].Name)
+	require.NotNil(t, finance.expense)
+	require.Equal(t, "Spesa Coop", finance.expense.Title)
+	require.Equal(t, 12.0, finance.expense.Amount)
+	require.Equal(t, time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC), finance.expense.ExpenseDate)
+	stockAfter, err := repo.GetPantryItemByName(ctx, "Pasta")
+	require.NoError(t, err)
+	require.Equal(t, 500.0, stockAfter.Quantity, "editing historical receipt must not change current inventory")
+}
+
+func TestUpdateReceiptRejectsInvalidStoreAndDate(t *testing.T) {
+	service, repo := newReceiptImportService(t, nil)
+	result, err := service.ImportReceipt(context.Background(), appPantry.ImportReceiptRequest{StoreName: "Coop", Date: "2026-11-26", TotalAmount: 1})
+	require.NoError(t, err)
+	require.NotNil(t, result.ReceiptID)
+	_, err = service.UpdateReceipt(context.Background(), *result.ReceiptID, appPantry.UpdateReceiptRequest{StoreName: "  ", Date: "not-a-date", TotalAmount: 1})
+	require.ErrorIs(t, err, appPantry.ErrInvalidReceiptImport)
+	stored, err := repo.GetReceipt(context.Background(), *result.ReceiptID)
+	require.NoError(t, err)
+	require.Equal(t, "Coop", stored.StoreName, "invalid edit must leave history unchanged")
 }

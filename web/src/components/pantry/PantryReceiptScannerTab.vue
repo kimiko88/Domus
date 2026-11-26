@@ -35,6 +35,7 @@ const emit = defineEmits<{
     date: string
     items: ReceiptItem[]
     total_amount: number
+    confidence: number
     document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
@@ -520,6 +521,7 @@ function handleConfirmImport() {
     date: props.parsedReceipt.date || new Date().toISOString().slice(0, 10),
     items: props.parsedReceipt.items,
     total_amount: Number(props.parsedReceipt.total_amount) || 0,
+    confidence: Number(props.parsedReceipt.confidence) || 0,
     document_type: documentType.value,
     auto_add_to_finance: autoAddToFinance.value,
     auto_update_pantry: documentType.value === 'receipt' && autoUpdatePantry.value

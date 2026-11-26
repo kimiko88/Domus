@@ -25,6 +25,17 @@ type ShoppingListAdder interface {
 	AddItem(ctx context.Context, title string, quantity string, category string, addedBy string) error
 }
 
+// FinanceExpenseUpdater updates the Home Finance movement linked to a saved receipt.
+type FinanceExpenseUpdater interface {
+	GetExpenseByID(ctx context.Context, id string) (*domainFinance.Expense, error)
+	UpdateExpense(ctx context.Context, expense *domainFinance.Expense) error
+}
+
+// FinanceExpenseDeleter compensates a newly recorded expense if receipt persistence fails.
+type FinanceExpenseDeleter interface {
+	DeleteExpense(ctx context.Context, id string) error
+}
+
 // Service coordinates pantry inventory, recipes, meal planning, and receipt imports.
 var (
 	// ErrInvalidReceiptImport identifies user-supplied receipt data that cannot
@@ -36,6 +47,7 @@ var (
 	// ErrReceiptFinanceUnavailable is returned instead of silently skipping an
 	// expense when the user explicitly requested financial registration.
 	ErrReceiptFinanceUnavailable = errors.New("pantry: finance integration is unavailable")
+	ErrReceiptHistoryUnavailable = errors.New("pantry: receipt history storage is unavailable")
 )
 
 type Service struct {
@@ -550,8 +562,17 @@ type ImportReceiptRequest struct {
 	Date             string               `json:"date"`
 	Items            []domain.ReceiptItem `json:"items"`
 	TotalAmount      float64              `json:"total_amount"`
+	Confidence       float64              `json:"confidence"`
 	AutoAddToFinance bool                 `json:"auto_add_to_finance"`
 	AutoUpdatePantry bool                 `json:"auto_update_pantry"`
+}
+
+type UpdateReceiptRequest struct {
+	DocumentType string               `json:"document_type"`
+	StoreName    string               `json:"store_name"`
+	Date         string               `json:"date"`
+	Items        []domain.ReceiptItem `json:"items"`
+	TotalAmount  float64              `json:"total_amount"`
 }
 
 // ImportReceipt persists recognized items into the pantry and automatically records the expense in Home Finance!
@@ -570,6 +591,10 @@ type receiptInventoryMutation struct {
 // Pantry mutations are compensated if a later pantry write or finance write
 // fails, preventing the common retry case from duplicating stock quantities.
 func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (*domain.ReceiptImportResult, error) {
+	receiptRepo, ok := s.repo.(domain.ReceiptHistoryRepository)
+	if !ok || receiptRepo == nil {
+		return nil, ErrReceiptHistoryUnavailable
+	}
 	documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
 	if documentType == "" {
 		documentType = "receipt"
@@ -580,6 +605,7 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 	if documentType == "invoice" {
 		req.AutoUpdatePantry = false
 	}
+	req.DocumentType = documentType
 	if len(req.Items) > 500 {
 		return nil, fmt.Errorf("%w: receipt contains too many items", ErrInvalidReceiptImport)
 	}
@@ -593,26 +619,33 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 	if len(req.StoreName) > 150 {
 		return nil, fmt.Errorf("%w: store name is too long", ErrInvalidReceiptImport)
 	}
-	if req.Date != "" {
-		if _, err := time.Parse("2006-01-02", req.Date); err != nil {
-			return nil, fmt.Errorf("%w: receipt date must use YYYY-MM-DD", ErrInvalidReceiptImport)
-		}
+	now := time.Now().UTC()
+	if req.Date == "" {
+		req.Date = now.Format("2006-01-02")
+	} else if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+		return nil, fmt.Errorf("%w: receipt date must use YYYY-MM-DD", ErrInvalidReceiptImport)
 	}
+	if math.IsNaN(req.Confidence) || math.IsInf(req.Confidence, 0) {
+		return nil, fmt.Errorf("%w: receipt confidence is invalid", ErrInvalidReceiptImport)
+	}
+	req.Confidence = math.Max(0, math.Min(1, req.Confidence))
 	if req.AutoAddToFinance && req.TotalAmount > 0 && s.financeApp == nil {
 		return nil, ErrReceiptFinanceUnavailable
 	}
 
-	// Normalize and validate every input item before querying or mutating the
-	// pantry. This also merges repeated product lines from the same receipt.
+	// Validate the exact purchase lines for history, preserving separate offers,
+	// discounts and repeated products. Stock merging happens in a second pass.
+	receiptItems, err := normalizeReceiptImportItems(req.Items, false)
+	if err != nil {
+		return nil, err
+	}
 	items, err := normalizeReceiptImportItems(req.Items, req.AutoUpdatePantry)
 	if err != nil {
 		return nil, err
 	}
-
-	now := time.Now().UTC()
 	result := &domain.ReceiptImportResult{ExpenseAmount: req.TotalAmount}
-	itemNames := make([]string, 0, len(items))
-	for _, item := range items {
+	itemNames := make([]string, 0, len(receiptItems))
+	for _, item := range receiptItems {
 		itemNames = append(itemNames, fmt.Sprintf("%s (%.3g %s)", item.Name, item.Quantity, item.Unit))
 	}
 
@@ -683,8 +716,9 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 		result.ItemsAdded++
 	}
 
-	// Financial registration is deliberately last. If it fails, undo the
-	// already-applied inventory updates so the user can retry safely.
+	// Financial registration follows stock prevalidation. If a later history
+	// write fails, both stock and the new financial movement are compensated.
+	var recordedExpense *domainFinance.Expense
 	if req.AutoAddToFinance && req.TotalAmount > 0 {
 		expDate := now
 		if parsedDate, err := time.Parse("2006-01-02", req.Date); err == nil {
@@ -693,24 +727,42 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 
 		category := domainFinance.CategoryFood
 		subcategory := domainFinance.SubcategoryGroceries
-		title := fmt.Sprintf("Spesa %s", req.StoreName)
-		documentLabel := "scontrino"
+		title := receiptExpenseTitle(documentType, req.StoreName)
 		if documentType == "invoice" {
 			category = domainFinance.CategoryOther
 			subcategory = ""
-			title = fmt.Sprintf("Fattura %s", req.StoreName)
-			documentLabel = "fattura"
 		}
-		notes := fmt.Sprintf("Import da %s: %s", documentLabel, strings.Join(itemNames, ", "))
+		notes := receiptExpenseNotes(documentType, receiptItems)
 		exp, err := s.financeApp.RecordExpense(ctx, title, req.TotalAmount, category, subcategory, expDate, false, notes)
 		if err != nil {
 			rollbackErr := s.rollbackReceiptInventory(applied)
 			return nil, errors.Join(fmt.Errorf("pantry: failed to record receipt expense: %w", err), rollbackErr)
 		}
 		if exp != nil {
+			recordedExpense = exp
 			result.ExpenseID = &exp.ID
 		}
 	}
+
+	savedReceipt := &domain.Receipt{
+		ID: uuid.NewString(), StoreName: req.StoreName, Date: req.Date,
+		DocumentType: documentType, Items: receiptItems, TotalAmount: req.TotalAmount,
+		Confidence: req.Confidence, ExpenseID: result.ExpenseID,
+		AutoAddToFinance: req.AutoAddToFinance, AutoUpdatePantry: req.AutoUpdatePantry,
+	}
+	if err := receiptRepo.CreateReceipt(ctx, savedReceipt); err != nil {
+		rollbackErr := s.rollbackReceiptInventory(applied)
+		var financeRollbackErr error
+		if recordedExpense != nil {
+			if deleter, supported := s.financeApp.(FinanceExpenseDeleter); supported {
+				financeRollbackErr = deleter.DeleteExpense(ctx, recordedExpense.ID)
+			} else {
+				financeRollbackErr = errors.New("finance movement could not be compensated after receipt history failure")
+			}
+		}
+		return nil, errors.Join(fmt.Errorf("pantry: failed to save receipt history: %w", err), rollbackErr, financeRollbackErr)
+	}
+	result.ReceiptID = &savedReceipt.ID
 
 	if s.bus != nil {
 		_ = s.bus.Publish(ctx, events.Event{
@@ -724,6 +776,119 @@ func (s *Service) ImportReceipt(ctx context.Context, req ImportReceiptRequest) (
 	return result, nil
 }
 
+// ListReceiptHistory returns the most recent saved purchases.
+func (s *Service) ListReceiptHistory(ctx context.Context, limit int) ([]domain.Receipt, error) {
+	repo, ok := s.repo.(domain.ReceiptHistoryRepository)
+	if !ok || repo == nil {
+		return nil, ErrReceiptHistoryUnavailable
+	}
+	if limit < 1 || limit > 200 {
+		limit = 50
+	}
+	return repo.ListReceipts(ctx, limit)
+}
+
+// UpdateReceipt updates a saved purchase and its linked finance movement.
+// It never replays stock changes: present pantry quantities are edited separately.
+func (s *Service) UpdateReceipt(ctx context.Context, id string, req UpdateReceiptRequest) (*domain.Receipt, error) {
+	repo, ok := s.repo.(domain.ReceiptHistoryRepository)
+	if !ok || repo == nil {
+		return nil, ErrReceiptHistoryUnavailable
+	}
+	existing, err := repo.GetReceipt(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return nil, err
+	}
+	storeName := strings.TrimSpace(req.StoreName)
+	if storeName == "" || len(storeName) > 150 {
+		return nil, fmt.Errorf("%w: store name is required and must be under 150 characters", ErrInvalidReceiptImport)
+	}
+	if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+		return nil, fmt.Errorf("%w: receipt date must use YYYY-MM-DD", ErrInvalidReceiptImport)
+	}
+	if math.IsNaN(req.TotalAmount) || math.IsInf(req.TotalAmount, 0) || req.TotalAmount < 0 || req.TotalAmount > 1000000 {
+		return nil, fmt.Errorf("%w: receipt total amount is invalid", ErrInvalidReceiptImport)
+	}
+	documentType := strings.ToLower(strings.TrimSpace(req.DocumentType))
+	if documentType == "" {
+		documentType = existing.DocumentType
+	}
+	if documentType != "receipt" && documentType != "invoice" {
+		return nil, fmt.Errorf("%w: unsupported document type", ErrInvalidReceiptImport)
+	}
+	items, err := normalizeReceiptImportItems(req.Items, false)
+	if err != nil {
+		return nil, err
+	}
+
+	var updater FinanceExpenseUpdater
+	var previousExpense *domainFinance.Expense
+	if existing.ExpenseID != nil && *existing.ExpenseID != "" {
+		var supported bool
+		updater, supported = s.financeApp.(FinanceExpenseUpdater)
+		if !supported {
+			return nil, ErrReceiptFinanceUnavailable
+		}
+		previousExpense, err = updater.GetExpenseByID(ctx, *existing.ExpenseID)
+		if err != nil {
+			return nil, fmt.Errorf("pantry: linked finance movement not found: %w", err)
+		}
+		updatedExpense := *previousExpense
+		updatedExpense.Title = receiptExpenseTitle(documentType, storeName)
+		updatedExpense.Amount = req.TotalAmount
+		updatedExpense.ExpenseDate, _ = time.Parse("2006-01-02", req.Date)
+		updatedExpense.Notes = receiptExpenseNotes(documentType, items)
+		if documentType == "invoice" {
+			updatedExpense.Category = domainFinance.CategoryOther
+			updatedExpense.Subcategory = ""
+		} else {
+			updatedExpense.Category = domainFinance.CategoryFood
+			updatedExpense.Subcategory = domainFinance.SubcategoryGroceries
+		}
+		if err := updater.UpdateExpense(ctx, &updatedExpense); err != nil {
+			return nil, fmt.Errorf("pantry: failed to update linked finance movement: %w", err)
+		}
+	}
+
+	updated := *existing
+	updated.StoreName = storeName
+	updated.Date = req.Date
+	updated.DocumentType = documentType
+	if documentType == "invoice" {
+		updated.AutoUpdatePantry = false
+	}
+	updated.Items = items
+	updated.TotalAmount = req.TotalAmount
+	updated.UpdatedAt = time.Now().UTC()
+	if err := repo.UpdateReceipt(ctx, &updated); err != nil {
+		if updater != nil && previousExpense != nil {
+			if rollbackErr := updater.UpdateExpense(ctx, previousExpense); rollbackErr != nil {
+				return nil, errors.Join(fmt.Errorf("pantry: failed to update receipt history: %w", err), fmt.Errorf("pantry: failed to restore linked finance movement: %w", rollbackErr))
+			}
+		}
+		return nil, fmt.Errorf("pantry: failed to update receipt history: %w", err)
+	}
+	return &updated, nil
+}
+
+func receiptExpenseTitle(documentType, storeName string) string {
+	if documentType == "invoice" {
+		return fmt.Sprintf("Fattura %s", storeName)
+	}
+	return fmt.Sprintf("Spesa %s", storeName)
+}
+
+func receiptExpenseNotes(documentType string, items []domain.ReceiptItem) string {
+	label := "scontrino"
+	if documentType == "invoice" {
+		label = "fattura"
+	}
+	itemNames := make([]string, 0, len(items))
+	for _, item := range items {
+		itemNames = append(itemNames, fmt.Sprintf("%s (%.3g %s)", item.Name, item.Quantity, item.Unit))
+	}
+	return fmt.Sprintf("Import da %s: %s", label, strings.Join(itemNames, ", "))
+}
 func normalizeReceiptImportItems(input []domain.ReceiptItem, forPantry bool) ([]domain.ReceiptItem, error) {
 	items := make([]domain.ReceiptItem, 0, len(input))
 	positions := make(map[string]int, len(input))
