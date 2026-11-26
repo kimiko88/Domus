@@ -51,9 +51,16 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		if err := json.Unmarshal(raw, &stored); err != nil {
 			return "", fmt.Errorf("tuya oauth: decode existing provider configuration: %w", err)
 		}
-		changed := setTuyaRawConfigValue(stored, "oauth_client_id", cfg.ClientID) |
-			setTuyaRawConfigValue(stored, "oauth_secret", cfg.Secret) |
-			setTuyaRawConfigValue(stored, "oauth_identifier", cfg.Identifier)
+		changed := false
+		for key, value := range map[string]string{
+			"oauth_client_id": cfg.ClientID,
+			"oauth_secret": cfg.Secret,
+			"oauth_identifier": cfg.Identifier,
+		} {
+			if setTuyaRawConfigValue(stored, key, value) {
+				changed = true
+			}
+		}
 		if changed {
 			updated, err := json.Marshal(stored)
 			if err != nil {
