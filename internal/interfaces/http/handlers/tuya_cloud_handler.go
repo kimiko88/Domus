@@ -262,6 +262,9 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "CONFIG_SAVE_FAILED", "Tuya Cloud credentials could not be validated or saved")
 			return
 		}
+		if err := h.dropLegacyOpenAPIConfigTable(r.Context()); err != nil {
+			slog.Warn("tuya cloud: new credentials saved but retired legacy table could not be removed", "error", err)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
 			"message": "Configurazione Tuya Smart Life salvata con successo",
@@ -315,6 +318,9 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 			slog.Error("tuya cloud: managed configuration removal failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove Tuya OpenAPI credentials")
 			return
+		}
+		if err := h.dropLegacyOpenAPIConfigTable(r.Context()); err != nil {
+			slog.Warn("tuya cloud: OpenAPI config removed but retired legacy table could not be removed", "error", err)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
