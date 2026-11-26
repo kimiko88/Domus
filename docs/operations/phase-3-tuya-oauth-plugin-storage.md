@@ -9,14 +9,16 @@ La roadmap cloud viene affrontata per passi indipendenti. Questa tranche migra i
 - L'istanza singleton `tuya_cloud` contiene un campo interno `smart_life_oauth` con una mappa di account indicizzata dall'ID utente Domus.
 - Ogni account memorizza UID Smart Life, access token, refresh token e scadenza.
 - L'intero JSON dell'istanza è cifrato dal `EnvelopeCipher` prima della persistenza; non viene creato un secondo archivio token in chiaro.
+- Le credenziali App Authorization (`oauth_client_id` / `oauth_secret`) restano distinte dalle credenziali Tuya OpenAPI (`client_id` / `secret`). Un'istanza OAuth-only può esistere senza inventare o riutilizzare credenziali OpenAPI; il client OpenAPI si attiva solo quando vengono configurate le sue chiavi.
 - I campi `oauth_client_id`, `oauth_secret`, `oauth_identifier` e `smart_life_oauth` sono dichiarati interni nello schema. Il Registry li valida, ma `Manager.ListTypes` li filtra dal catalogo mostrato nella UI.
 - Gli endpoint pubblici delle istanze continuano a restituire solo metadati; il nuovo accessor `Manager.GetConfig` è destinato esclusivamente a consumer fidati del livello applicativo e non va esposto via HTTP.
+- Le modifiche interne passano da `Manager.UpdateConfigMutate`, che serializza lettura/modifica/cifratura sotto il lock del lifecycle. Le modifiche pubbliche con `Manager.UpdateConfig` preservano i campi interni già salvati e non possono sovrascriverli o cancellarli.
 
 ## Flusso di connessione e refresh
 
 1. L'amministratore avvia l'autorizzazione.
 2. Il callback usa lo state monouso associato all'utente Domus; la tabella `tuya_user_oauth_states` rimane l'archivio CSRF, non contiene token Smart Life.
-3. I token ricevuti vengono salvati nella configurazione cifrata dell'istanza attraverso `Manager.UpdateConfig`.
+3. I token ricevuti vengono salvati nella configurazione cifrata dell'istanza attraverso `Manager.UpdateConfigMutate`.
 4. Refresh ordinario e refresh dopo rifiuto token aggiornano la stessa entry utente in modo serializzato; un amministratore non sovrascrive le credenziali di un altro.
 5. Il disconnect rimuove solo l'entry dell'utente che ha richiesto la disconnessione.
 
@@ -25,7 +27,7 @@ La roadmap cloud viene affrontata per passi indipendenti. Questa tranche migra i
 Al primo accesso a un account non ancora presente nella configurazione Plugin Manager, il handler:
 - legge i token legacy dalla tabella `tuya_user_oauth_connections`;
 - li decifra con il cipher esistente;
-- li salva nell'istanza tramite `Manager.UpdateConfig`, che cifra la configurazione completa;
+- li salva nell'istanza tramite `Manager.UpdateConfigMutate`, che cifra la configurazione completa;
 - elimina la vecchia riga solo dopo la conferma della persistenza nuova.
 
 In caso di errore nella scrittura nuova, la riga legacy non viene cancellata. La migrazione è quindi ripetibile senza perdere la sessione dell'utente. Le installazioni senza Plugin Manager conservano il percorso legacy di compatibilità.
@@ -38,12 +40,13 @@ La configurazione App Authorization viene copiata nei campi interni cifrati dell
 - I token non vengono aggiunti a `Instance`, log o risposte API.
 - Il test di migrazione verifica che la riga legacy scompaia solo dopo la scrittura cifrata e che i blob/risultati pubblici non contengano i token.
 - Il test multi-account verifica isolamento per utente e disconnect selettivo.
+- Il test OAuth-only verifica che le credenziali App Authorization non siano copiate nei campi OpenAPI.
+- Il test di aggiornamento pubblico verifica che una modifica ordinaria delle impostazioni Tuya preservi i campi interni non mostrati nel form.
 - I test precedenti del percorso legacy restano attivi per installazioni che non hanno il Plugin Manager.
 
 ## Lavoro ancora aperto
 
 - Migrare `TuyaCloudHandler` e la tabella `tuya_cloud_config` al medesimo option flow cifrato del Plugin Manager, compresi GET/PUT/DELETE e il restore delle credenziali.
-- Gestire in modo definitivo bootstrap distinto tra credenziali OpenAPI e App Authorization, senza dipendere da valori duplicati nell'ambiente.
 - Migrare Xiaomi Home Cloud, Imou Life, VeSync e Midea a storage account/istanza con refresh e callback supervisionati.
 - Completare prove end-to-end con progetto IoT Tuya reale, permessi API User Permission Package e hardware Smart Life. I test automatici usano trasporti simulati e non dimostrano la disponibilità dei pacchetti API del progetto Tuya.
 
