@@ -459,7 +459,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 		}
 	}
-	if tuyaCloudClient == nil && clientID != "" && secret != "" {
+	if srv.pluginRuntime == nil && tuyaCloudClient == nil && clientID != "" && secret != "" {
 		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
 			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
 		})
@@ -468,12 +468,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		} else {
 			tuyaCloudClient = legacyClient
 		}
-	}
-	if srv.pluginRuntime == nil && tuyaCloudClient == nil && clientID != "" && secret != "" {
-		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
-		})
-		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = legacyClient }
 	}
 	if tuyaOAuthClient != nil {
 		h, err := handlers.NewTuyaOAuthHandler(srv.repos.DB, srv.repos.Cipher, tuyaOAuthClient, oauthClientID, oauthAuthorizeURL, oauthCallbackURL, srv.pluginRuntime)
