@@ -106,6 +106,7 @@ Le route amministrative sono sotto `/api/v1/plugins`:
 | GET | `/types` — manifest e schema configurazione dei tipi built-in |
 | GET | `/instances` — istanze senza configurazioni o segreti |
 | POST | `/instances` — crea un'istanza e salva la configurazione cifrata |
+| PUT | `/instances/{id}/config` — valida, cifra e sostituisce la configurazione con rollback dell'adapter |
 | POST | `/instances/{id}/enable` |
 | POST | `/instances/{id}/disable` |
 | POST | `/instances/{id}/restart` |

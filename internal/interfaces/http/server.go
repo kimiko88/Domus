@@ -700,6 +700,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						pluginRouter.Get("/types", pluginH.ListTypes)
 						pluginRouter.Get("/instances", pluginH.ListInstances)
 						pluginRouter.Post("/instances", pluginH.Create)
+						pluginRouter.Put("/instances/{id}/config", pluginH.UpdateConfig)
 						pluginRouter.Post("/instances/{id}/enable", pluginH.Enable)
 						pluginRouter.Post("/instances/{id}/disable", pluginH.Disable)
 						pluginRouter.Post("/instances/{id}/restart", pluginH.Restart)
