@@ -201,3 +201,34 @@ func TestVeSyncPublicPluginCatalogDoesNotExposeSession(t *testing.T) {
 	}
 	require.True(t, found, "VeSync must be visible in the public plugin catalog")
 }
+
+
+func TestVeSyncBootstrapClientCannotBypassAnEnabledMissingAdapter(t *testing.T) {
+	t.Run("first login without an instance", func(t *testing.T) {
+		f := newVeSyncPluginFixture(t)
+		client, err := f.handler.clientForRequest(context.Background(), true)
+		require.NoError(t, err)
+		require.NotNil(t, client)
+	})
+
+	t.Run("explicitly disabled instance", func(t *testing.T) {
+		f := newVeSyncPluginFixture(t)
+		_, err := f.manager.Create(context.Background(), vesync.IntegrationID, vesync.PluginType, "VeSync Cloud", json.RawMessage(`{}`), false)
+		require.NoError(t, err)
+		client, err := f.handler.clientForRequest(context.Background(), true)
+		require.NoError(t, err)
+		require.NotNil(t, client)
+		_, err = f.handler.clientForRequest(context.Background(), false)
+		require.Error(t, err, "normal cloud calls must not use the bootstrap client")
+	})
+
+	t.Run("enabled but not restored instance", func(t *testing.T) {
+		f := newVeSyncPluginFixture(t)
+		seedVeSyncPluginRecord(t, f)
+		_, ok := f.manager.GetAdapter(vesync.IntegrationID)
+		require.False(t, ok, "the manager has not started and has not restored the enabled row")
+		client, err := f.handler.clientForRequest(context.Background(), true)
+		require.ErrorContains(t, err, "enabled managed cloud adapter is unavailable")
+		require.Nil(t, client, "an enabled persisted integration must not be bypassed with a direct client")
+	})
+}
