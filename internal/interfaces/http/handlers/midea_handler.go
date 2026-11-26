@@ -18,12 +18,13 @@ import (
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/plugins/midea"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-const mideaIntegrationID = "integration_midea_smarthome"
+const mideaIntegrationID = midea.IntegrationID
 
 type MideaHandler struct {
 	integrations integration.Repository
@@ -31,6 +32,7 @@ type MideaHandler struct {
 	devices      device.Repository
 	entities     entity.Repository
 	bus          events.Bus
+	pluginManager *apppluginruntime.Manager
 	adapter      *midea.Adapter
 	driverV2     *midea.A1LANDriver
 	driverV3     *midea.A1LANDriver
@@ -100,27 +102,69 @@ func NewMideaHandler(
 }
 
 
- // WithRuntimeAdapter replaces the handler's private protocol engine with the
- // manager-owned plugin engine and restores the decrypted device configuration.
+ // WithPluginManager delegates encrypted Midea device configuration and runtime
+// lifecycle to the shared Plugin Manager.
+func (h *MideaHandler) WithPluginManager(manager *apppluginruntime.Manager) *MideaHandler {
+	h.mu.Lock()
+	h.pluginManager = manager
+	h.mu.Unlock()
+	return h
+}
+
+// WithRuntimeAdapter binds the adapter restored by Plugin Manager. The factory
+// has already restored device credentials; registering them again here would
+// mask duplicate IDs and could overwrite the managed configuration.
 func (h *MideaHandler) WithRuntimeAdapter(runtime *midea.RuntimeAdapter) error {
-	if runtime == nil { return errors.New("midea: plugin runtime adapter is required") }
-	core, err := runtime.Core()
-	if err != nil { return err }
-	driverV2, driverV3 := runtime.Drivers()
+	if runtime == nil {
+		return errors.New("midea: plugin runtime adapter is required")
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.bindRuntimeAdapterLocked(runtime)
+}
+
+func (h *MideaHandler) bindRuntimeAdapterLocked(runtime *midea.RuntimeAdapter) error {
+	if runtime.ID() != mideaIntegrationID || runtime.Type() != midea.PluginType {
+		return errors.New("midea: runtime adapter identity does not match the managed integration")
+	}
+	core, err := runtime.Core()
+	if err != nil {
+		return err
+	}
+	driverV2, driverV3 := runtime.Drivers()
+	registered := make(map[string]struct{})
+	for _, item := range core.ListDevices() {
+		registered[item.ID] = struct{}{}
+	}
 	for _, stored := range h.config.Devices {
-		var driver *midea.A1LANDriver
-		switch stored.Device.Protocol {
-		case midea.ProtocolMSmartV2: driver = driverV2
-		case midea.ProtocolMSmartV3: driver = driverV3
-		default: return fmt.Errorf("midea: unsupported stored protocol %q", stored.Device.Protocol)
+		if _, ok := registered[stored.Device.ID]; !ok {
+			return fmt.Errorf("midea: managed runtime is missing configured device %q", stored.Device.ID)
 		}
-		if err := driver.Register(stored); err != nil { return fmt.Errorf("midea: restore plugin device %q: %w", stored.Device.ID, err) }
-		if err := core.Register(stored.Device); err != nil { return fmt.Errorf("midea: restore plugin adapter device %q: %w", stored.Device.ID, err) }
 	}
 	h.adapter, h.driverV2, h.driverV3 = core, driverV2, driverV3
 	return nil
+}
+
+func (h *MideaHandler) adapterSnapshot() *midea.Adapter {
+	h.mu.Lock()
+	manager, fallback := h.pluginManager, h.adapter
+	h.mu.Unlock()
+	if manager == nil {
+		return fallback
+	}
+	managed, ok := manager.GetAdapter(mideaIntegrationID)
+	if !ok {
+		return nil
+	}
+	runtime, ok := managed.(*midea.RuntimeAdapter)
+	if !ok {
+		return nil
+	}
+	core, err := runtime.Core()
+	if err != nil {
+		return nil
+	}
+	return core
 }
 
 // WithEventBus publishes verified device state to the shared automation and WebSocket event pipeline.
@@ -211,7 +255,11 @@ func (h *MideaHandler) handleCommandEvent(ctx context.Context, event events.Even
 	if len(command.Values) == 0 && command.Action == "" {
 		return errors.New("midea: empty Domus command")
 	}
-	state, commandErr := h.adapter.Command(ctx, ownedDevice.ExternalID, command)
+	adapter := h.adapterSnapshot()
+	if adapter == nil {
+		return errors.New("midea: managed integration is disabled")
+	}
+	state, commandErr := adapter.Command(ctx, ownedDevice.ExternalID, command)
 	if commandErr != nil {
 		if h.bus != nil {
 			_ = h.bus.Publish(ctx, events.Event{
@@ -305,7 +353,12 @@ func countSupportedMideaDevices(devices []midea.DiscoveredAppliance) int {
 
 func (h *MideaHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store, private")
-	configured := h.adapter.ListDevices()
+	adapter := h.adapterSnapshot()
+	if adapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "MIDEA_PLUGIN_DISABLED", "The managed Midea integration is disabled")
+		return
+	}
+	configured := adapter.ListDevices()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"devices": configured,
 		"count": len(configured),
@@ -452,7 +505,12 @@ func (h *MideaHandler) ConfigureDevice(w http.ResponseWriter, r *http.Request) {
 func (h *MideaHandler) RefreshDevice(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store, private")
 	id := chi.URLParam(r, "id")
-	state, err := h.adapter.Refresh(r.Context(), id)
+	adapter := h.adapterSnapshot()
+	if adapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "MIDEA_PLUGIN_DISABLED", "The managed Midea integration is disabled")
+		return
+	}
+	state, err := adapter.Refresh(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "MIDEA_REFRESH_FAILED", safeMideaError(err))
 		return
@@ -471,7 +529,12 @@ func (h *MideaHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
-	state, err := h.adapter.Command(r.Context(), id, midea.Command{Values: req.Values, Action: req.Action})
+	adapter := h.adapterSnapshot()
+	if adapter == nil {
+		writeError(w, http.StatusServiceUnavailable, "MIDEA_PLUGIN_DISABLED", "The managed Midea integration is disabled")
+		return
+	}
+	state, err := adapter.Command(r.Context(), id, midea.Command{Values: req.Values, Action: req.Action})
 	if err != nil {
 		status := http.StatusUnprocessableEntity
 		if errors.Is(err, midea.ErrDeviceNotFound) {
@@ -579,6 +642,10 @@ func (h *MideaHandler) loadStoredConfig(ctx context.Context) error {
 }
 
 func (h *MideaHandler) saveConfigLocked(ctx context.Context, status string) error {
+	if h.pluginManager != nil {
+		return h.saveManagedConfigLocked(ctx, status)
+	}
+	// Compatibility path for handlers instantiated without the Plugin Manager.
 	encoded, err := json.Marshal(h.config)
 	if err != nil {
 		return err
@@ -591,8 +658,8 @@ func (h *MideaHandler) saveConfigLocked(ctx context.Context, status string) erro
 	now := time.Now().UTC()
 	if errors.Is(getErr, integration.ErrIntegrationNotFound) {
 		record = &integration.Integration{
-			ID: mideaIntegrationID, Type: "midea_smarthome_local",
-			Name: "Midea SmartHome (local)", Enabled: status == "connected",
+			ID: mideaIntegrationID, Type: midea.PluginType,
+			Name: "Midea / Comfee SmartHome (LAN)", Enabled: status == "connected",
 			ConfigEncrypted: []byte(encrypted), Status: status, CreatedAt: now, UpdatedAt: now,
 		}
 		if err := h.integrations.Create(ctx, record); err != nil {
@@ -603,8 +670,8 @@ func (h *MideaHandler) saveConfigLocked(ctx context.Context, status string) erro
 	if getErr != nil {
 		return getErr
 	}
-	record.Type = "midea_smarthome_local"
-	record.Name = "Midea SmartHome (local)"
+	record.Type = midea.PluginType
+	record.Name = "Midea / Comfee SmartHome (LAN)"
 	record.Enabled = status == "connected"
 	record.ConfigEncrypted = []byte(encrypted)
 	record.UpdatedAt = now
@@ -614,6 +681,78 @@ func (h *MideaHandler) saveConfigLocked(ctx context.Context, status string) erro
 	return h.integrations.SetStatus(ctx, mideaIntegrationID, status, "")
 }
 
+func (h *MideaHandler) saveManagedConfigLocked(ctx context.Context, status string) error {
+	encoded, err := json.Marshal(h.config)
+	if err != nil {
+		return fmt.Errorf("midea: encode managed device configuration: %w", err)
+	}
+	enabled := status == "connected"
+	_, lookupErr := h.pluginManager.GetConfig(ctx, mideaIntegrationID)
+	switch {
+	case errors.Is(lookupErr, integration.ErrIntegrationNotFound):
+		if _, err := h.pluginManager.Create(
+			ctx,
+			mideaIntegrationID,
+			midea.PluginType,
+			"Midea / Comfee SmartHome (LAN)",
+			encoded,
+			enabled,
+		); err != nil {
+			return fmt.Errorf("midea: create encrypted Plugin Manager instance: %w", err)
+		}
+	case lookupErr != nil:
+		return fmt.Errorf("midea: read managed device configuration: %w", lookupErr)
+	default:
+		var submitted struct {
+			Devices []midea.A1LANConfig `json:"devices"`
+		}
+		if err := json.Unmarshal(encoded, &submitted); err != nil {
+			return fmt.Errorf("midea: decode managed device configuration: %w", err)
+		}
+		devicesJSON, err := json.Marshal(submitted.Devices)
+		if err != nil {
+			return fmt.Errorf("midea: encode managed devices: %w", err)
+		}
+		if _, err := h.pluginManager.UpdateConfigMutate(ctx, mideaIntegrationID, func(current map[string]json.RawMessage) error {
+			current["devices"] = append(json.RawMessage(nil), devicesJSON...)
+			return nil
+		}); err != nil {
+			return fmt.Errorf("midea: update encrypted Plugin Manager configuration: %w", err)
+		}
+		if err := h.pluginManager.SetEnabled(ctx, mideaIntegrationID, enabled); err != nil {
+			return fmt.Errorf("midea: update managed plugin enabled state: %w", err)
+		}
+	}
+
+	if err := h.integrations.SetStatus(ctx, mideaIntegrationID, status, ""); err != nil {
+		return fmt.Errorf("midea: update integration status: %w", err)
+	}
+	if enabled {
+		managed, ok := h.pluginManager.GetAdapter(mideaIntegrationID)
+		if !ok {
+			return errors.New("midea: Plugin Manager did not expose the enabled runtime adapter")
+		}
+		runtime, ok := managed.(*midea.RuntimeAdapter)
+		if !ok {
+			return errors.New("midea: Plugin Manager returned an unexpected runtime adapter")
+		}
+		return h.bindRuntimeAdapterLocked(runtime)
+	}
+
+	// Do not retain the previous adapter's device registry or V3 credentials
+	// after the managed instance has been disabled.
+	v2, err := midea.NewA1LANDriver(midea.ProtocolMSmartV2)
+	if err != nil {
+		return err
+	}
+	v3, err := midea.NewA1LANDriver(midea.ProtocolMSmartV3)
+	if err != nil {
+		return err
+	}
+	h.driverV2, h.driverV3 = v2, v3
+	h.adapter = midea.NewAdapter(v2, v3)
+	return nil
+}
 func (h *MideaHandler) provisionDevice(ctx context.Context, config midea.A1LANConfig) (*device.Device, error) {
 	externalID := config.Device.ID
 	now := time.Now().UTC()
