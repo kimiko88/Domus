@@ -2,6 +2,8 @@ package plugin_runtime
 
 import (
 	"context"
+	"github.com/domus-hub/domus/internal/plugins"
+	"github.com/stretchr/testify/require"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -196,4 +198,22 @@ func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
 	visible := make(map[string]bool)
 	for _, manifest := range manager.ListTypes() { visible[manifest.ID] = true }
 	require.False(t, visible["imou_life_transport"])
+}
+
+
+func TestListTypesHidesInternalTuyaOAuthFields(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	var tuyaManifest *plugins.Manifest
+	for _, manifest := range manager.ListTypes() {
+		if manifest.ID == "tuya_cloud" {
+			copy := manifest
+			tuyaManifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, tuyaManifest, "Tuya Cloud must remain visible in the plugin catalog")
+	for _, field := range tuyaManifest.Config {
+		require.NotContains(t, []string{"oauth_client_id", "oauth_secret", "oauth_identifier", "smart_life_oauth"}, field.Name,
+			"internal OAuth state must never appear in the user-facing configuration schema")
+	}
 }
