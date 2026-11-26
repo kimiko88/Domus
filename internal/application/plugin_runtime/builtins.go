@@ -224,11 +224,15 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		Version: "1.0.0", Description: "Tuya regional OpenAPI provider for account-linked device discovery and commands.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilitySecretsRead},
 		Config: []plugins.ConfigField{
-			{Name: "client_id", Type: "string", Required: true, Description: "Tuya IoT application client ID"},
-			{Name: "secret", Type: "string", Required: true, Secret: true, Description: "Tuya IoT application secret"},
+			{Name: "client_id", Type: "string", Description: "Optional Tuya IoT OpenAPI application client ID; not the Smart Life App Authorization ID"},
+			{Name: "secret", Type: "string", Secret: true, Description: "Optional Tuya IoT OpenAPI application secret; not the Smart Life App Authorization secret"},
 			{Name: "base_url", Type: "url", Required: true, Description: "Allowed Tuya regional HTTPS endpoint"},
 			{Name: "uid", Type: "string", Description: "Optional linked Smart Life user UID"},
 			{Name: "schema", Type: "string", Description: "Optional Tuya project schema"},
+			{Name: "oauth_client_id", Type: "string", Secret: true, Internal: true},
+			{Name: "oauth_secret", Type: "string", Secret: true, Internal: true},
+			{Name: "oauth_identifier", Type: "string", Secret: true, Internal: true},
+			{Name: "smart_life_oauth", Type: "json", Secret: true, Internal: true},
 		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		wire, err := plugins.DecodeConfig[struct {
@@ -237,6 +241,10 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			BaseURL string `json:"base_url"`
 			UID string `json:"uid"`
 			Schema string `json:"schema"`
+			OAuthClientID string `json:"oauth_client_id"`
+			OAuthSecret string `json:"oauth_secret"`
+			OAuthIdentifier string `json:"oauth_identifier"`
+			SmartLifeOAuth json.RawMessage `json:"smart_life_oauth"`
 		}](raw)
 		if err != nil { return nil, err }
 		return tuya_cloud.NewAdapter(instanceID, tuya_cloud.Config{

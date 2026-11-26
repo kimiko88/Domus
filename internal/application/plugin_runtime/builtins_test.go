@@ -54,7 +54,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"matter", "matter_controller", `{}`},
 		{"zwave_js", "zwave_upstairs", `{"ws_url":"ws://127.0.0.1:3000","auth_token":"zwave-test-secret"}`},
 		{"weather_openmeteo", "weather_forecast", `{}`},
-		{"tuya_cloud", "tuya_cloud", `{"client_id":"test-client","secret":"test-secret","base_url":"https://openapi.tuyaeu.com","uid":"test-user"}`},
+		{"tuya_cloud", "tuya_cloud", `{"client_id":"test-client","secret":"test-secret","base_url":"https://openapi.tuyaeu.com","uid":"test-user","oauth_client_id":"oauth-client","oauth_secret":"oauth-secret","oauth_identifier":"domus.test","smart_life_oauth":{"admin":{"uid":"user-1","access_token":"access","refresh_token":"refresh","expires_at":2000000000}}}`},
 		{"ble_proxy", "ble_proxy_hall", `{}`},
 		{"tuya_local", "tuya_local_flat", `{}`},
 		{"broadlink_local", "broadlink_living_room", `{}`},

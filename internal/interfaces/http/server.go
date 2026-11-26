@@ -207,6 +207,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 
 	// End-user Smart Life OAuth uses a separate Tuya App Authorization key pair.
 	var tuyaOAuthHandler *handlers.TuyaOAuthHandler
+	var tuyaOAuthClient *tuya_cloud.OAuthClient
 	oauthClientID, oauthSecret, oauthIdentifier := os.Getenv("TUYA_OAUTH_APP_CLIENT_ID"), os.Getenv("TUYA_OAUTH_APP_CLIENT_SECRET"), os.Getenv("TUYA_OAUTH_IDENTIFIER")
 	oauthAuthorizeURL, oauthCallbackURL := os.Getenv("TUYA_OAUTH_AUTHORIZE_URL"), os.Getenv("TUYA_OAUTH_CALLBACK_URL")
 	if oauthClientID != "" && oauthSecret != "" && oauthIdentifier != "" && oauthAuthorizeURL != "" && oauthCallbackURL != "" && srv.repos != nil && srv.repos.DB != nil && srv.repos.Cipher != nil {
@@ -214,9 +215,10 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 		if oauthBaseURL == "" { oauthBaseURL = os.Getenv("TUYA_CLOUD_BASE_URL") }
 		if oauthBaseURL == "" { oauthBaseURL = "https://openapi.tuyaeu.com" }
 		oauthClient, err := tuya_cloud.NewOAuthClient(tuya_cloud.OAuthConfig{ClientID: oauthClientID, Secret: oauthSecret, Identifier: oauthIdentifier, BaseURL: oauthBaseURL})
-		if err != nil { slog.Error("tuya user OAuth disabled: invalid configuration", "error", err) } else {
-			h, handlerErr := handlers.NewTuyaOAuthHandler(srv.repos.DB, srv.repos.Cipher, oauthClient, oauthClientID, oauthAuthorizeURL, oauthCallbackURL)
-			if handlerErr != nil { slog.Error("tuya user OAuth disabled: handler initialization failed", "error", handlerErr) } else { tuyaOAuthHandler = h }
+		if err != nil {
+			slog.Error("tuya user OAuth disabled: invalid configuration", "error", err)
+		} else {
+			tuyaOAuthClient = oauthClient
 		}
 	} else if oauthClientID != "" || oauthSecret != "" || oauthIdentifier != "" || oauthAuthorizeURL != "" || oauthCallbackURL != "" {
 		slog.Warn("tuya user OAuth disabled: App Authorization credentials, HTTPS H5 URL, callback URL and encrypted database storage are all required")
@@ -382,16 +384,22 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 			}
 			if tuyaCloudInstanceID == "" && clientID != "" && secret != "" {
-				pluginConfig, err := json.Marshal(map[string]any{
+				pluginValues := map[string]any{
 					"client_id": clientID, "secret": secret, "base_url": baseURL,
-					"uid": uid, "schema": os.Getenv("TUYA_CLOUD_SCHEMA"),
-				})
+				}
+				if strings.TrimSpace(uid) != "" {
+					pluginValues["uid"] = uid
+				}
+				if schema := strings.TrimSpace(os.Getenv("TUYA_CLOUD_SCHEMA")); schema != "" {
+					pluginValues["schema"] = schema
+				}
+				pluginConfig, err := json.Marshal(pluginValues)
 				if err != nil {
 					slog.Error("Tuya Cloud plugin config encoding failed", "error", err)
-				} else if adapter, err := manager.Prepare(context.Background(), tuya_cloud.PluginType, tuya_cloud.PluginType, pluginConfig); err != nil {
-					slog.Error("Tuya Cloud plugin preparation failed", "error", err)
+				} else if instance, err := manager.Create(context.Background(), tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud OpenAPI", pluginConfig, true); err != nil {
+					slog.Error("Tuya Cloud plugin instance creation failed", "error", err)
 				} else {
-					tuyaCloudInstanceID = adapter.ID()
+					tuyaCloudInstanceID = instance.ID
 				}
 			}
 			if err := manager.Start(context.Background()); err != nil {
@@ -457,7 +465,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 		}
 	}
-	if tuyaCloudClient == nil && clientID != "" && secret != "" {
+	if srv.pluginRuntime == nil && tuyaCloudClient == nil && clientID != "" && secret != "" {
 		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
 			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
 		})
@@ -467,11 +475,13 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			tuyaCloudClient = legacyClient
 		}
 	}
-	if srv.pluginRuntime == nil && tuyaCloudClient == nil && clientID != "" && secret != "" {
-		legacyClient, err := tuya_cloud.New(tuya_cloud.Config{
-			ClientID: clientID, Secret: secret, BaseURL: baseURL, UID: uid, Schema: os.Getenv("TUYA_CLOUD_SCHEMA"),
-		})
-		if err != nil { slog.Error("tuya cloud integration disabled: invalid configuration", "error", err) } else { tuyaCloudClient = legacyClient }
+	if tuyaOAuthClient != nil {
+		h, err := handlers.NewTuyaOAuthHandler(srv.repos.DB, srv.repos.Cipher, tuyaOAuthClient, oauthClientID, oauthAuthorizeURL, oauthCallbackURL, srv.pluginRuntime)
+		if err != nil {
+			slog.Error("tuya user OAuth disabled: handler initialization failed", "error", err)
+		} else {
+			tuyaOAuthHandler = h
+		}
 	}
 	if srv.tuyaLocalAdapter != nil && tuyaOAuthHandler != nil {
 		tuyaOAuthHandler.WithLocalAdapter(srv.tuyaLocalAdapter)

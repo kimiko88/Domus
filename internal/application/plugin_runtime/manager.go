@@ -67,6 +67,24 @@ func NewManager(repos *sqlite.Repositories, bus events.Bus) (*Manager, error) {
 
 func (m *Manager) Registry() *plugins.Registry { return m.registry }
 
+// GetConfig returns the decrypted configuration for trusted application-layer
+// consumers. It must never be wired to an HTTP response: public instance APIs
+// intentionally expose metadata only and keep every secret masked.
+func (m *Manager) GetConfig(ctx context.Context, id string) (json.RawMessage, error) {
+	if !integrationIDPattern.MatchString(id) {
+		return nil, errors.New("plugin_runtime: invalid integration instance ID")
+	}
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("plugin_runtime: decrypt integration config: %w", err)
+	}
+	return append(json.RawMessage(nil), raw...), nil
+}
+
 // GetAdapter returns a prepared adapter by instance ID. The returned value is
 // owned by the manager; callers may use its typed provider contract but must
 // not call Start or Stop directly.
@@ -99,9 +117,17 @@ func (m *Manager) ListTypes() []plugins.Manifest {
 	all := m.registry.List()
 	visible := make([]plugins.Manifest, 0, len(all))
 	for _, manifest := range all {
-		if !manifest.Internal {
-			visible = append(visible, manifest)
+		if manifest.Internal {
+			continue
 		}
+		publicConfig := make([]plugins.ConfigField, 0, len(manifest.Config))
+		for _, field := range manifest.Config {
+			if !field.Internal {
+				publicConfig = append(publicConfig, field)
+			}
+		}
+		manifest.Config = publicConfig
+		visible = append(visible, manifest)
 	}
 	return visible
 }
@@ -312,8 +338,103 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()
+	return m.updatePublicConfigLocked(ctx, id, config)
+}
 
+// updatePublicConfigLocked retains every hidden internal field from the saved
+// encrypted configuration. Public configuration forms cannot erase or replace
+// internal OAuth tokens, provider cursors or other host-managed state.
+func (m *Manager) updatePublicConfigLocked(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
+	if !integrationIDPattern.MatchString(id) {
+		return Instance{}, errors.New("plugin_runtime: invalid integration instance ID")
+	}
 	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	previousRaw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decrypt existing integration config: %w", err)
+	}
+	if len(config) == 0 {
+		config = json.RawMessage(`{}`)
+	}
+	var previous, submitted map[string]json.RawMessage
+	if err := json.Unmarshal(previousRaw, &previous); err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decode existing integration config: %w", err)
+	}
+	if err := json.Unmarshal(config, &submitted); err != nil || submitted == nil {
+		return Instance{}, errors.New("plugin_runtime: public plugin config must be a JSON object")
+	}
+	for _, manifest := range m.registry.List() {
+		if manifest.ID != record.Type {
+			continue
+		}
+		for _, field := range manifest.Config {
+			if !field.Internal {
+				continue
+			}
+			if existing, ok := previous[field.Name]; ok {
+				submitted[field.Name] = append(json.RawMessage(nil), existing...)
+			} else {
+				delete(submitted, field.Name)
+			}
+		}
+		break
+	}
+	merged, err := json.Marshal(submitted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode public plugin config: %w", err)
+	}
+	return m.updateConfigLocked(ctx, id, merged)
+}
+
+// UpdateConfigMutate atomically reads, mutates and replaces one encrypted
+// plugin configuration under the same instance lifecycle lock. It prevents
+// OAuth account updates from overwriting concurrent administrator edits.
+func (m *Manager) UpdateConfigMutate(ctx context.Context, id string, mutate func(map[string]json.RawMessage) error) (Instance, error) {
+	if mutate == nil {
+		return Instance{}, errors.New("plugin_runtime: config mutator is required")
+	}
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+	if !integrationIDPattern.MatchString(id) {
+		return Instance{}, errors.New("plugin_runtime: invalid integration instance ID")
+	}
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	raw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decrypt integration config: %w", err)
+	}
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: decode integration config: %w", err)
+	}
+	if config == nil {
+		config = make(map[string]json.RawMessage)
+	}
+	before, err := json.Marshal(config)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode current integration config: %w", err)
+	}
+	if err := mutate(config); err != nil {
+		return Instance{}, err
+	}
+	updated, err := json.Marshal(config)
+	if err != nil {
+		return Instance{}, fmt.Errorf("plugin_runtime: encode mutated integration config: %w", err)
+	}
+	if string(before) == string(updated) {
+		return m.toInstance(ctx, record)
+	}
+	return m.updateConfigLocked(ctx, id, updated)
+}
+
+func (m *Manager) updateConfigLocked(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
+record, err := m.repo.GetByID(ctx, id)
 	if err != nil {
 		return Instance{}, err
 	}
@@ -418,7 +539,6 @@ func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMe
 	}
 	return m.toInstance(ctx, record)
 }
-
 func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()

@@ -74,6 +74,9 @@ type ConfigField struct {
 	Secret      bool     `json:"secret,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Allowed     []string `json:"allowed,omitempty"`
+	// Internal fields participate in validation and encrypted persistence but
+	// are omitted from the user-facing integration catalog.
+	Internal    bool     `json:"-"`
 }
 
 // Manifest is the declarative description of an integration plugin.
