@@ -620,37 +620,25 @@ Domus include companion app **100% native** per iOS e Android, progettate con ar
 
 ---
 
-## 21. Ottimizzazione Dinamica Tariffe Energetiche (PUN / Nord Pool / Octopus)
+## 21. Ottimizzazione Tariffe Energetiche
 
-Domus include un motore nativo per l'analisi dei prezzi dell'energia elettrica a mercato dinamico orario:
+Domus contiene un modello per visualizzare una curva oraria e pianificare carichi flessibili. **La curva generata localmente è una stima dimostrativa, non una quotazione PUN, Nord Pool o Octopus.** È contrassegnata come `synthetic_estimate` e non può comandare dispositivi.
 
-- **Aggiornamento giornaliero automatico**: Domus scarica alle ore 13:00 i prezzi orari del **PUN** (Prezzo Unico Nazionale italiano), di **Nord Pool** (mercato nord-europeo) o le tariffe dinamiche di **Octopus Agile / Intelligent**.
-- **Visualizzazione Curva 24 Ore**: Nella pagina **Energia**, il grafico a barre interattivo evidenzia chiaramente le ore più costose (rosso), intermedie (arancione) e più economiche o a prezzo negativo (verde).
-- **Pianificazione Carichi Flessibili (Flexible Loads)**:
-  - Configura elettrodomestici energivori (pompa di calore, boiler, ricarica veicolo elettrico, lavatrice).
-  - Imposta la durata minima del ciclo (es. 3 ore) e la scadenza entro cui completare il carico (es. entro le 07:00 del mattino).
-  - L'algoritmo calcola la finestra oraria continua o distribuita a costo complessivo minimo ed invia i comandi di accensione e spegnimento in modo totalmente automatico.
-- **Integrazione Fotovoltaico e Contatori ad Impulsi**: Monitoraggio in tempo reale della produzione solare, immissione in rete e consumo istantaneo per massimizzare l'autoconsumo.
+Per abilitare l'attuazione automatica serve un provider che consegni un calendario completo di 24 prezzi orari con data e sorgente verificabili. Le regole di carico possono inoltre specificare `max_price_kwh`: `0` è un limite valido (energia gratuita soltanto), mentre `-1` disabilita esplicitamente il limite. Un valore non finito o un negativo diverso da `-1` viene normalizzato al limite più sicuro (`0`). Per stimare il costo in euro deve essere configurata anche la potenza media del carico (`power_kw`). Senza quest'ultimo dato Domus non mostra stime di costo o risparmio fuorvianti.
 
-> [!TIP]
-> Durante le giornate estive con forte sovrapproduzione rinnovabile o nei mercati con prezzi negativi, Domus può accendere automaticamente carichi termici (boiler ACS o raffrescamento) per sfruttare l'energia a costo zero.
+La scadenza di una tariffa verificata provoca il tentativo di spegnimento dei carichi che l'ottimizzatore aveva acceso. In caso di errore di pubblicazione il sistema conserva lo stato necessario a ritentare al ciclo successivo.
 
----
+## 22. Videosorveglianza & Visione AI (Local NVR)
 
-## 22. Videosorveglianza & Visione AI (Local NVR con ONNX)
+Il repository contiene la pipeline NVR, la gestione delle telecamere, le zone di movimento, gli eventi e le clip. **L'inferenza ML non è attualmente disponibile in produzione.** I precedenti backend Coral, Hailo e CPU non eseguono ancora modelli reali; le risposte sintetiche e gli embedding derivati da hash sono stati rimossi.
 
-Il modulo NVR (Network Video Recorder) locale di Domus trasforma qualsiasi telecamera RTSP o WebRTC in un sistema di videosorveglianza intelligente senza dipendere dal cloud:
+Fino all'integrazione di un vero runtime e di modelli versionati:
+- il backend AI segnala esplicitamente `unavailable`;
+- le API di object detection, face embedding e riconoscimento targhe restituiscono un errore;
+- il dispositivo acceleratore presente nel sistema non viene considerato prova di inferenza funzionante;
+- i risultati simulati non devono attivare notifiche o allarmi.
 
-- **Pipeline Ultraleggera in Go**: Acquisizione flussi RTSP con transcoding a bassissimo impatto sulla CPU del Raspberry Pi 4.
-- **Riconoscimento Oggetti Locale con ONNX**: Inferenza locale per rilevare:
-  - 👤 **Persone**
-  - 🚗 **Veicoli** (auto, furgoni, biciclette)
-  - 📦 **Pacchi e consegne** sulla soglia di casa
-  - 🐾 **Animali domestici**
-- **Zone di Movimento Personalizzate (Motion Zones)**: Disegna aree poligonali d'interesse per ciascuna telecamera per evitare falsi positivi causati da rami mossi dal vento o strade pubbliche trafficate.
-- **Clip Animate Istantanee**: Alla rilevazione di un evento, Domus genera un video clip breve o uno snapshot animato WebP leggero, inviato immediatamente via notifica push sullo smartphone o mostrato nella **Timeline Eventi** della vista Telecamere.
-
----
+Per abilitare la funzione servono modelli reali, runtime ONNX/Coral/Hailo testati e una suite di validazione su filmati reali.
 
 ## 23. Flashing Firmware USB da Browser (WebSerial)
 

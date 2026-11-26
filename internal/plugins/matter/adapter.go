@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -48,38 +47,13 @@ func (a *Adapter) Type() string {
 }
 
 func (a *Adapter) HealthCheck(ctx context.Context) error {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if !a.active {
-		return errors.New("matter: adapter is not running")
-	}
-	return nil
+	if err := ctx.Err(); err != nil { return err }
+	return ErrMatterStackUnavailable
 }
 
 func (a *Adapter) Start(ctx context.Context) error {
-	a.mu.Lock()
-	if a.active {
-		a.mu.Unlock()
-		return nil
-	}
-	a.active = true
-	a.mu.Unlock()
-
-	var unsubscribe func()
-	if a.bus != nil {
-		unsubscribe = a.bus.Subscribe(events.CommandRequested, a.handleCommand)
-	}
-	a.mu.Lock()
-	if a.active && a.unsubscribe == nil {
-		a.unsubscribe = unsubscribe
-		unsubscribe = nil
-	}
-	a.mu.Unlock()
-	if unsubscribe != nil {
-		unsubscribe()
-	}
-	slog.Info("matter: local controller started", "adapter", a.id)
-	return nil
+	if err := ctx.Err(); err != nil { return err }
+	return ErrMatterStackUnavailable
 }
 
 func (a *Adapter) Stop(ctx context.Context) error {
@@ -91,62 +65,13 @@ func (a *Adapter) Stop(ctx context.Context) error {
 	if unsubscribe != nil {
 		unsubscribe()
 	}
-	slog.Info("matter: local controller stopped")
 	return nil
 }
 
 // CommissionDevice commissions a new Matter device using a QR code (MT:...) or numeric manual code.
 func (a *Adapter) CommissionDevice(ctx context.Context, code string, customName string) (*MatterNode, error) {
-	var payload *CommissioningPayload
-	var err error
-
-	code = strings.TrimSpace(code)
-	if strings.HasPrefix(code, "MT:") {
-		payload, err = ParseQRCode(code)
-	} else {
-		payload, err = ParseManualCode(code)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("matter: failed to parse commissioning code: %w", err)
-	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Generate unique NodeID
-	nodeID := uint64(time.Now().UnixNano() & 0x7FFFFFFFFFFFFFFF)
-	if customName == "" {
-		customName = fmt.Sprintf("Matter Device %d", payload.Discriminator)
-	}
-
-	devType := DeviceTypeOnOffLight
-	node := NewMatterNode(nodeID, customName, "192.168.1.180", 5540, devType)
-	node.VendorID = payload.VendorID
-	node.ProductID = payload.ProductID
-	a.nodes[nodeID] = node
-
-	slog.Info("matter: commissioned new node", "node_id", nodeID, "discriminator", payload.Discriminator, "name", customName)
-
-	if a.bus != nil {
-		entityKey := fmt.Sprintf("light.matter_%d", nodeID)
-		_ = a.bus.Publish(ctx, events.Event{
-			ID:         uuid.NewString(),
-			Type:       events.DeviceDiscovered,
-			OccurredAt: time.Now().UTC(),
-			Source:     "matter",
-			Payload: map[string]any{
-				"protocol":    "matter",
-				"node_id":     fmt.Sprintf("%d", nodeID),
-				"name":        customName,
-				"entity_key":  entityKey,
-				"device_type": devType,
-			},
-		})
-
-		a.publishNodeState(ctx, node)
-	}
-
-	return node, nil
+	if err := ctx.Err(); err != nil { return nil, err }
+	return nil, ErrMatterStackUnavailable
 }
 
 // ListNodes returns all commissioned Matter nodes.

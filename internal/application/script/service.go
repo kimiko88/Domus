@@ -3,6 +3,7 @@ package script
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -15,11 +16,17 @@ import (
 )
 
 // Service coordinates script CRUD and concurrent execution.
+type scriptQueue struct {
+	gate chan struct{}
+	slots chan struct{}
+}
+
 type Service struct {
 	repo       domscript.Repository
 	bus        events.Bus
 	mu         sync.Mutex
-	activeRuns map[string]map[string]context.CancelFunc // scriptID -> runID -> cancelFunc
+	activeRuns map[string]map[string]context.CancelFunc
+	queues     map[string]*scriptQueue
 }
 
 // NewService creates a new script Service instance.
@@ -28,6 +35,7 @@ func NewService(repo domscript.Repository, bus events.Bus) *Service {
 		repo:       repo,
 		bus:        bus,
 		activeRuns: make(map[string]map[string]context.CancelFunc),
+		queues: make(map[string]*scriptQueue),
 	}
 }
 
@@ -62,6 +70,20 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 
+func (s *Service) queueFor(scriptID string, maxQueued int) *scriptQueue {
+	if maxQueued <= 0 { maxQueued = 10 }
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.queues == nil { s.queues = make(map[string]*scriptQueue) }
+	queue := s.queues[scriptID]
+	if queue == nil {
+		queue = &scriptQueue{gate: make(chan struct{}, 1), slots: make(chan struct{}, maxQueued)}
+		queue.gate <- struct{}{}
+		s.queues[scriptID] = queue
+	}
+	return queue
+}
+
 // Execute runs a script with optional input variables and concurrency mode enforcement.
 func (s *Service) Execute(ctx context.Context, scriptID string, variables map[string]any) error {
 	sc, err := s.repo.Get(ctx, scriptID)
@@ -71,6 +93,22 @@ func (s *Service) Execute(ctx context.Context, scriptID string, variables map[st
 
 	runID := uuid.NewString()
 	execCtx, cancel := context.WithCancel(ctx)
+	if err := ctx.Err(); err != nil { cancel(); return err }
+	if sc.Mode == domscript.ModeQueued {
+		queue := s.queueFor(sc.ID, sc.MaxRuns)
+		select {
+		case queue.slots <- struct{}{}:
+		default: cancel(); return domscript.ErrMaxRunsExceeded
+		}
+		select {
+		case <-ctx.Done():
+			<-queue.slots
+			cancel()
+			return ctx.Err()
+		case <-queue.gate:
+		}
+		defer func() { queue.gate <- struct{}{}; <-queue.slots }()
+	}
 
 	// Concurrency mode control
 	s.mu.Lock()
@@ -93,7 +131,7 @@ func (s *Service) Execute(ctx context.Context, scriptID string, variables map[st
 		}
 		s.activeRuns[sc.ID] = make(map[string]context.CancelFunc)
 		runs = s.activeRuns[sc.ID]
-	case domscript.ModeParallel, domscript.ModeQueued:
+	case domscript.ModeParallel:
 		if len(runs) >= sc.MaxRuns {
 			s.mu.Unlock()
 			cancel()
@@ -188,8 +226,13 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 			params[k] = v
 		}
 
-		if s.bus != nil {
-			return s.bus.Publish(ctx, events.Event{
+		if s.bus == nil {
+			return errors.New("script: event bus is not configured")
+		}
+		if act.Service == "" || targetKey == "" {
+			return errors.New("script: service action requires service and target_entity_key")
+		}
+		return s.bus.Publish(ctx, events.Event{
 				ID:         uuid.NewString(),
 				Type:       events.CommandRequested,
 				OccurredAt: time.Now().UTC(),
@@ -199,8 +242,7 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 					"service":    act.Service,
 					"params":     params,
 				},
-			})
-		}
+		})
 
 	case "delay":
 		select {
@@ -231,6 +273,9 @@ func (s *Service) executeAction(ctx context.Context, act automation.Action, sc *
 		if parallelErr != nil {
 			return parallelErr
 		}
+
+	default:
+		return fmt.Errorf("script: unsupported action type %q", act.Type)
 	}
 
 	return nil

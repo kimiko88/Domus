@@ -4,9 +4,10 @@ package matter
 import (
 	"encoding/binary"
 	"errors"
-	"strconv"
 	"strings"
 )
+
+var ErrMatterStackUnavailable = errors.New("matter: real Matter controller/commissioning stack is not configured; adapter remains experimental")
 
 // Standard Matter Cluster IDs (Application Clusters Specification)
 const (
@@ -70,33 +71,10 @@ func ParseManualCode(code string) (*CommissioningPayload, error) {
 	if len(clean) != 11 && len(clean) != 21 {
 		return nil, errors.New("matter: invalid manual code length, expected 11 or 21 digits")
 	}
-
 	for _, ch := range clean {
-		if ch < '0' || ch > '9' {
-			return nil, errors.New("matter: manual code must contain only numeric digits")
-		}
+		if ch < '0' || ch > '9' { return nil, errors.New("matter: manual code must contain only numeric digits") }
 	}
-
-	// 11-digit code format (Short discriminator):
-	// Digits 0..0: discriminator high 1 bit
-	// Digits 1..5: passcode low 14 bits
-	// Digits 6..10: passcode high 13 bits + discriminator low 3 bits
-	num1, err := strconv.ParseUint(clean[:1], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	chunk1, _ := strconv.ParseUint(clean[1:6], 10, 64)
-	chunk2, _ := strconv.ParseUint(clean[6:11], 10, 64)
-
-	passcode := uint32((chunk1 & 0x3FFF) | ((chunk2 & 0x1FFF) << 14))
-	discriminator := uint16(((num1 & 0x01) << 3) | ((chunk2 >> 13) & 0x07))
-
-	return &CommissioningPayload{
-		Version:       1,
-		Discriminator: discriminator,
-		SetupPasscode: passcode,
-		RawCode:       clean,
-	}, nil
+	return nil, ErrMatterStackUnavailable
 }
 
 // ParseQRCode parses a Matter standard QR code string ("MT:...").
@@ -104,22 +82,7 @@ func ParseQRCode(qr string) (*CommissioningPayload, error) {
 	if !strings.HasPrefix(qr, "MT:") {
 		return nil, errors.New("matter: QR code must start with MT:")
 	}
-
-	// Base38 decoded string representation
-	payloadStr := strings.TrimPrefix(qr, "MT:")
-	if len(payloadStr) < 11 {
-		return nil, errors.New("matter: invalid QR payload length")
-	}
-
-	// For standard pairing we simulate base38 extraction of discriminator and passcode
-	return &CommissioningPayload{
-		Version:       1,
-		VendorID:      0xFFF1, // Standard test vendor
-		ProductID:     0x8001, // Standard lighting product
-		Discriminator: 3840,
-		SetupPasscode: 20202021,
-		RawCode:       qr,
-	}, nil
+	return nil, ErrMatterStackUnavailable
 }
 
 // TLVElementType defines the Matter/CHIP TLV element format.

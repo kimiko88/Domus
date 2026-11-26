@@ -3,6 +3,8 @@ package scene
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -31,8 +33,9 @@ func (s *Service) ApplyScene(ctx context.Context, sceneID string) error {
 		return err
 	}
 
+	if s.bus == nil { return errors.New("scene: event bus is not configured") }
 	now := time.Now().UTC()
-	for _, action := range sc.Actions {
+	for index, action := range sc.Actions {
 		cmd := events.Event{
 			ID:         uuid.NewString(),
 			Type:       events.CommandRequested,
@@ -44,10 +47,13 @@ func (s *Service) ApplyScene(ctx context.Context, sceneID string) error {
 				"params":     action.Params,
 			},
 		}
-		_ = s.bus.Publish(ctx, cmd)
+		if err := s.bus.Publish(ctx, cmd); err != nil {
+			return fmt.Errorf("scene: dispatch action %d for %s: %w", index+1, action.EntityKey, err)
+		}
 	}
 
-	return s.bus.Publish(ctx, events.Event{
+	// SceneActivated confirms dispatch acceptance, not physical state.
+	if err := s.bus.Publish(ctx, events.Event{
 		ID:         uuid.NewString(),
 		Type:       events.SceneActivated,
 		OccurredAt: now,
@@ -56,5 +62,8 @@ func (s *Service) ApplyScene(ctx context.Context, sceneID string) error {
 			"scene_id": sc.ID,
 			"name":     sc.Name,
 		},
-	})
+	}); err != nil {
+		return fmt.Errorf("scene: publish activation event: %w", err)
+	}
+	return nil
 }

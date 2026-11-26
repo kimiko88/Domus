@@ -125,3 +125,38 @@ func TestScriptSingleModeConcurrency(t *testing.T) {
 	err := svc.Execute(ctx, "script.slow", nil)
 	assert.ErrorIs(t, err, domscript.ErrScriptAlreadyRunning)
 }
+
+func TestScriptQueuedModeSerializesRuns(t *testing.T) {
+	svc, bus, cleanup := setupScriptTest(t)
+	defer cleanup()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	sc := &domscript.Script{
+		ID: "script.queued", Name: "Queued Script", Mode: domscript.ModeQueued, MaxRuns: 3,
+		Sequence: []automation.Action{
+			{Type: "delay", DelayMs: 220},
+			{Type: "service", Service: "turn_on", TargetEntityKey: "{target}"},
+		},
+	}
+	require.NoError(t, svc.Create(ctx, sc))
+	commandTimes := make(chan time.Time, 2)
+	unsub := bus.Subscribe(events.CommandRequested, func(_ context.Context, _ events.Event) error {
+		commandTimes <- time.Now()
+		return nil
+	})
+	defer unsub()
+	errs := make(chan error, 2)
+	go func() { errs <- svc.Execute(ctx, sc.ID, map[string]any{"target": "switch.first"}) }()
+	time.Sleep(60 * time.Millisecond)
+	go func() { errs <- svc.Execute(ctx, sc.ID, map[string]any{"target": "switch.second"}) }()
+	var times []time.Time
+	for len(times) < 2 {
+		select {
+		case at := <-commandTimes: times = append(times, at)
+		case <-ctx.Done(): t.Fatal("timed out waiting for queued script commands")
+		}
+	}
+	require.NoError(t, <-errs)
+	require.NoError(t, <-errs)
+	require.GreaterOrEqual(t, times[1].Sub(times[0]), 140*time.Millisecond)
+}

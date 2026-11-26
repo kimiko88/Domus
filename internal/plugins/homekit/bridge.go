@@ -2,8 +2,8 @@ package homekit
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +12,10 @@ import (
 	"github.com/domus-hub/domus/internal/domain/events"
 	"github.com/google/uuid"
 )
+
+// ErrHomeKitTransportUnavailable is returned until the HAP server, mDNS
+// advertising and persistent pairing store are implemented.
+var ErrHomeKitTransportUnavailable = errors.New("homekit: HAP server, mDNS advertising and persistent pairing are not configured; bridge remains experimental")
 
 // Bridge acts as an Apple HomeKit Accessory Bridge mapping Domus entities to Apple Home.
 type Bridge struct {
@@ -60,24 +64,14 @@ func (b *Bridge) GetConfig() BridgeConfig {
 }
 
 func (b *Bridge) Start(ctx context.Context) error {
-	b.mu.Lock()
-	b.active = true
-	b.mu.Unlock()
-
-	if b.bus != nil {
-		b.bus.Subscribe(events.EntityStateChanged, b.handleEntityStateChanged)
-		b.bus.Subscribe(events.CommandRequested, b.handleCommandRequested)
-	}
-
-	slog.Info("homekit: bridge started on port", "port", b.config.Port, "pin", b.config.SetupCode, "setup_uri", b.config.SetupURI)
-	return nil
+	if err := ctx.Err(); err != nil { return err }
+	return ErrHomeKitTransportUnavailable
 }
 
 func (b *Bridge) Stop(ctx context.Context) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.active = false
-	slog.Info("homekit: bridge stopped")
+	b.mu.Unlock()
 	return nil
 }
 

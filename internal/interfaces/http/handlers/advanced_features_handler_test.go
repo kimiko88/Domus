@@ -278,37 +278,36 @@ func TestAdvancedFeaturesHandler_DynamicTariffsAndFlexibleLoads(t *testing.T) {
 func TestAdvancedFeaturesHandler_HomeKitAndMatter(t *testing.T) {
 	h := NewAdvancedFeaturesHandler(nil, nil, nil)
 
-	// 1. HomeKit pairing info
+	// HomeKit is explicitly unavailable until the HAP transport is real. The
+	// endpoint must not leak the old static setup PIN or a pairing URI.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/hardware/homekit", nil)
 	rr := httptest.NewRecorder()
 	h.GetHomeKitPairing(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	var hkResp map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &hkResp))
-	assert.Equal(t, "Domus Bridge", hkResp["bridge_name"])
-	assert.NotEmpty(t, hkResp["setup_uri"])
+	assert.Equal(t, "HOMEKIT_UNAVAILABLE", hkResp["code"])
+	assert.NotContains(t, hkResp, "setup_code")
+	assert.NotContains(t, hkResp, "setup_uri")
 
-	// 2. Matter commissioning with missing code -> 400
+	// Missing Matter code remains a malformed request.
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/hardware/matter/commission", bytes.NewReader([]byte(`{"code":""}`)))
 	rr = httptest.NewRecorder()
 	h.CommissionMatter(rr, req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	// 3. Matter commissioning with valid manual code -> 200
-	// 11-digit manual pairing code (e.g., standard Matter test payload)
-	manualCode := "34970112332"
-	body, _ := json.Marshal(map[string]string{"code": manualCode})
+	// A syntactically valid pairing code cannot be commissioned without the
+	// real controller; the API reports unavailable rather than fake success.
+	body, _ := json.Marshal(map[string]string{"code": "34970112332"})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/hardware/matter/commission", bytes.NewReader(body))
 	rr = httptest.NewRecorder()
 	h.CommissionMatter(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	var matterResp map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &matterResp))
-	assert.Equal(t, "commissioning_started", matterResp["status"])
+	assert.Equal(t, "MATTER_UNAVAILABLE", matterResp["code"])
+	assert.NotEqual(t, "commissioning_started", matterResp["status"])
 }
-
 func TestAdvancedFeaturesHandler_BESSArbitrage(t *testing.T) {
 	tariffOpt := energy.NewTariffOptimizer(energy.MarketPUN, nil)
 	bessOpt := energy.NewBESSArbitrageOptimizer(energy.BESSConfig{

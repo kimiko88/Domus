@@ -24,7 +24,7 @@ const (
 // Trigger defines a condition source that causes an automation to evaluate.
 type Trigger struct {
 	ID         string   `json:"id,omitempty"` // Unique trigger identifier (e.g. "movimento", "timeout")
-	Platform   string   `json:"platform"`     // "state", "numeric_state", "time", "event"
+	Platform   string   `json:"platform"`     // "state", "numeric_state", "time", "sun", "geofence", "event"
 	EntityKey  string   `json:"entity_key,omitempty"`
 	Attribute  string   `json:"attribute,omitempty"` // Optional numeric attribute, e.g. current_temperature
 	From       string   `json:"from,omitempty"`
@@ -119,6 +119,34 @@ func (a *Automation) Validate() error {
 	}
 	if a.CooldownSeconds < 0 {
 		a.CooldownSeconds = 0
+	}
+	for _, trigger := range a.Triggers {
+		if trigger.ForSeconds < 0 || trigger.ForSeconds > 24*60*60 {
+			return errors.New("automation: trigger for_seconds must be between 0 and 86400")
+		}
+		if trigger.ForSeconds > 0 && trigger.Platform != "state" && trigger.Platform != "numeric_state" {
+			return errors.New("automation: for_seconds is supported only by state and numeric_state triggers")
+		}
+		if trigger.From != "" && trigger.Platform != "state" {
+			return errors.New("automation: from is supported only by state triggers")
+		}
+		if trigger.Platform == "state" && strings.TrimSpace(trigger.EntityKey) == "" {
+			return errors.New("automation: state trigger requires entity_key")
+		}
+		if trigger.Platform == "numeric_state" {
+			if strings.TrimSpace(trigger.EntityKey) == "" {
+				return errors.New("automation: numeric_state trigger requires entity_key")
+			}
+			if trigger.Above == nil && trigger.Below == nil {
+				return errors.New("automation: numeric_state trigger requires above or below")
+			}
+		}
+		if trigger.Platform == "sun" && trigger.EventType != "sunrise" && trigger.EventType != "sunset" {
+			return errors.New("automation: sun trigger event_type must be sunrise or sunset")
+		}
+		if trigger.Platform == "geofence" && trigger.EventType != "enter_home" && trigger.EventType != "leave_home" {
+			return errors.New("automation: geofence trigger event_type must be enter_home or leave_home")
+		}
 	}
 	return nil
 }

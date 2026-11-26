@@ -110,6 +110,7 @@ interface FlexibleLoad {
   name: string
   required_hours: number
   max_price_kwh: number
+  power_kw?: number
   active_now: boolean
   auto_schedule: boolean
   scheduled_hours: number[]
@@ -122,6 +123,8 @@ const currentHour = ref(new Date().getHours())
 const dynamicTariffSchedule = ref<{
   date: string
   market: string
+  source?: string
+  is_estimate?: boolean
   hourly_prices: HourlyTariff[]
   average_price: number
   min_price: number
@@ -140,6 +143,29 @@ function getBarHeight(price: number): number {
 
 function toggleAutoSchedule(load: FlexibleLoad) {
   load.auto_schedule = !load.auto_schedule
+}
+
+async function updateLoadPower(load: FlexibleLoad, event: Event) {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) return
+  const value = target.value.trim() === '' ? 0 : Number(target.value)
+  if (!Number.isFinite(value) || value < 0) {
+    await fetchDynamicTariffs()
+    return
+  }
+
+  const updated = { ...load, power_kw: value }
+  load.power_kw = value
+  try {
+    const response = await apiClient.put<{ status: string; flexible_loads: FlexibleLoad[] }>(
+      '/api/v1/energy/flexible-loads',
+      updated
+    )
+    if (response?.flexible_loads) flexibleLoads.value = response.flexible_loads
+    else await fetchDynamicTariffs()
+  } catch {
+    await fetchDynamicTariffs()
+  }
 }
 
 async function fetchDynamicTariffs() {
@@ -717,11 +743,21 @@ async function handleOptimizeBESS() {
         </button>
       </div>
 
+      <p
+        v-if="dynamicTariffSchedule.is_estimate || dynamicTariffSchedule.source === 'synthetic_estimate'"
+        class="tariff-estimate-warning"
+        role="status"
+      >
+        <ShieldAlert :size="16" />
+        <span>{{ t('energy.tariffEstimateWarning') }}</span>
+      </p>
+
       <!-- PUN Key Figures Bar -->
       <div class="pun-metrics-row">
         <div class="pun-stat-box">
           <span class="pun-stat-lbl">{{ t('energy.marketAndDate') }}</span>
           <span class="pun-stat-val">{{ dynamicTariffSchedule.market }} ({{ dynamicTariffSchedule.date }})</span>
+          <span v-if="dynamicTariffSchedule.source" class="text-xs text-dim">{{ dynamicTariffSchedule.source }}</span>
         </div>
         <div class="pun-stat-box cheapest">
           <span class="pun-stat-lbl">{{ t('energy.minPrice') }}</span>
@@ -820,15 +856,32 @@ async function handleOptimizeBESS() {
               </div>
               <div class="meta-item">
                 <span class="lbl">{{ t('energy.maxPriceThreshold') }}:</span>
-                <span class="val">&le; {{ load.max_price_kwh }} €/kWh</span>
+                <span class="val">{{ load.max_price_kwh < 0 ? t('energy.noPriceLimit') : '≤ ' + load.max_price_kwh + ' €/kWh' }}</span>
+              </div>
+              <div class="meta-item">
+                <label class="lbl" :for="'load-power-' + load.entity_key">{{ t('energy.loadPowerLabel') }}</label>
+                <input
+                  :id="'load-power-' + load.entity_key"
+                  class="load-power-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  :value="load.power_kw ?? ''"
+                  :aria-label="t('energy.loadPowerLabel')"
+                  @change="updateLoadPower(load, $event)"
+                />
               </div>
             </div>
 
             <div class="load-card-footer">
-              <span class="cost-stat">
+              <span v-if="(load.power_kw ?? 0) > 0" class="cost-stat">
                 {{ t('energy.estCost') }}: <strong>{{ load.estimated_cost_eur.toFixed(2) }} €</strong>
               </span>
-              <span class="savings-tag">
+              <span v-else class="cost-stat text-dim">
+                {{ t('energy.loadPowerRequired') }}
+              </span>
+              <span v-if="(load.power_kw ?? 0) > 0" class="savings-tag">
                 {{ t('energy.savings') }} -{{ load.savings_percent }}%
               </span>
             </div>
@@ -1385,6 +1438,24 @@ async function handleOptimizeBESS() {
 }
 
 /* Dynamic Tariffs Section & 24h Bar Chart */
+.tariff-estimate-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  border: 1px solid var(--warning-border, var(--border-color));
+  border-radius: 0.75rem;
+  color: var(--warning-text, var(--text-primary));
+  background: var(--warning-bg, var(--surface-2));
+  font-size: 0.875rem;
+}
+
+.tariff-estimate-warning :deep(svg) {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
 .dynamic-tariffs-section {
   padding: 1.5rem;
   border-radius: 1rem;
@@ -1771,6 +1842,17 @@ async function handleOptimizeBESS() {
 .scheduled-badge {
   color: #10b981 !important;
   font-weight: 700 !important;
+}
+
+.load-power-input {
+  width: 5.5rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  background: var(--surface-2);
+  font: inherit;
 }
 
 .load-card-footer {
