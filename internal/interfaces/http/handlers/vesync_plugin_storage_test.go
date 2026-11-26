@@ -161,6 +161,29 @@ func TestVeSyncManagedSessionCreateDisconnectAndReconnect(t *testing.T) {
 	require.Equal(t, reconnected, saved.Session)
 }
 
+
+func TestVeSyncStatusDistinguishesConfiguredFromDisabledRuntime(t *testing.T) {
+	f := newVeSyncPluginFixture(t)
+	seedVeSyncPluginRecord(t, f)
+	require.NoError(t, f.manager.Start(context.Background()))
+	require.NoError(t, f.manager.SetEnabled(context.Background(), vesync.IntegrationID, false))
+
+	response := httptest.NewRecorder()
+	f.handler.Status(response, httptest.NewRequest(http.MethodGet, "/status", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+	require.Equal(t, true, payload["configured"], "the encrypted account session must remain configured")
+	require.Equal(t, false, payload["connected"], "a disabled plugin adapter is not connected")
+
+	stored, err := f.manager.GetConfig(context.Background(), vesync.IntegrationID)
+	require.NoError(t, err)
+	var config vesyncStoredConfig
+	require.NoError(t, json.Unmarshal(stored, &config))
+	require.Equal(t, "private-vesync-session-token", config.Session.Token, "manual disable must not erase account credentials")
+}
+
 func TestVeSyncPublicPluginCatalogDoesNotExposeSession(t *testing.T) {
 	f := newVeSyncPluginFixture(t)
 	types := f.manager.ListTypes()
