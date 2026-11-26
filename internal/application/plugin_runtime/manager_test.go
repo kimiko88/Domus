@@ -211,6 +211,11 @@ func TestListTypesHidesInternalTuyaOAuthFields(t *testing.T) {
 		}
 	}
 	require.NotNil(t, tuyaManifest, "Tuya Cloud must remain visible in the plugin catalog")
+	publicManifest, err := json.Marshal(tuyaManifest)
+	require.NoError(t, err)
+	for _, internalKey := range []string{"oauth_client_id", "oauth_secret", "oauth_identifier", "smart_life_oauth"} {
+		require.NotContains(t, string(publicManifest), internalKey, "internal field %q leaked to the public manifest", internalKey)
+	}
 	for _, field := range tuyaManifest.Config {
 		require.NotContains(t, []string{"oauth_client_id", "oauth_secret", "oauth_identifier", "smart_life_oauth"}, field.Name,
 			"internal OAuth state must never appear in the user-facing configuration schema")
