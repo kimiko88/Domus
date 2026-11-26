@@ -236,3 +236,55 @@ func TestXiaomiCloudManagedUpdatesUseCurrentAdapterAndDisconnectKeepsAppConfig(t
 	require.Empty(t, after.MacKey)
 	require.Empty(t, after.MacAlgorithm)
 }
+
+
+func TestXiaomiCloudPluginCatalogConfigBootstrapsPrivateCallbacks(t *testing.T) {
+	f := newXiaomiCloudPluginFixture(t)
+	require.NoError(t, f.manager.Start(context.Background()))
+
+	publicConfig := json.RawMessage(`{
+		"client_id":"123456789012",
+		"client_secret":"catalog-created-app-secret",
+		"region":"eu",
+		"public_base_url":"https://first.domus.example"
+	}`)
+	_, err := f.manager.Create(
+		context.Background(),
+		xiaomiCloudIntegrationID,
+		xiaomi_home.CloudPluginType,
+		"Xiaomi Home Cloud",
+		publicConfig,
+		true,
+	)
+	require.NoError(t, err)
+
+	status := httptest.NewRecorder()
+	f.handler.Status(status, httptest.NewRequest(http.MethodGet, "/status", nil))
+	require.Equal(t, http.StatusOK, status.Code, status.Body.String())
+	var statusBody map[string]any
+	require.NoError(t, json.Unmarshal(status.Body.Bytes(), &statusBody))
+	require.Equal(t, true, statusBody["configured"])
+
+	config, err := f.handler.loadConfig(context.Background())
+	require.NoError(t, err)
+	require.Len(t, config.CallbackSecret, 64)
+	require.Len(t, config.EventSecret, 64)
+	require.Equal(t, "https://first.domus.example/api/v1/integrations/xiaomi-home/cloud/callback/"+config.CallbackSecret, config.RedirectURL)
+
+	// A public Plugin Manager edit keeps the private capabilities, while the
+	// legacy handler recalculates the exact redirect URI for the new base URL.
+	updatedPublicConfig := json.RawMessage(`{
+		"client_id":"123456789012",
+		"client_secret":"catalog-created-app-secret",
+		"region":"eu",
+		"public_base_url":"https://second.domus.example"
+	}`)
+	_, err = f.manager.UpdateConfig(context.Background(), xiaomiCloudIntegrationID, updatedPublicConfig)
+	require.NoError(t, err)
+
+	updated, err := f.handler.loadConfig(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, config.CallbackSecret, updated.CallbackSecret)
+	require.Equal(t, config.EventSecret, updated.EventSecret)
+	require.Equal(t, "https://second.domus.example/api/v1/integrations/xiaomi-home/cloud/callback/"+config.CallbackSecret, updated.RedirectURL)
+}
