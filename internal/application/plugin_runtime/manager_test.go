@@ -172,10 +172,10 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		visible[manifest.ID] = true
 		require.False(t, manifest.Internal, "internal transport %s must not be visible", manifest.ID)
 	}
-	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud", "imou_life"} {
+	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud", "imou_life", "vesync_cloud"} {
 		require.True(t, visible[publicType], "public integration type %s should be visible", publicType)
 	}
-	for _, internalType := range []string{"vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
+	for _, internalType := range []string{"xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.False(t, visible[internalType], "internal transport %s must be hidden", internalType)
 		_, err := manager.Create(context.Background(), "internal_"+internalType, internalType, "hidden", json.RawMessage(`{}`), false)
 		require.ErrorIs(t, err, ErrInternalPlugin)
@@ -226,20 +226,26 @@ func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
 }
 
 
-func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
+func TestVeSyncCloudIsPublicPersistentAndManaged(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	require.NoError(t, manager.Start(ctx))
 	defer manager.Stop(context.Background())
 
-	adapter, err := manager.Prepare(ctx, "vesync_transport", "vesync_transport", json.RawMessage(`{}`))
+	instance, err := manager.Create(ctx, "integration_vesync_cloud", "vesync_cloud", "VeSync Cloud", json.RawMessage(`{}`), true)
 	require.NoError(t, err)
-	require.Equal(t, "vesync_transport", adapter.Type())
+	require.Equal(t, "vesync_cloud", instance.Type)
+	require.True(t, instance.Enabled)
+
+	adapter, ok := manager.GetAdapter("integration_vesync_cloud")
+	require.True(t, ok)
+	require.Equal(t, "vesync_cloud", adapter.Type())
 	require.NoError(t, adapter.HealthCheck(ctx))
+
 	visible := make(map[string]bool)
 	for _, manifest := range manager.ListTypes() { visible[manifest.ID] = true }
-	require.False(t, visible["vesync_transport"])
+	require.True(t, visible["vesync_cloud"])
 }
 
 
