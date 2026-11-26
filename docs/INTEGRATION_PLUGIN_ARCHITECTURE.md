@@ -152,7 +152,7 @@ Content-Type: application/json
 
 1. **Chiudere il runtime adapter**: test contratto, stato health, lifecycle concorrente, installazione/disabilitazione atomica, isolamento storage per istanza, diagnostica e API config update.
 2. **Completare i contratti già avviati**: Z-Wave JS e Voice Satellite sono già adapter registrati; completare HomeKit solo dopo il server HAP reale, pairing e advertising.
-3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI/Smart Life OAuth, Xiaomi Home Cloud, Imou Life e VeSync sono ora gestiti da istanze Plugin Manager con configurazioni cifrate e campi interni protetti. Restano VeSync e Midea, con account, refresh e segreti per istanza.
+3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI/Smart Life OAuth, Xiaomi Home Cloud, Imou Life e VeSync sono ora gestiti da istanze Plugin Manager con configurazioni cifrate e campi interni protetti. Resta Midea, da completare con account, segreti e stato di protocollo isolati per istanza.
 4. **Estrarre i driver brand**: Hue, Shelly, Kasa/Tapo, Nanoleaf, Yeelight dalla scansione brand monolitica a provider installabili.
 5. **Separare plugin di servizio**: meteo, voce, media, NVR e firewall con contratti specifici.
 6. **UI Store/Integrations unificata**: browse, install, option-flow, pairing, status, log e restart; mantenere redirect/API di compatibilità durante la migrazione.
