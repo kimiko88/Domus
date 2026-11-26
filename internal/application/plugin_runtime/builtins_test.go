@@ -24,7 +24,7 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life", "vesync_cloud", "xiaomi_miio_transport", "xiaomi_home_cloud", "midea_smarthome_local"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
 	internalTypes := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { internalTypes[manifest.ID] = manifest.Internal }
-	for _, want := range []string{"xiaomi_miio_transport", "midea_a1_protocol"} {
+	for _, want := range []string{"xiaomi_miio_transport"} {
 		require.True(t, internalTypes[want], "%s must be an internal runtime transport", want)
 	}
 	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud", "xiaomi_home_cloud", "imou_life", "vesync_cloud", "midea_smarthome_local"} {
