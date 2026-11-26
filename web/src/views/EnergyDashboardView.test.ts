@@ -7,6 +7,7 @@ import { i18n } from '../locales'
 
 describe('EnergyDashboardView.vue', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     setActivePinia(createPinia())
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
       if (url.includes('/api/v1/energy/flow')) {
@@ -134,5 +135,113 @@ describe('EnergyDashboardView.vue', () => {
       charge_point_id: 'domus_wallbox_1'
     }))
   })
+
+  const unconfiguredLoad = {
+    entity_key: 'switch.water_heater',
+    name: 'Water heater',
+    required_hours: 2,
+    max_price_kwh: -1,
+    active_now: false,
+    auto_schedule: true,
+    scheduled_hours: [2, 3],
+    estimated_cost_eur: 0,
+    savings_percent: 0
+  }
+
+  function mockDynamicTariffs(loads: Array<Record<string, any>>) {
+    let calls = 0
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.endsWith('/api/v1/energy/dynamic-tariffs')) {
+        calls += 1
+        return {
+          schedule: {
+            date: '2026-11-26',
+            market: 'PUN',
+            source: 'synthetic_estimate',
+            is_estimate: true,
+            hourly_prices: [{
+              hour: 2,
+              price_per_kwh: 0.1,
+              slot: 'F3',
+              is_cheapest: true,
+              is_expensive: false,
+              is_negative: false
+            }],
+            average_price: 0.3,
+            min_price: 0.1,
+            max_price: 0.5,
+            cheapest_hours: [2]
+          },
+          flexible_loads: loads.map(load => ({
+            ...load,
+            scheduled_hours: [...(load.scheduled_hours || [])]
+          }))
+        } as any
+      }
+      return null as any
+    })
+    return () => calls
+  }
+
+  it('shows the estimate warning and avoids inventing costs before power is configured', async () => {
+    mockDynamicTariffs([unconfiguredLoad])
+    const wrapper = mount(EnergyDashboardView)
+    await flushPromises()
+
+    expect(wrapper.find('.tariff-estimate-warning').exists()).toBe(true)
+    expect(wrapper.find('.tariff-estimate-warning').text()).toBe(i18n.global.t('energy.tariffEstimateWarning'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.noPriceLimit'))
+    expect(wrapper.text()).toContain(i18n.global.t('energy.loadPowerRequired'))
+    expect(wrapper.find('.savings-tag').exists()).toBe(false)
+    expect((wrapper.find('input.load-power-input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('persists configured load power and renders the returned cost and savings', async () => {
+    mockDynamicTariffs([unconfiguredLoad])
+    const updatedLoad = {
+      ...unconfiguredLoad,
+      power_kw: 1.5,
+      estimated_cost_eur: 0.45,
+      savings_percent: 20
+    }
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      status: 'updated',
+      flexible_loads: [updatedLoad]
+    } as any)
+
+    const wrapper = mount(EnergyDashboardView)
+    await flushPromises()
+    const powerInput = wrapper.find('input.load-power-input')
+    await powerInput.setValue('1.5')
+    await flushPromises()
+
+    expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
+    expect(putSpy).toHaveBeenCalledWith(
+      '/api/v1/energy/flexible-loads',
+      expect.objectContaining({
+        entity_key: 'switch.water_heater',
+        power_kw: 1.5
+      })
+    )
+    expect(wrapper.find('.cost-stat').text()).toContain('0.45 €')
+    expect(wrapper.find('.savings-tag').text()).toContain('-20%')
+  })
+
+  it('restores the server power value when saving a load power fails', async () => {
+    const getCalls = mockDynamicTariffs([unconfiguredLoad])
+    const putSpy = vi.spyOn(apiClient, 'put').mockRejectedValue(new Error('temporary network error'))
+    const wrapper = mount(EnergyDashboardView)
+    await flushPromises()
+
+    const powerInput = wrapper.find('input.load-power-input')
+    await powerInput.setValue('2.4')
+    await flushPromises()
+
+    expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
+    expect(getCalls()).toBe(2)
+    expect((wrapper.find('input.load-power-input').element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).toContain(i18n.global.t('energy.loadPowerRequired'))
+  })
+
 })
 
