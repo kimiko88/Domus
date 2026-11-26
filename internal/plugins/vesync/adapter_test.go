@@ -43,4 +43,22 @@ func TestAdapterRejectsInvalidIdentityTimeoutAndSession(t *testing.T) {
 
 	_, err = NewAdapterWithSession(IntegrationID, Session{}, 8*time.Second)
 	require.NoError(t, err, "a newly-installed but not yet connected instance is valid")
+
+	_, err = NewAdapterWithSession(IntegrationID, Session{
+		AccountID: "account-1", Token: "token-1", Region: "EU",
+		CountryCode: "IT", TimeZone: "Not/AZone",
+	}, 8*time.Second)
+	require.ErrorContains(t, err, "invalid time zone")
+
+	_, err = NewAdapterWithSession(IntegrationID, Session{
+		AccountID: "account-1", Token: "token-1", Region: "EU",
+		CountryCode: "", TimeZone: "Europe/Rome",
+	}, 8*time.Second)
+	require.ErrorContains(t, err, "invalid country code")
+
+	_, err = NewAdapterWithSession(IntegrationID, Session{
+		AccountID: "account-1", Token: "token-1", Region: "EU",
+		CountryCode: "IT", TimeZone: "Europe/Rome",
+	}, 8*time.Second)
+	require.NoError(t, err, "a complete VeSync account session is valid")
 }
