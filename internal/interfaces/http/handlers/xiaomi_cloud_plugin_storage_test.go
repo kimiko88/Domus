@@ -158,6 +158,32 @@ func TestXiaomiCloudConfigureCreatesEncryptedManagerInstance(t *testing.T) {
 	require.NotContains(t, statusResponse.Body.String(), config.AccessToken)
 }
 
+func TestXiaomiCloudSaveConfigReEnablesDisabledPluginInstance(t *testing.T) {
+	f := newXiaomiCloudPluginFixture(t)
+	seedXiaomiCloudPluginRecord(t, f)
+	require.NoError(t, f.manager.Start(context.Background()))
+	require.NoError(t, f.manager.SetEnabled(context.Background(), xiaomiCloudIntegrationID, false))
+	_, ok := f.manager.GetAdapter(xiaomiCloudIntegrationID)
+	require.False(t, ok)
+
+	config := &xiaomiCloudConfig{
+		ClientID: "123456789012",
+		ClientSecret: "legacy-xiaomi-app-secret",
+		Region: "eu",
+		PublicBaseURL: "https://domus.example",
+		RedirectURL: "https://domus.example/api/v1/integrations/xiaomi-home/cloud/callback/" + strings.Repeat("a", 64),
+		CallbackSecret: strings.Repeat("a", 64),
+		EventSecret: strings.Repeat("b", 64),
+	}
+	require.NoError(t, f.handler.saveConfig(context.Background(), *config, "disconnected"))
+	record, err := f.repos.Integrations.GetByID(context.Background(), xiaomiCloudIntegrationID)
+	require.NoError(t, err)
+	require.True(t, record.Enabled, "saving configuration must preserve the legacy auto-enable behavior")
+	adapter, ok := f.manager.GetAdapter(xiaomiCloudIntegrationID)
+	require.True(t, ok)
+	require.NoError(t, adapter.HealthCheck(context.Background()))
+}
+
 func TestXiaomiCloudManagedUpdatesUseCurrentAdapterAndDisconnectKeepsAppConfig(t *testing.T) {
 	f := newXiaomiCloudPluginFixture(t)
 	seedXiaomiCloudPluginRecord(t, f)
