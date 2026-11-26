@@ -609,7 +609,7 @@ func (r tuyaFailingListRepository) List(context.Context) ([]*integration.Integra
 	return nil, errors.New("synthetic integration repository failure")
 }
 
-func TestTuyaCloudProviderFallsBackWhenPluginRegistryCannotInspectInstances(t *testing.T) {
+func TestTuyaCloudProviderDoesNotBypassPluginManagerWhenRepositoryFails(t *testing.T) {
 	db, err := sqlite.Open(config.DatabaseConfig{
 		Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1,
 	})
@@ -633,15 +633,12 @@ func TestTuyaCloudProviderFallsBackWhenPluginRegistryCannotInspectInstances(t *t
 	}
 
 	handler := NewTuyaCloudHandler(nil, manager)
-	provider, err := handler.providerForConfig(context.Background(), tuya_cloud.Config{
+	_, err = handler.providerForConfig(context.Background(), tuya_cloud.Config{
 		ClientID: "test-client", Secret: "test-secret",
 		BaseURL: "https://openapi.tuyaeu.com", UID: "eu-test-user",
 	})
-	if err != nil {
-		t.Fatalf("providerForConfig should preserve Tuya Cloud availability: %v", err)
-	}
-	if _, ok := provider.(*tuya_cloud.Client); !ok {
-		t.Fatalf("expected direct compatibility client fallback, got %T", provider)
+	if err == nil {
+		t.Fatal("must not bypass a failing Plugin Manager with a direct, unpersisted OpenAPI client")
 	}
 }
 
