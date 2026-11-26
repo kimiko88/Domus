@@ -384,10 +384,16 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				}
 			}
 			if tuyaCloudInstanceID == "" && clientID != "" && secret != "" {
-				pluginConfig, err := json.Marshal(map[string]any{
+				pluginValues := map[string]any{
 					"client_id": clientID, "secret": secret, "base_url": baseURL,
-					"uid": uid, "schema": os.Getenv("TUYA_CLOUD_SCHEMA"),
-				})
+				}
+				if strings.TrimSpace(uid) != "" {
+					pluginValues["uid"] = uid
+				}
+				if schema := strings.TrimSpace(os.Getenv("TUYA_CLOUD_SCHEMA")); schema != "" {
+					pluginValues["schema"] = schema
+				}
+				pluginConfig, err := json.Marshal(pluginValues)
 				if err != nil {
 					slog.Error("Tuya Cloud plugin config encoding failed", "error", err)
 				} else if instance, err := manager.Create(context.Background(), tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud OpenAPI", pluginConfig, true); err != nil {
