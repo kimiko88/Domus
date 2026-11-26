@@ -233,7 +233,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Imou project access key and secret are required")
 		return
 	}
-	if _, err := h.newClient(imou_life.Config{AccessKey:req.AccessKey, SecretKey:req.SecretKey, DataCenter:req.DataCenter}); err != nil {
+	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:req.AccessKey, SecretKey:req.SecretKey, DataCenter:req.DataCenter}, nil); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou project credentials or data centre")
 		return
 	}
@@ -264,7 +264,7 @@ func (h *ImouLifeHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		CallbackSecret:hex.EncodeToString(callbackSecret[:]),
 		EventSecret:hex.EncodeToString(eventSecret[:]),
 	}
-	if _, err := h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}); err != nil {
+	if _, err := imou_life.NewClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter}, nil); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Imou API configuration")
 		return
 	}
