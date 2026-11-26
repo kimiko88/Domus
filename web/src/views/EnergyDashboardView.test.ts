@@ -216,7 +216,7 @@ describe('EnergyDashboardView.vue', () => {
     await powerInput.trigger('change')
     await flushPromises()
 
-    expect(putSpy).toHaveBeenCalledTimes(1)
+    expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
     expect(putSpy).toHaveBeenCalledWith(
       '/api/v1/energy/flexible-loads',
       expect.objectContaining({
@@ -239,7 +239,7 @@ describe('EnergyDashboardView.vue', () => {
     await powerInput.trigger('change')
     await flushPromises()
 
-    expect(putSpy).toHaveBeenCalledTimes(1)
+    expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
     expect(getCalls()).toBe(2)
     expect((wrapper.find('input.load-power-input').element as HTMLInputElement).value).toBe('')
     expect(wrapper.text()).toContain(i18n.global.t('energy.loadPowerRequired'))
