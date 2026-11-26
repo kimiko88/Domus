@@ -71,3 +71,30 @@ func TestAdapterStartHonorsCancelledContext(t *testing.T) {
 		t.Fatal("Start must respect a cancelled context")
 	}
 }
+
+
+func TestAdapterSupportsOAuthOnlyConfigWithoutReusingOAuthCredentialsAsOpenAPI(t *testing.T) {
+	adapter, err := NewAdapter("tuya_oauth_only", Config{
+		BaseURL: "https://openapi.tuyaeu.com",
+	})
+	if err != nil {
+		t.Fatalf("NewAdapter should accept a provider instance used only for OAuth token storage: %v", err)
+	}
+	if got := adapter.Config(); got.ClientID != "" || got.Secret != "" {
+		t.Fatalf("OAuth-only instance must not invent OpenAPI credentials: %+v", got)
+	}
+	if err := adapter.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if _, err := adapter.Devices(context.Background()); err == nil {
+		t.Fatal("OpenAPI calls without OpenAPI credentials must fail explicitly")
+	}
+
+	adapter.SetCredentials("openapi-client", "openapi-secret", "https://openapi.tuyaeu.com", "smart-life-user")
+	if got := adapter.Config(); got.ClientID != "openapi-client" || got.Secret != "openapi-secret" || got.UID != "smart-life-user" {
+		t.Fatalf("OpenAPI credentials were not installed independently: %+v", got)
+	}
+	if adapter.Client() == nil {
+		t.Fatal("valid OpenAPI credentials should initialize the provider client")
+	}
+}
