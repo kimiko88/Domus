@@ -210,7 +210,7 @@ func (h *VeSyncHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "VESYNC_NOT_CONNECTED", "Configure VeSync cloud credentials before controlling devices")
 		return
 	}
-	client, err := h.clientForRequest(false)
+	client, err := h.clientForRequest(r.Context(), false)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
 		return
