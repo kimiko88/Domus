@@ -900,6 +900,13 @@ func (h *ImouLifeHandler) RecordingPreview(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadGateway, "IMOU_ADMIN_TOKEN_ERROR", "Could not obtain Imou playback authorization")
 		return
 	}
+	// ensureAdminToken may persist a newly issued project token and cause the
+	// Plugin Manager to replace the adapter. Rebind before subsequent API calls.
+	client, err = h.newClient(imou_life.Config{AccessKey:config.AccessKey, SecretKey:config.SecretKey, DataCenter:config.DataCenter})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Imou plugin runtime is unavailable")
+		return
+	}
 	deviceID := chi.URLParam(r, "deviceID")
 	productID := ""
 	for page := 1; page <= 20; page++ {
