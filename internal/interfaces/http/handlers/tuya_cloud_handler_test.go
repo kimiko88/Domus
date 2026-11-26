@@ -649,7 +649,7 @@ func TestTuyaCloudProviderReconfiguresPersistedCustomInstanceID(t *testing.T) {
 		t.Fatalf("create test cipher: %v", err)
 	}
 	manager := newPluginRuntimeHandlerManager(t, repo, cipher)
-	_, err = manager.Prepare(context.Background(), tuya_cloud.PluginType, "tuya_cloud_custom", []byte(`{"client_id":"old-client","secret":"old-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-old-user"}`))
+	_, err = manager.Create(context.Background(), "tuya_cloud_custom", tuya_cloud.PluginType, "Tuya Cloud Custom", []byte(`{"client_id":"old-client","secret":"old-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-old-user"}`), true)
 	if err != nil {
 		t.Fatalf("prepare custom Tuya instance: %v", err)
 	}
