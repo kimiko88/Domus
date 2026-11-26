@@ -419,17 +419,27 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "vesync_transport", Name: "VeSync Cloud",
-		Internal: true,
-		Version: "1.0.0", Description: "VeSync account sessions and device commands.",
+		APIVersion: plugins.ManifestAPIVersion, ID: vesync.PluginType, Name: "VeSync Cloud",
+		Version: "1.0.0", Description: "Persistent VeSync account session and cloud device control.",
 		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
-		Config: timeoutField,
+		Config: []plugins.ConfigField{
+			{Name: "http_timeout", Type: "duration", Description: "Cloud API request timeout; defaults to 8s and is limited to 1s..20s"},
+			{Name: "session", Type: "json", Secret: true, Internal: true, Description: "Encrypted provider session; managed by the VeSync account-linking flow"},
+		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		wire, err := plugins.DecodeConfig[struct {
+			Session vesync.Session `json:"session"`
+			HTTPTimeout string `json:"http_timeout"`
+		}](raw)
 		if err != nil { return nil, err }
 		timeout := 8 * time.Second
-		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("vesync: invalid http_timeout: %w", err) } }
-		return vesync.NewAdapter(instanceID, timeout)
+		if wire.HTTPTimeout != "" {
+			timeout, err = time.ParseDuration(wire.HTTPTimeout)
+			if err != nil || timeout < time.Second || timeout > 20*time.Second {
+				return nil, errors.New("vesync: http_timeout must be between 1s and 20s")
+			}
+		}
+		return vesync.NewAdapterWithSession(instanceID, wire.Session, timeout)
 	}); err != nil { return err }
 
 	if err := register(plugins.Manifest{
