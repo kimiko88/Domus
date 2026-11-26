@@ -33,6 +33,7 @@ type TuyaOAuthHandler struct {
 	authorizeURL string
 	callbackURL  string
 	refreshMu    sync.Mutex
+	configMu     sync.Mutex
 }
 
 func NewTuyaOAuthHandler(db *sql.DB, cipher *crypto.EnvelopeCipher, client *tuya_cloud.OAuthClient, clientID, authorizeURL, callbackURL string, managers ...*apppluginruntime.Manager) (*TuyaOAuthHandler, error) {
@@ -581,6 +582,8 @@ func (h *TuyaOAuthHandler) validToken(ctx context.Context, userID string) (tuya_
 
 func (h *TuyaOAuthHandler) storeToken(ctx context.Context, userID string, token tuya_cloud.OAuthToken) error {
 	if h.pluginManager != nil {
+		h.configMu.Lock()
+		defer h.configMu.Unlock()
 		return h.storeManagedToken(ctx, userID, token)
 	}
 	access, err := h.cipher.Encrypt(token.AccessToken)
