@@ -226,6 +226,25 @@ func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
 }
 
 
+func TestListTypesHidesVeSyncSessionField(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	var manifest *plugins.Manifest
+	for _, item := range manager.ListTypes() {
+		if item.ID == "vesync_cloud" {
+			copy := item
+			manifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, manifest, "VeSync Cloud should be a visible plugin type")
+	encoded, err := json.Marshal(manifest)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), `"name":"session"`)
+	require.NotContains(t, string(encoded), "account_id")
+	require.NotContains(t, string(encoded), "token")
+	require.NotContains(t, string(encoded), "password")
+}
+
 func TestVeSyncCloudIsPublicPersistentAndManaged(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
