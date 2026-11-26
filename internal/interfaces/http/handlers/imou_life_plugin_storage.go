@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/domus-hub/domus/internal/domain/integration"
+	"github.com/domus-hub/domus/internal/plugins/imou_life"
 )
 
 var imouManagedConfigFields = []string{
@@ -122,7 +123,7 @@ func (h *ImouLifeHandler) saveManagedConfig(ctx context.Context, config imouStor
 		if _, err := h.pluginManager.Create(
 			ctx,
 			imouIntegrationID,
-			"imou_life",
+			imou_life.PluginType,
 			"Imou Life",
 			encoded,
 			true,
