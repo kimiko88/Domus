@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
@@ -24,6 +25,7 @@ type VeSyncHandler struct {
 	cipher *crypto.EnvelopeCipher
 	client *vesync.Client
 	pluginManager *apppluginruntime.Manager
+	mu sync.Mutex
 }
 
 type vesyncStoredConfig struct {
@@ -149,9 +151,14 @@ func (h *VeSyncHandler) Status(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Could not load VeSync integration status")
 		return
 	}
-	connected := config.Session.AccountID != "" && config.Session.Token != ""
+	configured := config.Session.AccountID != "" && config.Session.Token != ""
+	connected := configured
+	if connected && h.pluginManager != nil {
+		adapter, ok := h.pluginManager.GetAdapter(vesyncIntegrationID)
+		connected = ok && adapter.HealthCheck(r.Context()) == nil
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"configured": connected,
+		"configured": configured,
 		"connected": connected,
 		"region": config.Session.Region,
 		"country_code": config.Session.CountryCode,
@@ -327,6 +334,8 @@ func (h *VeSyncHandler) loadConfig(r *http.Request) (*vesyncStoredConfig, error)
 }
 
 func (h *VeSyncHandler) saveConfig(ctx context.Context, config vesyncStoredConfig, status string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.pluginManager != nil {
 		return h.saveManagedConfig(ctx, config, status)
 	}
