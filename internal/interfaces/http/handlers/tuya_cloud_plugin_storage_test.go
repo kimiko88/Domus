@@ -17,6 +17,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,7 +113,7 @@ func TestTuyaCloudOptionFlowMigratesLegacyConfigAndPreservesOAuthState(t *testin
 	require.NotContains(t, string(encrypted), "oauth-access")
 
 	get := httptest.NewRecorder()
-	handler.GetConfig(get, httptest.NewRequest(http.MethodGet, "/config", nil))
+	router.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/config", nil))
 	require.Equal(t, http.StatusOK, get.Code)
 	require.Contains(t, get.Body.String(), `"source":"plugin_manager"`)
 	require.Contains(t, get.Body.String(), "legacy-openapi-client")
@@ -133,8 +134,10 @@ func TestTuyaCloudOptionFlowSaveAndDeleteOnlyOpenAPISettings(t *testing.T) {
 	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
 
 	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
 	save := httptest.NewRecorder()
-	handler.SaveConfig(save, tuyaAdminRequest(http.MethodPost, "/config", `{
+	router.ServeHTTP(save, tuyaAdminRequest(http.MethodPut, "/config", `{
 		"client_id":"new-openapi-client",
 		"client_secret":"new-openapi-secret",
 		"uid":"eu-new-user",
@@ -154,7 +157,7 @@ func TestTuyaCloudOptionFlowSaveAndDeleteOnlyOpenAPISettings(t *testing.T) {
 	require.Equal(t, "new-openapi-client", readRawJSONString(saved, "client_id"))
 
 	deleteResponse := httptest.NewRecorder()
-	handler.DeleteConfig(deleteResponse, tuyaAdminRequest(http.MethodDelete, "/config", ""))
+	router.ServeHTTP(deleteResponse, tuyaAdminRequest(http.MethodDelete, "/config", ""))
 	require.Equal(t, http.StatusOK, deleteResponse.Code, deleteResponse.Body.String())
 	require.Contains(t, deleteResponse.Body.String(), "OAuth")
 	require.NotNil(t, handler.getClient(), "OAuth-only Tuya instance remains managed after OpenAPI credentials are removed")
@@ -204,4 +207,39 @@ func TestTuyaCloudOptionFlowCreatesManagedInstanceOnFreshInstall(t *testing.T) {
 		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
 	).Scan(&legacyTableCount))
 	require.Zero(t, legacyTableCount, "new installations must not recreate the legacy config table")
+}
+
+
+func TestTuyaCloudLegacyMigrationKeepsOldTableWhenDecryptionFails(t *testing.T) {
+	ctx, db, cipher, manager := newTuyaCloudOptionRuntime(t)
+	_, err := db.ExecContext(ctx, `
+		CREATE TABLE tuya_cloud_config (
+			id TEXT PRIMARY KEY,
+			client_id TEXT NOT NULL,
+			secret_enc TEXT NOT NULL,
+			uid TEXT NOT NULL,
+			endpoint TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO tuya_cloud_config(id,client_id,secret_enc,uid,endpoint,updated_at) VALUES('default',?,?,?,?,?)",
+		"legacy-client", "not-a-valid-envelope", "legacy-uid", "https://openapi.tuyaeu.com", time.Now().Unix(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, manager.Start(ctx))
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
+
+	_ = NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+	var tableCount, rowCount int
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&tableCount))
+	require.Equal(t, 1, tableCount, "failed decryption must not delete the only legacy copy")
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM tuya_cloud_config").Scan(&rowCount))
+	require.Equal(t, 1, rowCount)
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Empty(t, instances, "failed migration must not create a partial Plugin Manager instance")
 }
