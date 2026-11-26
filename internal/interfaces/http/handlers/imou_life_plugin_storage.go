@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/domus-hub/domus/internal/domain/integration"
@@ -50,8 +51,8 @@ func (h *ImouLifeHandler) loadManagedConfig(ctx context.Context) (*imouStoredCon
 	if !validHTTPSURL(config.PublicBaseURL, false) {
 		return nil, errors.New("imou: public_base_url must be an absolute HTTPS URL without query or fragment")
 	}
-	base, _ := urlParse(strings.TrimRight(strings.TrimSpace(config.PublicBaseURL), "/"))
-	if base == nil || base.RawQuery != "" || base.Fragment != "" || base.User != nil {
+	base, parseErr := url.Parse(strings.TrimRight(strings.TrimSpace(config.PublicBaseURL), "/"))
+	if parseErr != nil || base == nil || base.RawQuery != "" || base.Fragment != "" || base.User != nil {
 		return nil, errors.New("imou: public_base_url contains unsupported URL components")
 	}
 
