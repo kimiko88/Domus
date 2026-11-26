@@ -87,7 +87,10 @@ func (h *TuyaOAuthHandler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.pluginManager != nil {
-		if _, err := h.ensureManagedPlugin(r.Context()); err != nil {
+		h.configMu.Lock()
+		_, prepareErr := h.ensureManagedPlugin(r.Context())
+		h.configMu.Unlock()
+		if prepareErr != nil {
 			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud plugin instance could not be prepared")
 			return
 		}
