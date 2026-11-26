@@ -117,9 +117,17 @@ func (m *Manager) ListTypes() []plugins.Manifest {
 	all := m.registry.List()
 	visible := make([]plugins.Manifest, 0, len(all))
 	for _, manifest := range all {
-		if !manifest.Internal {
-			visible = append(visible, manifest)
+		if manifest.Internal {
+			continue
 		}
+		publicConfig := make([]plugins.ConfigField, 0, len(manifest.Config))
+		for _, field := range manifest.Config {
+			if !field.Internal {
+				publicConfig = append(publicConfig, field)
+			}
+		}
+		manifest.Config = publicConfig
+		visible = append(visible, manifest)
 	}
 	return visible
 }
