@@ -275,6 +275,9 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			slog.Error("plugin runtime disabled: registry initialization failed", "error", managerErr)
 		} else {
 			srv.pluginRuntime = manager
+			if xiaomiCloudHandler != nil {
+				xiaomiCloudHandler.WithPluginManager(manager)
+			}
 
 			// These protocol transports are managed by the shared plugin runtime,
 			// while their existing HTTP handlers continue to own the encrypted
@@ -282,7 +285,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			var imouRuntime *imou_life.Adapter
 			var vesyncRuntime *vesync.Adapter
 			var xiaomiLocalRuntime *xiaomi_home.LocalAdapter
-			var xiaomiCloudRuntime *xiaomi_home.CloudAdapter
 			var mideaRuntime *midea.RuntimeAdapter
 
 			if imouLifeHandler != nil {
@@ -304,13 +306,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					slog.Error("Xiaomi Home local plugin preparation failed", "error", err)
 				} else if typed, ok := adapter.(*xiaomi_home.LocalAdapter); ok {
 					xiaomiLocalRuntime = typed
-				}
-			}
-			if xiaomiCloudHandler != nil {
-				if adapter, err := manager.Prepare(context.Background(), "xiaomi_open_platform_transport", "xiaomi_open_platform_transport", json.RawMessage(`{}`)); err != nil {
-					slog.Error("Xiaomi Home Cloud plugin preparation failed", "error", err)
-				} else if typed, ok := adapter.(*xiaomi_home.CloudAdapter); ok {
-					xiaomiCloudRuntime = typed
 				}
 			}
 			if mideaHandler != nil {
@@ -414,9 +409,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			}
 			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
 				if err := xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime); err != nil { slog.Error("Xiaomi Home local handler could not bind plugin runtime", "error", err) }
-			}
-			if xiaomiCloudHandler != nil && xiaomiCloudRuntime != nil {
-				if err := xiaomiCloudHandler.WithPluginAdapter(xiaomiCloudRuntime); err != nil { slog.Error("Xiaomi Home Cloud handler could not bind plugin runtime", "error", err) }
 			}
 			if mideaHandler != nil && mideaRuntime != nil {
 				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {
