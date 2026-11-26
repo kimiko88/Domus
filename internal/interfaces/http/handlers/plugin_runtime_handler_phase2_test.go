@@ -24,7 +24,7 @@ func TestPluginRuntimeHandlerUpdatesEncryptedConfigurationWithoutExposingSecrets
 	router.Put("/instances/{id}/config", handler.UpdateConfig)
 
 	const oldSecret = "old-open-display-secret-0123456789abcdef"
-	createBody := `{"id":"display_reconfigure","type":"open_display","name":"Display","enabled":false,"config":{"bridge_url":"http://127.0.0.1:10320","token":"` + oldSecret + `"}}`
+	createBody := `{"id":"open_display","type":"open_display","name":"Display","enabled":false,"config":{"bridge_url":"http://127.0.0.1:10320","token":"` + oldSecret + `"}}`
 	create := httptest.NewRecorder()
 	router.ServeHTTP(create, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(createBody)))
 	require.Equal(t, http.StatusCreated, create.Code, create.Body.String())
@@ -32,15 +32,15 @@ func TestPluginRuntimeHandlerUpdatesEncryptedConfigurationWithoutExposingSecrets
 	const newSecret = "new-open-display-secret-0123456789abcdef"
 	updateBody := `{"config":{"bridge_url":"http://127.0.0.1:10321","token":"` + newSecret + `"}}`
 	update := httptest.NewRecorder()
-	router.ServeHTTP(update, httptest.NewRequest(http.MethodPut, "/instances/display_reconfigure/config", strings.NewReader(updateBody)))
+	router.ServeHTTP(update, httptest.NewRequest(http.MethodPut, "/instances/open_display/config", strings.NewReader(updateBody)))
 	require.Equal(t, http.StatusOK, update.Code, update.Body.String())
-	require.Contains(t, update.Body.String(), "display_reconfigure")
+	require.Contains(t, update.Body.String(), "open_display")
 	require.NotContains(t, update.Body.String(), oldSecret)
 	require.NotContains(t, update.Body.String(), newSecret)
 	require.NotContains(t, update.Body.String(), `"config"`)
 	require.NotContains(t, update.Body.String(), `"token"`)
 
-	stored, err := repo.GetByID(context.Background(), "display_reconfigure")
+	stored, err := repo.GetByID(context.Background(), "open_display")
 	require.NoError(t, err)
 	plain, err := cipher.Decrypt(string(stored.ConfigEncrypted))
 	require.NoError(t, err)
@@ -50,9 +50,9 @@ func TestPluginRuntimeHandlerUpdatesEncryptedConfigurationWithoutExposingSecrets
 	require.Equal(t, newSecret, saved["token"])
 
 	invalid := httptest.NewRecorder()
-	router.ServeHTTP(invalid, httptest.NewRequest(http.MethodPut, "/instances/display_reconfigure/config", strings.NewReader(`{"config":{"unknown":"field"}}`)))
+	router.ServeHTTP(invalid, httptest.NewRequest(http.MethodPut, "/instances/open_display/config", strings.NewReader(`{"config":{"unknown":"field"}}`)))
 	require.Equal(t, http.StatusBadRequest, invalid.Code)
-	stored, err = repo.GetByID(context.Background(), "display_reconfigure")
+	stored, err = repo.GetByID(context.Background(), "open_display")
 	require.NoError(t, err)
 	plain, err = cipher.Decrypt(string(stored.ConfigEncrypted))
 	require.NoError(t, err)
