@@ -163,7 +163,9 @@ func TestXiaomiCloudConfigureCreatesEncryptedManagerInstance(t *testing.T) {
 	f.handler.Status(statusResponse, httptest.NewRequest(http.MethodGet, "/status", nil))
 	require.Equal(t, http.StatusOK, statusResponse.Code)
 	require.NotContains(t, statusResponse.Body.String(), config.ClientSecret)
-	require.NotContains(t, statusResponse.Body.String(), config.AccessToken)
+	if config.AccessToken != "" {
+		require.NotContains(t, statusResponse.Body.String(), config.AccessToken)
+	}
 }
 
 func TestXiaomiCloudSaveConfigReEnablesDisabledPluginInstance(t *testing.T) {
