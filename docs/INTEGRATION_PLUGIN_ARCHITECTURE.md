@@ -77,7 +77,7 @@ Il campo `multi_instance` del manifest abilita le istanze multiple solo quando i
 
 | HomeKit Bridge | `internal/plugins/homekit` | Prima di registrarlo completare HAP server reale/advertising, pairing persistente, unsubscribe e protezione setup code; il bridge attuale non è ancora un servizio HAP completo |
 | Smart Life OAuth | `internal/plugins/tuya_cloud/oauth.go`, `TuyaOAuthHandler` | Account linking, callback e refresh sono mantenuti dal handler; token access/refresh migrati al campo interno cifrato `smart_life_oauth` dell'istanza Tuya, con separazione per amministratore. La tabella legacy viene usata solo per migrazione al primo accesso; lo state OAuth resta nel DB per CSRF |
-| Tuya Cloud option flow | `TuyaCloudHandler` + tabella legacy `tuya_cloud_config` | Migrazione ancora aperta: le credenziali dell'option flow legacy sono caricate dal vault dedicato e possono sovrascrivere in memoria il provider; portare GET/PUT/DELETE su Plugin Manager e rimuovere la tabella solo dopo migrazione verificata |
+| Tuya Cloud option flow | `TuyaCloudHandler` + Plugin Manager | GET/PUT/DELETE ora leggono e aggiornano la configurazione cifrata dell'istanza; POST resta alias per il frontend legacy. `tuya_cloud_config` viene migrata una tantum e rimossa solo dopo persistenza riuscita. DELETE rimuove solo le credenziali OpenAPI e preserva l'istanza OAuth e i token Smart Life |
 | Xiaomi Home locale/cloud | `internal/plugins/xiaomi_home`, handler dedicati | Adapter locale e provider cloud con credenziali cifrate per account/istanza |
 | Imou Life | `internal/plugins/imou_life`, handler | Adapter cloud con refresh token e callback eventi |
 | VeSync | `internal/plugins/vesync`, handler | Adapter cloud con sessione, refresh e sincronizzazione dispositivi |
@@ -150,7 +150,7 @@ Content-Type: application/json
 
 1. **Chiudere il runtime adapter**: test contratto, stato health, lifecycle concorrente, installazione/disabilitazione atomica, isolamento storage per istanza, diagnostica e API config update.
 2. **Completare i contratti già avviati**: Z-Wave JS e Voice Satellite sono già adapter registrati; completare HomeKit solo dopo il server HAP reale, pairing e advertising.
-3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI è un provider registrato; Smart Life OAuth è ora memorizzato nel config cifrato dell'istanza (prima tranche). Restano la migrazione dell'option flow Tuya legacy e i provider Xiaomi, Imou, VeSync e Midea, con account e segreti per istanza.
+3. **Completare e migrare vendor cloud**: Tuya Cloud OpenAPI e Smart Life OAuth sono ora gestiti dal config cifrato dell'istanza, con migrazione delle tabelle legacy dei token/config; restano i provider Xiaomi Home Cloud, Imou Life, VeSync e Midea, con account, refresh e segreti per istanza.
 4. **Estrarre i driver brand**: Hue, Shelly, Kasa/Tapo, Nanoleaf, Yeelight dalla scansione brand monolitica a provider installabili.
 5. **Separare plugin di servizio**: meteo, voce, media, NVR e firewall con contratti specifici.
 6. **UI Store/Integrations unificata**: browse, install, option-flow, pairing, status, log e restart; mantenere redirect/API di compatibilità durante la migrazione.
@@ -174,6 +174,7 @@ Content-Type: application/json
 - Test con due istanze MQTT separate e test di rifiuto configurazioni errate.
 - Test Manager per configurazione cifrata, restore dopo riavvio, restart, enable/disable/delete e secret masking.
 - Test Smart Life OAuth per migrazione dei token legacy nel config cifrato dell'istanza, isolamento per amministratore, rimozione selettiva al disconnect e assenza dei token nelle risposte pubbliche.
+- Test Tuya OpenAPI option flow per migrazione `tuya_cloud_config`, creazione su installazione nuova, GET/PUT/POST/DELETE, secret masking e preservazione dei token OAuth dopo la rimozione delle credenziali OpenAPI.
 - Test che i campi interni OAuth sono validati dal Registry ma rimossi dallo schema restituito al catalogo pubblico.
 - Test lifecycle per Matter, BLE Proxy, BroadLink, OpenDisplay e operazioni dinamiche del Supervisor.
 
