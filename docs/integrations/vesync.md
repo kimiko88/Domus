@@ -49,9 +49,10 @@ For a home in Italy, the normal values are:
 ## What Domus stores and sends
 
 - The account password is used only during the login exchange. Domus does not persist the plaintext password.
-- The VeSync account ID and session token are stored in the existing encrypted integration configuration using Domus' AES-256-GCM secret storage.
-- Status and device-list APIs do not return the account token.
-- Disconnect clears the stored session.
+- The VeSync account ID, session token, country, region and time zone are stored in the encrypted Plugin Manager instance `integration_vesync_cloud` using Domus' AES-256-GCM secret storage. The `session` field is internal/secret and is not returned by the public plugin catalog or instance APIs.
+- The email and password are used only for the login exchange and are not persisted.
+- Status and device-list APIs do not return the account token or account ID.
+- Disconnect clears the stored session and disables the managed instance. Connecting again re-enables the same stable instance ID.
 - The provider cloud receives authentication and device/control requests. This is **not local-LAN control** and requires Internet access even when the device is connected to the same Wi-Fi network as Domus.
 - VeSync's device API used by this integration is an unofficial / reverse-engineered interface, not a public stable developer API. A VeSync service-side change can break login or commands.
 
@@ -123,3 +124,9 @@ The password is a request input only; do not store it in scripts, shell history,
 - [VeSync account portal](https://account.vesync.com/)
 - [VeSync / pyvesync authentication documentation](https://webdjoe.github.io/pyvesync/latest/authentication/)
 - [Levoit product manuals and setup instructions](https://levoit.com/pages/product-manuals)
+
+## Session storage and reconnect behaviour
+
+Domus stores the VeSync cloud token, account ID, country, region and time zone in the encrypted Plugin Manager instance `integration_vesync_cloud`. The email address and password are used only for the login request and are not retained. The instance status API and Plugin Manager catalog never return the session token or account ID.
+
+The current VeSync login flow returns a single cloud session token; it does not provide Domus with a separate refresh token or a documented refresh operation. When VeSync rejects an expired or revoked session, reconnect the account from **Settings → Integrations → Vendors → VeSync Cloud**. Disconnect removes the stored account session and disables the managed instance; it does not delete the integration record or its stable ID.

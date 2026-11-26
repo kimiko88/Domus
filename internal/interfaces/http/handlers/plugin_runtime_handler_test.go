@@ -71,6 +71,8 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Contains(t, typesResponse.Body.String(), `"mqtt_generic"`)
 	require.Contains(t, typesResponse.Body.String(), `"multi_instance":true`)
 	require.Contains(t, typesResponse.Body.String(), `"imou_life"`)
+	require.Contains(t, typesResponse.Body.String(), `"vesync_cloud"`)
+	require.NotContains(t, typesResponse.Body.String(), `"session"`)
 	require.NotContains(t, typesResponse.Body.String(), `"vesync_transport"`)
 	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_miio_transport"`)
 	require.Contains(t, typesResponse.Body.String(), `"xiaomi_home_cloud"`)
@@ -94,8 +96,18 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusCreated, imouResponse.Code, imouResponse.Body.String())
 	require.NotContains(t, imouResponse.Body.String(), imouSecret)
 
+	const veSyncSessionToken = "ve-private-session-token-never-return-this"
+	vesyncBody := `{"id":"integration_vesync_cloud","type":"vesync_cloud","name":"VeSync Cloud","enabled":false,"config":{"session":{"account_id":"ve-account-private","token":"` + veSyncSessionToken + `","country_code":"IT","region":"EU","time_zone":"Europe/Rome"}}}`
+	vesyncResponse := httptest.NewRecorder()
+	router.ServeHTTP(vesyncResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(vesyncBody)))
+	require.Equal(t, http.StatusCreated, vesyncResponse.Code, vesyncResponse.Body.String())
+	require.NotContains(t, vesyncResponse.Body.String(), `"config"`)
+	require.NotContains(t, vesyncResponse.Body.String(), `"session"`)
+	require.NotContains(t, vesyncResponse.Body.String(), veSyncSessionToken)
+	require.NotContains(t, vesyncResponse.Body.String(), "ve-account-private")
+
 	internalResponse := httptest.NewRecorder()
-	internalBody := `{"id":"vesync_transport","type":"vesync_transport","name":"hidden transport","config":{}}`
+	internalBody := `{"id":"xiaomi_miio_transport","type":"xiaomi_miio_transport","name":"hidden transport","config":{}}`
 	router.ServeHTTP(internalResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(internalBody)))
 	require.Equal(t, http.StatusBadRequest, internalResponse.Code)
 	require.Contains(t, internalResponse.Body.String(), "PLUGIN_CREATE_FAILED")
@@ -107,6 +119,9 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusOK, listResponse.Code)
 	require.Contains(t, listResponse.Body.String(), `"open_display"`)
 	require.Contains(t, listResponse.Body.String(), `"imou_life"`)
+	require.Contains(t, listResponse.Body.String(), `"vesync_cloud"`)
+	require.NotContains(t, listResponse.Body.String(), veSyncSessionToken)
+	require.NotContains(t, listResponse.Body.String(), "ve-account-private")
 	require.NotContains(t, listResponse.Body.String(), imouSecret)
 	require.NotContains(t, listResponse.Body.String(), secret)
 	require.NotContains(t, listResponse.Body.String(), `"token"`)
@@ -118,6 +133,10 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	imouDelete := httptest.NewRecorder()
 	router.ServeHTTP(imouDelete, httptest.NewRequest(http.MethodDelete, "/instances/integration_imou_life", nil))
 	require.Equal(t, http.StatusOK, imouDelete.Code)
+
+	vesyncDelete := httptest.NewRecorder()
+	router.ServeHTTP(vesyncDelete, httptest.NewRequest(http.MethodDelete, "/instances/integration_vesync_cloud", nil))
+	require.Equal(t, http.StatusOK, vesyncDelete.Code)
 }
 
 func TestPluginRuntimeHandlerRejectsInvalidJSONAndUnknownPlugin(t *testing.T) {

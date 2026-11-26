@@ -11,19 +11,20 @@ import (
 	"sync"
 	"time"
 
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/plugins/vesync"
 	"github.com/go-chi/chi/v5"
 )
 
-const vesyncIntegrationID = "integration_vesync_cloud"
+const vesyncIntegrationID = vesync.IntegrationID
 
 type VeSyncHandler struct {
-	provider *vesync.Adapter
 	repo integration.Repository
 	cipher *crypto.EnvelopeCipher
 	client *vesync.Client
+	pluginManager *apppluginruntime.Manager
 	mu sync.Mutex
 }
 
@@ -51,14 +52,41 @@ func NewVeSyncHandler(repo integration.Repository, cipher *crypto.EnvelopeCipher
 }
 
 
- // WithPluginAdapter binds VeSync's API client to the supervised provider.
-func (h *VeSyncHandler) WithPluginAdapter(adapter *vesync.Adapter) error {
-	if adapter == nil { return errors.New("vesync: plugin runtime adapter is required") }
-	client, err := adapter.Client()
-	if err != nil { return err }
-	h.client = client
-	h.provider = adapter
-	return nil
+ // WithPluginManager resolves the current supervised VeSync instance on every
+// request. This avoids retaining a client after Manager replaces the adapter.
+func (h *VeSyncHandler) WithPluginManager(manager *apppluginruntime.Manager) {
+	h.pluginManager = manager
+}
+
+func (h *VeSyncHandler) clientForRequest(ctx context.Context, allowBootstrap bool) (*vesync.Client, error) {
+	if h.pluginManager == nil {
+		return h.client, nil
+	}
+	adapter, ok := h.pluginManager.GetAdapter(vesyncIntegrationID)
+	if ok {
+		typed, ok := adapter.(*vesync.Adapter)
+		if !ok {
+			return nil, errors.New("vesync: managed cloud adapter has an unexpected type")
+		}
+		return typed.Client()
+	}
+	if !allowBootstrap {
+		return nil, errors.New("vesync: managed cloud adapter is unavailable")
+	}
+
+	// A temporary client is allowed only for a first login or an explicitly
+	// disabled instance. Never bypass a persisted, enabled instance whose
+	// adapter failed to restore or start.
+	instances, err := h.pluginManager.ListInstances(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("vesync: inspect managed instance before login: %w", err)
+	}
+	for _, instance := range instances {
+		if instance.ID == vesyncIntegrationID && instance.Enabled {
+			return nil, errors.New("vesync: enabled managed cloud adapter is unavailable")
+		}
+	}
+	return vesync.NewClient(8 * time.Second), nil
 }
 
 func (h *VeSyncHandler) RegisterRoutes(r chi.Router) {
@@ -92,15 +120,20 @@ func (h *VeSyncHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_TIME_ZONE", "A valid IANA time zone is required")
 		return
 	}
+	client, err := h.clientForRequest(r.Context(), true)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	session, err := h.client.Authenticate(ctx, req.Email, req.Password, req.CountryCode, req.TimeZone)
+	session, err := client.Authenticate(ctx, req.Email, req.Password, req.CountryCode, req.TimeZone)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "VESYNC_AUTH_FAILED", "VeSync cloud authentication failed; verify credentials, account region and internet connectivity")
 		return
 	}
 	// Validate the token by listing the account's devices before persisting it.
-	devices, err := h.client.ListDevices(ctx, session)
+	devices, err := client.ListDevices(ctx, session)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "VESYNC_DEVICE_LIST_FAILED", "VeSync login succeeded but the cloud device list could not be loaded")
 		return
@@ -129,9 +162,14 @@ func (h *VeSyncHandler) Status(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "Could not load VeSync integration status")
 		return
 	}
-	connected := config.Session.AccountID != "" && config.Session.Token != ""
+	configured := config.Session.AccountID != "" && config.Session.Token != ""
+	connected := configured
+	if connected && h.pluginManager != nil {
+		adapter, ok := h.pluginManager.GetAdapter(vesyncIntegrationID)
+		connected = ok && adapter.HealthCheck(r.Context()) == nil
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"configured": connected,
+		"configured": configured,
 		"connected": connected,
 		"region": config.Session.Region,
 		"country_code": config.Session.CountryCode,
@@ -146,9 +184,14 @@ func (h *VeSyncHandler) Devices(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "VESYNC_NOT_CONNECTED", "Configure VeSync cloud credentials before listing devices")
 		return
 	}
+	client, err := h.clientForRequest(r.Context(), false)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
-	devices, err := h.client.ListDevices(ctx, config.Session)
+	devices, err := client.ListDevices(ctx, config.Session)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "VESYNC_DEVICE_LIST_FAILED", "Could not load devices from VeSync cloud; reconnect if the session has expired")
 		return
@@ -167,9 +210,14 @@ func (h *VeSyncHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "VESYNC_NOT_CONNECTED", "Configure VeSync cloud credentials before controlling devices")
 		return
 	}
+	client, err := h.clientForRequest(r.Context(), false)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "VESYNC_PROVIDER_UNAVAILABLE", "VeSync cloud provider is unavailable")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
-	devices, err := h.client.ListDevices(ctx, config.Session)
+	devices, err := client.ListDevices(ctx, config.Session)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "VESYNC_DEVICE_LIST_FAILED", "Could not verify the device in the connected VeSync account")
 		return
@@ -190,21 +238,21 @@ func (h *VeSyncHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
 	var result any
 	switch req.Action {
 	case "refresh":
-		result, err = h.client.GetPurifierStatus(ctx, config.Session, *selected)
+		result, err = client.GetPurifierStatus(ctx, config.Session, *selected)
 	case "set_power":
 		value, ok := req.Value.(bool)
 		if !ok {
 			writeError(w, http.StatusBadRequest, "INVALID_COMMAND", "Power value must be boolean")
 			return
 		}
-		result, err = h.client.SetPurifierPower(ctx, config.Session, *selected, value)
+		result, err = client.SetPurifierPower(ctx, config.Session, *selected, value)
 	case "set_mode":
 		value, ok := req.Value.(string)
 		if !ok {
 			writeError(w, http.StatusBadRequest, "INVALID_COMMAND", "Mode value must be a string")
 			return
 		}
-		result, err = h.client.SetPurifierMode(ctx, config.Session, *selected, value)
+		result, err = client.SetPurifierMode(ctx, config.Session, *selected, value)
 	case "set_fan_level":
 		var level int
 		switch v := req.Value.(type) {
@@ -225,7 +273,7 @@ func (h *VeSyncHandler) CommandDevice(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "INVALID_COMMAND", "Fan level must be an integer")
 			return
 		}
-		result, err = h.client.SetPurifierFanLevel(ctx, config.Session, *selected, level)
+		result, err = client.SetPurifierFanLevel(ctx, config.Session, *selected, level)
 	default:
 		writeError(w, http.StatusBadRequest, "INVALID_COMMAND", "Unsupported VeSync command")
 		return
@@ -270,6 +318,17 @@ func (h *VeSyncHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *VeSyncHandler) loadConfig(r *http.Request) (*vesyncStoredConfig, error) {
+	if h.pluginManager != nil {
+		raw, err := h.pluginManager.GetConfig(r.Context(), vesyncIntegrationID)
+		if err != nil {
+			return nil, err
+		}
+		var config vesyncStoredConfig
+		if err := json.Unmarshal(raw, &config); err != nil {
+			return nil, errors.New("vesync: invalid managed plugin configuration")
+		}
+		return &config, nil
+	}
 	record, err := h.repo.GetByID(r.Context(), vesyncIntegrationID)
 	if err != nil {
 		return nil, err
@@ -286,6 +345,11 @@ func (h *VeSyncHandler) loadConfig(r *http.Request) (*vesyncStoredConfig, error)
 }
 
 func (h *VeSyncHandler) saveConfig(ctx context.Context, config vesyncStoredConfig, status string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.pluginManager != nil {
+		return h.saveManagedConfig(ctx, config, status)
+	}
 	encoded, err := json.Marshal(config)
 	if err != nil {
 		return err
@@ -298,7 +362,7 @@ func (h *VeSyncHandler) saveConfig(ctx context.Context, config vesyncStoredConfi
 	now := time.Now().UTC()
 	if errors.Is(getErr, integration.ErrIntegrationNotFound) {
 		record = &integration.Integration{
-			ID: vesyncIntegrationID, Type: "vesync_cloud", Name: "VeSync Cloud",
+			ID: vesyncIntegrationID, Type: vesync.PluginType, Name: "VeSync Cloud",
 			Enabled: true, Status: status, CreatedAt: now, UpdatedAt: now,
 		}
 	} else if getErr != nil {
