@@ -114,92 +114,31 @@ func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 
 
 func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud.Config) (tuya_cloud.Provider, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if h.pluginManager == nil {
 		return tuya_cloud.New(cfg)
 	}
-
-	// The legacy Tuya settings page predates persisted plugin instance IDs.
-	// Prefer any already-prepared singleton provider, including one created
-	// with a custom instance ID from the Plugin Manager UI.
-	useAdapter := func(provider tuya_cloud.Provider) (tuya_cloud.Provider, error) {
-		if provider == nil {
-			return nil, errors.New("tuya cloud: prepared plugin returned a nil provider")
-		}
-		provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-		return provider, nil
-	}
-
-	fallback := func(cause error) (tuya_cloud.Provider, error) {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		client, err := tuya_cloud.New(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("tuya cloud: supervised provider failed (%v) and direct client initialization failed: %w", cause, err)
-		}
-		slog.Warn("tuya cloud: supervised plugin unavailable; using the validated direct OpenAPI client", "error", cause)
-		return client, nil
-	}
-
-	if adapter, found := h.pluginManager.GetAdapter(tuya_cloud.PluginType); found {
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("default plugin instance does not implement the Tuya provider contract"))
-		}
-		return useAdapter(provider)
-	}
-	if adapter, found := h.pluginManager.GetAdapterByType(tuya_cloud.PluginType); found {
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("prepared plugin instance does not implement the Tuya provider contract"))
-		}
-		return useAdapter(provider)
-	}
-
-	instances, err := h.pluginManager.ListInstances(ctx)
+	instanceID, err := h.persistManagedOpenAPIConfig(ctx, tuyaCloudOpenAPIConfig{
+		ClientID: cfg.ClientID, Secret: cfg.Secret, UID: cfg.UID,
+		Endpoint: cfg.BaseURL, Schema: cfg.Schema,
+	})
 	if err != nil {
-		return fallback(fmt.Errorf("inspect saved plugin instances: %w", err))
+		return nil, err
 	}
-
-	// A saved singleton may have a custom ID. Re-prepare that exact ID if its
-	// startup restore failed, rather than trying to register a second instance.
-	for _, instance := range instances {
-		if instance.Type != tuya_cloud.PluginType {
-			continue
-		}
-		if !instance.Enabled {
-			return nil, errors.New("tuya cloud: plugin instance is disabled; enable it in the Plugin Manager")
-		}
-		if adapter, found := h.pluginManager.GetAdapter(instance.ID); found {
-			provider, ok := adapter.(tuya_cloud.Provider)
-			if !ok {
-				return fallback(errors.New("saved plugin instance does not implement the Tuya provider contract"))
-			}
-			return useAdapter(provider)
-		}
-
-		raw, marshalErr := json.Marshal(map[string]any{
-			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
-			"uid": cfg.UID, "schema": cfg.Schema,
-		})
-		if marshalErr != nil {
-			return fallback(fmt.Errorf("encode Tuya plugin configuration: %w", marshalErr))
-		}
-		adapter, prepareErr := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, instance.ID, raw)
-		if prepareErr != nil {
-			return fallback(fmt.Errorf("prepare saved instance %q: %w", instance.ID, prepareErr))
-		}
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("prepared saved instance does not implement the Tuya provider contract"))
-		}
-		return provider, nil
+	adapter, ok := h.pluginManager.GetAdapter(instanceID)
+	if !ok {
+		return nil, errors.New("tuya cloud: persisted provider instance has no runtime adapter")
 	}
-
-	// Do not create an unpersisted singleton adapter here. The compatibility
-	// settings flow can use a direct client until the Plugin Manager instance is
-	// created through its durable encrypted configuration path.
-	return fallback(errors.New("no persisted Tuya Cloud plugin instance found"))
+	provider, ok := adapter.(tuya_cloud.Provider)
+	if !ok {
+		return nil, fmt.Errorf("tuya cloud: adapter %q does not implement the provider contract", instanceID)
+	}
+	h.mu.Lock()
+	h.client = provider
+	h.mu.Unlock()
+	return provider, nil
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
