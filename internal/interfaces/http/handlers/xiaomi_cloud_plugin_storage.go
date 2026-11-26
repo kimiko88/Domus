@@ -75,7 +75,7 @@ func (h *XiaomiCloudHandler) saveManagedConfig(ctx context.Context, config xiaom
 	case lookupErr != nil:
 		return fmt.Errorf("xiaomi: read existing Plugin Manager configuration: %w", lookupErr)
 	default:
-		if _, err := h.pluginManager.UpdateConfigMutate(ctx, xiaomiCloudIntegrationID, func(current map[string]json.RawMessage) error {
+		updated, err := h.pluginManager.UpdateConfigMutate(ctx, xiaomiCloudIntegrationID, func(current map[string]json.RawMessage) error {
 			for _, key := range xiaomiManagedConfigFields {
 				if value, ok := submitted[key]; ok {
 					current[key] = append(json.RawMessage(nil), value...)
@@ -84,8 +84,14 @@ func (h *XiaomiCloudHandler) saveManagedConfig(ctx context.Context, config xiaom
 				}
 			}
 			return nil
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("xiaomi: update encrypted Plugin Manager configuration: %w", err)
+		}
+		if !updated.Enabled {
+			if err := h.pluginManager.SetEnabled(ctx, xiaomiCloudIntegrationID, true); err != nil {
+				return fmt.Errorf("xiaomi: enable configured Plugin Manager instance: %w", err)
+			}
 		}
 	}
 
