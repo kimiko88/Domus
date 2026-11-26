@@ -308,7 +308,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					xiaomiLocalRuntime = typed
 				}
 			}
-
 			if mideaHandler != nil {
 				if adapter, err := manager.Prepare(context.Background(), "midea_a1_protocol", "midea_a1_protocol", json.RawMessage(`{}`)); err != nil {
 					slog.Error("Midea SmartHome plugin preparation failed", "error", err)
@@ -411,7 +410,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
 				if err := xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime); err != nil { slog.Error("Xiaomi Home local handler could not bind plugin runtime", "error", err) }
 			}
-
 			if mideaHandler != nil && mideaRuntime != nil {
 				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {
 					slog.Error("Midea handler could not bind its managed protocol engine", "error", err)

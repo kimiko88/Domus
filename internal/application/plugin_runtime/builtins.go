@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -444,11 +445,24 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			HTTPTimeout string `json:"http_timeout"`
 		}](raw)
 		if err != nil { return nil, err }
+		baseURL, parseErr := url.ParseRequestURI(strings.TrimSpace(wire.PublicBaseURL))
+		if parseErr != nil || baseURL.Scheme != "https" || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" {
+			return nil, errors.New("xiaomi_home_cloud: public_base_url must be an HTTPS URL without credentials, query or fragment")
+		}
+		redirectURL := strings.TrimSpace(wire.RedirectURL)
+		if redirectURL == "" {
+			redirectURL = strings.TrimRight(strings.TrimSpace(wire.PublicBaseURL), "/") + "/api/v1/integrations/xiaomi-home/cloud/callback/" + strings.Repeat("a", 64)
+		}
+		if _, err := xiaomi_home.NewCloudClient(xiaomi_home.CloudConfig{
+			ClientID: wire.ClientID, ClientSecret: wire.ClientSecret,
+			Region: wire.Region, RedirectURL: redirectURL,
+		}, nil); err != nil {
+			return nil, fmt.Errorf("xiaomi_home_cloud: invalid Open Platform configuration: %w", err)
+		}
 		timeout := 12 * time.Second
 		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("xiaomi_home_cloud: invalid http_timeout: %w", err) } }
 		return xiaomi_home.NewCloudAdapter(instanceID, timeout)
 	}); err != nil { return err }
-
 	if err := register(plugins.Manifest{
 		APIVersion: plugins.ManifestAPIVersion, ID: "midea_a1_protocol", Name: "Midea SmartHome (M-Smart A1)",
 		Internal: true,

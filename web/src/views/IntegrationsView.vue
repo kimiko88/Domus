@@ -1273,7 +1273,7 @@ async function fetchTuyaConfig() {
 async function saveTuyaConfig() {
   tuyaConfigSaving.value = true
   try {
-    const res = await apiClient.post<{ success: boolean; message: string }>('/api/v1/integrations/tuya-cloud/config', {
+    const res = await apiClient.put<{ success: boolean; message: string }>('/api/v1/integrations/tuya-cloud/config', {
       client_id: tuyaConfigForm.client_id,
       client_secret: tuyaConfigForm.client_secret,
       uid: tuyaConfigForm.uid,

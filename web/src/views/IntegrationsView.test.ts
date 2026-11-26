@@ -319,7 +319,7 @@ describe('IntegrationsView.vue', () => {
       }
       return []
     })
-    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
       success: true,
       message: 'Configurazione Tuya Smart Life salvata con successo'
     })
@@ -341,7 +341,7 @@ describe('IntegrationsView.vue', () => {
     await wrapper.find('#tuya-uid').setValue('eu123456789')
     await wrapper.find('form.tuya-form-grid').trigger('submit')
 
-    expect(postSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/config', {
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/integrations/tuya-cloud/config', {
       client_id: 'my-access-id',
       client_secret: 'my-secret-key',
       uid: 'eu123456789',

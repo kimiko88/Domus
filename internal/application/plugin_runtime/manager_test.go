@@ -204,6 +204,7 @@ func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
 	}
 }
 
+
 func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

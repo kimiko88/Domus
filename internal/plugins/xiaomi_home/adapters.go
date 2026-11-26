@@ -36,8 +36,11 @@ func(a *LocalAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.
 func(a *LocalAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("xiaomi: local provider is stopped")};return nil}
 func(a *LocalAdapter)Client()(*Client,error){a.mu.RLock();defer a.mu.RUnlock();if !a.active{return nil,errors.New("xiaomi: local provider is stopped")};return a.client,nil}
 
+const CloudPluginType = "xiaomi_home_cloud"
+const CloudIntegrationID = "integration_xiaomi_home_cloud"
+
 // CloudAdapter owns the bounded HTTP transport for Xiaomi Open Platform.
-// OAuth tokens and app secrets remain under the encrypted integration config.
+// App credentials and OAuth account state are stored by the Plugin Manager.
 type CloudAdapter struct {
 	id string
 	http *http.Client

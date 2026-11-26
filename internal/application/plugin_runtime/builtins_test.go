@@ -63,7 +63,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"imou_life_transport", "imou_transport", `{}`},
 		{"vesync_transport", "vesync_transport", `{}`},
 		{"xiaomi_miio_transport", "xiaomi_miio_transport", `{}`},
-		{"xiaomi_home_cloud", "integration_xiaomi_home_cloud", `{"client_id":"123456789012","client_secret":"app-secret","region":"eu","public_base_url":"https://domus.example"}`},
+		{"xiaomi_home_cloud", "integration_xiaomi_home_cloud", `{"client_id":"123456789012","client_secret":"test-secret","region":"eu","public_base_url":"https://domus.example"}`},
 		{"midea_a1_protocol", "midea_a1_protocol", `{}`},
 	}
 	deps := plugins.Dependencies{Devices: repos.Devices, Entities: repos.Entities}
@@ -86,4 +86,6 @@ func TestBuiltinsRejectInvalidProtocolConfigurations(t *testing.T) {
 	_, err = registry.Create(context.Background(), "knx", "knx_bad", json.RawMessage(`{"gateway_addr":"not-an-address","entities":[]}`), plugins.Dependencies{}); require.ErrorContains(t, err, "gateway_addr")
 	_, err = registry.Create(context.Background(), "modbus_tcp", "modbus_bad", json.RawMessage(`{"host":"127.0.0.1","port":70000,"registers":[]}`), plugins.Dependencies{}); require.ErrorContains(t, err, "port")
 	_, err = registry.Create(context.Background(), "open_display", "wrong_instance", json.RawMessage(`{"bridge_url":"http://127.0.0.1:10320","token":"x"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "instance ID")
+	_, err = registry.Create(context.Background(), "xiaomi_home_cloud", "integration_xiaomi_home_cloud", json.RawMessage(`{"client_id":"123456789012","client_secret":"app-secret","region":"eu","public_base_url":"http://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "HTTPS")
+	_, err = registry.Create(context.Background(), "xiaomi_home_cloud", "integration_xiaomi_home_cloud", json.RawMessage(`{"client_id":"invalid","client_secret":"app-secret","region":"eu","public_base_url":"https://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "invalid Open Platform application credentials")
 }

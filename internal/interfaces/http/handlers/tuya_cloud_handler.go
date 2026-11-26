@@ -51,13 +51,22 @@ func (h *TuyaCloudHandler) WithLocalAdapter(adapter *tuya_local.Adapter) *TuyaCl
 func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher) *TuyaCloudHandler {
 	h.db = db
 	h.cipher = cipher
-	if db == nil {
-		return h
-	}
-	if h.pluginManager != nil {
-		if err := h.migrateLegacyConfig(context.Background()); err != nil {
-			// The legacy row is retained on every migration failure.
-			slog.Error("tuya cloud: could not migrate the legacy encrypted configuration", "error", err)
+	if db != nil {
+		// New installations use the encrypted Plugin Manager store. Create the
+		// legacy table only when running without the manager, for compatibility
+		// with older deployments that have not yet enabled plugin persistence.
+		if h.pluginManager == nil {
+			_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS tuya_cloud_config (
+				id TEXT PRIMARY KEY,
+				client_id TEXT NOT NULL,
+				secret_enc TEXT NOT NULL,
+				uid TEXT NOT NULL,
+				endpoint TEXT NOT NULL,
+				updated_at INTEGER NOT NULL
+			)`)
+		}
+		if err := h.loadStoredConfig(context.Background()); err != nil {
+			slog.Error("tuya cloud: could not restore managed or legacy configuration", "error", err)
 		}
 		return h
 	}
@@ -74,6 +83,12 @@ func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher
 	return h
 }
 func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
+	if h.pluginManager != nil {
+		if err := h.migrateLegacyTuyaCloudConfig(ctx); err != nil {
+			return err
+		}
+		return h.syncClientFromManagedConfig(ctx)
+	}
 	if h.db == nil || h.cipher == nil {
 		return nil
 	}
@@ -109,98 +124,38 @@ func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 
 
 func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud.Config) (tuya_cloud.Provider, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if h.pluginManager == nil {
 		return tuya_cloud.New(cfg)
 	}
-
-	// The legacy Tuya settings page predates persisted plugin instance IDs.
-	// Prefer any already-prepared singleton provider, including one created
-	// with a custom instance ID from the Plugin Manager UI.
-	useAdapter := func(provider tuya_cloud.Provider) (tuya_cloud.Provider, error) {
-		if provider == nil {
-			return nil, errors.New("tuya cloud: prepared plugin returned a nil provider")
-		}
-		provider.SetCredentials(cfg.ClientID, cfg.Secret, cfg.BaseURL, cfg.UID)
-		return provider, nil
-	}
-
-	fallback := func(cause error) (tuya_cloud.Provider, error) {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		client, err := tuya_cloud.New(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("tuya cloud: supervised provider failed (%v) and direct client initialization failed: %w", cause, err)
-		}
-		slog.Warn("tuya cloud: supervised plugin unavailable; using the validated direct OpenAPI client", "error", cause)
-		return client, nil
-	}
-
-	if adapter, found := h.pluginManager.GetAdapter(tuya_cloud.PluginType); found {
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("default plugin instance does not implement the Tuya provider contract"))
-		}
-		return useAdapter(provider)
-	}
-	if adapter, found := h.pluginManager.GetAdapterByType(tuya_cloud.PluginType); found {
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("prepared plugin instance does not implement the Tuya provider contract"))
-		}
-		return useAdapter(provider)
-	}
-
-	instances, err := h.pluginManager.ListInstances(ctx)
+	instanceID, err := h.persistManagedOpenAPIConfig(ctx, tuyaCloudOpenAPIConfig{
+		ClientID: cfg.ClientID, Secret: cfg.Secret, UID: cfg.UID,
+		Endpoint: cfg.BaseURL, Schema: cfg.Schema,
+	})
 	if err != nil {
-		return fallback(fmt.Errorf("inspect saved plugin instances: %w", err))
+		return nil, err
 	}
-
-	// A saved singleton may have a custom ID. Re-prepare that exact ID if its
-	// startup restore failed, rather than trying to register a second instance.
-	for _, instance := range instances {
-		if instance.Type != tuya_cloud.PluginType {
-			continue
-		}
-		if !instance.Enabled {
-			return nil, errors.New("tuya cloud: plugin instance is disabled; enable it in the Plugin Manager")
-		}
-		if adapter, found := h.pluginManager.GetAdapter(instance.ID); found {
-			provider, ok := adapter.(tuya_cloud.Provider)
-			if !ok {
-				return fallback(errors.New("saved plugin instance does not implement the Tuya provider contract"))
-			}
-			return useAdapter(provider)
-		}
-
-		raw, marshalErr := json.Marshal(map[string]any{
-			"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
-			"uid": cfg.UID, "schema": cfg.Schema,
-		})
-		if marshalErr != nil {
-			return fallback(fmt.Errorf("encode Tuya plugin configuration: %w", marshalErr))
-		}
-		adapter, prepareErr := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, instance.ID, raw)
-		if prepareErr != nil {
-			return fallback(fmt.Errorf("prepare saved instance %q: %w", instance.ID, prepareErr))
-		}
-		provider, ok := adapter.(tuya_cloud.Provider)
-		if !ok {
-			return fallback(errors.New("prepared saved instance does not implement the Tuya provider contract"))
-		}
-		return provider, nil
+	adapter, ok := h.pluginManager.GetAdapter(instanceID)
+	if !ok {
+		return nil, errors.New("tuya cloud: persisted provider instance has no runtime adapter")
 	}
-
-	// Do not create an unpersisted singleton adapter here. The compatibility
-	// settings flow can use a direct client until the Plugin Manager instance is
-	// created through its durable encrypted configuration path.
-	return fallback(errors.New("no persisted Tuya Cloud plugin instance found"))
+	provider, ok := adapter.(tuya_cloud.Provider)
+	if !ok {
+		return nil, fmt.Errorf("tuya cloud: adapter %q does not implement the provider contract", instanceID)
+	}
+	h.mu.Lock()
+	h.client = provider
+	h.mu.Unlock()
+	return provider, nil
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/config", h.GetConfig)
-	r.Put("/config", h.SaveConfig) // canonical update method
-	r.Post("/config", h.SaveConfig) // compatibility alias for existing clients
+	r.Put("/config", h.SaveConfig)
+	// Keep POST as a compatibility alias for existing Domus web clients.
+	r.Post("/config", h.SaveConfig)
 	r.Delete("/config", h.DeleteConfig)
 	r.Get("/devices", h.ListDevices)
 	r.Get("/devices/{deviceID}/functions", h.ListFunctions)
@@ -211,39 +166,23 @@ func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	configured := false
 	clientID, uid := "", ""
-	endpoint := "https://openapi.tuyaeu.com"
-	source := "none"
+	endpoint, source := "https://openapi.tuyaeu.com", "none"
 
 	if h.pluginManager != nil {
-		_, config, err := h.managedTuyaInstance(r.Context())
-		if err == nil {
-			var decodeErr error
-			if clientID, decodeErr = readTuyaConfigString(config, "client_id"); decodeErr != nil {
-				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
-				return
-			}
-			secret, secretErr := readTuyaConfigString(config, "secret")
-			if secretErr != nil {
-				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
-				return
-			}
-			if uid, decodeErr = readTuyaConfigString(config, "uid"); decodeErr != nil {
-				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
-				return
-			}
-			savedEndpoint, endpointErr := readTuyaConfigString(config, "base_url")
-			if endpointErr != nil {
-				writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
-				return
-			}
-			if savedEndpoint != "" {
-				endpoint = savedEndpoint
-			}
-			configured = clientID != "" && secret != ""
-			source = "plugin_manager"
-		} else if !errors.Is(err, errTuyaCloudPluginInstanceMissing) {
-			writeError(w, http.StatusInternalServerError, "CONFIG_READ_FAILED", "could not read Tuya Cloud configuration")
+		cfg, exists, _, err := h.readManagedOpenAPIConfig(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not read encrypted Tuya configuration")
 			return
+		}
+		if exists {
+			clientID, uid = cfg.ClientID, cfg.UID
+			if cfg.Endpoint != "" {
+				endpoint = cfg.Endpoint
+			}
+			configured = cfg.ClientID != "" && cfg.Secret != ""
+			if configured {
+				source = "plugin_manager"
+			}
 		}
 	} else {
 		h.mu.RLock()
@@ -252,27 +191,21 @@ func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		if client != nil {
 			cfg := client.Config()
 			if cfg.ClientID != "" && cfg.Secret != "" {
-				configured = true
-				clientID, uid = cfg.ClientID, cfg.UID
+				configured, clientID, uid, source = true, cfg.ClientID, cfg.UID, "environment"
 				if cfg.BaseURL != "" {
 					endpoint = cfg.BaseURL
 				}
-				source = "environment"
 			}
 		}
-	}
-
-	// Read-only compatibility fallback for an unmigrated legacy row.
-	if !configured && h.db != nil {
-		var dbClientID, dbUID, dbEndpoint string
-		err := h.db.QueryRowContext(r.Context(), "SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id='default'").Scan(&dbClientID, &dbUID, &dbEndpoint)
-		if err == nil && dbClientID != "" {
-			configured = true
-			clientID, uid = dbClientID, dbUID
-			if dbEndpoint != "" {
-				endpoint = dbEndpoint
+		if h.db != nil {
+			var dbClientID, dbUID, dbEndpoint string
+			err := h.db.QueryRowContext(r.Context(), `SELECT client_id, uid, endpoint FROM tuya_cloud_config WHERE id = 'default'`).Scan(&dbClientID, &dbUID, &dbEndpoint)
+			if err == nil && dbClientID != "" {
+				configured, clientID, uid, source = true, dbClientID, dbUID, "database"
+				if dbEndpoint != "" {
+					endpoint = dbEndpoint
+				}
 			}
-			source = "database"
 		}
 	}
 
@@ -297,14 +230,14 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 	var req struct {
 		ClientID string `json:"client_id"`
 		ClientSecret string `json:"client_secret"`
 		UID string `json:"uid"`
 		Endpoint string `json:"endpoint"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid configuration payload")
 		return
@@ -326,50 +259,58 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "client_id and client_secret are required")
 		return
 	}
+	cfg := tuyaCloudOpenAPIConfig{ClientID: req.ClientID, Secret: req.ClientSecret, UID: req.UID, Endpoint: req.Endpoint}
 
+	if h.pluginManager != nil {
+		if _, err := h.persistManagedOpenAPIConfig(r.Context(), cfg); err != nil {
+			if errors.Is(err, errTuyaCloudPluginDisabled) {
+				writeError(w, http.StatusConflict, "PLUGIN_DISABLED", "enable the Tuya Cloud instance in Plugin Manager before saving credentials")
+				return
+			}
+			slog.Error("tuya cloud: managed configuration save failed", "error", err)
+			writeError(w, http.StatusBadRequest, "CONFIG_SAVE_FAILED", "Tuya Cloud credentials could not be validated or saved")
+			return
+		}
+		if err := h.dropLegacyOpenAPIConfigTable(r.Context()); err != nil {
+			slog.Warn("tuya cloud: new credentials saved but retired legacy table could not be removed", "error", err)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"message": "Configurazione Tuya Smart Life salvata con successo",
+		})
+		return
+	}
+
+	// Compatibility path for deployments without Plugin Manager.
 	testClient, err := tuya_cloud.New(tuya_cloud.Config{
-		ClientID: req.ClientID, Secret: req.ClientSecret,
-		BaseURL: req.Endpoint, UID: req.UID,
+		ClientID: req.ClientID, Secret: req.ClientSecret, BaseURL: req.Endpoint, UID: req.UID,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "CONFIG_ERROR", err.Error())
 		return
 	}
-
-	enabled := true
-	if h.pluginManager != nil {
-		enabled, err = h.saveManagedOpenAPIConfig(r.Context(), testClient.Config())
-		if err == nil {
-			err = h.deleteLegacyConfigRow(r.Context())
+	if h.cipher != nil && h.db != nil {
+		secretEnc, err := h.cipher.Encrypt(req.ClientSecret)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "failed to encrypt secret")
+			return
 		}
+		_, err = h.db.ExecContext(r.Context(), `
+			INSERT INTO tuya_cloud_config(id, client_id, secret_enc, uid, endpoint, updated_at)
+			VALUES('default', ?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET
+				client_id=excluded.client_id, secret_enc=excluded.secret_enc,
+				uid=excluded.uid, endpoint=excluded.endpoint, updated_at=excluded.updated_at
+		`, req.ClientID, secretEnc, req.UID, req.Endpoint, time.Now().Unix())
 		if err != nil {
 			slog.Error("tuya cloud: encrypted plugin configuration update failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration in Plugin Manager")
 			return
 		}
-	} else {
-		// Legacy fallback for installations without the Plugin Manager.
-		if h.cipher != nil && h.db != nil {
-			secretEnc, encryptErr := h.cipher.Encrypt(req.ClientSecret)
-			if encryptErr != nil {
-				writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "failed to encrypt secret")
-				return
-			}
-			_, err = h.db.ExecContext(r.Context(), "INSERT INTO tuya_cloud_config(id, client_id, secret_enc, uid, endpoint, updated_at) VALUES('default', ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET client_id=excluded.client_id, secret_enc=excluded.secret_enc, uid=excluded.uid, endpoint=excluded.endpoint, updated_at=excluded.updated_at", req.ClientID, secretEnc, req.UID, req.Endpoint, time.Now().Unix())
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration")
-				return
-			}
-		}
-		h.mu.Lock()
-		if h.client == nil {
-			h.client = testClient
-		} else {
-			h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
-		}
-		h.mu.Unlock()
 	}
-
+	h.mu.Lock()
+	h.client = testClient
+	h.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"enabled": enabled,
@@ -382,25 +323,21 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
 		return
 	}
-
 	if h.pluginManager != nil {
-		if err := h.deleteManagedOpenAPIConfig(r.Context()); err != nil {
-			slog.Error("tuya cloud: could not remove OpenAPI plugin configuration", "error", err)
-			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove Tuya OpenAPI configuration")
+		if err := h.removeManagedOpenAPIConfig(r.Context()); err != nil {
+			slog.Error("tuya cloud: managed configuration removal failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove Tuya OpenAPI credentials")
 			return
 		}
-		if err := h.deleteLegacyConfigRow(r.Context()); err != nil {
-			slog.Error("tuya cloud: could not remove superseded legacy OpenAPI configuration", "error", err)
-			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove legacy Tuya configuration")
-			return
+		if err := h.dropLegacyOpenAPIConfigTable(r.Context()); err != nil {
+			slog.Warn("tuya cloud: OpenAPI config removed but retired legacy table could not be removed", "error", err)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
-			"message": "Credenziali Tuya OpenAPI rimosse; gli account Smart Life OAuth restano collegati",
+			"message": "Credenziali Tuya OpenAPI rimosse; account Smart Life OAuth conservati",
 		})
 		return
 	}
-
 	if h.db != nil {
 		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM tuya_cloud_config WHERE id='default'"); err != nil {
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove configuration")

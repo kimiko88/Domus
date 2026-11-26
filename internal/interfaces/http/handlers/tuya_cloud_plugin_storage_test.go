@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,221 +10,247 @@ import (
 	"testing"
 	"time"
 
-	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
-	"github.com/go-chi/chi/v5"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/user"
+	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/domus-hub/domus/internal/infrastructure/config"
+	"github.com/domus-hub/domus/internal/infrastructure/crypto"
+	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 )
 
-// managedTuyaAdminRequest attaches the same identity populated by session auth.
-func managedTuyaAdminRequest(method, path, body string) *http.Request {
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	return req.WithContext(domusmw.WithUser(req.Context(), &user.User{
-		ID: "tuya-admin-1", Username: "admin", Role: user.RoleAdmin, Enabled: true,
-	}))
+func newTuyaCloudOptionRuntime(t *testing.T) (context.Context, *sql.DB, *crypto.EnvelopeCipher, *apppluginruntime.Manager) {
+	t.Helper()
+	ctx := context.Background()
+	db, err := sqlite.Open(config.DatabaseConfig{
+		Path: ":memory:", WALMode: false, BusyTimeoutMs: 1000, MaxOpenConns: 1,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	require.NoError(t, sqlite.Migrate(ctx, db))
+	cipher, err := crypto.NewEnvelopeCipher([]byte("phase3-tuya-option-handler-test-master-key"))
+	require.NoError(t, err)
+	repos := sqlite.NewRepositories(db)
+	repos.Cipher = cipher
+	manager, err := apppluginruntime.NewManager(repos, nil)
+	require.NoError(t, err)
+	return ctx, db, cipher, manager
 }
 
-func TestTuyaCloudWithStorageMigratesLegacyConfigIntoPluginManager(t *testing.T) {
-	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
-	ctx := context.Background()
+func tuyaAdminRequest(method, path, body string) *http.Request {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	admin := &user.User{ID: "tuya-test-admin", Username: "admin", Role: user.RoleAdmin, Enabled: true}
+	return req.WithContext(domusmw.WithUser(req.Context(), admin))
+}
 
-	_, err := db.Exec(`CREATE TABLE tuya_cloud_config (
-		id TEXT PRIMARY KEY, client_id TEXT NOT NULL, secret_enc TEXT NOT NULL,
-		uid TEXT NOT NULL, endpoint TEXT NOT NULL, updated_at INTEGER NOT NULL
-	)`)
+func TestTuyaCloudOptionFlowMigratesLegacyConfigAndPreservesOAuthState(t *testing.T) {
+	ctx, db, cipher, manager := newTuyaCloudOptionRuntime(t)
+
+	_, err := db.ExecContext(ctx, `
+		CREATE TABLE tuya_cloud_config (
+			id TEXT PRIMARY KEY,
+			client_id TEXT NOT NULL,
+			secret_enc TEXT NOT NULL,
+			uid TEXT NOT NULL,
+			endpoint TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`)
 	require.NoError(t, err)
-	const clientID = "legacy-openapi-client"
-	const secret = "legacy-openapi-secret-not-plaintext"
-	secretEnc, err := cipher.Encrypt(secret)
+	legacySecret := "legacy-openapi-secret-must-be-encrypted"
+	secretEncrypted, err := cipher.Encrypt(legacySecret)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx,
 		"INSERT INTO tuya_cloud_config(id,client_id,secret_enc,uid,endpoint,updated_at) VALUES('default',?,?,?,?,?)",
-		clientID, secretEnc, "legacy-smart-life-uid", "https://openapi.tuyaeu.com", time.Now().Unix(),
+		"legacy-openapi-client", secretEncrypted, "eu-smart-life-user", "https://openapi.tuyaeu.com", time.Now().Unix(),
 	)
 	require.NoError(t, err)
 
-	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
-	stored, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
+	// Existing OAuth-only instance already contains a token; legacy migration
+	// must merge OpenAPI credentials rather than replacing its hidden fields.
+	initial := json.RawMessage(`{
+		"base_url":"https://openapi.tuyaeu.com",
+		"oauth_client_id":"smart-life-app-client",
+		"oauth_secret":"smart-life-app-secret",
+		"oauth_identifier":"domus.tuya.test",
+		"smart_life_oauth":{"admin":{"uid":"smart-life-uid","access_token":"oauth-access","refresh_token":"oauth-refresh","expires_at":2000000000}}
+	}`)
+	_, err = manager.Create(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud", initial, true)
 	require.NoError(t, err)
-	var config map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(stored, &config))
-	var gotClientID, gotSecret, gotUID string
-	require.NoError(t, json.Unmarshal(config["client_id"], &gotClientID))
-	require.NoError(t, json.Unmarshal(config["secret"], &gotSecret))
-	require.NoError(t, json.Unmarshal(config["uid"], &gotUID))
-	require.Equal(t, clientID, gotClientID)
-	require.Equal(t, secret, gotSecret)
-	require.Equal(t, "legacy-smart-life-uid", gotUID)
+	require.NoError(t, manager.Start(ctx))
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
 
-	var rows int
-	require.NoError(t, db.QueryRow("SELECT count(*) FROM tuya_cloud_config WHERE id='default'").Scan(&rows))
-	require.Zero(t, rows, "legacy row must be deleted only after encrypted Plugin Manager persistence succeeds")
+	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+	provider := handler.getClient()
+	require.NotNil(t, provider)
+	require.Equal(t, "legacy-openapi-client", provider.Config().ClientID)
+	require.Equal(t, legacySecret, provider.Config().Secret)
+	require.Equal(t, "eu-smart-life-user", provider.Config().UID)
+
+	var legacyTableCount int
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&legacyTableCount))
+	require.Zero(t, legacyTableCount, "legacy table is removed only after a successful encrypted migration")
+
+	configJSON, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
+	require.NoError(t, err)
+	var stored map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(configJSON, &stored))
+	require.Equal(t, legacySecret, readRawJSONString(stored, "secret"))
+	require.Equal(t, "legacy-openapi-client", readRawJSONString(stored, "client_id"))
+	require.Contains(t, string(stored["smart_life_oauth"]), "oauth-access")
+	require.Equal(t, "smart-life-app-client", readRawJSONString(stored, "oauth_client_id"))
+	require.Contains(t, string(configJSON), legacySecret, "trusted application-layer config access should decrypt the persisted secret")
 
 	var encrypted []byte
-	require.NoError(t, db.QueryRow("SELECT config_encrypted FROM integrations WHERE id=?", tuya_cloud.PluginType).Scan(&encrypted))
-	require.NotContains(t, string(encrypted), secret, "the persisted integration blob must not contain the plaintext secret")
-	require.NotNil(t, handler.getClient(), "handler must be rebound to the manager-owned adapter after migration")
-	require.Equal(t, clientID, handler.getClient().Config().ClientID)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT config_encrypted FROM integrations WHERE id=?", tuya_cloud.PluginType,
+	).Scan(&encrypted))
+	require.NotContains(t, string(encrypted), legacySecret)
+	require.NotContains(t, string(encrypted), "oauth-access")
+
+	get := httptest.NewRecorder()
+	handler.GetConfig(get, httptest.NewRequest(http.MethodGet, "/config", nil))
+	require.Equal(t, http.StatusOK, get.Code)
+	require.Contains(t, get.Body.String(), `"source":"plugin_manager"`)
+	require.Contains(t, get.Body.String(), "legacy-openapi-client")
+	require.NotContains(t, get.Body.String(), legacySecret)
 }
 
-func TestTuyaCloudManagedGetConfigDoesNotExposeSecret(t *testing.T) {
-	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
-	ctx := context.Background()
-	raw, err := json.Marshal(map[string]any{
-		"client_id": "configured-client-id",
-		"secret": "must-never-be-returned",
-		"base_url": "https://openapi.tuyaeu.com",
-		"uid": "smart-life-uid",
-	})
+func TestTuyaCloudOptionFlowSaveAndDeleteOnlyOpenAPISettings(t *testing.T) {
+	ctx, db, cipher, manager := newTuyaCloudOptionRuntime(t)
+	_, err := manager.Create(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud", json.RawMessage(`{
+		"base_url":"https://openapi.tuyaeu.com",
+		"oauth_client_id":"app-client",
+		"oauth_secret":"app-secret",
+		"oauth_identifier":"domus.test",
+		"smart_life_oauth":{"admin":{"uid":"oauth-user","access_token":"keep-access","refresh_token":"keep-refresh","expires_at":2000000000}}
+	}`), true)
 	require.NoError(t, err)
-	_, err = manager.Create(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud OpenAPI", raw, true)
-	require.NoError(t, err)
+	require.NoError(t, manager.Start(ctx))
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
 
-	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
-	rec := httptest.NewRecorder()
-	handler.GetConfig(rec, httptest.NewRequest(http.MethodGet, "/config", nil))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	var response map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
-	require.Equal(t, true, response["configured"])
-	require.Equal(t, "configured-client-id", response["client_id"])
-	require.Equal(t, "plugin_manager", response["source"])
-	require.NotContains(t, rec.Body.String(), "must-never-be-returned")
-}
-
-func TestTuyaCloudSaveConfigPersistsThroughPluginManager(t *testing.T) {
-	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
 	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
 	router := chi.NewRouter()
 	handler.RegisterRoutes(router)
-	request := managedTuyaAdminRequest(http.MethodPut, "/config", `{
+	save := httptest.NewRecorder()
+	router.ServeHTTP(save, tuyaAdminRequest(http.MethodPut, "/config", `{
 		"client_id":"new-openapi-client",
 		"client_secret":"new-openapi-secret",
-		"uid":"new-smart-life-uid",
+		"uid":"eu-new-user",
 		"endpoint":"https://openapi.tuyaeu.com"
-	}`)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, request)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}`))
+	require.Equal(t, http.StatusOK, save.Code, save.Body.String())
+	require.NotContains(t, save.Body.String(), "new-openapi-secret")
+	require.NotNil(t, handler.getClient())
+	require.Equal(t, "new-openapi-client", handler.getClient().Config().ClientID)
 
-	stored, err := manager.GetConfig(context.Background(), tuya_cloud.PluginType)
+	afterSave, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
 	require.NoError(t, err)
-	var config map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(stored, &config))
-	var clientID, secret, uid string
-	require.NoError(t, json.Unmarshal(config["client_id"], &clientID))
-	require.NoError(t, json.Unmarshal(config["secret"], &secret))
-	require.NoError(t, json.Unmarshal(config["uid"], &uid))
-	require.Equal(t, "new-openapi-client", clientID)
-	require.Equal(t, "new-openapi-secret", secret)
-	require.Equal(t, "new-smart-life-uid", uid)
-	require.NotContains(t, rec.Body.String(), secret)
+	var saved map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(afterSave, &saved))
+	require.Contains(t, string(saved["smart_life_oauth"]), "keep-access")
+	require.Equal(t, "app-client", readRawJSONString(saved, "oauth_client_id"))
+	require.Equal(t, "new-openapi-client", readRawJSONString(saved, "client_id"))
+
+	deleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(deleteResponse, tuyaAdminRequest(http.MethodDelete, "/config", ""))
+	require.Equal(t, http.StatusOK, deleteResponse.Code, deleteResponse.Body.String())
+	require.Contains(t, deleteResponse.Body.String(), "OAuth")
+	require.NotNil(t, handler.getClient(), "OAuth-only Tuya instance remains managed after OpenAPI credentials are removed")
+	require.Empty(t, handler.getClient().Config().ClientID)
+	require.Empty(t, handler.getClient().Config().Secret)
+
+	afterDelete, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
+	require.NoError(t, err)
+	var remaining map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(afterDelete, &remaining))
+	require.NotContains(t, remaining, "client_id")
+	require.NotContains(t, remaining, "secret")
+	require.Contains(t, string(remaining["smart_life_oauth"]), "keep-access")
+	require.Equal(t, "app-client", readRawJSONString(remaining, "oauth_client_id"))
+
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+	require.Equal(t, tuya_cloud.PluginType, instances[0].Type)
+
+	get := httptest.NewRecorder()
+	handler.GetConfig(get, httptest.NewRequest(http.MethodGet, "/config", nil))
+	require.Equal(t, http.StatusOK, get.Code)
+	require.Contains(t, get.Body.String(), `"configured":false`)
+}
+
+func TestTuyaCloudOptionFlowCreatesManagedInstanceOnFreshInstall(t *testing.T) {
+	ctx, db, cipher, manager := newTuyaCloudOptionRuntime(t)
+	require.NoError(t, manager.Start(ctx))
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
+	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+
+	response := httptest.NewRecorder()
+	handler.SaveConfig(response, tuyaAdminRequest(http.MethodPost, "/config", `{
+		"client_id":"fresh-client",
+		"client_secret":"fresh-secret",
+		"endpoint":"https://openapi.tuyaeu.com"
+	}`))
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Len(t, instances, 1)
+	require.Equal(t, tuya_cloud.PluginType, instances[0].Type)
 
 	var legacyTableCount int
-	require.NoError(t, db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'").Scan(&legacyTableCount))
-	require.Zero(t, legacyTableCount, "managed installations must not create the legacy configuration table")
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&legacyTableCount))
+	require.Zero(t, legacyTableCount, "new installations must not recreate the legacy config table")
 }
 
-func TestTuyaCloudSaveConfigPreservesInternalOAuthAndUnexposedSchema(t *testing.T) {
-	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
-	ctx := context.Background()
-	seed := map[string]any{
-		"client_id": "old-openapi-client",
-		"secret": "old-openapi-secret",
-		"base_url": "https://openapi.tuyaeu.com",
-		"uid": "old-uid",
-		"schema": "tuya-project-schema",
-		"oauth_client_id": "app-authorization-id",
-		"oauth_secret": "app-authorization-secret",
-		"oauth_identifier": "domus.test",
-		"smart_life_oauth": map[string]any{
-			"admin-one": map[string]any{
-				"uid": "oauth-uid", "access_token": "access-token-preserved",
-				"refresh_token": "refresh-token-preserved", "expires_at": time.Now().Add(time.Hour).Unix(),
-			},
-		},
-	}
-	raw, err := json.Marshal(seed)
-	require.NoError(t, err)
-	_, err = manager.Create(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud OpenAPI", raw, true)
-	require.NoError(t, err)
 
+func TestTuyaCloudLegacyMigrationKeepsOldTableWhenDecryptionFails(t *testing.T) {
+	ctx, db, cipher, manager := newTuyaCloudOptionRuntime(t)
+	_, err := db.ExecContext(ctx, `
+		CREATE TABLE tuya_cloud_config (
+			id TEXT PRIMARY KEY,
+			client_id TEXT NOT NULL,
+			secret_enc TEXT NOT NULL,
+			uid TEXT NOT NULL,
+			endpoint TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO tuya_cloud_config(id,client_id,secret_enc,uid,endpoint,updated_at) VALUES('default',?,?,?,?,?)",
+		"legacy-client", "ENC:v1:not-valid-base64!!!", "legacy-uid", "https://openapi.tuyaeu.com", time.Now().Unix(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, manager.Start(ctx))
+	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
+
+	_ = NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+	var tableCount, rowCount int
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&tableCount))
+	require.Equal(t, 1, tableCount, "failed decryption must not delete the only legacy copy")
+	require.NoError(t, db.QueryRowContext(ctx, "SELECT count(*) FROM tuya_cloud_config").Scan(&rowCount))
+	require.Equal(t, 1, rowCount)
+	instances, err := manager.ListInstances(ctx)
+	require.NoError(t, err)
+	require.Empty(t, instances, "failed migration must not create a partial Plugin Manager instance")
+
+	// An administrator can replace a corrupt legacy value. Only after that
+	// successful encrypted save may the obsolete table be removed.
 	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
-	request := managedTuyaAdminRequest(http.MethodPost, "/config", `{
-		"client_id":"replacement-client",
-		"client_secret":"replacement-secret",
-		"uid":"",
-		"endpoint":"https://openapi.tuyaeu.com"
-	}`)
-	rec := httptest.NewRecorder()
-	handler.SaveConfig(rec, request)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	stored, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
-	require.NoError(t, err)
-	var after map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(stored, &after))
-	var schema, oauthClientID, oauthSecret, oauthIdentifier string
-	require.NoError(t, json.Unmarshal(after["schema"], &schema))
-	require.NoError(t, json.Unmarshal(after["oauth_client_id"], &oauthClientID))
-	require.NoError(t, json.Unmarshal(after["oauth_secret"], &oauthSecret))
-	require.NoError(t, json.Unmarshal(after["oauth_identifier"], &oauthIdentifier))
-	require.Equal(t, "tuya-project-schema", schema)
-	require.Equal(t, "app-authorization-id", oauthClientID)
-	require.Equal(t, "app-authorization-secret", oauthSecret)
-	require.Equal(t, "domus.test", oauthIdentifier)
-	require.Contains(t, string(after["smart_life_oauth"]), "access-token-preserved")
-	require.NotContains(t, rec.Body.String(), "replacement-secret")
-}
-
-func TestTuyaCloudDeleteConfigRemovesOnlyOpenAPICredentialsAndKeepsOAuth(t *testing.T) {
-	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
-	ctx := context.Background()
-	seed := map[string]any{
-		"client_id": "openapi-client-to-delete",
-		"secret": "openapi-secret-to-delete",
-		"base_url": "https://openapi.tuyaeu.com",
-		"uid": "openapi-uid-to-delete",
-		"schema": "openapi-schema-to-delete",
-		"oauth_client_id": "app-authorization-id",
-		"oauth_secret": "app-authorization-secret",
-		"oauth_identifier": "domus.test",
-		"smart_life_oauth": map[string]any{
-			"admin-one": map[string]any{
-				"uid": "oauth-uid", "access_token": "access-token-preserved",
-				"refresh_token": "refresh-token-preserved", "expires_at": time.Now().Add(time.Hour).Unix(),
-			},
-		},
-	}
-	raw, err := json.Marshal(seed)
-	require.NoError(t, err)
-	_, err = manager.Create(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, "Tuya Cloud OpenAPI", raw, true)
-	require.NoError(t, err)
-	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
-
-	rec := httptest.NewRecorder()
-	handler.DeleteConfig(rec, managedTuyaAdminRequest(http.MethodDelete, "/config", ""))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	stored, err := manager.GetConfig(ctx, tuya_cloud.PluginType)
-	require.NoError(t, err)
-	var after map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal(stored, &after))
-	for _, key := range []string{"client_id", "secret", "uid", "schema"} {
-		require.Empty(t, after[key], "OpenAPI setting %q should be removed", key)
-	}
-	require.Contains(t, string(after["smart_life_oauth"]), "access-token-preserved")
-	require.Contains(t, string(after["smart_life_oauth"]), "refresh-token-preserved")
-	require.Equal(t, "app-authorization-id", strings.Trim(string(after["oauth_client_id"]), `"`))
-	require.NotContains(t, rec.Body.String(), "app-authorization-secret")
-
-	instance, config, err := handler.managedTuyaInstance(ctx)
-	require.NoError(t, err)
-	require.True(t, instance.Enabled)
-	require.Contains(t, string(config["smart_life_oauth"]), "admin-one")
-	provider := handler.getClient()
-	require.NotNil(t, provider)
-	require.Empty(t, provider.Config().ClientID)
-	require.Empty(t, provider.Config().Secret)
+	save := httptest.NewRecorder()
+	handler.SaveConfig(save, tuyaAdminRequest(http.MethodPut, "/config", `{"client_id":"replacement-client","client_secret":"replacement-secret","endpoint":"https://openapi.tuyaeu.com"}`))
+	require.Equal(t, http.StatusOK, save.Code, save.Body.String())
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&tableCount))
+	require.Zero(t, tableCount, "the corrupt legacy table can be retired after replacement credentials are saved")
 }
