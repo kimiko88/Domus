@@ -156,6 +156,36 @@ describe('Localization (i18n)', () => {
     }
   })
 
+
+  it('contains localized fail-safe energy copy in all six supported languages', () => {
+    const catalogs = [
+      { code: 'it', catalog: itLocale },
+      { code: 'en', catalog: enLocale },
+      { code: 'fr', catalog: frLocale },
+      { code: 'es', catalog: esLocale },
+      { code: 'de', catalog: deLocale },
+      { code: 'ru', catalog: ruLocale }
+    ]
+    const keys = [
+      'tariffEstimateWarning',
+      'loadPowerRequired',
+      'loadPowerLabel',
+      'noPriceLimit'
+    ] as const
+
+    for (const { code, catalog } of catalogs) {
+      for (const key of keys) {
+        const translated = catalog.energy[key]
+        expect(typeof translated, `${code}.energy.${key}`).toBe('string')
+        expect(translated.trim(), `${code}.energy.${key} must not be empty`).not.toBe('')
+        if (code !== 'en') {
+          expect(translated, `${code}.energy.${key} must not fall back to English`)
+            .not.toBe(enLocale.energy[key])
+        }
+      }
+    }
+  })
+
   it('defaults to Italian or saved language', () => {
     expect(i18n.global.locale.value).toBe('it')
   })
