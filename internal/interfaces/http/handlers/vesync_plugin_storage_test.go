@@ -147,6 +147,9 @@ func TestVeSyncManagedSessionCreateDisconnectAndReconnect(t *testing.T) {
 	var managedValues map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(managedConfig, &managedValues))
 	require.JSONEq(t, `"12s"`, string(managedValues["http_timeout"]))
+	var storedRotated vesyncStoredConfig
+	require.NoError(t, json.Unmarshal(managedConfig, &storedRotated))
+	require.Equal(t, rotatedSession, storedRotated.Session)
 	currentClient, err := f.handler.clientForRequest(context.Background(), false)
 	require.NoError(t, err, "handler must resolve the current adapter after config replacement")
 	require.NotNil(t, currentClient)
