@@ -83,7 +83,7 @@ I 4 parametri possono essere inseriti comodamente dall'interfaccia web di Domus 
 Tutte le rotte richiedono ruolo amministratore:
 
 - `GET /api/v1/integrations/tuya-cloud/config` — stato della configurazione attuale.
-- `POST /api/v1/integrations/tuya-cloud/config` — salva e valida le credenziali Server-to-Server con cifratura master key.
+- `PUT /api/v1/integrations/tuya-cloud/config` — salva e valida le credenziali Server-to-Server nella configurazione cifrata del Plugin Manager. `POST` resta alias di compatibilità per vecchie versioni del frontend.
 - `DELETE /api/v1/integrations/tuya-cloud/config` — rimuove la configurazione attiva.
 - `GET /api/v1/integrations/tuya-cloud/devices` — elenca i dispositivi associati all'UID con flag di stato locale (`local_configured`, `local_active`, `local_ip`).
 - `POST /api/v1/integrations/tuya-cloud/sync-local` — trasferisce automaticamente tutti i dispositivi e le `local_key` al runtime locale `tuya_local`.
