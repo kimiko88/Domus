@@ -52,6 +52,8 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 		"base_url": cfg.BaseURL,
 		"uid": "",
 		"schema": "",
+		"oauth_client_id": cfg.ClientID,
+		"oauth_secret": cfg.Secret,
 		"oauth_identifier": cfg.Identifier,
 	}
 	raw, err := json.Marshal(initial)
@@ -103,7 +105,7 @@ func (h *TuyaOAuthHandler) managedPluginConfig(ctx context.Context, create bool)
 	return instanceID, config, nil
 }
 
-func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, _ string, token tuya_cloud.OAuthToken) error {
+func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, userID string, token tuya_cloud.OAuthToken) error {
 	if token.UID == "" || token.AccessToken == "" || token.RefreshToken == "" {
 		return errors.New("tuya oauth: refusing to persist an incomplete Smart Life token")
 	}
@@ -122,7 +124,21 @@ func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, _ string, toke
 	if err != nil {
 		return fmt.Errorf("tuya oauth: encode Smart Life token: %w", err)
 	}
-	config[smartLifeOAuthConfigKey] = encoded
+	var accounts map[string]json.RawMessage
+	if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
+		if err := json.Unmarshal(raw, &accounts); err != nil {
+			return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+		}
+	}
+	if accounts == nil {
+		accounts = make(map[string]json.RawMessage)
+	}
+	accounts[userID] = encoded
+	accountConfig, err := json.Marshal(accounts)
+	if err != nil {
+		return fmt.Errorf("tuya oauth: encode Smart Life account map: %w", err)
+	}
+	config[smartLifeOAuthConfigKey] = accountConfig
 	updated, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("tuya oauth: encode Tuya plugin configuration: %w", err)
@@ -140,17 +156,23 @@ func (h *TuyaOAuthHandler) loadManagedToken(ctx context.Context, userID string) 
 	}
 	if err == nil {
 		if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
-			var stored storedSmartLifeOAuth
-			if err := json.Unmarshal(raw, &stored); err != nil {
-				return tuya_cloud.OAuthToken{}, 0, fmt.Errorf("tuya oauth: decode stored Smart Life token: %w", err)
+			var accounts map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &accounts); err != nil {
+				return tuya_cloud.OAuthToken{}, 0, fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
 			}
-			if stored.UID != "" && stored.AccessToken != "" && stored.RefreshToken != "" && stored.ExpiresAt > 0 {
-				token := tuya_cloud.OAuthToken{
-					UID: stored.UID, AccessToken: stored.AccessToken,
-					RefreshToken: stored.RefreshToken,
-					ExpireTime: int64(time.Until(time.Unix(stored.ExpiresAt, 0)).Seconds()),
+			if accountRaw := accounts[userID]; len(accountRaw) > 0 {
+				var stored storedSmartLifeOAuth
+				if err := json.Unmarshal(accountRaw, &stored); err != nil {
+					return tuya_cloud.OAuthToken{}, 0, fmt.Errorf("tuya oauth: decode stored Smart Life token: %w", err)
 				}
-				return token, stored.ExpiresAt, nil
+				if stored.UID != "" && stored.AccessToken != "" && stored.RefreshToken != "" && stored.ExpiresAt > 0 {
+					token := tuya_cloud.OAuthToken{
+						UID: stored.UID, AccessToken: stored.AccessToken,
+						RefreshToken: stored.RefreshToken,
+						ExpireTime: int64(time.Until(time.Unix(stored.ExpiresAt, 0)).Seconds()),
+					}
+					return token, stored.ExpiresAt, nil
+				}
 			}
 		}
 	}
@@ -198,7 +220,22 @@ func (h *TuyaOAuthHandler) loadLegacyToken(ctx context.Context, userID string) (
 func (h *TuyaOAuthHandler) clearManagedToken(ctx context.Context, userID string) error {
 	instanceID, config, err := h.managedPluginConfig(ctx, false)
 	if err == nil {
-		delete(config, smartLifeOAuthConfigKey)
+		var accounts map[string]json.RawMessage
+		if raw := config[smartLifeOAuthConfigKey]; len(raw) > 0 {
+			if err := json.Unmarshal(raw, &accounts); err != nil {
+				return fmt.Errorf("tuya oauth: decode Smart Life account map: %w", err)
+			}
+		}
+		delete(accounts, userID)
+		if len(accounts) == 0 {
+			delete(config, smartLifeOAuthConfigKey)
+		} else {
+			encoded, marshalErr := json.Marshal(accounts)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			config[smartLifeOAuthConfigKey] = encoded
+		}
 		updated, marshalErr := json.Marshal(config)
 		if marshalErr != nil {
 			return marshalErr
