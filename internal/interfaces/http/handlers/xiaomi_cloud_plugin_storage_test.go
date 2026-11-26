@@ -19,7 +19,6 @@ import (
 )
 
 type xiaomiCloudPluginFixture struct {
-	db      interface{ Close() error }
 	repos   *sqlite.Repositories
 	cipher  *crypto.EnvelopeCipher
 	manager *apppluginruntime.Manager
@@ -45,7 +44,7 @@ func newXiaomiCloudPluginFixture(t *testing.T) *xiaomiCloudPluginFixture {
 	handler, err := NewXiaomiCloudHandler(repos.Integrations, repos.Devices, repos.Entities, cipher, nil)
 	require.NoError(t, err)
 	handler.WithPluginManager(manager)
-	return &xiaomiCloudPluginFixture{db: db, repos: repos, cipher: cipher, manager: manager, handler: handler}
+	return &xiaomiCloudPluginFixture{repos: repos, cipher: cipher, manager: manager, handler: handler}
 }
 
 func seedXiaomiCloudPluginRecord(t *testing.T, f *xiaomiCloudPluginFixture) *xiaomiCloudConfig {
