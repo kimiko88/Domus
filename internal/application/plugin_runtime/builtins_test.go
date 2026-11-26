@@ -30,7 +30,7 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 		require.False(t, internalTypes[want], "%s must remain user-configurable", want)
 	}
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "zwave_js", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
-	for _, want := range []string{"matter", "open_display", "tuya_cloud", "imou_life"} { require.False(t, multi[want], "%s must remain single-instance", want) }
+	for _, want := range []string{"matter", "open_display", "tuya_cloud", "xiaomi_home_cloud", "imou_life"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
