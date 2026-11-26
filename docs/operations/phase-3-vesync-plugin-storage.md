@@ -7,7 +7,7 @@
 - Il formato cifrato storico resta \`{"session": {...}}\`; l'istanza viene ripristinata automaticamente dal Plugin Manager all'avvio.
 - Non è richiesta una migrazione SQL o la cancellazione/ricreazione dell'integrazione esistente.
 
-La password VeSync è un input transitorio del flusso HTTP di login. Non viene conservata in chiaro né cifrata nel database: dopo il login Domus conserva solo il token cloud, l'account ID e i metadati di paese/regione/fuso orario.
+La password VeSync è un input transitorio del flusso HTTP di login. Non viene conservata in chiaro né cifrata nel database: dopo il login Domus conserva solo il token cloud, l'account ID e i metadati di paese/regione/fuso orario. L'attuale API VeSync integrata non restituisce un refresh token separato né espone un endpoint di refresh documentato; quando il provider rifiuta una sessione scaduta/revocata, l'utente deve riconnettere l'account. Domus non simula né inventa un refresh token.
 
 ## Schema del plugin
 
