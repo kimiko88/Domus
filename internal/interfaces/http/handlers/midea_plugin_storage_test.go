@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"strconv"
 	"testing"
 	"time"
 
@@ -54,7 +55,8 @@ func mideaPluginTestDevice(id, host string, protocol midea.Protocol) midea.A1LAN
 		Model: "MDDF16WF", TypeCode: "A1", Kind: midea.KindDehumidifier,
 		Protocol: protocol, Host: host, Port: 6444,
 	}
-	config := midea.A1LANConfig{Device: device, ApplianceID: 123456789, MessageVersion: 3}
+	applianceID, _ := strconv.ParseUint(id, 10, 64)
+	config := midea.A1LANConfig{Device: device, ApplianceID: applianceID, MessageVersion: 3}
 	if protocol == midea.ProtocolMSmartV3 {
 		config.TokenHex = strings.Repeat("a", 128)
 		config.KeyHex = strings.Repeat("b", 64)
