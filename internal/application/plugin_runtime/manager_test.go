@@ -172,13 +172,35 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		visible[manifest.ID] = true
 		require.False(t, manifest.Internal, "internal transport %s must not be visible", manifest.ID)
 	}
-	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter"} {
+	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud"} {
 		require.True(t, visible[publicType], "public integration type %s should be visible", publicType)
 	}
-	for _, internalType := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "xiaomi_open_platform_transport", "midea_a1_protocol"} {
+	for _, internalType := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.False(t, visible[internalType], "internal transport %s must be hidden", internalType)
 		_, err := manager.Create(context.Background(), "internal_"+internalType, internalType, "hidden", json.RawMessage(`{}`), false)
 		require.ErrorIs(t, err, ErrInternalPlugin)
+	}
+}
+
+
+func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	var manifest *plugins.Manifest
+	for _, item := range manager.ListTypes() {
+		if item.ID == "xiaomi_home_cloud" {
+			copy := item
+			manifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, manifest, "Xiaomi Home Cloud should be a visible plugin type")
+	encoded, err := json.Marshal(manifest)
+	require.NoError(t, err)
+	for _, publicField := range []string{"client_id", "client_secret", "region", "public_base_url"} {
+		require.Contains(t, string(encoded), `"name":"`+publicField+`"`)
+	}
+	for _, secretField := range []string{"callback_secret", "event_secret", "oauth_state", "access_token", "refresh_token", "mac_key", "user_id"} {
+		require.NotContains(t, string(encoded), `"name":"`+secretField+`"`)
 	}
 }
 
