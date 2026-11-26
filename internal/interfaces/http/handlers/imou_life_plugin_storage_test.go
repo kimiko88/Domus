@@ -215,7 +215,7 @@ func TestImouManagedTokenRotationReplacesAdapterAndDisconnectKeepsProjectSetting
 	require.True(t, after.PushEnabled)
 	require.Empty(t, after.AccessToken)
 	require.Empty(t, after.RefreshToken)
-	require.Empty(t, after.ExpiresAt)
+	require.True(t, after.ExpiresAt.IsZero())
 	require.Equal(t, "At_rotated-administrator-token", after.AdminAccessToken,
 		"disconnecting the delegated user account must not erase the separate project token")
 	require.NotEmpty(t, after.AdminExpiresAt)
