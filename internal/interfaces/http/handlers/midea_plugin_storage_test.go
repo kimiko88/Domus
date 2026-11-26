@@ -84,6 +84,7 @@ func TestMideaPluginManagerRestoresEncryptedLegacyDeviceConfiguration(t *testing
 	handler, err := NewMideaHandler(f.repos.Integrations, f.cipher, f.repos.Devices, f.repos.Entities)
 	require.NoError(t, err)
 	handler.WithPluginManager(f.manager)
+	require.Empty(t, handler.adapter.ListDevices(), "attaching Plugin Manager must discard the unmanaged constructor adapter")
 	require.NoError(t, f.manager.Start(ctx))
 	adapter, ok := f.manager.GetAdapter(midea.IntegrationID)
 	require.True(t, ok)
@@ -116,6 +117,9 @@ func TestMideaPluginManagerRestoresEncryptedLegacyDeviceConfiguration(t *testing
 		}
 	}
 	require.Len(t, handler.adapter.ListDevices(), 1)
+	require.NotNil(t, handler.adapterSnapshot(), "enabled managed instance must be used for requests")
+	require.NoError(t, f.manager.SetEnabled(ctx, midea.IntegrationID, false))
+	require.Nil(t, handler.adapterSnapshot(), "disabling the managed instance must not fall back to an unmanaged adapter")
 }
 
 func newMideaPluginFixtureWithoutStart(t *testing.T) *mideaPluginFixture {
