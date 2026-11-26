@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"github.com/domus-hub/domus/internal/domain/device"
 	"github.com/domus-hub/domus/internal/domain/entity"
 	"github.com/domus-hub/domus/internal/domain/events"
@@ -27,10 +28,11 @@ import (
 	"github.com/google/uuid"
 )
 
-const xiaomiCloudIntegrationID = "integration_xiaomi_home_cloud"
+const xiaomiCloudIntegrationID = xiaomi_home.CloudIntegrationID
 
 type XiaomiCloudHandler struct {
 	provider *xiaomi_home.CloudAdapter
+	pluginManager *apppluginruntime.Manager
 	integrations integration.Repository
 	devices device.Repository
 	entities entity.Repository
@@ -80,6 +82,13 @@ func NewXiaomiCloudHandler(integrations integration.Repository, devices device.R
 
 
  // WithPluginAdapter binds the Xiaomi Open Platform transport to the plugin runtime.
+// WithPluginManager makes the persisted integration instance the source of truth
+// for OAuth credentials and resolves the current supervised adapter on demand.
+func (h *XiaomiCloudHandler) WithPluginManager(manager *apppluginruntime.Manager) *XiaomiCloudHandler {
+	h.pluginManager = manager
+	return h
+}
+
 func (h *XiaomiCloudHandler) WithPluginAdapter(adapter *xiaomi_home.CloudAdapter) error {
 	if adapter == nil { return errors.New("xiaomi: cloud plugin runtime adapter is required") }
 	if err := adapter.HealthCheck(context.Background()); err != nil { return err }
@@ -135,7 +144,11 @@ func (h *XiaomiCloudHandler) Configure(w http.ResponseWriter, r *http.Request) {
 		EventSecret: hex.EncodeToString(eventSecret[:]),
 	}
 	config.RedirectURL = config.PublicBaseURL + "/api/v1/integrations/xiaomi-home/cloud/callback/" + config.CallbackSecret
-	if _, err := h.newClient(&config); err != nil {
+	wire := xiaomi_home.CloudConfig{
+		ClientID: config.ClientID, ClientSecret: config.ClientSecret,
+		RedirectURL: config.RedirectURL, Region: config.Region,
+	}
+	if _, err := xiaomi_home.NewCloudClient(wire, nil); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_CONFIG", "Invalid Xiaomi Open Platform app ID, secret or region")
 		return
 	}
@@ -787,6 +800,10 @@ func (h *XiaomiCloudHandler) ensureFreshToken(ctx context.Context) (*xiaomiCloud
 		config.AccessToken, config.RefreshToken = token.AccessToken, token.RefreshToken
 		config.MacKey, config.MacAlgorithm, config.ExpiresAt = token.MacKey, token.MacAlgorithm, token.ExpiresAt
 		if err := h.saveConfig(ctx, *config, "connected"); err != nil { return nil, nil, err }
+		// The encrypted update may replace the supervised adapter. Resolve a
+		// client from the current instance rather than returning the old transport.
+		client, err = h.newClient(config)
+		if err != nil { return nil, nil, err }
 	}
 	return config, client, nil
 }
@@ -803,6 +820,17 @@ func (h *XiaomiCloudHandler) newClient(config *xiaomiCloudConfig) (*xiaomi_home.
 		ClientID: config.ClientID, ClientSecret: config.ClientSecret,
 		RedirectURL: config.RedirectURL, Region: config.Region,
 	}
+	if h.pluginManager != nil {
+		adapter, ok := h.pluginManager.GetAdapter(xiaomiCloudIntegrationID)
+		if !ok {
+			return nil, errors.New("xiaomi: managed cloud plugin instance is not enabled or prepared")
+		}
+		provider, ok := adapter.(*xiaomi_home.CloudAdapter)
+		if !ok {
+			return nil, errors.New("xiaomi: managed cloud plugin instance has an unexpected adapter type")
+		}
+		return provider.NewClient(wire)
+	}
 	if h.provider != nil {
 		return h.provider.NewClient(wire)
 	}
@@ -810,6 +838,9 @@ func (h *XiaomiCloudHandler) newClient(config *xiaomiCloudConfig) (*xiaomi_home.
 }
 
 func (h *XiaomiCloudHandler) loadConfig(ctx context.Context) (*xiaomiCloudConfig, error) {
+	if h.pluginManager != nil {
+		return h.loadManagedConfig(ctx)
+	}
 	record, err := h.integrations.GetByID(ctx, xiaomiCloudIntegrationID)
 	if err != nil { return nil, err }
 	plain, err := h.cipher.Decrypt(string(record.ConfigEncrypted))
@@ -820,6 +851,9 @@ func (h *XiaomiCloudHandler) loadConfig(ctx context.Context) (*xiaomiCloudConfig
 }
 
 func (h *XiaomiCloudHandler) saveConfig(ctx context.Context, config xiaomiCloudConfig, status string) error {
+	if h.pluginManager != nil {
+		return h.saveManagedConfig(ctx, config, status)
+	}
 	encoded, err := json.Marshal(config)
 	if err != nil { return err }
 	encrypted, err := h.cipher.Encrypt(string(encoded))
