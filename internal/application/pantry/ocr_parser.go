@@ -45,7 +45,13 @@ var (
 	dateRegex = regexp.MustCompile(`\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b`)
 
 	// Matches price patterns like 1,29, 12.50, 4.99€, etc.
-	priceRegex = regexp.MustCompile(`(?i)(\d+[.,]\d{2})\s*(?:€|eur)?$`)
+	// Italian thousands separators, ungrouped prices and US notation.
+	receiptMoneyPattern = "(?:[0-9]{1,3}(?:[. ][0-9]{3})+|[0-9]+),[0-9]{2}|(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\\.[0-9]{2}|[0-9]+[.,][0-9]{2}"
+	priceRegex = regexp.MustCompile("(?i)(" + receiptMoneyPattern + ")\\s*(?:€|eur)?$")
+	receiptAmountRegex = regexp.MustCompile(receiptMoneyPattern)
+	strongTotalLabelRegex = regexp.MustCompile("(?i)\\b(?:totale\\s+(?:complessivo|da\\s+pagare|documento|fattura)|importo\\s+(?:pagato|da\\s+pagare)|da\\s+pagare)\\b")
+	totalLabelRegex = regexp.MustCompile("(?i)\\btotale\\b")
+	currencyTotalLabelRegex = regexp.MustCompile("(?i)\\b(?:euro|tot)\\b")
 
 	// Quantity patterns
 	weightGramRegex = regexp.MustCompile(`(?i)\b(\d+)\s*(?:g|gr)\b`)
@@ -55,9 +61,8 @@ var (
 	packMultiRegex  = regexp.MustCompile(`(?i)\b(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s*(l|kg|g|ml)\b`)
 	pieceCountRegex = regexp.MustCompile(`(?i)(?:\b(\d+)\s*(?:pz|pezzi|conf)\b|\b(?:pz|pezzi|conf)\s*(\d+)\b)`)
 
-	totalLineRegex = regexp.MustCompile(`(?i)(?:totale\s*complessivo|totale\s*euro|totale|importo\s*pagato|euro|tot)\s*[:=]?\s*(\d+[.,]\d{2})`)
 
-	skipLineRegex = regexp.MustCompile(`(?i)(?:scontrino|fiscale|documento\s*commerciale|p\.?\s*iva|partita\s*iva|cassa|operatore|subtotale|resto|contanti|carta|bancomat|pos|grazie|arrivederci|via\b|tel\b|codice|punti|sconto)`)
+	skipLineRegex = regexp.MustCompile("(?i)(?:scontrino|fiscale|documento\\s*commerciale|p\\.?\\s*iva|partita\\s*iva|\\bcassa\\b|operatore|subtotale|resto|contanti|carta\\s+(?:di\\s+credito|credito|pagamento)|bancomat|\\bpos\\b|grazie|arrivederci|via\\b|tel\\b|codice|punti|sconto)")
 )
 
 // ParseText analyzes receipt plain text and extracts a structured Receipt.
@@ -116,17 +121,18 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 
 	// 3. Scan lines for products and total
 	var totalFromExplicitLine float64
+	var totalPriority int
 	for _, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
 			continue
 		}
 
-		// Check for Total line
-		if tm := totalLineRegex.FindStringSubmatch(line); len(tm) == 2 {
-			priceStr := strings.ReplaceAll(tm[1], ",", ".")
-			if val, err := strconv.ParseFloat(priceStr, 64); err == nil && val > totalFromExplicitLine {
-				totalFromExplicitLine = val
+		// Resolve an explicit total before parsing line items.
+		if amount, priority, ok := parseReceiptTotal(line); ok {
+			if priority >= totalPriority {
+				totalFromExplicitLine = amount
+				totalPriority = priority
 			}
 			continue
 		}
@@ -142,9 +148,8 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 			continue
 		}
 
-		priceStr := strings.ReplaceAll(pm[1], ",", ".")
-		priceVal, err := strconv.ParseFloat(priceStr, 64)
-		if err != nil || priceVal <= 0 || priceVal > 500 {
+		priceVal, err := parseReceiptMoney(pm[1])
+		if err != nil || priceVal <= 0 || priceVal > 1_000_000 {
 			continue
 		}
 
@@ -181,16 +186,19 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 		receipt.TotalAmount = math.Round(sum*100) / 100
 	}
 
-	// 5. Confidence score
+	// 5. Penalize a total that is inconsistent with extracted item lines.
 	score := 0.4
-	if receipt.StoreName != "Supermercato" {
-		score += 0.2
-	}
-	if len(receipt.Items) > 0 {
-		score += 0.2
-	}
+	if receipt.StoreName != "Supermercato" { score += 0.2 }
+	if len(receipt.Items) > 0 { score += 0.2 }
 	if totalFromExplicitLine > 0 {
-		score += 0.2
+		if len(receipt.Items) == 0 {
+			score += 0.05
+		} else {
+			var itemSum float64
+			for _, item := range receipt.Items { itemSum += item.TotalPrice }
+			tolerance := math.Max(0.10, receipt.TotalAmount*0.03)
+			if math.Abs(itemSum-receipt.TotalAmount) <= tolerance { score += 0.2 } else { score += 0.05 }
+		}
 	}
 	receipt.Confidence = math.Min(1.0, score)
 
@@ -205,13 +213,48 @@ func cleanItemName(raw string) string {
 
 func formatItemTitle(name string) string {
 	words := strings.Fields(name)
-	for i, w := range words {
-		lower := strings.ToLower(w)
-		if len(lower) > 0 {
-			words[i] = strings.ToUpper(lower[:1]) + lower[1:]
-		}
+	for i, word := range words {
+		runes := []rune(strings.ToLower(word))
+		if len(runes) > 0 { runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]; words[i] = string(runes) }
 	}
 	return strings.Join(words, " ")
+}
+
+// parseReceiptMoney normalizes Italian and US decimal/thousands separators.
+func parseReceiptMoney(raw string) (float64, error) {
+	value := strings.TrimSpace(raw)
+	value = strings.ReplaceAll(value, "€", "")
+	value = strings.ReplaceAll(value, " ", "")
+	value = strings.ReplaceAll(value, "\u00a0", "")
+	value = strings.ReplaceAll(value, "\u202f", "")
+	lastComma, lastDot := strings.LastIndex(value, ","), strings.LastIndex(value, ".")
+	switch {
+	case lastComma >= 0 && lastDot >= 0:
+		if lastComma > lastDot { value = strings.ReplaceAll(value, ".", ""); value = strings.Replace(value, ",", ".", 1) } else { value = strings.ReplaceAll(value, ",", "") }
+	case lastComma >= 0:
+		value = strings.Replace(value, ",", ".", 1)
+	case strings.Count(value, ".") > 1:
+		last := strings.LastIndex(value, "."); value = strings.ReplaceAll(value[:last], ".", "") + value[last:]
+	}
+	return strconv.ParseFloat(value, 64)
+}
+
+// parseReceiptTotal returns a labeled total and its precedence.
+func parseReceiptTotal(line string) (float64, int, bool) {
+	lower := strings.ToLower(line)
+	if strings.Contains(lower, "subtotale") || strings.Contains(lower, "imponibile") { return 0, 0, false }
+	priority := 0
+	switch {
+	case strongTotalLabelRegex.MatchString(line): priority = 3
+	case totalLabelRegex.MatchString(line): priority = 2
+	case currencyTotalLabelRegex.MatchString(line): priority = 1
+	default: return 0, 0, false
+	}
+	matches := receiptAmountRegex.FindAllString(line, -1)
+	if len(matches) == 0 { return 0, 0, false }
+	amount, err := parseReceiptMoney(matches[len(matches)-1])
+	if err != nil || amount < 0 || amount > 1_000_000 { return 0, 0, false }
+	return amount, priority, true
 }
 
 func extractQuantityAndUnit(name string) (float64, domain.Unit) {

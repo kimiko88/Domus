@@ -487,7 +487,16 @@ func (h *PantryHandler) ImportReceipt(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.ImportReceipt(r.Context(), req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		switch {
+		case errors.Is(err, appPantry.ErrInvalidReceiptImport):
+			writeError(w, http.StatusBadRequest, "RECEIPT_VALIDATION_ERROR", err.Error())
+		case errors.Is(err, appPantry.ErrReceiptInventoryConflict):
+			writeError(w, http.StatusConflict, "RECEIPT_INVENTORY_CONFLICT", err.Error())
+		case errors.Is(err, appPantry.ErrReceiptFinanceUnavailable):
+			writeError(w, http.StatusServiceUnavailable, "FINANCE_UNAVAILABLE", err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		}
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)

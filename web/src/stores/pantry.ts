@@ -30,6 +30,20 @@ export const usePantryStore = defineStore('pantry', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  // Keep the same idempotency key after a timeout/error so a retry of the
+  // same receipt cannot create a second finance expense or add stock twice.
+  let pendingReceiptImportKey: string | null = null
+  let pendingReceiptImportSignature = ''
+
+  function createReceiptImportKey(): string {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID()
+    }
+    const bytes = new Uint8Array(16)
+    globalThis.crypto.getRandomValues(bytes)
+    return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('')
+  }
+
   // --- COMPUTED ---
 
   const totalItemsCount = computed(() => items.value.length)
@@ -425,7 +439,19 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      const res = await apiClient.post<ReceiptImportResult>('/api/v1/receipts/import', data)
+      const signature = JSON.stringify(data)
+      if (!pendingReceiptImportKey || pendingReceiptImportSignature !== signature) {
+        pendingReceiptImportKey = createReceiptImportKey()
+        pendingReceiptImportSignature = signature
+      }
+      const res = await apiClient.post<ReceiptImportResult>('/api/v1/receipts/import', data, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': pendingReceiptImportKey
+        }
+      })
+      pendingReceiptImportKey = null
+      pendingReceiptImportSignature = ''
       parsedReceipt.value = null
       // The server has already committed the import. Refresh failures must not
       // make the caller retry the POST and create a duplicate expense.
