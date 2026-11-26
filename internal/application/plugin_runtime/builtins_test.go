@@ -20,17 +20,17 @@ func TestRegisterBuiltinsExposesProtocolFamilies(t *testing.T) {
 	for _, manifest := range manifests { ids[manifest.ID] = true; require.Equal(t, plugins.ManifestAPIVersion, manifest.APIVersion); require.NotEmpty(t, manifest.Capabilities) }
 	multi := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { multi[manifest.ID] = manifest.MultiInstance }
-	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "xiaomi_home_cloud", "midea_a1_protocol"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
+	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "knx", "modbus_tcp", "matter", "ble_proxy", "open_display", "voice_satellite", "zwave_js", "weather_openmeteo", "tuya_cloud", "imou_life", "vesync_transport", "xiaomi_miio_transport", "xiaomi_home_cloud", "midea_a1_protocol"} { require.True(t, ids[want], "missing built-in plugin type %s", want) }
 	internalTypes := make(map[string]bool, len(manifests))
 	for _, manifest := range manifests { internalTypes[manifest.ID] = manifest.Internal }
-	for _, want := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
+	for _, want := range []string{"vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.True(t, internalTypes[want], "%s must be an internal runtime transport", want)
 	}
-	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud", "xiaomi_home_cloud"} {
+	for _, want := range []string{"mqtt_generic", "open_display", "voice_satellite", "tuya_cloud", "xiaomi_home_cloud", "imou_life"} {
 		require.False(t, internalTypes[want], "%s must remain user-configurable", want)
 	}
 	for _, want := range []string{"mqtt_generic", "zigbee2mqtt", "esphome_mqtt", "zwave_js", "knx", "modbus_tcp", "ble_proxy", "voice_satellite"} { require.True(t, multi[want], "%s must support multiple instances", want) }
-	for _, want := range []string{"matter", "open_display", "tuya_cloud", "xiaomi_home_cloud"} { require.False(t, multi[want], "%s must remain single-instance", want) }
+	for _, want := range []string{"matter", "open_display", "tuya_cloud", "xiaomi_home_cloud", "imou_life"} { require.False(t, multi[want], "%s must remain single-instance", want) }
 }
 
 func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
@@ -60,7 +60,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"broadlink_local", "broadlink_living_room", `{}`},
 		{"open_display", "open_display", `{"bridge_url":"http://127.0.0.1:10320","token":"test-bridge-token-0123456789abcdef0123456789"}`},
 		{"voice_satellite", "voice_kitchen", `{"server_url":"http://127.0.0.1:8080","bearer_token":"voice-satellite-test-token-0123456789abcdef","wake_address":"127.0.0.1:10400","wake_words":["hey_jarvis"]}`},
-		{"imou_life_transport", "imou_transport", `{}`},
+		{"imou_life", "integration_imou_life", `{"access_key":"project-key","secret_key":"project-secret","data_center":"eu","authorization_url":"https://auth.example/imou","public_base_url":"https://domus.example"}`},
 		{"vesync_transport", "vesync_transport", `{}`},
 		{"xiaomi_miio_transport", "xiaomi_miio_transport", `{}`},
 		{"xiaomi_home_cloud", "integration_xiaomi_home_cloud", `{"client_id":"123456789012","client_secret":"test-secret","region":"eu","public_base_url":"https://domus.example"}`},
@@ -88,4 +88,6 @@ func TestBuiltinsRejectInvalidProtocolConfigurations(t *testing.T) {
 	_, err = registry.Create(context.Background(), "open_display", "wrong_instance", json.RawMessage(`{"bridge_url":"http://127.0.0.1:10320","token":"x"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "instance ID")
 	_, err = registry.Create(context.Background(), "xiaomi_home_cloud", "integration_xiaomi_home_cloud", json.RawMessage(`{"client_id":"123456789012","client_secret":"app-secret","region":"eu","public_base_url":"http://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "HTTPS")
 	_, err = registry.Create(context.Background(), "xiaomi_home_cloud", "integration_xiaomi_home_cloud", json.RawMessage(`{"client_id":"invalid","client_secret":"app-secret","region":"eu","public_base_url":"https://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "invalid Open Platform application credentials")
+	_, err = registry.Create(context.Background(), "imou_life", "integration_imou_life", json.RawMessage(`{"access_key":"project-key","secret_key":"project-secret","data_center":"eu","authorization_url":"https://auth.example/imou","public_base_url":"http://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "HTTPS")
+	_, err = registry.Create(context.Background(), "imou_life", "integration_imou_life", json.RawMessage(`{"access_key":"project-key","secret_key":"project-secret","data_center":"bad center","authorization_url":"https://auth.example/imou","public_base_url":"https://domus.example"}`), plugins.Dependencies{}); require.ErrorContains(t, err, "invalid data centre")
 }

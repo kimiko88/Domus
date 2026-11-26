@@ -358,16 +358,63 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
 	}
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "imou_life_transport", Name: "Imou Life Cloud",
-		Internal: true,
-		Version: "1.0.0", Description: "Imou OpenAPI, OAuth and event transport.",
-		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead},
-		Config: timeoutField,
+		APIVersion: plugins.ManifestAPIVersion, ID: imou_life.PluginType, Name: "Imou Life",
+		Version: "1.0.0", Description: "Imou Open Platform account, camera and event integration.",
+		Capabilities: []plugins.Capability{plugins.CapabilityNetworkCloud, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite},
+		Config: []plugins.ConfigField{
+			{Name: "access_key", Type: "string", Required: true, Description: "Imou Open Platform project access key"},
+			{Name: "secret_key", Type: "string", Required: true, Secret: true, Description: "Imou Open Platform project secret"},
+			{Name: "data_center", Type: "string", Required: true, Description: "Imou API data centre identifier"},
+			{Name: "authorization_url", Type: "url", Required: true, Description: "Imou user-consent H5 authorization URL"},
+			{Name: "public_base_url", Type: "url", Required: true, Description: "Public HTTPS origin used for OAuth and event callbacks"},
+			{Name: "callback_secret", Type: "string", Secret: true, Internal: true},
+			{Name: "event_secret", Type: "string", Secret: true, Internal: true},
+			{Name: "push_enabled", Type: "boolean", Internal: true},
+			{Name: "push_flags", Type: "json", Internal: true},
+			{Name: "admin_access_token", Type: "string", Secret: true, Internal: true},
+			{Name: "admin_expires_at", Type: "string", Internal: true},
+			{Name: "access_token", Type: "string", Secret: true, Internal: true},
+			{Name: "refresh_token", Type: "string", Secret: true, Internal: true},
+			{Name: "expires_at", Type: "string", Internal: true},
+			{Name: "http_timeout", Type: "duration", Description: "HTTP request timeout (default 12s)"},
+		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		wire, err := plugins.DecodeConfig[struct { HTTPTimeout string `json:"http_timeout"` }](raw)
+		wire, err := plugins.DecodeConfig[struct {
+			AccessKey string `json:"access_key"`
+			SecretKey string `json:"secret_key"`
+			DataCenter string `json:"data_center"`
+			AuthorizationURL string `json:"authorization_url"`
+			PublicBaseURL string `json:"public_base_url"`
+			CallbackSecret string `json:"callback_secret"`
+			EventSecret string `json:"event_secret"`
+			PushEnabled bool `json:"push_enabled"`
+			PushFlags []string `json:"push_flags"`
+			AdminAccessToken string `json:"admin_access_token"`
+			AdminExpiresAt string `json:"admin_expires_at"`
+			AccessToken string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			ExpiresAt string `json:"expires_at"`
+			HTTPTimeout string `json:"http_timeout"`
+		}](raw)
 		if err != nil { return nil, err }
+		if err := validateImouHTTPSURL(wire.AuthorizationURL, true); err != nil {
+			return nil, fmt.Errorf("imou_life: invalid authorization_url: %w", err)
+		}
+		if err := validateImouHTTPSURL(wire.PublicBaseURL, false); err != nil {
+			return nil, fmt.Errorf("imou_life: invalid public_base_url: %w", err)
+		}
+		if _, err := imou_life.NewClient(imou_life.Config{
+			AccessKey: wire.AccessKey, SecretKey: wire.SecretKey, DataCenter: wire.DataCenter,
+		}, nil); err != nil {
+			return nil, fmt.Errorf("imou_life: invalid project configuration: %w", err)
+		}
 		timeout := 12 * time.Second
-		if wire.HTTPTimeout != "" { timeout, err = time.ParseDuration(wire.HTTPTimeout); if err != nil { return nil, fmt.Errorf("imou_life: invalid http_timeout: %w", err) } }
+		if wire.HTTPTimeout != "" {
+			timeout, err = time.ParseDuration(wire.HTTPTimeout)
+			if err != nil || timeout < time.Second || timeout > 20*time.Second {
+				return nil, errors.New("imou_life: http_timeout must be between 1s and 20s")
+			}
+		}
 		return imou_life.NewAdapter(instanceID, timeout)
 	}); err != nil { return err }
 
@@ -510,4 +557,12 @@ func (a *managedMQTTAdapter) Stop(ctx context.Context) error {
 	err := a.inner.Stop(ctx)
 	a.client.Disconnect(250)
 	return err
+}
+
+func validateImouHTTPSURL(raw string, allowQuery bool) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || (!allowQuery && u.RawQuery != "") {
+		return errors.New("URL must be absolute HTTPS without credentials or fragment (query is allowed only where documented)")
+	}
+	return nil
 }
