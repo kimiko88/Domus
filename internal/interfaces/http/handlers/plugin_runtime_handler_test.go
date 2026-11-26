@@ -73,6 +73,7 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.NotContains(t, typesResponse.Body.String(), `"imou_life_transport"`)
 	require.NotContains(t, typesResponse.Body.String(), `"vesync_transport"`)
 	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_miio_transport"`)
+	require.Contains(t, typesResponse.Body.String(), `"xiaomi_home_cloud"`)
 	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_open_platform_transport"`)
 	require.NotContains(t, typesResponse.Body.String(), `"midea_a1_protocol"`)
 
