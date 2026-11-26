@@ -225,7 +225,7 @@ func TestTuyaCloudLegacyMigrationKeepsOldTableWhenDecryptionFails(t *testing.T) 
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx,
 		"INSERT INTO tuya_cloud_config(id,client_id,secret_enc,uid,endpoint,updated_at) VALUES('default',?,?,?,?,?)",
-		"legacy-client", "not-a-valid-envelope", "legacy-uid", "https://openapi.tuyaeu.com", time.Now().Unix(),
+		"legacy-client", "ENC:v1:not-valid-base64!!!", "legacy-uid", "https://openapi.tuyaeu.com", time.Now().Unix(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, manager.Start(ctx))
