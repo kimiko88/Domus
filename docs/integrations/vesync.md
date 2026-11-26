@@ -124,3 +124,9 @@ The password is a request input only; do not store it in scripts, shell history,
 - [VeSync account portal](https://account.vesync.com/)
 - [VeSync / pyvesync authentication documentation](https://webdjoe.github.io/pyvesync/latest/authentication/)
 - [Levoit product manuals and setup instructions](https://levoit.com/pages/product-manuals)
+
+## Session storage and reconnect behaviour
+
+Domus stores the VeSync cloud token, account ID, country, region and time zone in the encrypted Plugin Manager instance `integration_vesync_cloud`. The email address and password are used only for the login request and are not retained. The instance status API and Plugin Manager catalog never return the session token or account ID.
+
+The current VeSync login flow returns a single cloud session token; it does not provide Domus with a separate refresh token or a documented refresh operation. When VeSync rejects an expired or revoked session, reconnect the account from **Settings → Integrations → Vendors → VeSync Cloud**. Disconnect removes the stored account session and disables the managed instance; it does not delete the integration record or its stable ID.
