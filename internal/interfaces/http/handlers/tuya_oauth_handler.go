@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	apppluginruntime "github.com/domus-hub/domus/internal/application/plugin_runtime"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 
 type TuyaOAuthHandler struct {
 	db           *sql.DB
+	pluginManager *apppluginruntime.Manager
 	cipher       *crypto.EnvelopeCipher
 	client       *tuya_cloud.OAuthClient
 	tuyaLocal    *tuya_local.Adapter
@@ -33,7 +35,7 @@ type TuyaOAuthHandler struct {
 	refreshMu    sync.Mutex
 }
 
-func NewTuyaOAuthHandler(db *sql.DB, cipher *crypto.EnvelopeCipher, client *tuya_cloud.OAuthClient, clientID, authorizeURL, callbackURL string) (*TuyaOAuthHandler, error) {
+func NewTuyaOAuthHandler(db *sql.DB, cipher *crypto.EnvelopeCipher, client *tuya_cloud.OAuthClient, clientID, authorizeURL, callbackURL string, managers ...*apppluginruntime.Manager) (*TuyaOAuthHandler, error) {
 	if db == nil || cipher == nil || client == nil || strings.TrimSpace(clientID) == "" {
 		return nil, errors.New("tuya oauth: database, encryption, client and client ID are required")
 	}
@@ -46,6 +48,9 @@ func NewTuyaOAuthHandler(db *sql.DB, cipher *crypto.EnvelopeCipher, client *tuya
 		return nil, errors.New("tuya oauth: callback URL must be absolute HTTPS without query or fragment")
 	}
 	h := &TuyaOAuthHandler{db: db, cipher: cipher, client: client, clientID: clientID, authorizeURL: authorizeURL, callbackURL: callbackURL}
+	if len(managers) > 0 {
+		h.pluginManager = managers[0]
+	}
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS tuya_user_oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`)
 	if err != nil {
 		return nil, fmt.Errorf("tuya oauth: initialize state storage: %w", err)
@@ -79,6 +84,12 @@ func (h *TuyaOAuthHandler) Start(w http.ResponseWriter, r *http.Request) {
 	if u == nil || u.Role != user.RoleAdmin {
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
 		return
+	}
+	if h.pluginManager != nil {
+		if _, err := h.ensureManagedPlugin(r.Context()); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud plugin instance could not be prepared")
+			return
+		}
 	}
 	state := uuid.NewString() + uuid.NewString()
 	_, err := h.db.ExecContext(r.Context(), `DELETE FROM tuya_user_oauth_states WHERE expires_at < ?`, time.Now().Unix())
@@ -143,6 +154,20 @@ func (h *TuyaOAuthHandler) Status(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil || u.Role != user.RoleAdmin {
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
+		return
+	}
+	if h.pluginManager != nil {
+		token, expires, err := h.loadManagedToken(r.Context(), u.ID)
+		if errors.Is(err, errTuyaOAuthNotConnected) || errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusOK, map[string]any{"connected": false})
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not read connection status")
+			return
+		}
+		_ = token
+		writeJSON(w, http.StatusOK, map[string]any{"connected": true, "expires_at": time.Unix(expires, 0).UTC()})
 		return
 	}
 	var expires int64
@@ -406,6 +431,28 @@ func isTuyaTokenRejection(err error) bool {
 // already refreshed the rejected access token, it reuses the newly stored token
 // instead of consuming the one-time refresh token a second time.
 func (h *TuyaOAuthHandler) refreshRejectedToken(ctx context.Context, userID string, rejected tuya_cloud.OAuthToken) (tuya_cloud.OAuthToken, error) {
+	if h.pluginManager != nil {
+		h.refreshMu.Lock()
+		defer h.refreshMu.Unlock()
+		current, _, err := h.loadManagedToken(ctx, userID)
+		if err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		if current.AccessToken != rejected.AccessToken {
+			return current, nil
+		}
+		next, err := h.client.Refresh(ctx, current.RefreshToken)
+		if err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		if next.UID != current.UID {
+			return tuya_cloud.OAuthToken{}, errors.New("tuya oauth: refreshed token UID mismatch")
+		}
+		if err = h.storeToken(ctx, userID, next); err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		return next, nil
+	}
 	h.refreshMu.Lock()
 	defer h.refreshMu.Unlock()
 
@@ -461,6 +508,14 @@ func (h *TuyaOAuthHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
 		return
 	}
+	if h.pluginManager != nil {
+		if err := h.clearManagedToken(r.Context(), u.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove connection")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+		return
+	}
 	if _, err := h.db.ExecContext(r.Context(), `DELETE FROM tuya_user_oauth_connections WHERE user_id=?`, u.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove connection")
 		return
@@ -469,6 +524,29 @@ func (h *TuyaOAuthHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TuyaOAuthHandler) validToken(ctx context.Context, userID string) (tuya_cloud.OAuthToken, error) {
+	if h.pluginManager != nil {
+		h.refreshMu.Lock()
+		defer h.refreshMu.Unlock()
+		token, expires, err := h.loadManagedToken(ctx, userID)
+		if err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		if time.Until(time.Unix(expires, 0)) > 5*time.Minute {
+			token.ExpireTime = int64(time.Until(time.Unix(expires, 0)).Seconds())
+			return token, nil
+		}
+		next, err := h.client.Refresh(ctx, token.RefreshToken)
+		if err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		if next.UID != token.UID {
+			return tuya_cloud.OAuthToken{}, errors.New("tuya oauth: refreshed token UID mismatch")
+		}
+		if err = h.storeToken(ctx, userID, next); err != nil {
+			return tuya_cloud.OAuthToken{}, err
+		}
+		return next, nil
+	}
 	h.refreshMu.Lock()
 	defer h.refreshMu.Unlock()
 	var uid, accessEnc, refreshEnc string
@@ -502,6 +580,9 @@ func (h *TuyaOAuthHandler) validToken(ctx context.Context, userID string) (tuya_
 }
 
 func (h *TuyaOAuthHandler) storeToken(ctx context.Context, userID string, token tuya_cloud.OAuthToken) error {
+	if h.pluginManager != nil {
+		return h.storeManagedToken(ctx, userID, token)
+	}
 	access, err := h.cipher.Encrypt(token.AccessToken)
 	if err != nil {
 		return err
