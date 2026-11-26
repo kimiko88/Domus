@@ -132,6 +132,24 @@ func TestVeSyncManagedSessionCreateDisconnectAndReconnect(t *testing.T) {
 	first, ok := f.manager.GetAdapter(vesync.IntegrationID)
 	require.True(t, ok)
 	require.NoError(t, first.HealthCheck(context.Background()))
+	firstTyped, ok := first.(*vesync.Adapter)
+	require.True(t, ok)
+
+	// Public provider settings are retained when the private account session is
+	// replaced through the account-linking flow.
+	_, err = f.manager.UpdateConfig(context.Background(), vesync.IntegrationID, json.RawMessage(`{"http_timeout":"12s"}`))
+	require.NoError(t, err)
+	require.NoError(t, f.handler.saveConfig(context.Background(), vesyncStoredConfig{Session: session}, "connected"))
+	managedConfig, err := f.manager.GetConfig(context.Background(), vesync.IntegrationID)
+	require.NoError(t, err)
+	var managedValues map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(managedConfig, &managedValues))
+	require.JSONEq(t, `"12s"`, string(managedValues["http_timeout"]))
+	currentClient, err := f.handler.clientForRequest(context.Background(), false)
+	require.NoError(t, err, "handler must resolve the current adapter after config replacement")
+	require.NotNil(t, currentClient)
+	_, staleErr := firstTyped.Client()
+	require.Error(t, staleErr, "replaced adapter must be stopped")
 
 	require.NoError(t, f.handler.saveConfig(context.Background(), vesyncStoredConfig{}, "disconnected"))
 	_, ok = f.manager.GetAdapter(vesync.IntegrationID)
@@ -155,6 +173,9 @@ func TestVeSyncManagedSessionCreateDisconnectAndReconnect(t *testing.T) {
 	adapter, ok := f.manager.GetAdapter(vesync.IntegrationID)
 	require.True(t, ok, "a new account login must re-enable the stable instance")
 	require.NoError(t, adapter.HealthCheck(context.Background()))
+	reconnectedClient, err := f.handler.clientForRequest(context.Background(), false)
+	require.NoError(t, err)
+	require.NotNil(t, reconnectedClient)
 	raw, err = f.manager.GetConfig(context.Background(), vesync.IntegrationID)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(raw, &saved))
