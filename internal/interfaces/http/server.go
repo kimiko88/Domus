@@ -67,7 +67,6 @@ import (
 	"github.com/domus-hub/domus/internal/plugins/tuya_local"
 	"github.com/domus-hub/domus/internal/plugins/broadlink"
 	"github.com/domus-hub/domus/internal/plugins/open_display"
-	"github.com/domus-hub/domus/internal/plugins/imou_life"
 	"github.com/domus-hub/domus/internal/plugins/vesync"
 	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
 	"github.com/domus-hub/domus/internal/plugins/midea"
@@ -278,22 +277,17 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if xiaomiCloudHandler != nil {
 				xiaomiCloudHandler.WithPluginManager(manager)
 			}
+			if imouLifeHandler != nil {
+				imouLifeHandler.WithPluginManager(manager)
+			}
 
 			// These protocol transports are managed by the shared plugin runtime,
 			// while their existing HTTP handlers continue to own the encrypted
 			// user/account configuration and public API compatibility.
-			var imouRuntime *imou_life.Adapter
 			var vesyncRuntime *vesync.Adapter
 			var xiaomiLocalRuntime *xiaomi_home.LocalAdapter
 			var mideaRuntime *midea.RuntimeAdapter
 
-			if imouLifeHandler != nil {
-				if adapter, err := manager.Prepare(context.Background(), "imou_life_transport", "imou_life_transport", json.RawMessage(`{}`)); err != nil {
-					slog.Error("Imou Life plugin preparation failed", "error", err)
-				} else if typed, ok := adapter.(*imou_life.Adapter); ok {
-					imouRuntime = typed
-				}
-			}
 			if vesyncHandler != nil {
 				if adapter, err := manager.Prepare(context.Background(), "vesync_transport", "vesync_transport", json.RawMessage(`{}`)); err != nil {
 					slog.Error("VeSync plugin preparation failed", "error", err)
@@ -308,7 +302,6 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 					xiaomiLocalRuntime = typed
 				}
 			}
-
 			if mideaHandler != nil {
 				if adapter, err := manager.Prepare(context.Background(), "midea_a1_protocol", "midea_a1_protocol", json.RawMessage(`{}`)); err != nil {
 					slog.Error("Midea SmartHome plugin preparation failed", "error", err)
@@ -402,16 +395,12 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				slog.Error("plugin runtime failed to start", "error", err)
 			}
 
-			if imouLifeHandler != nil && imouRuntime != nil {
-				if err := imouLifeHandler.WithPluginAdapter(imouRuntime); err != nil { slog.Error("Imou handler could not bind plugin runtime", "error", err) }
-			}
 			if vesyncHandler != nil && vesyncRuntime != nil {
 				if err := vesyncHandler.WithPluginAdapter(vesyncRuntime); err != nil { slog.Error("VeSync handler could not bind plugin runtime", "error", err) }
 			}
 			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
 				if err := xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime); err != nil { slog.Error("Xiaomi Home local handler could not bind plugin runtime", "error", err) }
 			}
-
 			if mideaHandler != nil && mideaRuntime != nil {
 				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {
 					slog.Error("Midea handler could not bind its managed protocol engine", "error", err)

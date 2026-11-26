@@ -221,7 +221,7 @@ Prerequisites:
 3. Configure a publicly reachable HTTPS base URL for callbacks. A tailnet-only Tailscale URL cannot receive callbacks from Imou's cloud service.
 4. Register the exact OAuth callback URL returned by Domus. Configure the reverse proxy, CDN and load balancer in front of Domus to redact both OAuth and event callback capability paths from their access logs and analytics.
 
-Domus exchanges the OAuth code for the end-user `Ot_` token and refresh token. It keeps these separate from the project administrator `At_` token, which is obtained only when configuring event push or playback. Project keys, tokens and callback capabilities are AES-256-GCM encrypted at rest.
+Domus exchanges the OAuth code for the end-user `Ot_` token and refresh token. It keeps these separate from the project administrator `At_` token, which is obtained only when configuring event push or playback. Refreshes and administrator-token updates are committed through the Plugin Manager's atomic encrypted configuration update; the handler reacquires the current adapter after each replacement. Project keys, tokens and callback capabilities are AES-256-GCM encrypted at rest in the persistent `imou_life` Plugin Manager instance (`integration_imou_life`). Existing encrypted records keep the same ID and JSON fields and are restored directly by the manager at startup. The plugin catalog exposes only the project setup fields; OAuth tokens, administrator token, callback capabilities and event-push state are internal fields and are never returned by the catalog API.
 
 ### Cameras, capabilities, PTZ and events
 

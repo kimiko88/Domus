@@ -70,13 +70,15 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusOK, typesResponse.Code)
 	require.Contains(t, typesResponse.Body.String(), `"mqtt_generic"`)
 	require.Contains(t, typesResponse.Body.String(), `"multi_instance":true`)
-	require.NotContains(t, typesResponse.Body.String(), `"imou_life_transport"`)
+	require.Contains(t, typesResponse.Body.String(), `"imou_life"`)
 	require.NotContains(t, typesResponse.Body.String(), `"vesync_transport"`)
 	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_miio_transport"`)
 	require.Contains(t, typesResponse.Body.String(), `"xiaomi_home_cloud"`)
 	require.NotContains(t, typesResponse.Body.String(), `"access_token"`)
 	require.NotContains(t, typesResponse.Body.String(), `"callback_secret"`)
 	require.NotContains(t, typesResponse.Body.String(), `"xiaomi_open_platform_transport"`)
+	require.NotContains(t, typesResponse.Body.String(), `"admin_access_token"`)
+	require.NotContains(t, typesResponse.Body.String(), `"refresh_token"`)
 	require.NotContains(t, typesResponse.Body.String(), `"midea_a1_protocol"`)
 
 	const secret = "open-display-secret-token-0123456789abcdef"
@@ -85,8 +87,15 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	router.ServeHTTP(createResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(requestBody)))
 	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
 
+	const imouSecret = "imou-project-secret-not-for-api"
+	imouBody := `{"id":"integration_imou_life","type":"imou_life","name":"Imou Life","enabled":false,"config":{"access_key":"imou-project-key","secret_key":"` + imouSecret + `","data_center":"eu","authorization_url":"https://auth.example/imou","public_base_url":"https://domus.example"}}`
+	imouResponse := httptest.NewRecorder()
+	router.ServeHTTP(imouResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(imouBody)))
+	require.Equal(t, http.StatusCreated, imouResponse.Code, imouResponse.Body.String())
+	require.NotContains(t, imouResponse.Body.String(), imouSecret)
+
 	internalResponse := httptest.NewRecorder()
-	internalBody := `{"id":"imou_transport","type":"imou_life_transport","name":"hidden transport","config":{}}`
+	internalBody := `{"id":"vesync_transport","type":"vesync_transport","name":"hidden transport","config":{}}`
 	router.ServeHTTP(internalResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(internalBody)))
 	require.Equal(t, http.StatusBadRequest, internalResponse.Code)
 	require.Contains(t, internalResponse.Body.String(), "PLUGIN_CREATE_FAILED")
@@ -97,12 +106,18 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	router.ServeHTTP(listResponse, httptest.NewRequest(http.MethodGet, "/instances", nil))
 	require.Equal(t, http.StatusOK, listResponse.Code)
 	require.Contains(t, listResponse.Body.String(), `"open_display"`)
+	require.Contains(t, listResponse.Body.String(), `"imou_life"`)
+	require.NotContains(t, listResponse.Body.String(), imouSecret)
 	require.NotContains(t, listResponse.Body.String(), secret)
 	require.NotContains(t, listResponse.Body.String(), `"token"`)
 
 	deleteResponse := httptest.NewRecorder()
 	router.ServeHTTP(deleteResponse, httptest.NewRequest(http.MethodDelete, "/instances/open_display", nil))
 	require.Equal(t, http.StatusOK, deleteResponse.Code)
+
+	imouDelete := httptest.NewRecorder()
+	router.ServeHTTP(imouDelete, httptest.NewRequest(http.MethodDelete, "/instances/integration_imou_life", nil))
+	require.Equal(t, http.StatusOK, imouDelete.Code)
 }
 
 func TestPluginRuntimeHandlerRejectsInvalidJSONAndUnknownPlugin(t *testing.T) {

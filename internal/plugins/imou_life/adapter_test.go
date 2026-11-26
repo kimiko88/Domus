@@ -7,9 +7,9 @@ import (
 )
 
 func TestAdapterOwnsClientLifecycle(t *testing.T) {
-	adapter, err := NewAdapter("imou_test", 12e9)
+	adapter, err := NewAdapter(IntegrationID, 12e9)
 	require.NoError(t, err)
-	require.Equal(t, "imou_life_transport", adapter.Type())
+	require.Equal(t, PluginType, adapter.Type())
 	require.Error(t, adapter.HealthCheck(context.Background()))
 	require.NoError(t, adapter.Start(context.Background()))
 	require.NoError(t, adapter.HealthCheck(context.Background()))
@@ -24,6 +24,11 @@ func TestAdapterOwnsClientLifecycle(t *testing.T) {
 func TestAdapterRejectsInvalidTimeoutAndIdentity(t *testing.T) {
 	_, err := NewAdapter("", 0)
 	require.Error(t, err)
-	_, err = NewAdapter("imou_test", 30e9)
+	_, err = NewAdapter(IntegrationID, 30e9)
 	require.Error(t, err)
+}
+
+func TestAdapterRejectsNoncanonicalInstanceID(t *testing.T) {
+	_, err := NewAdapter("imou_custom", 12e9)
+	require.ErrorContains(t, err, "stable integration instance ID")
 }

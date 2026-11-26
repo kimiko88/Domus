@@ -172,16 +172,37 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		visible[manifest.ID] = true
 		require.False(t, manifest.Internal, "internal transport %s must not be visible", manifest.ID)
 	}
-	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud"} {
+	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud", "imou_life"} {
 		require.True(t, visible[publicType], "public integration type %s should be visible", publicType)
 	}
-	for _, internalType := range []string{"imou_life_transport", "vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
+	for _, internalType := range []string{"vesync_transport", "xiaomi_miio_transport", "midea_a1_protocol"} {
 		require.False(t, visible[internalType], "internal transport %s must be hidden", internalType)
 		_, err := manager.Create(context.Background(), "internal_"+internalType, internalType, "hidden", json.RawMessage(`{}`), false)
 		require.ErrorIs(t, err, ErrInternalPlugin)
 	}
 }
 
+
+func TestListTypesHidesInternalImouSessionFields(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	var manifest *plugins.Manifest
+	for _, item := range manager.ListTypes() {
+		if item.ID == "imou_life" {
+			copy := item
+			manifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, manifest, "Imou Life should be a visible plugin type")
+	encoded, err := json.Marshal(manifest)
+	require.NoError(t, err)
+	for _, publicField := range []string{"access_key", "secret_key", "data_center", "authorization_url", "public_base_url"} {
+		require.Contains(t, string(encoded), `"name":"`+publicField+`"`)
+	}
+	for _, privateField := range []string{"callback_secret", "event_secret", "admin_access_token", "admin_expires_at", "access_token", "refresh_token", "expires_at", "push_enabled", "push_flags"} {
+		require.NotContains(t, string(encoded), `"name":"`+privateField+`"`)
+	}
+}
 
 func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
 	manager, _, _ := newTestManager(t)
@@ -204,6 +225,7 @@ func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
 	}
 }
 
+
 func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -211,13 +233,13 @@ func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
 	require.NoError(t, manager.Start(ctx))
 	defer manager.Stop(context.Background())
 
-	adapter, err := manager.Prepare(ctx, "imou_life_transport", "imou_life_transport", json.RawMessage(`{}`))
+	adapter, err := manager.Prepare(ctx, "vesync_transport", "vesync_transport", json.RawMessage(`{}`))
 	require.NoError(t, err)
-	require.Equal(t, "imou_life_transport", adapter.Type())
+	require.Equal(t, "vesync_transport", adapter.Type())
 	require.NoError(t, adapter.HealthCheck(ctx))
 	visible := make(map[string]bool)
 	for _, manifest := range manager.ListTypes() { visible[manifest.ID] = true }
-	require.False(t, visible["imou_life_transport"])
+	require.False(t, visible["vesync_transport"])
 }
 
 

@@ -39,15 +39,15 @@ Non creare un plugin per ogni funzione del core, né un plugin diverso per ogni 
 | BroadLink | `broadlink_local` | No | IR/RF locale |
 | OpenDisplay | `open_display` | No | E-paper BLE/LAN via companion isolato |
 | Domus Voice Satellite | `voice_satellite` | Sì | Microfono, wake-word e speaker |
-| Imou Life transport | `imou_life_transport` | No | Trasporto HTTP per API e OAuth |
+| Imou Life | `imou_life` | No | Istanza persistente `integration_imou_life`; project keys, sessioni, callback e push in configurazione cifrata |
 | VeSync transport | `vesync_transport` | No | Client cloud |
 | Xiaomi miIO local | `xiaomi_miio_transport` | No | Trasporto UDP LAN |
-| Xiaomi Home Cloud | `xiaomi_home_cloud` | No | Account Open Platform OAuth, token cifrati per istanza e controllo MIoT cloud |
+| Xiaomi Open Platform | `xiaomi_home_cloud` | No | Istanza persistente; OAuth, callback e MIoT con segreti cifrati dal Plugin Manager |
 | Midea M-Smart | `midea_a1_protocol` | No | Driver LAN V2/V3 per A1 |
 
-Imou, VeSync, Xiaomi miIO locale e Midea usano ancora adapter di trasporto/protocollo interni: gli handler HTTP mantengono temporaneamente la responsabilità dei flussi di configurazione e dei record legacy cifrati, ma ricevono il client/engine dal runtime supervisionato. Xiaomi Home Cloud è invece promosso a plugin configurabile `xiaomi_home_cloud`: il record cifrato storico `integration_xiaomi_home_cloud` ha già uno schema compatibile, quindi il Manager lo ripristina direttamente senza copiare i token o cambiare l’ID usato da dispositivi ed eventi.
+VeSync, Xiaomi miIO locale e Midea restano adapter interni di trasporto/protocollo. Imou Life è ora un plugin pubblico e persistente: il record cifrato storico `integration_imou_life` viene ripristinato come istanza gestita, senza cambiare l'ID né il formato delle credenziali e delle sessioni. Xiaomi Open Platform è anch'esso un plugin pubblico e persistente sul proprio ID storico.
 
-Gli ID con suffisso `_transport` o `_protocol` restano intenzionali per i componenti tecnici. I record legacy di Imou, VeSync e Xiaomi locale hanno tipi come `imou_life`, `vesync_cloud` e `xiaomi_home_local`, con JSON cifrato non compatibile con lo schema dei rispettivi trasporti: non si deve far decifrare quel JSON dal factory di un provider.
+Gli ID con suffisso `_transport` o `_protocol` sono intenzionali per adapter tecnici che non possiedono ancora uno schema di configurazione completo. Imou Life e Xiaomi Cloud usano invece tipi pubblici persistenti (`imou_life`, `xiaomi_home_cloud`) con gli ID storici `integration_imou_life` e `integration_xiaomi_home_cloud`; i token e i callback segreti sono campi interni cifrati.
 
 ## Altri candidati, e cosa non spostare
 
@@ -101,8 +101,8 @@ Questa distinzione è essenziale: un adapter che compila o ha qualche test unita
 
 ## Roadmap per ridurre davvero il core
 
-1. **Completare questa tranche**: tutti i provider legacy passano dal runtime, con test per factory/lifecycle e nessuna regressione delle API.
-2. **Unificare la configurazione**: Tuya e Xiaomi Home Cloud usano già istanze cifrate del Plugin Manager; migrare i record Imou, VeSync e Midea con migrazioni versionate e rollback.
+1. **Completare questa tranche**: i provider legacy residui passano dal runtime, con test per factory/lifecycle e nessuna regressione delle API. Tuya Cloud, Xiaomi Home Cloud e Imou Life dispongono già di istanze persistenti e option flow cifrati.
+2. **Unificare la configurazione**: migrare i record rimanenti nel modello di istanza del plugin con migrazioni versionate e rollback; segreti sempre nel vault cifrato. Xiaomi Cloud conserva il proprio ID storico per non invalidare i riferimenti di device ed entità.
 3. **Option flow**: ogni manifest dichiara pagine di setup, validazione remota, pairing, selezione device e reconfigure; il frontend genera wizard da uno schema versionato.
 4. **Eventi e comandi uniformi**: capability esplicite, state schema, device discovery e command request tipizzati. Gli handler specifici restano sottili o diventano facade del runtime.
 5. **Community runtime**: plugin WASI in processo separato con host-call allowlist effettiva, limiti CPU/memoria/fuel, rete consentita per capability e file system effimero. Le capability del manifest da sole non sono un sandbox.
