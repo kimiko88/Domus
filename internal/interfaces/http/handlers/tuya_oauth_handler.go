@@ -142,13 +142,19 @@ func (h *TuyaOAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Sessione OAuth già utilizzata.", http.StatusBadRequest)
 		return
 	}
+	h.refreshMu.Lock()
 	token, err := h.client.ExchangeCode(r.Context(), code)
-	if err != nil {
-		http.Error(w, "Tuya non ha completato l'autorizzazione. Verifica le impostazioni OAuth e riprova.", http.StatusBadGateway)
-		return
+	if err == nil {
+		err = h.storeToken(r.Context(), userID, token)
 	}
-	if err = h.storeToken(r.Context(), userID, token); err != nil {
-		http.Error(w, "Token ricevuto ma non è stato possibile salvarlo in modo sicuro.", http.StatusInternalServerError)
+	h.refreshMu.Unlock()
+	if err != nil {
+		logTuyaOAuthFailure("exchange_code_or_store_token", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Token ricevuto ma non è stato possibile salvarlo in modo sicuro.", http.StatusInternalServerError)
+		} else {
+			http.Error(w, "Tuya non ha completato l'autorizzazione o il token non è stato salvato.", http.StatusBadGateway)
+		}
 		return
 	}
 	writeOAuthSuccessPage(w)
@@ -512,6 +518,8 @@ func (h *TuyaOAuthHandler) Disconnect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
 		return
 	}
+	h.refreshMu.Lock()
+	defer h.refreshMu.Unlock()
 	if h.pluginManager != nil {
 		if err := h.clearManagedToken(r.Context(), u.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove connection")
