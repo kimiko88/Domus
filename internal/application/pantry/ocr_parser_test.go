@@ -177,3 +177,55 @@ func TestReceiptParserDoesNotTreatInvoiceHeadingAsStore(t *testing.T) {
 	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
 	if receipt.StoreName == "FATTURA" { t.Fatal("document type heading was misidentified as merchant") }
 }
+func TestReceiptParserDetectsMerchantAfterExplicitHeaderLabel(t *testing.T) {
+	raw := "RAGIONE SOCIALE: ALIMENTARI ROSSI S.R.L.\nVIA GARIBALDI 8\nDATA 26/11/2026\nPASTA 1,20\nTOTALE 1,20"
+	receipt, err := appPantry.NewReceiptParser().ParseText(raw)
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if receipt.StoreName != "ALIMENTARI ROSSI" {
+		t.Fatalf("expected normalized independent merchant name, got %q", receipt.StoreName)
+	}
+}
+
+func TestReceiptParserDoesNotUseProductLineAsMerchantFallback(t *testing.T) {
+	raw := "DOCUMENTO COMMERCIALE\nRICEVUTA DI PAGAMENTO\nPASTA FRESCA 500G 3,49\nTOTALE COMPLESSIVO 3,49"
+	receipt, err := appPantry.NewReceiptParser().ParseText(raw)
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if receipt.StoreName != "Supermercato" {
+		t.Fatalf("expected fallback merchant when header is missing, got %q", receipt.StoreName)
+	}
+	if len(receipt.Items) != 1 || receipt.Items[0].Name != "Pasta Fresca" {
+		t.Fatalf("expected product line to remain an item, got %#v", receipt.Items)
+	}
+	if receipt.TotalAmount != 3.49 { t.Fatalf("expected total 3.49, got %.2f", receipt.TotalAmount) }
+}
+
+func TestReceiptParserRecognizesStoreFormatVariants(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "CARREFOUR MARKET", want: "Carrefour Market"},
+		{name: "CONAD CITY", want: "Conad"},
+		{name: "INTERSPAR", want: "Interspar"},
+		{name: "EUROSPAR", want: "Eurospar"},
+		{name: "IPERAL", want: "Iperal"},
+		{name: "SUPERMERCATI TOSANO", want: "Tosano"},
+		{name: "IN'S MERCATO", want: "In's Mercato"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			receipt, err := appPantry.NewReceiptParser().ParseText(test.name + "\nPANE 1,50\nTOTALE 1,50")
+			if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+			if receipt.StoreName != test.want { t.Fatalf("expected %q, got %q", test.want, receipt.StoreName) }
+		})
+	}
+}
+
+func TestReceiptParserDoesNotUseAddressOrPaymentHeaderAsStore(t *testing.T) {
+	raw := "DOCUMENTO COMMERCIALE\nVIA ROMA 14 - BOLOGNA\nP.IVA 01234567890\nPAGAMENTO CONTANTI\nPANE 2,00\nTOTALE 2,00"
+	receipt, err := appPantry.NewReceiptParser().ParseText(raw)
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if receipt.StoreName != "Supermercato" {
+		t.Fatalf("expected fallback instead of an address/payment label, got %q", receipt.StoreName)
+	}
+}

@@ -24,13 +24,26 @@ func NewReceiptParser() *ReceiptParser {
 }
 
 var (
-		storePatterns = []struct {
+	storePatterns = []struct {
 		pattern *regexp.Regexp
 		name    string
 	}{
-		{regexp.MustCompile(`(?i)\bipercoop\b`), "Ipercoop"},
+		{regexp.MustCompile(`(?i)\bcarrefour\s+(?:market|express)\b`), "Carrefour Market"},
 		{regexp.MustCompile(`(?i)\bpam\s+panorama\b`), "Pam Panorama"},
+		{regexp.MustCompile(`(?i)\bipercoop\b`), "Ipercoop"},
+		{regexp.MustCompile(`(?i)\bconad\s+(?:city|superstore|margherita)\b`), "Conad"},
+		{regexp.MustCompile(`(?i)\beurospar\b`), "Eurospar"},
+		{regexp.MustCompile(`(?i)\binterspar\b`), "Interspar"},
+		{regexp.MustCompile(`(?i)\bin['’]?s\s+mercato\b`), "In's Mercato"},
+		{regexp.MustCompile(`(?i)\biperal\b`), "Iperal"},
+		{regexp.MustCompile(`(?i)\bsupermercati\s+tosano\b|\btosano\b`), "Tosano"},
 		{regexp.MustCompile(`(?i)\bpenny(?:\s+market)?\b`), "Penny Market"},
+		{regexp.MustCompile(`(?i)\bmaxi\s*di\b`), "Maxi Di"},
+		{regexp.MustCompile(`(?i)\bsole\s*365\b`), "Sole 365"},
+		{regexp.MustCompile(`(?i)\bnatura\s*si\b`), "NaturaSì"},
+		{regexp.MustCompile(`(?i)\bdpi[uù]\b`), "Dpiù"},
+		{regexp.MustCompile(`(?i)\bdec[oò]\b`), "Decò"},
+		{regexp.MustCompile(`(?i)\bil\s+gigante\b`), "Il Gigante"},
 		{regexp.MustCompile(`(?i)\besselunga\b`), "Esselunga"},
 		{regexp.MustCompile(`(?i)\bcoop\b`), "Coop"},
 		{regexp.MustCompile(`(?i)\bconad\b`), "Conad"},
@@ -43,27 +56,24 @@ var (
 		{regexp.MustCompile(`(?i)\btigros\b`), "Tigros"},
 		{regexp.MustCompile(`(?i)\baldi\b`), "Aldi"},
 		{regexp.MustCompile(`(?i)\bmd(?:\s+market|\s+spa)?\b`), "MD"},
-		{regexp.MustCompile(`(?i)\bdpi[uù]\b`), "Dpiù"},
 		{regexp.MustCompile(`(?i)\bfamila\b`), "Famila"},
 		{regexp.MustCompile(`(?i)\bsigma\b`), "Sigma"},
 		{regexp.MustCompile(`(?i)\bcrai\b`), "CRAI"},
 		{regexp.MustCompile(`(?i)\btodis\b`), "Todis"},
 		{regexp.MustCompile(`(?i)\bbennet\b`), "Bennet"},
-		{regexp.MustCompile(`(?i)\bnatura\s*si\b`), "NaturaSì"},
 		{regexp.MustCompile(`(?i)\brossetto\b`), "Rossetto"},
 		{regexp.MustCompile(`(?i)\bunes\b`), "Unes"},
-		{regexp.MustCompile(`(?i)\bil\s+gigante\b`), "Il Gigante"},
-		{regexp.MustCompile(`(?i)\bdec[oò]\b`), "Decò"},
-		{regexp.MustCompile(`(?i)\bsole\s*365\b`), "Sole 365"},
 		{regexp.MustCompile(`(?i)\bdok\b`), "Dok"},
 		{regexp.MustCompile(`(?i)\bmigross\b`), "Migross"},
 		{regexp.MustCompile(`(?i)\bprix\b`), "Prix"},
-		{regexp.MustCompile(`(?i)\bmaxi\s*di\b`), "Maxi Di"},
 		{regexp.MustCompile(`(?i)\bekom\b`), "Ekom"},
 		{regexp.MustCompile(`(?i)\bpewex\b`), "Pewex"},
+		{regexp.MustCompile(`(?i)\ba\s*&\s*o\b`), "A&O"},
+		{regexp.MustCompile(`(?i)\bard\s+discount\b`), "ARD Discount"},
 	}
 	storeLegalSuffixRegex = regexp.MustCompile(`(?i)\s+(?:s\.?\s*p\.?\s*a\.?|s\.?\s*r\.?\s*l\.?|s\.?\s*n\.?\s*c\.?)\s*$`)
-	storeHeaderNoiseRegex = regexp.MustCompile(`(?i)(?:scontrino|fattura|invoice|fiscale|documento\s*commerciale|partita\s*iva|p\.?\s*iva|cassa|operatore|subtotale|totale|resto|contanti|bancomat|\bpos\b|grazie|arrivederci|\bvia\b|\bviale\b|\bpiazza\b|\bcorso\b|\bstrada\b|\bcap\b|\btel\b|telefono|www\.|https?://|\b(?:ora|data)\b)`)
+	storeHeaderLabelRegex = regexp.MustCompile(`(?i)^\s*(?:ragione\s+sociale|denominazione|insegna|punto\s+vendita|negozio|esercente)\s*[:\-]\s*`)
+	storeHeaderNoiseRegex = regexp.MustCompile(`(?i)(?:scontrino|ricevuta|fattura|invoice|fiscale|documento\s*commerciale|commerciale|pagamento|partita\s*iva|p\.?\s*iva|codice\s*fiscale|cassa|operatore|subtotale|totale|resto|contanti|bancomat|\bpos\b|grazie|arrivederci|\bvia\b|\bviale\b|\bpiazza\b|\bcorso\b|\bstrada\b|\bcap\b|\btel\b|telefono|www\.|https?://|\b(?:ora|data)\b)`)
 	storeGenericHeaderRegex = regexp.MustCompile(`(?i)^(?:supermercato|market|negozio|alimentari|discount|minimarket|farmacia|ristorante|bar|panificio|macelleria|pescheria)$`)
 	dateRegex = regexp.MustCompile(`\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b`)
 
@@ -229,32 +239,61 @@ func formatItemTitle(name string) string {
 
 // detectReceiptStoreName recognizes major chains, then looks for a plausible
 // first-line merchant header (including independent shops and pharmacies).
+// detectReceiptStoreName checks known chains in the document header first,
+// then accepts a plausible merchant line. It stops at the first item/total so
+// a product name is never mistaken for a shop when the store header is absent.
 func detectReceiptStoreName(lines []string) string {
-	limit := len(lines)
-	if limit > 10 { limit = 10 }
-	for i := 0; i < limit; i++ {
-		line := strings.TrimSpace(lines[i])
-		if line == "" { continue }
-		for _, candidate := range storePatterns {
-			if candidate.pattern.MatchString(line) { return candidate.name }
+	nonEmpty := 0
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(strings.Trim(rawLine, " -*_#|"))
+		if line == "" {
+			continue
 		}
-	}
-	for i := 0; i < limit; i++ {
-		line := strings.TrimSpace(strings.Trim(lines[i], " -*_#|"))
-		runes := []rune(line)
-		if len(runes) < 3 || len(runes) > 64 || storeHeaderNoiseRegex.MatchString(line) || storeGenericHeaderRegex.MatchString(line) || dateRegex.MatchString(line) { continue }
+		nonEmpty++
+		if nonEmpty > 10 {
+			break
+		}
+		// A price at the end of a line marks the beginning of product rows.
+		if priceRegex.MatchString(line) || strongTotalLabelRegex.MatchString(line) || totalLabelRegex.MatchString(line) {
+			break
+		}
+		if storeHeaderNoiseRegex.MatchString(line) || dateRegex.MatchString(line) {
+			continue
+		}
+		for _, candidate := range storePatterns {
+			if candidate.pattern.MatchString(line) {
+				return candidate.name
+			}
+		}
+		candidate := strings.TrimSpace(storeHeaderLabelRegex.ReplaceAllString(line, ""))
+		candidate = storeLegalSuffixRegex.ReplaceAllString(candidate, "")
+		candidate = strings.TrimSpace(strings.Trim(candidate, ".,;:-"))
+		runes := []rune(candidate)
+		if len(runes) < 3 || len(runes) > 64 || storeGenericHeaderRegex.MatchString(candidate) {
+			continue
+		}
 		letters, digits := 0, 0
 		for _, char := range runes {
-			if unicode.IsLetter(char) { letters++ } else if unicode.IsDigit(char) { digits++ }
+			if unicode.IsLetter(char) {
+				letters++
+			} else if unicode.IsDigit(char) {
+				digits++
+			}
 		}
-		if letters < 3 || digits > letters/2 || len(strings.Fields(line)) > 8 { continue }
-		line = storeLegalSuffixRegex.ReplaceAllString(line, "")
-		line = strings.TrimSpace(strings.Trim(line, ".,;:-"))
-		if len([]rune(line)) >= 3 { return line }
+		if letters < 3 || digits > letters/2 || len(strings.Fields(candidate)) > 8 {
+			continue
+		}
+		// Reject product-like headers with a quantity marker even if OCR
+		// omitted the trailing price.
+		if weightGramRegex.MatchString(candidate) || weightKgRegex.MatchString(candidate) ||
+			volLiterRegex.MatchString(candidate) || volMlRegex.MatchString(candidate) ||
+			packMultiRegex.MatchString(candidate) || pieceCountRegex.MatchString(candidate) {
+			break
+		}
+		return candidate
 	}
 	return "Supermercato"
 }
-
 // parseReceiptMoney normalizes Italian and US decimal/thousands separators.
 func parseReceiptMoney(raw string) (float64, error) {
 	value := strings.TrimSpace(raw)
