@@ -98,6 +98,14 @@ async function handleDeleteItem(id: string) {
   }
 }
 
+async function handleSetQty(id: string, quantity: number) {
+  try {
+    const updated = await pantryStore.updatePantryItem(id, { quantity })
+    showToast(t('pantry.view.quantityUpdated', { name: updated.name, quantity: updated.quantity, unit: updated.unit }))
+  } catch {
+    showToast(t('pantry.view.stockAdjustFailed'))
+  }
+}
 async function handleAdjustQty(id: string, delta: number) {
   try {
     const updated = await pantryStore.adjustQuantity(id, delta)
@@ -262,6 +270,7 @@ async function handleDeleteMeal(id: string) {
         @edit-item="openEditItem"
         @delete-item="handleDeleteItem"
         @adjust-qty="handleAdjustQty"
+        @set-qty="handleSetQty"
         @toast="showToast"
       />
 

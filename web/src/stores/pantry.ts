@@ -22,6 +22,7 @@ export const usePantryStore = defineStore('pantry', () => {
   const cookableRecipes = ref<CookableRecipeResult[]>([])
   const mealPlans = ref<MealPlan[]>([])
   const parsedReceipt = ref<Receipt | null>(null)
+  const receiptHistory = ref<Receipt[]>([])
 
   const selectedCategory = ref<PantryCategory | 'all'>('all')
   const selectedLocation = ref<PantryLocation | 'all'>('all')
@@ -145,7 +146,10 @@ export const usePantryStore = defineStore('pantry', () => {
     try {
       loading.value = true
       error.value = null
-      const updated = await apiClient.put<PantryItem>(`/api/v1/pantry/items/${id}`, item)
+      const current = items.value.find((entry) => entry.id === id)
+      if (!current) throw new Error(i18n.global.t('common.errors.notFound'))
+      const payload = { ...current, ...item }
+      const updated = await apiClient.put<PantryItem>(`/api/v1/pantry/items/${id}`, payload)
       const idx = items.value.findIndex((i) => i.id === id)
       if (idx !== -1) items.value[idx] = updated
 
@@ -427,11 +431,32 @@ export const usePantryStore = defineStore('pantry', () => {
     }
   }
 
+  async function fetchReceiptHistory(limit = 50): Promise<Receipt[]> {
+    const boundedLimit = Math.min(200, Math.max(1, Math.trunc(limit)))
+    const result = await apiClient.get<Receipt[]>(`/api/v1/receipts?limit=${boundedLimit}`)
+    receiptHistory.value = result || []
+    return receiptHistory.value
+  }
+
+  async function updateReceipt(id: string, data: {
+    store_name: string
+    date: string
+    document_type: 'receipt' | 'invoice'
+    items: Receipt['items']
+    total_amount: number
+  }): Promise<Receipt> {
+    const updated = await apiClient.put<Receipt>(`/api/v1/receipts/${encodeURIComponent(id)}`, data)
+    const index = receiptHistory.value.findIndex(receipt => receipt.id === id)
+    if (index >= 0) receiptHistory.value[index] = updated
+    else receiptHistory.value.unshift(updated)
+    return updated
+  }
   async function importReceipt(data: {
     store_name: string
     date: string
     items: Receipt['items']
     total_amount: number
+    confidence?: number
     document_type: 'receipt' | 'invoice'
     auto_add_to_finance: boolean
     auto_update_pantry: boolean
@@ -455,7 +480,7 @@ export const usePantryStore = defineStore('pantry', () => {
       parsedReceipt.value = null
       // The server has already committed the import. Refresh failures must not
       // make the caller retry the POST and create a duplicate expense.
-      await Promise.allSettled([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes()])
+      await Promise.allSettled([fetchPantryItems(), fetchLowStockItems(), fetchCookableRecipes(), fetchReceiptHistory()])
       return res
     } catch (err: any) {
       error.value = i18n.global.t('common.errors.syncFailed')
@@ -477,6 +502,7 @@ export const usePantryStore = defineStore('pantry', () => {
     cookableRecipes,
     mealPlans,
     parsedReceipt,
+    receiptHistory,
     selectedCategory,
     selectedLocation,
     selectedRecipeCategory,
@@ -510,6 +536,8 @@ export const usePantryStore = defineStore('pantry', () => {
     parseReceiptPDF,
     parseReceiptImage,
     importReceipt,
+    fetchReceiptHistory,
+    updateReceipt,
     clearParsedReceipt
   }
 })

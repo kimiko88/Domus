@@ -63,6 +63,8 @@ func (h *PantryHandler) RegisterRoutes(r chi.Router) {
 		rc.Post("/parse-pdf", h.ParseReceiptPDF)
 		rc.Post("/parse-image", h.ParseReceiptImage)
 		rc.Post("/import", h.ImportReceipt)
+		rc.Get("/", h.ListReceipts)
+		rc.Put("/{id}", h.UpdateReceipt)
 	})
 }
 
@@ -477,6 +479,56 @@ func (h *PantryHandler) ParseReceiptImage(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, receipt)
 }
 
+func (h *PantryHandler) ListReceipts(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 200 {
+			writeError(w, http.StatusBadRequest, "INVALID_LIMIT", "limit must be between 1 and 200")
+			return
+		}
+		limit = parsed
+	}
+	receipts, err := h.svc.ListReceiptHistory(r.Context(), limit)
+	if err != nil {
+		if errors.Is(err, appPantry.ErrReceiptHistoryUnavailable) {
+			writeError(w, http.StatusServiceUnavailable, "RECEIPT_HISTORY_UNAVAILABLE", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	if receipts == nil { receipts = []domainPantry.Receipt{} }
+	writeJSON(w, http.StatusOK, receipts)
+}
+
+func (h *PantryHandler) UpdateReceipt(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 256*1024)
+	var req appPantry.UpdateReceiptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return
+	}
+	receipt, err := h.svc.UpdateReceipt(r.Context(), chi.URLParam(r, "id"), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, domainPantry.ErrReceiptNotFound):
+			writeError(w, http.StatusNotFound, "RECEIPT_NOT_FOUND", err.Error())
+		case errors.Is(err, appPantry.ErrInvalidReceiptImport):
+			writeError(w, http.StatusBadRequest, "RECEIPT_VALIDATION_ERROR", err.Error())
+		case errors.Is(err, appPantry.ErrReceiptFinanceUnavailable):
+			writeError(w, http.StatusServiceUnavailable, "FINANCE_UNAVAILABLE", err.Error())
+		case errors.Is(err, appPantry.ErrReceiptHistoryUnavailable):
+			writeError(w, http.StatusServiceUnavailable, "RECEIPT_HISTORY_UNAVAILABLE", err.Error())
+		case errors.Is(err, appPantry.ErrReceiptHistoryUnavailable):
+			writeError(w, http.StatusServiceUnavailable, "RECEIPT_HISTORY_UNAVAILABLE", err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, receipt)
+}
 func (h *PantryHandler) ImportReceipt(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 256*1024)
 	var req appPantry.ImportReceiptRequest

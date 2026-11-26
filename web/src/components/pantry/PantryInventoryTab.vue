@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Plus,
   Search,
@@ -15,6 +16,8 @@ import {
 import type { PantryItem, PantryCategory, PantryLocation } from '../../api/types'
 import { apiClient } from '../../api/client'
 
+const { t } = useI18n()
+
 interface Props {
   items: PantryItem[]
   loading?: boolean
@@ -27,12 +30,15 @@ const emit = defineEmits<{
   (e: 'edit-item', item: PantryItem): void
   (e: 'delete-item', id: string): void
   (e: 'adjust-qty', id: string, delta: number): void
+  (e: 'set-qty', id: string, quantity: number): void
   (e: 'toast', msg: string): void
 }>()
 
 const searchQuery = ref('')
 const selectedCategory = ref<PantryCategory | 'all'>('all')
 const selectedLocation = ref<PantryLocation | 'all'>('all')
+const editingQuantityId = ref<string | null>(null)
+const quantityDraft = ref('')
 
 const categories: { key: PantryCategory | 'all'; label: string; icon: string }[] = [
   { key: 'all', label: 'Tutte', icon: '🧺' },
@@ -135,6 +141,28 @@ function getExpiryStatus(expiryStr?: string): { isExpired: boolean; isSoon: bool
   return { isExpired: false, isSoon: false, text: `Scade il ${expiryStr}` }
 }
 
+function startQuantityEdit(item: PantryItem) {
+  editingQuantityId.value = item.id
+  quantityDraft.value = String(item.quantity)
+}
+
+function cancelQuantityEdit() {
+  editingQuantityId.value = null
+  quantityDraft.value = ''
+}
+
+function saveQuantity(item: PantryItem) {
+  if (editingQuantityId.value !== item.id) return
+  const quantity = Number(quantityDraft.value)
+  if (!Number.isFinite(quantity) || quantity < 0 || quantity > 1000000) {
+    emit('toast', t('pantry.view.invalidQuantity'))
+    cancelQuantityEdit()
+    return
+  }
+  editingQuantityId.value = null
+  quantityDraft.value = ''
+  if (quantity !== item.quantity) emit('set-qty', item.id, quantity)
+}
 const addedToShopping = ref<Record<string, boolean>>({})
 
 async function addToShoppingList(item: PantryItem) {
@@ -302,8 +330,26 @@ async function addToShoppingList(item: PantryItem) {
             </button>
 
             <div class="quantity-display">
-              <span class="qty-num">{{ item.quantity }}</span>
-              <span class="qty-unit">{{ item.unit }}</span>
+              <template v-if="editingQuantityId === item.id">
+                <input
+                  v-model="quantityDraft"
+                  class="quantity-inline-input"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="any"
+                  :aria-label="t('pantry.view.editQuantity')"
+                  @keydown.enter.prevent="saveQuantity(item)"
+                  @keydown.esc.prevent="cancelQuantityEdit"
+                  @blur="saveQuantity(item)"
+                />
+                <span class="qty-unit">{{ item.unit }}</span>
+              </template>
+              <button v-else type="button" class="quantity-value-button" :aria-label="t('pantry.view.editQuantity')" @click="startQuantityEdit(item)">
+                <span class="qty-num">{{ item.quantity }}</span>
+                <span class="qty-unit">{{ item.unit }}</span>
+                <Edit2 :size="12" />
+              </button>
             </div>
 
             <button
@@ -713,4 +759,5 @@ async function addToShoppingList(item: PantryItem) {
 .btn-primary:hover {
   background: #2563eb;
 }
+.quantity-value-button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:inherit;padding:2px 4px;border-radius:6px;cursor:pointer}.quantity-value-button:hover{background:var(--surface-2)}.quantity-inline-input{width:78px;min-width:0;padding:5px;border:1px solid var(--border);border-radius:6px;background:var(--surface-1);color:inherit;font:inherit;font-variant-numeric:tabular-nums}
 </style>

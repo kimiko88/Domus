@@ -205,3 +205,62 @@ describe('Pantry Store', () => {
     expect(secondHeaders['X-Idempotency-Key']).toBe(firstHeaders['X-Idempotency-Key'])
     expect(secondHeaders['Content-Type']).toBe('application/json')
   })
+
+describe('Pantry purchase history', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  const savedReceipt: Receipt = {
+    id: 'receipt_1',
+    store_name: 'Esselunga',
+    date: '2026-11-26',
+    document_type: 'receipt',
+    items: [{ name: 'Pasta', quantity: 500, unit: 'g', unit_price: 0.002, total_price: 1, category: 'pantry' }],
+    total_amount: 1,
+    confidence: 0.9
+  }
+
+  it('loads saved purchase records', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce([savedReceipt])
+    const store = usePantryStore()
+    const result = await store.fetchReceiptHistory()
+    expect(result).toEqual([savedReceipt])
+    expect(store.receiptHistory).toEqual([savedReceipt])
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/receipts?limit=50')
+  })
+
+  it('updates an existing purchase and replaces it in history', async () => {
+    const updated = { ...savedReceipt, store_name: 'Coop', total_amount: 2 }
+    vi.mocked(apiClient.put).mockResolvedValueOnce(updated)
+    const store = usePantryStore()
+    store.receiptHistory = [savedReceipt]
+    const payload = { store_name: 'Coop', date: savedReceipt.date, document_type: 'receipt' as const, total_amount: 2, items: savedReceipt.items }
+    const result = await store.updateReceipt('receipt_1', payload)
+    expect(result.store_name).toBe('Coop')
+    expect(store.receiptHistory[0].store_name).toBe('Coop')
+    expect(apiClient.put).toHaveBeenCalledWith('/api/v1/receipts/receipt_1', payload)
+  })
+})
+
+describe('Pantry item partial updates', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('merges a quantity-only edit with the existing stock metadata', async () => {
+    const item: PantryItem = {
+      id: 'pantry_quantity_test', name: 'Pasta', category: 'pantry', quantity: 3, unit: 'pz',
+      min_threshold: 1, location: 'pantry', cost: 2.4, expiration_date: '2027-01-01',
+      created_at: '2026-10-17T00:00:00Z', updated_at: '2026-10-17T00:00:00Z'
+    }
+    const updated = { ...item, quantity: 8 }
+    vi.mocked(apiClient.put).mockResolvedValueOnce(updated)
+    const store = usePantryStore()
+    store.items = [item]
+    await store.updatePantryItem(item.id, { quantity: 8 })
+    expect(apiClient.put).toHaveBeenCalledWith(`/api/v1/pantry/items/${item.id}`, { ...item, quantity: 8 })
+  })
+})
