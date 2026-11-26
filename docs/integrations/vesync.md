@@ -49,9 +49,10 @@ For a home in Italy, the normal values are:
 ## What Domus stores and sends
 
 - The account password is used only during the login exchange. Domus does not persist the plaintext password.
-- The VeSync account ID and session token are stored in the existing encrypted integration configuration using Domus' AES-256-GCM secret storage.
-- Status and device-list APIs do not return the account token.
-- Disconnect clears the stored session.
+- The VeSync account ID, session token, country, region and time zone are stored in the encrypted Plugin Manager instance `integration_vesync_cloud` using Domus' AES-256-GCM secret storage. The `session` field is internal/secret and is not returned by the public plugin catalog or instance APIs.
+- The email and password are used only for the login exchange and are not persisted.
+- Status and device-list APIs do not return the account token or account ID.
+- Disconnect clears the stored session and disables the managed instance. Connecting again re-enables the same stable instance ID.
 - The provider cloud receives authentication and device/control requests. This is **not local-LAN control** and requires Internet access even when the device is connected to the same Wi-Fi network as Domus.
 - VeSync's device API used by this integration is an unofficial / reverse-engineered interface, not a public stable developer API. A VeSync service-side change can break login or commands.
 
