@@ -186,22 +186,10 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 		return provider, nil
 	}
 
-	raw, err := json.Marshal(map[string]any{
-		"client_id": cfg.ClientID, "secret": cfg.Secret, "base_url": cfg.BaseURL,
-		"uid": cfg.UID, "schema": cfg.Schema,
-	})
-	if err != nil {
-		return fallback(fmt.Errorf("encode Tuya plugin configuration: %w", err))
-	}
-	adapter, err := h.pluginManager.Prepare(ctx, tuya_cloud.PluginType, tuya_cloud.PluginType, raw)
-	if err != nil {
-		return fallback(fmt.Errorf("prepare default Tuya instance: %w", err))
-	}
-	provider, ok := adapter.(tuya_cloud.Provider)
-	if !ok {
-		return fallback(errors.New("Tuya plugin factory returned an incompatible provider"))
-	}
-	return provider, nil
+	// Do not create an unpersisted singleton adapter here. The compatibility
+	// settings flow can use a direct client until the Plugin Manager instance is
+	// created through its durable encrypted configuration path.
+	return fallback(errors.New("no persisted Tuya Cloud plugin instance found"))
 }
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
