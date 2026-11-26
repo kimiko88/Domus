@@ -204,6 +204,8 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/config", h.GetConfig)
+	r.Put("/config", h.SaveConfig)
+	// Keep POST as a compatibility alias for existing Domus web clients.
 	r.Post("/config", h.SaveConfig)
 	r.Delete("/config", h.DeleteConfig)
 	r.Get("/devices", h.ListDevices)
