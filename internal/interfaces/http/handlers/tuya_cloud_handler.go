@@ -51,24 +51,33 @@ func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher
 	h.db = db
 	h.cipher = cipher
 	if db != nil {
-		_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS tuya_cloud_config (
-			id TEXT PRIMARY KEY,
-			client_id TEXT NOT NULL,
-			secret_enc TEXT NOT NULL,
-			uid TEXT NOT NULL,
-			endpoint TEXT NOT NULL,
-			updated_at INTEGER NOT NULL
-		)`)
+		// New installations use the encrypted Plugin Manager store. Create the
+		// legacy table only when running without the manager, for compatibility
+		// with older deployments that have not yet enabled plugin persistence.
+		if h.pluginManager == nil {
+			_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS tuya_cloud_config (
+				id TEXT PRIMARY KEY,
+				client_id TEXT NOT NULL,
+				secret_enc TEXT NOT NULL,
+				uid TEXT NOT NULL,
+				endpoint TEXT NOT NULL,
+				updated_at INTEGER NOT NULL
+			)`)
+		}
 		if err := h.loadStoredConfig(context.Background()); err != nil {
-			// Keep the HTTP handler alive: an administrator can replace a legacy
-			// secret through SaveConfig. Do not silently discard vault failures.
-			slog.Error("tuya cloud: could not restore the encrypted legacy configuration", "error", err)
+			slog.Error("tuya cloud: could not restore managed or legacy configuration", "error", err)
 		}
 	}
 	return h
 }
 
 func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
+	if h.pluginManager != nil {
+		if err := h.migrateLegacyTuyaCloudConfig(ctx); err != nil {
+			return err
+		}
+		return h.syncClientFromManagedConfig(ctx)
+	}
 	if h.db == nil || h.cipher == nil {
 		return nil
 	}
