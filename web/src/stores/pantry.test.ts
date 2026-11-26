@@ -251,11 +251,16 @@ describe('Pantry item partial updates', () => {
   })
 
   it('merges a quantity-only edit with the existing stock metadata', async () => {
-    const updated = { ...mockItem, quantity: 8 }
+    const item: PantryItem = {
+      id: 'pantry_quantity_test', name: 'Pasta', category: 'pantry', quantity: 3, unit: 'pz',
+      min_threshold: 1, location: 'pantry', cost: 2.4, expiration_date: '2027-01-01',
+      created_at: '2026-10-17T00:00:00Z', updated_at: '2026-10-17T00:00:00Z'
+    }
+    const updated = { ...item, quantity: 8 }
     vi.mocked(apiClient.put).mockResolvedValueOnce(updated)
     const store = usePantryStore()
-    store.items = [mockItem]
-    await store.updatePantryItem(mockItem.id, { quantity: 8 })
-    expect(apiClient.put).toHaveBeenCalledWith(`/api/v1/pantry/items/${mockItem.id}`, { ...mockItem, quantity: 8 })
+    store.items = [item]
+    await store.updatePantryItem(item.id, { quantity: 8 })
+    expect(apiClient.put).toHaveBeenCalledWith(`/api/v1/pantry/items/${item.id}`, { ...item, quantity: 8 })
   })
 })
