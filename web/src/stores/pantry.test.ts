@@ -164,3 +164,44 @@ describe('Pantry Store', () => {
     expect(store.parsedReceipt).toBeNull()
   })
 })
+
+
+  it('reuses the receipt idempotency key when a failed import is retried', async () => {
+    const mockImportResult: ReceiptImportResult = {
+      items_added: 1,
+      items_updated: 0,
+      expense_id: 'exp_retry',
+      expense_amount: 2.5
+    }
+    const requestData = {
+      store_name: 'Coop',
+      date: '2026-11-26',
+      items: [{
+        name: 'Pasta',
+        quantity: 1,
+        unit: 'pz' as const,
+        unit_price: 2.5,
+        total_price: 2.5,
+        category: 'pantry' as const
+      }],
+      total_amount: 2.5,
+      document_type: 'receipt' as const,
+      auto_add_to_finance: true,
+      auto_update_pantry: true
+    }
+
+    vi.mocked(apiClient.post)
+      .mockRejectedValueOnce(new Error('network timeout'))
+      .mockResolvedValueOnce(mockImportResult)
+    vi.mocked(apiClient.get).mockResolvedValue([])
+
+    const store = usePantryStore()
+    await expect(store.importReceipt(requestData)).rejects.toThrow('network timeout')
+    await store.importReceipt(requestData)
+
+    const firstHeaders = vi.mocked(apiClient.post).mock.calls[0][2]?.headers as Record<string, string>
+    const secondHeaders = vi.mocked(apiClient.post).mock.calls[1][2]?.headers as Record<string, string>
+    expect(firstHeaders['X-Idempotency-Key']).toBeTruthy()
+    expect(secondHeaders['X-Idempotency-Key']).toBe(firstHeaders['X-Idempotency-Key'])
+    expect(secondHeaders['Content-Type']).toBe('application/json')
+  })

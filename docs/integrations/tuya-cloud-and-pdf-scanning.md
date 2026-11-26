@@ -91,7 +91,7 @@ Tutte le rotte richiedono ruolo amministratore:
 
 ## PDF receipt and invoice scanning
 
-The scanner accepts PDFs up to 3 MiB. Domus first extracts an existing PDF text layer; if none is present, it rasterizes at bounded resolution and runs Tesseract OCR using Italian and English language data. At most the first 20 pages are processed, with a 20-second execution deadline and a 64 KiB extracted-text limit. The temporary PDF and page images are removed after processing; they are not persisted. The extracted text is parsed by the same receipt/invoice parser and must be reviewed before import.
+The scanner accepts PDFs up to 3 MiB. Domus inspects the page count before reading the document, rejects PDFs with more than 20 pages (it never silently imports only the first part), and prefers the embedded text layer. For scanned PDFs it rasterizes one page at a time at bounded resolution and runs Tesseract using Italian and English language data. A 20-second execution deadline and a 64 KiB extracted-text limit apply. The temporary PDF and page images are removed after processing; they are not persisted. The extracted text is parsed by the same receipt/invoice parser and must be reviewed before import. The line parser is heuristic rather than a product-catalog/AI recognizer; inspect names, quantities, units, and totals before confirming.
 
 The Docker runtime installs `poppler-utils`, `tesseract-ocr`, and Italian/English Tesseract language data. Non-Docker installations must provide `pdftotext`, `pdftoppm`, `tesseract`, and the `ita`/`eng` language packs on PATH.
 

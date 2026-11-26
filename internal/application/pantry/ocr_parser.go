@@ -45,7 +45,61 @@ var (
 	dateRegex = regexp.MustCompile(`\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b`)
 
 	// Matches price patterns like 1,29, 12.50, 4.99€, etc.
-	priceRegex = regexp.MustCompile(`(?i)(\d+[.,]\d{2})\s*(?:€|eur)?$`)
+	// Accept Italian thousands separators (1.234,56), ungrouped prices
+	// (1234,56), and the common US variant (1,234.56).
+	receiptMoneyPattern = `(?:[0-9]{1,3}(?:[. ][0-9]{3})+|[0-9]+),[0-9]{2}|(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\.[0-9]{2}|[0-9]+[.,][0-9]{2}`
+	priceRegex = regexp.MustCompile(`(?i)(` + receiptMoneyPattern + `)\s*(?:€|eur)?// Package pantry provides application services for household food inventory,
+// recipe management, automated meal planning consumption, and smart receipt OCR parsing.
+package pantry
+
+import (
+	"fmt"
+	"math"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	domain "github.com/domus-hub/domus/internal/domain/pantry"
+)
+
+// ReceiptParser analyzes raw receipt text (from local OCR or photo upload)
+// and extracts structured items, quantities, categories, and totals.
+type ReceiptParser struct{}
+
+// NewReceiptParser instantiates the smart receipt parser.
+func NewReceiptParser() *ReceiptParser {
+	return &ReceiptParser{}
+}
+
+var (
+	storePatterns = []struct {
+		pattern *regexp.Regexp
+		name    string
+	}{
+		{regexp.MustCompile(`(?i)\besselunga\b`), "Esselunga"},
+		{regexp.MustCompile(`(?i)\bcoop\b`), "Coop"},
+		{regexp.MustCompile(`(?i)\bconad\b`), "Conad"},
+		{regexp.MustCompile(`(?i)\blidl\b`), "Lidl"},
+		{regexp.MustCompile(`(?i)\bcarrefour\b`), "Carrefour"},
+		{regexp.MustCompile(`(?i)\beurospin\b`), "Eurospin"},
+		{regexp.MustCompile(`(?i)\biper\b`), "Iper"},
+		{regexp.MustCompile(`(?i)\bpam\b`), "Pam"},
+		{regexp.MustCompile(`(?i)\bdespar\b`), "Despar"},
+		{regexp.MustCompile(`(?i)\btigros\b`), "Tigros"},
+		{regexp.MustCompile(`(?i)\baldi\b`), "Aldi"},
+		{regexp.MustCompile(`(?i)\bpenny\b`), "Penny Market"},
+		{regexp.MustCompile(`(?i)\bmd\s+spa\b`), "MD"},
+	}
+
+	dateRegex = regexp.MustCompile(`\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b`)
+
+	// Matches price patterns like 1,29, 12.50, 4.99€, etc.
+)
+	receiptAmountRegex = regexp.MustCompile(receiptMoneyPattern)
+	strongTotalLabelRegex = regexp.MustCompile(`(?i)\b(?:totale\s+(?:complessivo|da\s+pagare|documento|fattura)|importo\s+(?:pagato|da\s+pagare)|da\s+pagare)\b`)
+	totalLabelRegex = regexp.MustCompile(`(?i)\btotale\b`)
+	currencyTotalLabelRegex = regexp.MustCompile(`(?i)\b(?:euro|tot)\b`)
 
 	// Quantity patterns
 	weightGramRegex = regexp.MustCompile(`(?i)\b(\d+)\s*(?:g|gr)\b`)
@@ -55,9 +109,7 @@ var (
 	packMultiRegex  = regexp.MustCompile(`(?i)\b(\d+)\s*x\s*(\d+(?:[.,]\d+)?)\s*(l|kg|g|ml)\b`)
 	pieceCountRegex = regexp.MustCompile(`(?i)(?:\b(\d+)\s*(?:pz|pezzi|conf)\b|\b(?:pz|pezzi|conf)\s*(\d+)\b)`)
 
-	totalLineRegex = regexp.MustCompile(`(?i)(?:totale\s*complessivo|totale\s*euro|totale|importo\s*pagato|euro|tot)\s*[:=]?\s*(\d+[.,]\d{2})`)
-
-	skipLineRegex = regexp.MustCompile(`(?i)(?:scontrino|fiscale|documento\s*commerciale|p\.?\s*iva|partita\s*iva|cassa|operatore|subtotale|resto|contanti|carta|bancomat|pos|grazie|arrivederci|via\b|tel\b|codice|punti|sconto)`)
+	skipLineRegex = regexp.MustCompile(`(?i)(?:scontrino|fiscale|documento\s*commerciale|p\.?\s*iva|partita\s*iva|\bcassa\b|operatore|subtotale|resto|contanti|carta\s+(?:di\s+credito|credito|pagamento)|bancomat|\bpos\b|grazie|arrivederci|via\b|tel\b|codice|punti|sconto)`)
 )
 
 // ParseText analyzes receipt plain text and extracts a structured Receipt.
@@ -116,17 +168,19 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 
 	// 3. Scan lines for products and total
 	var totalFromExplicitLine float64
+	var totalPriority int
 	for _, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
 			continue
 		}
 
-		// Check for Total line
-		if tm := totalLineRegex.FindStringSubmatch(line); len(tm) == 2 {
-			priceStr := strings.ReplaceAll(tm[1], ",", ".")
-			if val, err := strconv.ParseFloat(priceStr, 64); err == nil && val > totalFromExplicitLine {
-				totalFromExplicitLine = val
+		// Resolve an explicit document total before looking for item prices.
+		// Subtotals and payment-method lines must never override the amount due.
+		if amount, priority, ok := parseReceiptTotal(line); ok {
+			if priority >= totalPriority {
+				totalFromExplicitLine = amount
+				totalPriority = priority
 			}
 			continue
 		}
@@ -142,8 +196,7 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 			continue
 		}
 
-		priceStr := strings.ReplaceAll(pm[1], ",", ".")
-		priceVal, err := strconv.ParseFloat(priceStr, 64)
+		priceVal, err := parseReceiptMoney(pm[1])
 		if err != nil || priceVal <= 0 || priceVal > 500 {
 			continue
 		}
@@ -181,7 +234,9 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 		receipt.TotalAmount = math.Round(sum*100) / 100
 	}
 
-	// 5. Confidence score
+	// 5. Confidence score. A detected total is useful only when it is
+	// reasonably consistent with the extracted line items; otherwise the
+	// caller must review the result carefully.
 	score := 0.4
 	if receipt.StoreName != "Supermercato" {
 		score += 0.2
@@ -190,7 +245,20 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 		score += 0.2
 	}
 	if totalFromExplicitLine > 0 {
-		score += 0.2
+		if len(receipt.Items) == 0 {
+			score += 0.05
+		} else {
+			var itemSum float64
+			for _, item := range receipt.Items {
+				itemSum += item.TotalPrice
+			}
+			tolerance := math.Max(0.10, receipt.TotalAmount*0.03)
+			if math.Abs(itemSum-receipt.TotalAmount) <= tolerance {
+				score += 0.2
+			} else {
+				score += 0.05
+			}
+		}
 	}
 	receipt.Confidence = math.Min(1.0, score)
 
@@ -205,13 +273,76 @@ func cleanItemName(raw string) string {
 
 func formatItemTitle(name string) string {
 	words := strings.Fields(name)
-	for i, w := range words {
-		lower := strings.ToLower(w)
-		if len(lower) > 0 {
-			words[i] = strings.ToUpper(lower[:1]) + lower[1:]
+	for i, word := range words {
+		runes := []rune(strings.ToLower(word))
+		if len(runes) > 0 {
+			runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+			words[i] = string(runes)
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+// parseReceiptMoney normalizes the decimal and thousands separators used by
+// Italian receipts, while remaining tolerant of OCR text in US notation.
+func parseReceiptMoney(raw string) (float64, error) {
+	value := strings.TrimSpace(raw)
+	value = strings.ReplaceAll(value, "€", "")
+	value = strings.ReplaceAll(value, " ", "")
+	value = strings.ReplaceAll(value, "\u00a0", "")
+	value = strings.ReplaceAll(value, "\u202f", "")
+
+	lastComma := strings.LastIndex(value, ",")
+	lastDot := strings.LastIndex(value, ".")
+	switch {
+	case lastComma >= 0 && lastDot >= 0:
+		if lastComma > lastDot {
+			// Italian format: 1.234,56
+			value = strings.ReplaceAll(value, ".", "")
+			value = strings.Replace(value, ",", ".", 1)
+		} else {
+			// US format: 1,234.56
+			value = strings.ReplaceAll(value, ",", "")
+		}
+	case lastComma >= 0:
+		value = strings.Replace(value, ",", ".", 1)
+	case strings.Count(value, ".") > 1:
+		// Repeated dots are thousands separators except for the last decimal.
+		last := strings.LastIndex(value, ".")
+		value = strings.ReplaceAll(value[:last], ".", "") + value[last:]
+	}
+	return strconv.ParseFloat(value, 64)
+}
+
+// parseReceiptTotal recognizes labeled totals and returns their precedence.
+// More specific "amount due" labels win over generic "totale"/"euro" matches.
+func parseReceiptTotal(line string) (float64, int, bool) {
+	lower := strings.ToLower(line)
+	if strings.Contains(lower, "subtotale") || strings.Contains(lower, "imponibile") {
+		return 0, 0, false
+	}
+
+	priority := 0
+	switch {
+	case strongTotalLabelRegex.MatchString(line):
+		priority = 3
+	case totalLabelRegex.MatchString(line):
+		priority = 2
+	case currencyTotalLabelRegex.MatchString(line):
+		priority = 1
+	default:
+		return 0, 0, false
+	}
+
+	matches := receiptAmountRegex.FindAllString(line, -1)
+	if len(matches) == 0 {
+		return 0, 0, false
+	}
+	amount, err := parseReceiptMoney(matches[len(matches)-1])
+	if err != nil || amount < 0 || amount > 1_000_000 {
+		return 0, 0, false
+	}
+	return amount, priority, true
 }
 
 func extractQuantityAndUnit(name string) (float64, domain.Unit) {
