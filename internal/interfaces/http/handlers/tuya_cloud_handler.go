@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -292,7 +293,7 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
+	if err := decoder.Decode(&trailing); err != io.EOF {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "unexpected trailing JSON content")
 		return
 	}
