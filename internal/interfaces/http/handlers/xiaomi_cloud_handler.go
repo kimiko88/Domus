@@ -800,6 +800,10 @@ func (h *XiaomiCloudHandler) ensureFreshToken(ctx context.Context) (*xiaomiCloud
 		config.AccessToken, config.RefreshToken = token.AccessToken, token.RefreshToken
 		config.MacKey, config.MacAlgorithm, config.ExpiresAt = token.MacKey, token.MacAlgorithm, token.ExpiresAt
 		if err := h.saveConfig(ctx, *config, "connected"); err != nil { return nil, nil, err }
+		// The encrypted update may replace the supervised adapter. Resolve a
+		// client from the current instance rather than returning the old transport.
+		client, err = h.newClient(config)
+		if err != nil { return nil, nil, err }
 	}
 	return config, client, nil
 }
