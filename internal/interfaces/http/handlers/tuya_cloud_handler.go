@@ -378,8 +378,25 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "administrator role required")
 		return
 	}
+
+	if h.pluginManager != nil {
+		if err := h.deleteManagedOpenAPIConfig(r.Context()); err != nil {
+			slog.Error("tuya cloud: could not remove OpenAPI plugin configuration", "error", err)
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove Tuya OpenAPI configuration")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"message": "Credenziali Tuya OpenAPI rimosse; gli account Smart Life OAuth restano collegati",
+		})
+		return
+	}
+
 	if h.db != nil {
-		_, _ = h.db.ExecContext(r.Context(), `DELETE FROM tuya_cloud_config WHERE id = 'default'`)
+		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM tuya_cloud_config WHERE id='default'"); err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove configuration")
+			return
+		}
 	}
 	h.mu.Lock()
 	if h.client != nil {
@@ -387,23 +404,11 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	h.client = nil
 	h.mu.Unlock()
-	if h.pluginManager != nil {
-		if instances, err := h.pluginManager.ListInstances(r.Context()); err == nil {
-			for _, instance := range instances {
-				if instance.Type == tuya_cloud.PluginType {
-					_ = h.pluginManager.Delete(r.Context(), instance.ID)
-					break
-				}
-			}
-		}
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"message": "Configurazione Tuya Smart Life rimossa",
 	})
 }
-
 func (h *TuyaCloudHandler) getClient() tuya_cloud.Provider {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
