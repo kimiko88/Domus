@@ -521,14 +521,34 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 		return xiaomi_home.NewCloudAdapter(instanceID, timeout)
 	}); err != nil { return err }
 	if err := register(plugins.Manifest{
-		APIVersion: plugins.ManifestAPIVersion, ID: "midea_a1_protocol", Name: "Midea SmartHome (M-Smart A1)",
-		Internal: true,
-		Version: "1.0.0", Description: "Local M-Smart V2/V3 protocol for supported A1 dehumidifiers.",
-		Capabilities: []plugins.Capability{plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite},
+		APIVersion: plugins.ManifestAPIVersion,
+		ID:         midea.PluginType,
+		Name:       "Midea / Comfee SmartHome (LAN)",
+		Version:    "1.0.0",
+		Description: "Local M-Smart V2/V3 control for supported A1 dehumidifiers. Device credentials are stored only in encrypted plugin configuration.",
+		Capabilities: []plugins.Capability{
+			plugins.CapabilityNetworkLAN,
+			plugins.CapabilitySecretsRead,
+			plugins.CapabilitySecretsWrite,
+			plugins.CapabilityDevicesRead,
+			plugins.CapabilityDevicesWrite,
+			plugins.CapabilityEventsRead,
+			plugins.CapabilityEventsWrite,
+		},
+		Config: []plugins.ConfigField{
+			{Name: "devices", Type: "json", Secret: true, Internal: true, Description: "Encrypted M-Smart device mapping and per-device V3 credentials"},
+		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
-		if _, err := plugins.DecodeConfig[map[string]any](raw); err != nil { return nil, err }
-		return midea.NewRuntimeAdapter(instanceID)
-	}); err != nil { return err }
+		wire, err := plugins.DecodeConfig[struct {
+			Devices []midea.A1LANConfig `json:"devices"`
+		}](raw)
+		if err != nil {
+			return nil, err
+		}
+		return midea.NewRuntimeAdapterWithDevices(instanceID, wire.Devices)
+	}); err != nil {
+		return err
+	}
 
 	if err := open_display.RegisterPlugin(registry); err != nil { return err }
 	return nil

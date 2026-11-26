@@ -153,7 +153,7 @@ Per il reset filtro usare l'azione `reset_filter`. I comandi ammessi sono verifi
 
 ## 6. Entità Domus e funzionalità
 
-Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=`midea_smarthome_local`) e quattro entità:
+Durante l'associazione Domus crea un dispositivo normale nel registry (integration_id=`integration_midea_smarthome`) e quattro entità:
 
 - `humidifier.midea_<id>`: potenza, modalità, velocità ventola, limiti e attributi.
 - `sensor.midea_<id>_humidity`: umidità rilevata in percentuale.
@@ -183,3 +183,25 @@ I test unitari coprono:
 - test UI su discovery, configurazione e comando dell'umidità.
 
 I test di protocollo usano fixture sintetiche/sanificate. **Non sostituiscono il test hardware**: prima di dichiarare compatibile un modello reale vanno verificati discovery, token V3, frame di stato e ciascun comando con quel modello/firmware, misurando gli effetti sul dispositivo e confrontando le letture di ritorno.
+
+
+## 7. Persistenza tramite Plugin Manager
+
+Dalla migrazione alla fase Plugin Manager, Midea / Comfee M-Smart è registrato come plugin pubblico a istanza singola:
+
+- **Tipo plugin:** `midea_smarthome_local`.
+- **ID persistente:** `integration_midea_smarthome`, mantenuto invariato per conservare i riferimenti dei dispositivi e delle entità già creati.
+- **Configurazione gestita:** campo `devices`, marcato `Secret` e `Internal`; il Plugin Manager lo cifra a riposo e non lo restituisce nel catalogo pubblico.
+- **Credenziali M-Smart V3:** token e key restano associati al singolo apparecchio e sono ricostruiti nei driver soltanto in memoria. La struttura pubblica `Device`, le API di inventario e gli eventi non contengono token/key.
+- **Lifecycle:** il Manager ripristina i driver V2/V3 all'avvio, sostituisce l'adapter quando la configurazione cambia e lo rimuove dal runtime quando l'integrazione viene disabilitata.
+- **Compatibilità:** gli endpoint amministrativi `/api/v1/integrations/midea` non cambiano; i record cifrati già presenti vengono letti e riutilizzati senza cambiare l'ID storico.
+
+Il provider implementato è locale: non vengono salvate password dell'app Midea, credenziali di account cloud o refresh token. Le credenziali token/key V3 sono materiale di autenticazione LAN del singolo dispositivo, non una sessione cloud. Un record senza dispositivi può rimanere disabilitato per conservare lo stato dell'integrazione, senza mantenere un driver attivo.
+
+La registrazione è limitata ai dispositivi A1 e alla discovery LAN recente. M-Smart V2/V3 mantengono i driver esistenti; Comfee viene trattato come marchio OEM dello stesso protocollo, non come un provider separato. I modelli non A1 rimangono visibili in discovery ma non vengono dichiarati controllabili da questa tranche.
+
+### Test della migrazione
+
+I test automatizzati verificano: creazione dell'istanza gestita, ripristino di una configurazione V3 cifrata, assenza di token/key negli elenchi pubblici, campi interni esclusi dal catalogo, sostituzione dell'adapter dopo una modifica, arresto del vecchio adapter, disconnessione con eliminazione delle credenziali dalla configurazione attiva e mantenimento dell'ID stabile.
+
+I test non sostituiscono ancora la verifica fisica con almeno un apparecchio M-Smart V2 e uno V3, inclusi Comfee, né l'interoperabilità con modelli diversi dal profilo A1.
