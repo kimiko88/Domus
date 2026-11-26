@@ -128,7 +128,7 @@ func (h *TuyaOAuthHandler) storeManagedToken(ctx context.Context, userID string,
 	if token.UID == "" || token.AccessToken == "" || token.RefreshToken == "" {
 		return errors.New("tuya oauth: refusing to persist an incomplete Smart Life token")
 	}
-	instanceID, config, err := h.managedPluginConfig(ctx, true)
+	instanceID, _, err := h.managedPluginConfig(ctx, true)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (h *TuyaOAuthHandler) loadLegacyToken(ctx context.Context, userID string) (
 func (h *TuyaOAuthHandler) clearManagedToken(ctx context.Context, userID string) error {
 	h.configMu.Lock()
 	defer h.configMu.Unlock()
-	instanceID, config, err := h.managedPluginConfig(ctx, false)
+	instanceID, _, err := h.managedPluginConfig(ctx, false)
 	if err == nil {
 		if _, err := h.pluginManager.UpdateConfigMutate(ctx, instanceID, func(config map[string]json.RawMessage) error {
 			var accounts map[string]json.RawMessage
