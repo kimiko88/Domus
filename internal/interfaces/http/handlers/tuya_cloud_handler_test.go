@@ -642,14 +642,14 @@ func TestTuyaCloudProviderDoesNotBypassPluginManagerWhenRepositoryFails(t *testi
 	}
 }
 
-func TestTuyaCloudProviderReusesPreparedCustomInstanceID(t *testing.T) {
+func TestTuyaCloudProviderReconfiguresPersistedCustomInstanceID(t *testing.T) {
 	repo := newPluginHandlerIntegrationRepo()
 	cipher, err := crypto.NewEnvelopeCipher([]byte("tuya-provider-custom-id-test-key"))
 	if err != nil {
 		t.Fatalf("create test cipher: %v", err)
 	}
 	manager := newPluginRuntimeHandlerManager(t, repo, cipher)
-	adapter, err := manager.Prepare(context.Background(), tuya_cloud.PluginType, "tuya_cloud_custom", []byte(`{"client_id":"old-client","secret":"old-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-old-user"}`))
+	_, err = manager.Prepare(context.Background(), tuya_cloud.PluginType, "tuya_cloud_custom", []byte(`{"client_id":"old-client","secret":"old-secret","base_url":"https://openapi.tuyaeu.com","uid":"eu-old-user"}`))
 	if err != nil {
 		t.Fatalf("prepare custom Tuya instance: %v", err)
 	}
@@ -662,14 +662,19 @@ func TestTuyaCloudProviderReusesPreparedCustomInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("providerForConfig: %v", err)
 	}
-	expectedProvider, ok := adapter.(tuya_cloud.Provider)
-	if !ok {
-		t.Fatalf("prepared adapter does not implement tuya_cloud.Provider: %T", adapter)
+	if got := provider.Config(); got.ClientID != "new-client" || got.Secret != "new-secret" || got.UID != "eu-new-user" {
+		t.Fatalf("provider credentials were not updated: %+v", got)
 	}
-	if provider != expectedProvider {
-		t.Fatalf("expected existing custom-ID adapter to be reused, got %T", provider)
+	config, err := manager.GetConfig(context.Background(), "tuya_cloud_custom")
+	if err != nil {
+		t.Fatalf("read encrypted plugin config: %v", err)
 	}
-	if got := provider.Config(); got.ClientID != "new-client" || got.UID != "eu-new-user" {
-		t.Fatalf("provider credentials were not refreshed: client_id=%q uid=%q", got.ClientID, got.UID)
+	var saved map[string]json.RawMessage
+	if err := json.Unmarshal(config, &saved); err != nil {
+		t.Fatalf("decode managed config: %v", err)
+	}
+	if readRawJSONString(saved, "client_id") != "new-client" || readRawJSONString(saved, "secret") != "new-secret" {
+		t.Fatalf("updated OpenAPI config was not persisted by Plugin Manager: %s", config)
 	}
 }
+
