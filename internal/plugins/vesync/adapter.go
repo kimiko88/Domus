@@ -54,25 +54,27 @@ func validateSession(session Session) error {
 	if (session.AccountID == "") != (session.Token == "") {
 		return errors.New("vesync: stored session must contain both account ID and token")
 	}
-	if session.Token == "" {
-		if session.CountryCode != "" || session.Region != "" || session.TimeZone != "" {
+	if strings.TrimSpace(session.Token) == "" {
+		if session.AccountID != "" || session.CountryCode != "" || session.Region != "" || session.TimeZone != "" {
 			return errors.New("vesync: disconnected session contains partial account metadata")
 		}
 		return nil
 	}
+	if strings.TrimSpace(session.AccountID) == "" {
+		return errors.New("vesync: stored session must contain both account ID and token")
+	}
 	if session.Region != "EU" && session.Region != "US" {
 		return errors.New("vesync: stored session has an unsupported cloud region")
 	}
-	if session.CountryCode != "" {
-		country := strings.ToUpper(strings.TrimSpace(session.CountryCode))
-		if len(country) != 2 || country != session.CountryCode {
-			return errors.New("vesync: stored session has an invalid country code")
-		}
+	country := strings.ToUpper(strings.TrimSpace(session.CountryCode))
+	if len(country) != 2 || country != session.CountryCode {
+		return errors.New("vesync: stored session has an invalid country code")
 	}
-	if session.TimeZone != "" {
-		if _, err := time.LoadLocation(session.TimeZone); err != nil {
-			return errors.New("vesync: stored session has an invalid time zone")
-		}
+	if strings.TrimSpace(session.TimeZone) == "" {
+		return errors.New("vesync: stored session has an invalid time zone")
+	}
+	if _, err := time.LoadLocation(session.TimeZone); err != nil {
+		return errors.New("vesync: stored session has an invalid time zone")
 	}
 	return nil
 }
