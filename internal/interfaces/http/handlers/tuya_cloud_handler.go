@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -296,13 +297,20 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	var req struct {
-		ClientID     string `json:"client_id"`
+		ClientID string `json:"client_id"`
 		ClientSecret string `json:"client_secret"`
-		UID          string `json:"uid"`
-		Endpoint     string `json:"endpoint"`
+		UID string `json:"uid"`
+		Endpoint string `json:"endpoint"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "invalid configuration payload")
+		return
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "unexpected trailing JSON content")
 		return
 	}
 
@@ -313,69 +321,57 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	if req.Endpoint == "" {
 		req.Endpoint = "https://openapi.tuyaeu.com"
 	}
-
 	if req.ClientID == "" || req.ClientSecret == "" {
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "client_id and client_secret are required")
 		return
 	}
 
 	testClient, err := tuya_cloud.New(tuya_cloud.Config{
-		ClientID: req.ClientID,
-		Secret:   req.ClientSecret,
-		BaseURL:  req.Endpoint,
-		UID:      req.UID,
+		ClientID: req.ClientID, Secret: req.ClientSecret,
+		BaseURL: req.Endpoint, UID: req.UID,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "CONFIG_ERROR", err.Error())
 		return
 	}
 
-	// Encrypt secret and store in database
-	if h.cipher != nil && h.db != nil {
-		secretEnc, err := h.cipher.Encrypt(req.ClientSecret)
+	enabled := true
+	if h.pluginManager != nil {
+		enabled, err = h.saveManagedOpenAPIConfig(r.Context(), testClient.Config())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "failed to encrypt secret")
+			slog.Error("tuya cloud: encrypted plugin configuration update failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration in Plugin Manager")
 			return
 		}
-		_, err = h.db.ExecContext(r.Context(), `
-			INSERT INTO tuya_cloud_config(id, client_id, secret_enc, uid, endpoint, updated_at)
-			VALUES('default', ?, ?, ?, ?, ?)
-			ON CONFLICT(id) DO UPDATE SET
-				client_id = excluded.client_id,
-				secret_enc = excluded.secret_enc,
-				uid = excluded.uid,
-				endpoint = excluded.endpoint,
-				updated_at = excluded.updated_at
-		`, req.ClientID, secretEnc, req.UID, req.Endpoint, time.Now().Unix())
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration")
-			return
-		}
-	}
-
-	h.mu.RLock()
-	current := h.client
-	h.mu.RUnlock()
-	if current == nil {
-		provider, err := h.providerForConfig(r.Context(), testClient.Config())
-		if err != nil {
-			slog.Error("tuya cloud: provider initialization failed", "error", err)
-			writeError(w, http.StatusServiceUnavailable, "PLUGIN_UNAVAILABLE", "Tuya Cloud provider could not be started")
-			return
+	} else {
+		// Legacy fallback for installations without the Plugin Manager.
+		if h.cipher != nil && h.db != nil {
+			secretEnc, encryptErr := h.cipher.Encrypt(req.ClientSecret)
+			if encryptErr != nil {
+				writeError(w, http.StatusInternalServerError, "CRYPTO_ERROR", "failed to encrypt secret")
+				return
+			}
+			_, err = h.db.ExecContext(r.Context(), "INSERT INTO tuya_cloud_config(id, client_id, secret_enc, uid, endpoint, updated_at) VALUES('default', ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET client_id=excluded.client_id, secret_enc=excluded.secret_enc, uid=excluded.uid, endpoint=excluded.endpoint, updated_at=excluded.updated_at", req.ClientID, secretEnc, req.UID, req.Endpoint, time.Now().Unix())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration")
+				return
+			}
 		}
 		h.mu.Lock()
-		if h.client == nil { h.client = provider } else { h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID) }
+		if h.client == nil {
+			h.client = testClient
+		} else {
+			h.client.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
+		}
 		h.mu.Unlock()
-	} else {
-		current.SetCredentials(req.ClientID, req.ClientSecret, req.Endpoint, req.UID)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
+		"enabled": enabled,
 		"message": "Configurazione Tuya Smart Life salvata con successo",
 	})
 }
-
 func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil || u.Role != user.RoleAdmin {
