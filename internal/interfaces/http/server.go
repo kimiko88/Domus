@@ -304,10 +304,8 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 				} else if typed, ok := adapter.(*tuya_local.Adapter); ok {
 					srv.tuyaLocalAdapter = typed
 				}
-				if adapter, err := manager.Prepare(context.Background(), "broadlink_local", "broadlink_local", json.RawMessage(`{}`)); err != nil {
-					slog.Error("BroadLink plugin preparation failed", "error", err)
-				} else if typed, ok := adapter.(*broadlink.Adapter); ok {
-					srv.broadlinkAdapter = typed
+				if err := restoreLegacyBroadlinkInstance(context.Background(), manager, srv.repos.DB); err != nil {
+					slog.Error("BroadLink legacy device migration failed", "error", err)
 				}
 			}
 			if strings.EqualFold(strings.TrimSpace(os.Getenv("DOMUS_OPENDISPLAY_ENABLED")), "true") {
@@ -722,8 +720,11 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						localH.RegisterRoutes(localRouter)
 					})
 				}
-				if srv.broadlinkAdapter != nil {
+				if srv.pluginRuntime != nil || srv.broadlinkAdapter != nil {
 					broadlinkH := handlers.NewBroadlinkHandler(srv.broadlinkAdapter)
+					if srv.pluginRuntime != nil {
+						broadlinkH.WithPluginManager(srv.pluginRuntime)
+					}
 					domainRouter.Route("/integrations/broadlink-local", func(localRouter chi.Router) {
 						localRouter.Use(domusmw.RequireRole(user.RoleAdmin))
 						broadlinkH.RegisterRoutes(localRouter)

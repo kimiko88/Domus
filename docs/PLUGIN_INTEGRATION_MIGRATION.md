@@ -41,6 +41,7 @@ Non creare un plugin per ogni funzione del core, né un plugin diverso per ogni 
 | Domus Voice Satellite | `voice_satellite` | Sì | Microfono, wake-word e speaker |
 | Imou Life | `imou_life` | No | Istanza persistente `integration_imou_life`; project keys, sessioni, callback e push in configurazione cifrata |
 | VeSync Cloud | `vesync_cloud` | No | Istanza persistente `integration_vesync_cloud`; sessione cifrata e gestita dal Plugin Manager |
+| BroadLink Local | `broadlink_local` | No | Istanza persistente; adozione dei device legacy; chiavi e comandi restano cifrati nelle tabelle dedicate |
 | Xiaomi miIO local | `xiaomi_miio_transport` | No | Trasporto UDP LAN |
 | Xiaomi Open Platform | `xiaomi_home_cloud` | No | Istanza persistente; OAuth, callback e MIoT con segreti cifrati dal Plugin Manager |
 | Midea / Comfee M-Smart | `midea_smarthome_local` | No | Plugin pubblico persistente `integration_midea_smarthome`; driver LAN V2/V3 A1 e credenziali V3 cifrate per dispositivo |
@@ -48,6 +49,8 @@ Non creare un plugin per ogni funzione del core, né un plugin diverso per ogni 
 Xiaomi miIO locale resta un adapter interno di trasporto. Midea / Comfee M-Smart è un plugin pubblico e persistente, con configurazione dispositivi cifrata nell'ID storico `integration_midea_smarthome` e driver LAN V2/V3. Non esiste un login cloud Midea nel flusso implementato: il token e la key sono credenziali locali M-Smart V3 specifiche per dispositivo. Imou Life, Xiaomi Open Platform e VeSync Cloud sono anch'essi plugin pubblici e persistenti: i record cifrati storici (`integration_imou_life`, `integration_xiaomi_home_cloud` e `integration_vesync_cloud`) vengono ripristinati dal Manager senza cambiare gli ID né il formato dei payload esistenti. Per VeSync la password è usata solo nel login e la sessione viene conservata come campo interno/secret. L'API client attuale non espone un refresh token separato: una sessione rifiutata dal provider richiede una nuova autenticazione.
 
 Gli ID con suffisso `_transport` sono intenzionali per adapter tecnici che non possiedono uno schema di configurazione completo. Midea ha un tipo pubblico (`midea_smarthome_local`) con un campo `devices` interno/secret, cifrato dal Manager e non esposto nel catalogo. Imou Life e Xiaomi Cloud usano invece tipi pubblici persistenti (`imou_life`, `xiaomi_home_cloud`) con gli ID storici `integration_imou_life` e `integration_xiaomi_home_cloud`; i token e i callback segreti sono campi interni cifrati.
+
+Per BroadLink il Plugin Manager persiste l'identità e governa il lifecycle dell'istanza singleton; i record dei telecomandi e i codici IR/RF appresi restano nelle tabelle legacy dedicate, con le chiavi AES cifrate dal vault già esistente. La migrazione adotta automaticamente l'istanza soltanto quando rileva device accoppiati e non riabilita un'istanza che l'amministratore ha disabilitato.
 
 ## Altri candidati, e cosa non spostare
 

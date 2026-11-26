@@ -285,7 +285,7 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 				WithRepositories(deps.Devices, deps.Entities), nil
 		}); err != nil { return err }
 		if err := register(plugins.Manifest{
-			APIVersion: plugins.ManifestAPIVersion, ID: "broadlink_local", Name: "BroadLink Local",
+			APIVersion: plugins.ManifestAPIVersion, ID: broadlink.PluginType, Name: "BroadLink Local",
 			Version: "1.0.0", Description: "Local IR/RF remote control with encrypted device keys and saved commands.",
 			Capabilities: []plugins.Capability{plugins.CapabilityEventsRead, plugins.CapabilityEventsWrite, plugins.CapabilityDevicesRead, plugins.CapabilityDevicesWrite, plugins.CapabilityNetworkLAN, plugins.CapabilitySecretsRead, plugins.CapabilitySecretsWrite},
 		}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {

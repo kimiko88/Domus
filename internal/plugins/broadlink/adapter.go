@@ -22,6 +22,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	PluginType = "broadlink_local"
+	DefaultIntegrationID = "broadlink_local"
+)
+
 type DeviceConfig struct {
 	MAC         string
 	IP          string
@@ -71,7 +76,7 @@ type Adapter struct {
 
 func NewAdapter(id string, bus events.Bus) *Adapter {
 	if id == "" {
-		id = "broadlink_local"
+		id = DefaultIntegrationID
 	}
 	return &Adapter{id: id, bus: bus, devices: make(map[string]DeviceConfig), discovered: make(map[string]DiscoveredDevice), onlineByMAC: make(map[string]bool)}
 }
@@ -87,7 +92,7 @@ func (a *Adapter) WithRepositories(devRepo device.Repository, entRepo entity.Rep
 }
 
 func (a *Adapter) ID() string { return a.id }
-func (a *Adapter) Type() string { return "broadlink_local" }
+func (a *Adapter) Type() string { return PluginType }
 
 func (a *Adapter) Start(ctx context.Context) error {
 	if a.db != nil {
