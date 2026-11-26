@@ -213,7 +213,6 @@ describe('EnergyDashboardView.vue', () => {
     await flushPromises()
     const powerInput = wrapper.find('input.load-power-input')
     await powerInput.setValue('1.5')
-    await powerInput.trigger('change')
     await flushPromises()
 
     expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
@@ -236,7 +235,6 @@ describe('EnergyDashboardView.vue', () => {
 
     const powerInput = wrapper.find('input.load-power-input')
     await powerInput.setValue('2.4')
-    await powerInput.trigger('change')
     await flushPromises()
 
     expect(putSpy.mock.calls.filter(([url]) => url === '/api/v1/energy/flexible-loads')).toHaveLength(1)
