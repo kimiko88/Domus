@@ -91,6 +91,10 @@ func TestManagerUpdateConfigCommitsEncryptedSettingsAndRollsBackFailedReplacemen
 	require.NoError(t, err)
 	require.JSONEq(t, updated, plain)
 
+	loadedConfig, err := manager.GetConfig(ctx, "phase2_bridge_one")
+	require.NoError(t, err)
+	require.JSONEq(t, updated, string(loadedConfig))
+
 	const invalidRuntimeUpdate = `{"endpoint":"https://broken.example.test/api","api_token":"bad-secret-value-0123456789","fail_start":true}`
 	_, err = manager.UpdateConfig(ctx, "phase2_bridge_one", json.RawMessage(invalidRuntimeUpdate))
 	require.Error(t, err)
