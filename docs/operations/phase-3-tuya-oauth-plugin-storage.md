@@ -2,7 +2,7 @@
 
 ## Obiettivo della tranche
 
-La roadmap cloud viene affrontata per passi indipendenti. Questa tranche migra i token di collegamento Smart Life OAuth dal vecchio archivio per-utente `tuya_user_oauth_connections` al repository delle istanze Plugin Manager. La stessa tranche include anche la migrazione dell'option flow Tuya OpenAPI (`GET/POST/DELETE /integrations/tuya-cloud/config`) dal vault separato alla configurazione cifrata dell'istanza.
+La roadmap cloud viene affrontata per passi indipendenti. Questa tranche migra i token di collegamento Smart Life OAuth dal vecchio archivio per-utente `tuya_user_oauth_connections` al repository delle istanze Plugin Manager. La stessa tranche include anche la migrazione dell'option flow Tuya OpenAPI (`GET/PUT/DELETE /integrations/tuya-cloud/config` (con `POST /config` mantenuto come alias di compatibilità)) dal vault separato alla configurazione cifrata dell'istanza.
 
 ## Modello dati
 
