@@ -75,8 +75,6 @@ func (h *TuyaOAuthHandler) ensureManagedPlugin(ctx context.Context) (string, err
 
 
 	initial := map[string]any{
-		"client_id": cfg.ClientID,
-		"secret": cfg.Secret,
 		"base_url": cfg.BaseURL,
 		"oauth_client_id": cfg.ClientID,
 		"oauth_secret": cfg.Secret,
