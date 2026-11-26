@@ -1,5 +1,7 @@
 package xiaomi_home
 
+const CloudPluginType = "xiaomi_home_cloud"
+
 import (
 	"context"
 	"errors"
@@ -48,7 +50,7 @@ func NewCloudAdapter(id string,timeout time.Duration)(*CloudAdapter,error){
 	return &CloudAdapter{id:id,http:&http.Client{Timeout:timeout}},nil
 }
 func(a *CloudAdapter)ID()string{return a.id}
-func(a *CloudAdapter)Type()string{return "xiaomi_open_platform_transport"}
+func(a *CloudAdapter)Type()string{return CloudPluginType}
 func(a *CloudAdapter)Start(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.Lock();a.active=true;a.mu.Unlock();return nil}
 func(a *CloudAdapter)Stop(context.Context)error{a.mu.Lock();a.active=false;a.mu.Unlock();return nil}
 func(a *CloudAdapter)HealthCheck(ctx context.Context)error{if err:=ctx.Err();err!=nil{return err};a.mu.RLock();active:=a.active;a.mu.RUnlock();if !active{return errors.New("xiaomi: cloud provider is stopped")};return nil}
