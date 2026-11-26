@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domusmw "github.com/domus-hub/domus/internal/interfaces/http/middleware"
+	"github.com/go-chi/chi/v5"
 	"github.com/domus-hub/domus/internal/domain/user"
 	"github.com/domus-hub/domus/internal/plugins/tuya_cloud"
 	"github.com/stretchr/testify/require"
@@ -94,14 +95,16 @@ func TestTuyaCloudManagedGetConfigDoesNotExposeSecret(t *testing.T) {
 func TestTuyaCloudSaveConfigPersistsThroughPluginManager(t *testing.T) {
 	_, manager, db, cipher := newManagedTuyaOAuthTestHandler(t)
 	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
-	request := managedTuyaAdminRequest(http.MethodPost, "/config", `{
+	router := chi.NewRouter()
+	handler.RegisterRoutes(router)
+	request := managedTuyaAdminRequest(http.MethodPut, "/config", `{
 		"client_id":"new-openapi-client",
 		"client_secret":"new-openapi-secret",
 		"uid":"new-smart-life-uid",
 		"endpoint":"https://openapi.tuyaeu.com"
 	}`)
 	rec := httptest.NewRecorder()
-	handler.SaveConfig(rec, request)
+	router.ServeHTTP(rec, request)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	stored, err := manager.GetConfig(context.Background(), tuya_cloud.PluginType)
