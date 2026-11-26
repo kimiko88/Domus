@@ -183,6 +183,27 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 }
 
 
+func TestListTypesHidesInternalXiaomiOAuthFields(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	var manifest *plugins.Manifest
+	for _, item := range manager.ListTypes() {
+		if item.ID == "xiaomi_home_cloud" {
+			copy := item
+			manifest = &copy
+			break
+		}
+	}
+	require.NotNil(t, manifest, "Xiaomi Home Cloud should be a visible plugin type")
+	encoded, err := json.Marshal(manifest)
+	require.NoError(t, err)
+	for _, publicField := range []string{"client_id", "client_secret", "region", "public_base_url"} {
+		require.Contains(t, string(encoded), `"name":"`+publicField+`"`)
+	}
+	for _, secretField := range []string{"callback_secret", "event_secret", "oauth_state", "access_token", "refresh_token", "mac_key", "user_id"} {
+		require.NotContains(t, string(encoded), `"name":"`+secretField+`"`)
+	}
+}
+
 func TestInternalTransportCanBePreparedButNotShownAsUserInstance(t *testing.T) {
 	manager, _, _ := newTestManager(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
