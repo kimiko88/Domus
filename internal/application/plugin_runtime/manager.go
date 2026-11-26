@@ -67,6 +67,24 @@ func NewManager(repos *sqlite.Repositories, bus events.Bus) (*Manager, error) {
 
 func (m *Manager) Registry() *plugins.Registry { return m.registry }
 
+// GetConfig returns the decrypted configuration for trusted application-layer
+// consumers. It must never be wired to an HTTP response: public instance APIs
+// intentionally expose metadata only and keep every secret masked.
+func (m *Manager) GetConfig(ctx context.Context, id string) (json.RawMessage, error) {
+	if !integrationIDPattern.MatchString(id) {
+		return nil, errors.New("plugin_runtime: invalid integration instance ID")
+	}
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := m.decryptConfig(record.ConfigEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("plugin_runtime: decrypt integration config: %w", err)
+	}
+	return append(json.RawMessage(nil), raw...), nil
+}
+
 // GetAdapter returns a prepared adapter by instance ID. The returned value is
 // owned by the manager; callers may use its typed provider contract but must
 // not call Start or Stop directly.
