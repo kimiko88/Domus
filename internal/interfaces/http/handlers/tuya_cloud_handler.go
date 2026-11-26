@@ -313,7 +313,7 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
-		"enabled": enabled,
+		"enabled": true,
 		"message": "Configurazione Tuya Smart Life salvata con successo",
 	})
 }
