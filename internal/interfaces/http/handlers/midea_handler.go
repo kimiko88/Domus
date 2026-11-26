@@ -107,6 +107,17 @@ func NewMideaHandler(
 func (h *MideaHandler) WithPluginManager(manager *apppluginruntime.Manager) *MideaHandler {
 	h.mu.Lock()
 	h.pluginManager = manager
+	if manager != nil {
+		// Discard the constructor's legacy in-memory protocol registry. From
+		// this point the Manager-owned adapter is the only command path; an
+		// enabled instance is rebound explicitly after Manager.Start.
+		if driverV2, err := midea.NewA1LANDriver(midea.ProtocolMSmartV2); err == nil {
+			if driverV3, err := midea.NewA1LANDriver(midea.ProtocolMSmartV3); err == nil {
+				h.driverV2, h.driverV3 = driverV2, driverV3
+				h.adapter = midea.NewAdapter(driverV2, driverV3)
+			}
+		}
+	}
 	h.mu.Unlock()
 	return h
 }
