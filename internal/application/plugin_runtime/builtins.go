@@ -229,6 +229,10 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			{Name: "base_url", Type: "url", Required: true, Description: "Allowed Tuya regional HTTPS endpoint"},
 			{Name: "uid", Type: "string", Description: "Optional linked Smart Life user UID"},
 			{Name: "schema", Type: "string", Description: "Optional Tuya project schema"},
+			{Name: "oauth_client_id", Type: "string", Secret: true, Internal: true},
+			{Name: "oauth_secret", Type: "string", Secret: true, Internal: true},
+			{Name: "oauth_identifier", Type: "string", Secret: true, Internal: true},
+			{Name: "smart_life_oauth", Type: "json", Secret: true, Internal: true},
 		},
 	}, func(ctx context.Context, instanceID string, raw json.RawMessage, deps plugins.Dependencies) (plugins.Adapter, error) {
 		wire, err := plugins.DecodeConfig[struct {
