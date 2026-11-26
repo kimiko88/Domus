@@ -242,4 +242,15 @@ func TestTuyaCloudLegacyMigrationKeepsOldTableWhenDecryptionFails(t *testing.T) 
 	instances, err := manager.ListInstances(ctx)
 	require.NoError(t, err)
 	require.Empty(t, instances, "failed migration must not create a partial Plugin Manager instance")
+
+	// An administrator can replace a corrupt legacy value. Only after that
+	// successful encrypted save may the obsolete table be removed.
+	handler := NewTuyaCloudHandler(nil, manager).WithStorage(db, cipher)
+	save := httptest.NewRecorder()
+	handler.SaveConfig(save, tuyaAdminRequest(http.MethodPut, "/config", `{"client_id":"replacement-client","client_secret":"replacement-secret","endpoint":"https://openapi.tuyaeu.com"}`))
+	require.Equal(t, http.StatusOK, save.Code, save.Body.String())
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='tuya_cloud_config'",
+	).Scan(&tableCount))
+	require.Zero(t, tableCount, "the corrupt legacy table can be retired after replacement credentials are saved")
 }
