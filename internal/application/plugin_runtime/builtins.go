@@ -237,6 +237,8 @@ func registerBuiltins(registry *plugins.Registry, host builtinHost) error {
 			BaseURL string `json:"base_url"`
 			UID string `json:"uid"`
 			Schema string `json:"schema"`
+			OAuthClientID string `json:"oauth_client_id"`
+			OAuthSecret string `json:"oauth_secret"`
 			OAuthIdentifier string `json:"oauth_identifier"`
 			SmartLifeOAuth json.RawMessage `json:"smart_life_oauth"`
 		}](raw)
