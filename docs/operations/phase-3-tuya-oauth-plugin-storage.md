@@ -1,4 +1,4 @@
-# Fase 3 – Storage OAuth per istanza Tuya Cloud
+# Fase 3 – Storage OAuth e configurazione OpenAPI per istanza Tuya Cloud
 
 ## Obiettivo della tranche
 
@@ -6,8 +6,8 @@ La roadmap cloud viene affrontata per passi indipendenti. Questa tranche migra i
 
 ## Modello dati
 
-- L'istanza singleton `tuya_cloud` contiene un campo interno `smart_life_oauth` con una mappa di account indicizzata dall'ID utente Domus.
-- Ogni account memorizza UID Smart Life, access token, refresh token e scadenza.
+- L'istanza singleton `tuya_cloud` contiene le impostazioni pubbliche OpenAPI (`client_id`, `base_url`, `uid`, `schema`) e il segreto OpenAPI `secret` cifrato assieme all'intera configurazione.
+- Il campo interno `smart_life_oauth` contiene una mappa di account indicizzata dall'ID utente Domus. Ogni account memorizza UID Smart Life, access token, refresh token e scadenza.
 - L'intero JSON dell'istanza è cifrato dal `EnvelopeCipher` prima della persistenza; non viene creato un secondo archivio token in chiaro.
 - Le credenziali App Authorization (`oauth_client_id` / `oauth_secret`) restano distinte dalle credenziali Tuya OpenAPI (`client_id` / `secret`). Un'istanza OAuth-only può esistere senza inventare o riutilizzare credenziali OpenAPI; il client OpenAPI si attiva solo quando vengono configurate le sue chiavi.
 - I campi `oauth_client_id`, `oauth_secret`, `oauth_identifier` e `smart_life_oauth` sono dichiarati interni nello schema. Il Registry li valida, ma `Manager.ListTypes` li filtra dal catalogo mostrato nella UI.
@@ -28,8 +28,10 @@ L'endpoint amministrativo esistente `/api/v1/integrations/tuya-cloud/config` usa
 1. L'amministratore avvia l'autorizzazione.
 2. Il callback usa lo state monouso associato all'utente Domus; la tabella `tuya_user_oauth_states` rimane l'archivio CSRF, non contiene token Smart Life.
 3. I token ricevuti vengono salvati nella configurazione cifrata dell'istanza attraverso `Manager.UpdateConfigMutate`.
-4. Refresh ordinario e refresh dopo rifiuto token aggiornano la stessa entry utente in modo serializzato; un amministratore non sovrascrive le credenziali di un altro.
-5. Il disconnect rimuove solo l'entry dell'utente che ha richiesto la disconnessione.
+4. L'option flow Tuya OpenAPI legge le impostazioni da `Manager.GetConfig`; `POST /config` aggiorna i campi OpenAPI attraverso `Manager.UpdateConfigMutate`, senza sostituire i dati OAuth interni.
+5. Refresh ordinario e refresh dopo rifiuto token aggiornano la stessa entry utente in modo serializzato; un amministratore non sovrascrive le credenziali di un altro.
+6. Il disconnect rimuove solo l'entry dell'utente che ha richiesto la disconnessione.
+7. `DELETE /config` rimuove soltanto le credenziali OpenAPI (`client_id`, `secret`, `uid`, `schema`); non elimina l'istanza e non scollega gli account OAuth.
 
 ## Migrazione compatibile
 
@@ -49,6 +51,8 @@ Per OAuth, al primo accesso a un account non ancora presente nella configurazion
 
 In caso di errore nella scrittura nuova, la riga legacy non viene cancellata. La migrazione è quindi ripetibile senza perdere la sessione dell'utente. La tabella `tuya_user_oauth_states` resta il solo archivio SQL del flusso OAuth, per lo state CSRF monouso.
 
+Per la configurazione OpenAPI legacy, `TuyaCloudHandler.WithStorage` verifica l'esistenza della vecchia tabella, decifra la riga `default`, crea o aggiorna l'istanza Tuya e cancella la riga solo dopo il commit cifrato. Le installazioni managed non creano la tabella e non vi scrivono più; essa resta disponibile solo per la modalità di compatibilità senza Plugin Manager.
+
 ## Hardening e test
 
 - I dati OAuth interni sono esclusi dallo schema pubblico di configurazione.
@@ -58,6 +62,7 @@ In caso di errore nella scrittura nuova, la riga legacy non viene cancellata. La
 - I test dell'option flow coprono migrazione `tuya_cloud_config`, installazione nuova, GET/PUT/POST/DELETE, conservazione dei token OAuth quando vengono rimosse le credenziali OpenAPI e assenza dei segreti nelle risposte.
 - Il test OAuth-only verifica che le credenziali App Authorization non siano copiate nei campi OpenAPI.
 - Il test di aggiornamento pubblico verifica che una modifica ordinaria delle impostazioni Tuya preservi i campi interni non mostrati nel form.
+- I test Tuya Cloud verificano migrazione della vecchia riga OpenAPI, lettura senza esporre `secret`, salvataggio tramite Plugin Manager, conservazione di `schema` e token OAuth durante gli aggiornamenti e cancellazione selettiva delle credenziali OpenAPI.
 - I test precedenti del percorso legacy restano attivi per installazioni che non hanno il Plugin Manager.
 
 ## Lavoro ancora aperto

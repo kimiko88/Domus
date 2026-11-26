@@ -11,6 +11,9 @@ import (
 	"github.com/domus-hub/domus/internal/plugins"
 )
 
+const CloudPluginType = "xiaomi_home_cloud"
+const CloudIntegrationID = "integration_xiaomi_home_cloud"
+
 // LocalAdapter is the supervised miIO LAN transport provider.
 type LocalAdapter struct {
 	id string

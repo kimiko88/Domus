@@ -68,10 +68,20 @@ func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher
 		if err := h.loadStoredConfig(context.Background()); err != nil {
 			slog.Error("tuya cloud: could not restore managed or legacy configuration", "error", err)
 		}
+		return h
+	}
+
+	// Compatibility path for installations without the Plugin Manager.
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS tuya_cloud_config (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, secret_enc TEXT NOT NULL, uid TEXT NOT NULL, endpoint TEXT NOT NULL, updated_at INTEGER NOT NULL)")
+	if err != nil {
+		slog.Error("tuya cloud: could not initialize the legacy configuration table", "error", err)
+		return h
+	}
+	if err := h.loadStoredConfig(context.Background()); err != nil {
+		slog.Error("tuya cloud: could not restore the encrypted legacy configuration", "error", err)
 	}
 	return h
 }
-
 func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 	if h.pluginManager != nil {
 		if err := h.migrateLegacyTuyaCloudConfig(ctx); err != nil {
@@ -212,7 +222,6 @@ func (h *TuyaCloudHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		"source": source,
 	})
 }
-
 func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil || u.Role != user.RoleAdmin {
@@ -294,7 +303,8 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 				uid=excluded.uid, endpoint=excluded.endpoint, updated_at=excluded.updated_at
 		`, req.ClientID, secretEnc, req.UID, req.Endpoint, time.Now().Unix())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration")
+			slog.Error("tuya cloud: encrypted plugin configuration update failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "failed to save configuration in Plugin Manager")
 			return
 		}
 	}
@@ -303,10 +313,10 @@ func (h *TuyaCloudHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
+		"enabled": enabled,
 		"message": "Configurazione Tuya Smart Life salvata con successo",
 	})
 }
-
 func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) {
 	u := domusmw.GetUser(r.Context())
 	if u == nil || u.Role != user.RoleAdmin {
@@ -329,7 +339,10 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if h.db != nil {
-		_, _ = h.db.ExecContext(r.Context(), `DELETE FROM tuya_cloud_config WHERE id = 'default'`)
+		if _, err := h.db.ExecContext(r.Context(), "DELETE FROM tuya_cloud_config WHERE id='default'"); err != nil {
+			writeError(w, http.StatusInternalServerError, "STORAGE_ERROR", "could not remove configuration")
+			return
+		}
 	}
 	h.mu.Lock()
 	if h.client != nil {
@@ -342,8 +355,21 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 		"message": "Configurazione Tuya Smart Life rimossa",
 	})
 }
-
 func (h *TuyaCloudHandler) getClient() tuya_cloud.Provider {
+	if h.pluginManager != nil {
+		// OAuth refresh and settings updates may atomically replace the runtime
+		// adapter. Always resolve the current supervised instance instead of
+		// retaining a provider pointer that has already been stopped.
+		if adapter, found := h.pluginManager.GetAdapterByType(tuya_cloud.PluginType); found {
+			if provider, ok := adapter.(tuya_cloud.Provider); ok {
+				h.mu.Lock()
+				h.client = provider
+				h.mu.Unlock()
+				return provider
+			}
+		}
+		return nil
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.client
