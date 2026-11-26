@@ -96,12 +96,15 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Equal(t, http.StatusCreated, imouResponse.Code, imouResponse.Body.String())
 	require.NotContains(t, imouResponse.Body.String(), imouSecret)
 
-	vesyncBody := `{"id":"integration_vesync_cloud","type":"vesync_cloud","name":"VeSync Cloud","enabled":false,"config":{}}`
+	const veSyncSessionToken = "ve-private-session-token-never-return-this"
+	vesyncBody := `{"id":"integration_vesync_cloud","type":"vesync_cloud","name":"VeSync Cloud","enabled":false,"config":{"session":{"account_id":"ve-account-private","token":"` + veSyncSessionToken + `","country_code":"IT","region":"EU","time_zone":"Europe/Rome"}}}`
 	vesyncResponse := httptest.NewRecorder()
 	router.ServeHTTP(vesyncResponse, httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(vesyncBody)))
 	require.Equal(t, http.StatusCreated, vesyncResponse.Code, vesyncResponse.Body.String())
 	require.NotContains(t, vesyncResponse.Body.String(), `"config"`)
 	require.NotContains(t, vesyncResponse.Body.String(), `"session"`)
+	require.NotContains(t, vesyncResponse.Body.String(), veSyncSessionToken)
+	require.NotContains(t, vesyncResponse.Body.String(), "ve-account-private")
 
 	internalResponse := httptest.NewRecorder()
 	internalBody := `{"id":"xiaomi_miio_transport","type":"xiaomi_miio_transport","name":"hidden transport","config":{}}`
@@ -117,6 +120,8 @@ func TestPluginRuntimeHandlerCatalogCreateAndSecretRedaction(t *testing.T) {
 	require.Contains(t, listResponse.Body.String(), `"open_display"`)
 	require.Contains(t, listResponse.Body.String(), `"imou_life"`)
 	require.Contains(t, listResponse.Body.String(), `"vesync_cloud"`)
+	require.NotContains(t, listResponse.Body.String(), veSyncSessionToken)
+	require.NotContains(t, listResponse.Body.String(), "ve-account-private")
 	require.NotContains(t, listResponse.Body.String(), imouSecret)
 	require.NotContains(t, listResponse.Body.String(), secret)
 	require.NotContains(t, listResponse.Body.String(), `"token"`)
