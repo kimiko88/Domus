@@ -86,6 +86,43 @@ func (h *PluginRuntimeHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, instance)
 }
 
+func (h *PluginRuntimeHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
+	if h.manager == nil {
+		writeError(w, http.StatusServiceUnavailable, "PLUGIN_RUNTIME_UNAVAILABLE", "plugin runtime is not configured")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, plugins.MaxPluginConfigBytes+1<<10)
+	var request struct {
+		Config json.RawMessage `json:"config"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_PLUGIN_CONFIG", "provide a valid config object")
+		return
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "INVALID_PLUGIN_CONFIG", "unexpected trailing JSON content")
+		return
+	}
+	if len(request.Config) == 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_PLUGIN_CONFIG", "config is required")
+		return
+	}
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	instance, err := h.manager.UpdateConfig(r.Context(), id, request.Config)
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, "PLUGIN_CONFIG_UPDATE_FAILED", "plugin configuration could not be updated")
+		return
+	}
+	writeJSON(w, http.StatusOK, instance)
+}
+
 func (h *PluginRuntimeHandler) Enable(w http.ResponseWriter, r *http.Request) {
 	h.setEnabled(w, r, true)
 }

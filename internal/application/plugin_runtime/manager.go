@@ -118,6 +118,12 @@ func (m *Manager) isInternalType(pluginType string) bool {
 func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, raw json.RawMessage) (plugins.Adapter, error) {
 	m.instanceMu.Lock()
 	defer m.instanceMu.Unlock()
+	return m.prepareLocked(ctx, pluginType, instanceID, raw)
+}
+
+// prepareLocked is called only while instanceMu is held. It keeps all manager
+// mutations ordered with startup, enable/disable, reconfiguration and deletion.
+func (m *Manager) prepareLocked(ctx context.Context, pluginType, instanceID string, raw json.RawMessage) (plugins.Adapter, error) {
 	if !integrationIDPattern.MatchString(instanceID) {
 		return nil, errors.New("plugin_runtime: invalid integration instance ID")
 	}
@@ -126,27 +132,33 @@ func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, ra
 		m.mu.Unlock()
 		return nil, plugins.ErrAdapterExists
 	}
+	started := m.started
 	m.mu.Unlock()
-	if err := m.validateInstanceMultiplicity(ctx, pluginType, instanceID); err != nil { return nil, err }
+	if err := m.validateInstanceMultiplicity(ctx, pluginType, instanceID); err != nil {
+		return nil, err
+	}
 	adapter, err := m.registry.Create(ctx, pluginType, instanceID, raw, m.deps)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if err := m.supervisor.Register(adapter); err != nil {
 		_ = adapter.Stop(context.Background())
 		return nil, err
 	}
 	m.mu.Lock()
 	m.prepared[instanceID] = adapter
-	started := m.started
 	m.mu.Unlock()
 	if started {
 		if err := m.supervisor.StartAdapter(ctx, instanceID); err != nil {
 			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = m.supervisor.Unregister(stopCtx, instanceID)
+			stopErr := m.supervisor.Unregister(stopCtx, instanceID)
 			cancel()
-			m.mu.Lock()
-			delete(m.prepared, instanceID)
-			m.mu.Unlock()
-			return nil, err
+			if stopErr == nil {
+				m.mu.Lock()
+				delete(m.prepared, instanceID)
+				m.mu.Unlock()
+			}
+			return nil, errors.Join(err, stopErr)
 		}
 	}
 	return adapter, nil
@@ -154,6 +166,9 @@ func (m *Manager) Prepare(ctx context.Context, pluginType, instanceID string, ra
 
 // Start prepares enabled persisted instances and starts all prepared adapters.
 func (m *Manager) Start(ctx context.Context) error {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+
 	m.mu.Lock()
 	if m.started {
 		m.mu.Unlock()
@@ -179,7 +194,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			_ = m.repo.SetStatus(ctx, record.ID, "error", "stored plugin configuration could not be decrypted")
 			continue
 		}
-		if _, err := m.Prepare(ctx, record.Type, record.ID, raw); err != nil {
+		if _, err := m.prepareLocked(ctx, record.Type, record.ID, raw); err != nil {
 			_ = m.repo.SetStatus(ctx, record.ID, "error", safeError(err))
 		}
 	}
@@ -291,24 +306,165 @@ func (m *Manager) Create(ctx context.Context, id, pluginType, name string, confi
 	return m.toInstance(ctx, record)
 }
 
-func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error {
+// UpdateConfig validates and atomically replaces a persisted plugin configuration.
+// The previous adapter/configuration is restored when the replacement cannot start
+// or the encrypted configuration cannot be committed.
+func (m *Manager) UpdateConfig(ctx context.Context, id string, config json.RawMessage) (Instance, error) {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+
 	record, err := m.repo.GetByID(ctx, id)
-	if err != nil { return err }
-	if record.Enabled == enabled { return nil }
-	record.Enabled = enabled
-	if err := m.repo.Update(ctx, record); err != nil { return err }
+	if err != nil {
+		return Instance{}, err
+	}
+	if !integrationIDPattern.MatchString(id) {
+		return Instance{}, errors.New("plugin_runtime: invalid integration instance ID")
+	}
+	if len(config) == 0 {
+		config = json.RawMessage(`{}`)
+	}
+	candidate, err := m.registry.Create(ctx, record.Type, record.ID, config, m.deps)
+	if err != nil {
+		return Instance{}, err
+	}
+	encrypted, err := m.cipher.Encrypt(string(config))
+	if err != nil {
+		_ = candidate.Stop(context.Background())
+		return Instance{}, err
+	}
+
+	m.mu.Lock()
+	started := m.started
+	oldAdapter := m.prepared[id]
+	m.mu.Unlock()
+
+	if !record.Enabled {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		stopErr := candidate.Stop(stopCtx)
+		cancel()
+		if stopErr != nil {
+			return Instance{}, stopErr
+		}
+		record.ConfigEncrypted = []byte(encrypted)
+		record.UpdatedAt = time.Now().UTC()
+		if err := m.repo.Update(ctx, record); err != nil {
+			return Instance{}, err
+		}
+		return m.toInstance(ctx, record)
+	}
+
+	_, registered := m.supervisor.GetStatus(id)
+	if registered {
+		err = m.supervisor.Replace(ctx, id, candidate)
+	} else {
+		err = m.supervisor.Register(candidate)
+		if err == nil && started {
+			err = m.supervisor.StartAdapter(ctx, id)
+		}
+	}
+	if err != nil {
+		if !registered {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			stopErr := m.supervisor.Unregister(stopCtx, id)
+			cancel()
+			if stopErr != nil {
+				// Supervisor keeps the adapter registered while Stop is failing.
+				m.mu.Lock()
+				m.prepared[id] = candidate
+				m.mu.Unlock()
+				return Instance{}, errors.Join(err, stopErr)
+			}
+			// Unregister performed the successful Stop; do not stop twice.
+		}
+		// A registered replacement is cleaned up (or rolled back) by Supervisor.Replace.
+		return Instance{}, err
+	}
+
+	m.mu.Lock()
+	m.prepared[id] = candidate
+	m.mu.Unlock()
+
+	record.ConfigEncrypted = []byte(encrypted)
+	record.UpdatedAt = time.Now().UTC()
+	if err := m.repo.Update(ctx, record); err != nil {
+		var rollbackErr error
+		if oldAdapter != nil && registered {
+			rollbackErr = m.supervisor.Replace(context.Background(), id, oldAdapter)
+		} else {
+			rollbackErr = m.supervisor.Unregister(context.Background(), id)
+		}
+		m.mu.Lock()
+		if rollbackErr == nil {
+			if oldAdapter != nil {
+				m.prepared[id] = oldAdapter
+			} else {
+				delete(m.prepared, id)
+			}
+		}
+		m.mu.Unlock()
+		if rollbackErr != nil {
+			_ = m.repo.SetStatus(ctx, id, "error", safeError(rollbackErr))
+			return Instance{}, errors.Join(err, fmt.Errorf("plugin_runtime: configuration rollback failed: %w", rollbackErr))
+		}
+		return Instance{}, err
+	}
+
+	status := "disconnected"
+	if started {
+		status = "connected"
+	}
+	if err := m.repo.SetStatus(ctx, id, status, ""); err != nil {
+		return Instance{}, err
+	}
+	return m.toInstance(ctx, record)
+}
+
+func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if record.Enabled == enabled {
+		return nil
+	}
+	m.mu.Lock()
+	started := m.started
+	oldAdapter := m.prepared[id]
+	m.mu.Unlock()
+
 	if !enabled {
-		if _, exists := m.supervisor.GetStatus(id); exists {
+		if _, registered := m.supervisor.GetStatus(id); registered {
 			stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err = m.supervisor.Unregister(stopCtx, id)
 			cancel()
+			if err != nil {
+				return err
+			}
+		}
+		record.Enabled = false
+		record.UpdatedAt = time.Now().UTC()
+		if err := m.repo.Update(ctx, record); err != nil {
+			if oldAdapter != nil {
+				restoreErr := m.supervisor.Register(oldAdapter)
+				if restoreErr == nil && started {
+					restoreErr = m.supervisor.StartAdapter(ctx, id)
+				}
+				if restoreErr != nil {
+					_ = m.repo.SetStatus(ctx, id, "error", safeError(restoreErr))
+					return errors.Join(err, fmt.Errorf("plugin_runtime: could not restore adapter after failed disable: %w", restoreErr))
+				}
+			}
+			return err
 		}
 		m.mu.Lock()
 		delete(m.prepared, id)
 		m.mu.Unlock()
-		if err != nil { return err }
 		return m.repo.SetStatus(ctx, id, "disconnected", "")
 	}
+
 	raw, err := m.decryptConfig(record.ConfigEncrypted)
 	if err != nil {
 		_ = m.repo.SetStatus(ctx, id, "error", "stored plugin configuration could not be decrypted")
@@ -319,22 +475,64 @@ func (m *Manager) SetEnabled(ctx context.Context, id string, enabled bool) error
 		_ = m.repo.SetStatus(ctx, id, "error", safeError(err))
 		return err
 	}
-	if err := m.supervisor.Register(adapter); err != nil { _ = adapter.Stop(context.Background()); return err }
-	m.mu.Lock()
-	m.prepared[id] = adapter
-	started := m.started
-	m.mu.Unlock()
+	if err := m.supervisor.Register(adapter); err != nil {
+		_ = adapter.Stop(context.Background())
+		return err
+	}
 	if started {
 		if err := m.supervisor.StartAdapter(ctx, id); err != nil {
-			_ = m.repo.SetStatus(ctx, id, "error", safeError(err))
-			return err
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			stopErr := m.supervisor.Unregister(stopCtx, id)
+			cancel()
+			if stopErr != nil {
+				m.mu.Lock()
+				m.prepared[id] = adapter
+				m.mu.Unlock()
+			}
+			_ = m.repo.SetStatus(ctx, id, "error", safeError(errors.Join(err, stopErr)))
+			return errors.Join(err, stopErr)
 		}
 	}
-	return m.repo.SetStatus(ctx, id, "connected", "")
+	record.Enabled = true
+	record.UpdatedAt = time.Now().UTC()
+	if err := m.repo.Update(ctx, record); err != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		stopErr := m.supervisor.Unregister(stopCtx, id)
+		cancel()
+		if stopErr != nil {
+			m.mu.Lock()
+			m.prepared[id] = adapter
+			m.mu.Unlock()
+			_ = m.repo.SetStatus(ctx, id, "error", safeError(errors.Join(err, stopErr)))
+		}
+		return errors.Join(err, stopErr)
+	}
+	m.mu.Lock()
+	m.prepared[id] = adapter
+	m.mu.Unlock()
+	status := "disconnected"
+	if started {
+		status = "connected"
+	}
+	return m.repo.SetStatus(ctx, id, status, "")
 }
 
 func (m *Manager) Restart(ctx context.Context, id string) error {
-	if _, err := m.repo.GetByID(ctx, id); err != nil { return err }
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !record.Enabled {
+		return errors.New("plugin_runtime: disabled instance cannot be restarted")
+	}
+	m.mu.Lock()
+	started := m.started
+	m.mu.Unlock()
+	if !started {
+		return errors.New("plugin_runtime: runtime is not running")
+	}
 	if err := m.supervisor.Restart(ctx, id); err != nil {
 		_ = m.repo.SetStatus(ctx, id, "error", safeError(err))
 		return err
@@ -343,14 +541,38 @@ func (m *Manager) Restart(ctx context.Context, id string) error {
 }
 
 func (m *Manager) Delete(ctx context.Context, id string) error {
-	if _, err := m.repo.GetByID(ctx, id); err != nil { return err }
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
+	record, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	started := m.started
+	adapter := m.prepared[id]
+	m.mu.Unlock()
 	if _, exists := m.supervisor.GetStatus(id); exists {
-		if err := m.supervisor.Unregister(ctx, id); err != nil { return err }
+		if err := m.supervisor.Unregister(ctx, id); err != nil {
+			return err
+		}
+	}
+	if err := m.repo.Delete(ctx, id); err != nil {
+		if record.Enabled && adapter != nil {
+			restoreErr := m.supervisor.Register(adapter)
+			if restoreErr == nil && started {
+				restoreErr = m.supervisor.StartAdapter(ctx, id)
+			}
+			if restoreErr != nil {
+				_ = m.repo.SetStatus(ctx, id, "error", safeError(restoreErr))
+				return errors.Join(err, fmt.Errorf("plugin_runtime: could not restore adapter after failed deletion: %w", restoreErr))
+			}
+		}
+		return err
 	}
 	m.mu.Lock()
 	delete(m.prepared, id)
 	m.mu.Unlock()
-	return m.repo.Delete(ctx, id)
+	return nil
 }
 
 func (m *Manager) ListInstances(ctx context.Context) ([]Instance, error) {
@@ -395,11 +617,15 @@ func (m *Manager) syncStatuses(ctx context.Context) {
 }
 
 func (m *Manager) Stop(ctx context.Context) error {
+	m.instanceMu.Lock()
+	defer m.instanceMu.Unlock()
 	m.mu.Lock()
 	started := m.started
 	m.started = false
 	m.mu.Unlock()
-	if !started { return nil }
+	if !started {
+		return nil
+	}
 	return m.supervisor.Stop(ctx)
 }
 
