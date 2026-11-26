@@ -15,12 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTuyaCloudTestInstance(t *testing.T, manager interface {
-	Create(context.Context, string, string, string, json.RawMessage, bool) (interface{}, error)
-}, config map[string]any) {
-	t.Helper()
-}
-
 // managedTuyaAdminRequest attaches the same identity populated by session auth.
 func managedTuyaAdminRequest(method, path, body string) *http.Request {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
