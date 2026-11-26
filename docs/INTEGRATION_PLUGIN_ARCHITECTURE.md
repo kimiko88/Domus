@@ -60,6 +60,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `vesync_cloud` | VeSync Cloud | Istanza singola `integration_vesync_cloud`; token account, account ID e metadati regionali sono cifrati, mentre email/password restano input temporanei del login |
 | `imou_life` | Imou Open Platform | Istanza singola `integration_imou_life`; project keys, token utente/amministratore, callback e configurazione push sono cifrati, i campi di sessione restano interni |
 | `xiaomi_home_cloud` | Xiaomi Open Platform / MIoT Cloud | Istanza singola con ID stabile `integration_xiaomi_home_cloud`; App Secret, callback e token OAuth sono cifrati nel Plugin Manager e i campi interni non sono esposti nel catalogo |
+| `midea_smarthome_local` | Midea / Comfee M-Smart LAN | Istanza singola `integration_midea_smarthome`; configurazioni e chiavi M-Smart V3 per dispositivo cifrate, driver A1 V2/V3 |
 | `zigbee2mqtt` | Gateway Zigbee2MQTT | Un'istanza per bridge/base topic |
 | `esphome_mqtt` | Nodi ESPHome via MQTT | Un'istanza per broker/prefix |
 | `knx` | KNXnet/IP | Un'istanza per gateway e mapping di group address |
@@ -71,7 +72,7 @@ Per gli adapter hardware si usa `plugins.Adapter`. Per i servizi il core espone 
 | `voice_satellite` | Satellite microfono/speaker Linux | Multi-istanza per stanza, token dedicato, ALSA e Wyoming wake-word |
 | `matter` | Commissioning/controller Matter | **Sperimentale**: il controller di rete Matter non è ancora un'implementazione completa interoperabile |
 
-Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay, Tuya Cloud, Xiaomi Home Cloud, Imou Life e VeSync Cloud restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
+Il campo `multi_instance` del manifest abilita le istanze multiple solo quando il plugin ha storage e stato isolati. Al momento la proprietà è attiva per MQTT Generic, Zigbee2MQTT, ESPHome MQTT, Z-Wave JS UI, KNX, Modbus TCP e BLE Proxy. Matter, OpenDisplay, Tuya Cloud, Xiaomi Home Cloud, Imou Life, VeSync Cloud e Midea / Comfee restano singola istanza; Tuya Local e BroadLink restano singola istanza finché le tabelle legacy dei dispositivi non vengono separate per integration ID. Il Manager salva le configurazioni cifrate nella tabella integrazioni, ripristina le istanze abilitate all'avvio e ne gestisce enable/disable/restart/delete. Le route storiche Tuya Local, BroadLink e OpenDisplay sono mantenute per compatibilità.
 
 ### Già presenti nel repository, ma non ancora migrati nel Registry
 
@@ -83,7 +84,6 @@ Il campo `multi_instance` del manifest abilita le istanze multiple solo quando i
 | Tuya Cloud option flow | `TuyaCloudHandler` + Plugin Manager | GET/PUT/DELETE ora leggono e aggiornano la configurazione cifrata dell'istanza; POST resta alias per il frontend legacy. `tuya_cloud_config` viene migrata una tantum e rimossa solo dopo persistenza riuscita. DELETE rimuove solo le credenziali OpenAPI e preserva l'istanza OAuth e i token Smart Life |
 | Xiaomi Home locale (miIO) | `internal/plugins/xiaomi_home` + handler locale | Adapter di trasporto già supervisionato; storage legacy dei device/token ancora da isolare per istanza. La parte Open Platform Cloud è invece migrata in `xiaomi_home_cloud` |
 | Imou Life | `imou_life` + handler compatibile | Istanza persistente del Plugin Manager; progetto, token utente e amministratore, callback e push vengono cifrati nell'ID storico `integration_imou_life` |
-| Midea/Comfee SmartHome LAN | `midea_smarthome_local` | Plugin pubblico a istanza singola `integration_midea_smarthome`; mapping dispositivi e credenziali M-Smart V3 cifrati dal Plugin Manager; driver locali V2/V3 |
 | OCPP | `internal/plugins/ocpp` | Separare il protocollo WebSocket per charger dall'algoritmo di modulazione, che resta nel core energia |
 | Firewall/router | `internal/plugins/firewall` | Provider plugin per UniFi/OPNsense/MikroTik; le policy quarantine restano nel core |
 | Provider cloud generico | `internal/plugins/cloud` | Usarlo come utilità circuit-breaker comune, non come integrazione vendor unica |
