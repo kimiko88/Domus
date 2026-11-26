@@ -144,17 +144,17 @@ func (h *TuyaOAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 	h.refreshMu.Lock()
 	token, err := h.client.ExchangeCode(r.Context(), code)
-	if err == nil {
-		err = h.storeToken(r.Context(), userID, token)
+	if err != nil {
+		h.refreshMu.Unlock()
+		logTuyaOAuthFailure("exchange_code", err)
+		http.Error(w, "Tuya non ha completato l'autorizzazione. Verifica le impostazioni OAuth e riprova.", http.StatusBadGateway)
+		return
 	}
+	err = h.storeToken(r.Context(), userID, token)
 	h.refreshMu.Unlock()
 	if err != nil {
-		logTuyaOAuthFailure("exchange_code_or_store_token", err)
-		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "Token ricevuto ma non è stato possibile salvarlo in modo sicuro.", http.StatusInternalServerError)
-		} else {
-			http.Error(w, "Tuya non ha completato l'autorizzazione o il token non è stato salvato.", http.StatusBadGateway)
-		}
+		logTuyaOAuthFailure("store_token", err)
+		http.Error(w, "Token ricevuto ma non è stato possibile salvarlo in modo sicuro.", http.StatusInternalServerError)
 		return
 	}
 	writeOAuthSuccessPage(w)
