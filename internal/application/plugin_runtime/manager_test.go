@@ -2,8 +2,6 @@ package plugin_runtime
 
 import (
 	"context"
-	"github.com/domus-hub/domus/internal/plugins"
-	"github.com/stretchr/testify/require"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,6 +14,7 @@ import (
 	"github.com/domus-hub/domus/internal/infrastructure/config"
 	"github.com/domus-hub/domus/internal/infrastructure/crypto"
 	"github.com/domus-hub/domus/internal/infrastructure/sqlite"
+	"github.com/domus-hub/domus/internal/plugins"
 	"github.com/stretchr/testify/require"
 )
 
