@@ -12,6 +12,7 @@ import (
 )
 
 const CloudPluginType = "xiaomi_home_cloud"
+const CloudIntegrationID = "integration_xiaomi_home_cloud"
 
 // LocalAdapter is the supervised miIO LAN transport provider.
 type LocalAdapter struct {
@@ -45,7 +46,7 @@ type CloudAdapter struct {
 }
 var _ plugins.Adapter = (*CloudAdapter)(nil)
 func NewCloudAdapter(id string,timeout time.Duration)(*CloudAdapter,error){
-	id=strings.TrimSpace(id);if id==""{return nil,errors.New("xiaomi: cloud plugin instance ID is required")}
+	id=strings.TrimSpace(id);if id != CloudIntegrationID{return nil,errors.New("xiaomi: cloud plugin requires the stable integration instance ID")}
 	if timeout<=0{timeout=12*time.Second};if timeout>20*time.Second{return nil,errors.New("xiaomi: cloud HTTP timeout cannot exceed 20s")}
 	return &CloudAdapter{id:id,http:&http.Client{Timeout:timeout}},nil
 }
