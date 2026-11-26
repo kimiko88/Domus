@@ -61,7 +61,7 @@ func TestRegisterBuiltinsCreatesTypedAdapters(t *testing.T) {
 		{"open_display", "open_display", `{"bridge_url":"http://127.0.0.1:10320","token":"test-bridge-token-0123456789abcdef0123456789"}`},
 		{"voice_satellite", "voice_kitchen", `{"server_url":"http://127.0.0.1:8080","bearer_token":"voice-satellite-test-token-0123456789abcdef","wake_address":"127.0.0.1:10400","wake_words":["hey_jarvis"]}`},
 		{"imou_life", "integration_imou_life", `{"access_key":"project-key","secret_key":"project-secret","data_center":"eu","authorization_url":"https://auth.example/imou","public_base_url":"https://domus.example"}`},
-		{"vesync_cloud", "integration_vesync_cloud", `{"session":{"account_id":"ve-account","token":"ve-private-token","country_code":"IT","region":"EU","time_zone":"Europe/Rome"}}`,
+		{"vesync_cloud", "integration_vesync_cloud", `{"session":{"account_id":"ve-account","token":"ve-private-token","country_code":"IT","region":"EU","time_zone":"Europe/Rome"}}`},
 		{"xiaomi_miio_transport", "xiaomi_miio_transport", `{}`},
 		{"xiaomi_home_cloud", "integration_xiaomi_home_cloud", `{"client_id":"123456789012","client_secret":"test-secret","region":"eu","public_base_url":"https://domus.example"}`},
 		{"midea_a1_protocol", "midea_a1_protocol", `{}`},
