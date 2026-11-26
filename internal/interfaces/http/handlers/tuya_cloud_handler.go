@@ -418,6 +418,20 @@ func (h *TuyaCloudHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) 
 	})
 }
 func (h *TuyaCloudHandler) getClient() tuya_cloud.Provider {
+	if h.pluginManager != nil {
+		// OAuth refresh and settings updates may atomically replace the runtime
+		// adapter. Always resolve the current supervised instance instead of
+		// retaining a provider pointer that has already been stopped.
+		if adapter, found := h.pluginManager.GetAdapterByType(tuya_cloud.PluginType); found {
+			if provider, ok := adapter.(tuya_cloud.Provider); ok {
+				h.mu.Lock()
+				h.client = provider
+				h.mu.Unlock()
+				return provider
+			}
+		}
+		return nil
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.client
