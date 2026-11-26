@@ -172,16 +172,36 @@ func TestManagerHidesInternalTransportsAndRejectsUserCreation(t *testing.T) {
 		visible[manifest.ID] = true
 		require.False(t, manifest.Internal, "internal transport %s must not be visible", manifest.ID)
 	}
-	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud", "imou_life", "vesync_cloud"} {
+	for _, publicType := range []string{"mqtt_generic", "tuya_cloud", "open_display", "voice_satellite", "matter", "xiaomi_home_cloud", "imou_life", "vesync_cloud", "midea_smarthome_local"} {
 		require.True(t, visible[publicType], "public integration type %s should be visible", publicType)
 	}
-	for _, internalType := range []string{"xiaomi_miio_transport", "midea_a1_protocol"} {
+	for _, internalType := range []string{"xiaomi_miio_transport"} {
 		require.False(t, visible[internalType], "internal transport %s must be hidden", internalType)
 		_, err := manager.Create(context.Background(), "internal_"+internalType, internalType, "hidden", json.RawMessage(`{}`), false)
 		require.ErrorIs(t, err, ErrInternalPlugin)
 	}
 }
 
+
+func TestManagerCreatesManagedMideaInstanceAsPublicPlugin(t *testing.T) {
+	manager, _, _ := newTestManager(t)
+	instance, err := manager.Create(
+		context.Background(),
+		"integration_midea_smarthome",
+		"midea_smarthome_local",
+		"Midea / Comfee SmartHome (LAN)",
+		json.RawMessage(`{"devices":[]}`),
+		false,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "integration_midea_smarthome", instance.ID)
+	require.Equal(t, "midea_smarthome_local", instance.Type)
+	require.False(t, instance.Enabled)
+
+	config, err := manager.GetConfig(context.Background(), instance.ID)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"devices":[]}`, string(config))
+}
 
 func TestListTypesHidesInternalImouSessionFields(t *testing.T) {
 	manager, _, _ := newTestManager(t)
