@@ -22,6 +22,11 @@ func TestLocalAdapterLifecycle(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCloudAdapterRejectsNoncanonicalInstanceID(t *testing.T) {
+	_, err := NewCloudAdapter("xiaomi_custom", 12*time.Second)
+	require.ErrorContains(t, err, "stable integration instance ID")
+}
+
 func TestCloudAdapterLifecycleAndClientValidation(t *testing.T) {
 	adapter, err := NewCloudAdapter("integration_xiaomi_home_cloud", 12*time.Second)
 	require.NoError(t, err)
