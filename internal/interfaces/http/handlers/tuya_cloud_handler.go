@@ -50,24 +50,28 @@ func (h *TuyaCloudHandler) WithLocalAdapter(adapter *tuya_local.Adapter) *TuyaCl
 func (h *TuyaCloudHandler) WithStorage(db *sql.DB, cipher *crypto.EnvelopeCipher) *TuyaCloudHandler {
 	h.db = db
 	h.cipher = cipher
-	if db != nil {
-		_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS tuya_cloud_config (
-			id TEXT PRIMARY KEY,
-			client_id TEXT NOT NULL,
-			secret_enc TEXT NOT NULL,
-			uid TEXT NOT NULL,
-			endpoint TEXT NOT NULL,
-			updated_at INTEGER NOT NULL
-		)`)
-		if err := h.loadStoredConfig(context.Background()); err != nil {
-			// Keep the HTTP handler alive: an administrator can replace a legacy
-			// secret through SaveConfig. Do not silently discard vault failures.
-			slog.Error("tuya cloud: could not restore the encrypted legacy configuration", "error", err)
+	if db == nil {
+		return h
+	}
+	if h.pluginManager != nil {
+		if err := h.migrateLegacyConfig(context.Background()); err != nil {
+			// The legacy row is retained on every migration failure.
+			slog.Error("tuya cloud: could not migrate the legacy encrypted configuration", "error", err)
 		}
+		return h
+	}
+
+	// Compatibility path for installations without the Plugin Manager.
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS tuya_cloud_config (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, secret_enc TEXT NOT NULL, uid TEXT NOT NULL, endpoint TEXT NOT NULL, updated_at INTEGER NOT NULL)")
+	if err != nil {
+		slog.Error("tuya cloud: could not initialize the legacy configuration table", "error", err)
+		return h
+	}
+	if err := h.loadStoredConfig(context.Background()); err != nil {
+		slog.Error("tuya cloud: could not restore the encrypted legacy configuration", "error", err)
 	}
 	return h
 }
-
 func (h *TuyaCloudHandler) loadStoredConfig(ctx context.Context) error {
 	if h.db == nil || h.cipher == nil {
 		return nil
