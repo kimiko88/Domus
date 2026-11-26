@@ -199,7 +199,8 @@ func (h *TuyaCloudHandler) providerForConfig(ctx context.Context, cfg tuya_cloud
 
 func (h *TuyaCloudHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/config", h.GetConfig)
-	r.Post("/config", h.SaveConfig)
+	r.Put("/config", h.SaveConfig) // canonical update method
+	r.Post("/config", h.SaveConfig) // compatibility alias for existing clients
 	r.Delete("/config", h.DeleteConfig)
 	r.Get("/devices", h.ListDevices)
 	r.Get("/devices/{deviceID}/functions", h.ListFunctions)
