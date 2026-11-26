@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/domus-hub/domus/internal/domain/integration"
 	"github.com/domus-hub/domus/internal/plugins/xiaomi_home"
@@ -39,6 +42,43 @@ func (h *XiaomiCloudHandler) loadManagedConfig(ctx context.Context) (*xiaomiClou
 	var config xiaomiCloudConfig
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return nil, fmt.Errorf("xiaomi: decode encrypted plugin configuration: %w", err)
+	}
+
+	// The catalog's generic option form can create an instance using only its
+	// public fields. Materialize callback capabilities inside the encrypted
+	// configuration on first use, and keep the redirect URI aligned if the
+	// administrator later changes the public base URL through Plugin Manager.
+	if config.ClientID != "" && config.ClientSecret != "" && config.Region != "" && strings.TrimSpace(config.PublicBaseURL) != "" {
+		if err := validHTTPSBaseURL(config.PublicBaseURL); err != nil {
+			return nil, fmt.Errorf("xiaomi: invalid public callback base URL: %w", err)
+		}
+		changed := false
+		if config.CallbackSecret == "" {
+			var secret [32]byte
+			if _, err := rand.Read(secret[:]); err != nil {
+				return nil, fmt.Errorf("xiaomi: generate callback capability: %w", err)
+			}
+			config.CallbackSecret = hex.EncodeToString(secret[:])
+			changed = true
+		}
+		if config.EventSecret == "" {
+			var secret [32]byte
+			if _, err := rand.Read(secret[:]); err != nil {
+				return nil, fmt.Errorf("xiaomi: generate event capability: %w", err)
+			}
+			config.EventSecret = hex.EncodeToString(secret[:])
+			changed = true
+		}
+		expectedRedirect := strings.TrimRight(strings.TrimSpace(config.PublicBaseURL), "/") + "/api/v1/integrations/xiaomi-home/cloud/callback/" + config.CallbackSecret
+		if config.RedirectURL != expectedRedirect {
+			config.RedirectURL = expectedRedirect
+			changed = true
+		}
+		if changed {
+			if err := h.saveManagedConfig(ctx, config, "disconnected"); err != nil {
+				return nil, fmt.Errorf("xiaomi: persist generated callback capabilities: %w", err)
+			}
+		}
 	}
 	return &config, nil
 }
