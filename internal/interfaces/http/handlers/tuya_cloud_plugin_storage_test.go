@@ -102,7 +102,7 @@ func TestTuyaCloudOptionFlowMigratesLegacyConfigAndPreservesOAuthState(t *testin
 	require.Equal(t, "legacy-openapi-client", readRawJSONString(stored, "client_id"))
 	require.Contains(t, string(stored["smart_life_oauth"]), "oauth-access")
 	require.Equal(t, "smart-life-app-client", readRawJSONString(stored, "oauth_client_id"))
-	require.NotContains(t, string(configJSON), legacySecret, "Manager.GetConfig is a trusted decrypted accessor; encrypted repository data must be tested separately")
+	require.Contains(t, string(configJSON), legacySecret, "trusted application-layer config access should decrypt the persisted secret")
 
 	var encrypted []byte
 	require.NoError(t, db.QueryRowContext(ctx,
