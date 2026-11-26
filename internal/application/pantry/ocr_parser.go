@@ -149,7 +149,7 @@ func (p *ReceiptParser) ParseText(text string) (*domain.Receipt, error) {
 		}
 
 		priceVal, err := parseReceiptMoney(pm[1])
-		if err != nil || priceVal <= 0 || priceVal > 500 {
+		if err != nil || priceVal <= 0 || priceVal > 1_000_000 {
 			continue
 		}
 

@@ -141,3 +141,12 @@ func TestReceiptParserRejectsImpossibleCalendarDate(t *testing.T) {
 		t.Fatalf("parser accepted impossible date %q", res.Date)
 	}
 }
+
+func TestReceiptParserKeepsHighValueInvoiceLines(t *testing.T) {
+	raw := "FATTURA\nNOTEBOOK 1.299,00\nTOTALE FATTURA 1.299,00"
+	receipt, err := appPantry.NewReceiptParser().ParseText(raw)
+	if err != nil { t.Fatalf("unexpected parse error: %v", err) }
+	if len(receipt.Items) != 1 { t.Fatalf("expected one invoice item, got %d", len(receipt.Items)) }
+	if receipt.Items[0].TotalPrice != 1299.00 { t.Fatalf("expected item price 1299.00, got %.2f", receipt.Items[0].TotalPrice) }
+	if receipt.TotalAmount != 1299.00 { t.Fatalf("expected invoice total 1299.00, got %.2f", receipt.TotalAmount) }
+}
