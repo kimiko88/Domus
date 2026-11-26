@@ -282,25 +282,20 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if vesyncHandler != nil {
 				vesyncHandler.WithPluginManager(manager)
 			}
+			if mideaHandler != nil {
+				mideaHandler.WithPluginManager(manager)
+			}
 
 			// These protocol transports are managed by the shared plugin runtime,
 			// while their existing HTTP handlers continue to own the encrypted
 			// user/account configuration and public API compatibility.
 			var xiaomiLocalRuntime *xiaomi_home.LocalAdapter
-			var mideaRuntime *midea.RuntimeAdapter
 
 			if xiaomiHomeHandler != nil {
 				if adapter, err := manager.Prepare(context.Background(), "xiaomi_miio_transport", "xiaomi_miio_transport", json.RawMessage(`{}`)); err != nil {
 					slog.Error("Xiaomi Home local plugin preparation failed", "error", err)
 				} else if typed, ok := adapter.(*xiaomi_home.LocalAdapter); ok {
 					xiaomiLocalRuntime = typed
-				}
-			}
-			if mideaHandler != nil {
-				if adapter, err := manager.Prepare(context.Background(), "midea_a1_protocol", "midea_a1_protocol", json.RawMessage(`{}`)); err != nil {
-					slog.Error("Midea SmartHome plugin preparation failed", "error", err)
-				} else if typed, ok := adapter.(*midea.RuntimeAdapter); ok {
-					mideaRuntime = typed
 				}
 			}
 			if srv.repos.DB != nil {
@@ -392,9 +387,15 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 			if xiaomiHomeHandler != nil && xiaomiLocalRuntime != nil {
 				if err := xiaomiHomeHandler.WithPluginAdapter(xiaomiLocalRuntime); err != nil { slog.Error("Xiaomi Home local handler could not bind plugin runtime", "error", err) }
 			}
-			if mideaHandler != nil && mideaRuntime != nil {
-				if err := mideaHandler.WithRuntimeAdapter(mideaRuntime); err != nil {
-					slog.Error("Midea handler could not bind its managed protocol engine", "error", err)
+			if mideaHandler != nil {
+				if adapter, ok := manager.GetAdapter(midea.IntegrationID); ok {
+					if typed, ok := adapter.(*midea.RuntimeAdapter); ok {
+						if err := mideaHandler.WithRuntimeAdapter(typed); err != nil {
+							slog.Error("Midea handler could not bind its managed plugin instance", "error", err)
+						}
+					} else {
+						slog.Error("Midea plugin manager returned an unexpected adapter type")
+					}
 				}
 			}
 			if tuyaCloudInstanceID != "" {
