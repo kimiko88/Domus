@@ -111,3 +111,34 @@ func TestChoreHandler_Lifecycle(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
+
+
+func TestChoreHandler_ExportICalIncludesRecurrenceInterval(t *testing.T) {
+	repos, bus := setupTestEnvironment(t)
+	choreService := appchore.NewService(repos.Chores, bus)
+	handler := handlers.NewChoreHandler(repos.Chores, choreService)
+
+	r := chi.NewRouter()
+	r.Post("/chores", handler.Create)
+	r.Get("/chores/calendar.ics", handler.ExportICal)
+
+	createBody, err := json.Marshal(map[string]any{
+		"title":           "Pulire i filtri",
+		"priority":        "medium",
+		"recurrence_type": "weekly",
+		"recurrence_rule": "INTERVAL=2",
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/chores", bytes.NewReader(createBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	req = httptest.NewRequest(http.MethodGet, "/chores/calendar.ics", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "RRULE:FREQ=WEEKLY;INTERVAL=2")
+	assert.Contains(t, w.Header().Get("Content-Type"), "text/calendar")
+}

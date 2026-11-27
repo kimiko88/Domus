@@ -55,7 +55,8 @@ const form = ref({
   assigned_user_id: '',
   priority: 'medium' as ChorePriority,
   due_date: '',
-  recurrence_type: 'none' as ChoreRecurrence
+  recurrence_type: 'none' as ChoreRecurrence,
+  recurrence_interval: 1
 })
 
 onMounted(async () => {
@@ -89,6 +90,31 @@ function getAssigneeName(userId?: string): string {
   if (!userId) return t('chores.view.wholeFamily')
   const member = familyStore.members.find((m) => m.id === userId)
   return member ? member.username : t('chores.view.memberFallback')
+}
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function getRecurrenceInterval(rule?: string): number {
+  if (!rule) return 1
+  const match = rule.match(/(?:^|;)\s*INTERVAL\s*=\s*(\d+)/i)
+  const legacyValue = /^\d+$/.test(rule.trim()) ? Number(rule.trim()) : undefined
+  const interval = match ? Number(match[1]) : (legacyValue ?? 1)
+  return Number.isSafeInteger(interval) && interval > 0 ? Math.min(interval, 999) : 1
+}
+
+function getRecurrenceLabel(chore: Chore): string {
+  if (!['daily', 'weekly', 'monthly'].includes(chore.recurrence_type)) {
+    return t(`chores.recurrences.${chore.recurrence_type}`)
+  }
+  const interval = getRecurrenceInterval(chore.recurrence_rule)
+  const unitKey = chore.recurrence_type === 'daily'
+    ? (interval === 1 ? 'dayUnit' : 'daysUnit')
+    : chore.recurrence_type === 'weekly'
+      ? (interval === 1 ? 'weekUnit' : 'weeksUnit')
+      : (interval === 1 ? 'monthUnit' : 'monthsUnit')
+  return t('chores.view.repeatEvery', { interval, unit: t(`chores.view.${unitKey}`) })
 }
 
 function formatDate(dateStr?: string) {
@@ -145,7 +171,10 @@ async function handleCreateChore() {
       assigned_user_id: form.value.assigned_user_id || undefined,
       priority: form.value.priority,
       due_date: dueIso,
-      recurrence_type: form.value.recurrence_type
+      recurrence_type: form.value.recurrence_type,
+      recurrence_rule: form.value.recurrence_type === 'none'
+        ? undefined
+        : `INTERVAL=${Math.max(1, Math.min(999, Math.trunc(Number(form.value.recurrence_interval) || 1)))}`
     })
     showCreateModal.value = false
     const assignedText = form.value.assigned_user_id
@@ -160,7 +189,8 @@ async function handleCreateChore() {
       assigned_user_id: '',
       priority: 'medium',
       due_date: '',
-      recurrence_type: 'none'
+      recurrence_type: 'none',
+      recurrence_interval: 1
     }
   } catch {
     notifStore.error(t('common.error'), t('chores.view.createFailed'))
@@ -220,13 +250,13 @@ const calendarDays = computed<CalendarDay[]>(() => {
 
   const days: CalendarDay[] = []
   const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = localDateKey(today)
 
   // Leading days from previous month
   const prevMonthLastDay = new Date(year, month, 0).getDate()
   for (let i = startDayOfWeek - 1; i > 0; i--) {
     const d = new Date(year, month - 1, prevMonthLastDay - i + 1)
-    const dStr = d.toISOString().split('T')[0]
+    const dStr = localDateKey(d)
     days.push({
       date: d,
       dateString: dStr,
@@ -253,10 +283,11 @@ const calendarDays = computed<CalendarDay[]>(() => {
   }
 
   // Trailing days to fill 35 or 42 grid cells
-  const remainingCells = (7 - (days.length % 7)) % 7
+  const targetCellCount = days.length <= 35 ? 35 : 42
+  const remainingCells = targetCellCount - days.length
   for (let i = 1; i <= remainingCells; i++) {
     const d = new Date(year, month + 1, i)
-    const dStr = d.toISOString().split('T')[0]
+    const dStr = localDateKey(d)
     days.push({
       date: d,
       dateString: dStr,
@@ -271,9 +302,10 @@ const calendarDays = computed<CalendarDay[]>(() => {
 })
 
 function getChoresForDate(dateStr: string): Chore[] {
-  return choresStore.chores.filter((c) => {
-    if (!c.due_date) return false
-    return c.due_date.startsWith(dateStr)
+  return choresStore.chores.filter((chore) => {
+    if (!chore.due_date) return false
+    const dueDate = new Date(chore.due_date)
+    return !Number.isNaN(dueDate.getTime()) && localDateKey(dueDate) === dateStr
   })
 }
 
@@ -309,7 +341,7 @@ interface WeekDay {
 const weekDays = computed<WeekDay[]>(() => {
   const start = getStartOfWeek(calendarDate.value)
   const days: WeekDay[] = []
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = localDateKey(new Date())
   for (let i = 0; i < 7; i++) {
     const d = new Date(start)
     d.setDate(start.getDate() + i)
@@ -330,7 +362,7 @@ const weekDays = computed<WeekDay[]>(() => {
 const selectedDayData = computed(() => {
   const d = calendarDate.value
   const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = localDateKey(new Date())
   return {
     date: d,
     dateString: dStr,
@@ -366,6 +398,7 @@ const currentMonthLabel = computed(() => currentPeriodLabel.value)
 function prevPeriod() {
   const d = new Date(calendarDate.value)
   if (calendarViewMode.value === 'month') {
+    d.setDate(1)
     d.setMonth(d.getMonth() - 1)
   } else if (calendarViewMode.value === 'week') {
     d.setDate(d.getDate() - 7)
@@ -378,6 +411,7 @@ function prevPeriod() {
 function nextPeriod() {
   const d = new Date(calendarDate.value)
   if (calendarViewMode.value === 'month') {
+    d.setDate(1)
     d.setMonth(d.getMonth() + 1)
   } else if (calendarViewMode.value === 'week') {
     d.setDate(d.getDate() + 7)
@@ -400,7 +434,8 @@ function goToToday() {
 }
 
 function selectDayView(dateStr: string) {
-  calendarDate.value = new Date(dateStr)
+  const [year, month, day] = dateStr.split('-').map(Number)
+  calendarDate.value = new Date(year, month - 1, day)
   calendarViewMode.value = 'day'
 }
 </script>
@@ -585,7 +620,7 @@ function selectDayView(dateStr: string) {
               <!-- Recurrence -->
               <span v-if="chore.recurrence_type !== 'none'" class="meta-tag recurrence">
                 <Repeat class="meta-icon" />
-                {{ t(`chores.recurrences.${chore.recurrence_type}`) }}
+                {{ getRecurrenceLabel(chore) }}
               </span>
             </div>
           </div>
@@ -689,7 +724,8 @@ function selectDayView(dateStr: string) {
               'is-current-month': day.isCurrentMonth,
               'is-today': day.isToday
             }"
-            @click="openCreateForDate(day.dateString)"
+            @click="selectDayView(day.dateString)"
+            :title="t('chores.view.openDay')"
           >
             <div class="cell-header">
               <span
@@ -728,6 +764,19 @@ function selectDayView(dateStr: string) {
                   {{ chore.assigned_user_id ? getAssigneeName(chore.assigned_user_id).slice(0, 3) : t('chores.view.familyShort') }}
                 </span>
               </div>
+            </div>
+            <div
+              v-if="day.chores.length"
+              class="cell-mobile-summary"
+              :aria-label="day.chores.map((chore) => chore.title).join(', ')"
+            >
+              <span
+                v-for="chore in day.chores.slice(0, 3)"
+                :key="chore.id"
+                class="priority-dot"
+                :class="chore.priority"
+              ></span>
+              <span class="mobile-chore-count">{{ day.chores.length }}</span>
             </div>
           </div>
         </div>
@@ -852,7 +901,7 @@ function selectDayView(dateStr: string) {
                   </span>
                   <span v-if="chore.recurrence_type && chore.recurrence_type !== 'none'" class="recurrence-pill">
                     <Repeat :size="12" />
-                    <span>{{ t(`chores.recurrences.${chore.recurrence_type}`) }}</span>
+                    <span>{{ getRecurrenceLabel(chore) }}</span>
                   </span>
                 </div>
 
@@ -978,6 +1027,34 @@ function selectDayView(dateStr: string) {
                 <option value="monthly">{{ t('chores.view.monthly') }}</option>
               </select>
             </div>
+          </div>
+
+          <div v-if="form.recurrence_type !== 'none'" class="form-group recurrence-interval-group">
+            <label for="chore-recurrence-interval">{{ t('chores.view.recurrenceInterval') }}</label>
+            <div class="recurrence-interval-control">
+              <span>{{ t('chores.view.every') }}</span>
+              <input
+                id="chore-recurrence-interval"
+                v-model.number="form.recurrence_interval"
+                type="number"
+                min="1"
+                max="999"
+                step="1"
+                inputmode="numeric"
+                required
+                :aria-label="t('chores.view.recurrenceInterval')"
+              />
+              <span>
+                {{
+                  form.recurrence_type === 'daily'
+                    ? t(form.recurrence_interval === 1 ? 'chores.view.dayUnit' : 'chores.view.daysUnit')
+                    : form.recurrence_type === 'weekly'
+                      ? t(form.recurrence_interval === 1 ? 'chores.view.weekUnit' : 'chores.view.weeksUnit')
+                      : t(form.recurrence_interval === 1 ? 'chores.view.monthUnit' : 'chores.view.monthsUnit')
+                }}
+              </span>
+            </div>
+            <span class="field-hint">{{ t('chores.view.recurrenceIntervalHint') }}</span>
           </div>
 
           <div class="modal-footer">
@@ -2577,5 +2654,164 @@ function selectDayView(dateStr: string) {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Responsive layout: avoid page-level overflow and keep the calendar usable on touch screens. */
+.chores-view,
+.calendar-view-section,
+.list-view-section,
+.calendar-grid-container,
+.week-grid-container,
+.day-view-container {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.calendar-weekdays,
+.calendar-cells-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-day-cell,
+.cell-chores-list,
+.badge-title { min-width: 0; }
+.cell-mobile-summary { display: none; }
+.recurrence-interval-control {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+}
+.recurrence-interval-control input {
+  width: 5.25rem;
+  min-width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.recurrence-interval-control span:last-child { overflow-wrap: anywhere; }
+.recurrence-interval-group {
+  padding: 0.85rem;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 0.6rem;
+  background: rgba(59, 130, 246, 0.06);
+}
+@media (max-width: 900px) {
+  .chores-view { padding: 1rem; gap: 1rem; }
+  .calendar-nav-bar { align-items: flex-start; }
+  .cal-legend { flex-wrap: wrap; row-gap: 0.45rem; }
+  .calendar-cells-grid { grid-auto-rows: minmax(92px, auto); }
+  .cal-day-cell { padding: 0.4rem; }
+  .cell-chores-list { max-height: 72px; }
+  .cal-chore-badge { gap: 0.25rem; padding: 0.2rem 0.3rem; }
+  .badge-assignee { display: none; }
+  .week-grid-container {
+    width: 100%; max-width: 100%; overflow-x: auto;
+    overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .week-day-col { scroll-snap-align: start; }
+}
+@media (max-width: 640px) {
+  .chores-view { padding: 0.75rem; gap: 0.85rem; }
+  .chores-header { align-items: stretch; flex-direction: column; }
+  .chores-header > div:first-child { min-width: 0; }
+  .title-with-badge { align-items: flex-start; flex-wrap: wrap; gap: 0.45rem 0.65rem; }
+  .title-with-badge h1 { font-size: 1.45rem; }
+  .subtitle { margin-bottom: 0; }
+  .header-action-group {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%; gap: 0.5rem;
+  }
+  .view-mode-toggle { grid-column: 1 / -1; width: 100%; }
+  .toggle-btn { flex: 1; justify-content: center; min-width: 0; padding: 0.55rem 0.4rem; }
+  .header-action-group > .btn-secondary,
+  .header-action-group > .btn-primary {
+    justify-content: center; min-width: 0; padding: 0.6rem 0.45rem; font-size: 0.78rem;
+  }
+  .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; }
+  .stat-card { flex-direction: column; align-items: flex-start; gap: 0.45rem; padding: 0.7rem; min-width: 0; }
+  .stat-icon-wrap { width: 2rem; height: 2rem; }
+  .stat-icon { width: 1.1rem; height: 1.1rem; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: 0.68rem; line-height: 1.2; overflow-wrap: anywhere; }
+  .filter-tabs-bar { overflow: hidden; }
+  .tabs-list {
+    overflow-x: auto; padding-bottom: 0.35rem; scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn { flex: 0 0 auto; white-space: nowrap; padding: 0.5rem 0.7rem; font-size: 0.8rem; }
+  .chore-card { align-items: flex-start; gap: 0.65rem; padding: 0.85rem; }
+  .chore-main { min-width: 0; }
+  .chore-title-row { gap: 0.45rem; }
+  .assignee-pill { max-width: 100%; }
+  .assignee-pill span { overflow-wrap: anywhere; }
+  .calendar-nav-bar { flex-direction: column; align-items: stretch; gap: 0.75rem; padding: 0.75rem; }
+  .cal-nav-left {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center; gap: 0.35rem; width: 100%;
+  }
+  .month-heading {
+    min-width: 0; margin: 0; padding: 0 0.15rem; text-align: center;
+    font-size: 0.95rem; overflow-wrap: anywhere;
+  }
+  .nav-arrow-btn { width: 2rem; height: 2rem; }
+  .btn-today { padding: 0.4rem 0.55rem; font-size: 0.75rem; }
+  .cal-view-selector { display: flex; width: 100%; }
+  .cal-view-btn { flex: 1; min-width: 0; padding: 0.55rem 0.35rem; font-size: 0.78rem; }
+  .cal-legend {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem; font-size: 0.68rem;
+  }
+  .legend-item { min-width: 0; gap: 0.25rem; white-space: nowrap; }
+  .calendar-grid-container { border-radius: 0.65rem; }
+  .calendar-weekdays { padding: 0.5rem 0; font-size: 0.68rem; }
+  .calendar-cells-grid { grid-auto-rows: minmax(76px, auto); }
+  .cal-day-cell { min-height: 76px; padding: 0.28rem; gap: 0.15rem; overflow: hidden; }
+  .cell-day-num { width: 1.45rem; height: 1.45rem; font-size: 0.75rem; }
+  .cell-add-btn { opacity: 1; width: 1.15rem; height: 1.15rem; flex: 0 0 auto; }
+  .cell-chores-list { display: none; }
+  .cell-mobile-summary {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.2rem; min-height: 1.15rem; overflow: hidden;
+  }
+  .cell-mobile-summary .priority-dot { width: 0.38rem; height: 0.38rem; }
+  .mobile-chore-count { font-size: 0.62rem; font-weight: 700; color: var(--text-main); line-height: 1; }
+  .week-grid-container {
+    grid-template-columns: repeat(7, minmax(145px, 1fr));
+    gap: 0.55rem; padding-bottom: 0.75rem;
+  }
+  .week-day-col { min-height: 360px; padding: 0.65rem; scroll-snap-align: start; }
+  .week-col-chores { min-width: 0; }
+  .day-view-hero { align-items: flex-start; padding: 1rem; }
+  .day-hero-title { font-size: 1.15rem; overflow-wrap: anywhere; }
+  .day-view-hero > .btn-primary { width: 100%; justify-content: center; }
+  .day-chore-card { align-items: flex-start; padding: 0.85rem; gap: 0.5rem; }
+  .day-chore-main { min-width: 0; gap: 0.65rem; }
+  .chore-info-block { min-width: 0; }
+  .day-chore-actions { margin-left: 0; }
+  .modal-backdrop {
+    align-items: flex-start; justify-content: center; overflow-y: auto;
+    padding: max(0.65rem, env(safe-area-inset-top)) 0.65rem max(0.65rem, env(safe-area-inset-bottom));
+  }
+  .modal-card {
+    width: 100%; max-width: 100%; max-height: calc(100dvh - 1.3rem);
+    margin: auto 0; padding: 1rem; border-radius: 0.7rem;
+  }
+  .modal-header h2 { min-width: 0; font-size: 1.05rem; overflow-wrap: anywhere; }
+  .form-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .form-group input, .form-group textarea, .form-group select { min-width: 0; width: 100%; }
+  .modal-footer { flex-direction: column-reverse; gap: 0.5rem; }
+  .modal-footer > button { width: 100%; justify-content: center; }
+  .feed-copy-box { flex-direction: column; min-width: 0; }
+  .feed-input, .btn-copy { min-width: 0; width: 100%; }
+  .gcal-modal { max-height: calc(100dvh - 1.3rem); }
+}
+@media (max-width: 380px) {
+  .chores-view { padding: 0.55rem; }
+  .calendar-weekdays { font-size: 0.62rem; }
+  .calendar-cells-grid { grid-auto-rows: minmax(66px, auto); }
+  .cal-day-cell { min-height: 66px; padding: 0.2rem; }
+  .cell-day-num { width: 1.3rem; height: 1.3rem; }
+  .cal-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .header-action-group > .btn-secondary, .header-action-group > .btn-primary { font-size: 0.72rem; }
 }
 </style>

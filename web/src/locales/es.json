@@ -1709,7 +1709,7 @@
       "casa": "Hogar y limpieza",
       "altro": "Otros"
     },
-        "receiptHistory": {
+    "receiptHistory": {
       "title": "Historial de compras",
       "subtitle": "Tickets y facturas guardados, editables después de importarlos.",
       "empty": "Todavía no hay compras guardadas. Confirma un ticket escaneado para verlo aquí.",
@@ -1738,9 +1738,21 @@
       "saving": "Guardando…",
       "cancel": "Cancelar",
       "saveError": "No se pudo actualizar la compra. Comprueba el movimiento financiero vinculado e inténtalo de nuevo.",
-      "categories": { "produce": "Frutas y verduras", "dairy": "Lácteos", "meat_fish": "Carne y pescado", "bakery": "Panadería", "pantry": "Despensa", "frozen": "Congelados", "drinks": "Bebidas", "condiments": "Condimentos", "snacks": "Snacks", "household": "Hogar", "other": "Otros" }
+      "categories": {
+        "produce": "Frutas y verduras",
+        "dairy": "Lácteos",
+        "meat_fish": "Carne y pescado",
+        "bakery": "Panadería",
+        "pantry": "Despensa",
+        "frozen": "Congelados",
+        "drinks": "Bebidas",
+        "condiments": "Condimentos",
+        "snacks": "Snacks",
+        "household": "Hogar",
+        "other": "Otros"
+      }
     },
-"view": {
+    "view": {
       "scanReceipt": "Escanear recibo",
       "moveBoughtToPantry": "Mover la compra a la despensa ({count})",
       "moveShoppingToPantry": "Mover los artículos de la compra a la despensa",
@@ -1979,7 +1991,17 @@
       "addChoreForDay": "Añadir tarea a este día",
       "clickToCompleteTitle": "Pulsa para completar: {title}",
       "deleteChoreAria": "Eliminar tarea",
-      "assigneeFamily": "Toda la familia"
+      "assigneeFamily": "Toda la familia",
+      "recurrenceInterval": "Intervalo de repetición",
+      "recurrenceIntervalHint": "Elige cuántos días, semanas o meses deben pasar entre repeticiones (1–999).",
+      "every": "Cada",
+      "dayUnit": "día",
+      "daysUnit": "días",
+      "weekUnit": "semana",
+      "weeksUnit": "semanas",
+      "monthUnit": "mes",
+      "monthsUnit": "meses",
+      "repeatEvery": "Cada {interval} {unit}"
     }
   },
   "helpers": {

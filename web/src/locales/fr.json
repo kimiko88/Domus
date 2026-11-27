@@ -1709,7 +1709,7 @@
       "casa": "Maison et nettoyage",
       "altro": "Autre"
     },
-        "receiptHistory": {
+    "receiptHistory": {
       "title": "Historique des achats",
       "subtitle": "Tickets et factures enregistrés, modifiables après importation.",
       "empty": "Aucun achat enregistré. Confirmez un ticket scanné pour le retrouver ici.",
@@ -1738,9 +1738,21 @@
       "saving": "Enregistrement…",
       "cancel": "Annuler",
       "saveError": "Impossible de modifier l’achat. Vérifiez le mouvement financier associé et réessayez.",
-      "categories": { "produce": "Fruits et légumes", "dairy": "Produits laitiers", "meat_fish": "Viande et poisson", "bakery": "Boulangerie", "pantry": "Épicerie", "frozen": "Surgelés", "drinks": "Boissons", "condiments": "Condiments", "snacks": "Snacks", "household": "Maison", "other": "Autre" }
+      "categories": {
+        "produce": "Fruits et légumes",
+        "dairy": "Produits laitiers",
+        "meat_fish": "Viande et poisson",
+        "bakery": "Boulangerie",
+        "pantry": "Épicerie",
+        "frozen": "Surgelés",
+        "drinks": "Boissons",
+        "condiments": "Condiments",
+        "snacks": "Snacks",
+        "household": "Maison",
+        "other": "Autre"
+      }
     },
-"view": {
+    "view": {
       "scanReceipt": "Scanner un ticket de caisse",
       "moveBoughtToPantry": "Transférer les achats au garde-manger ({count})",
       "moveShoppingToPantry": "Transférer les articles de la liste de courses dans le garde-manger",
@@ -1979,7 +1991,17 @@
       "addChoreForDay": "Ajouter une tâche à cette journée",
       "clickToCompleteTitle": "Cliquer pour terminer : {title}",
       "deleteChoreAria": "Supprimer la tâche",
-      "assigneeFamily": "Toute la famille"
+      "assigneeFamily": "Toute la famille",
+      "recurrenceInterval": "Intervalle de répétition",
+      "recurrenceIntervalHint": "Choisissez le nombre de jours, semaines ou mois entre deux occurrences (1 à 999).",
+      "every": "Tous les",
+      "dayUnit": "jour",
+      "daysUnit": "jours",
+      "weekUnit": "semaine",
+      "weeksUnit": "semaines",
+      "monthUnit": "mois",
+      "monthsUnit": "mois",
+      "repeatEvery": "Tous les {interval} {unit}"
     }
   },
   "helpers": {
