@@ -1709,7 +1709,7 @@
       "casa": "Home & cleaning",
       "altro": "Other"
     },
-        "receiptHistory": {
+    "receiptHistory": {
       "title": "Purchase history",
       "subtitle": "Saved receipts and invoices, editable after import.",
       "empty": "No purchases saved yet. Confirm a scanned receipt and it will appear here.",
@@ -1738,9 +1738,21 @@
       "saving": "Saving…",
       "cancel": "Cancel",
       "saveError": "Could not update the purchase. Check the linked finance movement and try again.",
-      "categories": { "produce": "Produce", "dairy": "Dairy", "meat_fish": "Meat & fish", "bakery": "Bakery", "pantry": "Pantry", "frozen": "Frozen", "drinks": "Drinks", "condiments": "Condiments", "snacks": "Snacks", "household": "Household", "other": "Other" }
+      "categories": {
+        "produce": "Produce",
+        "dairy": "Dairy",
+        "meat_fish": "Meat & fish",
+        "bakery": "Bakery",
+        "pantry": "Pantry",
+        "frozen": "Frozen",
+        "drinks": "Drinks",
+        "condiments": "Condiments",
+        "snacks": "Snacks",
+        "household": "Household",
+        "other": "Other"
+      }
     },
-"view": {
+    "view": {
       "scanReceipt": "Scan receipt",
       "moveBoughtToPantry": "Move shopping to pantry ({count})",
       "moveShoppingToPantry": "Move shopping items to pantry",
@@ -1978,7 +1990,17 @@
       "addChoreForDay": "Add a chore for this day",
       "clickToCompleteTitle": "Click to complete: {title}",
       "deleteChoreAria": "Delete chore",
-      "assigneeFamily": "Whole family"
+      "assigneeFamily": "Whole family",
+      "recurrenceInterval": "Recurrence interval",
+      "recurrenceIntervalHint": "Choose how many days, weeks or months between occurrences (1–999).",
+      "every": "Every",
+      "dayUnit": "day",
+      "daysUnit": "days",
+      "weekUnit": "week",
+      "weeksUnit": "weeks",
+      "monthUnit": "month",
+      "monthsUnit": "months",
+      "repeatEvery": "Every {interval} {unit}"
     },
     "newChore": "New chore"
   },

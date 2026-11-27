@@ -1709,7 +1709,7 @@
       "casa": "Haushalt und Reinigung",
       "altro": "Sonstiges"
     },
-        "receiptHistory": {
+    "receiptHistory": {
       "title": "Einkaufsverlauf",
       "subtitle": "Gespeicherte Kassenbons und Rechnungen, auch nach dem Import bearbeitbar.",
       "empty": "Noch keine Einkäufe gespeichert. Bestätige einen gescannten Beleg, um ihn hier zu sehen.",
@@ -1738,9 +1738,21 @@
       "saving": "Wird gespeichert…",
       "cancel": "Abbrechen",
       "saveError": "Der Einkauf konnte nicht aktualisiert werden. Prüfe den verknüpften Finanzvorgang und versuche es erneut.",
-      "categories": { "produce": "Obst und Gemüse", "dairy": "Milchprodukte", "meat_fish": "Fleisch und Fisch", "bakery": "Backwaren", "pantry": "Vorrat", "frozen": "Tiefkühlkost", "drinks": "Getränke", "condiments": "Würzmittel", "snacks": "Snacks", "household": "Haushalt", "other": "Sonstiges" }
+      "categories": {
+        "produce": "Obst und Gemüse",
+        "dairy": "Milchprodukte",
+        "meat_fish": "Fleisch und Fisch",
+        "bakery": "Backwaren",
+        "pantry": "Vorrat",
+        "frozen": "Tiefkühlkost",
+        "drinks": "Getränke",
+        "condiments": "Würzmittel",
+        "snacks": "Snacks",
+        "household": "Haushalt",
+        "other": "Sonstiges"
+      }
     },
-"view": {
+    "view": {
       "scanReceipt": "Kassenbon scannen",
       "moveBoughtToPantry": "Einkäufe in den Vorrat verschieben ({count})",
       "moveShoppingToPantry": "Einkaufsartikel in den Vorrat verschieben",
@@ -1979,7 +1991,17 @@
       "addChoreForDay": "Aufgabe für diesen Tag hinzufügen",
       "clickToCompleteTitle": "Zum Abschließen klicken: {title}",
       "deleteChoreAria": "Aufgabe löschen",
-      "assigneeFamily": "Ganze Familie"
+      "assigneeFamily": "Ganze Familie",
+      "recurrenceInterval": "Wiederholungsintervall",
+      "recurrenceIntervalHint": "Lege fest, wie viele Tage, Wochen oder Monate zwischen den Wiederholungen liegen (1–999).",
+      "every": "Alle",
+      "dayUnit": "Tag",
+      "daysUnit": "Tage",
+      "weekUnit": "Woche",
+      "weeksUnit": "Wochen",
+      "monthUnit": "Monat",
+      "monthsUnit": "Monate",
+      "repeatEvery": "Alle {interval} {unit}"
     }
   },
   "helpers": {

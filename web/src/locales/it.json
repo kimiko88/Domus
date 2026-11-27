@@ -1709,7 +1709,7 @@
       "casa": "Casa e pulizie",
       "altro": "Altro"
     },
-        "receiptHistory": {
+    "receiptHistory": {
       "title": "Storico degli acquisti",
       "subtitle": "Scontrini e fatture salvati, modificabili anche dopo l’importazione.",
       "empty": "Non hai ancora salvato acquisti. Dopo aver confermato uno scontrino, lo troverai qui.",
@@ -1738,9 +1738,21 @@
       "saving": "Salvataggio…",
       "cancel": "Annulla",
       "saveError": "Non è stato possibile aggiornare l’acquisto. Verifica il collegamento al bilancio e riprova.",
-      "categories": { "produce": "Ortofrutta", "dairy": "Latticini", "meat_fish": "Carne e pesce", "bakery": "Forno", "pantry": "Dispensa", "frozen": "Surgelati", "drinks": "Bevande", "condiments": "Condimenti", "snacks": "Snack", "household": "Casa", "other": "Altro" }
+      "categories": {
+        "produce": "Ortofrutta",
+        "dairy": "Latticini",
+        "meat_fish": "Carne e pesce",
+        "bakery": "Forno",
+        "pantry": "Dispensa",
+        "frozen": "Surgelati",
+        "drinks": "Bevande",
+        "condiments": "Condimenti",
+        "snacks": "Snack",
+        "household": "Casa",
+        "other": "Altro"
+      }
     },
-"view": {
+    "view": {
       "scanReceipt": "Scansiona scontrino",
       "moveBoughtToPantry": "Sposta la spesa in dispensa ({count})",
       "moveShoppingToPantry": "Sposta articoli della spesa nella dispensa",
@@ -1978,7 +1990,17 @@
       "addChoreForDay": "Aggiungi faccenda a questo giorno",
       "clickToCompleteTitle": "Clicca per completare: {title}",
       "deleteChoreAria": "Elimina faccenda",
-      "assigneeFamily": "Tutta la famiglia"
+      "assigneeFamily": "Tutta la famiglia",
+      "recurrenceInterval": "Intervallo di ripetizione",
+      "recurrenceIntervalHint": "Scegli ogni quanti giorni, settimane o mesi ripetere la faccenda (da 1 a 999).",
+      "every": "Ogni",
+      "dayUnit": "giorno",
+      "daysUnit": "giorni",
+      "weekUnit": "settimana",
+      "weeksUnit": "settimane",
+      "monthUnit": "mese",
+      "monthsUnit": "mesi",
+      "repeatEvery": "Ogni {interval} {unit}"
     },
     "newChore": "Nuova Faccenda"
   },

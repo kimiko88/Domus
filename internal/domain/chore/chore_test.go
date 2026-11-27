@@ -48,6 +48,17 @@ func TestChore_Validate(t *testing.T) {
 		assert.ErrorIs(t, c.Validate(), ErrInvalidTitle)
 	})
 
+	t.Run("invalid recurrence interval", func(t *testing.T) {
+		c := &Chore{Title: "Pulire casa", RecurrenceType: RecurrenceWeekly, RecurrenceRule: "INTERVAL=0"}
+		assert.ErrorIs(t, c.Validate(), ErrInvalidRecurrenceInterval)
+	})
+
+	t.Run("legacy numeric interval remains supported", func(t *testing.T) {
+		c := &Chore{Title: "Pulire casa", RecurrenceType: RecurrenceDaily, RecurrenceRule: "2"}
+		require.NoError(t, c.Validate())
+		assert.Equal(t, 2, c.RecurrenceInterval())
+	})
+
 	t.Run("json serialization", func(t *testing.T) {
 		now := time.Now().Truncate(time.Second)
 		c := &Chore{
@@ -91,6 +102,36 @@ func TestChore_NextDueDate(t *testing.T) {
 		next := c.NextDueDate(base)
 		require.NotNil(t, next)
 		assert.Equal(t, time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC), *next)
+	})
+
+	t.Run("recurrence every three days", func(t *testing.T) {
+		c := &Chore{RecurrenceType: RecurrenceDaily, RecurrenceRule: "INTERVAL=3"}
+		next := c.NextDueDate(base)
+		require.NotNil(t, next)
+		assert.Equal(t, time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC), *next)
+	})
+
+	t.Run("recurrence every two weeks", func(t *testing.T) {
+		c := &Chore{RecurrenceType: RecurrenceWeekly, RecurrenceRule: "INTERVAL=2"}
+		next := c.NextDueDate(base)
+		require.NotNil(t, next)
+		assert.Equal(t, time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC), *next)
+	})
+
+	t.Run("monthly recurrence clamps at end of shorter month", func(t *testing.T) {
+		c := &Chore{RecurrenceType: RecurrenceMonthly}
+		january31 := time.Date(2026, 1, 31, 9, 30, 0, 0, time.UTC)
+		next := c.NextDueDate(january31)
+		require.NotNil(t, next)
+		assert.Equal(t, time.Date(2026, 2, 28, 9, 30, 0, 0, time.UTC), *next)
+	})
+
+	t.Run("recurrence every two months", func(t *testing.T) {
+		c := &Chore{RecurrenceType: RecurrenceMonthly, RecurrenceRule: "INTERVAL=2"}
+		december31 := time.Date(2026, 12, 31, 9, 30, 0, 0, time.UTC)
+		next := c.NextDueDate(december31)
+		require.NotNil(t, next)
+		assert.Equal(t, time.Date(2027, 2, 28, 9, 30, 0, 0, time.UTC), *next)
 	})
 
 	t.Run("recurrence none or telemetry returns nil", func(t *testing.T) {

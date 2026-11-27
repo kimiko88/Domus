@@ -4,13 +4,15 @@ package chore
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var (
 	ErrInvalidTitle  = errors.New("chore: title cannot be empty and must be under 150 characters")
-	ErrChoreNotFound = errors.New("chore: not found")
+	ErrChoreNotFound            = errors.New("chore: not found")
+	ErrInvalidRecurrenceInterval = errors.New("chore: recurrence interval must be between 1 and 999")
 )
 
 type Priority string
@@ -73,23 +75,83 @@ func (c *Chore) Validate() error {
 	if c.Status == "" {
 		c.Status = StatusPending
 	}
+	if _, err := parseRecurrenceInterval(c.RecurrenceRule); err != nil {
+		return err
+	}
 	return nil
+}
+
+// RecurrenceInterval returns the configured recurrence interval, defaulting to one
+// for chores created before interval support was introduced.
+func (c *Chore) RecurrenceInterval() int {
+	interval, err := parseRecurrenceInterval(c.RecurrenceRule)
+	if err != nil {
+		return 1
+	}
+	return interval
+}
+
+func parseRecurrenceInterval(rule string) (int, error) {
+	rule = strings.TrimSpace(rule)
+	if rule == "" {
+		return 1, nil
+	}
+	// Older clients stored the interval as a plain number.
+	if value, err := strconv.Atoi(rule); err == nil {
+		if value < 1 || value > 999 {
+			return 0, ErrInvalidRecurrenceInterval
+		}
+		return value, nil
+	}
+
+	normalized := strings.TrimPrefix(strings.ToUpper(rule), "RRULE:")
+	for _, part := range strings.Split(normalized, ";") {
+		keyValue := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(keyValue) != 2 || !strings.EqualFold(strings.TrimSpace(keyValue[0]), "INTERVAL") {
+			continue
+		}
+		value, err := strconv.Atoi(strings.TrimSpace(keyValue[1]))
+		if err != nil || value < 1 || value > 999 {
+			return 0, ErrInvalidRecurrenceInterval
+		}
+		return value, nil
+	}
+	return 1, nil
 }
 
 // NextDueDate calculates the next occurrence after completion for recurring chores.
 func (c *Chore) NextDueDate(from time.Time) *time.Time {
+	interval := c.RecurrenceInterval()
 	var next time.Time
 	switch c.RecurrenceType {
 	case RecurrenceDaily:
-		next = from.AddDate(0, 0, 1)
+		next = from.AddDate(0, 0, interval)
 	case RecurrenceWeekly:
-		next = from.AddDate(0, 0, 7)
+		next = from.AddDate(0, 0, 7*interval)
 	case RecurrenceMonthly:
-		next = from.AddDate(0, 1, 0)
+		next = addMonthsClamped(from, interval)
 	default:
 		return nil
 	}
 	return &next
+}
+
+// addMonthsClamped preserves the day when possible and clamps to the last day
+// of shorter months (for example, January 31st becomes February 28th or 29th).
+func addMonthsClamped(from time.Time, months int) time.Time {
+	targetMonth := time.Date(
+		from.Year(), from.Month()+time.Month(months), 1,
+		from.Hour(), from.Minute(), from.Second(), from.Nanosecond(), from.Location(),
+	)
+	lastDay := time.Date(targetMonth.Year(), targetMonth.Month()+1, 0, 0, 0, 0, 0, from.Location()).Day()
+	day := from.Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(
+		targetMonth.Year(), targetMonth.Month(), day,
+		from.Hour(), from.Minute(), from.Second(), from.Nanosecond(), from.Location(),
+	)
 }
 
 // Repository defines storage operations for domestic chores.

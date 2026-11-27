@@ -157,8 +157,10 @@ func (h *ChoreHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.RecurrenceType != "" {
 		existing.RecurrenceType = req.RecurrenceType
+		existing.RecurrenceRule = req.RecurrenceRule
+	} else if req.RecurrenceRule != "" {
+		existing.RecurrenceRule = req.RecurrenceRule
 	}
-	existing.RecurrenceRule = req.RecurrenceRule
 
 	if req.DueDate != nil && *req.DueDate != "" {
 		if t, err := time.Parse(time.RFC3339, *req.DueDate); err == nil {
@@ -258,13 +260,21 @@ func (h *ChoreHandler) ExportICal(w http.ResponseWriter, r *http.Request) {
 		} else {
 			sb.WriteString("STATUS:CONFIRMED\r\n")
 		}
+		frequency := ""
 		switch c.RecurrenceType {
 		case domainchore.RecurrenceDaily:
-			sb.WriteString("RRULE:FREQ=DAILY\r\n")
+			frequency = "DAILY"
 		case domainchore.RecurrenceWeekly:
-			sb.WriteString("RRULE:FREQ=WEEKLY\r\n")
+			frequency = "WEEKLY"
 		case domainchore.RecurrenceMonthly:
-			sb.WriteString("RRULE:FREQ=MONTHLY\r\n")
+			frequency = "MONTHLY"
+		}
+		if frequency != "" {
+			rule := fmt.Sprintf("RRULE:FREQ=%s", frequency)
+			if interval := c.RecurrenceInterval(); interval > 1 {
+				rule += fmt.Sprintf(";INTERVAL=%d", interval)
+			}
+			sb.WriteString(rule + "\r\n")
 		}
 		sb.WriteString("END:VEVENT\r\n")
 	}
