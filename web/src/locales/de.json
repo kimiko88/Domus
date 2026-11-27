@@ -2001,7 +2001,15 @@
       "weeksUnit": "Wochen",
       "monthUnit": "Monat",
       "monthsUnit": "Monate",
-      "repeatEvery": "Alle {interval} {unit}"
+      "repeatEvery": "Alle {interval} {unit}",
+      "reopenedTitle": "Erledigung rückgängig",
+      "reopenedMessage": "„{title}“ steht wieder auf der Aufgabenliste.",
+      "updatedTitle": "Aufgabe aktualisiert",
+      "updatedMessage": "Die Änderungen an „{title}“ wurden gespeichert.",
+      "updateFailed": "Die Aufgabe konnte nicht aktualisiert werden.",
+      "editHouseholdChore": "Haushaltsaufgabe bearbeiten",
+      "saveChanges": "Änderungen speichern",
+      "editTaskTitle": "„{title}“ bearbeiten"
     }
   },
   "helpers": {

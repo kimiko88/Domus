@@ -37,6 +37,7 @@ const notifStore = useNotificationsStore()
 const currentTab = ref<'all' | 'pending' | 'overdue' | 'completed'>('all')
 const viewMode = ref<'list' | 'calendar'>('list')
 const showCreateModal = ref(false)
+const editingChoreId = ref<string | null>(null)
 const showGCalModal = ref(false)
 
 // Google Calendar sync form state
@@ -127,10 +128,15 @@ function formatDate(dateStr?: string) {
   }
 }
 
-async function handleComplete(chore: Chore) {
+async function handleToggleComplete(chore: Chore) {
   try {
-    await choresStore.completeChore(chore.id)
-    notifStore.success(t('chores.view.completedTitle'), t('chores.view.completedMessage', { title: chore.title }))
+    if (chore.status === 'completed') {
+      await choresStore.reopenChore(chore.id)
+      notifStore.success(t('chores.view.reopenedTitle'), t('chores.view.reopenedMessage', { title: chore.title }))
+    } else {
+      await choresStore.completeChore(chore.id)
+      notifStore.success(t('chores.view.completedTitle'), t('chores.view.completedMessage', { title: chore.title }))
+    }
   } catch {
     notifStore.error(t('common.error'), t('chores.view.completeFailed'))
   }
@@ -145,55 +151,90 @@ async function handleDelete(id: string) {
   }
 }
 
+function resetChoreForm() {
+  form.value = {
+    title: '',
+    description: '',
+    area_id: '',
+    assigned_user_id: '',
+    priority: 'medium',
+    due_date: '',
+    recurrence_type: 'none',
+    recurrence_interval: 1
+  }
+  editingChoreId.value = null
+}
+
 function openCreateForDate(dateStr?: string) {
+  resetChoreForm()
   if (dateStr) {
     // Default to 09:00 of that date
     form.value.due_date = `${dateStr}T09:00`
-  } else {
-    form.value.due_date = ''
   }
   showCreateModal.value = true
 }
 
-async function handleCreateChore() {
+function toDateTimeLocal(dateStr?: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return localDate.toISOString().slice(0, 16)
+}
+
+function openEditChore(chore: Chore) {
+  editingChoreId.value = chore.id
+  form.value = {
+    title: chore.title,
+    description: chore.description || '',
+    area_id: chore.area_id || '',
+    assigned_user_id: chore.assigned_user_id || '',
+    priority: chore.priority,
+    due_date: toDateTimeLocal(chore.due_date),
+    recurrence_type: chore.recurrence_type || 'none',
+    recurrence_interval: getRecurrenceInterval(chore.recurrence_rule)
+  }
+  showCreateModal.value = true
+}
+
+async function handleSaveChore() {
   if (!form.value.title.trim()) return
 
-  let dueIso: string | undefined = undefined
+  let dueIso: string | undefined
   if (form.value.due_date) {
-    dueIso = new Date(form.value.due_date).toISOString()
+    const parsedDate = new Date(form.value.due_date)
+    if (Number.isNaN(parsedDate.getTime())) return
+    dueIso = parsedDate.toISOString()
+  }
+
+  const payload = {
+    title: form.value.title.trim(),
+    description: form.value.description.trim() || undefined,
+    area_id: form.value.area_id || undefined,
+    assigned_user_id: form.value.assigned_user_id || undefined,
+    priority: form.value.priority,
+    due_date: editingChoreId.value ? (dueIso ?? '') : dueIso,
+    recurrence_type: form.value.recurrence_type,
+    recurrence_rule: form.value.recurrence_type === 'none'
+      ? undefined
+      : `INTERVAL=${Math.max(1, Math.min(999, Math.trunc(Number(form.value.recurrence_interval) || 1)))}`
   }
 
   try {
-    await choresStore.createChore({
-      title: form.value.title.trim(),
-      description: form.value.description.trim() || undefined,
-      area_id: form.value.area_id || undefined,
-      assigned_user_id: form.value.assigned_user_id || undefined,
-      priority: form.value.priority,
-      due_date: dueIso,
-      recurrence_type: form.value.recurrence_type,
-      recurrence_rule: form.value.recurrence_type === 'none'
-        ? undefined
-        : `INTERVAL=${Math.max(1, Math.min(999, Math.trunc(Number(form.value.recurrence_interval) || 1)))}`
-    })
-    showCreateModal.value = false
-    const assignedText = form.value.assigned_user_id
-      ? t('chores.view.createdAssigned', { name: getAssigneeName(form.value.assigned_user_id) })
-      : t('chores.view.createdFamily')
-    notifStore.success(t('chores.view.createdTitle'), assignedText)
-
-    form.value = {
-      title: '',
-      description: '',
-      area_id: '',
-      assigned_user_id: '',
-      priority: 'medium',
-      due_date: '',
-      recurrence_type: 'none',
-      recurrence_interval: 1
+    if (editingChoreId.value) {
+      await choresStore.updateChore(editingChoreId.value, payload)
+      notifStore.success(t('chores.view.updatedTitle'), t('chores.view.updatedMessage', { title: payload.title }))
+    } else {
+      await choresStore.createChore(payload)
+      const assignedText = form.value.assigned_user_id
+        ? t('chores.view.createdAssigned', { name: getAssigneeName(form.value.assigned_user_id) })
+        : t('chores.view.createdFamily')
+      notifStore.success(t('chores.view.createdTitle'), assignedText)
     }
+    showCreateModal.value = false
+    resetChoreForm()
   } catch {
-    notifStore.error(t('common.error'), t('chores.view.createFailed'))
+    notifStore.error(t('common.error'), t(editingChoreId.value ? 'chores.view.updateFailed' : 'chores.view.createFailed'))
   }
 }
 
@@ -573,15 +614,15 @@ function selectDayView(dateStr: string) {
           <button
             class="check-btn"
             :class="{ done: chore.status === 'completed' }"
-            :aria-label="t('chores.view.markCompleted', { title: chore.title })"
-            @click="handleComplete(chore)"
+            :aria-label="chore.status === 'completed' ? t('chores.view.markPending') : t('chores.view.markDone')"
+            @click="handleToggleComplete(chore)"
           >
             <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
             <div v-else class="check-circle" />
           </button>
 
           <!-- Main Info -->
-          <div class="chore-main">
+          <div class="chore-main" role="button" tabindex="0" @click="openEditChore(chore)" @keydown.enter="openEditChore(chore)">
             <div class="chore-title-row">
               <h3 class="chore-title" :class="{ strike: chore.status === 'completed' }">
                 {{ chore.title }}
@@ -755,9 +796,18 @@ function selectDayView(dateStr: string) {
                   chore.priority,
                   { 'is-completed': chore.status === 'completed' }
                 ]"
-                @click.stop="handleComplete(chore)"
-                :title="t('chores.view.clickToCompleteTitle', { title: chore.title })"
+                @click.stop="openEditChore(chore)"
+                :title="t('chores.view.editTaskTitle', { title: chore.title })"
               >
+                <button
+                  type="button"
+                  class="cal-chore-check"
+                  @click.stop="handleToggleComplete(chore)"
+                  :aria-label="chore.status === 'completed' ? t('chores.view.markPending') : t('chores.view.markDone')"
+                >
+                  <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
+                  <span v-else class="check-circle-empty"></span>
+                </button>
                 <span class="priority-dot" :class="chore.priority"></span>
                 <span class="badge-title" :class="{ strike: chore.status === 'completed' }">{{ chore.title }}</span>
                 <span class="badge-assignee" :class="{ 'family-all': !chore.assigned_user_id }">
@@ -811,10 +861,19 @@ function selectDayView(dateStr: string) {
               :key="chore.id"
               class="week-chore-card"
               :class="[chore.priority, { 'is-completed': chore.status === 'completed' }]"
-              @click="handleComplete(chore)"
-              :title="t('chores.view.clickToCompleteTitle', { title: chore.title })"
+              @click="openEditChore(chore)"
+              :title="t('chores.view.editTaskTitle', { title: chore.title })"
             >
               <div class="chore-card-top">
+                <button
+                  type="button"
+                  class="calendar-check-btn"
+                  @click.stop="handleToggleComplete(chore)"
+                  :aria-label="chore.status === 'completed' ? t('chores.view.markPending') : t('chores.view.markDone')"
+                >
+                  <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
+                  <span v-else class="check-circle-empty"></span>
+                </button>
                 <span class="priority-dot" :class="chore.priority"></span>
                 <span class="card-time" v-if="chore.due_date && chore.due_date.includes('T')">
                   {{ formatTime(chore.due_date) }}
@@ -881,10 +940,11 @@ function selectDayView(dateStr: string) {
             class="day-chore-card"
             :class="[chore.priority, { 'is-completed': chore.status === 'completed' }]"
           >
-            <div class="day-chore-main" @click="handleComplete(chore)">
+            <div class="day-chore-main" @click="openEditChore(chore)">
               <button
                 type="button"
                 class="checkbox-btn"
+                @click.stop="handleToggleComplete(chore)"
                 :aria-label="chore.status === 'completed' ? t('chores.view.markPending') : t('chores.view.markDone')"
               >
                 <CheckCircle2 v-if="chore.status === 'completed'" class="check-icon done" />
@@ -940,17 +1000,17 @@ function selectDayView(dateStr: string) {
       </div>
     </div>
 
-    <!-- Create Chore Modal -->
+    <!-- Create / Edit Chore Modal -->
     <div v-if="showCreateModal" class="modal-backdrop" @click="showCreateModal = false">
       <div class="modal-card" @click.stop role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-header">
-          <h2 id="modal-title">{{ t('chores.view.newHouseholdChore') }}</h2>
+          <h2 id="modal-title">{{ t(editingChoreId ? 'chores.view.editHouseholdChore' : 'chores.view.newHouseholdChore') }}</h2>
           <button class="modal-close-btn" @click="showCreateModal = false"  :aria-label="t('chores.view.closeWindow')">
             <X class="icon-close" />
           </button>
         </div>
 
-        <form @submit.prevent="handleCreateChore" class="modal-body">
+        <form @submit.prevent="handleSaveChore" class="modal-body">
           <div class="form-group">
             <label for="chore-title">{{ t('chores.view.taskTitle') }} *</label>
             <input
@@ -1059,7 +1119,7 @@ function selectDayView(dateStr: string) {
 
           <div class="modal-footer">
             <button type="button" class="btn-cancel" @click="showCreateModal = false">{{ t('chores.view.cancel') }}</button>
-            <button type="submit" class="btn-primary">{{ t('chores.view.saveAndSchedule') }}</button>
+            <button type="submit" class="btn-primary">{{ t(editingChoreId ? 'chores.view.saveChanges' : 'chores.view.saveAndSchedule') }}</button>
           </div>
         </form>
       </div>
@@ -2814,4 +2874,58 @@ function selectDayView(dateStr: string) {
   .cal-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .header-action-group > .btn-secondary, .header-action-group > .btn-primary { font-size: 0.72rem; }
 }
+/* Editing and check controls remain distinct on both pointer and touch layouts. */
+.chore-title-edit {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.chore-title-edit:hover,
+.day-chore-main:hover .day-chore-title {
+  color: var(--primary);
+}
+.chore-main[role="button"] { cursor: pointer; }
+.chore-main[role="button"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 0.35rem;
+}
+.check-btn,
+.checkbox-btn,
+.cal-chore-check,
+.calendar-check-btn {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cal-chore-check,
+.calendar-check-btn {
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+}
+.cal-chore-check:hover,
+.calendar-check-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.cal-chore-check .check-circle-empty,
+.calendar-check-btn .check-circle-empty {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.cal-chore-badge { cursor: pointer; }
+.week-chore-card { cursor: pointer; }
 </style>

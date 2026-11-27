@@ -203,6 +203,20 @@ func (h *ChoreHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Reopen restores a completed chore when the user toggles its completion marker off.
+func (h *ChoreHandler) Reopen(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.service.ReopenTask(r.Context(), id); err != nil {
+		if errors.Is(err, domainchore.ErrChoreNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "chore not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to reopen chore")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // Delete removes a chore.
 func (h *ChoreHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

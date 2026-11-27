@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -96,8 +97,14 @@ func TestChoreRepository_CRUD(t *testing.T) {
 		Description:    "Svuotare cassetto e pulire spazzole",
 		Priority:       chore.PriorityHigh,
 		DueDate:        &dueDate,
-		RecurrenceType: chore.RecurrenceWeekly,
-		Status:         chore.StatusPending,
+		RecurrenceType:     chore.RecurrenceWeekly,
+		RecurrenceParentID: "chore_parent",
+		Status:             chore.StatusPending,
+	}
+
+	parent := &chore.Chore{ID: "chore_parent", Title: "Pulizia periodica", Status: chore.StatusCompleted}
+	if err := repos.Chores.Create(ctx, parent); err != nil {
+		t.Fatalf("create recurrence parent failed: %v", err)
 	}
 
 	if err := repos.Chores.Create(ctx, task); err != nil {
@@ -108,7 +115,7 @@ func TestChoreRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get chore failed: %v", err)
 	}
-	if got.Title != "Pulizia filtro robot" || got.Priority != chore.PriorityHigh {
+	if got.Title != "Pulizia filtro robot" || got.Priority != chore.PriorityHigh || got.RecurrenceParentID != "chore_parent" {
 		t.Errorf("unexpected chore: %+v", got)
 	}
 
@@ -128,5 +135,58 @@ func TestChoreRepository_CRUD(t *testing.T) {
 	}
 	if len(dueList) != 1 {
 		t.Errorf("expected 1 chore due before 3 hours, got %d", len(dueList))
+	}
+}
+
+
+func TestChoreRepository_ReopenCompletedRemovesOnlyOpenGeneratedChild(t *testing.T) {
+	repos := setupTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	parent := &chore.Chore{
+		ID: "chore_parent", Title: "Pulire casa", Priority: chore.PriorityMedium,
+		RecurrenceType: chore.RecurrenceWeekly, Status: chore.StatusCompleted,
+	}
+	if err := repos.Chores.Create(ctx, parent); err != nil {
+		t.Fatalf("create completed chore failed: %v", err)
+	}
+	parent.LastCompletedAt = &now
+	parent.LastCompletedBy = "alice"
+	if err := repos.Chores.Update(ctx, parent); err != nil {
+		t.Fatalf("set completion metadata failed: %v", err)
+	}
+
+	child := &chore.Chore{
+		ID: "chore_generated", Title: parent.Title, Priority: parent.Priority,
+		RecurrenceType: parent.RecurrenceType, RecurrenceParentID: parent.ID,
+		Status: chore.StatusPending,
+	}
+	unrelated := &chore.Chore{ID: "chore_unrelated", Title: parent.Title, Status: chore.StatusPending}
+	if err := repos.Chores.Create(ctx, child); err != nil {
+		t.Fatalf("create generated chore failed: %v", err)
+	}
+	if err := repos.Chores.Create(ctx, unrelated); err != nil {
+		t.Fatalf("create unrelated chore failed: %v", err)
+	}
+
+	parent.Status = chore.StatusPending
+	parent.LastCompletedAt = nil
+	parent.LastCompletedBy = ""
+	if err := repos.Chores.ReopenCompleted(ctx, parent); err != nil {
+		t.Fatalf("reopen completed chore failed: %v", err)
+	}
+
+	restored, err := repos.Chores.GetByID(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("read restored chore failed: %v", err)
+	}
+	if restored.Status != chore.StatusPending || restored.LastCompletedAt != nil || restored.LastCompletedBy != "" {
+		t.Fatalf("completed chore was not fully restored: %+v", restored)
+	}
+	if _, err := repos.Chores.GetByID(ctx, child.ID); !errors.Is(err, chore.ErrChoreNotFound) {
+		t.Fatalf("expected generated next occurrence to be removed, got err=%v", err)
+	}
+	if _, err := repos.Chores.GetByID(ctx, unrelated.ID); err != nil {
+		t.Fatalf("unrelated chore must remain: %v", err)
 	}
 }

@@ -76,6 +76,9 @@ func (s *Service) CompleteTask(ctx context.Context, id string, completedBy strin
 	if err != nil {
 		return err
 	}
+	if c.Status == domainchore.StatusCompleted {
+		return nil
+	}
 
 	now := time.Now().UTC()
 	c.Status = domainchore.StatusCompleted
@@ -98,8 +101,9 @@ func (s *Service) CompleteTask(ctx context.Context, id string, completedBy strin
 			Priority:       c.Priority,
 			DueDate:        nextDue,
 			RecurrenceType: c.RecurrenceType,
-			RecurrenceRule: c.RecurrenceRule,
-			Status:         domainchore.StatusPending,
+			RecurrenceRule:     c.RecurrenceRule,
+			RecurrenceParentID: c.ID,
+			Status:             domainchore.StatusPending,
 		}
 		if err := s.repo.Create(ctx, nextChore); err != nil {
 			slog.Warn("chores: failed to spawn next recurring chore instance", "error", err)
@@ -122,6 +126,23 @@ func (s *Service) CompleteTask(ctx context.Context, id string, completedBy strin
 	}
 
 	return nil
+}
+
+// ReopenTask restores a completed chore and removes only its next generated
+// occurrence when that occurrence is still pending or overdue.
+func (s *Service) ReopenTask(ctx context.Context, id string) error {
+	c, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if c.Status != domainchore.StatusCompleted {
+		return nil
+	}
+
+	c.Status = domainchore.StatusPending
+	c.LastCompletedAt = nil
+	c.LastCompletedBy = ""
+	return s.repo.ReopenCompleted(ctx, c)
 }
 
 // Scheduler periodically checks for due chores and dispatches reminders.

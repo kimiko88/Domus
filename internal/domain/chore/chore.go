@@ -52,8 +52,9 @@ type Chore struct {
 	Priority        Priority       `json:"priority"`
 	DueDate         *time.Time     `json:"due_date,omitempty"`
 	RecurrenceType  RecurrenceType `json:"recurrence_type"`
-	RecurrenceRule  string         `json:"recurrence_rule,omitempty"`
-	Status          Status         `json:"status"`
+	RecurrenceRule     string         `json:"recurrence_rule,omitempty"`
+	RecurrenceParentID string         `json:"recurrence_parent_id,omitempty"`
+	Status             Status         `json:"status"`
 	LastCompletedAt *time.Time     `json:"last_completed_at,omitempty"`
 	LastCompletedBy string         `json:"last_completed_by,omitempty"`
 	CreatedAt       time.Time      `json:"created_at"`
@@ -160,6 +161,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id string) (*Chore, error)
 	List(ctx context.Context, filter Filter) ([]*Chore, error)
 	Update(ctx context.Context, chore *Chore) error
+	ReopenCompleted(ctx context.Context, chore *Chore) error
 	Delete(ctx context.Context, id string) error
 	GetPendingDueBefore(ctx context.Context, cutoff time.Time) ([]*Chore, error)
 }

@@ -2000,7 +2000,15 @@
       "weeksUnit": "weeks",
       "monthUnit": "month",
       "monthsUnit": "months",
-      "repeatEvery": "Every {interval} {unit}"
+      "repeatEvery": "Every {interval} {unit}",
+      "reopenedTitle": "Completion undone",
+      "reopenedMessage": "“{title}” is back on your to-do list.",
+      "updatedTitle": "Chore updated",
+      "updatedMessage": "Changes to “{title}” have been saved.",
+      "updateFailed": "Unable to update the chore.",
+      "editHouseholdChore": "Edit household chore",
+      "saveChanges": "Save changes",
+      "editTaskTitle": "Edit {title}"
     },
     "newChore": "New chore"
   },

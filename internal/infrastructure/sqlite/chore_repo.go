@@ -43,13 +43,13 @@ func (r *choreRepo) Create(ctx context.Context, c *chore.Chore) error {
 	query := `
 		INSERT INTO chores (
 			id, title, description, area_id, assigned_user_id, priority, due_date,
-			recurrence_type, recurrence_rule, status, last_completed_at, last_completed_by,
+			recurrence_type, recurrence_rule, recurrence_parent_id, status, last_completed_at, last_completed_by,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		c.ID, c.Title, c.Description, areaID, userID,
-		string(c.Priority), dueStr, string(c.RecurrenceType), c.RecurrenceRule,
+		string(c.Priority), dueStr, string(c.RecurrenceType), c.RecurrenceRule, nullableString(c.RecurrenceParentID),
 		string(c.Status), nil, nil,
 		c.CreatedAt.Format(time.RFC3339), c.UpdatedAt.Format(time.RFC3339),
 	)
@@ -59,7 +59,7 @@ func (r *choreRepo) Create(ctx context.Context, c *chore.Chore) error {
 func (r *choreRepo) GetByID(ctx context.Context, id string) (*chore.Chore, error) {
 	query := `
 		SELECT id, title, COALESCE(description, ''), COALESCE(area_id, ''), COALESCE(assigned_user_id, ''),
-		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), status,
+		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), COALESCE(recurrence_parent_id, ''), status,
 		       last_completed_at, COALESCE(last_completed_by, ''), created_at, updated_at
 		FROM chores WHERE id = ?;
 	`
@@ -85,7 +85,7 @@ func (r *choreRepo) List(ctx context.Context, f chore.Filter) ([]*chore.Chore, e
 
 	query := `
 		SELECT id, title, COALESCE(description, ''), COALESCE(area_id, ''), COALESCE(assigned_user_id, ''),
-		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), status,
+		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), COALESCE(recurrence_parent_id, ''), status,
 		       last_completed_at, COALESCE(last_completed_by, ''), created_at, updated_at
 		FROM chores
 	`
@@ -144,13 +144,13 @@ func (r *choreRepo) Update(ctx context.Context, c *chore.Chore) error {
 	query := `
 		UPDATE chores
 		SET title = ?, description = ?, area_id = ?, assigned_user_id = ?,
-		    priority = ?, due_date = ?, recurrence_type = ?, recurrence_rule = ?,
+		    priority = ?, due_date = ?, recurrence_type = ?, recurrence_rule = ?, recurrence_parent_id = ?,
 		    status = ?, last_completed_at = ?, last_completed_by = ?, updated_at = ?
 		WHERE id = ?;
 	`
 	res, err := r.db.ExecContext(ctx, query,
 		c.Title, c.Description, areaID, userID,
-		string(c.Priority), dueStr, string(c.RecurrenceType), c.RecurrenceRule,
+		string(c.Priority), dueStr, string(c.RecurrenceType), c.RecurrenceRule, nullableString(c.RecurrenceParentID),
 		string(c.Status), completedStr, completedBy,
 		c.UpdatedAt.Format(time.RFC3339), c.ID,
 	)
@@ -165,6 +165,57 @@ func (r *choreRepo) Update(ctx context.Context, c *chore.Chore) error {
 		return chore.ErrChoreNotFound
 	}
 	return nil
+}
+
+
+// ReopenCompleted restores the chore and removes only still-open instances generated
+// directly from it. Both changes are committed atomically to keep undo consistent.
+func (r *choreRepo) ReopenCompleted(ctx context.Context, c *chore.Chore) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	updatedAt := time.Now().UTC().Format(time.RFC3339)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE chores
+		SET status = ?, last_completed_at = NULL, last_completed_by = NULL, updated_at = ?
+		WHERE id = ? AND status = 'completed';
+	`, string(chore.StatusPending), updatedAt, c.ID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM chores WHERE id = ?;`, c.ID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists == 0 {
+			return chore.ErrChoreNotFound
+		}
+		return tx.Commit()
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM chores
+		WHERE recurrence_parent_id = ? AND status IN (?, ?);
+	`, c.ID, string(chore.StatusPending), string(chore.StatusOverdue))
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func nullableString(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
 }
 
 func (r *choreRepo) Delete(ctx context.Context, id string) error {
@@ -186,7 +237,7 @@ func (r *choreRepo) Delete(ctx context.Context, id string) error {
 func (r *choreRepo) GetPendingDueBefore(ctx context.Context, cutoff time.Time) ([]*chore.Chore, error) {
 	query := `
 		SELECT id, title, COALESCE(description, ''), COALESCE(area_id, ''), COALESCE(assigned_user_id, ''),
-		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), status,
+		       priority, due_date, recurrence_type, COALESCE(recurrence_rule, ''), COALESCE(recurrence_parent_id, ''), status,
 		       last_completed_at, COALESCE(last_completed_by, ''), created_at, updated_at
 		FROM chores
 		WHERE status = 'pending' AND due_date IS NOT NULL AND due_date <= ?
@@ -221,7 +272,7 @@ func (r *choreRepo) scanChore(s scanner) (*chore.Chore, error) {
 
 	err := s.Scan(
 		&c.ID, &c.Title, &c.Description, &c.AreaID, &c.AssignedUserID,
-		&priorityStr, &dueStr, &recurrenceStr, &c.RecurrenceRule, &statusStr,
+		&priorityStr, &dueStr, &recurrenceStr, &c.RecurrenceRule, &c.RecurrenceParentID, &statusStr,
 		&completedStr, &c.LastCompletedBy, &createdStr, &updatedStr,
 	)
 	if err != nil {

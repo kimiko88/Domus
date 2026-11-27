@@ -438,6 +438,7 @@ export interface Chore {
   due_date?: string
   recurrence_type: ChoreRecurrence
   recurrence_rule?: string
+  recurrence_parent_id?: string
   status: ChoreStatus
   last_completed_at?: string
   last_completed_by?: string

@@ -2000,7 +2000,15 @@
       "weeksUnit": "settimane",
       "monthUnit": "mese",
       "monthsUnit": "mesi",
-      "repeatEvery": "Ogni {interval} {unit}"
+      "repeatEvery": "Ogni {interval} {unit}",
+      "reopenedTitle": "Completamento annullato",
+      "reopenedMessage": "«{title}» è di nuovo da fare.",
+      "updatedTitle": "Faccenda aggiornata",
+      "updatedMessage": "Le modifiche a «{title}» sono state salvate.",
+      "updateFailed": "Impossibile aggiornare la faccenda.",
+      "editHouseholdChore": "Modifica faccenda domestica",
+      "saveChanges": "Salva modifiche",
+      "editTaskTitle": "Modifica {title}"
     },
     "newChore": "Nuova Faccenda"
   },

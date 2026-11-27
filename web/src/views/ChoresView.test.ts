@@ -44,6 +44,8 @@ describe('ChoresView.vue', () => {
     const wrapper = mount(ChoresView)
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.find('h1').text()).toBe('Faccende Domestiche')
     expect(wrapper.find('.stats-grid').exists()).toBe(true)
@@ -81,6 +83,105 @@ describe('ChoresView.vue', () => {
       recurrence_type: 'weekly',
       recurrence_rule: 'INTERVAL=2'
     }))
+  })
+
+  it('opens an existing chore for editing and saves its changes', async () => {
+    const choresStore = useChoresStore()
+    const areasStore = useAreasStore()
+    const existing = {
+      id: 'c-edit',
+      title: 'Pulire il balcone',
+      description: 'Una volta al mese',
+      priority: 'medium' as const,
+      recurrence_type: 'monthly' as const,
+      recurrence_rule: 'INTERVAL=1',
+      status: 'pending' as const,
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(choresStore, 'fetchChores').mockImplementation(async () => {
+      choresStore.chores = [existing]
+      return [existing]
+    })
+    vi.spyOn(choresStore, 'updateChore').mockResolvedValue({
+      ...existing,
+      title: 'Pulire anche le ringhiere'
+    })
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue([])
+
+    const wrapper = mount(ChoresView)
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('.chore-main').trigger('click')
+    expect(wrapper.find('#modal-title').text()).toBe('Modifica faccenda domestica')
+
+    await wrapper.find('#chore-title').setValue('Pulire anche le ringhiere')
+    await wrapper.find('#chore-recurrence-interval').setValue('2')
+    await wrapper.find('form.modal-body').trigger('submit')
+
+    expect(choresStore.updateChore).toHaveBeenCalledWith('c-edit', expect.objectContaining({
+      title: 'Pulire anche le ringhiere',
+      recurrence_type: 'monthly',
+      recurrence_rule: 'INTERVAL=2'
+    }))
+  })
+
+  it('completes a pending chore from its check circle', async () => {
+    const choresStore = useChoresStore()
+    const areasStore = useAreasStore()
+    const pending = {
+      id: 'c-pending',
+      title: 'Annaffiare le piante',
+      priority: 'low' as const,
+      recurrence_type: 'none' as const,
+      status: 'pending' as const,
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(choresStore, 'fetchChores').mockImplementation(async () => {
+      choresStore.chores = [pending]
+      return [pending]
+    })
+    const completeSpy = vi.spyOn(choresStore, 'completeChore').mockResolvedValue()
+    const reopenSpy = vi.spyOn(choresStore, 'reopenChore').mockResolvedValue()
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue([])
+
+    const wrapper = mount(ChoresView)
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('.check-btn').trigger('click')
+
+    expect(completeSpy).toHaveBeenCalledWith('c-pending')
+    expect(reopenSpy).not.toHaveBeenCalled()
+  })
+
+  it('reopens a completed chore when its check circle is clicked again', async () => {
+    const choresStore = useChoresStore()
+    const areasStore = useAreasStore()
+    const completed = {
+      id: 'c-completed',
+      title: 'Pulire i filtri',
+      priority: 'high' as const,
+      recurrence_type: 'weekly' as const,
+      status: 'completed' as const,
+      created_at: '',
+      updated_at: ''
+    }
+    vi.spyOn(choresStore, 'fetchChores').mockImplementation(async () => {
+      choresStore.chores = [completed]
+      return [completed]
+    })
+    const reopenSpy = vi.spyOn(choresStore, 'reopenChore').mockResolvedValue()
+    const completeSpy = vi.spyOn(choresStore, 'completeChore').mockResolvedValue()
+    vi.spyOn(areasStore, 'fetchAreas').mockResolvedValue([])
+
+    const wrapper = mount(ChoresView)
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    await wrapper.find('.check-btn').trigger('click')
+
+    expect(reopenSpy).toHaveBeenCalledWith('c-completed')
+    expect(completeSpy).not.toHaveBeenCalled()
   })
 
   it('opens create modal on button click', async () => {
