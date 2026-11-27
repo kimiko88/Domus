@@ -2010,7 +2010,13 @@
       "saveChanges": "Save changes",
       "editTaskTitle": "Edit {title}"
     },
-    "newChore": "New chore"
+    "newChore": "New chore",
+    "priorities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
   },
   "helpers": {
     "title": "Virtual Entities & Helpers",

@@ -50,6 +50,7 @@ describe('ChoresView.vue', () => {
     expect(wrapper.find('h1').text()).toBe('Faccende Domestiche')
     expect(wrapper.find('.stats-grid').exists()).toBe(true)
     expect(wrapper.text()).toContain('Pulire filtri')
+    expect(wrapper.find('.priority-badge').text()).toContain('Alta')
   })
 
   it('allows a configurable recurrence interval and persists it in the create payload', async () => {

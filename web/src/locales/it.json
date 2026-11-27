@@ -2010,7 +2010,13 @@
       "saveChanges": "Salva modifiche",
       "editTaskTitle": "Modifica {title}"
     },
-    "newChore": "Nuova Faccenda"
+    "newChore": "Nuova Faccenda",
+    "priorities": {
+      "low": "Bassa",
+      "medium": "Media",
+      "high": "Alta",
+      "urgent": "Urgente"
+    }
   },
   "helpers": {
     "title": "Entità Virtuali & Helper",

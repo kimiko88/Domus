@@ -2010,6 +2010,12 @@
       "editHouseholdChore": "Editar tarea doméstica",
       "saveChanges": "Guardar cambios",
       "editTaskTitle": "Editar {title}"
+    },
+    "priorities": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta",
+      "urgent": "Urgente"
     }
   },
   "helpers": {

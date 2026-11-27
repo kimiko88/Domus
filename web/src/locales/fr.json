@@ -2010,6 +2010,12 @@
       "editHouseholdChore": "Modifier la tâche ménagère",
       "saveChanges": "Enregistrer les modifications",
       "editTaskTitle": "Modifier {title}"
+    },
+    "priorities": {
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée",
+      "urgent": "Urgente"
     }
   },
   "helpers": {
