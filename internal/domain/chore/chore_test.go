@@ -126,6 +126,14 @@ func TestChore_NextDueDate(t *testing.T) {
 		assert.Equal(t, time.Date(2026, 2, 28, 9, 30, 0, 0, time.UTC), *next)
 	})
 
+	t.Run("recurrence every two months", func(t *testing.T) {
+		c := &Chore{RecurrenceType: RecurrenceMonthly, RecurrenceRule: "INTERVAL=2"}
+		december31 := time.Date(2026, 12, 31, 9, 30, 0, 0, time.UTC)
+		next := c.NextDueDate(december31)
+		require.NotNil(t, next)
+		assert.Equal(t, time.Date(2027, 2, 28, 9, 30, 0, 0, time.UTC), *next)
+	})
+
 	t.Run("recurrence none or telemetry returns nil", func(t *testing.T) {
 		c1 := &Chore{RecurrenceType: RecurrenceNone}
 		assert.Nil(t, c1.NextDueDate(base))
