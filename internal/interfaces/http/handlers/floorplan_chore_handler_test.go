@@ -195,6 +195,19 @@ func (m *mockChoreHandlerRepo) Update(ctx context.Context, c *domainchore.Chore)
 	m.items[c.ID] = c
 	return nil
 }
+func (m *mockChoreHandlerRepo) ReopenCompleted(ctx context.Context, c *domainchore.Chore) error {
+	if _, ok := m.items[c.ID]; !ok {
+		return domainchore.ErrChoreNotFound
+	}
+	m.items[c.ID] = c
+	for id, candidate := range m.items {
+		if candidate.RecurrenceParentID == c.ID &&
+			(candidate.Status == domainchore.StatusPending || candidate.Status == domainchore.StatusOverdue) {
+			delete(m.items, id)
+		}
+	}
+	return nil
+}
 func (m *mockChoreHandlerRepo) Delete(ctx context.Context, id string) error {
 	delete(m.items, id)
 	return nil

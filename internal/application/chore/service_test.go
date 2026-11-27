@@ -44,6 +44,20 @@ func (m *mockChoreRepo) Update(ctx context.Context, c *domainchore.Chore) error 
 	return nil
 }
 
+func (m *mockChoreRepo) ReopenCompleted(ctx context.Context, c *domainchore.Chore) error {
+	if _, ok := m.items[c.ID]; !ok {
+		return domainchore.ErrChoreNotFound
+	}
+	m.items[c.ID] = c
+	for id, candidate := range m.items {
+		if candidate.RecurrenceParentID == c.ID &&
+			(candidate.Status == domainchore.StatusPending || candidate.Status == domainchore.StatusOverdue) {
+			delete(m.items, id)
+		}
+	}
+	return nil
+}
+
 func (m *mockChoreRepo) Delete(ctx context.Context, id string) error {
 	delete(m.items, id)
 	return nil
@@ -142,6 +156,37 @@ func TestChoreService_CompleteTask(t *testing.T) {
 		assert.Equal(t, domainchore.StatusCompleted, repo.items["chore_recurring"].Status)
 		// Total items should now be 3 (chore_single, chore_recurring, + new recurring instance)
 		assert.Equal(t, 3, len(repo.items))
+	})
+}
+
+func TestChoreService_ReopenTask(t *testing.T) {
+	repo := newMockChoreRepo()
+	svc := NewService(repo, nil)
+	ctx := context.Background()
+
+	t.Run("restores completed chore and removes its generated next occurrence", func(t *testing.T) {
+		doneAt := time.Now().UTC()
+		completed := &domainchore.Chore{ID: "source", Title: "Pulire casa", RecurrenceType: domainchore.RecurrenceWeekly, Status: domainchore.StatusCompleted, LastCompletedAt: &doneAt, LastCompletedBy: "alice"}
+		child := &domainchore.Chore{ID: "next", Title: completed.Title, RecurrenceType: completed.RecurrenceType, RecurrenceParentID: completed.ID, Status: domainchore.StatusPending}
+		unrelated := &domainchore.Chore{ID: "unrelated", Title: completed.Title, Status: domainchore.StatusPending}
+		require.NoError(t, repo.Create(ctx, completed))
+		require.NoError(t, repo.Create(ctx, child))
+		require.NoError(t, repo.Create(ctx, unrelated))
+
+		require.NoError(t, svc.ReopenTask(ctx, completed.ID))
+		assert.Equal(t, domainchore.StatusPending, repo.items[completed.ID].Status)
+		assert.Nil(t, repo.items[completed.ID].LastCompletedAt)
+		assert.Empty(t, repo.items[completed.ID].LastCompletedBy)
+		assert.NotContains(t, repo.items, child.ID)
+		assert.Contains(t, repo.items, unrelated.ID)
+	})
+
+	t.Run("pending chore is unchanged and missing chore is reported", func(t *testing.T) {
+		pending := &domainchore.Chore{ID: "pending", Title: "Spolverare", Status: domainchore.StatusPending}
+		require.NoError(t, repo.Create(ctx, pending))
+		require.NoError(t, svc.ReopenTask(ctx, pending.ID))
+		assert.Equal(t, domainchore.StatusPending, repo.items[pending.ID].Status)
+		assert.ErrorIs(t, svc.ReopenTask(ctx, "missing"), domainchore.ErrChoreNotFound)
 	})
 }
 

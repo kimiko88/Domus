@@ -218,6 +218,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		{version: 24, file: "migrations/000024_secure_alarm_pin_defaults.up.sql"},
 		{version: 25, file: "migrations/000025_climate_history.up.sql"},
 		{version: 26, file: "migrations/000026_receipt_history.up.sql"},
+		{version: 27, file: "migrations/000027_chore_recurrence_links.up.sql"},
 	}
 
 	for _, m := range migrations {

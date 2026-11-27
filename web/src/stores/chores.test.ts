@@ -82,6 +82,32 @@ describe('Chores Store', () => {
     expect(store.chores[0].title).toBe('Cambiare sacchetto aspirapolvere')
   })
 
+  it('updates an existing chore', async () => {
+    const store = useChoresStore()
+    store.chores = [...mockChores]
+    const updated = { ...mockChores[0], title: 'Pulire i filtri della cappa' }
+    vi.mocked(apiClient.put).mockResolvedValueOnce(updated)
+
+    const result = await store.updateChore('chore-1', { title: updated.title })
+    expect(apiClient.put).toHaveBeenCalledWith('/api/v1/chores/chore-1', { title: updated.title })
+    expect(result.title).toBe(updated.title)
+    expect(store.chores[0].title).toBe(updated.title)
+  })
+
+  it('reopens a completed chore and reloads the list', async () => {
+    const store = useChoresStore()
+    store.chores = [...mockChores]
+    vi.mocked(apiClient.post).mockResolvedValueOnce({})
+    vi.mocked(apiClient.get).mockResolvedValueOnce([
+      { ...mockChores[2], status: 'pending', last_completed_at: undefined }
+    ])
+
+    await store.reopenChore('chore-3')
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/chores/chore-3/reopen')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/chores', undefined)
+    expect(store.chores[0].status).toBe('pending')
+  })
+
   it('completes a chore', async () => {
     const store = useChoresStore()
     store.chores = [...mockChores]

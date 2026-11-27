@@ -95,6 +95,16 @@ export const useChoresStore = defineStore('chores', () => {
     }
   }
 
+  async function reopenChore(id: string): Promise<void> {
+    try {
+      await apiClient.post(`/api/v1/chores/${id}/reopen`)
+      await fetchChores()
+    } catch (err: any) {
+      error.value = i18n.global.t('common.errors.actionFailed')
+      throw err
+    }
+  }
+
   async function deleteChore(id: string): Promise<void> {
     try {
       loading.value = true
@@ -141,6 +151,7 @@ export const useChoresStore = defineStore('chores', () => {
     createChore,
     updateChore,
     completeChore,
+    reopenChore,
     deleteChore,
     syncGoogleCalendar,
     getICalSubscriptionUrl

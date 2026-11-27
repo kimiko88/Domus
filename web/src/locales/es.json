@@ -2001,7 +2001,21 @@
       "weeksUnit": "semanas",
       "monthUnit": "mes",
       "monthsUnit": "meses",
-      "repeatEvery": "Cada {interval} {unit}"
+      "repeatEvery": "Cada {interval} {unit}",
+      "reopenedTitle": "Finalización deshecha",
+      "reopenedMessage": "«{title}» vuelve a estar pendiente.",
+      "updatedTitle": "Tarea actualizada",
+      "updatedMessage": "Se han guardado los cambios de «{title}».",
+      "updateFailed": "No se pudo actualizar la tarea.",
+      "editHouseholdChore": "Editar tarea doméstica",
+      "saveChanges": "Guardar cambios",
+      "editTaskTitle": "Editar {title}"
+    },
+    "priorities": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta",
+      "urgent": "Urgente"
     }
   },
   "helpers": {

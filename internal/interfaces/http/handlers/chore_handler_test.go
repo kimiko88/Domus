@@ -28,6 +28,7 @@ func TestChoreHandler_Lifecycle(t *testing.T) {
 	r.Put("/chores/{id}", handler.Update)
 	r.Delete("/chores/{id}", handler.Delete)
 	r.Post("/chores/{id}/complete", handler.Complete)
+	r.Post("/chores/{id}/reopen", handler.Reopen)
 
 	// 1. Create a Chore with daily recurrence
 	dueStr := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
@@ -105,7 +106,31 @@ func TestChoreHandler_Lifecycle(t *testing.T) {
 	assert.Len(t, pendingChores, 1)
 	assert.Equal(t, "Pulizia filtri condizionatore salotto e camera", pendingChores[0].Title)
 
-	// 7. Delete Chore
+	// 7. Undo completion and remove the generated next occurrence.
+	req = httptest.NewRequest(http.MethodPost, "/chores/"+created.ID+"/reopen", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	req = httptest.NewRequest(http.MethodGet, "/chores/"+created.ID, nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var reopened domainchore.Chore
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&reopened))
+	assert.Equal(t, domainchore.StatusPending, reopened.Status)
+	assert.Nil(t, reopened.LastCompletedAt)
+	assert.Empty(t, reopened.LastCompletedBy)
+
+	req = httptest.NewRequest(http.MethodGet, "/chores?status=pending", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&pendingChores))
+	require.Len(t, pendingChores, 1)
+	assert.Equal(t, created.ID, pendingChores[0].ID)
+
+	// 8. Delete Chore
 	req = httptest.NewRequest(http.MethodDelete, "/chores/"+created.ID, nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)

@@ -918,6 +918,7 @@ func NewServer(cfg config.ServerConfig, version string, startedAt time.Time, pin
 						chRouter.Put("/{id}", choreH.Update)
 						chRouter.Delete("/{id}", choreH.Delete)
 						chRouter.Post("/{id}/complete", choreH.Complete)
+						chRouter.Post("/{id}/reopen", choreH.Reopen)
 					})
 				}
 

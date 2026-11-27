@@ -2001,7 +2001,21 @@
       "weeksUnit": "semaines",
       "monthUnit": "mois",
       "monthsUnit": "mois",
-      "repeatEvery": "Tous les {interval} {unit}"
+      "repeatEvery": "Tous les {interval} {unit}",
+      "reopenedTitle": "Terminé annulé",
+      "reopenedMessage": "« {title} » est de nouveau à faire.",
+      "updatedTitle": "Tâche mise à jour",
+      "updatedMessage": "Les modifications de « {title} » ont été enregistrées.",
+      "updateFailed": "Impossible de mettre à jour la tâche.",
+      "editHouseholdChore": "Modifier la tâche ménagère",
+      "saveChanges": "Enregistrer les modifications",
+      "editTaskTitle": "Modifier {title}"
+    },
+    "priorities": {
+      "low": "Faible",
+      "medium": "Moyenne",
+      "high": "Élevée",
+      "urgent": "Urgente"
     }
   },
   "helpers": {
