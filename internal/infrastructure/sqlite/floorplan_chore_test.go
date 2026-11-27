@@ -151,7 +151,6 @@ func TestChoreRepository_ReopenCompletedRemovesOnlyOpenGeneratedChild(t *testing
 		t.Fatalf("create completed chore failed: %v", err)
 	}
 	parent.LastCompletedAt = &now
-	parent.LastCompletedBy = "alice"
 	if err := repos.Chores.Update(ctx, parent); err != nil {
 		t.Fatalf("set completion metadata failed: %v", err)
 	}
