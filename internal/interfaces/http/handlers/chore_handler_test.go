@@ -116,9 +116,11 @@ func TestChoreHandler_Lifecycle(t *testing.T) {
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&afterComplete))
-	assert.Equal(t, domainchore.StatusPending, afterComplete.Status)
-	assert.Nil(t, afterComplete.LastCompletedAt)
+	var reopened domainchore.Chore
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&reopened))
+	assert.Equal(t, domainchore.StatusPending, reopened.Status)
+	assert.Nil(t, reopened.LastCompletedAt)
+	assert.Empty(t, reopened.LastCompletedBy)
 
 	req = httptest.NewRequest(http.MethodGet, "/chores?status=pending", nil)
 	w = httptest.NewRecorder()
